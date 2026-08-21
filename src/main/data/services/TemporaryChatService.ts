@@ -18,6 +18,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import type { PersistTemporaryChatRequest } from '@shared/data/api/schemas/temporaryChats'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
@@ -190,7 +191,7 @@ export class TemporaryChatService {
     return structuredClone(rows).map(rowToMessage)
   }
 
-  persist(topicId: string): { topicId: string; messageCount: number } {
+  persist(topicId: string, options: PersistTemporaryChatRequest = {}): { topicId: string; messageCount: number } {
     // 1. snapshot-and-clear: take the data out of the Maps immediately so that
     // concurrent handlers can't mutate it while the DB transaction is awaiting.
     const topic = this.topics.get(topicId)
@@ -198,6 +199,7 @@ export class TemporaryChatService {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
     const msgs = this.messages.get(topicId) ?? []
+    const persistedMessages = options.discardFailedTurns ? this.withoutFailedTurns(msgs) : msgs
     this.topics.delete(topicId)
     this.messages.delete(topicId)
 
@@ -229,11 +231,11 @@ export class TemporaryChatService {
           }
         )
 
-        // 3. Create the topic's virtual root, then linearize buffered messages under it:
-        // the first message hangs off the root, then parentId[i] = msgs[i-1].id.
+        // 3. Create the topic's virtual root, then linearize retained messages under it:
+        // the first message hangs off the root, then parentId[i] = persistedMessages[i-1].id.
         const rootId = messageService.createRootMessageTx(tx, topic.id)
         let prevId: string = rootId
-        for (const m of msgs) {
+        for (const m of persistedMessages) {
           tx.insert(messageTable)
             .values({
               id: m.id,
@@ -275,13 +277,25 @@ export class TemporaryChatService {
     // Promotion never creates or repairs facts. Rebuild the materialized
     // projection from the records that were captured while the chat was
     // temporary.
-    for (const m of msgs) {
+    for (const m of persistedMessages) {
       if (m.role !== 'assistant') continue
       aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id: m.id })
     }
 
-    logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })
-    return { topicId, messageCount: msgs.length }
+    logger.info('Persisted temporary topic', { topicId, messageCount: persistedMessages.length })
+    return { topicId, messageCount: persistedMessages.length }
+  }
+
+  private withoutFailedTurns(messages: TemporaryMessageRow[]): TemporaryMessageRow[] {
+    const retained: TemporaryMessageRow[] = []
+    for (const message of messages) {
+      if (message.role === 'assistant' && message.status === 'error') {
+        if (retained.at(-1)?.role === 'user') retained.pop()
+        continue
+      }
+      retained.push(message)
+    }
+    return retained
   }
 
   private assertAcceptableAppendDto(dto: CreateMessageDto): void {

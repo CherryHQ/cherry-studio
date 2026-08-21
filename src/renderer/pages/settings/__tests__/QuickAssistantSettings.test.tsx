@@ -98,8 +98,24 @@ vi.mock('@cherrystudio/ui', async () => {
           )
         )
       ),
-    Switch: ({ checked }: { checked: boolean }) =>
-      React.createElement('input', { checked, readOnly: true, type: 'checkbox' })
+    Switch: ({
+      'aria-label': ariaLabel,
+      checked,
+      disabled,
+      onCheckedChange
+    }: {
+      'aria-label'?: string
+      checked: boolean
+      disabled?: boolean
+      onCheckedChange?: (checked: boolean) => void
+    }) =>
+      React.createElement('input', {
+        'aria-label': ariaLabel,
+        checked,
+        disabled,
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.target.checked),
+        type: 'checkbox'
+      })
   }
 })
 
@@ -148,6 +164,7 @@ describe('QuickAssistantSettings', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.save_conversations', false)
     assistantState.assistants = [
       { id: 'assistant-1', name: 'Assistant 1' },
       { id: 'assistant-2', name: 'Assistant 2' }
@@ -250,5 +267,23 @@ describe('QuickAssistantSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.assistant_id')).toBe('assistant-2')
     })
     expect(screen.queryByTestId('assistant-popover')).not.toBeInTheDocument()
+  })
+
+  it('enables history saving only when an assistant is selected', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', '')
+    const { rerender } = render(<QuickAssistantSettings />)
+    const saveSwitch = screen.getByRole('checkbox', { name: 'settings.quickAssistant.save_conversations' })
+
+    expect(saveSwitch).toBeDisabled()
+
+    await user.click(screen.getByRole('radio', { name: 'settings.models.use_assistant' }))
+    rerender(<QuickAssistantSettings />)
+    expect(saveSwitch).toBeEnabled()
+
+    await user.click(saveSwitch)
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.save_conversations')).toBe(true)
+    })
   })
 })

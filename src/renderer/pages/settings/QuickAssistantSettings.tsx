@@ -49,6 +49,7 @@ const QuickAssistantSettings: FC = () => {
   const [readClipboardAtStartup, setReadClipboardAtStartup] = usePreference(
     'feature.quick_assistant.read_clipboard_at_startup'
   )
+  const [saveConversations, setSaveConversations] = usePreference('feature.quick_assistant.save_conversations')
   const [, setTray] = usePreference('app.tray.enabled')
   const [quickAssistantId, setQuickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
 
@@ -136,6 +137,27 @@ const QuickAssistantSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
               <Switch checked={readClipboardAtStartup} onCheckedChange={handleClickReadClipboardAtStartup} />
+            </SettingRow>
+          </>
+        )}
+        {enableQuickAssistant && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle className="flex items-center gap-1">
+                <span>{t('settings.quickAssistant.save_conversations')}</span>
+                <InfoTooltip
+                  content={t('settings.quickAssistant.save_conversations_tooltip')}
+                  placement="right"
+                  iconProps={{ className: 'cursor-pointer' }}
+                />
+              </SettingRowTitle>
+              <Switch
+                aria-label={t('settings.quickAssistant.save_conversations')}
+                checked={saveConversations}
+                disabled={!isAssistantMode}
+                onCheckedChange={setSaveConversations}
+              />
             </SettingRow>
           </>
         )}

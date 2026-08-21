@@ -43,8 +43,8 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   },
 
   '/temporary/topics/:id/persist': {
-    POST: async ({ params }) => {
-      return temporaryChatService.persist(params.id)
+    POST: async ({ params, body }) => {
+      return temporaryChatService.persist(params.id, body)
     }
   }
 }

@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "クリップボードが空です"
     },
+    "errors": {
+      "save_conversation_failed": "この会話を保存できませんでした。新しい会話を始める前に再試行してください。"
+    },
     "feature": {
       "chat": "この質問に回答",
       "explanation": "説明",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "トレイアイコンをクリックして起動",
       "enable_quick_assistant": "クイックアシスタントを有効にする",
       "read_clipboard_at_startup": "起動時にクリップボードを読み取る",
+      "save_conversations": "会話をアシスタントの履歴に保存",
+      "save_conversations_tooltip": "最初の応答後に保存され、選択したアシスタントの下に表示されます。アシスタントモードでのみ利用できます。",
       "title": "クイックアシスタント",
       "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます"
     },

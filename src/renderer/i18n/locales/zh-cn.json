@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "剪贴板为空"
     },
+    "errors": {
+      "save_conversation_failed": "无法保存此对话。请在开始新对话前重试。"
+    },
     "feature": {
       "chat": "回答此问题",
       "explanation": "解释说明",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "点击托盘图标启动",
       "enable_quick_assistant": "启用快捷助手",
       "read_clipboard_at_startup": "启动时读取剪贴板",
+      "save_conversations": "保存对话到助手历史记录",
+      "save_conversations_tooltip": "首轮回复完成后保存，并显示在所选助手下。仅助手模式可用。",
       "title": "快捷助手",
       "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动"
     },

@@ -53,7 +53,7 @@ export interface UseTemporaryTopicResult {
   ready: boolean
   /** Drop the current topic and lease a fresh one. No-op when disabled. */
   reset: () => void
-  /** Move the temporary topic (plus its messages) into SQLite. */
+  /** Move the temporary topic into SQLite, omitting failed user/assistant turns. */
   persist: (initialName?: string) => Promise<void>
 }
 
@@ -67,6 +67,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
    * cleanup path skips DELETE once the topic has migrated to SQLite.
    */
   const activeIdRef = useRef<string | null>(null)
+  const persistingIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!enabled) {
@@ -100,7 +101,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
       setTopicId(null)
       const idToCleanup = activeIdRef.current
       activeIdRef.current = null
-      if (idToCleanup) {
+      if (idToCleanup && persistingIdRef.current !== idToCleanup) {
         void dataApiService.delete(`/temporary/topics/${idToCleanup}`).catch((err) => {
           logger.warn('Failed to release temporary topic on unmount', err as Error)
         })
@@ -114,10 +115,14 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
   const persist = useCallback(async (initialName?: string) => {
     const id = activeIdRef.current
-    if (!id) return
-    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
-    // Clear before unmount so cleanup skips the now-pointless DELETE.
-    activeIdRef.current = null
+    if (!id || persistingIdRef.current === id) return
+    persistingIdRef.current = id
+    try {
+      await dataApiService.post(`/temporary/topics/${id}/persist`, { body: { discardFailedTurns: true } })
+    } finally {
+      if (persistingIdRef.current === id) persistingIdRef.current = null
+    }
+    if (activeIdRef.current === id) activeIdRef.current = null
     logger.debug('Persisted temporary topic', { topicId: id })
 
     const trimmed = initialName?.trim()

@@ -1,5 +1,5 @@
 import { useChat } from '@ai-sdk/react'
-import { Separator } from '@cherrystudio/ui'
+import { Button, Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -81,6 +81,7 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const [saveConversations] = usePreference('feature.quick_assistant.save_conversations')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -101,11 +102,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [])
 
   const lastClipboardTextRef = useRef<string | null>(null)
+  const latestRequestTextRef = useRef('')
+  const initialRequestTextRef = useRef('')
+  const persistingTopicIdRef = useRef<string | null>(null)
+  const persistedTopicIdRef = useRef<string | null>(null)
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
   const { defaultModel: defaultApiModel } = useDefaultModel()
   const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
+  const chosenAssistantId = chosenAssistant?.id
   const currentAssistant = chosenAssistant
   const currentModel = chosenApiModel ?? defaultApiModel
 
@@ -114,8 +120,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const {
     topicId: temporaryTopicId,
     ready: isTopicReady,
-    reset: resetTemporaryTopic
-  } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
+    reset: resetTemporaryTopic,
+    persist: persistTemporaryTopic
+  } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistantId })
 
   const requestText = useMemo(() => {
     const trimmedUserInput = userInputText.trim()
@@ -125,7 +132,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [clipboardText, isFirstMessage, userInputText])
 
   const [isPreparing, setIsPreparing] = useState(false)
+  const [isPersisting, setIsPersisting] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
+  const [failedPersistenceTopicId, setFailedPersistenceTopicId] = useState<string | null>(null)
 
   const {
     messages: chatMessages,
@@ -148,7 +157,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // no assistant content. We accumulate assistant turns across completed
   // streams in `completedAssistants` so the multi-turn conversation
   // renders properly. Cleared on `clear()` together with `setMessages([])`.
-  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const { status: streamStatus, activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const {
     liveAssistants,
     reset: resetExecutionMessages,
@@ -169,6 +178,35 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       }
     }
   }, [activeExecutions, liveAssistants, resetExecutionMessages])
+
+  const persistConversation = useCallback(async () => {
+    const topicId = temporaryTopicId
+    if (!topicId || persistingTopicIdRef.current === topicId || persistedTopicIdRef.current === topicId) {
+      return
+    }
+
+    persistingTopicIdRef.current = topicId
+    setIsPersisting(true)
+    try {
+      await persistTemporaryTopic(initialRequestTextRef.current)
+      persistedTopicIdRef.current = topicId
+      setFailedPersistenceTopicId((failedId) => (failedId === topicId ? null : failedId))
+    } catch (persistError) {
+      setFailedPersistenceTopicId(topicId)
+      logger.error('Failed to save quick assistant conversation', persistError as Error)
+    } finally {
+      if (persistingTopicIdRef.current === topicId) {
+        persistingTopicIdRef.current = null
+        setIsPersisting(false)
+      }
+    }
+  }, [persistTemporaryTopic, temporaryTopicId])
+
+  useEffect(() => {
+    if (!saveConversations || !chosenAssistantId || streamStatus !== 'done') return
+    if (!initialRequestTextRef.current) initialRequestTextRef.current = latestRequestTextRef.current
+    void persistConversation()
+  }, [chosenAssistantId, persistConversation, saveConversations, streamStatus])
 
   useEffect(() => {
     if (isPending) setIsPreparing(false)
@@ -241,10 +279,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setCompletedAssistants([])
     clearExecutionMessages()
     setFlowError(null)
+    setFailedPersistenceTopicId(null)
     setIsPreparing(false)
   }, [stopChat, setMessages, clearExecutionMessages])
 
-  const isLoading = isPreparing || isStreaming
+  const isResponseActive = isPreparing || isStreaming
+  const isInputBlocked = isResponseActive || isPersisting
   const isOutputted = messageItems.some((message) => message.role === 'assistant')
 
   useEffect(() => {
@@ -301,18 +341,24 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
       try {
         setFlowError(null)
+        latestRequestTextRef.current = requestText
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
-        // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
-        void sendMessage({ text: [prompt, requestText].filter(Boolean).join('\n\n') })
+        const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
+        const parentAnchorId = persistedTopicIdRef.current === temporaryTopicId ? latestAssistantUIMsg?.id : undefined
+        if (parentAnchorId) {
+          void sendMessage(message, { body: { parentAnchorId } })
+        } else {
+          void sendMessage(message)
+        }
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
         setFlowError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [sendMessage, temporaryTopicId, isTopicReady, requestText]
+    [isTopicReady, latestAssistantUIMsg, requestText, sendMessage, temporaryTopicId]
   )
 
   const handlePause = useCallback(() => {
@@ -321,13 +367,20 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const resetConversation = useCallback(() => {
     // Drop the current temporary topic and let useTemporaryTopic lease a fresh one.
+    latestRequestTextRef.current = ''
+    initialRequestTextRef.current = ''
     resetTemporaryTopic()
     clear()
   }, [clear, resetTemporaryTopic])
 
   const handleEsc = useCallback(() => {
-    if (isLoading) {
+    if (isResponseActive) {
       handlePause()
+      return
+    }
+
+    if (isPersisting) {
+      void handleCloseWindow()
       return
     }
 
@@ -341,7 +394,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setFlowError(null)
     setRoute('home')
     setUserInputText('')
-  }, [handleCloseWindow, handlePause, isLoading, resetConversation, route])
+  }, [handleCloseWindow, handlePause, isPersisting, isResponseActive, resetConversation, route])
 
   const handleCopy = useCallback(() => {
     if (!content) return
@@ -357,7 +410,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     switch (e.code) {
       case 'Enter':
       case 'NumpadEnter':
-        if (isLoading) return
+        if (isInputBlocked) return
         e.preventDefault()
         if (requestText) {
           if (route === 'home') {
@@ -415,12 +468,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const baseFooterProps = useMemo(
     () => ({
       route,
-      loading: isLoading,
+      loading: isResponseActive,
       onEsc: handleEsc,
       setIsPinned,
       isPinned
     }),
-    [route, isLoading, handleEsc, setIsPinned, isPinned]
+    [route, isResponseActive, handleEsc, setIsPinned, isPinned]
   )
 
   switch (route) {
@@ -435,7 +488,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 text={userInputText}
                 model={currentModel}
                 placeholder={inputPlaceholder}
-                loading={isLoading}
+                loading={isInputBlocked}
                 handleKeyDown={handleKeyDown}
                 handleChange={handleChange}
                 ref={inputBarRef}
@@ -460,6 +513,21 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           {flowError && (
             <div className="mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
               {flowError}
+            </div>
+          )}
+          {failedPersistenceTopicId === temporaryTopicId && (
+            <div className="mb-3 flex items-center gap-2 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
+              <span className="min-w-0 flex-1">{t('quickAssistant.errors.save_conversation_failed')}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0"
+                loading={isPersisting}
+                disabled={isPreparing || isStreaming || isPersisting}
+                onClick={() => void persistConversation()}>
+                {t('common.retry')}
+              </Button>
             </div>
           )}
 
@@ -487,7 +555,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               text={userInputText}
               model={currentModel}
               placeholder={inputPlaceholder}
-              loading={isLoading}
+              loading={isInputBlocked}
               handleKeyDown={handleKeyDown}
               handleChange={handleChange}
               ref={inputBarRef}

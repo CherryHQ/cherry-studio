@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "剪貼簿為空"
     },
+    "errors": {
+      "save_conversation_failed": "無法儲存此對話。請在開始新對話前重試。"
+    },
     "feature": {
       "chat": "回答此問題",
       "explanation": "解釋說明",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "點選系統匣圖示啟動",
       "enable_quick_assistant": "啟用快速助理",
       "read_clipboard_at_startup": "啟動時讀取剪貼簿",
+      "save_conversations": "將對話儲存至助手歷史記錄",
+      "save_conversations_tooltip": "首輪回覆完成後儲存，並顯示於所選助手下。僅限助手模式使用。",
       "title": "快速助理",
       "use_shortcut_to_show": "在系統匣圖示上按一下滑鼠右鍵，或使用快捷鍵啟動"
     },

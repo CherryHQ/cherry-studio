@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "Clipboardul este gol"
     },
+    "errors": {
+      "save_conversation_failed": "Această conversație nu a putut fi salvată. Reîncercați înainte de a începe o conversație nouă."
+    },
     "feature": {
       "chat": "Răspunde la această întrebare",
       "explanation": "Explicație",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "Fă clic pe pictograma din zona de notificare pentru a începe",
       "enable_quick_assistant": "Activează Asistentul rapid",
       "read_clipboard_at_startup": "Citește clipboardul la pornire",
+      "save_conversations": "Salvează conversațiile în istoricul asistentului",
+      "save_conversations_tooltip": "Se salvează după primul răspuns și se afișează sub asistentul selectat. Disponibil doar în modul Asistent.",
       "title": "Asistent rapid",
       "use_shortcut_to_show": "Clic dreapta pe pictograma din zona de notificare sau folosește comenzile rapide pentru a începe"
     },

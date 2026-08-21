@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "El portapapeles está vacío"
     },
+    "errors": {
+      "save_conversation_failed": "No se pudo guardar esta conversación. Vuelve a intentarlo antes de iniciar una nueva conversación."
+    },
     "feature": {
       "chat": "Responder a esta pregunta",
       "explanation": "Explicación",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "Haz clic en el icono de la bandeja para iniciar",
       "enable_quick_assistant": "Habilitar Asistente Rápido",
       "read_clipboard_at_startup": "Leer portapapeles al iniciar",
+      "save_conversations": "Guardar conversaciones en el historial del asistente",
+      "save_conversations_tooltip": "Se guarda después de la primera respuesta y se muestra en el asistente seleccionado. Disponible solo en el modo Asistente.",
       "title": "Asistente Rápido",
       "use_shortcut_to_show": "Haz clic derecho en el icono de la bandeja o usa un atajo de teclado para iniciar"
     },

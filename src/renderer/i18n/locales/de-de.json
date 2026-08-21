@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "Zwischenablage ist leer"
     },
+    "errors": {
+      "save_conversation_failed": "Diese Unterhaltung konnte nicht gespeichert werden. Versuche es erneut, bevor du eine neue Unterhaltung beginnst."
+    },
     "feature": {
       "chat": "Diese Frage beantworten",
       "explanation": "Erklärung",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "Klicken auf Tray-Symbol zum Starten",
       "enable_quick_assistant": "Schnellassistent aktivieren",
       "read_clipboard_at_startup": "Zwischenablage beim Start lesen",
+      "save_conversations": "Unterhaltungen im Assistentenverlauf speichern",
+      "save_conversations_tooltip": "Wird nach der ersten Antwort gespeichert und unter dem ausgewählten Assistenten angezeigt. Nur im Assistentenmodus verfügbar.",
       "title": "Schnellassistent",
       "use_shortcut_to_show": "Rechtsklick auf Tray-Icon oder Shortcut zum Starten"
     },
