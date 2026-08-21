@@ -213,12 +213,15 @@ describe('materialize – shared-cache mirroring', () => {
     expect(fs.existsSync(path.join(bundle, 'git', 'cmd', 'git.exe'))).toBe(true)
   })
 
-  it('never mirrors staging directories into the bundle', () => {
+  it('never mirrors cache-internal directories into the bundle', () => {
     const cache = makeTmpDir('dl-cache-')
     const bundle = makeTmpDir('dl-bundle-')
     fs.writeFileSync(path.join(cache, 'uv'), 'payload')
     fs.mkdirSync(path.join(cache, '.staging-deadbeef', 'uv'), { recursive: true })
     fs.writeFileSync(path.join(cache, '.staging-deadbeef', 'uv', 'uv.0.1.0.part'), 'half a download')
+    // Debris from a run that died between the two renames of a zip-tree commit.
+    fs.mkdirSync(path.join(cache, '.retired-4242-git', 'cmd'), { recursive: true })
+    fs.writeFileSync(path.join(cache, '.retired-4242-git', 'cmd', 'git.exe'), 'previous tree')
 
     materialize(cache, bundle)
 

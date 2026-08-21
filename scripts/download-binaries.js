@@ -27,6 +27,10 @@ const BINARIES_ROOT = path.join(REPO_ROOT, 'resources', 'binaries')
 // its own partial download again to resume it, while two worktrees running
 // against the shared cache at once must never write the same path.
 const STAGING_PREFIX = '.staging-'
+// A tree being replaced is parked under this prefix for the moment between the
+// two renames. A crash there leaves one behind, so it shares the staging rule:
+// cache-internal, never mirrored, swept when a run finishes.
+const RETIRED_PREFIX = '.retired-'
 const STAGING_DIR = STAGING_PREFIX + crypto.createHash('sha256').update(REPO_ROOT).digest('hex').slice(0, 8)
 
 /**
@@ -62,7 +66,7 @@ function materialize(srcDir, destDir) {
   fs.mkdirSync(destDir, { recursive: true })
   const mirrored = fs
     .readdirSync(srcDir, { withFileTypes: true })
-    .filter((entry) => !entry.name.startsWith(STAGING_PREFIX))
+    .filter((entry) => !entry.name.startsWith(STAGING_PREFIX) && !entry.name.startsWith(RETIRED_PREFIX))
   const wanted = new Set(mirrored.map((entry) => entry.name))
   for (const stale of fs.readdirSync(destDir)) {
     if (!wanted.has(stale)) fs.rmSync(path.join(destDir, stale), { recursive: true, force: true })
@@ -475,26 +479,54 @@ function downloadTool(tool, platformKey, outputDir) {
   }
 
   commitStaged(staging, outputDir, pkg)
+  for (const b of pkg.binaries) chmodExec(path.join(outputDir, b))
+
+  // The marker publishes through staging too. Writing it in place would keep
+  // its inode, so the new version would follow every worktree's hard link while
+  // the binaries — replaced by rename, hence new inodes — stayed old there.
+  // isUpToDate and BinaryManager both trust the marker, so those worktrees would
+  // serve stale binaries under the new version number.
+  //
+  // Publishing it last is what makes a concurrent observer safe: seeing the new
+  // marker implies every binary is already in place, and seeing the old one
+  // means isUpToDate re-downloads rather than trusting a partial commit.
+  const stagedMarker = path.join(staging, tool.versionFile)
+  fs.writeFileSync(stagedMarker, tool.version, 'utf8')
+  fs.renameSync(stagedMarker, versionPath)
+
   // Only on success: an interrupted run keeps its partial file to resume from.
   fs.rmSync(staging, { recursive: true, force: true })
-
-  for (const b of pkg.binaries) chmodExec(path.join(outputDir, b))
-  fs.writeFileSync(versionPath, tool.version, 'utf8')
+  try {
+    fs.rmdirSync(path.dirname(staging))
+  } catch {
+    // another tool of this run still has an unfinished download parked there
+  }
   console.log(`[${tool.name}] Installed ${pkg.binaries.join(', ')} ${tool.version}`)
 }
 
 /**
- * Move a verified staging result to its final location with rename, which is
- * atomic: a concurrent run either sees the old file or the new one, never a
- * half-written mix. `zip-tree` moves the whole tree, retiring any previous one
- * first so a shrinking release cannot leave orphans behind.
+ * Move a verified staging result into place with rename, so nothing ever reads a
+ * half-written file. The atomicity is per file, not per tool: a multi-file tool
+ * (uv/uvx, mise.exe/mise-shim.exe) commits as a sequence of renames, and the
+ * zip-tree path has a moment between retiring the old tree and moving the new
+ * one in. A concurrent run can observe those intermediate states. Both runs
+ * publish byte-identical verified content, so the outcome converges either way —
+ * but this is not a transaction, and making it one would need a per-tool lock.
+ * `zip-tree` also retires the previous tree rather than merging into it, so a
+ * shrinking release cannot leave orphans behind.
  */
 function commitStaged(staging, outputDir, pkg) {
   if (pkg.dir) {
     const finalDir = path.join(outputDir, pkg.dir)
-    const retired = `${finalDir}.retired-${process.pid}`
+    const retired = path.join(outputDir, `${RETIRED_PREFIX}${process.pid}-${pkg.dir}`)
     if (fs.existsSync(finalDir)) fs.renameSync(finalDir, retired)
-    fs.renameSync(path.join(staging, pkg.dir), finalDir)
+    try {
+      fs.renameSync(path.join(staging, pkg.dir), finalDir)
+    } catch (error) {
+      // ENOTEMPTY means a concurrent run published first. Both trees passed the
+      // same checksum, so its result is ours — keep it rather than failing.
+      if (error.code !== 'ENOTEMPTY' && error.code !== 'EEXIST') throw error
+    }
     fs.rmSync(retired, { recursive: true, force: true })
     return
   }
@@ -531,12 +563,10 @@ function main() {
     }
   }
 
-  // Drop the staging root once every tool has committed. A failed download keeps
-  // its own directory under it to resume from, and rmdir then simply fails.
-  try {
-    fs.rmdirSync(path.join(outputDir, STAGING_DIR))
-  } catch {
-    // still holds an unfinished download
+  // Retired trees only exist between two renames, so any found here is debris
+  // from a run that died mid-commit.
+  for (const entry of fs.readdirSync(outputDir)) {
+    if (entry.startsWith(RETIRED_PREFIX)) fs.rmSync(path.join(outputDir, entry), { recursive: true, force: true })
   }
 
   if (cacheRoot) {
@@ -581,7 +611,7 @@ function verifyBundledBinaries(platform, arch, options = {}) {
   console.log(`Verified all bundled binaries exist for ${platformKey}`)
 }
 
-module.exports = { download, extract, materialize, verifyBundledBinaries, TOOLS }
+module.exports = { download, downloadTool, extract, materialize, verifyBundledBinaries, TOOLS }
 
 // Only auto-download when run directly (node scripts/download-binaries.js ...).
 // before-pack.js requires this module for verifyBundledBinaries without
