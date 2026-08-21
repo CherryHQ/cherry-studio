@@ -559,6 +559,78 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('stays applied for a recipe with no eponymous bin, through a shim it does expose', async () => {
+      // core:rust exposes rustc/cargo and no `rust`, so a name-keyed `mise which`
+      // reports a working install as unusable (#19075).
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              rust: [{ version: '1.98.0', active: true, install_path: '/mock/cargo/bin' }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') throw new Error('rust is not a mise bin')
+        if (args[0] === 'bin-paths') return { stdout: '/mock/cargo/bin\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async (directory: string) =>
+        directory === '/mock/feature.binary.data/shims' ? ['cargo', 'rustc'] : ['cargo', 'rustc', 'rustup']
+      )
+
+      await expect(service.getToolSnapshots(['rust'])).resolves.toEqual({
+        rust: {
+          name: 'rust',
+          definition: { name: 'rust', tool: 'core:rust' },
+          availability: { source: 'mise', path: '/mock/feature.binary.data/shims/cargo', version: '1.98.0' },
+          application: { status: 'applied', version: '1.98.0' }
+        }
+      })
+    })
+
+    it('reports broken when no bin the recipe exposes has a shim', async () => {
+      // The bin-dir fallback must not turn a lost shim into a runnable tool: with
+      // nothing shimmed, the recipe is not reachable on Cherry's PATH.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              rust: [{ version: '1.98.0', active: true, install_path: '/mock/cargo/bin' }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') throw new Error('rust is not a mise bin')
+        if (args[0] === 'bin-paths') return { stdout: '/mock/cargo/bin\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async (directory: string) =>
+        directory === '/mock/feature.binary.data/shims' ? [] : ['cargo', 'rustc', 'rustup']
+      )
+
+      await expect(service.getToolSnapshots(['rust'])).resolves.toMatchObject({
+        rust: {
+          availability: { source: 'none' },
+          application: { status: 'broken', version: '1.98.0' }
+        }
+      })
+    })
+
     it('stays applied when mise which resolves through its latest-version symlink', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -1805,6 +1877,23 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
+    it('accepts a recipe whose bins are not named after it (core:rust ships rustc/cargo)', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: JSON.stringify({ rust: [{ version: '1.98.0' }] }), stderr: '' }
+        // mise: "rust is not a mise bin" — the recipe exposes rustc/cargo instead.
+        if (args[0] === 'which') throw new Error('rust is not a mise bin')
+        if (args[0] === 'bin-paths') return { stdout: '/mock/feature.binary.data.isolated.cargo/bin\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        (service as any).applyDefinition({ name: 'rust', tool: 'core:rust' }, undefined, [])
+      ).resolves.toBeUndefined()
+    })
+
     it('rejects when the installed tool is not runnable', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -2382,6 +2471,20 @@ describe('BinaryManager', () => {
       } finally {
         process.env = original
       }
+    })
+
+    it('pins rustup/cargo homes to the same dirs the execution env uses', async () => {
+      // rustup keeps its toolchains outside MISE_DATA_DIR. If the install
+      // subprocess and the launched tools disagree on these homes, cargo/rustc
+      // find no toolchain and re-download it into the user's real home.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      const env = await (service as any).buildIsolatedEnv()
+      const execution = getBinaryExecutionEnv()
+
+      expect(env['MISE_RUSTUP_HOME']).toBe(execution['MISE_RUSTUP_HOME'])
+      expect(env['MISE_CARGO_HOME']).toBe(execution['MISE_CARGO_HOME'])
+      expect(execution['MISE_CARGO_HOME']).toBe('/mock/feature.binary.data.isolated.cargo')
     })
 
     it('passes through whitelisted variables but not the ambient auth token', async () => {
@@ -3161,6 +3264,34 @@ describe('BinaryManager', () => {
       expect(JSON.stringify(inventory)).not.toContain('/mock/')
       expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
       expect(mockExecFileAsync.mock.calls[0][1]).toEqual(['ls', '--json'])
+    })
+
+    it('reports a recipe with no eponymous bin as ready through the shims it exposes', async () => {
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ rust: [{ version: '1.98.0', active: true }] }), stderr: '' }
+        if (args[0] === 'bin-paths') return { stdout: '/mock/cargo/bin\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async (directory: string) =>
+        directory === '/mock/feature.binary.data/shims'
+          ? [
+              { name: 'cargo', isFile: () => true, isSymbolicLink: () => false },
+              { name: 'rustc', isFile: () => true, isSymbolicLink: () => false }
+            ]
+          : ['cargo', 'rustc', 'rustup']
+      )
+
+      await expect(service.getToolInventory()).resolves.toContainEqual({
+        name: 'rust',
+        recipe: 'core:rust',
+        status: 'ready',
+        version: '1.98.0'
+      })
     })
 
     it('reads live state on every inventory call instead of caching snapshots', async () => {
