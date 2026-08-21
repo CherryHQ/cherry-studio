@@ -283,8 +283,9 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   resolveArtifactPaneFileSelection: (...args: unknown[]) => resolveArtifactPaneFileSelectionMock(...args)
 }))
 
-vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
-  default: () => <button type="button">Open external</button>
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: () => <button type="button">Open external</button>,
+  loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
 vi.mock('@renderer/hooks/useFileEditSession', () => {

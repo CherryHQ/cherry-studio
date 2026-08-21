@@ -143,8 +143,9 @@ pyodidePromise
   })
 
 // 处理消息
+// 串行化由 PyodideService 的队列负责：stdout/stderr 回调闭包引用模块级 output，并发处理请求会互相串扰
 self.onmessage = async (event) => {
-  const { id, python } = event.data
+  const { id, python, context } = event.data
 
   // 重置输出变量
   output = {
@@ -159,6 +160,16 @@ self.onmessage = async (event) => {
     const pyodide = await pyodidePromise
     // 创建一个新的全局作用域
     globals = pyodide.globals.get('dict')()
+
+    if (context && Object.keys(context).length > 0) {
+      // 经 JSON 往返注入而非 toPy：Pyodide 0.28 把 JS null 转成 jsnull 而非 None，json.loads 保证全是 Python 原生类型
+      // 单表达式且先 pop 临时键再 update：不绑定任何名字，用户 context 的同名键不会被误删
+      globals.set('__cherry_studio_context_json__', JSON.stringify(context))
+      await pyodide.runPythonAsync(
+        "globals().update(__import__('json').loads(globals().pop('__cherry_studio_context_json__')))",
+        { globals }
+      )
+    }
 
     // 载入需要的包
     try {

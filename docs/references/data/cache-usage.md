@@ -1,3 +1,11 @@
+---
+description: Cache usage examples - useCache/useSharedCache/usePersistCache hooks and direct CacheService APIs per tier
+sources:
+  - src/renderer/data/hooks/useCache.ts
+  - src/renderer/data/CacheService.ts
+  - src/main/data/CacheService.ts
+---
+
 # Cache Usage Guide
 
 Concept and invariants: [cache-overview.md](./cache-overview.md). Adding keys: [cache-schema-guide.md](./cache-schema-guide.md).
@@ -102,7 +110,7 @@ cacheService.hasPersist('ui.sidebar.width') // "is overridden", not "is stored" 
 cacheService.deletePersist('ui.sidebar.width') // resets to the schema default; keys are fixed and never removed
 ```
 
-Persist writes are debounced (200ms) and flushed on `beforeunload`. localStorage is limited to ~5MB per origin — keep Persist values small.
+Persist writes are debounced (350ms) and flushed on `beforeunload`. localStorage is limited to ~5MB per origin — keep Persist values small.
 
 ## Main Process Usage
 

@@ -6,6 +6,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1771,6 +1772,27 @@ describe('HomePage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
+  it('cancels a pending message locate when the user selects another topic', async () => {
+    const user = userEvent.setup()
+    render(<HomePage />)
+
+    const topicMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
+    })
+    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target'))
+
+    await user.click(screen.getByRole('button', { name: 'Select topic next' }))
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-next')
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+  })
+
   it('writes locate state into the current tab for a global-search topic message', async () => {
     homeMocks.entryTopic = undefined
 
@@ -1952,6 +1974,31 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
+  })
+
+  it('uses the sidebar-pinned route assistant before the remembered one', async () => {
+    homeMocks.routeSearch = { assistantId: 'assistant-2' }
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
+    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
+  })
+
+  it('ignores a route assistant that no longer exists', async () => {
+    homeMocks.routeSearch = { assistantId: 'assistant-deleted' }
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
+    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
   })
 
   it('passes URL topicId to useActiveTopic as activeTopicId', async () => {

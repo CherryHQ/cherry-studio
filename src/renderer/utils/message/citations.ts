@@ -126,6 +126,7 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
   if (parsed && parsed.serverPart === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(parsed.toolPart)) {
     return parsed.toolPart
   }
+
   return null
 }
 
