@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +17,11 @@ const quickConversation = vi.hoisted(() => ({
 
 const runtime = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
-  quickPanelVisible: false
+  quickPanelVisible: false,
+  quickModel: {
+    id: 'quick-provider::quick-model',
+    name: 'Quick Model'
+  } as { id: string; name: string } | undefined
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -85,12 +90,26 @@ vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', 
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({
-    assistant: { id: 'assistant-1', name: 'Assistant 1', emoji: '🙂' },
-    model: { id: 'provider::model-1', name: 'Model 1' },
-    isLoading: false,
-    isModelPending: false
-  })
+  useAssistant: (assistantId?: string | null) =>
+    assistantId
+      ? {
+          assistant: { id: 'assistant-1', name: 'Assistant 1', emoji: '🙂' },
+          model: { id: 'provider::model-1', name: 'Model 1' },
+          isLoading: false,
+          isModelPending: false,
+          isModelMissing: false
+        }
+      : {
+          assistant: undefined,
+          model: undefined,
+          isLoading: false,
+          isModelPending: false,
+          isModelMissing: true
+        }
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useDefaultModel: () => ({ quickModel: runtime.quickModel })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -128,6 +147,10 @@ describe('QuickAssistantView', () => {
     quickConversation.save.mockReset()
     runtime.ipcRequest.mockReset()
     runtime.quickPanelVisible = false
+    runtime.quickModel = {
+      id: 'quick-provider::quick-model',
+      name: 'Quick Model'
+    }
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -197,6 +220,31 @@ describe('QuickAssistantView', () => {
     expect(container.querySelector('[data-ui="quick-assistant.contextbar"]')).not.toBeInTheDocument()
     expect(input).not.toHaveFocus()
     documentHidden.mockRestore()
+  })
+
+  it('uses the configured quick model when no assistant is selected', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', '')
+    render(<QuickAssistantView draggable={false} />)
+
+    await user.click(screen.getByRole('textbox', { name: 'message' }))
+    expect(screen.getByTestId('conversation-controls')).toHaveTextContent('Quick Model')
+    expect(screen.getByTestId('conversation-controls')).not.toHaveTextContent('Model 1')
+
+    await user.click(screen.getByRole('button', { name: 'mock send' }))
+    expect(quickConversation.send).toHaveBeenCalledWith('hello', {
+      mentionedModels: ['quick-provider::quick-model']
+    })
+  })
+
+  it('does not send through the default-model fallback while the quick model is unresolved', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', '')
+    runtime.quickModel = undefined
+    render(<QuickAssistantView draggable={false} />)
+
+    await user.click(screen.getByRole('button', { name: 'mock send' }))
+    expect(quickConversation.send).not.toHaveBeenCalled()
   })
 
   it('uses the sub-window hierarchy after a conversation starts', async () => {

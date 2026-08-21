@@ -8,7 +8,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -24,6 +24,7 @@ export interface QuickSendOptions {
   mentionedModels?: UniqueModelId[]
   userMessageParts?: CherryMessagePart[]
   reasoningEffort?: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
   fastMode?: boolean
 }
 
@@ -219,13 +220,14 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
       setError(null)
       setIsPreparing(true)
       try {
-        // topicId comes from the useChat id; Main resolves assistant/model from topic.assistantId.
+        // Main resolves an assistant-bound topic or the explicit model-only selection.
         void sendMessage(
           { parts },
           {
             body: {
               mentionedModels: options?.mentionedModels,
               reasoningEffort: options?.reasoningEffort,
+              serviceTier: options?.serviceTier,
               ...(options?.fastMode ? { fastMode: true as const } : {})
             }
           }

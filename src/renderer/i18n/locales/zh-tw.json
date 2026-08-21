@@ -451,7 +451,20 @@
       "fast": "快速",
       "faster": "更快",
       "label": "速度",
+      "service_tier": {
+        "auto": "自動",
+        "fast": "快速",
+        "flex": "彈性",
+        "label": "服務檔位",
+        "standard": "標準"
+      },
       "smarter": "更聰明",
+      "summary": {
+        "auto": "自動",
+        "concise": "簡潔",
+        "detailed": "詳細",
+        "label": "思考摘要"
+      },
       "title": "回應設定"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "插入 MCP 伺服器提供的提示詞",
         "empty": "沒有可用的 MCP 提示詞",
+        "fill_arguments": "填寫提示詞參數",
+        "fill_arguments_description": "插入前請先填寫此提示詞所需的參數",
+        "insert": "插入",
         "insert_failed": "提示詞插入失敗",
         "title": "MCP 提示詞"
       },
@@ -6325,10 +6341,6 @@
             "token_threshold": "快取 Token 閾值",
             "token_threshold_help": "超過此 Token 數量的訊息將被快取。設為 0 可停用快取。"
           },
-          "array_content": {
-            "help": "該供應商是否支援 message 的 content 欄位為 array 類型",
-            "label": "支援陣列格式的 message content"
-          },
           "developer_role": {
             "help": "該供應商是否支援 role: \"developer\" 的訊息",
             "label": "支援開發人員訊息"
@@ -6338,17 +6350,13 @@
             "label": "支援 enable_thinking"
           },
           "label": "API 設定",
-          "service_tier": {
-            "help": "該供應商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",
-            "label": "支援 service_tier"
+          "reasoning_summary": {
+            "help": "向此 Responses 端點傳送 reasoning.summary。請僅在伺服器接受此 OpenAI 參數時啟用。",
+            "label": "支援思考摘要"
           },
           "stream_options": {
             "help": "該供應商是否支援 stream_options 參數",
             "label": "支援 stream_options"
-          },
-          "verbosity": {
-            "help": "供應商是否支援詳細程度參數",
-            "label": "支援 verbosity"
           }
         },
         "url": {

@@ -7,6 +7,7 @@ import {
 } from '@renderer/components/composer/variants/ChatComposer'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
@@ -51,8 +52,12 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     useState<ChatConversationControlsSnapshot | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
 
-  const assistantContext = useAssistant(assistantId || null)
-  const { assistant } = assistantContext
+  const assistantContext = useAssistant(assistantId || null, { loadDefaultModel: false })
+  const { quickModel } = useDefaultModel({ enabled: !assistantId })
+  const composerContext = assistantId
+    ? assistantContext
+    : { ...assistantContext, model: quickModel, isModelMissing: !quickModel }
+  const { assistant } = composerContext
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === COMPOSER_SCOPE_KEY ? conversationControlsSnapshot : null
   const shouldLoadProviders = Boolean(
@@ -139,9 +144,16 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     (text: string, options?: Parameters<typeof send>[1]) => {
       // Only grow once the turn is actually under way — a send dropped because the
       // temporary topic lease has not landed yet would leave an empty panel behind.
-      if (send(text, options)) setView('panel')
+      if (assistantId) {
+        if (send(text, options)) setView('panel')
+        return
+      }
+
+      const mentionedModels = options?.mentionedModels ?? (quickModel ? [quickModel.id] : undefined)
+      if (!mentionedModels?.length) return
+      if (send(text, { ...options, mentionedModels })) setView('panel')
     },
-    [send]
+    [assistantId, quickModel, send]
   )
 
   const handleAssistantChange = useCallback(
@@ -160,19 +172,17 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
       assistantId={assistant?.id ?? null}
       assistantName={assistant?.name ?? t('button.select_assistant')}
       assistantEmoji={assistant?.emoji}
-      model={assistantContext.model}
-      modelPending={
-        assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot
-      }
+      model={composerContext.model}
+      modelPending={composerContext.isLoading || composerContext.isModelPending || !activeConversationControlsSnapshot}
       providers={providers}
       mentionedModels={activeConversationControlsSnapshot?.mentionedModels ?? EMPTY_MODELS}
       mentionedModelSelectorValue={
         activeConversationControlsSnapshot?.mentionedModelSelectorValue ??
-        (assistantContext.model ? [assistantContext.model] : EMPTY_MODELS)
+        (composerContext.model ? [composerContext.model] : EMPTY_MODELS)
       }
       lockedMentionedModels={activeConversationControlsSnapshot?.lockedMentionedModels ?? EMPTY_MODELS}
       mentionedModelMultiSelectMode={activeConversationControlsSnapshot?.mentionedModelMultiSelectMode ?? false}
-      selectModelLabel={assistantContext.isModelPending ? t('common.loading') : t('button.select_model')}
+      selectModelLabel={composerContext.isModelPending ? t('common.loading') : t('button.select_model')}
       useMentionedModelSelector
       shouldAutoSelectCreatedAssistant={false}
       side={side}
@@ -252,7 +262,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               scopeKey={COMPOSER_SCOPE_KEY}
               topicId={topicId ?? undefined}
               assistantId={assistantId || undefined}
-              resolvedContext={assistantContext}
+              resolvedContext={composerContext}
               resolvedProviders={providers}
               externalContextControls
               onConversationControlsChange={setConversationControlsSnapshot}
@@ -265,7 +275,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               scopeKey={COMPOSER_SCOPE_KEY}
               topicId={topicId ?? undefined}
               assistantId={assistantId || undefined}
-              resolvedContext={assistantContext}
+              resolvedContext={composerContext}
               resolvedProviders={providers}
               externalContextControls={composerEngaged}
               onConversationControlsChange={setConversationControlsSnapshot}

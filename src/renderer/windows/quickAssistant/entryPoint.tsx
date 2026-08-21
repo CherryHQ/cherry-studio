@@ -13,6 +13,8 @@ await prepareWindow({
     'ui.theme_mode',
     'ui.theme_user.color_primary',
     'feature.quick_assistant.assistant_id',
+    'feature.quick_assistant.model_id',
+    'chat.default_model_id',
     'chat.input.send_message_shortcut',
     'chat.input.newline_shortcut',
     'quick_assistant.input.toolbar.pinned_tools'

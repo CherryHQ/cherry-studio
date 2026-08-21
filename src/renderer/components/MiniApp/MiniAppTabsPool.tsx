@@ -1,6 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
+import { useCommandContextKey } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import {
@@ -11,7 +12,7 @@ import {
 import { cn } from '@renderer/utils/style'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
-import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across
@@ -132,6 +133,18 @@ const MiniAppTabsPool: React.FC = () => {
     logger.debug(`TabPool webview navigate: ${appid} -> ${url}`)
   }
 
+  // The context key is registered here rather than per pane: every container's effect
+  // stays alive for the pool's lifetime, and the registry resolves to whichever
+  // registered last — so a pane mounting behind a focused one would clear the key.
+  const [focusedAppId, setFocusedAppId] = useState<string | null>(null)
+  const handleFocusChange = useCallback((appid: string, focused: boolean) => {
+    // A pane's blur can land after the next pane's focus, so only the pane that still
+    // holds the key may clear it.
+    setFocusedAppId((current) => (focused ? appid : current === appid ? null : current))
+  }, [])
+  // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
+  useCommandContextKey('webview.focused', focusedAppId !== null)
+
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {
     webviewRefs.current.forEach((ref, id) => {
@@ -189,6 +202,7 @@ const MiniAppTabsPool: React.FC = () => {
               onSetRefCallback={handleSetRef}
               onLoadedCallback={handleLoaded}
               onNavigateCallback={handleNavigate}
+              onFocusChange={handleFocusChange}
             />
           </div>
         )
