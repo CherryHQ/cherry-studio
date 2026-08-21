@@ -425,7 +425,6 @@ export const modelSyncClasses = {
 
 export const apiKeyListClasses = {
   summaryMeta: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
-  helperText: 'text-[13px] leading-tight text-muted-foreground',
   listWrap: 'overflow-hidden rounded-lg border border-border-subtle',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
   keyRow: 'flex flex-col gap-2 border-b border-border-subtle px-4 py-3 last:border-b-0',
@@ -442,8 +441,7 @@ export const apiKeyListClasses = {
   keySaveIconButton:
     'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-success-subtle hover:text-success-subtle-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
   keyDestructiveIconButton:
-    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
-  actionRow: 'flex items-center justify-between gap-3'
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3'
 } as const
 
 export const oauthCardClasses = {

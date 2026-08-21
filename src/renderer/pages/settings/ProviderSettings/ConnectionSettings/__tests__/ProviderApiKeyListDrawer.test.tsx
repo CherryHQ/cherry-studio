@@ -65,7 +65,7 @@ describe('ProviderApiKeyListDrawer', () => {
   it('creates new drafts via addApiKey with the trimmed key value', async () => {
     render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_key' }))
     fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
       target: { value: ' sk-new ' }
     })
@@ -74,6 +74,20 @@ describe('ProviderApiKeyListDrawer', () => {
     await waitFor(() => {
       expect(addApiKeyMock).toHaveBeenCalledWith('sk-new', undefined)
     })
+  })
+
+  it('uses one full-width add action and omits redundant labels', () => {
+    mockKeys = [
+      { id: 'key-1', key: 'sk-unlabeled', isEnabled: true },
+      { id: 'key-2', key: 'sk-labeled', label: 'Production', isEnabled: true }
+    ]
+
+    render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.queryByText('settings.provider.api_key.unnamed')).not.toBeInTheDocument()
+    expect(screen.getByText('Production')).toBeInTheDocument()
+    expect(screen.queryByText('settings.provider.api_key.tip')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.add_key' })).toHaveClass('w-full')
   })
 
   it('saves edits to an existing key via updateApiKey without touching other entries', async () => {

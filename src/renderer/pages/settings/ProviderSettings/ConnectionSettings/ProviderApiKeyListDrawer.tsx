@@ -214,13 +214,10 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
           </Scrollbar>
         </div>
 
-        <div className={apiKeyListClasses.actionRow}>
-          <div className={apiKeyListClasses.helperText}>{t('settings.provider.api_key.tip')}</div>
-          <Button variant="secondary" size="sm" disabled={!!draft || saving} onClick={startAdd}>
-            <Plus size={14} />
-            {t('common.add')}
-          </Button>
-        </div>
+        <Button className="w-full" variant="secondary" size="sm" disabled={!!draft || saving} onClick={startAdd}>
+          <Plus size={14} />
+          {t('settings.provider.api_setup.add_key')}
+        </Button>
       </div>
     </ProviderSettingsDrawer>
   )
@@ -311,7 +308,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
   return (
     <div className={apiKeyListClasses.keyDisplayRow}>
       <div className={apiKeyListClasses.keyTextBlock}>
-        <div className={apiKeyListClasses.keyLabel}>{entry.label || t('settings.provider.api_key.unnamed')}</div>
+        {entry.label ? <div className={apiKeyListClasses.keyLabel}>{entry.label}</div> : null}
         <button
           type="button"
           title={t('settings.provider.api_key.copy')}

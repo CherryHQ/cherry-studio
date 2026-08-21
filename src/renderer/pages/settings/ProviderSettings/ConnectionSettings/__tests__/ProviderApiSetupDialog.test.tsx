@@ -1,8 +1,10 @@
 import '@testing-library/jest-dom/vitest'
 
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type { Model } from '@shared/data/types/model'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderApiSetupDialog from '../ProviderApiSetupDialog'
 
@@ -117,6 +119,10 @@ function createModel(id: string): Model {
 }
 
 describe('ProviderApiSetupDialog', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     localModels = []
@@ -140,6 +146,23 @@ describe('ProviderApiSetupDialog', () => {
     fetchResolvedProviderModelsMock.mockResolvedValue([createModel('alpha'), createModel('beta')])
     checkApiMock.mockResolvedValue({ latency: 10 })
     getModelHealthCheckSkipReasonMock.mockReturnValue(null)
+  })
+
+  it('finishes the dialog exit animation before asking its host to unmount', async () => {
+    vi.useFakeTimers()
+    const onClose = vi.fn()
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={onClose} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTime(1))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('requires a non-empty key, saves it explicitly, and leaves every model unselected', async () => {
@@ -216,7 +239,7 @@ describe('ProviderApiSetupDialog', () => {
     resolveCheck?.({ latency: 12 })
     await waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
     expect(toastSuccessMock).toHaveBeenCalledWith('settings.provider.api_setup.success')
-    expect(onClose).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
   it('updates the same saved key after model loading fails instead of creating a duplicate', async () => {
@@ -252,15 +275,30 @@ describe('ProviderApiSetupDialog', () => {
     await waitFor(() => expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai'))
   })
 
-  it('redacts an existing stored key from model-loading errors', async () => {
+  it('redacts an existing stored key and lets the user edit it after model loading fails', async () => {
+    const user = userEvent.setup()
     storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
-    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('401 rejected sk-existing'))
+    fetchResolvedProviderModelsMock
+      .mockRejectedValueOnce(new Error('401 rejected sk-existing'))
+      .mockResolvedValueOnce([createModel('alpha')])
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
     await screen.findByRole('alert')
     expect(screen.queryByText(/sk-existing/)).not.toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('••••')
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.edit_key' }))
+    const apiKeyInput = screen.getByLabelText('settings.provider.api_key.label')
+    expect(apiKeyInput).toHaveValue('sk-existing')
+
+    await user.clear(apiKeyInput)
+    await user.type(apiKeyInput, 'sk-replacement')
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.save_key' }))
+
+    await screen.findAllByText('alpha')
+    expect(updateApiKeyMock).toHaveBeenCalledWith('saved-key', { key: 'sk-replacement', isEnabled: true })
+    expect(addApiKeyMock).not.toHaveBeenCalled()
   })
 
   it('omits an unsafe raw error summary when stored keys cannot be loaded', async () => {

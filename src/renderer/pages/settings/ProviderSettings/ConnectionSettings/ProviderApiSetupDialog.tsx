@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
@@ -60,7 +61,9 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const [busyState, setBusyState] = useState<SetupBusyState>(null)
   const [error, setError] = useState<SetupError | null>(null)
   const [requiresManualConfirmation, setRequiresManualConfirmation] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(true)
   const initializedRef = useRef(false)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const createdModelIdsRef = useRef(new Set<UniqueModelId>())
   const probeSucceededModelIdRef = useRef<string | null>(null)
 
@@ -77,6 +80,29 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const allFilteredSelected =
     modelListView.filteredModels.length > 0 &&
     modelListView.filteredModels.every((model) => selectedModelIds.has(model.id))
+  const storedApiKey = apiKeysData?.keys.find((entry) => entry.isEnabled) ?? apiKeysData?.keys[0]
+  const runtimeApiKey = provider?.apiKeys.find((entry) => entry.isEnabled) ?? provider?.apiKeys[0]
+  const editableApiKeyId = savedKeyId ?? storedApiKey?.id ?? runtimeApiKey?.id ?? null
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current === null) {
+      return
+    }
+
+    clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = null
+  }, [])
+
+  useEffect(() => clearCloseTimer, [clearCloseTimer])
+
+  const requestClose = useCallback(() => {
+    clearCloseTimer()
+    setDialogOpen(false)
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null
+      onClose()
+    }, DIALOG_UNMOUNT_DELAY_MS)
+  }, [clearCloseTimer, onClose])
 
   const createError = useCallback(
     (kind: SetupErrorKind, fallbackKey: string, cause: unknown): SetupError => {
@@ -143,8 +169,9 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     setError(null)
     try {
       await keepProviderDisabled()
-      if (savedKeyId) {
-        await updateApiKey(savedKeyId, { key: normalizedApiKey, isEnabled: true })
+      if (editableApiKeyId) {
+        await updateApiKey(editableApiKeyId, { key: normalizedApiKey, isEnabled: true })
+        setSavedKeyId(editableApiKeyId)
       } else {
         const previousIds = new Set(provider?.apiKeys.map((entry) => entry.id) ?? [])
         const updatedProvider = await addApiKey(normalizedApiKey)
@@ -166,11 +193,11 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     addApiKey,
     apiKey,
     createError,
+    editableApiKeyId,
     isBusy,
     keepProviderDisabled,
     loadModels,
     provider?.apiKeys,
-    savedKeyId,
     updateApiKey
   ])
 
@@ -263,7 +290,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       await enableProvider()
       toast.success(t('settings.provider.api_setup.success'))
       setBusyState(null)
-      onClose()
+      requestClose()
     } catch (cause) {
       setBusyState(null)
       setError(createError('enable', 'settings.provider.api_setup.enable_failed', cause))
@@ -275,9 +302,9 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     isBusy,
     keepProviderDisabled,
     localModels,
-    onClose,
     provider,
     providerId,
+    requestClose,
     selectedModels,
     t
   ])
@@ -285,20 +312,21 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const editSavedKey = useCallback(() => {
     setError(null)
     setRequiresManualConfirmation(false)
+    setApiKey((current) => current || storedApiKey?.key || '')
     setStep('api-key')
-  }, [])
+  }, [storedApiKey?.key])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen && !isBusy) {
-        onClose()
+        requestClose()
       }
     },
-    [isBusy, onClose]
+    [isBusy, requestClose]
   )
 
   return (
-    <Dialog open onOpenChange={handleOpenChange}>
+    <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         closeOnOverlayClick={!isBusy}
         className={cn(
@@ -372,7 +400,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
         <DialogFooter className="flex-row items-center justify-between sm:justify-between">
           <div>
-            {step === 'models' && savedKeyId && !requiresManualConfirmation ? (
+            {step === 'models' && editableApiKeyId && !requiresManualConfirmation ? (
               <Button type="button" variant="ghost" disabled={isBusy} onClick={editSavedKey}>
                 {t('settings.provider.api_setup.edit_key')}
               </Button>
@@ -380,7 +408,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           </div>
           <div className="flex items-center gap-2">
             {!requiresManualConfirmation ? (
-              <Button type="button" variant="outline" disabled={isBusy} onClick={onClose}>
+              <Button type="button" variant="outline" disabled={isBusy} onClick={requestClose}>
                 {t('common.cancel')}
               </Button>
             ) : null}
@@ -389,7 +417,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                 {busyState === 'saving-key' ? t('common.loading') : t('settings.provider.api_setup.save_key')}
               </Button>
             ) : requiresManualConfirmation ? (
-              <Button type="button" onClick={onClose}>
+              <Button type="button" onClick={requestClose}>
                 {t('common.close')}
               </Button>
             ) : error?.kind === 'models' ? (
