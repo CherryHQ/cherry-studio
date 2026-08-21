@@ -1,57 +1,74 @@
 {
-  "generated_at": "2026-08-20T18:00:00Z",
-  "total_open_issues": 912,
-  "delta_from_yesterday": +40,
-  "health_summary": {
-    "active_le7d": {
-      "count": 632,
-      "pct": 69,
-      "definition": "updated_at within last 7 days (>= 2026-08-13)"
+  "generated_at": "2026-08-21T17:00:00Z",
+  "total_open_issues": 913,
+  "health_buckets": {
+    "active": {
+      "description": "Updated within last 7 days",
+      "count": 850,
+      "pct": "93.1%"
     },
-    "aging_8_30d": {
-      "count": 73,
-      "pct": 8,
-      "definition": "updated_at 8–30 days ago (2026-07-21 to 2026-08-12)"
+    "aging": {
+      "description": "7-30 days since last update",
+      "count": 63,
+      "pct": "6.9%"
     },
-    "stale_31_90d": {
-      "count": 161,
-      "pct": 18,
-      "definition": "updated_at 31–90 days ago (2026-05-22 to 2026-07-20)"
+    "stale": {
+      "description": "Labeled 'inactive', no activity 14+ days",
+      "count": 63,
+      "pct": "6.9%"
     },
-    "zombie_gt90d": {
-      "count": 46,
-      "pct": 5,
-      "definition": "updated_at > 90 days ago (before 2026-05-22)"
+    "zombie": {
+      "description": "P1 issues open 90+ days with no resolution",
+      "count": 3,
+      "issues": [14899, 13608, 13193]
     }
   },
-  "unlabeled_issues": {
-    "estimated_count": 219,
-    "pct": 24,
-    "note": "Estimated from 200-issue sample (47 unlabeled of 200)"
-  },
-  "label_health": {
-    "needs_repro_open": 6,
-    "needs_more_info_open": 2,
-    "note": "Issues tagged needs-repro or needs-more-info are waiting on reporter follow-up"
-  },
-  "p1_issues": {
-    "count": 3,
-    "all_zombie": true,
-    "note": "All 3 P1 issues are >90 days old with no recent activity. Consider closing stale P1s or re-triaging.",
-    "issues": [
-      {"number": 14899, "age_days": 105, "last_updated": "2026-05-07"},
-      {"number": 13608, "age_days": 155, "last_updated": "2026-03-19"},
-      {"number": 13193, "age_days": 169, "last_updated": "2026-03-05"}
+  "triage_queue": {
+    "needs_triage_count": 34,
+    "needs_repro_count": 8,
+    "top_needs_triage": [
+      {"number": 19116, "title": "v2.0.8 bundle missing fixes — response_format and reasoning_content regressions", "priority": "critical"},
+      {"number": 19105, "title": "Build end-to-end diagnostics and error reporting system", "priority": "medium"},
+      {"number": 19041, "title": "为 job schedule 的时间日历建立单一 owner", "priority": "low"}
     ]
   },
-  "trending_label_today": "performance",
-  "performance_issues_opened_today": 5,
-  "top_active_areas_today": ["performance", "mcp", "agent/assistant", "models"],
-  "recommendations": [
-    "Triage 219 unlabeled open issues — 24% unlabeled degrades searchability and sprint planning",
-    "All 3 P1 bugs are zombies (105–169 days old). Either re-confirm severity or close as stale.",
-    "#19048 MCP OAuth 300s startup block is a severe UX regression — prioritize fix",
-    "#18800 (data corruption) and #18643 (Ollama tool calls 500) need immediate attention",
-    "5 performance issues opened today suggest an ongoing performance sprint — coordinate with #19069 PR"
+  "top_label_bugs": {
+    "models": 22,
+    "assistant": 32,
+    "mcp": 12,
+    "rag": 18,
+    "performance": 14,
+    "ui-ux": 25,
+    "data": 12,
+    "connectivity": 7
+  },
+  "new_bugs_last_24h": 8,
+  "new_bugs_critical": [
+    {
+      "number": 19116,
+      "title": "v2.0.8 shipped bundle missing #18702 and #18121 fixes",
+      "created_at": "2026-08-21T13:03:54Z",
+      "labels": ["needs-triage"]
+    },
+    {
+      "number": 19117,
+      "title": "DSH v0.1.1-rc.1 refuses to launch — Cherry Env injection breaks .credentials.yaml",
+      "created_at": "2026-08-21T13:16:23Z",
+      "labels": ["mcp"]
+    },
+    {
+      "number": 19119,
+      "title": "Agent stream stuck/empty after manual interrupt + immediate regenerate",
+      "created_at": "2026-08-21T13:20:17Z",
+      "labels": ["assistant"]
+    }
+  ],
+  "recommended_actions": [
+    "URGENT: Investigate #19116 — v2.0.8 may need a hotfix patch (v2.0.8.1) if bundle build missed cherry-picks",
+    "HIGH: Assign #19117 to DSH/MCP owner — DSH integration blocked for all rc.1 users",
+    "HIGH: Assign #19119 to agent runtime owner — reproducible stream race condition",
+    "TRIAGE: 34 issues in needs-triage queue; 3 added today alone",
+    "ZOMBIE: P1 issues #14899, #13608, #13193 are 106-170 days old; consider closing or deprioritizing",
+    "STALE: 63 issues labeled 'inactive'; consider batch-closing if no response expected"
   ]
 }
