@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -25,23 +26,28 @@ const matchMediaMock = vi.hoisted(() => vi.fn())
 
 Element.prototype.scrollIntoView = vi.fn()
 
-vi.mock('@cherrystudio/ui', () => ({
-  Avatar: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-  Divider: () => <hr />,
-  InfoTooltip: () => null,
-  Input: (props: ComponentProps<'input'>) => <input {...props} />,
-  PageSidePanel: () => null,
-  Switch: ({
-    checked,
-    onCheckedChange,
-    ...props
-  }: ComponentProps<'button'> & { checked?: boolean; onCheckedChange?: (checked: boolean) => void }) => (
-    <button type="button" aria-pressed={checked} onClick={() => onCheckedChange?.(!checked)} {...props} />
-  ),
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+
+  return {
+    ...actual,
+    Avatar: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+    Divider: () => <hr />,
+    InfoTooltip: () => null,
+    Input: (props: ComponentProps<'input'>) => <input {...props} />,
+    PageSidePanel: () => null,
+    Switch: ({
+      checked,
+      onCheckedChange,
+      ...props
+    }: ComponentProps<'button'> & { checked?: boolean; onCheckedChange?: (checked: boolean) => void }) => (
+      <button type="button" aria-pressed={checked} onClick={() => onCheckedChange?.(!checked)} {...props} />
+    ),
+    Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+  }
+})
 
 vi.mock('@cherrystudio/ui/icons', () => ({
   useIcon: () => undefined
@@ -254,7 +260,7 @@ describe('ModelSettings', () => {
       />
     )
 
-    expect(screen.getByLabelText('settings.models.retry.max_attempts')).toHaveValue(3)
+    expect(screen.getByLabelText('settings.models.retry.max_attempts')).toHaveValue('3')
     expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
 
     const fallbackFilter = harness.selectorFilters.at(-1)

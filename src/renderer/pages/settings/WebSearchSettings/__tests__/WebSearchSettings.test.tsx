@@ -257,12 +257,12 @@ describe('WebSearchSettings', () => {
     const { rerender } = render(<WebSearchSettings />)
     openAdvancedSettings()
 
-    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(5)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('5')
 
     MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(20)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('20')
   })
 
   it('keeps dirty max-result drafts when maxResults changes externally', () => {
@@ -272,12 +272,12 @@ describe('WebSearchSettings', () => {
     fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
       target: { value: '10' }
     })
-    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(10)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('10')
 
     MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(10)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('10')
   })
 
   it('marks max-result drafts clean after a successful commit', async () => {
@@ -297,16 +297,18 @@ describe('WebSearchSettings', () => {
     rerender(<WebSearchSettings />)
 
     await waitFor(() => {
-      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(20)
+      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('20')
     })
   })
 
   it.each([
     ['1000', 100],
-    ['-3', 1],
+    // The minus sign never reaches the field: `min` forbids negatives, so this
+    // commits as 3 rather than clamping a negative up to the floor.
+    ['-3', 3],
     ['abc', 1],
     ['3.9', 3]
-  ])('clamps max-result draft %s to %s on commit', async (value, expected) => {
+  ])('normalizes max-result draft %s to %s on commit', async (value, expected) => {
     render(<WebSearchSettings />)
     openAdvancedSettings()
 
@@ -317,7 +319,7 @@ describe('WebSearchSettings', () => {
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(expected)
-      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(expected)
+      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(String(expected))
     })
   })
 
@@ -340,7 +342,7 @@ describe('WebSearchSettings', () => {
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(5)
-      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(5)
+      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('5')
     })
   })
 
