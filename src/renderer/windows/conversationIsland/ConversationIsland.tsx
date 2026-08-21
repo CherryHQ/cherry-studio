@@ -21,6 +21,16 @@ export default function ConversationIsland() {
     return null
   }
 
+  const usesNotchLayout =
+    snapshot.presentation === 'notch' &&
+    typeof snapshot.notchWidth === 'number' &&
+    Number.isFinite(snapshot.notchWidth) &&
+    snapshot.notchWidth > 0
+
+  const stateIndicator = (
+    <span className={`size-2 shrink-0 rounded-full ${STATE_INDICATOR_CLASS[snapshot.state]}`} aria-hidden="true" />
+  )
+
   const openConversation = () => {
     void ipcApi
       .request('navigation.focus_or_open_conversation', {
@@ -36,24 +46,48 @@ export default function ConversationIsland() {
       variant="ghost"
       onClick={openConversation}
       data-state={snapshot.state}
-      className={`h-full min-h-0 w-full min-w-0 justify-start overflow-hidden border border-border bg-popover/95 px-3 py-0 text-popover-foreground text-xs shadow-md backdrop-blur-xs hover:bg-accent focus-visible:bg-accent ${
-        snapshot.presentation === 'notch' ? 'rounded-t-none rounded-b-xl' : 'rounded-full'
-      }`}>
-      <span className={`size-2 shrink-0 rounded-full ${STATE_INDICATOR_CLASS[snapshot.state]}`} aria-hidden="true" />
-      <span className="shrink-0 font-medium">{snapshot.statusText}</span>
-      {snapshot.title ? (
-        <>
-          <span className="shrink-0 text-muted-foreground" aria-hidden="true">
-            ·
+      className={
+        usesNotchLayout
+          ? 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-t-none rounded-b-xl border border-transparent bg-black px-0 py-0 text-white text-xs shadow-md hover:bg-black hover:text-white focus-visible:bg-black focus-visible:text-white'
+          : 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-full border border-border bg-popover/95 px-3 py-0 text-popover-foreground text-xs shadow-md backdrop-blur-xs hover:bg-accent focus-visible:bg-accent'
+      }>
+      {usesNotchLayout ? (
+        <span className="grid h-full w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+          <span data-testid="notch-leading" className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
+            {stateIndicator}
+            <span className="min-w-0 truncate font-medium">{snapshot.statusText}</span>
           </span>
-          <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{snapshot.title}</span>
-        </>
+          <span data-testid="notch-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
+          <span
+            data-testid="notch-trailing"
+            className="flex min-w-0 items-center justify-end gap-2 overflow-hidden pr-3">
+            {snapshot.title ? <span className="min-w-0 truncate text-white/60">{snapshot.title}</span> : null}
+            {snapshot.secondaryCount > 0 ? (
+              <span className="shrink-0 rounded-full bg-white/10 px-1.5 text-white/70">+{snapshot.secondaryCount}</span>
+            ) : null}
+          </span>
+        </span>
       ) : (
-        <span className="min-w-0 flex-1" />
+        <>
+          {stateIndicator}
+          <span className="shrink-0 font-medium">{snapshot.statusText}</span>
+          {snapshot.title ? (
+            <>
+              <span className="shrink-0 text-muted-foreground" aria-hidden="true">
+                ·
+              </span>
+              <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{snapshot.title}</span>
+            </>
+          ) : (
+            <span className="min-w-0 flex-1" />
+          )}
+          {snapshot.secondaryCount > 0 ? (
+            <span className="shrink-0 rounded-full bg-accent px-1.5 text-muted-foreground">
+              +{snapshot.secondaryCount}
+            </span>
+          ) : null}
+        </>
       )}
-      {snapshot.secondaryCount > 0 ? (
-        <span className="shrink-0 rounded-full bg-accent px-1.5 text-muted-foreground">+{snapshot.secondaryCount}</span>
-      ) : null}
     </Button>
   )
 }

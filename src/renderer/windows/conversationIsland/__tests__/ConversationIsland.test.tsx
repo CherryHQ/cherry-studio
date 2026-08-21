@@ -1,5 +1,5 @@
 import type { ConversationIslandSnapshot } from '@shared/types/conversationIsland'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,6 +60,49 @@ describe('ConversationIsland', () => {
 
     expect(screen.getByText('Research notes')).toBeVisible()
     expect(screen.getByText('+2')).toBeVisible()
+  })
+
+  it('keeps notch content in two wings around the measured occlusion', () => {
+    mocks.initData = snapshot({
+      presentation: 'notch',
+      notchWidth: 120,
+      title: 'Research notes',
+      secondaryCount: 2
+    })
+    const view = render(<ConversationIsland />)
+
+    const button = screen.getByRole('button')
+    const leading = screen.getByTestId('notch-leading')
+    const occlusion = screen.getByTestId('notch-occlusion')
+    const trailing = screen.getByTestId('notch-trailing')
+
+    // These classes and the measured width are the physical-notch layout contract.
+    expect(button).toHaveClass('bg-black', 'border-transparent')
+    expect(button).not.toHaveClass('backdrop-blur-xs')
+    expect(occlusion).toHaveStyle({ width: '120px' })
+    expect(within(leading).getByText('Responding')).toBeVisible()
+    expect(within(trailing).getByText('Research notes')).toBeVisible()
+    expect(within(trailing).getByText('+2')).toBeVisible()
+
+    mocks.initData = snapshot({ presentation: 'notch', notchWidth: 120, secondaryCount: 2 })
+    view.rerender(<ConversationIsland />)
+
+    expect(screen.queryByText('Research notes')).toBeNull()
+    expect(within(screen.getByTestId('notch-trailing')).getByText('+2')).toBeVisible()
+  })
+
+  it('keeps capsule styling for capsule snapshots and invalid notch widths', () => {
+    mocks.initData = snapshot()
+    const view = render(<ConversationIsland />)
+
+    expect(screen.queryByTestId('notch-occlusion')).toBeNull()
+    expect(screen.getByRole('button')).toHaveClass('rounded-full', 'bg-popover/95')
+
+    mocks.initData = snapshot({ presentation: 'notch', notchWidth: undefined })
+    view.rerender(<ConversationIsland />)
+
+    expect(screen.queryByTestId('notch-occlusion')).toBeNull()
+    expect(screen.getByRole('button')).toHaveClass('rounded-full', 'bg-popover/95')
   })
 
   it('opens the primary conversation when the pill is clicked', async () => {
