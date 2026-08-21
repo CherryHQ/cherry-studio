@@ -112,19 +112,6 @@ export const VertexPublisherModelsResponseSchema = z.object({
   nextPageToken: z.string().optional()
 })
 
-// === GitHub Models ===
-
-export const GitHubModelsResponseSchema = z.array(
-  z.looseObject({
-    id: z.string(),
-    summary: z.string().optional(),
-    publisher: z.string().optional(),
-    name: z.string().optional(),
-    description: z.string().optional(),
-    version: z.string().optional()
-  })
-)
-
 // === Together ===
 
 export const TogetherModelsResponseSchema = z.array(
