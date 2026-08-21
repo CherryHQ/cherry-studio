@@ -73,14 +73,6 @@ export class ShortcutService extends BaseService {
   private conflictedKeys = new Set<CommandShortcutPreferenceKey<CommandId>>()
   private registeredAccelerators = new Map<string, RegisteredShortcut>()
 
-  // Guard against a stuck isComposing state: when the browser forgets to emit
-  // a compositionend event, all subsequent keyboard shortcuts would be silently
-  // skipped.  The safety timer marks the composition as "stuck" so shortcuts
-  // resume even when the composition "leaks".
-  private static readonly COMPOSITION_SAFETY_MS = 2_000
-  /** Per-webContents composition tracking state. */
-  private compositionStates = new Map<number, { timer: ReturnType<typeof setTimeout> | undefined; stuck: boolean }>()
-
   protected async onInit() {
     this.registerBuiltInHandlers()
     this.subscribeToPreferenceChanges()
@@ -97,10 +89,6 @@ export class ShortcutService extends BaseService {
   protected async onStop() {
     this.unregisterAll()
     this.resetRuntimeState()
-    for (const state of this.compositionStates.values()) {
-      clearTimeout(state.timer)
-    }
-    this.compositionStates.clear()
   }
 
   private registerBuiltInHandlers(): void {
@@ -138,36 +126,8 @@ export class ShortcutService extends BaseService {
     if (!this.registeredWindows.has(window)) {
       this.registeredWindows.add(window)
 
-      const onBeforeInput = (event: Electron.Event, input: Electron.Input, webContentsId: number) => {
-        if (input.type !== 'keyDown') return
-
-        // Track per-webContents composition state with a safety timeout.  If
-        // isComposing stays true for longer than the threshold (no compositionend
-        // received), mark the composition as stuck so shortcuts can resume.
-        let compState = this.compositionStates.get(webContentsId)
-        if (input.isComposing) {
-          if (!compState) {
-            compState = { timer: undefined, stuck: false }
-            this.compositionStates.set(webContentsId, compState)
-          }
-          if (!compState.stuck) {
-            // First composing event (or composition restarted) — start the safety timer.
-            if (!compState.timer) {
-              compState.timer = setTimeout(() => {
-                compState!.stuck = true
-              }, ShortcutService.COMPOSITION_SAFETY_MS)
-            }
-            return
-          }
-          // compositionStuck is true — allow through (safety timer fired).
-        } else {
-          // Non-composing key — clear all composition state for this webContents.
-          if (compState) {
-            compState.stuck = false
-            clearTimeout(compState.timer)
-            compState.timer = undefined
-          }
-        }
+      const onBeforeInput = (event: Electron.Event, input: Electron.Input) => {
+        if (input.type !== 'keyDown' || input.isComposing) return
 
         const preferenceService = application.get('PreferenceService')
         const context: ContextReader = (key) => {
@@ -203,32 +163,27 @@ export class ShortcutService extends BaseService {
       }
       const onClosed = () => {
         this.registeredWindows.delete(window)
-        this.compositionStates.delete(webContents.id)
         if (this.mainWindow === window) {
           this.mainWindow = null
         }
       }
       const { webContents } = window
       const onDidAttachWebview = (_event: Electron.Event, guestContents: WebContents) => {
-        const guestId = guestContents.id
-        const onGuestBeforeInput = (e: Electron.Event, input: Electron.Input) => onBeforeInput(e, input, guestId)
         const cleanup = () => {
-          guestContents.off('before-input-event', onGuestBeforeInput)
+          guestContents.off('before-input-event', onBeforeInput)
           guestContents.off('destroyed', cleanup)
           this.guestInputCleanups.delete(guestContents)
-          this.compositionStates.delete(guestId)
         }
 
-        guestContents.on('before-input-event', onGuestBeforeInput)
+        guestContents.on('before-input-event', onBeforeInput)
         guestContents.once('destroyed', cleanup)
         this.guestInputCleanups.set(guestContents, cleanup)
       }
 
-      const onMainBeforeInput = (e: Electron.Event, input: Electron.Input) => onBeforeInput(e, input, webContents.id)
-      webContents.on('before-input-event', onMainBeforeInput)
+      webContents.on('before-input-event', onBeforeInput)
       webContents.on('did-attach-webview', onDidAttachWebview)
       window.once('closed', onClosed)
-      this.registerDisposable(() => webContents.off('before-input-event', onMainBeforeInput))
+      this.registerDisposable(() => webContents.off('before-input-event', onBeforeInput))
       this.registerDisposable(() => webContents.off('did-attach-webview', onDidAttachWebview))
       this.registerDisposable(() => window.off('closed', onClosed))
     }

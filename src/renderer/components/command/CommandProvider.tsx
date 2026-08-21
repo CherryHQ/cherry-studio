@@ -131,31 +131,27 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   }, [contextSnapshot, execute, hasHandler, shortcutPreferences])
 
   useEffect(() => {
-    // Guard against a stuck isComposing state: if compositionstart fires but the
-    // matching compositionend is never received (a known Chromium/IME edge-case),
-    // all subsequent keyboard shortcuts would be silently skipped.  A safety
-    // timer marks the composition as "stuck" so shortcuts resume even when the
-    // browser "forgets" to emit compositionend.
-    const COMPOSITION_SAFETY_MS = 2_000
-    let compositionSafetyTimer: ReturnType<typeof setTimeout> | undefined
+    // isComposing stays true forever when compositionend is lost. Treat a
+    // composition with no activity for this long as stuck and resume shortcuts.
+    const COMPOSITION_IDLE_MS = 2_000
+    let compositionIdleTimer: ReturnType<typeof setTimeout> | undefined
     let compositionStuck = false
 
-    const onCompositionStart = () => {
+    // Re-armed on every composition event, so an ongoing composition never trips it.
+    const onCompositionActivity = () => {
       compositionStuck = false
-      clearTimeout(compositionSafetyTimer)
-      compositionSafetyTimer = setTimeout(() => {
+      clearTimeout(compositionIdleTimer)
+      compositionIdleTimer = setTimeout(() => {
         compositionStuck = true
-      }, COMPOSITION_SAFETY_MS)
+      }, COMPOSITION_IDLE_MS)
     }
 
     const onCompositionEnd = () => {
       compositionStuck = false
-      clearTimeout(compositionSafetyTimer)
+      clearTimeout(compositionIdleTimer)
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Skip during active composition unless the safety timer has fired
-      // (stuck composition — allow shortcuts through).
       if (event.isComposing && !compositionStuck) {
         return
       }
@@ -187,14 +183,16 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       state.execute(command)
     }
 
-    window.addEventListener('compositionstart', onCompositionStart)
+    window.addEventListener('compositionstart', onCompositionActivity)
+    window.addEventListener('compositionupdate', onCompositionActivity)
     window.addEventListener('compositionend', onCompositionEnd)
     window.addEventListener('keydown', handleKeyDown)
     return () => {
-      window.removeEventListener('compositionstart', onCompositionStart)
+      window.removeEventListener('compositionstart', onCompositionActivity)
+      window.removeEventListener('compositionupdate', onCompositionActivity)
       window.removeEventListener('compositionend', onCompositionEnd)
       window.removeEventListener('keydown', handleKeyDown)
-      clearTimeout(compositionSafetyTimer)
+      clearTimeout(compositionIdleTimer)
     }
   }, [])
 
