@@ -21,6 +21,7 @@ const sizeClasses: Record<NonNullable<InputNumberProps['size']>, string> = {
   large: 'h-10 text-base'
 }
 
+const format = (value: number | null) => (value === null ? '' : String(value))
 const allowsNegative = (min?: number) => min === undefined || min < 0
 const allowsDecimal = (step?: number) => step === undefined || !Number.isInteger(step)
 
@@ -58,14 +59,10 @@ function InputNumber({
   onKeyDown,
   ...props
 }: InputNumberProps) {
-  const [draft, setDraft] = React.useState(() => (value === null ? '' : String(value)))
-  const [editing, setEditing] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!editing) {
-      setDraft(value === null ? '' : String(value))
-    }
-  }, [editing, value])
+  // Non-null only while the field is focused: an unfocused field renders `value`
+  // directly, so there is no second copy of it to keep in sync.
+  const [draft, setDraft] = React.useState<string | null>(null)
+  const text = draft ?? format(value)
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = sanitize(event.target.value, min)
@@ -77,10 +74,8 @@ function InputNumber({
   }
 
   const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    const committed = parse(draft, min, max, step)
-    setEditing(false)
-    setDraft(committed === null ? '' : String(committed))
-    onChange(committed)
+    onChange(parse(text, min, max, step))
+    setDraft(null)
     onBlur?.(event)
   }
 
@@ -96,10 +91,10 @@ function InputNumber({
       {...props}
       type="text"
       inputMode={allowsDecimal(step) ? 'decimal' : 'numeric'}
-      value={draft}
+      value={text}
       className={cn(sizeClasses[size], className)}
       onFocus={(event) => {
-        setEditing(true)
+        setDraft(format(value))
         onFocus?.(event)
       }}
       onChange={handleChange}

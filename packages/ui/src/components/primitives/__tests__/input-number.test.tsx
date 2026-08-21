@@ -97,6 +97,28 @@ describe('InputNumber', () => {
     expect(onChange).toHaveBeenCalledExactlyOnceWith(42)
   })
 
+  it('follows an external value change while unfocused', () => {
+    const { rerender } = render(<InputNumber aria-label="amount" value={1} onChange={vi.fn()} />)
+    expect(screen.getByLabelText('amount')).toHaveValue('1')
+
+    rerender(<InputNumber aria-label="amount" value={7} onChange={vi.fn()} />)
+
+    expect(screen.getByLabelText('amount')).toHaveValue('7')
+  })
+
+  it('does not overwrite what is being typed when the value changes externally', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<InputNumber aria-label="amount" min={0} value={1} onChange={vi.fn()} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.clear(input)
+    await user.type(input, '12')
+
+    rerender(<InputNumber aria-label="amount" min={0} value={99} onChange={vi.fn()} />)
+
+    expect(input).toHaveValue('12')
+  })
+
   it('renders no spinner and keeps the Input invalid styling', () => {
     render(<InputNumber aria-label="amount" aria-invalid value={1} onChange={vi.fn()} />)
 
