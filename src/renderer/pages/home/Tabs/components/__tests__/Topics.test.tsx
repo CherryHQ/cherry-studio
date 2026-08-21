@@ -1717,6 +1717,36 @@ describe('Topics', () => {
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
   })
 
+  it('shows a context-menu rename optimistically and restores the persisted name when it fails', async () => {
+    let rejectRename!: (reason: unknown) => void
+    topicDataMocks.updateTopic.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectRename = reject
+      })
+    )
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+    })
+
+    const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    await vi.waitFor(() => expect(topicDataMocks.updateTopic).toHaveBeenCalledOnce())
+
+    await act(async () => {
+      rejectRename(new Error('rename failed'))
+    })
+    expect(await screen.findByText('Alpha topic')).toBeInTheDocument()
+  })
+
   it('confirms topic deletion from the shared context menu before deleting', async () => {
     const { getByText } = renderTopicList()
 

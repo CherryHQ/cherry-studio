@@ -1954,7 +1954,13 @@ describe('Sessions', () => {
     expect(revealedRow!).not.toHaveAttribute('data-reveal-focus')
   })
 
-  it('renames sessions through the shared update session hook', async () => {
+  it('renames sessions optimistically and rolls back when the update fails', async () => {
+    let resolveRename!: (session: AgentSessionEntity | undefined) => void
+    sessionDataMocks.updateSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRename = resolve
+      })
+    )
     render(<SessionsForTest />)
 
     fireEvent.doubleClick(screen.getByText('Alpha session'))
@@ -1969,7 +1975,14 @@ describe('Sessions', () => {
         { showSuccessToast: false }
       )
     )
+    expect(screen.getByText('Renamed session')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
+
+    await act(async () => resolveRename(undefined))
+
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.queryByText('Renamed session')).not.toBeInTheDocument()
   })
 
   it('renames sessions from the context menu dialog', async () => {
