@@ -65,8 +65,8 @@ export function Echarts({
     const settings: SetOptionOpts = {
       lazyUpdate: true,
       replaceMerge: hasTimeline
-        ? ['series', 'dataZoom', 'toolbox', 'grid', 'xAxis', 'yAxis']
-        : ['series', 'dataZoom', 'timeline', 'toolbox', 'grid', 'xAxis', 'yAxis', 'legend']
+        ? ['series', 'dataZoom', 'grid', 'xAxis', 'yAxis']
+        : ['series', 'dataZoom', 'timeline', 'grid', 'xAxis', 'yAxis', 'legend']
     }
     appliedOptionRef.current = { option: nextOption, settings }
     instanceRef.current?.setOption(nextOption, settings)
