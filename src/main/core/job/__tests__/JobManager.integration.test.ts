@@ -594,6 +594,38 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('re-arms a future once schedule without rewriting a matching nextRun', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const at = now + 600_000
+      const updatedAt = now - 60_000
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at },
+          jobInputTemplate: { message: 'matching-next-run' },
+          enabled: true,
+          lastRun: null,
+          nextRun: at,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {},
+          updatedAt
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+
+      const rearmed = jobScheduleService.getById(row.id)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(true)
+      expect(rearmed?.nextRun).toBe(new Date(at).toISOString())
+      expect(rearmed?.updatedAt).toBe(new Date(updatedAt).toISOString())
+
+      await teardownManager(scheduler, jobManager)
+    })
+
     it('persists a natural fire clamped to trigger.at so an early fire does not replay on restart', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
       // The once timer elapses on fake timers while Date.now() stays on the
@@ -645,18 +677,19 @@ describe('JobManager integration', () => {
       await teardownManager(boot2.scheduler, boot2.jobManager)
     })
 
-    it('treats a manual fire of an overdue never-fired once as its fire — no make-up run after recovery', async () => {
+    it('marks a manual fire of an overdue once spent before recovery', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
       const now = Date.now()
+      const at = now - 60_000
       const [row] = await dbh
         .insert(jobScheduleTable)
         .values({
           type: 'task.once',
-          trigger: { kind: 'once', at: now - 60_000 },
+          trigger: { kind: 'once', at },
           jobInputTemplate: { message: 'manual-during-quiet-window' },
           enabled: true,
           lastRun: null,
-          nextRun: null,
+          nextRun: at,
           catchUpPolicy: { kind: 'skip-missed' },
           metadata: {}
         })
@@ -666,6 +699,9 @@ describe('JobManager integration', () => {
         handlers: [['task.once', onceNoopHandler]],
         beforeRecovery: async (bootingManager) => {
           expect(await bootingManager.triggerJobScheduleNowById(row.id)).toBe(true)
+          const manuallyFired = jobScheduleService.getById(row.id)
+          expect(manuallyFired?.nextRun).toBeNull()
+          expect(Date.parse(manuallyFired?.lastRun ?? '')).toBeGreaterThanOrEqual(at)
         }
       })
       await drainAllQueues(jobManager)

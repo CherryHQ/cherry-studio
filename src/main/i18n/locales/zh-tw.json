@@ -9,9 +9,10 @@
       }
     },
     "session": {
+      "new": "新任務",
       "run_status": {
-        "busy": "The Agent Session is busy. Please try again shortly.",
-        "unavailable": "The Agent Session is no longer available."
+        "busy": "Agent 工作階段忙碌中，請稍後再試。",
+        "unavailable": "Agent 工作階段已無法使用。"
       },
       "workspace_status": {
         "inaccessible": "工作區路徑無法存取：{{path}}",
@@ -83,7 +84,19 @@
     "zoomIn": "放大",
     "zoomOut": "縮小"
   },
+  "chat": {
+    "conversation": {
+      "new": "新對話"
+    }
+  },
   "common": {
+    "channel_available_commands": "可用指令：",
+    "channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",
+    "channel_message_processing_error": "⚠️ 處理您的訊息時發生錯誤。請稍後再試。",
+    "channel_new_session_created": "已建立新工作階段。",
+    "channel_no_active_session": "沒有作用中的工作階段。",
+    "channel_session_compacted": "工作階段已壓縮。",
+    "channel_session_resolution_error": "⚠️ 無法解析此代理程式的工作階段，請稍後再試。",
     "copy": "複製",
     "cut": "剪下",
     "inspect": "檢查",
@@ -127,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "目前的文件解析服務要求檔案小於 {{maxSize}}。請壓縮或分割此檔案，然後重新加入。",
       "pdf_page_limit_exceeded": "此 PDF 超過目前文件解析服務的 {{maxPages}} 頁限制。請手動分割 PDF，然後重新加入。"
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Agent 需要你的回應",
+      "assistant": "助手需要你的回應"
+    },
+    "completion": {
+      "agent": "Agent 任務已完成",
+      "assistant": "助手回覆已完成"
     }
   },
   "openclaw": {

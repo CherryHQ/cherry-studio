@@ -985,6 +985,25 @@ describe('AgentSessionMessageService', () => {
     ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
   })
 
+  it('preserves turnOptions when a data patch sends only parts', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'answer' }], turnOptions: { reasoningEffort: 'high', fastMode: true } }
+      }
+    })
+
+    const updated = agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [{ type: 'text', text: 'edited' }] }
+    })
+
+    expect(updated.data.parts).toEqual([{ type: 'text', text: 'edited' }])
+    expect(updated.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
+  })
+
   it('replaces parts on the original assistant row', () => {
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,

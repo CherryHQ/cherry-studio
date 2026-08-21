@@ -1,22 +1,30 @@
+---
+description: Local HTTP gateway for OpenAI, Anthropic, Gemini, Cherry REST, and MCP-compatible clients
+sources:
+  - src/main/features/apiGateway
+  - src/renderer/hooks/useApiGateway.ts
+  - src/renderer/pages/settings/ToolSettings/ApiGatewaySettings
+---
+
 # API Gateway Reference
 
 The **API Gateway** exposes Cherry Studio's AI capabilities over a local HTTP
-server that speaks the **OpenAI** and **Anthropic** wire protocols, plus a few
-Cherry-specific REST endpoints (models, knowledge bases). Any OpenAI- or
-Anthropic-compatible client (SDKs, Claude Code, `curl`, …) can point at
+server that speaks the **OpenAI**, **Anthropic**, and **Gemini** wire protocols,
+plus Cherry REST and Streamable HTTP MCP endpoints. Compatible clients can point at
 `http://127.0.0.1:23333` and drive whatever provider/model the desktop app has
 configured — Cherry becomes a universal translation gateway in front of every
 provider it knows.
 
-Internally each request is routed through main's `AiStreamManager` as an equal,
-**non-persisting** subscriber (alongside the renderer's `WebContentsListener`
+Generation requests route through main's `AiStreamManager` as equal,
+**non-persisting** subscribers (alongside the renderer's `WebContentsListener`
 and the IM `ChannelAdapterListener`), and the resulting `UIMessageChunk` stream
-is translated back into the caller's dialect by the adapter system.
+is translated back into the caller's dialect by the adapter system. Models,
+knowledge, and MCP routes call their owning services directly.
 
-> **Naming.** The code, IPC, preload, hook, and UI all use the
-> **`apiGateway`** name. The persisted **preference / shared-cache** namespace
-> is **`feature.api_gateway.*`** — same feature, two names. (`api_gateway` is the
-> current namespace token; it replaced the retired `csaas` alias.)
+> **Naming.** React components and the lifecycle service use `apiGateway`;
+> IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
+> `feature.api_gateway.*`. The retired `csaas` alias is not part of the current
+> surface.
 
 ## Where the code lives
 
@@ -24,9 +32,11 @@ is translated back into the caller's dialect by the adapter system.
 src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── server.ts                        ← `ApiGateway` class: listen / stop, http timeouts
 ├── app.ts                           ← `buildApp()`: CORS, OpenAPI docs, request-id, error handler, route mounting
-├── errors.ts                        ← `gatewayErrorHandler` (path → anthropic/openai/rest envelopes),
+├── openapiDocs.ts                   ← localized OpenAPI generation and Scalar page
+├── errors.ts                        ← `gatewayErrorHandler` (path → anthropic/openai/google/rest envelopes),
 │                                       `buildStreamErrorFrame` (streaming error/timeout frames), `transformOpenAiError`
-├── ApiGatewayService.ts             ← lifecycle owner (start/stop, IPC, auto-start, running-state)
+├── ApiGatewayService.ts             ← lifecycle owner, preference intent, leases, running-state reconciler
+├── McpSessionStore.ts               ← bounded live Streamable HTTP MCP sessions
 ├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
 ├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
@@ -36,9 +46,12 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 │   ├── messages.ts                  ← POST /v1/messages, POST /v1/messages/count_tokens (Anthropic)
 │   ├── chat.ts                      ← POST /v1/chat/completions (OpenAI Chat)
 │   ├── responses.ts                 ← POST /v1/responses (OpenAI Responses)
+│   ├── gemini.ts                    ← POST /v1beta/models/{model}:{method}
 │   ├── models.ts                    ← GET  /v1/models
-│   ├── knowledge/                   ← GET/POST /v1/knowledge-bases[/search|/:id]
+│   ├── knowledge.ts                 ← GET/POST /v1/knowledge-bases[/search|/:id]
+│   ├── mcp.ts                       ← MCP catalog + Streamable HTTP proxy
 │   └── schemas.ts                   ← loose Zod body schemas (validate only what the gateway needs)
+├── tokens/                          ← Anthropic/Gemini token estimation and wire-tool projections
 ├── utils/
 │   └── models.ts                    ← `getModels()` — the /v1/models data path (never throws)
 └── adapters/
@@ -48,7 +61,8 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
     ├── formatters/                  ← output event → SSE wire string
     └── factory/                     ← `MessageConverterFactory`, `StreamAdapterFactory`
 
-src/preload/preload.ts                    ← `window.api.apiGateway.{start,stop,restart}`
+src/shared/ipc/schemas/apiGateway.ts      ← start / stop / restart IpcApi contracts
+src/main/ipc/handlers/apiGateway.ts       ← thin lifecycle-service adapters
 src/renderer/hooks/useApiGateway.ts       ← renderer state (config + running + loading) and actions
 src/renderer/pages/settings/ToolSettings/ApiGatewaySettings/   ← settings UI
 ```
@@ -68,18 +82,17 @@ and its latency logged on completion.
 | `GET /openapi` | Scalar API docs UI (front-end assets load from a CDN — see note) |
 | `GET /openapi/json` | OpenAPI JSON spec (fully local) |
 
-> **Offline note.** `@elysia/openapi`'s Scalar provider serves an HTML page that
-> pulls its UI bundle from a CDN, so `GET /openapi` (the human docs UI) needs
-> network. `GET /openapi/json` — the machine-readable spec that programmatic
-> clients/SDKs consume — is always served locally and is unaffected. To make the
-> UI work fully offline, pass a self-hosted `cdn` URL to the `openapi({...})` config
-> in `app.ts`.
+> **Offline note.** `renderDocsPage` points Scalar at a pinned jsDelivr bundle,
+> so `GET /openapi` (the human docs UI) needs network. `GET /openapi/json` — the
+> machine-readable spec that programmatic clients/SDKs consume — is always
+> served locally and is unaffected.
 
-### Protected (`/v1`, requires API key)
+### Protected API routes
 
 Mounted under a single `Elysia({ prefix: '/v1' })` that `.use(bearer())` and
 applies a **`scoped`** auth guard — so the guard covers every `/v1` plugin but
-none of the public routes above.
+none of the public routes above. Gemini's `/v1beta` group has its own local
+guard, described below.
 
 | Method & path | Dialect | In → out format |
 |---|---|---|
@@ -87,17 +100,31 @@ none of the public routes above.
 | `POST /v1/messages/count_tokens` | Anthropic | token estimate over the converted request; anthropic-dialect endpoints forward it to the provider's own `count_tokens` (via the app proxy/auth), other dialects stay local; no stream |
 | `POST /v1/chat/completions` | OpenAI Chat | `openai` → `openai` |
 | `POST /v1/responses` | OpenAI Responses | `openai-responses` → `openai-responses` |
+| `POST /v1beta/models/{provider:model}:generateContent` | Gemini | `gemini` → Gemini JSON |
+| `POST /v1beta/models/{provider:model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
+| `POST /v1beta/models/{provider:model}:countTokens` | Gemini | local converted-request estimate |
 | `GET /v1/models` | OpenAI list | `{ object:'list', data:[…] }`, ids are `providerId:modelId` (offset/limit) |
 | `GET /v1/knowledge-bases` | Cherry REST | list (offset/limit) |
 | `POST /v1/knowledge-bases/search` | Cherry REST | semantic search across bases |
 | `GET /v1/knowledge-bases/:id` | Cherry REST | single base |
+| `GET /v1/mcps` | Cherry REST | active MCP server catalog with gateway URLs |
+| `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
+| `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
 
-## Request flow (chat / messages / responses)
+Gemini routes carry a separate local auth guard because Gemini clients use
+`x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.
 
-All three streaming endpoints are thin route wrappers that call
+The MCP proxy validates browser `Origin` as loopback-only to prevent DNS
+rebinding. Native clients normally send no `Origin`. Live sessions are bounded
+and owned by `McpSessionStore`; GET carries server push and DELETE terminates a
+session.
+
+## Request flow (generation routes)
+
+The OpenAI, Anthropic, and Gemini generation routes call
 `processMessage({ params, inputFormat, outputFormat, signal })` in
 `proxyStream.ts`. That function is the heart of the gateway:
 
@@ -191,11 +218,11 @@ Two independent dialect axes, chosen by `inputFormat` / `outputFormat`:
 
 | Role | Interface | Implementations |
 |---|---|---|
-| **Converter** (input → AI SDK) | `IMessageConverter` | `anthropic`, `openai`, `openai-responses` |
-| **Stream adapter** (`UIMessageChunk` → events) | `IStreamAdapter` | `AiSdkToAnthropicSse`, `AiSdkToOpenAiSse`, `AiSdkToOpenAiResponsesSse` |
-| **Formatter** (event → SSE string) | `ISseFormatter` | `AnthropicSseFormatter`, `OpenAiSseFormatter`, `OpenAiResponsesSseFormatter` |
+| **Converter** (input → AI SDK) | `IMessageConverter` | `anthropic`, `openai`, `openai-responses`, `gemini` |
+| **Stream adapter** (`UIMessageChunk` → events) | `IStreamAdapter` | Anthropic, OpenAI Chat, OpenAI Responses, Gemini adapters |
+| **Formatter** (event → SSE string) | `ISseFormatter` | Anthropic, OpenAI Chat, OpenAI Responses, Gemini formatters |
 
-The output formats are **`anthropic`**, **`openai`**, and **`openai-responses`**
+The output formats are **`anthropic`**, **`openai`**, **`openai-responses`**, and **`gemini`**
 — the full `OutputFormat` union, each registered in `StreamAdapterFactory`.
 
 Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
@@ -220,8 +247,8 @@ running state.
 
 | Hook | Responsibility |
 |---|---|
-| `onInit` | Register the start/stop/restart IPC handlers; subscribe to `feature.api_gateway.enabled` changes (toggling the preference activates/deactivates the gateway). |
-| `onReady` | `shouldAutoStart()` → activate if `feature.api_gateway.enabled` **or** at least one agent exists. |
+| `onInit` | Subscribe to `feature.api_gateway.enabled`; IpcApi handlers live in `src/main/ipc/handlers/apiGateway.ts`. |
+| `onReady` | Read the persisted desired state and flush the reconciler. |
 | `onActivate` | `ensureValidApiKey()` → `new ApiGateway()` → `start()` → publish `running = true`. On failure, tears down partial state and republishes `false`. |
 | `onDeactivate` | `stop()` the server, publish `running = false`. |
 
@@ -229,33 +256,32 @@ running state.
 `feature.api_gateway.api_key` the first time it is missing.
 
 All activation/deactivation flows through a self-held
-[`createLatestReconciler`](../../../src/main/core/concurrency/README.md) — the
-**sole** caller of `activate`/`deactivate`, driven by `onReady`, the
-`feature.api_gateway.enabled` subscription, and the IPC `start`/`stop`/`restart`
-(which set `desiredEnabled`, then `request()` + `await flush()`). It converges the
-running state to the latest desired value (`getSnapshot` re-reads the actual
-activated state every pass), so an opposing toggle that lands mid-transition can't
-leave the gateway diverged from intent; a still-current failure isn't retried (no
-spin). `restart()` is `stop()` then `start()`.
+[`createLatestReconciler`](../../../src/main/core/concurrency/README.md), the
+sole caller of `activate`/`deactivate`. It is driven by `onReady`, Preference
+changes, IpcApi actions, and temporary run leases, converging actual state to
+`desiredEnabled || leaseCount > 0`. A temporary consumer can therefore keep the
+server up without persisting an enabled intent. Start/stop persist user intent
+before convergence; restart rebinds only when no lease is active.
 
 ### Running state — Shared Cache, not IPC
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. **Main is authoritative**;
-the renderer reads it reactively with `useSharedCache('feature.api_gateway.running')`.
+the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared
-cache and config lives in the preference (DataApi) layer.
+cache and config lives in the Preference subsystem.
 
-### IPC (imperative actions only)
+### IpcApi (imperative actions only)
 
-| Channel (`IpcChannel`) | Value | Handler |
+| Route | Result | Handler |
 |---|---|---|
-| `ApiGateway_Start` | `api-gateway:start` | `start()` → `{ success } \| { success:false, error }` |
-| `ApiGateway_Stop` | `api-gateway:stop` | `stop()` |
-| `ApiGateway_Restart` | `api-gateway:restart` | `restart()` (stop → start) |
+| `api_gateway.start` | `{ success } \| { success:false, error }` | `ApiGatewayService.start()` |
+| `api_gateway.stop` | success includes `outcome: 'stopped' \| 'deferred'` | `ApiGatewayService.stop()` |
+| `api_gateway.restart` | `{ success } \| { success:false, error }` | `ApiGatewayService.restart()` |
 
-Preload exposes these as `window.api.apiGateway.{start,stop,restart}`.
+`api_gateway.required` is a Main-to-renderer event for an Agent session whose
+model must use the gateway while the user's persisted gateway intent is off.
 
 ### Preferences (`feature.api_gateway.*`)
 
@@ -273,8 +299,9 @@ to change these — see the v2 data-classify toolchain.
 ### Renderer
 
 `useApiGateway()` reads config (`enabled`/`host`/`port`/`apiKey`) from
-preferences and `running` from the shared cache, exposes `loading`, and wraps
-the three IPC actions plus `setApiGatewayEnabled` / `setApiGatewayConfig`. The
+Preferences and `running` from the shared cache, exposes `loading`, and wraps
+the three IpcApi actions plus `setApiGatewayConfig`. Main owns writes to the
+`enabled` key inside start/stop so persisted intent and runtime state cannot diverge. The
 `ApiGatewaySettings` page renders the status indicator, start/stop/restart
 controls, port input, server URL, the (copy/regenerate) API key, an
 `Authorization` header example, and a link to `…/openapi`. All strings live
@@ -292,6 +319,10 @@ under the `apiGateway` i18n namespace.
 4. Compare against the configured key with **`crypto.timingSafeEqual`**
    (length-checked first). Match → allow; mismatch → **403** `Forbidden`.
 
+The `/v1beta` guard passes Gemini's `x-goog-api-key` / `?key=` token as a third
+candidate to the same timing-safe comparison and shapes guard failures in the
+Google error envelope.
+
 ## Error handling
 
 One root `onError` (`gatewayErrorHandler`) selects the response envelope by
@@ -301,6 +332,7 @@ request **path**, so every endpoint speaks its caller's dialect:
 |---|---|---|
 | `/v1/messages` | Anthropic `{ type:'error', error:{ type, message } }` | `anthropicErrorHandler` |
 | `/v1/chat`, `/v1/responses` | OpenAI `{ error:{ message, type, code } }` | `openaiErrorHandler` |
+| `/v1beta` | Google `{ error:{ code, message, status } }` | `googleErrorHandler` |
 | everything else | Cherry REST `{ error:{ code, message, details? } }` | `restErrorHandler` |
 
 `DataApiError`s (from the data-layer services backing models/knowledge) carry
@@ -328,9 +360,9 @@ streaming `buildStreamErrorFrame`.
   and provider options ride as per-request `CallOverrides`.
 - **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is
   the one source of truth; the renderer mirrors it, never sets it.
-- **Dialect is chosen by path, both directions.** Input format is fixed per
-  route; output envelope (success and error) is chosen from the path, so a
-  client always gets back the protocol it spoke.
+- **Generation dialect is chosen by path, both directions.** Input format is
+  fixed per route; output envelope (success and error) is chosen from the path,
+  so a generation client gets back the protocol it spoke.
 - **Auth key is the persisted preference.** `feature.api_gateway.api_key`, compared
   timing-safe; auto-generated on first activation.
 
@@ -343,4 +375,3 @@ streaming `buildStreamErrorFrame`.
   `@ServicePhase`, `serviceRegistry.ts`.
 - [Data Layer](../data/README.md) — Preference (`feature.api_gateway.*`) and Cache
   (`feature.api_gateway.running`) systems; `ProviderService`, `KnowledgeBaseService`.
-```

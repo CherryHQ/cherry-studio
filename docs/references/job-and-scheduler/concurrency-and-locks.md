@@ -1,3 +1,10 @@
+---
+description: Four-layer lock model for JobManager dispatch — write transactions, queue mutex, concurrency caps, business locks
+sources:
+  - src/main/core/job/runtime/DispatchQueue.ts
+  - src/main/core/job/JobManager.ts
+---
+
 # Concurrency & Locks (Four-Layer Model)
 
 JobManager uses four orthogonal lock layers under concurrent dispatch.

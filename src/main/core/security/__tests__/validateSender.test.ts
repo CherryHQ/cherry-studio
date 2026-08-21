@@ -38,6 +38,26 @@ describe('isAppRendererUrl', () => {
     }
   })
 
+  it('trusts a packaged app page when the renderer path reaches the app through a directory link', () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'cherry-sender-renderer-link-'))
+    const realProgramsDir = join(fixtureRoot, 'real-programs')
+    const linkedProgramsDir = join(fixtureRoot, 'linked-programs')
+    const realAppRoot = join(realProgramsDir, 'Cherry Studio', 'resources', 'app.asar')
+    const appRootFromRendererPath = join(linkedProgramsDir, 'Cherry Studio', 'resources', 'app.asar')
+
+    try {
+      mkdirSync(dirname(realAppRoot), { recursive: true })
+      writeFileSync(realAppRoot, '')
+      symlinkSync(realProgramsDir, linkedProgramsDir, process.platform === 'win32' ? 'junction' : 'dir')
+
+      const rendererPath = join(appRootFromRendererPath, 'out', 'renderer', 'windows', 'main', 'index.html')
+
+      expect(isAppRendererUrl(pathToFileURL(rendererPath).href, null, realpathSync.native(realAppRoot))).toBe(true)
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true })
+    }
+  })
+
   it('rejects a file:// page outside the app root (downloaded/exported HTML)', () => {
     expect(isAppRendererUrl(pathToFileURL(resolve('/Users/victim/Downloads/evil.html')).href, null, APP_ROOT)).toBe(
       false
