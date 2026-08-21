@@ -223,6 +223,14 @@ export type ManagedCliInventoryEntry = {
 type FixedToolDefinition = { name: string; tool: string }
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
+// One build's env and the facts derived from it, so no caller can pair them
+// with another build's — see the `isolatedEnv` field comment.
+type IsolatedEnvSnapshot = {
+  env: Record<string, string>
+  // Only Cherry's own China default may be retried against other indexes.
+  usesDefaultChinaPipIndex: boolean
+}
+
 // Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
 // executable and every Code CLI executable mapped to its canonical mise recipe.
 // Derived from the two preset sources so their names and recipes stay the single
@@ -255,11 +263,10 @@ export class BinaryManager extends BaseService {
   // Background-phase critical path that gates allReady(), for a value most
   // launches never use. `isolatedEnvPromise` memoizes the in-flight build so
   // concurrent first callers share a single build and a single region lookup.
-  private isolatedEnv: Record<string, string> | null = null
-  private isolatedEnvPromise: Promise<Record<string, string>> | null = null
-  // Set while building the isolated env: only Cherry's own China default may be
-  // retried against other indexes. Read after awaiting getIsolatedEnv().
-  private usesDefaultChinaPipIndex = false
+  // Cached as one snapshot because a preference change discards the build in
+  // flight without cancelling it — a superseded build must not outlive its env.
+  private isolatedEnv: IsolatedEnvSnapshot | null = null
+  private isolatedEnvPromise: Promise<IsolatedEnvSnapshot> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
   // Serializes custom-registry read-modify-write with filesystem mutations so
@@ -359,7 +366,6 @@ export class BinaryManager extends BaseService {
         () => {
           this.isolatedEnv = null
           this.isolatedEnvPromise = null
-          this.usesDefaultChinaPipIndex = false
         }
       )
     )
@@ -824,7 +830,7 @@ export class BinaryManager extends BaseService {
   // private registry auth tokens are not passed through.
   // NPM_CONFIG_REGISTRY and PIP_INDEX_URL are passed through and overridden
   // with mirror URLs for China users so that npm/pipx backends work reliably.
-  private async buildIsolatedEnv(): Promise<Record<string, string>> {
+  private async buildIsolatedEnv(): Promise<IsolatedEnvSnapshot> {
     const env: Record<string, string> = {}
 
     for (const key of MISE_PASSTHROUGH_ENV) {
@@ -877,7 +883,7 @@ export class BinaryManager extends BaseService {
     }
 
     const inChina = await regionService.isInChina().catch(() => false)
-    this.usesDefaultChinaPipIndex = false
+    let usesDefaultChinaPipIndex = false
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
         env['NPM_CONFIG_REGISTRY'] = 'https://registry.npmmirror.com'
@@ -885,7 +891,7 @@ export class BinaryManager extends BaseService {
       if (!env['PIP_INDEX_URL']) {
         env['PIP_INDEX_URL'] = CHINA_PIP_INDEXES[0]
         env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(CHINA_PIP_INDEXES[0])
-        this.usesDefaultChinaPipIndex = true
+        usesDefaultChinaPipIndex = true
       }
     }
 
@@ -913,7 +919,7 @@ export class BinaryManager extends BaseService {
       fs.mkdirSync(merged[key], { recursive: true })
     }
 
-    return merged
+    return { env: merged, usesDefaultChinaPipIndex }
   }
 
   /**
@@ -925,15 +931,15 @@ export class BinaryManager extends BaseService {
    * failed build is not cached, so a later call can retry once a transient cause
    * (e.g. mkdir failure) clears.
    */
-  private getIsolatedEnv(): Promise<Record<string, string>> {
+  private getIsolatedEnv(): Promise<IsolatedEnvSnapshot> {
     if (this.isolatedEnv) {
       return Promise.resolve(this.isolatedEnv)
     }
     if (!this.isolatedEnvPromise) {
       const building = this.buildIsolatedEnv().then(
-        (env) => {
-          if (this.isolatedEnvPromise === building) this.isolatedEnv = env
-          return env
+        (snapshot) => {
+          if (this.isolatedEnvPromise === building) this.isolatedEnv = snapshot
+          return snapshot
         },
         (err) => {
           if (this.isolatedEnvPromise === building) this.isolatedEnvPromise = null
@@ -953,6 +959,9 @@ export class BinaryManager extends BaseService {
       shellOutNpm?: boolean
       prependPath?: string
       env?: Record<string, string>
+      // Pins the run to an already-resolved snapshot so a sequence of related
+      // runs cannot straddle a rebuild triggered halfway through.
+      snapshot?: IsolatedEnvSnapshot
     }
   ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
@@ -963,7 +972,7 @@ export class BinaryManager extends BaseService {
       // isolation. getIsolatedEnv() always resolves a fully-built isolated env.
       throw new Error('mise binary not available')
     }
-    const isolatedEnv = await this.getIsolatedEnv()
+    const isolatedEnv = (opts?.snapshot ?? (await this.getIsolatedEnv())).env
     let env = isolatedEnv
     if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath || opts?.env) {
       env = { ...isolatedEnv }
@@ -1173,12 +1182,12 @@ export class BinaryManager extends BaseService {
   }
 
   private async installPipxTool(args: string[], includePrerelease: boolean): Promise<void> {
-    const opts = { timeoutMs: MISE_INSTALL_TIMEOUT_MS, includePrerelease }
-    // usesDefaultChinaPipIndex is a by-product of building the isolated env, and
-    // an index the user chose is used as-is: retrying elsewhere would silently
-    // pull packages from somewhere they did not ask for.
-    await this.getIsolatedEnv()
-    if (!this.usesDefaultChinaPipIndex) {
+    // Every attempt runs against the snapshot the decision came from: an index
+    // the user chose is used as-is, since retrying elsewhere would silently pull
+    // packages from somewhere they did not ask for.
+    const snapshot = await this.getIsolatedEnv()
+    const opts = { timeoutMs: MISE_INSTALL_TIMEOUT_MS, includePrerelease, snapshot }
+    if (!snapshot.usesDefaultChinaPipIndex) {
       await this.runMise(args, opts)
       return
     }

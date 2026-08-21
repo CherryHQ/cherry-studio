@@ -429,7 +429,7 @@ describe('BinaryManager', () => {
     it('returns the requested, custom-defined, auto-runtime, and operation names from the custom registry and one mise refresh', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       manifestRef.value = [{ name: 'myfd', tool: 'github:sharkdp/fd', requestedVersion: '10.0.0' }]
       MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         later: {
@@ -514,7 +514,7 @@ describe('BinaryManager', () => {
     it('reports a requested unowned preset when batched mise ls and its shim agree', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockResolvedValue({
         stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
         stderr: ''
@@ -535,7 +535,7 @@ describe('BinaryManager', () => {
     it('stays applied when the active entry exposes an install_path the shim resolves within', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
           return {
@@ -564,7 +564,7 @@ describe('BinaryManager', () => {
       // reports a working install as unusable (#19075).
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
@@ -608,7 +608,7 @@ describe('BinaryManager', () => {
       // on PATH: a present-but-unexecutable shim is not a runnable path.
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
@@ -648,7 +648,7 @@ describe('BinaryManager', () => {
       // with nothing shimmed, the recipe is not reachable on Cherry's PATH.
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
@@ -682,7 +682,7 @@ describe('BinaryManager', () => {
     it('stays applied when mise which resolves through its latest-version symlink', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
           return {
@@ -725,7 +725,7 @@ describe('BinaryManager', () => {
     it('reports broken when an active entry shim resolves outside that entry install_path', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
           return {
@@ -752,7 +752,7 @@ describe('BinaryManager', () => {
     it('matches a non-runtime fixed recipe when mise reports its core-prefixed identity', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockResolvedValue({
         stdout: JSON.stringify({ 'core:uv': [{ version: '0.9.0', active: true }] }),
         stderr: ''
@@ -770,7 +770,7 @@ describe('BinaryManager', () => {
     it('reports broken and falls back externally when a matching mise shim is not executable', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockResolvedValue({
         stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
         stderr: ''
@@ -791,7 +791,7 @@ describe('BinaryManager', () => {
     it('drops a stale failed install once the tool resolves on the system PATH', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         fd: { status: 'failed', action: 'install', error: 'offline' }
       })
@@ -808,7 +808,7 @@ describe('BinaryManager', () => {
     it('keeps a failed install whose tool is present via mise so ownership retry survives', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         fd: { status: 'failed', action: 'install', error: 'manifest write failed' }
       })
@@ -827,7 +827,7 @@ describe('BinaryManager', () => {
     it('drops a stale failed install once the tool resolves as a bundled binary', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         bun: { status: 'failed', action: 'install', error: 'offline' }
       })
@@ -851,7 +851,7 @@ describe('BinaryManager', () => {
     it('falls back from an owned missing mise shim to bundled, system, and none availability', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       manifestRef.value = [
         { name: 'bun', tool: 'bun' },
         { name: 'fd', tool: 'fd' },
@@ -889,7 +889,7 @@ describe('BinaryManager', () => {
     it('publishes installing before a blocked mutation and lets snapshots read it without waiting', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
       const release = await (service as any).mutationMutex.acquire()
 
@@ -905,7 +905,7 @@ describe('BinaryManager', () => {
       it('reports an active entry as broken when its shim target no longer resolves', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
           if (args[0] === 'ls') {
             return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
@@ -926,7 +926,7 @@ describe('BinaryManager', () => {
       it('reports inactive-only entries as broken and ignores an unresolvable residual shim', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         ;(mockFs.existsSync as any).mockImplementation(
           (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
         )
@@ -950,7 +950,7 @@ describe('BinaryManager', () => {
       it('keeps verified mise availability for an inactive-only entry without calling it applied', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         ;(mockFs.existsSync as any).mockImplementation(
           (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
         )
@@ -973,7 +973,7 @@ describe('BinaryManager', () => {
       it('reports absent with no shim and an external fallback for an unbacked recipe', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
         vi.mocked(findCommandInShellEnv).mockResolvedValue(null)
 
@@ -991,7 +991,7 @@ describe('BinaryManager', () => {
       it('reports a verified conflict with runnable mise availability when a foreign shim resolves without an exact recipe', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         ;(mockFs.existsSync as any).mockImplementation(
           (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
         )
@@ -1015,7 +1015,7 @@ describe('BinaryManager', () => {
       it('ignores a stale shim as absent and falls back externally when `mise which` fails', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         ;(mockFs.existsSync as any).mockImplementation(
           (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
         )
@@ -1038,7 +1038,7 @@ describe('BinaryManager', () => {
       it('ignores a stale shim whose which target is inaccessible (absent, none fallback)', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         ;(mockFs.existsSync as any).mockImplementation(
           (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
         )
@@ -1094,7 +1094,7 @@ describe('BinaryManager', () => {
       it('reports unknown/query_failed while bundled and system availability stay resolvable when mise ls rejects', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
         mockFs.readFileSync.mockImplementation((candidate: string) =>
           candidate === '/mock/cherry.bin/.bun-version'
@@ -1125,7 +1125,7 @@ describe('BinaryManager', () => {
       it('keeps verified mise availability independent when the full listing fails', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         ;(mockFs.existsSync as any).mockImplementation(
           (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
         )
@@ -1150,7 +1150,7 @@ describe('BinaryManager', () => {
       ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout) => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         mockExecFileAsync.mockResolvedValue({ stdout, stderr: '' })
         vi.mocked(findCommandInShellEnv).mockResolvedValue(null)
 
@@ -1166,7 +1166,7 @@ describe('BinaryManager', () => {
       it('preserves a non-semver active version in the applied fact', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         mockExecFileAsync.mockResolvedValue({
           stdout: JSON.stringify({ fd: [{ version: 'nightly-2026', active: true }] }),
           stderr: ''
@@ -1185,7 +1185,7 @@ describe('BinaryManager', () => {
       it('normalizes a core: runtime spec to its interpreter name for the applied fact', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: '22.0.0' }]
         mockExecFileAsync.mockResolvedValue({
           stdout: JSON.stringify({ 'core:node': [{ version: '22.0.0', active: true }] }),
@@ -1210,7 +1210,7 @@ describe('BinaryManager', () => {
         platformMock.isWin = true
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        ;(service as any).isolatedEnv = {}
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
         mockExecFileAsync.mockResolvedValue({
           stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
           stderr: ''
@@ -1238,7 +1238,7 @@ describe('BinaryManager', () => {
     it('serializes concurrent custom-tool writes without dropping either definition', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         // Full listing reports both custom specs already installed, so each Add is a
         // persist-then-adopt no-op — the concurrency under test is the Preference
@@ -1272,7 +1272,7 @@ describe('BinaryManager', () => {
     const makeService = () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       return service
     }
     const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
@@ -1571,7 +1571,7 @@ describe('BinaryManager', () => {
     it('caches registry output across calls', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
 
       mockExecFileAsync.mockResolvedValue({
         stdout: JSON.stringify([
@@ -1593,7 +1593,7 @@ describe('BinaryManager', () => {
       // empty dropdown reading "no such tool".
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
 
       mockExecFileAsync.mockRejectedValue(new Error('unexpected argument --json'))
 
@@ -1603,7 +1603,7 @@ describe('BinaryManager', () => {
     it('rejects when the registry returns malformed JSON', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
 
       mockExecFileAsync.mockResolvedValue({ stdout: 'not json', stderr: '' })
 
@@ -1615,7 +1615,7 @@ describe('BinaryManager', () => {
     const makeService = () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       return service
     }
 
@@ -1892,7 +1892,7 @@ describe('BinaryManager', () => {
     it('claims a ready runtime at its live version without persisting', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/node\n', stderr: '' }
         if (args[0] === 'ls')
@@ -1914,7 +1914,7 @@ describe('BinaryManager', () => {
     it('installs via mise honoring the one-shot target', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
@@ -1933,7 +1933,7 @@ describe('BinaryManager', () => {
     it('accepts a recipe whose bins are not named after it (core:rust ships rustc/cargo)', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       const cargoBin = '/mock/feature.binary.data.isolated.cargo/bin'
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
@@ -1972,7 +1972,7 @@ describe('BinaryManager', () => {
       // otherwise a foreign provider on PATH would pass as a successful install.
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
           return {
@@ -2002,7 +2002,7 @@ describe('BinaryManager', () => {
     it('rejects when mise reports the installed version but no active entry', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
@@ -2017,7 +2017,7 @@ describe('BinaryManager', () => {
     it('rejects when the installed tool is not runnable', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
@@ -2033,7 +2033,7 @@ describe('BinaryManager', () => {
     it('keeps a verified update successful when obsolete-version cleanup fails', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
@@ -2052,7 +2052,7 @@ describe('BinaryManager', () => {
     const makeService = () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       return service
     }
     const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
@@ -2332,7 +2332,7 @@ describe('BinaryManager', () => {
     it('pins an exact healthy Node and puts its npm ahead of ambient PATH for DeepSeek Harness', async () => {
       const service = makeService()
       let installed = false
-      ;(service as any).isolatedEnv = { PATH: '/mock/mise/shims:/usr/bin' }
+      ;(service as any).isolatedEnv = { env: { PATH: '/mock/mise/shims:/usr/bin' }, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
         if (args[0] === 'ls' && args.length === 2) {
@@ -2392,7 +2392,7 @@ describe('BinaryManager', () => {
     const makeService = () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       return service
     }
     const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
@@ -2584,7 +2584,7 @@ describe('BinaryManager', () => {
 
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        const env = await (service as any).buildIsolatedEnv()
+        const { env } = await (service as any).buildIsolatedEnv()
 
         expect(env['AWS_ACCESS_KEY_ID']).toBeUndefined()
         expect(env['OPENAI_API_KEY']).toBeUndefined()
@@ -2601,7 +2601,7 @@ describe('BinaryManager', () => {
       // find no toolchain and re-download it into the user's real home.
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      const env = await (service as any).buildIsolatedEnv()
+      const { env } = await (service as any).buildIsolatedEnv()
       const execution = getBinaryExecutionEnv()
 
       expect(env['MISE_RUSTUP_HOME']).toBe(execution['MISE_RUSTUP_HOME'])
@@ -2618,7 +2618,7 @@ describe('BinaryManager', () => {
 
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        const env = await (service as any).buildIsolatedEnv()
+        const { env } = await (service as any).buildIsolatedEnv()
 
         expect(env['HTTPS_PROXY']).toBe('http://proxy:8080')
         // Ambient GITHUB_TOKEN is intentionally not forwarded.
@@ -2636,7 +2636,7 @@ describe('BinaryManager', () => {
 
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        const env = await (service as any).buildIsolatedEnv()
+        const { env } = await (service as any).buildIsolatedEnv()
 
         expect(env['GITHUB_TOKEN']).toBe('ghp_opt_in')
       } finally {
@@ -2654,7 +2654,7 @@ describe('BinaryManager', () => {
         process.env['PATH'] = '/usr/bin:/bin'
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/bin/mise'
-        const env = await (service as any).buildIsolatedEnv()
+        const { env } = await (service as any).buildIsolatedEnv()
 
         expect(env['PATH'].split(':')).toEqual(['/mock/feature.binary.data/shims', '/mock/bin', '/usr/bin', '/bin'])
       } finally {
@@ -2666,7 +2666,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
 
-      const env = await (service as any).buildIsolatedEnv()
+      const { env } = await (service as any).buildIsolatedEnv()
 
       expect(env['MISE_PIPX_UVX']).toBe('1')
       expect(getBinaryExecutionEnv()['MISE_PIPX_UVX']).toBeUndefined()
@@ -2682,7 +2682,7 @@ describe('BinaryManager', () => {
       })
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      const env = await (service as any).buildIsolatedEnv()
+      const { env } = await (service as any).buildIsolatedEnv()
 
       expect(mockPreferenceService.get).toHaveBeenCalledWith('feature.binary.install_settings')
       expect(env['NPM_CONFIG_REGISTRY']).toBe('https://registry.example')
@@ -2703,7 +2703,7 @@ describe('BinaryManager', () => {
         process.env['PIP_INDEX_URL'] = 'https://pypi.ambient/simple/'
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        const env = await (service as any).buildIsolatedEnv()
+        const { env } = await (service as any).buildIsolatedEnv()
 
         expect(env['PIP_INDEX_URL']).toBe('https://pypi.ambient/simple')
         expect(env['MISE_PIPX_REGISTRY_URL']).toBe('https://pypi.ambient/simple/{}/')
@@ -2721,7 +2721,7 @@ describe('BinaryManager', () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
 
-        const env = await (service as any).buildIsolatedEnv()
+        const { env } = await (service as any).buildIsolatedEnv()
 
         // Raw value passes through unchanged; no pipx registry is derived from it.
         expect(env['PIP_INDEX_URL']).toBe('file:///srv/pypi/simple')
@@ -2761,7 +2761,7 @@ describe('BinaryManager', () => {
     it('relocates HOME/XDG into the isolated data dir so mise cannot read user-level config/creds', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      const env = await (service as any).buildIsolatedEnv()
+      const { env } = await (service as any).buildIsolatedEnv()
 
       // Install subprocess MUST be isolated from the user's real home.
       expect(env['HOME']).toBe('/mock/feature.binary.data/home')
@@ -2783,7 +2783,7 @@ describe('BinaryManager', () => {
     ])('force-reinstalls the $name exact Node version when its launchers are broken', async (testCase) => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = { PATH: '/mock/mise/shims:/usr/bin' }
+      ;(service as any).isolatedEnv = { env: { PATH: '/mock/mise/shims:/usr/bin' }, usesDefaultChinaPipIndex: false }
       let runtimeReinstalled = false
 
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
@@ -2834,7 +2834,7 @@ describe('BinaryManager', () => {
     it('uses mise global config and reshim for npm: backend tools', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
 
       mockFs.readFileSync.mockImplementation(() => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
@@ -2870,7 +2870,7 @@ describe('BinaryManager', () => {
     it('preserves an explicitly managed runtime when installing a package-backend tool', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: '20.19.4' }]
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         // node is applied at its live version, so the package install adopts it.
@@ -2896,7 +2896,7 @@ describe('BinaryManager', () => {
     it('pins an unpinned owned runtime to its live version for a package install', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       manifestRef.value = [{ name: 'node', tool: 'core:node' }]
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls' && args[2] === 'npm:mynpmtool') {
@@ -2924,7 +2924,7 @@ describe('BinaryManager', () => {
     it('normalizes a leading-v pin from verified mise output', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
 
       mockExecFileAsync
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
@@ -2943,7 +2943,7 @@ describe('BinaryManager', () => {
     it('rejects malformed mise output instead of fabricating install success', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync
         .mockResolvedValueOnce({ stdout: '', stderr: '' })
         .mockResolvedValueOnce({ stdout: '', stderr: '' })
@@ -3012,6 +3012,16 @@ describe('BinaryManager', () => {
       return service
     }
 
+    // The production callback that a change to any install-affecting preference
+    // fires: it discards the memoized env build without cancelling it.
+    const invalidateOn = (service: InstanceType<typeof BinaryManager>) => {
+      ;(service as any).registerPreferenceInvalidation()
+      const calls = mockPreferenceService.subscribeMultipleChanges.mock.calls as unknown as Array<
+        [string[], () => void]
+      >
+      return calls[calls.length - 1][1]
+    }
+
     it('retries the next mirror when the default China index lags the release', async () => {
       const service = chinaService()
       stubMise([TSINGHUA])
@@ -3074,13 +3084,74 @@ describe('BinaryManager', () => {
       expect(useCalls).toHaveLength(1)
       expect(useCalls[0][2].env['UV_DEFAULT_INDEX']).toBeUndefined()
     })
+
+    it('ignores a superseded env build that finishes after the user picked their own index', async () => {
+      const CUSTOM = 'https://pypi.internal/simple'
+      const { regionService } = await import('@main/services/RegionService')
+      let finishSupersededLookup!: (inChina: boolean) => void
+      vi.mocked(regionService.isInChina).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishSupersededLookup = resolve
+          })
+      )
+
+      const service = chinaService()
+      const invalidate = invalidateOn(service)
+      stubMise([])
+      // Parked on its region lookup, this build still reads the old preference:
+      // no configured index, so it resolves to Cherry's own China default.
+      const superseded = (service as any).getIsolatedEnv()
+
+      mockInstallPreferences({ ...DEFAULT_INSTALL_PREFERENCES, pipIndexUrl: CUSTOM })
+      invalidate()
+
+      // The replacement build wins the cache first; the superseded one lands after.
+      await (service as any).getIsolatedEnv()
+      finishSupersededLookup(true)
+      await superseded
+
+      await expect(installBabeldoc(service)).resolves.toBe('0.6.4')
+
+      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
+      expect(useCalls).toHaveLength(1)
+      expect(useCalls[0][2].env['PIP_INDEX_URL']).toBe(CUSTOM)
+      expect(useCalls[0][2].env['UV_DEFAULT_INDEX']).toBeUndefined()
+    })
+
+    it('runs every attempt of one install against the same env, even if settings change mid-retry', async () => {
+      const service = chinaService()
+      const invalidate = invalidateOn(service)
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[], opts: any) => {
+        if (args[0] === 'use') {
+          if (opts.env['UV_DEFAULT_INDEX'] !== TSINGHUA) return { stdout: '', stderr: '' }
+          // The user changes install settings while the first attempt fails.
+          mockInstallPreferences({ ...DEFAULT_INSTALL_PREFERENCES, githubMirror: 'https://ghproxy.test' })
+          invalidate()
+          throw new Error(`No matching distribution on ${TSINGHUA}`)
+        }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'pipx:babeldoc-stream': [{ version: '0.6.4', active: true }] }),
+            stderr: ''
+          }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(installBabeldoc(service)).resolves.toBe('0.6.4')
+
+      expect(attemptedIndexes()).toEqual([TSINGHUA, TENCENT])
+      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
+      expect(useCalls[1][2].env['MISE_URL_REPLACEMENTS']).toBeUndefined()
+    })
   })
 
   describe('state mutex concurrency', () => {
     it('serializes concurrent installByName calls', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
 
       mockFs.readFileSync.mockImplementation(() => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
@@ -3121,7 +3192,7 @@ describe('BinaryManager', () => {
     it('coalesces identical same-name installs without replacing their live state', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockFs.readFileSync.mockImplementation(() => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
@@ -3154,7 +3225,7 @@ describe('BinaryManager', () => {
     it('rejects a remove while the same tool install is queued without replacing its operation', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       const release = await (service as any).mutationMutex.acquire()
       const install = service.installByName({ name: 'fd' })
 
@@ -3192,7 +3263,7 @@ describe('BinaryManager', () => {
     it('rejects a second same-name install with a different target without changing the in-flight state', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       let releaseInstall!: () => void
       const installStarted = new Promise<void>((resolve) => {
         releaseInstall = resolve
@@ -3232,7 +3303,7 @@ describe('BinaryManager', () => {
     it('publishes installing to main internal cache without mirroring it, then clears on success', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockSuccessfulInstall('fd', 'fd')
 
       const pending = service.installByName({ name: 'fd' })
@@ -3251,7 +3322,7 @@ describe('BinaryManager', () => {
     it('keeps a failed entry with the error message until retried', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') return { stdout: '{}', stderr: '' }
         if (args[0] === 'use') throw new Error('mise use timed out after 900s')
@@ -3301,7 +3372,7 @@ describe('BinaryManager', () => {
     it('removeTool clears a lingering failed entry', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') return { stdout: '{}', stderr: '' }
         if (args[0] === 'use') throw new Error('boom')
@@ -3322,7 +3393,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       const isolatedEnv = { MISE_DATA_DIR: '/isolated', PATH: '/isolated/shims' }
-      ;(service as any).isolatedEnv = isolatedEnv
+      ;(service as any).isolatedEnv = { env: isolatedEnv, usesDefaultChinaPipIndex: false }
 
       mockExecFileAsync.mockResolvedValueOnce({ stdout: 'ok\n', stderr: '' })
 
@@ -3338,7 +3409,7 @@ describe('BinaryManager', () => {
     it('keeps prerelease and npm shell-out environment controls independent', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = { MISE_DATA_DIR: '/isolated' }
+      ;(service as any).isolatedEnv = { env: { MISE_DATA_DIR: '/isolated' }, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' })
 
       await (service as any).runMise(['latest', 'npm:prerelease-tool'], { includePrerelease: true })
@@ -3360,7 +3431,10 @@ describe('BinaryManager', () => {
       platformMock.isWin = true
       const service = new BinaryManager()
       ;(service as any).miseBin = 'C:\\Cherry\\mise.exe'
-      ;(service as any).isolatedEnv = { Path: 'C:\\Cherry\\shims;C:\\Windows' }
+      ;(service as any).isolatedEnv = {
+        env: { Path: 'C:\\Cherry\\shims;C:\\Windows' },
+        usesDefaultChinaPipIndex: false
+      }
       mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' })
 
       await (service as any).runMise(['registry'], { prependPath: 'C:\\Cherry\\node\\bin' })
@@ -3373,7 +3447,7 @@ describe('BinaryManager', () => {
     it('includes mise stderr in the thrown diagnostic', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockRejectedValueOnce(
         Object.assign(new Error('Command failed'), { stderr: 'network timeout\n' })
       )
@@ -3384,7 +3458,7 @@ describe('BinaryManager', () => {
     it('does not append stderr when the command error already includes it', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockRejectedValueOnce(
         Object.assign(new Error('Command failed\nnetwork timeout'), { stderr: 'network timeout\n' })
       )
@@ -3402,7 +3476,7 @@ describe('BinaryManager', () => {
     it('rewrites a timeout kill into a readable message, keeping stderr as detail', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       // execFile timeout kill: killed=true, stderr stuck on a progress line.
       mockExecFileAsync.mockRejectedValueOnce(
         Object.assign(new Error('Command failed: /mock/mise use -g node@22 npm:openclaw@latest'), {
@@ -3423,7 +3497,7 @@ describe('BinaryManager', () => {
     it('does not rewrite a kill that happened before the timeout elapsed', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       // killed=true but rejection is immediate (elapsed < timeout): an external
       // kill, not our timeout — the original message must survive.
       mockExecFileAsync.mockRejectedValueOnce(
@@ -3473,7 +3547,7 @@ describe('BinaryManager', () => {
       manifestRef.value = [{ name: 'acme', tool: 'npm:acme', requestedVersion: '1.2.3' }]
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockResolvedValue({
         stdout: JSON.stringify({
           'npm:acme': [{ version: '1.2.3', active: true }],
@@ -3517,7 +3591,7 @@ describe('BinaryManager', () => {
       manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ rust: [{ version: '1.98.0', active: true }] }), stderr: '' }
@@ -3543,7 +3617,7 @@ describe('BinaryManager', () => {
       manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ rust: [{ version: '1.98.0', active: true }] }), stderr: '' }
@@ -3569,7 +3643,7 @@ describe('BinaryManager', () => {
     it('reads live state on every inventory call instead of caching snapshots', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
 
       await service.getToolInventory()
