@@ -577,12 +577,15 @@
         "run": "Laufen"
       },
       "confirmation": "Sind Sie sicher, dass Sie dieses Claude-Tool ausführen möchten?",
+      "decisionDenied": "Abgelehnt",
       "defaultDenyMessage": "Der Benutzer hat die Berechtigung für dieses Tool verweigert.",
       "error": {
         "sendFailed": "Ihre Entscheidung konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
       },
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pendingBadge": "Ausstehend",
+      "reasonLabel": "Grund für die Ablehnung (optional)",
+      "reasonPlaceholder": "Teilen Sie dem Agent mit, was er stattdessen tun soll",
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
     },
     "tools": {

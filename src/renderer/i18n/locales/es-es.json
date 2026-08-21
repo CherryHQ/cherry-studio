@@ -577,12 +577,15 @@
         "run": "Correr"
       },
       "confirmation": "¿Estás seguro de que quieres ejecutar esta herramienta de Claude?",
+      "decisionDenied": "Rechazado",
       "defaultDenyMessage": "El usuario denegó el permiso para esta herramienta.",
       "error": {
         "sendFailed": "No se pudo enviar tu decisión. Por favor, inténtalo de nuevo."
       },
       "inputPreview": "Vista previa de entrada de herramienta",
       "pendingBadge": "Pendiente",
+      "reasonLabel": "Motivo del rechazo (opcional)",
+      "reasonPlaceholder": "Indica al Agente qué debe hacer en su lugar",
       "waiting": "Esperando la decisión de permiso de la herramienta..."
     },
     "tools": {

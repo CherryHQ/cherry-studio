@@ -577,12 +577,15 @@
         "run": "Chạy"
       },
       "confirmation": "Bạn có chắc chắn muốn chạy công cụ Claude này không?",
+      "decisionDenied": "Đã từ chối",
       "defaultDenyMessage": "Người dùng đã từ chối cấp quyền cho công cụ này.",
       "error": {
         "sendFailed": "Không thể gửi quyết định của bạn. Vui lòng thử lại."
       },
       "inputPreview": "Xem trước đầu vào công cụ",
       "pendingBadge": "Đang chờ xử lý",
+      "reasonLabel": "Lý do từ chối (không bắt buộc)",
+      "reasonPlaceholder": "Cho Agent biết nên làm gì thay thế",
       "waiting": "Đang chờ quyết định cấp quyền cho công cụ..."
     },
     "tools": {

@@ -167,6 +167,8 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
+    'agent.toolPermission.decisionDenied': 'Denied',
+    'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
     'agent.sidebar_title': 'Agents',
@@ -876,6 +878,19 @@ describe('AgentToolRenderer', () => {
       fireEvent.click(screen.getAllByRole('button')[0])
       expect(screen.getByText('Winston')).toBeVisible()
     })
+  })
+
+  it('keeps a denied tool decision and its reason visible in history', () => {
+    const toolResponse = createToolResponse({
+      status: 'cancelled',
+      arguments: { command: 'rm -rf build' },
+      approval: { approved: false, reason: 'use a copy instead' }
+    })
+
+    render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+    expect(screen.getByText('Denied')).toBeInTheDocument()
+    expect(screen.getByText('use a copy instead')).toBeInTheDocument()
   })
 
   describe('navigate tool rendering', () => {

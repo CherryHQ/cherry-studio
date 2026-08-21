@@ -577,12 +577,15 @@
         "run": "Run"
       },
       "confirmation": "Are you sure you want to run this Claude tool?",
+      "decisionDenied": "Denied",
       "defaultDenyMessage": "User denied permission for this tool.",
       "error": {
         "sendFailed": "Failed to send your decision. Please try again."
       },
       "inputPreview": "Tool input preview",
       "pendingBadge": "Pending",
+      "reasonLabel": "Reason for rejection (optional)",
+      "reasonPlaceholder": "Tell the Agent what to do instead",
       "waiting": "Waiting for tool permission decision..."
     },
     "tools": {
