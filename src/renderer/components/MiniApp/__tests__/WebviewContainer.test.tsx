@@ -34,18 +34,20 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+import { ipcApi } from '@renderer/ipc'
 import { MINI_APP_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
 
 import WebviewContainer from '../WebviewContainer'
 
-const renderWebview = () => {
+const renderWebview = (props: { appid?: string; onFocusChange?: (appid: string, focused: boolean) => void } = {}) => {
   const { container } = render(
     <WebviewContainer
-      appid="chatgpt"
+      appid={props.appid ?? 'chatgpt'}
       url="https://chat.openai.com"
       onSetRefCallback={vi.fn()}
       onLoadedCallback={vi.fn()}
       onNavigateCallback={vi.fn()}
+      onFocusChange={props.onFocusChange}
     />
   )
   const webview = container.querySelector('webview')!
@@ -212,5 +214,37 @@ describe('WebviewContainer', () => {
     stop()
 
     expect(seen).toHaveLength(0)
+  })
+
+  it('reports focus and blur so the pool can own the context key', () => {
+    const onFocusChange = vi.fn()
+    const webview = renderWebview({ onFocusChange })
+
+    act(() => {
+      webview.dispatchEvent(new Event('focus'))
+    })
+    expect(onFocusChange).toHaveBeenLastCalledWith('chatgpt', true)
+
+    act(() => {
+      webview.dispatchEvent(new Event('blur'))
+    })
+    expect(onFocusChange).toHaveBeenLastCalledWith('chatgpt', false)
+  })
+
+  it('prints the WebView the key came from, not another mounted pane', async () => {
+    const other = renderWebview({ appid: 'claude' })
+    const target = renderWebview({ appid: 'chatgpt' })
+    Object.defineProperty(other, 'getWebContentsId', { value: () => 11 })
+    Object.defineProperty(target, 'getWebContentsId', { value: () => 22 })
+    vi.mocked(ipcApi.request).mockResolvedValue(null)
+
+    const event = new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, cancelable: true })
+    Object.defineProperty(event, 'target', { get: () => target })
+    await act(async () => {
+      window.dispatchEvent(event)
+    })
+
+    expect(ipcApi.request).toHaveBeenCalledTimes(1)
+    expect(ipcApi.request).toHaveBeenCalledWith('webview.print_to_pdf', { webviewId: 22 })
   })
 })

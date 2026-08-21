@@ -2,8 +2,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
-import { dialog, session, shell, webContents } from 'electron'
-import { promises as fs } from 'fs'
+import { app, dialog, session, shell, webContents } from 'electron'
+import { existsSync, promises as fs } from 'fs'
 import { join } from 'path'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
@@ -90,16 +90,25 @@ export class WebviewService extends BaseService {
   }
 
   /**
-   * Install the keyboard relay into every MiniApp guest. Registered on the session so
-   * a compromised renderer cannot choose the guest's preload via the `<webview>` tag.
+   * Install the keyboard relay into every MiniApp guest. Assigned per `<webview>` rather
+   * than on the session, which `persist:webview` OAuth login windows also share.
    */
   private initKeyboardRelayPreload() {
-    const wvSession = session.fromPartition('persist:webview')
-    const id = wvSession.registerPreloadScript({
-      type: 'frame',
-      filePath: join(__dirname, '../preload/miniApp.js')
-    })
-    this.registerDisposable(() => wvSession.unregisterPreloadScript(id))
+    const preloadPath = join(__dirname, '../preload/miniApp.js')
+    // Electron reports nothing when a preload path is wrong, and the symptom is every
+    // MiniApp shortcut silently dying, so the mismatch has to be its own signal.
+    if (!existsSync(preloadPath)) {
+      logger.error(`MiniApp keyboard relay preload is missing, shortcuts will not work: ${preloadPath}`)
+      return
+    }
+
+    const attach = (_: Electron.Event, contents: Electron.WebContents) => {
+      contents.on('will-attach-webview', (_event, webPreferences) => {
+        webPreferences.preload = preloadPath
+      })
+    }
+    app.on('web-contents-created', attach)
+    this.registerDisposable(() => app.removeListener('web-contents-created', attach))
   }
 
   /**

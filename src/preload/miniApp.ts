@@ -1,4 +1,9 @@
-import { isHostOwnedGuestKey, MINI_APP_KEYDOWN_CHANNEL, toMiniAppKeyPayload } from '@shared/utils/webviewKey'
+import {
+  isForwardableGuestKey,
+  isHostOwnedGuestKey,
+  MINI_APP_KEYDOWN_CHANNEL,
+  toMiniAppKeyPayload
+} from '@shared/utils/webviewKey'
 import { ipcRenderer } from 'electron'
 
 // Capture phase so a guest page cannot stop the host from seeing app shortcuts;
@@ -6,7 +11,7 @@ import { ipcRenderer } from 'electron'
 window.addEventListener(
   'keydown',
   (event) => {
-    if (event.isComposing) return
+    if (event.isComposing || !isForwardableGuestKey(event)) return
     if (isHostOwnedGuestKey(event)) {
       event.preventDefault()
     }

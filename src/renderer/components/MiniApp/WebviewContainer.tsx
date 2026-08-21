@@ -1,11 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useCommandContextKey } from '@renderer/hooks/command'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
 import type { DidNavigateInPageEvent, DidStartNavigationEvent, IpcMessageEvent, WebviewTag } from 'electron'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewContainer')
@@ -21,21 +20,21 @@ const WebviewContainer = memo(
     url,
     onSetRefCallback,
     onLoadedCallback,
-    onNavigateCallback
+    onNavigateCallback,
+    onFocusChange
   }: {
     appid: string
     url: string
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
     onNavigateCallback: (appid: string, url: string) => void
+    /** Reported to the pool, which owns the `webview.focused` context key for all panes. */
+    onFocusChange?: (appid: string, focused: boolean) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
-    const [isFocused, setIsFocused] = useState(false)
     const { t } = useTranslation()
     const [enableSpellCheck] = usePreference('app.spell_check.enabled')
     const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
-    // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
-    useCommandContextKey('webview.focused', isFocused)
 
     const handleRef = useCallback(
       (element: WebviewTag | null) => {
@@ -128,8 +127,8 @@ const WebviewContainer = memo(
         window.dispatchEvent(replayed)
       }
 
-      const handleFocus = () => setIsFocused(true)
-      const handleBlur = () => setIsFocused(false)
+      const handleFocus = () => onFocusChange?.(appid, true)
+      const handleBlur = () => onFocusChange?.(appid, false)
 
       webview.addEventListener('ipc-message', handleGuestKeydown)
       webview.addEventListener('focus', handleFocus)
