@@ -1,7 +1,7 @@
 ---
 description: Lifecycle service that acquires third-party CLI binaries through mise, with tool registry, snapshots, and IPC
 sources:
-  - src/main/services/BinaryManager.ts
+  - src/main/services/binaryManager/BinaryManager.ts
   - src/shared/data/presets/binaryTools.ts
   - src/main/ipc/handlers/binary.ts
   - scripts/download-binaries.js
@@ -135,7 +135,7 @@ For a built-in Dependency settings preset, add an entry to `PRESETS_BINARY_TOOLS
 
 For a Code CLI, add its executable/specification to the Code CLI preset source. `getToolSnapshots()` already includes those candidates, so no BinaryManager adapter is needed.
 
-To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
+To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/binaryManager/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
 
 ## Consuming a tool
 
