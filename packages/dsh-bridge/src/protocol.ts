@@ -12,7 +12,8 @@
  */
 
 // Wire-safe by design (dsh keeps this subpath free of cordis imports), and pinned to
-// the same rc at both ends — safe to put on the wire, unlike the wider ContentBlock.
+// the same rc at both ends. Images cross as encoded uploads; durable attachment refs
+// are created inside the subprocess and never become a host-visible wire contract.
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions/types'
 
 export type {
@@ -26,12 +27,21 @@ export const BRIDGE_TOKEN_ENV = 'CHERRY_DSH_BRIDGE_TOKEN'
 
 export type BridgePermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
 
-/** Wire-owned on purpose — NOT dsh's TextBlock: the socket schema must not drift with an rc dep,
- *  and dsh's wider ContentBlock (image attachment refs are subprocess-local) cannot cross this wire. */
+/** Wire-owned on purpose — NOT dsh's TextBlock: the socket schema must not drift with an rc dep. */
 export interface BridgeTextBlock {
   type: 'text'
   text: string
 }
+
+export interface BridgeImageBlock {
+  type: 'image'
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+  /** Base64-encoded source bytes; the plugin persists and canonicalizes them before creating a message. */
+  data: string
+  name?: string
+}
+
+export type BridgeContentBlock = BridgeTextBlock | BridgeImageBlock
 
 export interface BridgeToolDescriptor {
   name: string
@@ -108,14 +118,17 @@ export interface BridgeHostRequestMap {
     result: Record<string, never>
   }
   'session/prompt': {
-    params: { sessionId: string; contentBlocks: BridgeTextBlock[] }
+    params: { sessionId: string; contentBlocks: BridgeContentBlock[] }
     result: Record<string, never>
   }
   'session/cancel': { params: { sessionId: string }; result: Record<string, never> }
   'policy/update': { params: { sessionId: string; policy: BridgePolicy }; result: Record<string, never> }
   'context/usage': { params: { sessionId: string }; result: BridgeContextUsage }
   /** One slash-command line dispatched through the runtime's `ctx.commands` registry. */
-  'command/execute': { params: { sessionId: string; line: string }; result: BridgeCommandResult }
+  'command/execute': {
+    params: { sessionId: string; line: string; images?: BridgeImageBlock[] }
+    result: BridgeCommandResult
+  }
   /** Select plan mode; `outcome` relays `ctx.planMode.set` (`queued` while a turn is open). */
   'plan/set': {
     params: { sessionId: string; active: boolean }

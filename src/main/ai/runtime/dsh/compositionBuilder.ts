@@ -19,7 +19,12 @@ import { isWin } from '@main/core/platform'
 import type { DshApi } from '@shared/ai/dshModelCompatibility'
 import { stringify } from 'yaml'
 
-import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
+import {
+  DSH_NATIVE_DEEPSEEK_PROVIDER,
+  type DshModelConfig,
+  type DshProviderAdapter,
+  type DshReasoningEffort
+} from './modelInjection'
 
 /** Resolve a composition plugin specifier to its packaged on-disk entry. */
 export function resolveDshPluginPath(specifier: string, runtimeRoot?: string): string {
@@ -38,6 +43,8 @@ export function resolveDshRuntimeBinPath(runtimeRoot?: string): string {
 }
 
 export interface DshCompositionInput {
+  /** LLM plugin that owns the provider route. */
+  adapter: DshProviderAdapter
   providerName: string
   api: DshApi
   baseUrl: string
@@ -80,10 +87,10 @@ const DSH_PLAN_MODE_SECTION = [
   'When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" in prose. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.'
 ].join('\n\n')
 
-function buildProviderRoute(input: DshCompositionInput): Record<string, unknown> {
+function buildPiAiProviderRoute(input: DshCompositionInput): Record<string, unknown> {
   return {
     apiKeyEnv: 'CHERRY_DSH_API_KEY',
-    // Google is a catalog-provider reuse: naming its explicit protocol would be rejected by rc.6.
+    // Google is a catalog-provider reuse: naming its explicit protocol is rejected by pi-ai.
     ...(input.api === 'google-generative-ai' ? {} : { api: input.api }),
     baseURL: input.baseUrl,
     ...(input.headers && Object.keys(input.headers).length ? { headers: input.headers } : {}),
@@ -97,6 +104,46 @@ function buildProviderRoute(input: DshCompositionInput): Record<string, unknown>
         input: [...input.modelConfig.input],
         reasoningEfforts:
           input.modelConfig.reasoningEfforts === false ? false : { ...input.modelConfig.reasoningEfforts }
+      }
+    ]
+  }
+}
+
+function mapDeepSeekReasoningEffort(
+  reasoning: DshReasoningEffort | undefined
+): 'off' | 'low' | 'high' | 'max' | undefined {
+  switch (reasoning) {
+    case 'off':
+      return 'off'
+    case 'minimal':
+    case 'low':
+      return 'low'
+    case 'medium':
+    case 'high':
+      return 'high'
+    case 'xhigh':
+    case 'max':
+      return 'max'
+    default:
+      return undefined
+  }
+}
+
+function buildDeepSeekRoute(input: DshCompositionInput): Record<string, unknown> {
+  const reasoningEffort = mapDeepSeekReasoningEffort(input.reasoning)
+  const thinkingEnabled = input.modelConfig.reasoningEfforts !== false
+  return {
+    apiKeyEnv: 'CHERRY_DSH_API_KEY',
+    baseURL: input.baseUrl,
+    thinking: thinkingEnabled ? 'enabled' : 'disabled',
+    ...(thinkingEnabled && reasoningEffort ? { reasoningEffort } : {}),
+    models: [
+      {
+        id: input.modelConfig.id,
+        ...(input.modelConfig.name ? { name: input.modelConfig.name } : {}),
+        contextWindow: input.modelConfig.contextWindow,
+        maxTokens: input.modelConfig.maxTokens,
+        inputModalities: [...input.modelConfig.input]
       }
     ]
   }
@@ -130,6 +177,12 @@ function buildSpineConfig(input: DshCompositionInput, isWindows: boolean): Recor
 }
 
 export function buildDshCompositionYaml(input: DshCompositionInput): string {
+  if (input.adapter === 'deepseek' && input.providerName !== DSH_NATIVE_DEEPSEEK_PROVIDER) {
+    throw new Error(`dsh DeepSeek adapter requires provider route "${DSH_NATIVE_DEEPSEEK_PROVIDER}"`)
+  }
+  if (input.adapter === 'pi-ai' && input.providerName === DSH_NATIVE_DEEPSEEK_PROVIDER) {
+    throw new Error('dsh pi-ai adapter cannot claim the native DeepSeek provider route')
+  }
   const isWindows = input.platform === undefined ? isWin : input.platform === 'win32'
   const entry = (id: string, specifier: string, config?: Record<string, unknown>): DshCompositionEntry => ({
     id,
@@ -139,7 +192,11 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
 
   const entries: DshCompositionEntry[] = [
     entry('sdk-jsonrpc-server', '@deepseek-ai/dsh-sdk-jsonrpc-server', { maxTokensAsSuccess: false }),
-    entry('llm', '@deepseek-ai/dsh-llm-pi-ai', { providers: { [input.providerName]: buildProviderRoute(input) } }),
+    input.adapter === 'deepseek'
+      ? entry('llm-deepseek', '@deepseek-ai/dsh-llm-deepseek', buildDeepSeekRoute(input))
+      : entry('llm', '@deepseek-ai/dsh-llm-pi-ai', {
+          providers: { [input.providerName]: buildPiAiProviderRoute(input) }
+        }),
     // Configless = normal mode: 2 retries for empty/rate-limit/server/timeout/transport,
     // 500ms→10s backoff. The provider profile above sets no `retryPolicy` override.
     entry('llm-retry', '@deepseek-ai/dsh-llm-retry'),

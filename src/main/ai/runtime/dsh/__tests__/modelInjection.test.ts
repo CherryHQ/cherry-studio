@@ -38,6 +38,7 @@ import { buildDshCompositionYaml } from '../compositionBuilder'
 import {
   assertDshProviderUsable,
   buildDshGatewayInjection,
+  buildDshProviderInjection,
   DshMissingContextWindowError,
   DshUnsupportedProviderError,
   resolveDshProviderInjectionFromSnapshot
@@ -64,13 +65,39 @@ const vertexProvider = {
   }
 } as unknown as Provider
 
+const codexProvider = {
+  id: 'openai-codex',
+  name: 'OpenAI Codex',
+  authMethods: ['oauth'],
+  defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+  endpointConfigs: {
+    [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+      adapterFamily: 'openai',
+      baseUrl: 'https://chatgpt.com/backend-api/codex'
+    }
+  }
+} as unknown as Provider
+
+const externalCliProvider = {
+  id: 'claude-code',
+  name: 'Claude Code',
+  authMethods: ['external-cli'],
+  defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  endpointConfigs: {
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://api.anthropic.com'
+    }
+  }
+} as unknown as Provider
+
 const nativeProvider = {
   id: 'deepseek',
   name: 'DeepSeek',
   reportsActualCost: false,
   defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   endpointConfigs: {
-    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai', baseUrl: 'https://api.deepseek.com' }
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'deepseek', baseUrl: 'https://api.deepseek.com' }
   }
 } as unknown as Provider
 
@@ -85,6 +112,16 @@ function makeModel(overrides: Partial<Model> = {}): Model {
     maxOutputTokens: 8_192,
     ...overrides
   } as unknown as Model
+}
+
+function makeLoginModel(providerId: string, modelId: string, overrides: Partial<Model> = {}): Model {
+  return makeModel({
+    id: `${providerId}::${modelId}`,
+    providerId,
+    apiModelId: modelId,
+    name: modelId,
+    ...overrides
+  })
 }
 
 beforeEach(() => {
@@ -109,6 +146,7 @@ describe('buildDshGatewayInjection', () => {
   it('keeps the gateway key out of the YAML — only the env indirection', () => {
     const injection = buildDshGatewayInjection(vertexProvider, makeModel(), GATEWAY)
     const yaml = buildDshCompositionYaml({
+      adapter: injection.adapter,
       providerName: injection.providerName,
       api: injection.api,
       baseUrl: injection.baseUrl,
@@ -155,11 +193,23 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     })
     const injection = await resolveDshProviderInjectionFromSnapshot('session-1', nativeProvider, model)
 
+    expect(injection.adapter).toBe('deepseek')
+    expect(injection.providerName).toBe('deepseek-official')
     expect(injection.api).toBe('openai-completions')
-    expect(injection.baseUrl).toBe('https://api.deepseek.com/v1')
+    expect(injection.baseUrl).toBe('https://api.deepseek.com')
     expect(injection.apiKey).toBe('sk-native')
     expect(injection.usageCapture).toMatchObject({ owner: 'agent-sdk', providerId: 'deepseek' })
     expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
+  })
+
+  it('keeps custom-header DeepSeek routes on pi-ai because the native adapter has no header config', () => {
+    const provider = { ...nativeProvider, settings: { extraHeaders: { 'X-Trace': 'on' } } } as Provider
+    const injection = buildDshProviderInjection(provider, makeModel({ providerId: 'deepseek' }), 'sk-native')
+
+    expect(injection.adapter).toBe('pi-ai')
+    expect(injection.providerName).toBe('deepseek')
+    expect(injection.baseUrl).toBe('https://api.deepseek.com/v1')
+    expect(injection.headers).toEqual({ 'X-Trace': 'on' })
   })
 
   it('falls back to the gateway without consuming native key rotation', async () => {
@@ -170,6 +220,46 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(injection.apiKey).toBe(GATEWAY_KEY)
     expect(injection.headers).toEqual(GATEWAY_USAGE_HEADERS)
     expect(injection.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  it('routes an OAuth provider through the Gateway without reading an API key', async () => {
+    const injection = await resolveDshProviderInjectionFromSnapshot(
+      'session-1',
+      codexProvider,
+      makeLoginModel('openai-codex', 'gpt-5-codex')
+    )
+
+    expect(mocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
+    expect(injection).toMatchObject({
+      adapter: 'pi-ai',
+      providerName: 'openai-codex',
+      api: 'openai-completions',
+      baseUrl: 'http://127.0.0.1:23333/v1',
+      modelId: 'openai-codex:gpt-5-codex',
+      apiKey: GATEWAY_KEY,
+      usageCapture: { owner: 'provider-calls' }
+    })
+  })
+
+  it('rejects external-CLI providers instead of sending them to the Gateway', async () => {
+    mocks.getByProviderId.mockResolvedValue(externalCliProvider)
+    mocks.getByKey.mockResolvedValue(makeLoginModel('claude-code', 'claude-sonnet'))
+    mocks.getCurrentConfig.mockReturnValue({ enabled: true })
+
+    await expect(assertDshProviderUsable('claude-code::claude-sonnet')).rejects.toThrow(DshUnsupportedProviderError)
+    expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-routable login model before starting the Gateway', async () => {
+    const nonChat = makeLoginModel('openai-codex', 'embedding', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+    })
+
+    await expect(resolveDshProviderInjectionFromSnapshot('session-1', codexProvider, nonChat)).rejects.toThrow(
+      DshUnsupportedProviderError
+    )
+    expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
   })
 
   it('propagates the disabled-gateway consent error', async () => {

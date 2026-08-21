@@ -15,6 +15,7 @@ import type {
   BridgeCommandResult,
   BridgeContextUsage,
   BridgeHostRequestMap,
+  BridgeImageBlock,
   BridgeNotificationMap,
   BridgePluginRequestMap,
   BridgeToolCallResult
@@ -152,8 +153,8 @@ export class DshBridgeServer {
 
   /** Dispatch one slash-command line through the plugin's `ctx.commands` registry. No timeout —
    *  a command can wrap an LLM round-trip (compaction); a dead plugin rejects via socket close. */
-  requestCommand(sessionId: string, line: string): Promise<BridgeCommandResult> {
-    return this.request('command/execute', { sessionId, line })
+  requestCommand(sessionId: string, line: string, images: BridgeImageBlock[] = []): Promise<BridgeCommandResult> {
+    return this.request('command/execute', { sessionId, line, ...(images.length ? { images } : {}) })
   }
 
   async close(): Promise<void> {

@@ -36,10 +36,11 @@ const chatFixedModels = [
   'mimo-v2-5',
   'mimo-v2-5-pro',
   'mimo-v2-omni',
-  'mimo-v2-pro'
+  'mimo-v2-pro',
+  'ox-alpha'
 ]
 
-const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
+const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[]; name?: string }> = [
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash-vision-exp', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
@@ -48,7 +49,7 @@ const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = 
   { modelId: 'kimi-k3', values: ['max'] },
   // Stealth model, no creator entry: models.dev routes it through `@ai-sdk/openai-compatible`
   // and prints an effort ladder, so pin chat/completions rather than let it fall back unpinned.
-  { modelId: 'ox-alpha', values: ['low', 'high', 'max'] }
+  { modelId: 'ox-alpha', values: ['low', 'high', 'max'], name: 'Ox Alpha' }
 ]
 
 const anthropicFixedModels = ['minimax-m2-5', 'minimax-m2-7']
@@ -69,8 +70,9 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
       'openai-chat-completions': { support: fixedSupport }
     }
   })),
-  ...chatEffortModels.map(({ modelId, values }) => ({
+  ...chatEffortModels.map(({ modelId, values, name }) => ({
     modelId,
+    name,
     endpointTypes: ['openai-chat-completions' as const],
     reasoningContracts: {
       'openai-chat-completions': { support: effortSupport(values) }
