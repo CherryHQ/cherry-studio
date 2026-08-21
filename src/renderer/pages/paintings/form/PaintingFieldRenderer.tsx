@@ -1,4 +1,4 @@
-import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
+import { Button, Input, InputNumber, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -86,22 +86,17 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             value={[numericValue]}
             onValueChange={(values) => onChange({ [fieldKey]: values[0] })}
           />
-          <Input
+          <InputNumber
             className="w-20"
-            type="number"
             min={min}
             max={max}
             step={item.step}
-            value={String(numericValue)}
-            onChange={(event) => {
-              const raw = event.target.value
-              // Ignore the transient empty state (clearing to retype) — committing
-              // `Number('')` → 0 would drop below `min`. Otherwise clamp to [min,max]
-              // so the controlled value never escapes the field's range.
-              if (raw === '') return
-              const parsed = Number(raw)
-              if (Number.isNaN(parsed)) return
-              onChange({ [fieldKey]: Math.min(max, Math.max(min, parsed)) })
+            value={numericValue}
+            // Ignore the transient empty state (clearing to retype): committing
+            // null here would drop the field below `min`.
+            onChange={(value) => {
+              if (value === null) return
+              onChange({ [fieldKey]: value })
             }}
           />
         </div>

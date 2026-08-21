@@ -7,6 +7,7 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  InputNumber,
   SegmentedControl,
   Select,
   SelectContent,
@@ -1211,13 +1212,11 @@ function CustomParameterRow({
         {param.type !== 'json' ? (
           <div className="flex-1">
             {param.type === 'number' ? (
-              <Input
-                type="number"
-                value={String(param.value)}
-                onChange={(event) => {
-                  const parsed = parseFloat(event.target.value)
-                  onValueChange(Number.isFinite(parsed) ? parsed : 0)
-                }}
+              // Neither `min` nor `step`: custom parameters accept any real
+              // number, including negatives and fractions.
+              <InputNumber
+                value={typeof param.value === 'number' ? param.value : null}
+                onChange={(value) => onValueChange(value ?? 0)}
               />
             ) : null}
             {param.type === 'boolean' ? (
