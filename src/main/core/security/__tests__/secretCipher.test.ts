@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import type { AuthConfig } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // The safeStorage mock is a reversible transform (encrypt ∘ decrypt = identity,
@@ -34,6 +35,14 @@ vi.mock('electron', () => ({
 
 // Imported after the electron mock is declared.
 const { secretCipher } = await import('../secretCipher')
+
+/** Narrow an authConfig result to one variant so variant fields type-check. */
+function expectVariant<T extends AuthConfig['type']>(auth: AuthConfig | null, type: T) {
+  if (auth?.type !== type) {
+    throw new Error(`expected ${type} authConfig, got ${String(auth?.type ?? auth)}`)
+  }
+  return auth
+}
 
 beforeEach(() => {
   ssState.available = true
@@ -147,12 +156,15 @@ describe('secretCipher API-key entries', () => {
 
 describe('secretCipher authConfig field-level envelopes', () => {
   it('wraps only the oauth tokens; clientId stays plaintext at rest', () => {
-    const stored = secretCipher.encryptAuthConfig({
-      type: 'oauth',
-      clientId: 'client-id-plain',
-      accessToken: 'at-secret',
-      refreshToken: 'rt-secret'
-    })
+    const stored = expectVariant(
+      secretCipher.encryptAuthConfig({
+        type: 'oauth',
+        clientId: 'client-id-plain',
+        accessToken: 'at-secret',
+        refreshToken: 'rt-secret'
+      }),
+      'oauth'
+    )
     expect(stored).toMatchObject({ type: 'oauth', clientId: 'client-id-plain' })
     expect(stored.accessToken).toMatch(/^v1:ss:/)
     expect(stored.refreshToken).toMatch(/^v1:ss:/)
@@ -166,12 +178,15 @@ describe('secretCipher authConfig field-level envelopes', () => {
   })
 
   it('wraps the AWS long-lived credentials and round-trips them', () => {
-    const stored = secretCipher.encryptAuthConfig({
-      type: 'iam-aws',
-      region: 'us-east-1',
-      accessKeyId: 'AKIA-secret',
-      secretAccessKey: 'wJal-secret'
-    })
+    const stored = expectVariant(
+      secretCipher.encryptAuthConfig({
+        type: 'iam-aws',
+        region: 'us-east-1',
+        accessKeyId: 'AKIA-secret',
+        secretAccessKey: 'wJal-secret'
+      }),
+      'iam-aws'
+    )
     expect(stored.region).toBe('us-east-1')
     expect(stored.accessKeyId).toMatch(/^v1:ss:/)
     expect(secretCipher.decryptAuthConfig('bedrock', stored)).toEqual({
@@ -184,16 +199,19 @@ describe('secretCipher authConfig field-level envelopes', () => {
 
   it('moves GCP credentials into the shadow envelope at rest and restores the record on read', () => {
     const credentials = { client_email: 'svc@project.iam', private_key: '-----BEGIN KEY-----' }
-    const stored = secretCipher.encryptAuthConfig({
-      type: 'iam-gcp',
-      project: 'p',
-      location: 'global',
-      credentials
-    })
+    const stored = expectVariant(
+      secretCipher.encryptAuthConfig({
+        type: 'iam-gcp',
+        project: 'p',
+        location: 'global',
+        credentials
+      }),
+      'iam-gcp'
+    )
     expect(stored.credentials).toBeUndefined()
     expect(stored.credentialsEnvelope).toMatch(/^v1:ss:/)
 
-    const restored = secretCipher.decryptAuthConfig('vertex', stored)
+    const restored = expectVariant(secretCipher.decryptAuthConfig('vertex', stored), 'iam-gcp')
     expect(restored.credentialsEnvelope).toBeUndefined()
     expect(restored).toEqual({ type: 'iam-gcp', project: 'p', location: 'global', credentials })
   })
@@ -207,12 +225,15 @@ describe('secretCipher authConfig field-level envelopes', () => {
   it('empties oauth tokens and flags decryptFailed when the stored envelope is undecryptable', () => {
     const failures: unknown[] = []
     secretCipher.onDecryptFailure((record) => failures.push(record))
-    const restored = secretCipher.decryptAuthConfig('github', {
-      type: 'oauth',
-      clientId: 'cid',
-      accessToken: `v1:ss:${Buffer.from('foreign').toString('base64')}`,
-      refreshToken: 'v1:xyz:unknown'
-    })
+    const restored = expectVariant(
+      secretCipher.decryptAuthConfig('github', {
+        type: 'oauth',
+        clientId: 'cid',
+        accessToken: `v1:ss:${Buffer.from('foreign').toString('base64')}`,
+        refreshToken: 'v1:xyz:unknown'
+      }),
+      'oauth'
+    )
     expect(restored).toMatchObject({ decryptFailed: true, accessToken: '', refreshToken: '' })
     expect(failures).toEqual([{ providerId: 'github', kind: 'auth-config', label: 'oauth tokens' }])
   })
@@ -220,12 +241,15 @@ describe('secretCipher authConfig field-level envelopes', () => {
   it('flags GCP credentials decryptFailed when the envelope cannot be restored', () => {
     const failures: unknown[] = []
     secretCipher.onDecryptFailure((record) => failures.push(record))
-    const restored = secretCipher.decryptAuthConfig('vertex', {
-      type: 'iam-gcp',
-      project: 'p',
-      location: 'global',
-      credentialsEnvelope: `v1:ss:${Buffer.from('foreign').toString('base64')}`
-    })
+    const restored = expectVariant(
+      secretCipher.decryptAuthConfig('vertex', {
+        type: 'iam-gcp',
+        project: 'p',
+        location: 'global',
+        credentialsEnvelope: `v1:ss:${Buffer.from('foreign').toString('base64')}`
+      }),
+      'iam-gcp'
+    )
     expect(restored.credentials).toBeUndefined()
     expect(restored.decryptFailed).toBe(true)
     expect(failures).toEqual([{ providerId: 'vertex', kind: 'auth-config', label: 'GCP credentials' }])

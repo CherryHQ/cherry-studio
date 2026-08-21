@@ -24,6 +24,7 @@ import {
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
+import { secretCipher } from '@main/core/security/secretCipher'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -117,7 +118,9 @@ function assertProviderAvailable<T extends ProviderIdentity>(
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
   const key = entry.key.trim()
-  if (!key) {
+  // Empty is valid only as a decryptFailed echo (S7): the value is gone, only
+  // id/label/isEnabled survive; the rebuild below strips the marker.
+  if (!key && !entry.decryptFailed) {
     throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
   }
 
@@ -134,13 +137,14 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
   const seenIds = new Set<string>()
   return apiKeys.map((entry) => {
     const normalized = normalizeApiKeyEntry(entry)
-    if (seenKeys.has(normalized.key)) {
+    // Empty (decryptFailed echo) keys cannot meaningfully collide — skip them.
+    if (normalized.key && seenKeys.has(normalized.key)) {
       throw DataApiErrorFactory.conflict('API key already exists', 'API key')
     }
     if (seenIds.has(normalized.id)) {
       throw DataApiErrorFactory.conflict('API key id already exists', 'API key')
     }
-    seenKeys.add(normalized.key)
+    if (normalized.key) seenKeys.add(normalized.key)
     seenIds.add(normalized.id)
     return normalized
   })
@@ -371,8 +375,8 @@ class ProviderService {
             logoKey: logoCols.logoKey,
             endpointConfigs,
             defaultChatEndpoint,
-            apiKeys: dto.apiKeys ?? [],
-            authConfig: dto.authConfig ?? null,
+            apiKeys: secretCipher.encryptApiKeys(dto.apiKeys ?? []),
+            authConfig: secretCipher.encryptAuthConfig(dto.authConfig ?? null),
             apiFeatures,
             providerSettings: dto.providerSettings ?? null,
             isEnabled: false
@@ -443,7 +447,7 @@ class ProviderService {
           current.endpointConfigs
         )
       }
-      if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
+      if (dto.authConfig !== undefined) updates.authConfig = secretCipher.encryptAuthConfig(dto.authConfig)
       const presetMetadata =
         dto.defaultChatEndpoint !== undefined || dto.apiFeatures !== undefined
           ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(providerId, current.presetProviderId)
@@ -539,7 +543,9 @@ class ProviderService {
 
     assertProviderAvailable(row, providerId)
 
-    const allKeys = row.apiKeys ?? []
+    // Decrypt inside the boundary: override matching, rotation, and masking all
+    // operate on plaintext, and connection signatures hash these values (S7).
+    const allKeys = secretCipher.decryptApiKeys(providerId, row.apiKeys ?? [])
     if (override !== undefined) {
       const matched = allKeys.find((entry) => entry.key === override)
       return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
@@ -594,7 +600,7 @@ class ProviderService {
 
     assertProviderAvailable(row, providerId)
 
-    const apiKeys = row.apiKeys ?? []
+    const apiKeys = secretCipher.decryptApiKeys(providerId, row.apiKeys ?? [])
     return options.enabled ? apiKeys.filter((k) => k.isEnabled) : apiKeys
   }
 
@@ -607,7 +613,7 @@ class ProviderService {
 
     assertProviderAvailable(row, providerId)
 
-    return row.authConfig ?? null
+    return secretCipher.decryptAuthConfig(providerId, row.authConfig)
   }
 
   /**
@@ -628,7 +634,9 @@ class ProviderService {
 
       assertProviderAvailable(row, providerId)
 
-      const existingKeys = row.apiKeys ?? []
+      // Decrypt for the plaintext dedupe below, re-encrypt the whole list on
+      // write (envelopes are randomized and never comparable at rest).
+      const existingKeys = secretCipher.decryptApiKeys(providerId, row.apiKeys ?? [])
 
       // Skip if key value already exists
       if (existingKeys.some((k) => k.key === key)) {
@@ -642,7 +650,7 @@ class ProviderService {
         isEnabled: true
       }
 
-      const updatedKeys = [...existingKeys, newEntry]
+      const updatedKeys = secretCipher.encryptApiKeys([...existingKeys, newEntry])
 
       const [updated] = tx
         .update(userProviderTable)
@@ -684,9 +692,10 @@ class ProviderService {
       assertProviderAvailable(current, providerId)
 
       const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
+      // Fail-closed: an encrypt failure aborts the transaction, never stores plaintext.
       const [row] = tx
         .update(userProviderTable)
-        .set({ apiKeys: normalizedApiKeys })
+        .set({ apiKeys: secretCipher.encryptApiKeys(normalizedApiKeys) })
         .where(eq(userProviderTable.providerId, providerId))
         .returning()
         .all()
@@ -728,7 +737,9 @@ class ProviderService {
 
       assertProviderAvailable(row, providerId)
 
-      const existingKeys = row.apiKeys ?? []
+      // Decrypt first: the dedupe compare and the entry merge below work on
+      // plaintext; the result is re-encrypted as a whole before it lands.
+      const existingKeys = secretCipher.decryptApiKeys(providerId, row.apiKeys ?? [])
       const keyIndex = existingKeys.findIndex((entry) => entry.id === keyId)
 
       if (keyIndex === -1) {
@@ -752,7 +763,8 @@ class ProviderService {
         const updatedEntry = {
           ...entry,
           ...(updates.isEnabled !== undefined ? { isEnabled: updates.isEnabled } : {}),
-          ...(nextKeyValue ? { key: nextKeyValue } : {})
+          // A fresh key value supersedes any decryptFailed marker.
+          ...(nextKeyValue ? { key: nextKeyValue, decryptFailed: undefined } : {})
         }
 
         if (updates.label !== undefined) {
@@ -768,7 +780,7 @@ class ProviderService {
 
       const [updated] = tx
         .update(userProviderTable)
-        .set({ apiKeys: updatedKeys })
+        .set({ apiKeys: secretCipher.encryptApiKeys(updatedKeys) })
         .where(eq(userProviderTable.providerId, providerId))
         .returning()
         .all()

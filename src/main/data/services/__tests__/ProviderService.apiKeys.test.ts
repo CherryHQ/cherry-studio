@@ -5,6 +5,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { secretCipher } from '@main/core/security/secretCipher'
 import { ErrorCode } from '@shared/data/api/errors'
 import { AddProviderApiKeySchema, ReplaceProviderApiKeysSchema } from '@shared/data/api/schemas/providers'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -12,6 +13,28 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Reversible safeStorage stand-in: encrypt ∘ decrypt = identity. The service's
+// write path fail-closes without a keyring, so these mutation tests need it.
+const { ssEncrypt, ssDecrypt } = vi.hoisted(() => ({
+  ssEncrypt: vi.fn((plain: string) => {
+    const nonce = Math.random().toString(36).slice(2)
+    return Buffer.from(`mock-ss:${nonce}:${plain}`, 'utf8')
+  }),
+  ssDecrypt: vi.fn((buffer: Buffer) => {
+    const match = /^mock-ss:[^:]+:(.*)$/s.exec(buffer.toString('utf8'))
+    if (!match) throw new Error('mock safeStorage: ciphertext was not produced by this key')
+    return match[1]
+  })
+}))
+
+vi.mock('electron', () => ({
+  safeStorage: {
+    isEncryptionAvailable: () => true,
+    encryptString: ssEncrypt,
+    decryptString: ssDecrypt
+  }
+}))
 
 // The API-key mutators are synchronous under better-sqlite3: failing calls throw
 // inline instead of rejecting a promise. Capture the thrown error to assert its shape.
@@ -52,9 +75,12 @@ describe('ProviderService API keys', () => {
     })
   }
 
+  // Reads the stored row decrypted, so assertions stay at the plaintext
+  // behavior level while writes persist envelopes (at-rest format is pinned
+  // separately in ProviderService.credentials.test.ts).
   async function readApiKeys() {
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
-    return row?.apiKeys ?? []
+    return secretCipher.decryptApiKeys('openai', row?.apiKeys ?? [])
   }
 
   async function seedManagedCherryAiProvider() {
@@ -279,7 +305,7 @@ describe('ProviderService API keys', () => {
 
     const readApiKeysFor = async (providerId: string) => {
       const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId))
-      return row?.apiKeys ?? []
+      return secretCipher.decryptApiKeys(providerId, row?.apiKeys ?? [])
     }
 
     const [addedKey] = await readApiKeysFor('parity-add')
