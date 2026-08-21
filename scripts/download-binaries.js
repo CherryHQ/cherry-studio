@@ -147,25 +147,40 @@ function sweepUnreferencedVersions(cacheRoot, maxAgeMs) {
   let reclaimed = 0
   // Every platform, not just this run's: a tree built for another platform would
   // otherwise sit here forever with nothing to visit it.
-  for (const platformKey of fs.readdirSync(cacheRoot)) {
+  for (const platformKey of readdirOrEmpty(cacheRoot)) {
     const platformDir = path.join(cacheRoot, platformKey)
-    if (!fs.statSync(platformDir).isDirectory()) continue
-    for (const toolName of fs.readdirSync(platformDir)) {
+    if (!statOrNull(platformDir)?.isDirectory()) continue
+    for (const toolName of readdirOrEmpty(platformDir)) {
       if (toolName.startsWith(STAGING_PREFIX) || toolName.startsWith(RETIRED_PREFIX)) continue
       const toolDir = path.join(platformDir, toolName)
-      if (!fs.statSync(toolDir).isDirectory()) continue
-      for (const version of fs.readdirSync(toolDir)) {
+      if (!statOrNull(toolDir)?.isDirectory()) continue
+      for (const version of readdirOrEmpty(toolDir)) {
         const versionDir = path.join(toolDir, version)
-        if (fs.statSync(versionDir).mtimeMs > cutoff) continue
+        const versionStat = statOrNull(versionDir)
+        if (!versionStat || versionStat.mtimeMs > cutoff) continue
         if (hasReferencedFile(versionDir)) continue
         fs.rmSync(versionDir, { recursive: true, force: true })
         reclaimed += 1
       }
-      if (fs.readdirSync(toolDir).length === 0) fs.rmdirSync(toolDir)
+      rmdirIfEmpty(toolDir)
     }
-    if (fs.readdirSync(platformDir).length === 0) fs.rmdirSync(platformDir)
+    rmdirIfEmpty(platformDir)
   }
   return reclaimed
+}
+
+// A worktree sweeping the shared cache walks entries another worktree may delete
+// or repopulate under it, so every step of the walk treats gone as nothing to do.
+function statOrNull(target) {
+  return fs.statSync(target, { throwIfNoEntry: false }) ?? null
+}
+
+function readdirOrEmpty(dir, options) {
+  try {
+    return fs.readdirSync(dir, options)
+  } catch {
+    return []
+  }
 }
 
 function rmdirIfEmpty(dir) {
@@ -177,11 +192,11 @@ function rmdirIfEmpty(dir) {
 }
 
 function hasReferencedFile(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  for (const entry of readdirOrEmpty(dir, { withFileTypes: true })) {
     const target = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       if (hasReferencedFile(target)) return true
-    } else if (fs.statSync(target).nlink > 1) {
+    } else if ((statOrNull(target)?.nlink ?? 0) > 1) {
       return true
     }
   }
@@ -681,7 +696,14 @@ function main() {
   }
 
   const stats = materialize(TOOLS, platformKey, cacheRoot, bundleDir)
-  const reclaimed = sweepUnreferencedVersions(cacheRoot, UNREFERENCED_CACHE_TTL_MS)
+  let reclaimed = 0
+  try {
+    reclaimed = sweepUnreferencedVersions(cacheRoot, UNREFERENCED_CACHE_TTL_MS)
+  } catch (error) {
+    // The bundle is already assembled; reclaiming disk must never be what turns
+    // a finished run into a failed one.
+    console.warn(`Cache reclaim skipped: ${error.message}`)
+  }
 
   const how =
     stats.copied > 0 ? `${stats.linked} linked, ${stats.copied} copied (hard links unavailable)` : 'hard-linked'

@@ -321,6 +321,28 @@ describe('sweepUnreferencedVersions – reclaiming the shared cache', () => {
     expect(fs.existsSync(path.join(cache, 'darwin-arm64'))).toBe(false)
   })
 
+  it('finishes the walk when a concurrent sweep deletes a version under it', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const stale = seedCache(cache, fakeTool('uv', '0.11.15'), { uv: 'abandoned' })
+    const racing = seedCache(cache, fakeTool('uv', '0.11.16'), { uv: 'also abandoned' })
+    ;[stale, racing].forEach((dir) => age(dir, 2 * AGE))
+    // The other worktree wins the race for 0.11.16 between listing and stat'ing it.
+    const realReaddir = cjsFs.readdirSync
+    const readdirSync = vi.spyOn(cjsFs, 'readdirSync').mockImplementation(((dir: string, options: never) => {
+      const entries = realReaddir(dir, options)
+      if (path.basename(dir) === 'uv') cjsFs.rmSync(racing, { recursive: true, force: true })
+      return entries
+    }) as never)
+
+    try {
+      // Throwing here would fail a run whose bundle is already complete.
+      expect(sweepUnreferencedVersions(cache, AGE)).toBe(1)
+    } finally {
+      readdirSync.mockRestore()
+    }
+    expect(fs.existsSync(stale)).toBe(false)
+  })
+
   it('keeps a recently used version even with no links, for copy-based bundles', () => {
     const cache = makeTmpDir('dl-cache-')
     const recent = fakeTool('uv', '0.11.16')
