@@ -77,6 +77,16 @@ The **Release** workflow checks GitHub Actions for a successful `ci.yml` push ru
 
 Do not start a release build while CI is queued, running, cancelled, or failing. Fix or rerun CI first.
 
+### Repairing the Initial Release Branch
+
+The first release-branch CI run happens before a draft GitHub Release exists, so automatic backporting cannot safely select that branch yet. If code must change for this initial CI run to pass:
+
+1. Fix the root cause through a pull request to `main` titled `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>`. The workflow adds the `hotfix` label, but it does not backport yet because there is no matching draft.
+2. After the hotfix merges, create a topic branch from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch.
+3. Push a signed, DCO-signed commit and open a pull request from that topic branch to `release/v<version>`.
+4. Review the release-specific diff, merge it after CI passes, and wait for CI on the new release branch head.
+5. Start the initial **Release** build. Once its draft exists, later merged hotfix pull requests use the automatic backport flow.
+
 ## 3. Build or Rebuild the Draft Release
 
 1. Open **Actions** → **Release** → **Run workflow**.
@@ -110,7 +120,7 @@ All hotfix development still starts from `main`:
 
 1. Create a normal fix branch from current `main`.
 2. Open a pull request targeting `main`.
-3. Use one of these exact title forms:
+3. Use one of these exact title forms; a scope, when present, must be lowercase alphanumeric kebab-case, the colon must be followed by one space, and the description must not be empty:
    - `hotfix: <description>`
    - `hotfix(<kebab-case-scope>): <description>`
 4. Wait for review and CI, then merge the pull request into `main`.
@@ -121,9 +131,9 @@ Track the source pull request by its labels:
 
 | Label | Meaning | Operator action |
 | --- | --- | --- |
-| `backport/v<version>` | A backport pull request is open or being prepared | Review the backport pull request and wait for CI |
+| `backport/v<version>` | A backport pull request is open | Review the backport pull request and wait for CI |
 | `backported/v<version>` | The backport pull request was merged, or the fix was already present | Wait for release branch CI, then rebuild the draft |
-| `backport-conflict/v<version>` | Automatic application failed, or the backport pull request closed without merging | Resolve or reopen the backport pull request |
+| `backport-failed/v<version>` | Automation failed before opening a pull request, or the backport pull request closed without merging | Inspect the workflow run, backport manually, or reopen the pull request |
 
 After the backport pull request is created:
 
@@ -134,11 +144,11 @@ After the backport pull request is created:
 5. Run **Release** again from `release/v<version>`.
 6. Select `all` unless only one platform artifact needs to be refreshed, then recheck the updated draft release.
 
-Closing an automatic backport pull request without merging changes the source hotfix PR to `backport-conflict/v<version>`. Reopening it restores the pending `backport/v<version>` state.
+Closing an automatic backport pull request without merging changes the source hotfix PR to `backport-failed/v<version>`. Reopening it restores the open `backport/v<version>` state. The workflow does not add `backport/v<version>` until an actual backport pull request exists, and any later preparation failure transitions the source PR to `backport-failed/v<version>`.
 
-### Resolving a Backport Conflict
+### Resolving a Backport Failure
 
-When the source pull request receives `backport-conflict/v<version>`:
+When the source pull request receives `backport-failed/v<version>` before a backport pull request exists:
 
 1. Create a temporary conflict-resolution branch from the current `release/v<version>` head.
 2. Apply only the hotfix pull request's intended changes. Do not merge `main` into the release branch.
@@ -146,7 +156,7 @@ When the source pull request receives `backport-conflict/v<version>`:
 4. Run validation appropriate to the changed files.
 5. Create a signed, DCO-signed commit and open a pull request targeting `release/v<version>` for review.
 6. After it is merged, wait for release branch CI and rebuild the draft release.
-7. On the source pull request, replace `backport-conflict/v<version>` with `backported/v<version>` and comment with the manual resolution pull request or commit.
+7. On the source pull request, replace `backport-failed/v<version>` with `backported/v<version>` and comment with the manual resolution pull request or commit.
 
 If the workflow reports multiple active release branches, leave only the intended release active and rerun the failed workflow. If it reports no active draft release, no backport is performed.
 
@@ -164,7 +174,7 @@ Publishing triggers **Post Release** automatically.
 
 ## 6. Merge the Release Metadata Pull Request
 
-**Post Release** verifies that the published tag and `release/v<version>` still point to the same commit. It then creates `release-sync/v<version>` from the latest `main` and opens a metadata-only pull request.
+**Post Release** verifies that the published tag and `release/v<version>` still point to the same commit. It computes the metadata-only delta from the release branch point to the published tag, applies that delta with a three-way merge on the latest `main`, and opens `release-sync/v<version>`. Non-overlapping edits made on `main` are preserved; an overlapping edit fails the workflow for maintainer resolution instead of being overwritten.
 
 The pull request may contain only:
 
@@ -177,8 +187,9 @@ To finish the release:
 
 1. Review the metadata pull request and confirm it contains no release-branch code or backport commits.
 2. Keep its title exactly `chore(release): sync v<version> metadata`.
-3. Wait for its CI checks to pass.
-4. Squash-merge it into `main` without changing the commit subject except for GitHub's optional ` (#<PR-number>)` suffix.
+3. Keep the `release-metadata-boundary: v<version>` marker in its body.
+4. Wait for its CI checks to pass.
+5. Squash-merge it into `main` without changing the commit subject except for GitHub's optional ` (#<PR-number>)` suffix.
 
 That squash commit is the release-note boundary used by the next **Pre Release** run. Do not start the next release until this synchronization is complete.
 
@@ -194,9 +205,10 @@ If the metadata files already match `main`, **Post Release** exits without openi
 | Branch and `package.json` versions differ | The release ref is inconsistent | Stop and correct the preparation flow; do not force a tag |
 | Release is already published | Published releases cannot be rebuilt | Prepare a new version |
 | Multiple active release branches | Backport target is ambiguous | Resolve the extra draft release state, then rerun the backport workflow |
-| `backport-conflict/v<version>` | Automatic patch application failed | Follow the manual conflict procedure above |
+| `backport-failed/v<version>` | Automatic preparation failed or the backport PR closed unmerged | Inspect the linked workflow run or follow the manual procedure above |
 | Backport pull request closed without merging | The hotfix has not reached the release branch | Reopen the pull request or complete a manual backport |
 | Published tag and release branch differ | Release state changed after the build | Stop and reconcile the refs before retrying **Post Release** |
+| Published metadata conflicts with `main` | The same metadata lines changed after the release branch was cut | Reconcile those edits on `main`, then rerun **Post Release**; never replace the whole file from the tag |
 | Commit is not Verified or lacks DCO | Token identity or signing failed | Fix the workflow/token configuration; never bypass the check |
 
 ## Invariants
@@ -208,4 +220,4 @@ If the metadata files already match `main`, **Post Release** exits without openi
 - Never publish a draft until the exact release commit passes CI and all required artifacts are present.
 - Never move a published release tag.
 - Never merge the complete release branch back into `main`.
-- Keep the metadata synchronization pull request title unchanged and merge it before preparing the next release.
+- Keep the metadata synchronization pull request title and body boundary marker unchanged, squash-merge it, and finish it before preparing the next release.

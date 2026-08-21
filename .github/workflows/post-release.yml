@@ -92,7 +92,23 @@ jobs:
           done
 
           echo "main-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          if git diff --quiet HEAD "$TAG" -- "${FILES[@]}"; then
+          METADATA_BASE="$(git merge-base HEAD "$TAG")"
+          PATCH_FILE="$RUNNER_TEMP/release-metadata.patch"
+          git diff --binary --full-index "$METADATA_BASE" "$TAG" -- "${FILES[@]}" > "$PATCH_FILE"
+
+          if [ ! -s "$PATCH_FILE" ]; then
+            echo "No release metadata changes need to be synchronized"
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! git apply --3way --index "$PATCH_FILE" || [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+            git reset --hard HEAD
+            echo "Published metadata conflicts with changes made on main after the release branch was created" >&2
+            exit 1
+          fi
+
+          if git diff --cached --quiet; then
             echo "No release metadata changes need to be synchronized"
             echo "has-changes=false" >> "$GITHUB_OUTPUT"
           else
@@ -134,10 +150,39 @@ jobs:
           const fs = require('node:fs')
           const path = require('node:path')
 
-          const additions = JSON.parse(process.env.RELEASE_METADATA_FILES).map((filePath) => ({
-            path: filePath,
-            contents: execFileSync('git', ['show', `${process.env.TAG}:${filePath}`]).toString('base64')
-          }))
+          const allowedFiles = new Set(JSON.parse(process.env.RELEASE_METADATA_FILES))
+          const changedPaths = execFileSync(
+            'git',
+            ['diff', '--cached', '--name-only', '--no-renames', '-z'],
+            { encoding: 'buffer' }
+          )
+            .toString('utf8')
+            .split('\0')
+            .filter(Boolean)
+          const additions = []
+
+          for (const filePath of changedPaths) {
+            if (!allowedFiles.has(filePath)) {
+              throw new Error(`Unexpected release metadata change: ${filePath}`)
+            }
+            if (!fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) {
+              throw new Error(`Release metadata is not a regular file: ${filePath}`)
+            }
+
+            const indexMode = execFileSync('git', ['ls-files', '--stage', '--', filePath], { encoding: 'utf8' })
+              .slice(0, 6)
+            const baseMode = execFileSync('git', ['ls-tree', 'HEAD', '--', filePath], { encoding: 'utf8' })
+              .slice(0, 6)
+            if (baseMode !== indexMode) {
+              throw new Error(`Release metadata must not change file mode: ${filePath}`)
+            }
+
+            additions.push({ path: filePath, contents: fs.readFileSync(filePath).toString('base64') })
+          }
+
+          if (additions.length === 0) {
+            throw new Error('Release metadata payload contains no changes')
+          }
 
           const payload = {
             query: `mutation($input: CreateCommitOnBranchInput!) {
@@ -154,7 +199,7 @@ jobs:
                 expectedHeadOid: process.env.SYNC_HEAD,
                 message: {
                   headline: `chore(release): sync ${process.env.TAG} metadata`,
-                  body: `Sync metadata from the published ${process.env.TAG} release.\n\nRelease: ${process.env.RELEASE_URL}\n\nSigned-off-by: ${process.env.SIGNOFF_NAME} <${process.env.SIGNOFF_EMAIL}>`
+                  body: `Sync metadata from the published ${process.env.TAG} release.\n\nRelease: ${process.env.RELEASE_URL}\n\nrelease-metadata-boundary: ${process.env.TAG}\n\nSigned-off-by: ${process.env.SIGNOFF_NAME} <${process.env.SIGNOFF_EMAIL}>`
                 },
                 fileChanges: { additions }
               }
@@ -228,7 +273,7 @@ jobs:
             '' \
             '### Special notes for your reviewer' \
             '' \
-            "This PR was created automatically after $TAG was published. Keep its title unchanged because the next Pre Release uses the squash commit subject as its release-note boundary." \
+            "This PR was created automatically after $TAG was published. Keep its title unchanged and squash-merge it so the next Pre Release has a stable release-note boundary." \
             '' \
             '### Checklist' \
             '' \
@@ -244,7 +289,9 @@ jobs:
             '' \
             '```release-note' \
             'NONE' \
-            '```')"
+            '```' \
+            '' \
+            "<!-- release-metadata-boundary: $TAG -->")"
 
           gh pr create \
             --repo "$REPO" \

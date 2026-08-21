@@ -38,6 +38,65 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Resolve requested version
+        id: release-version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          TARGET_VERSION="$(node <<'NODE'
+          const semver = require('semver')
+          const currentVersion = require('./package.json').version
+          const requestedVersion = process.env.REQUESTED_VERSION.trim()
+          const exactVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+
+          let targetVersion
+          if (['patch', 'minor', 'major'].includes(requestedVersion)) {
+            targetVersion = semver.inc(currentVersion, requestedVersion)
+          } else if (exactVersionPattern.test(requestedVersion) && semver.valid(requestedVersion)) {
+            targetVersion = requestedVersion
+          }
+
+          if (!targetVersion) {
+            throw new Error(`Invalid release version intent: ${requestedVersion}`)
+          }
+          process.stdout.write(targetVersion)
+          NODE
+          )"
+
+          echo "version=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${{ github.event.inputs.version }} to $TARGET_VERSION"
+
+      - name: Verify release slot is available
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+        run: |
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE_REFS="$(gh api "repos/$REPO/git/matching-refs/heads/release/v")"
+          DRAFT_TAGS="$(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")"
+          ACTIVE_RELEASES=()
+          while IFS= read -r TAG; do
+            if [ -z "$TAG" ]; then
+              continue
+            fi
+
+            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+              continue
+            fi
+
+            if jq -e --arg ref "refs/heads/release/$TAG" 'any(.[]; .ref == $ref)' <<< "$RELEASE_REFS" >/dev/null; then
+              ACTIVE_RELEASES+=("$TAG")
+            fi
+          done <<< "$DRAFT_TAGS"
+
+          if [ "${#ACTIVE_RELEASES[@]}" -ne 0 ]; then
+            RELEASES="$(IFS=', '; echo "${ACTIVE_RELEASES[*]}")"
+            echo "Finish or abandon the active release before preparing another one: $RELEASES" >&2
+            exit 1
+          fi
+
       - name: Prepare Release via Claude
         uses: anthropics/claude-code-action@v1.0.66
         with:
@@ -45,7 +104,7 @@ jobs:
           github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
           claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git:*),Bash(gh release list:*),Bash(cat:*),Bash(pnpm build:builtin-knowledge),Edit,Read,Write,Glob,Grep"'
           prompt: |
-            Run the prepare-release skill with version argument: ${{ github.event.inputs.version }}
+            Run the prepare-release skill with exact version argument: ${{ steps.release-version.outputs.version }}
 
             Read the skill instructions from .agents/skills/prepare-release/SKILL.md and follow them exactly.
 
@@ -62,6 +121,7 @@ jobs:
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           REPO: ${{ github.repository }}
           RELEASE_HEAD: ${{ github.sha }}
+          REQUESTED_VERSION: ${{ steps.release-version.outputs.version }}
         run: |
           if [ "$(git rev-parse HEAD)" != "$RELEASE_HEAD" ]; then
             echo "Claude must not create a local release commit" >&2
@@ -69,6 +129,16 @@ jobs:
           fi
 
           RELEASE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$RELEASE_VERSION" != "$REQUESTED_VERSION" ]; then
+            echo "Prepared version $RELEASE_VERSION does not match requested version $REQUESTED_VERSION" >&2
+            exit 1
+          fi
+
+          if [[ ! "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Prepared version is not a supported semantic version: $RELEASE_VERSION" >&2
+            exit 1
+          fi
+
           RELEASE_BRANCH="release/v$RELEASE_VERSION"
           AUTHOR_JSON="$(gh api user)"
           export RELEASE_VERSION RELEASE_BRANCH
@@ -166,14 +236,17 @@ jobs:
 
           COMMIT_SHA=""
           cleanup_release_branch() {
+            STATUS=$?
+            trap - EXIT
             CURRENT_SHA="$(gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha' 2>/dev/null || true)"
             if [ "$CURRENT_SHA" = "$RELEASE_HEAD" ] || { [ -n "$COMMIT_SHA" ] && [ "$CURRENT_SHA" = "$COMMIT_SHA" ]; }; then
               gh api --method DELETE "repos/$REPO/git/refs/heads/$RELEASE_BRANCH" >/dev/null || true
             else
               echo "Refusing to clean up $RELEASE_BRANCH because it moved unexpectedly" >&2
             fi
+            exit "$STATUS"
           }
-          trap cleanup_release_branch ERR
+          trap cleanup_release_branch EXIT
 
           RESPONSE="$(gh api graphql --input "$RUNNER_TEMP/prepare-release-commit.json")"
           COMMIT_SHA="$(jq -r '.data.createCommitOnBranch.commit.oid' <<< "$RESPONSE")"
@@ -194,5 +267,5 @@ jobs:
             exit 1
           fi
 
-          trap - ERR
+          trap - EXIT
           echo "Created $RELEASE_BRANCH at $COMMIT_URL"

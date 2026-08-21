@@ -31,7 +31,8 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    ```
    Stop before editing files if any check fails. This prevents a standalone run from creating a release branch from an arbitrary or stale checkout.
 2. Read the current version from `package.json`. Post Release keeps this synchronized with the last published release.
-3. Resolve the baseline tag as `v{current-version}` and verify that it exists:
+3. Before editing, verify that no draft semantic-version GitHub Release has a matching `release/v<version>` branch. Use `gh release list --json isDraft,tagName` to enumerate drafts and `git ls-remote --heads origin refs/heads/release/<tag>` to check their branches. Stop if a match exists; only one prepared or draft release may be active at a time.
+4. Resolve the baseline tag as `v{current-version}` and verify that it exists:
    ```bash
    git rev-parse --verify refs/tags/v{current-version}
    ```
@@ -40,7 +41,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName'
    ```
    Stop on a mismatch: the latest Post Release metadata PR must be merged into `main` before another release is prepared.
-4. Compute the new version based on the argument:
+5. Compute the new version based on the argument:
    - `patch` / `minor` / `major`: bump from the current version.
    - `x.y.z` or `x.y.z-pre.N`: use as-is after validating it is valid semver.
 
@@ -48,7 +49,8 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 
 1. Determine the release-note collection base:
    - If the baseline tag is an ancestor of `HEAD`, use the tag.
-   - Otherwise, use the latest commit whose subject is exactly `chore(release): sync <baseline-tag> metadata` or that marker followed only by GitHub's squash suffix ` (#<PR-number>)`. This is the Post Release marker on `main` for a tag built from a separate release branch.
+   - Otherwise, use the latest commit whose full message contains the exact marker `release-metadata-boundary: <baseline-tag>`. This machine marker is added to the Post Release pull request body and survives the required squash merge.
+   - For metadata pull requests created before the machine marker existed, accept a subject exactly equal to `chore(release): sync <baseline-tag> metadata` or that subject followed only by GitHub's squash suffix ` (#<PR-number>)`.
    - Stop with an error if the tag is not an ancestor and its metadata sync commit is missing; otherwise already-released hotfixes could be included again.
 2. List all commits since that base:
    ```bash
@@ -175,11 +177,12 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 
 ## CI Trigger Chain
 
-- Run **`release.yml`** manually with `release/v{version}` selected as the workflow branch. It validates the branch name against `package.json`, builds the exact branch commit on macOS, Windows, and Linux, and creates or updates a draft GitHub Release.
-- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for each merged `hotfix:` or `hotfix(scope):` PR from `main` against the matching release branch. It manages the `hotfix` and backport-status labels and reports conflicts on the source PR; never merge `main` into the release branch.
+- Wait for the **CI** push run on the new `release/v{version}` commit to succeed, then run **`release.yml`** manually with that release branch selected. It validates the branch name against `package.json`, builds the exact branch commit on macOS, Windows, and Linux, and creates or updates a draft GitHub Release.
+- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for each merged `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR from `main` against the matching release branch. It manages the `hotfix` and backport-status labels and reports failures on the source PR; never merge `main` into the release branch.
 - Review the backport PR, wait for its CI, and merge it. After the resulting release-branch push passes CI, run **`release.yml`** again from the release branch to rebuild the draft release.
-- Publishing the draft GitHub Release triggers **`post-release.yml`**, which verifies that the tag still matches the release branch and creates a `release-sync/v{version}` metadata-only PR from the latest `main`.
+- Publishing the draft GitHub Release triggers **`post-release.yml`**, which verifies that the tag still matches the release branch, applies only the release metadata delta to the latest `main`, and creates a `release-sync/v{version}` metadata-only PR.
 - The metadata PR synchronizes only `package.json`, `electron-builder.yml`, release history, and the generated product manifest. It triggers **`ci.yml`**; merge it only after CI passes.
+- Keep the metadata PR title exactly `chore(release): sync v{version} metadata` and squash-merge it without changing that subject except for GitHub's optional PR-number suffix. Its body must retain `release-metadata-boundary: v{version}` so the next release can find the boundary reliably.
 
 ## Constraints
 

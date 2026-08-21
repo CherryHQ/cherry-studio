@@ -71,9 +71,9 @@ jobs:
             "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
             -f head_sha="$GITHUB_SHA" \
             -f event=push \
-            -f status=success \
-            -F per_page=1 \
-            --jq '.workflow_runs[0] // empty')"
+            -f status=completed \
+            -F per_page=100 \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")][0] // empty')"
 
           if [ -z "$CI_RUN" ]; then
             echo "No successful CI push run found for release commit $GITHUB_SHA" >&2
@@ -96,7 +96,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
-          if RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" 2>/dev/null)"; then
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+          RELEASE="$(jq -c --arg tag "$TAG" '
+            [.[][] | select(.tag_name == $tag)] |
+            if length > 1 then error("multiple releases use tag " + $tag)
+            elif length == 1 then .[0]
+            else empty
+            end
+          ' <<< "$RELEASE_PAGES")"
+
+          if [ -n "$RELEASE" ]; then
             if [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
               echo "Release $TAG is already published; create a new version instead" >&2
               exit 1

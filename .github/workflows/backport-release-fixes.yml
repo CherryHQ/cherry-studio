@@ -16,6 +16,9 @@ permissions:
   issues: write
   pull-requests: write
 
+env:
+  HOTFIX_TITLE_PATTERN: '^hotfix(\([a-z0-9]+(-[a-z0-9]+)*\))?: [^[:space:]].*$'
+
 jobs:
   classify:
     name: Classify release hotfix
@@ -28,7 +31,7 @@ jobs:
       - name: Synchronize hotfix label
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           REPO: ${{ github.repository }}
@@ -36,7 +39,7 @@ jobs:
           export LC_ALL=C
           HAS_LABEL="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq 'any(.labels[]; .name == "hotfix")')"
 
-          if [[ "$PR_TITLE" =~ ^hotfix(\([a-z0-9][a-z0-9-]*\))?:[[:space:]] ]]; then
+          if [[ "$PR_TITLE" =~ $HOTFIX_TITLE_PATTERN ]]; then
             gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active draft release" --force
             if [ "$HAS_LABEL" != "true" ]; then
               gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
@@ -51,21 +54,21 @@ jobs:
       github.repository == 'CherryHQ/cherry-studio' &&
       github.event.pull_request.base.ref == 'main' &&
       github.event.pull_request.merged == true &&
-      (startsWith(github.event.pull_request.title, 'hotfix: ') || startsWith(github.event.pull_request.title, 'hotfix('))
+      startsWith(github.event.pull_request.title, 'hotfix')
     runs-on: ubuntu-latest
     steps:
       - name: Resolve active release branch
         id: release-ref
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           REPO: ${{ github.repository }}
         run: |
           export LC_ALL=C
 
-          if [[ ! "$PR_TITLE" =~ ^hotfix(\([a-z0-9][a-z0-9-]*\))?:[[:space:]] ]]; then
+          if [[ ! "$PR_TITLE" =~ $HOTFIX_TITLE_PATTERN ]]; then
             echo "Ignoring non-hotfix pull request title: $PR_TITLE"
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -74,16 +77,23 @@ jobs:
           gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active draft release" --force
           gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
 
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE_REFS="$(gh api "repos/$REPO/git/matching-refs/heads/release/v")"
+          DRAFT_TAGS="$(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")"
           CANDIDATES=()
           while IFS= read -r TAG; do
+            if [ -z "$TAG" ]; then
+              continue
+            fi
+
             if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
               continue
             fi
 
-            if gh api "repos/$REPO/git/ref/heads/release/$TAG" >/dev/null 2>&1; then
+            if jq -e --arg ref "refs/heads/release/$TAG" 'any(.[]; .ref == $ref)' <<< "$RELEASE_REFS" >/dev/null; then
               CANDIDATES+=("$TAG")
             fi
-          done < <(gh api "repos/$REPO/releases?per_page=100" --paginate --jq '.[] | select(.draft == true) | .tag_name')
+          done <<< "$DRAFT_TAGS"
 
           if [ "${#CANDIDATES[@]}" -eq 0 ]; then
             echo "No draft semantic-version release has a matching release branch"
@@ -120,25 +130,6 @@ jobs:
           echo "head-sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
           echo "retry-pr-number=$RETRY_PR_NUMBER" >> "$GITHUB_OUTPUT"
 
-      - name: Mark hotfix for backport
-        if: steps.release-ref.outputs.eligible == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ steps.release-ref.outputs.tag }}
-        run: |
-          PENDING_LABEL="backport/$TAG"
-          CONFLICT_LABEL="backport-conflict/$TAG"
-          LABELS="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels)"
-
-          gh label create "$PENDING_LABEL" --repo "$REPO" --color "FBCA04" --description "Automatically backport this hotfix to $TAG" --force
-          if jq -e --arg label "$CONFLICT_LABEL" 'any(.labels[]; .name == $label)' <<< "$LABELS" >/dev/null; then
-            gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$CONFLICT_LABEL"
-          fi
-          gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$PENDING_LABEL"
-
       - name: Check out release branch
         if: steps.release-ref.outputs.eligible == 'true'
         uses: actions/checkout@v6
@@ -152,50 +143,51 @@ jobs:
         if: steps.release-ref.outputs.eligible == 'true'
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          GH_TOKEN: ${{ github.token }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-          TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
-          git fetch origin \
-            "refs/heads/main:refs/remotes/origin/main" \
-            "refs/pull/$PR_NUMBER/head:refs/remotes/pull/$PR_NUMBER/head"
+          git fetch origin "refs/heads/main:refs/remotes/origin/main"
 
           if ! git merge-base --is-ancestor "$MERGE_SHA" origin/main; then
             echo "Merged commit $MERGE_SHA is not on origin/main" >&2
             exit 1
           fi
 
-          FETCHED_PR_HEAD="$(git rev-parse "refs/remotes/pull/$PR_NUMBER/head")"
-          if [ "$FETCHED_PR_HEAD" != "$PR_HEAD_SHA" ]; then
-            echo "Pull request head changed from $PR_HEAD_SHA to $FETCHED_PR_HEAD" >&2
+          read -ra MERGE_PARENTS <<< "$(git show -s --format=%P "$MERGE_SHA")"
+          if [ "${#MERGE_PARENTS[@]}" -eq 0 ] || [ "${#MERGE_PARENTS[@]}" -gt 2 ]; then
+            echo "Unsupported merged commit parent count for $MERGE_SHA: ${#MERGE_PARENTS[@]}" >&2
             exit 1
           fi
 
-          if ! git merge-base --is-ancestor "$PR_BASE_SHA" origin/main; then
-            echo "Pull request base $PR_BASE_SHA is not on origin/main" >&2
-            exit 1
+          PATCH_BASE="${MERGE_PARENTS[0]}"
+          if [ "${#MERGE_PARENTS[@]}" -eq 1 ] && [ "$PR_COMMIT_COUNT" -gt 1 ]; then
+            CURRENT_SHA="$MERGE_SHA"
+            for ((INDEX = 1; INDEX < PR_COMMIT_COUNT; INDEX++)); do
+              PARENT_SHA="$(git rev-parse "$CURRENT_SHA^1")"
+              ASSOCIATED_PULL_REQUESTS="$(gh api "repos/$REPO/commits/$PARENT_SHA/pulls")"
+              if ! jq -e --argjson number "$PR_NUMBER" 'any(.[]; .number == $number)' <<< "$ASSOCIATED_PULL_REQUESTS" >/dev/null; then
+                break
+              fi
+
+              CURRENT_SHA="$PARENT_SHA"
+              PATCH_BASE="$(git rev-parse "$CURRENT_SHA^1")"
+            done
           fi
 
-          PATCH_BASE="$(git merge-base "$PR_BASE_SHA" "$PR_HEAD_SHA")"
           PATCH_FILE="$RUNNER_TEMP/hotfix.patch"
-          git diff --binary --full-index "$PATCH_BASE" "$PR_HEAD_SHA" -- > "$PATCH_FILE"
+          git diff --binary --full-index "$PATCH_BASE" "$MERGE_SHA" -- > "$PATCH_FILE"
 
           if [ ! -s "$PATCH_FILE" ] || git apply --reverse --check "$PATCH_FILE" 2>/dev/null; then
             echo "has-changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if ! git apply --3way --index "$PATCH_FILE"; then
+          if ! git apply --3way --index "$PATCH_FILE" || [ -n "$(git diff --name-only --diff-filter=U)" ]; then
             git reset --hard HEAD
-            PENDING_LABEL="backport/$TAG"
-            CONFLICT_LABEL="backport-conflict/$TAG"
-            gh label create "$CONFLICT_LABEL" --repo "$REPO" --color "B60205" --description "Backport to $TAG needs manual follow-up" --force
-            gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$PENDING_LABEL" --add-label "$CONFLICT_LABEL"
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Automatic backport to \`release/$TAG\` has conflicts and needs manual resolution."
+            echo "The merged hotfix result conflicts with the active release branch." > "$RUNNER_TEMP/backport-failure-message"
             exit 1
           fi
 
@@ -420,7 +412,30 @@ jobs:
           fi
 
           echo "url=$BACKPORT_PR_URL" >> "$GITHUB_OUTPUT"
-          gh pr comment "$SOURCE_PR" --repo "$REPO" --body "Created backport pull request for \`$RELEASE_BRANCH\`: $BACKPORT_PR_URL"
+
+      - name: Mark backport pull request open
+        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'true'
+        shell: bash
+        env:
+          BACKPORT_PR_URL: ${{ steps.backport-pr.outputs.url }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          PENDING_LABEL="backport/$TAG"
+          COMPLETE_LABEL="backported/$TAG"
+          FAILED_LABEL="backport-failed/$TAG"
+          LABELS="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels)"
+
+          gh label create "$PENDING_LABEL" --repo "$REPO" --color "FBCA04" --description "A backport pull request is open for $TAG" --force
+          for LABEL in "$COMPLETE_LABEL" "$FAILED_LABEL"; do
+            if jq -e --arg label "$LABEL" 'any(.labels[]; .name == $label)' <<< "$LABELS" >/dev/null; then
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$LABEL"
+            fi
+          done
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$PENDING_LABEL"
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Created backport pull request for \`release/$TAG\`: $BACKPORT_PR_URL"
 
       - name: Mark already-present backport complete
         if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'false'
@@ -433,9 +448,54 @@ jobs:
         run: |
           PENDING_LABEL="backport/$TAG"
           COMPLETE_LABEL="backported/$TAG"
+          FAILED_LABEL="backport-failed/$TAG"
+          LABELS="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels)"
           gh label create "$COMPLETE_LABEL" --repo "$REPO" --color "0E8A16" --description "This fix was backported to $TAG" --force
-          gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$PENDING_LABEL" --add-label "$COMPLETE_LABEL"
+          for LABEL in "$PENDING_LABEL" "$FAILED_LABEL"; do
+            if jq -e --arg label "$LABEL" 'any(.labels[]; .name == $label)' <<< "$LABELS" >/dev/null; then
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$LABEL"
+            fi
+          done
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$COMPLETE_LABEL"
           gh pr comment "$PR_NUMBER" --repo "$REPO" --body "No backport pull request was needed because \`release/$TAG\` already contains this fix."
+
+      - name: Synchronize failed backport state
+        if: always() && steps.release-ref.outputs.eligible == 'true' && failure()
+        shell: bash
+        env:
+          BACKPORT_BRANCH: ${{ steps.release-ref.outputs.backport-branch }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RELEASE_BRANCH: ${{ steps.release-ref.outputs.branch }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          PENDING_LABEL="backport/$TAG"
+          COMPLETE_LABEL="backported/$TAG"
+          FAILED_LABEL="backport-failed/$TAG"
+          LABELS="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels)"
+          OPEN_PR="$(gh pr list --repo "$REPO" --base "$RELEASE_BRANCH" --head "$BACKPORT_BRANCH" --state open --json url --jq '.[0].url // empty')"
+
+          gh label create "$PENDING_LABEL" --repo "$REPO" --color "FBCA04" --description "A backport pull request is open for $TAG" --force
+          gh label create "$FAILED_LABEL" --repo "$REPO" --color "B60205" --description "Automatic backport to $TAG needs manual follow-up" --force
+
+          remove_label() {
+            if jq -e --arg label "$1" 'any(.labels[]; .name == $label)' <<< "$LABELS" >/dev/null; then
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$1"
+            fi
+          }
+
+          remove_label "$COMPLETE_LABEL"
+          if [ -n "$OPEN_PR" ]; then
+            remove_label "$FAILED_LABEL"
+            gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$PENDING_LABEL"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Created backport pull request for \`$RELEASE_BRANCH\`: $OPEN_PR"
+          else
+            remove_label "$PENDING_LABEL"
+            gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$FAILED_LABEL"
+            FAILURE_MESSAGE="$(cat "$RUNNER_TEMP/backport-failure-message" 2>/dev/null || echo "Automatic backport preparation failed before a pull request was opened.")"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$FAILURE_MESSAGE Review the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) and complete the backport manually."
+          fi
 
   track-backport-pr:
     name: Track backport pull request
@@ -453,7 +513,7 @@ jobs:
           BACKPORT_MERGED: ${{ github.event.pull_request.merged }}
           BACKPORT_URL: ${{ github.event.pull_request.html_url }}
           BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          GH_TOKEN: ${{ github.token }}
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           REPO: ${{ github.repository }}
@@ -496,10 +556,10 @@ jobs:
 
           PENDING_LABEL="backport/$TAG"
           COMPLETE_LABEL="backported/$TAG"
-          CONFLICT_LABEL="backport-conflict/$TAG"
-          gh label create "$PENDING_LABEL" --repo "$REPO" --color "FBCA04" --description "Automatically backport this hotfix to $TAG" --force
+          FAILED_LABEL="backport-failed/$TAG"
+          gh label create "$PENDING_LABEL" --repo "$REPO" --color "FBCA04" --description "A backport pull request is open for $TAG" --force
           gh label create "$COMPLETE_LABEL" --repo "$REPO" --color "0E8A16" --description "This fix was backported to $TAG" --force
-          gh label create "$CONFLICT_LABEL" --repo "$REPO" --color "B60205" --description "Backport to $TAG needs manual follow-up" --force
+          gh label create "$FAILED_LABEL" --repo "$REPO" --color "B60205" --description "Automatic backport to $TAG needs manual follow-up" --force
 
           has_label() {
             jq -e --arg label "$1" 'any(.labels[]; .name == $label)' <<< "$SOURCE_JSON" >/dev/null
@@ -511,29 +571,29 @@ jobs:
           }
 
           if [ "$ACTION" != "closed" ]; then
-            if has_label "$PENDING_LABEL" && ! has_label "$COMPLETE_LABEL" && ! has_label "$CONFLICT_LABEL"; then
+            if has_label "$PENDING_LABEL" && ! has_label "$COMPLETE_LABEL" && ! has_label "$FAILED_LABEL"; then
               exit 0
             fi
             remove_label "$COMPLETE_LABEL"
-            remove_label "$CONFLICT_LABEL"
+            remove_label "$FAILED_LABEL"
             gh pr edit "$SOURCE_PR" --repo "$REPO" --add-label "$PENDING_LABEL"
             exit 0
           fi
 
           if [ "$BACKPORT_MERGED" = "true" ]; then
-            if has_label "$COMPLETE_LABEL" && ! has_label "$PENDING_LABEL" && ! has_label "$CONFLICT_LABEL"; then
+            if has_label "$COMPLETE_LABEL" && ! has_label "$PENDING_LABEL" && ! has_label "$FAILED_LABEL"; then
               exit 0
             fi
             remove_label "$PENDING_LABEL"
-            remove_label "$CONFLICT_LABEL"
+            remove_label "$FAILED_LABEL"
             gh pr edit "$SOURCE_PR" --repo "$REPO" --add-label "$COMPLETE_LABEL"
             gh pr comment "$SOURCE_PR" --repo "$REPO" --body "Backport pull request merged into \`release/$TAG\`: $BACKPORT_URL"
           else
-            if has_label "$CONFLICT_LABEL" && ! has_label "$PENDING_LABEL" && ! has_label "$COMPLETE_LABEL"; then
+            if has_label "$FAILED_LABEL" && ! has_label "$PENDING_LABEL" && ! has_label "$COMPLETE_LABEL"; then
               exit 0
             fi
             remove_label "$PENDING_LABEL"
             remove_label "$COMPLETE_LABEL"
-            gh pr edit "$SOURCE_PR" --repo "$REPO" --add-label "$CONFLICT_LABEL"
+            gh pr edit "$SOURCE_PR" --repo "$REPO" --add-label "$FAILED_LABEL"
             gh pr comment "$SOURCE_PR" --repo "$REPO" --body "Backport pull request was closed without merging and needs follow-up: $BACKPORT_URL"
           fi
