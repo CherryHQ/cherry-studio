@@ -26,8 +26,21 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
  */
 const logger = loggerService.withContext('MiniAppTabsPool')
 
+/**
+ * Horizontal placement of one pane. Only the CSS box changes between split and
+ * full width — the `<webview>` node itself never moves in the DOM, which would
+ * blank its content on reattach.
+ */
+function paneGeometry(isSplit: boolean, isPrimary: boolean, isSecondary: boolean): string {
+  if (!isSplit) return 'left-0 w-full'
+  if (isPrimary) return 'left-0 w-1/2'
+  if (isSecondary) return 'left-1/2 w-1/2'
+  return 'left-0 w-full'
+}
+
 const MiniAppTabsPool: React.FC = () => {
-  const { openedKeepAliveMiniApps, currentMiniAppId, setOpenedKeepAliveMiniApps } = useMiniApps()
+  const { openedKeepAliveMiniApps, currentMiniAppId, splitOpen, splitMiniAppId, setOpenedKeepAliveMiniApps } =
+    useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
   // Read the active tab's URL from the v2 tabs cache. We can't use the
@@ -37,6 +50,10 @@ const MiniAppTabsPool: React.FC = () => {
 
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
+
+  // One `<webview>` cannot render in two panes, and switching tabs can make the
+  // active app equal the split one, so drop the split instead of blanking a pane.
+  const paneSplitId = splitOpen && splitMiniAppId !== currentMiniAppId ? splitMiniAppId : ''
 
   const activeMiniAppId = useMemo(() => {
     const url = tabs.find((t) => t.id === activeTabId)?.url ?? ''
@@ -54,8 +71,11 @@ const MiniAppTabsPool: React.FC = () => {
       const appId = miniAppIdFromTabUrl(tab.url)
       if (appId) ids.add(appId)
     }
+    // The split pane's app owns no tab of its own, so nothing else keeps this
+    // retention pass from evicting the webview shown beside the active one.
+    if (splitOpen && splitMiniAppId) ids.add(splitMiniAppId)
     return ids
-  }, [activeMiniAppId, tabs])
+  }, [activeMiniAppId, splitMiniAppId, splitOpen, tabs])
   const retention = useMemo(
     () => trimMiniAppKeepAlive(openedKeepAliveMiniApps, cap, protectedAppIds),
     [cap, openedKeepAliveMiniApps, protectedAppIds]
@@ -112,14 +132,14 @@ const MiniAppTabsPool: React.FC = () => {
     logger.debug(`TabPool webview navigate: ${appid} -> ${url}`)
   }
 
-  /** Toggle display: only the active one is visible, the rest are hidden */
+  /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {
     webviewRefs.current.forEach((ref, id) => {
       if (!ref) return
-      const active = id === currentMiniAppId && shouldShow
+      const active = (id === currentMiniAppId || id === paneSplitId) && shouldShow
       ref.style.display = active ? 'inline-flex' : 'none'
     })
-  }, [currentMiniAppId, shouldShow, apps.length])
+  }, [currentMiniAppId, paneSplitId, shouldShow, apps.length])
 
   /** When an entry is in the Map but no longer in openedKeepAlive, remove the ref (React unmounts the element itself) */
   useEffect(() => {
@@ -152,22 +172,27 @@ const MiniAppTabsPool: React.FC = () => {
       }
       data-mini-app-tabs-pool
       aria-hidden={!shouldShow}>
-      {apps.map((app) => (
-        <div
-          key={app.appId}
-          className={cn(
-            'absolute inset-0 h-full w-full',
-            app.appId === currentMiniAppId ? 'pointer-events-auto' : 'pointer-events-none'
-          )}>
-          <WebviewContainer
-            appid={app.appId}
-            url={app.url}
-            onSetRefCallback={handleSetRef}
-            onLoadedCallback={handleLoaded}
-            onNavigateCallback={handleNavigate}
-          />
-        </div>
-      ))}
+      {apps.map((app) => {
+        const isPrimaryPane = app.appId === currentMiniAppId
+        const isSplitPane = app.appId === paneSplitId
+        return (
+          <div
+            key={app.appId}
+            className={cn(
+              'absolute top-0 bottom-0 h-full',
+              isPrimaryPane || isSplitPane ? 'pointer-events-auto' : 'pointer-events-none',
+              paneGeometry(splitOpen, isPrimaryPane, isSplitPane)
+            )}>
+            <WebviewContainer
+              appid={app.appId}
+              url={app.url}
+              onSetRefCallback={handleSetRef}
+              onLoadedCallback={handleLoaded}
+              onNavigateCallback={handleNavigate}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -72,6 +72,7 @@ export function useCodeCliPageViewProps(
   const apiGatewayBundle = useApiGatewayProvider()
   const {
     filterProviders,
+    filterProvidersForTool,
     makeModelFilter,
     resolveProviderMeta,
     resolveProviderMetaForTool,
@@ -89,20 +90,24 @@ export function useCodeCliPageViewProps(
       const currentId = state?.current
       if (!currentId) continue
       if (currentId === CLI_OWN_LOGIN_PROVIDER_ID) {
+        if (!LOGIN_CAPABLE_CLI_TOOLS.has(tool.value)) continue
         summaries[tool.value] = t('code.own_login.title', { toolName: t(tool.label) })
         continue
       }
       // The gateway is synthetic (absent from the real provider list); resolve its summary
       // from the bundle's provider so the sidebar still shows the selected model.
       const provider = isApiGatewayProviderId(currentId)
-        ? apiGatewayBundle?.provider
+        ? GATEWAY_CAPABLE_CLI_TOOLS.has(tool.value)
+          ? apiGatewayBundle?.provider
+          : undefined
         : providers.find((p) => p.id === currentId)
       if (!provider) continue
+      if (!isApiGatewayProviderId(currentId) && filterProvidersForTool(tool.value, [provider]).length === 0) continue
       const meta = resolveProviderMetaForTool(tool.value, provider, state.providers[currentId])
       summaries[tool.value] = meta.modelName || meta.providerName
     }
     return summaries
-  }, [configs, providers, apiGatewayBundle, resolveProviderMetaForTool, t])
+  }, [configs, providers, apiGatewayBundle, filterProvidersForTool, resolveProviderMetaForTool, t])
 
   const handleReorderError = useCallback(
     (error: unknown) => {
@@ -131,7 +136,9 @@ export function useCodeCliPageViewProps(
   })
 
   const selectedProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
-  const defaultGatewayProvider = !currentProviderId && showGatewayCard ? apiGatewayBundle?.provider : undefined
+  const currentProviderIsPending = !!currentProviderId && !selectedProvider && isProvidersLoading
+  const defaultGatewayProvider =
+    !selectedProvider && !currentProviderIsPending && showGatewayCard ? apiGatewayBundle?.provider : undefined
   const savedGatewayConfig = defaultGatewayProvider ? providerConfigs[defaultGatewayProvider.id] : undefined
   const hasSavedGatewayContext = defaultGatewayProvider
     ? !!resolveCliConfigApplyContext(selectedCliTool, defaultGatewayProvider.id, savedGatewayConfig, gatewayModelsById)
@@ -146,7 +153,7 @@ export function useCodeCliPageViewProps(
     [hasSavedGatewayContext, savedGatewayConfig, defaultGatewayModelId]
   )
   const enabledProvider = selectedProvider ?? defaultGatewayProvider
-  const enabledProviderConfig = currentProviderConfig ?? defaultGatewayConfig
+  const enabledProviderConfig = selectedProvider ? currentProviderConfig : defaultGatewayConfig
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useCurrentCliConfigConnection({
     enabledProvider,
     selectedCliTool,
@@ -159,7 +166,7 @@ export function useCodeCliPageViewProps(
     [selectedCliTool]
   )
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
-  const isOwnLoginSelected = currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID
+  const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
   const canLaunch =
     (isProviderlessTool || isOwnLoginSelected || !!enabledProvider) &&
@@ -198,7 +205,8 @@ export function useCodeCliPageViewProps(
     versionStatus.installed &&
     !isProviderlessTool &&
     hasRealSupportedProvider &&
-    !currentProviderId &&
+    !selectedProvider &&
+    !currentProviderIsPending &&
     !defaultGatewayProvider
 
   const configPanel = useConfigPanelController({

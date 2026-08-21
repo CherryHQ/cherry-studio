@@ -14,7 +14,6 @@ import { BrowserWindow, dialog } from 'electron'
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
 import { copilotService } from './services/CopilotService'
-import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { legacyBackupManager as backupManager } from './services/LegacyBackupManager'
@@ -180,9 +179,6 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
-
-  // ExternalApps
-  handleGuarded(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
   // Global Skills: install / uninstall / install-from-zip / install-from-directory / list-local
   // migrated to IpcApi (skill.*). read-file / list-files stay on legacy IPC (roadmap placeholders).

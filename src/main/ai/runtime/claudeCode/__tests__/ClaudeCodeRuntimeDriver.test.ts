@@ -342,6 +342,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
+      // teardownSession reaches the session-state service through the settingsBuilder facade.
+      if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
@@ -3382,6 +3384,25 @@ describe('ClaudeCodeRuntimeDriver', () => {
         request: {
           approvalId: 'approval-1',
           toolCallId: 'tool-1'
+        }
+      }
+    })
+
+    approvalEmitter.emitInput({
+      toolCallId: 'tool-plan-1',
+      toolName: 'ExitPlanMode',
+      input: { plan: '# Plan' }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'tool-plan-1',
+          toolName: 'ExitPlanMode',
+          input: { plan: '# Plan' },
+          dynamic: true,
+          providerExecuted: true
         }
       }
     })

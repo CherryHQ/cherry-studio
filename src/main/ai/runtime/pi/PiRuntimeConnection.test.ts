@@ -158,7 +158,7 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as n
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
-const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
+const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
 function appendedSystemPrompt(): string {
   return (mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()[0] ?? ''
@@ -1403,7 +1403,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1502,7 +1502,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1573,7 +1573,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills']),
         expect.any(Map),
         { id: 'chan-1' },
         AGENT_DATA_PATH,
