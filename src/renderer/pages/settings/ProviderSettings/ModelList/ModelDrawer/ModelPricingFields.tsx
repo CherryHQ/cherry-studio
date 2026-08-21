@@ -1,4 +1,13 @@
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  InputNumber,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import type { Model } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 import { Plus, Trash2 } from 'lucide-react'
@@ -28,12 +37,6 @@ import {
 interface ModelPricingFieldsProps {
   pricing: Model['pricing']
   onCommit: (pricing: NonNullable<Model['pricing']>) => void
-}
-
-/** Keeps digits and at most one decimal point, so the field never holds a non-numeric draft. */
-function sanitizePriceInput(value: string): string {
-  const [integerPart, ...fractionParts] = value.replace(/[^\d.]/g, '').split('.')
-  return fractionParts.length > 0 ? `${integerPart}.${fractionParts.join('')}` : integerPart
 }
 
 interface TierPriceFieldProps {
@@ -77,17 +80,16 @@ function TierPriceField({
         ) : null
       }>
       <div className={drawerClasses.responsiveValueRow}>
-        <Input
-          type="text"
-          inputMode="decimal"
+        <InputNumber
+          min={0}
           required={!optional}
           aria-label={ariaLabel}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
-          value={value}
+          value={value === '' ? null : Number(value)}
           placeholder={optional ? t('models.price.use_input_price') : '0.00'}
           className={drawerClasses.input}
-          onChange={(event) => onChange(field, sanitizePriceInput(event.target.value))}
+          onChange={(next) => onChange(field, next === null ? '' : String(next))}
           onBlur={onBlur}
         />
         <span className={drawerClasses.valueSuffix}>
@@ -171,17 +173,17 @@ function ModelPricingTierFields({
               {errors.minInputTokens ?? t('models.price.min_input_tokens_help')}
             </div>
           }>
-          <Input
-            type="text"
-            inputMode="numeric"
+          <InputNumber
+            min={1}
+            step={1}
             required
             aria-label={minInputTokensAriaLabel}
             aria-invalid={Boolean(errors.minInputTokens)}
             aria-describedby={minInputTokensHelpId}
-            value={tier.minInputTokens}
+            value={tier.minInputTokens === '' ? null : Number(tier.minInputTokens)}
             placeholder="0"
             className={drawerClasses.input}
-            onChange={(event) => onChange(tierIndex, 'minInputTokens', event.target.value.replace(/[^\d]/g, ''))}
+            onChange={(value) => onChange(tierIndex, 'minInputTokens', value === null ? '' : String(value))}
             onBlur={onBlur}
           />
         </ProviderField>
