@@ -23,9 +23,7 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
-
-import { applyReasoningModelMaxTokensConversion } from '../reasoningModelTransform'
+import { applyReasoningModelMaxTokensConversion, OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
 export const NEWAPI_PROVIDER_NAME = 'newapi' as const
 

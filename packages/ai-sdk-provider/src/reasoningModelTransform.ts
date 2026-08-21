@@ -30,5 +30,8 @@ export function applyReasoningModelMaxTokensConversion(args: Record<string, any>
   if (!isOpenAIReasoningModelId(args.model)) return args
   if (args.max_tokens == null) return args
   const { max_tokens, ...rest } = args
-  return { ...rest, max_completion_tokens: max_tokens }
+  // An explicit `max_completion_tokens` (custom parameter, delivered through
+  // `providerOptions`) outranks the `maxOutputTokens`-derived value, matching
+  // `@ai-sdk/openai`.
+  return args.max_completion_tokens != null ? rest : { ...rest, max_completion_tokens: max_tokens }
 }

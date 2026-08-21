@@ -1,12 +1,16 @@
 import { createExecutor } from '@cherrystudio/ai-core'
-import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
+import {
+  applyReasoningModelMaxTokensConversion,
+  createCherryIn,
+  isOpenAIReasoningModelId
+} from '@cherrystudio/ai-sdk-provider'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { createNewApi } from '../custom/newapiProvider'
-import { applyReasoningModelMaxTokensConversion, isOpenAIReasoningModelId } from '../reasoningModelTransform'
 
 const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
   resolveApiKeyMock: vi.fn(),
@@ -111,6 +115,13 @@ describe('applyReasoningModelMaxTokensConversion', () => {
     expect(result).toEqual(body)
   })
 
+  it('keeps an explicit max_completion_tokens and still drops max_tokens', () => {
+    const body = { model: 'gpt-5', max_tokens: 4096, max_completion_tokens: 8192 }
+    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    expect(result.max_completion_tokens).toBe(8192)
+    expect(result.max_tokens).toBeUndefined()
+  })
+
   it('preserves other body fields', () => {
     const body = { model: 'o3', max_tokens: 1000, temperature: 0.7, stream: true }
     const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
@@ -203,6 +214,39 @@ describe('wire-body regression through real construction paths', () => {
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
     expect(body.max_completion_tokens).toBe(4096)
+    expect(body.max_tokens).toBeUndefined()
+  })
+
+  it('CherryAI path (own providerSettings builder) rewrites max_tokens on the wire', async () => {
+    const provider = makeProvider({
+      id: CHERRYAI_PROVIDER_ID,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://cherryai.example.com' }
+      }
+    })
+    const model = makeModel({ apiModelId: 'gpt-5', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    expect(config.providerId).toBe('openai-compatible')
+
+    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+    const executor = await createExecutor(
+      config.providerId as Parameters<typeof createExecutor>[0],
+      {
+        ...config.providerSettings,
+        fetch: fetchSpy
+      } as Parameters<typeof createExecutor>[1]
+    )
+    const languageModel = await executor.languageModel('gpt-5')
+
+    await languageModel.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      maxOutputTokens: 512
+    })
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+    expect(body.max_completion_tokens).toBe(512)
     expect(body.max_tokens).toBeUndefined()
   })
 })

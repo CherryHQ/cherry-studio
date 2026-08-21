@@ -24,6 +24,7 @@ import {
 import { type FetchFunction, loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
 import { OpenAICompatibleRerankingModel } from './openai-compatible-reranking-model'
+import { applyReasoningModelMaxTokensConversion } from './reasoningModelTransform'
 
 export const CHERRYIN_PROVIDER_NAME = 'cherryin' as const
 export const DEFAULT_CHERRYIN_BASE_URL = 'https://open.cherryin.net/v1'
@@ -138,31 +139,6 @@ const createCustomFetch = (originalFetch?: any) => {
 
     return originalFetch ? originalFetch(url, options) : fetch(url, options)
   }
-}
-
-/**
- * Detect OpenAI reasoning models that require `max_completion_tokens` instead
- * of `max_tokens`. Matches `@ai-sdk/openai`'s internal pattern.
- * Mirror of src/main/ai/provider/reasoningModelTransform.ts.
- * Keep both copies in sync when updating reasoning model patterns.
- */
-function isOpenAIReasoningModelId(modelId: string): boolean {
-  const id = modelId.toLowerCase()
-  return (
-    id.startsWith('o1') ||
-    id.startsWith('o3') ||
-    id.startsWith('o4-mini') ||
-    (id.startsWith('gpt-5') && !id.startsWith('gpt-5-chat'))
-  )
-}
-
-/** Rewrite `max_tokens` → `max_completion_tokens` for OpenAI reasoning models. */
-function applyReasoningModelMaxTokensConversion(body: Record<string, any>): Record<string, any> {
-  if (typeof body.model !== 'string') return body
-  if (!isOpenAIReasoningModelId(body.model)) return body
-  if (body.max_tokens == null) return body
-  const { max_tokens, ...rest } = body
-  return { ...rest, max_completion_tokens: max_tokens }
 }
 
 class CherryInOpenAIChatLanguageModel extends OpenAICompatibleChatLanguageModel {

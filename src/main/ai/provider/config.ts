@@ -48,7 +48,6 @@ import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtr
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
-import { applyReasoningModelMaxTokensConversion } from './reasoningModelTransform'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
 
@@ -247,10 +246,7 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'zhipu'),
       build: withSelectedApiKey((ctx) => {
         const config = buildOpenAICompatibleConfig(ctx)
-        // Compose: reasoning-model max_tokens conversion runs first, then Zhipu web search injection.
-        const baseTransform = config.providerSettings.transformRequestBody
-        config.providerSettings.transformRequestBody = (body: Record<string, any>) =>
-          transformZhipuRequestBody(baseTransform ? baseTransform(body) : body)
+        config.providerSettings.transformRequestBody = transformZhipuRequestBody
         return config
       })
     },
@@ -768,10 +764,6 @@ function buildAzureConfig(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Reasoning-model max_tokens → max_completion_tokens conversion
-// ---------------------------------------------------------------------------
-
 function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'openai-compatible'> {
   const commonOptions = buildCommonOptions(ctx)
 
@@ -782,8 +774,7 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
       ...ctx.baseConfig,
       ...commonOptions,
       name: ctx.actualProvider.id,
-      includeUsage: ctx.actualProvider.apiFeatures.streamOptions,
-      transformRequestBody: applyReasoningModelMaxTokensConversion
+      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
     }
   }
 }
