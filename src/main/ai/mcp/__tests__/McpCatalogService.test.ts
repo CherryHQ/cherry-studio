@@ -180,6 +180,20 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', error)
   })
 
+  it.each(['pending-auth', 'error'] as const)(
+    'preserves a runtime-owned %s status when listing fails',
+    async (state) => {
+      getById.mockReturnValue(server())
+      cacheStore.set('mcp.status.server-1', { state, lastCheckedAt: Date.now() })
+      listTools.mockRejectedValue(new Error('authorization pending'))
+
+      const service = new McpCatalogService()
+
+      await expect(service.refreshTools('server-1')).rejects.toThrow('authorization pending')
+      expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+    }
+  )
+
   it('prewarms active server tools into shared cache', async () => {
     listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
     listTools.mockResolvedValue({ tools: [sdkTool('search')] })

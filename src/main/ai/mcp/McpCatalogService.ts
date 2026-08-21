@@ -6,16 +6,17 @@ import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, Service
 import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
+import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import * as z from 'zod'
 
 import { redactCacheKey } from './mcpRedact'
-import { OAuthPendingAuthError } from './McpRuntimeService'
 import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
+const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
 const PREWARM_CONCURRENCY = 3
 const EMPTY_TOOLS_RETRY_MS = 5 * 60 * 1000
 const FAILED_TOOLS_RETRY_MS = 30 * 1000
@@ -250,11 +251,12 @@ export class McpCatalogService extends BaseService {
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
       this.writeToolsCache(server.id, [], FAILED_TOOLS_RETRY_MS)
-      this.runtimeService().setServerStatus(
-        server.id,
-        error instanceof OAuthPendingAuthError ? 'pending-auth' : 'error',
-        error
-      )
+      const runtimeStatus = application.get('CacheService').getShared(mcpStatusCacheKey(server.id)) as
+        | McpRuntimeStatus
+        | undefined
+      if (runtimeStatus?.state !== 'pending-auth' && runtimeStatus?.state !== 'error') {
+        this.runtimeService().setServerStatus(server.id, 'error', error)
+      }
       throw error
     }
   }
