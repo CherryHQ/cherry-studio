@@ -12298,25 +12298,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "zai/glm-4.6v",
-      "modelId": "glm-4-6v",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.9
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "zai/glm-4.7",
       "modelId": "glm-4-7",
       "pricing": {
@@ -14999,15 +14980,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.11
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 3.3
         }
       },
       "providerId": "gateway"
@@ -16679,6 +16660,22 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2.2
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
+      "apiModelId": "zai-org/GLM-4.6V-Flash",
+      "modelId": "glm-4-6v-flash",
+      "name": "GLM-4.6V-Flash",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.9
         }
       },
       "providerId": "huggingface"
@@ -20751,15 +20748,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.035
+          "perMillionTokens": 0.004375
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.0175
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.58
+          "perMillionTokens": 0.0725
         }
       },
       "providerId": "opencode",
@@ -22488,17 +22485,13 @@
       "apiModelId": "deepseek/deepseek-chat-v3-0324",
       "modelId": "deepseek-chat-v3",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.135
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.27
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.12
+          "perMillionTokens": 1
         }
       },
       "providerId": "openrouter"
@@ -22654,15 +22647,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01652
+          "perMillionTokens": 0.017721
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.0826
+          "perMillionTokens": 0.088606
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.1652
+          "perMillionTokens": 0.177212
         }
       },
       "providerId": "openrouter",
@@ -22688,15 +22681,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0153
+          "perMillionTokens": 0.014
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.0765
+          "perMillionTokens": 0.065
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.153
+          "perMillionTokens": 0.14
         }
       },
       "providerId": "openrouter",
@@ -22722,15 +22715,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.022
+          "perMillionTokens": 0.0396
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.66
+          "perMillionTokens": 1.188
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.98
+          "perMillionTokens": 3.564
         }
       },
       "providerId": "openrouter",
@@ -24711,6 +24704,40 @@
                 "kind": "toggle"
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "~z-ai/glm-latest",
+      "modelId": "glm-latest",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.26
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["max", "high", "low"]
+              }
+            ],
+            "defaultEffort": "max",
+            "supportedEfforts": ["max", "high", "low"]
           }
         }
       }
@@ -27054,21 +27081,6 @@
       }
     },
     {
-      "apiModelId": "ai21/jamba-large-1.7",
-      "modelId": "jamba-large-1-7",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 8
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
       "apiModelId": "kwaipilot/kat-coder-air-v2.5",
       "modelId": "kat-coder-air-v2-5",
       "pricing": {
@@ -28105,11 +28117,11 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.06
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.22
+          "perMillionTokens": 0.225
         },
         "output": {
           "currency": "USD",
@@ -29641,15 +29653,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.225
+          "perMillionTokens": 0.25
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.225
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.8
+          "perMillionTokens": 1.25
         }
       },
       "providerId": "openrouter",
@@ -29781,15 +29793,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.03
+          "perMillionTokens": 0.12
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 3.6
         }
       },
       "providerId": "openrouter",
@@ -32132,22 +32144,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.3
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
-      "apiModelId": "mancer/weaver",
-      "modelId": "weaver",
-      "name": "Weaver (alpha)",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.75
         }
       },
       "providerId": "openrouter"
@@ -37526,6 +37522,210 @@
       "providerId": "voyageai"
     },
     {
+      "apiModelId": "xdeepseekv3",
+      "modelId": "deepseek-v3",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopdeepseekv32",
+      "modelId": "deepseek-v3-2",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopdeepseekv4flash",
+      "modelId": "deepseek-v4-flash",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopdeepseekv4pro",
+      "modelId": "deepseek-v4-pro",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopglmv47flash",
+      "modelId": "glm-4-7-flash",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopglm5",
+      "modelId": "glm-5",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopglm51",
+      "modelId": "glm-5-1",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopglm52",
+      "modelId": "glm-5-2",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopkimik25",
+      "modelId": "kimi-k2-5",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopkimik26",
+      "modelId": "kimi-k2-6",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xminimaxm25",
+      "modelId": "minimax-m2-5",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopqwen35v35b",
+      "modelId": "qwen3-5-35b-a3b",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopqwen35397b",
+      "modelId": "qwen3-5-397b-a17b",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xopqwen36v35b",
+      "modelId": "qwen3-6-35b-a3b",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xop3qwencodernext",
+      "modelId": "qwen3-coder-next",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xop3qwen0b6embedding",
+      "modelId": "qwen3-embedding-0-6b",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xop3qwen0b6reranker",
+      "modelId": "qwen3-reranker-0-6b",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xsparkx2",
+      "modelId": "spark-x2",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xsparkx2agent",
+      "modelId": "spark-x2-agent",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "xsparkx2flash",
+      "modelId": "spark-x2-flash",
+      "providerId": "xfyun"
+    },
+    {
+      "apiModelId": "astron-code-latest",
+      "modelId": "astron-code-latest",
+      "name": "Astron Coding Plan",
+      "ownedBy": "iflytek",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "auto",
+      "modelId": "auto",
+      "name": "Auto",
+      "ownedBy": "iflytek",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopdeepseekv32",
+      "modelId": "deepseek-v3-2",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopdeepseekv4flash",
+      "modelId": "deepseek-v4-flash",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopdeepseekv4pro",
+      "modelId": "deepseek-v4-pro",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopglmv47flash",
+      "modelId": "glm-4-7-flash",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopglm5",
+      "modelId": "glm-5",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopglm51",
+      "modelId": "glm-5-1",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopglm52",
+      "modelId": "glm-5-2",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopkimik25",
+      "modelId": "kimi-k2-5",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopkimik26",
+      "modelId": "kimi-k2-6",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopkimi27code",
+      "modelId": "kimi-k2-7-code",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xminimaxm25",
+      "modelId": "minimax-m2-5",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopqwen35v35b",
+      "modelId": "qwen3-5-35b-a3b",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopqwen35397b",
+      "modelId": "qwen3-5-397b-a17b",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xopqwen36v35b",
+      "modelId": "qwen3-6-35b-a3b",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xop3qwencodernext",
+      "modelId": "qwen3-coder-next",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xsparkx2",
+      "modelId": "spark-x2",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xsparkx2agent",
+      "modelId": "spark-x2-agent",
+      "providerId": "xfyun-coding"
+    },
+    {
+      "apiModelId": "xsparkx2flash",
+      "modelId": "spark-x2-flash",
+      "providerId": "xfyun-coding"
+    },
+    {
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -37700,5 +37900,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "ddd4ac2fe5a3d926"
+  "version": "3bbab65e6720a2c4"
 }
