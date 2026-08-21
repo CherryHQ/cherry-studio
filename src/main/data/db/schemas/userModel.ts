@@ -67,6 +67,9 @@ export const userModelTable = sqliteTable(
     /** Endpoint types (optional, override Provider default) */
     endpointTypes: text({ mode: 'json' }).$type<EndpointType[]>(),
 
+    /** Explicit routing choice among the supported endpoints; null falls back to `endpointTypes[0]`. */
+    preferredEndpointType: text().$type<EndpointType>(),
+
     /** Context window size */
     contextWindow: integer(),
 

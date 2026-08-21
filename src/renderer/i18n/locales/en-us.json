@@ -6085,6 +6085,9 @@
         "model_type": {
           "label": "Model Type"
         },
+        "preferred_endpoint": {
+          "label": "Preferred Endpoint"
+        },
         "purpose": {
           "chat": {
             "description": "Use the provider's text API",

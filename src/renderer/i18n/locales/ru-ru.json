@@ -6085,6 +6085,9 @@
         "model_type": {
           "label": "Тип модели"
         },
+        "preferred_endpoint": {
+          "label": "Предпочтительная конечная точка"
+        },
         "purpose": {
           "chat": {
             "description": "Используйте текстовый API провайдера",

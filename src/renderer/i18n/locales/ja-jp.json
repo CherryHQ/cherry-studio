@@ -6085,6 +6085,9 @@
         "model_type": {
           "label": "モデルタイプ"
         },
+        "preferred_endpoint": {
+          "label": "優先エンドポイント"
+        },
         "purpose": {
           "chat": {
             "description": "プロバイダーのテキストAPIを使用する",

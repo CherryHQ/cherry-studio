@@ -9,6 +9,7 @@ import {
   supportsServerToolFunctionMixing
 } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -206,6 +207,69 @@ export function isSupportStreamOptionsProvider(provider: Provider): boolean {
   return provider.apiFeatures?.streamOptions ?? false
 }
 
+/**
+ * The endpoint protocol a model is called with.
+ *
+ * `preferredEndpointType` is the user's explicit routing choice; `endpointTypes` stays the
+ * capability set, and its first entry is the legacy route for rows written before the
+ * preference existed (and for registry presets whose array order encodes the same intent).
+ */
+type EndpointRoutingModel = Pick<Model, 'id' | 'apiModelId' | 'endpointTypes' | 'preferredEndpointType'>
+type EndpointRoutingProvider = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs'>
+
+function hasEndpointConfig(provider: EndpointRoutingProvider, endpointType: EndpointType): boolean {
+  return provider.endpointConfigs != null && Object.hasOwn(provider.endpointConfigs, endpointType)
+}
+
+/** Unset URLs use the Anthropic SDK default, which is the official API host. */
+export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
+  if (!baseUrl) return true
+  try {
+    return new URL(baseUrl).hostname === 'api.anthropic.com'
+  } catch {
+    return false
+  }
+}
+
+/** Whether this model can still reach an endpoint through its current provider row. */
+export function isModelEndpointTypeAvailable(
+  model: EndpointRoutingModel,
+  provider: EndpointRoutingProvider,
+  endpointType: EndpointType
+): boolean {
+  if (!hasEndpointConfig(provider, endpointType)) return false
+  if (model.endpointTypes?.includes(endpointType)) return true
+  return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType === endpointType
+}
+
+/**
+ * Resolve the effective model route from live model capabilities and provider configs.
+ * A suggested endpoint is a runtime heuristic, so a valid persisted user choice wins over it.
+ */
+export function getModelPreferredEndpoint(
+  model: EndpointRoutingModel,
+  provider: EndpointRoutingProvider,
+  suggestedEndpointType?: EndpointType
+): EndpointType | undefined {
+  const unavailablePreference =
+    model.preferredEndpointType && !isModelEndpointTypeAvailable(model, provider, model.preferredEndpointType)
+      ? model.preferredEndpointType
+      : undefined
+  if (model.preferredEndpointType && isModelEndpointTypeAvailable(model, provider, model.preferredEndpointType)) {
+    return model.preferredEndpointType
+  }
+  if (suggestedEndpointType && isModelEndpointTypeAvailable(model, provider, suggestedEndpointType)) {
+    return suggestedEndpointType
+  }
+
+  const declaredEndpoint = model.endpointTypes?.find((endpointType) => endpointType !== unavailablePreference)
+  return (
+    declaredEndpoint ??
+    resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType ??
+    provider.defaultChatEndpoint
+  )
+}
+
 function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
   return provider.serverTools?.find((tool) => tool.id === id)
 }
@@ -228,10 +292,10 @@ function serverToolServesEndpoint(tool: ServerToolConfig, endpointType: Endpoint
 
 function resolveServerToolEndpoint(
   model: Model,
-  provider: Pick<Provider, 'defaultChatEndpoint'>,
+  provider: EndpointRoutingProvider,
   endpointType: EndpointType | undefined
 ): EndpointType | undefined {
-  return endpointType ?? model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+  return endpointType ?? getModelPreferredEndpoint(model, provider)
 }
 
 /** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */
@@ -248,7 +312,7 @@ export function isServerToolModelEligible(
 /** Effective built-in web-search availability for one provider-model pair. */
 export function isBuiltinWebSearchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
@@ -285,7 +349,7 @@ export interface WebToolRoutes {
 /** Effective provider-native URL-fetch availability for one provider-model pair. */
 export function isBuiltinWebFetchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.URL_CONTEXT)

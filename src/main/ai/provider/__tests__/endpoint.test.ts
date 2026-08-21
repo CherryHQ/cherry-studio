@@ -320,6 +320,90 @@ describe('resolveProviderVariant', () => {
 })
 
 describe('resolveEffectiveEndpoint', () => {
+  it('prefers model.preferredEndpointType over the supported-set order', () => {
+    const provider = makeProvider({
+      id: 'doubao',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com/v3/' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com/v3/responses/' }
+      }
+    })
+    const model = {
+      id: 'm',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+    } as never
+
+    const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
+
+    expect(endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(baseUrl).toBe('https://ark.example.com/v3/responses/')
+  })
+
+  it('ignores a persisted preference removed from the model capability set', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/chat' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example.com/anthropic' }
+      }
+    })
+    const model = {
+      id: 'relay::model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    } as never
+
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      baseUrl: 'https://relay.example.com/chat'
+    })
+  })
+
+  it('ignores a persisted preference whose provider route was removed', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/chat' }
+      }
+    })
+    const model = {
+      id: 'relay::model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    } as never
+
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      baseUrl: 'https://relay.example.com/chat'
+    })
+  })
+
+  it('keeps a valid user preference ahead of a runtime suggestion', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/chat' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example.com/anthropic' }
+      }
+    })
+    const model = {
+      id: 'relay::model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    } as never
+
+    expect(
+      resolveEffectiveEndpoint(provider, model, { suggestedEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
+    ).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      baseUrl: 'https://relay.example.com/chat'
+    })
+  })
+
   it('prefers model.endpointTypes[0] over provider.defaultChatEndpoint', () => {
     const provider = makeProvider({
       id: 'minimax',
@@ -378,7 +462,9 @@ describe('resolveEffectiveEndpoint', () => {
     } as never
 
     it('wins over model.endpointTypes[0] when the model declares it', () => {
-      expect(resolveEffectiveEndpoint(deepseek, flash, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+      expect(
+        resolveEffectiveEndpoint(deepseek, flash, { requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
+      ).toMatchObject({
         endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         baseUrl: 'https://api.deepseek.com/anthropic'
       })
@@ -387,9 +473,11 @@ describe('resolveEffectiveEndpoint', () => {
 
     it('is declined when the model does not declare it', () => {
       const chatOnly = { id: 'deepseek-chat', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as never
-      expect(resolveEffectiveEndpoint(deepseek, chatOnly, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType).toBe(
-        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-      )
+      expect(
+        resolveEffectiveEndpoint(deepseek, chatOnly, {
+          requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        }).endpointType
+      ).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
     it('is declined when the provider configures no base URL for it', () => {
@@ -403,7 +491,9 @@ describe('resolveEffectiveEndpoint', () => {
         id: 'm',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
       } as never
-      expect(resolveEffectiveEndpoint(relay, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+      expect(
+        resolveEffectiveEndpoint(relay, model, { requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
+      ).toMatchObject({
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         baseUrl: 'https://relay.example.com'
       })
@@ -411,9 +501,11 @@ describe('resolveEffectiveEndpoint', () => {
 
     it('leaves the gateway route untouched for models that declare no endpoints', () => {
       const model = { id: 'm' } as never
-      expect(resolveEffectiveEndpoint(deepseek, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType).toBe(
-        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-      )
+      expect(
+        resolveEffectiveEndpoint(deepseek, model, {
+          requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        }).endpointType
+      ).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
   })
 

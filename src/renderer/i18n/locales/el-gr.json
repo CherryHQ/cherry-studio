@@ -6085,6 +6085,9 @@
         "model_type": {
           "label": "Τύπος Μοντέλου"
         },
+        "preferred_endpoint": {
+          "label": "Προτιμώμενο endpoint"
+        },
         "purpose": {
           "chat": {
             "description": "Χρησιμοποιήστε το API κειμένου του παρόχου",

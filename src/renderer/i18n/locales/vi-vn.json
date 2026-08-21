@@ -6085,6 +6085,9 @@
         "model_type": {
           "label": "Loại mô hình"
         },
+        "preferred_endpoint": {
+          "label": "Điểm cuối ưu tiên"
+        },
         "purpose": {
           "chat": {
             "description": "Sử dụng API văn bản của nhà cung cấp",

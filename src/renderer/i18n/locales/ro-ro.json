@@ -6085,6 +6085,9 @@
         "model_type": {
           "label": "Tip model"
         },
+        "preferred_endpoint": {
+          "label": "Endpoint preferat"
+        },
         "purpose": {
           "chat": {
             "description": "Folosește API-ul de text al furnizorului",

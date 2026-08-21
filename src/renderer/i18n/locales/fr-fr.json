@@ -6085,6 +6085,9 @@
         "model_type": {
           "label": "Type de modèle"
         },
+        "preferred_endpoint": {
+          "label": "Point d'extrémité préféré"
+        },
         "purpose": {
           "chat": {
             "description": "Utilisez l'API texte du fournisseur",

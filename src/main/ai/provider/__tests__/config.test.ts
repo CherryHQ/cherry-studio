@@ -142,6 +142,104 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
   })
 
+  it('sends Authorization: Bearer to a third-party anthropic-compatible gateway', async () => {
+    // LongCat-shaped: the Anthropic adapter only ever sends `x-api-key`, which this gateway
+    // answers with 401 missing_api_key.
+    const provider = makeProvider({
+      id: 'longcat',
+      presetProviderId: 'longcat',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://api.longcat.chat/openai'
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://api.longcat.chat/anthropic'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'longcat::LongCat-2.0',
+      apiModelId: 'LongCat-2.0',
+      providerId: 'longcat',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, any>
+
+    expect(settings.headers.Authorization).toBe('Bearer sk-test-key')
+  })
+
+  it('never sends Authorization alongside x-api-key to Anthropic itself, which 401s on both', async () => {
+    const provider = makeProvider({
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
+      }
+    })
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4',
+      apiModelId: 'claude-sonnet-4',
+      providerId: 'anthropic'
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, any>
+
+    expect(settings.headers.Authorization).toBeUndefined()
+  })
+
+  it('uses Authorization when an Anthropic preset is repointed to a third-party host', async () => {
+    const provider = makeProvider({
+      id: 'anthropic-proxy',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://anthropic.proxy.example.com'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'anthropic-proxy::claude-sonnet-4',
+      providerId: 'anthropic-proxy',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+
+    expect((config.providerSettings as Record<string, any>).headers.Authorization).toBe('Bearer sk-test-key')
+  })
+
+  it('omits Authorization for a custom provider routed to the official Anthropic host', async () => {
+    const provider = makeProvider({
+      id: 'custom-anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://api.anthropic.com/v1'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-anthropic::claude-sonnet-4',
+      providerId: 'custom-anthropic',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+
+    expect((config.providerSettings as Record<string, any>).headers.Authorization).toBeUndefined()
+  })
+
   describe('OpenCode Go session header', () => {
     const model = makeModel({
       id: 'custom-opencode::glm-5',

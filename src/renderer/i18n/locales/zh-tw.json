@@ -6085,6 +6085,9 @@
         "model_type": {
           "label": "模型類型"
         },
+        "preferred_endpoint": {
+          "label": "首選端點"
+        },
         "purpose": {
           "chat": {
             "description": "使用供應商的文字 API",

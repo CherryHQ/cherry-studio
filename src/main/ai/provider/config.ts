@@ -26,6 +26,7 @@ import {
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
 import {
+  isAnthropicOfficialHost,
   isAzureOpenAIProvider,
   isGeminiProvider,
   isOllamaProvider,
@@ -180,7 +181,7 @@ function withoutCredential(build: ProviderConfigBuilder): ConfigBuilderEntry['bu
   })
 }
 
-/** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
+/** Endpoint priority: `model.preferredEndpointType` > `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
 export async function providerToAiSdkConfig(
   provider: Provider,
   model: Model,
@@ -552,6 +553,7 @@ function buildCommonOptions(ctx: BuilderContext) {
   const options: Record<string, any> = {
     headers: {
       ...defaultAppHeaders(),
+      ...getEndpointAuthHeaders(ctx),
       ...getExtraHeaders(ctx.actualProvider)
     }
   }
@@ -559,6 +561,23 @@ function buildCommonOptions(ctx: BuilderContext) {
     options.headers['X-Api-Key'] = ctx.baseConfig.apiKey
   }
   return options
+}
+
+/**
+ * `@ai-sdk/anthropic` only ever sends `x-api-key`, but third-party Anthropic-compatible gateways
+ * (LongCat, …) read `Authorization: Bearer` and answer `missing_api_key` without it — so send both.
+ *
+ * Anthropic itself is excluded: it reserves `Authorization` for OAuth tokens and rejects a request
+ * carrying both headers with a 401. OAuth-backed providers never reach here with a key.
+ */
+function getEndpointAuthHeaders(ctx: BuilderContext): Record<string, string> {
+  const isThirdPartyAnthropicGateway =
+    ctx.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && !isAnthropicOfficialHost(ctx.baseConfig.baseURL)
+
+  if (!isThirdPartyAnthropicGateway || isEmpty(ctx.baseConfig.apiKey)) {
+    return {}
+  }
+  return { Authorization: `Bearer ${ctx.baseConfig.apiKey}` }
 }
 
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {

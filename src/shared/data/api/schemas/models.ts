@@ -9,6 +9,7 @@ import * as z from 'zod'
 
 import {
   ENDPOINT_TYPE,
+  type EndpointType,
   type ImageGenerationSupport,
   MODALITY,
   type Model,
@@ -31,8 +32,21 @@ export const ListModelsQuerySchema = z.object({
 })
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
+const validatePreferredEndpoint = (
+  data: { endpointTypes?: EndpointType[]; preferredEndpointType?: EndpointType },
+  ctx: z.RefinementCtx
+) => {
+  if (data.endpointTypes && data.preferredEndpointType && !data.endpointTypes.includes(data.preferredEndpointType)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['preferredEndpointType'],
+      message: 'Preferred endpoint must be included in endpointTypes'
+    })
+  }
+}
+
 /** DTO for creating a new model */
-export const CreateModelSchema = z.strictObject({
+const CreateModelObjectSchema = z.strictObject({
   /** Provider ID */
   providerId: z.string().min(1),
   /** Model ID (used in API calls) */
@@ -53,6 +67,8 @@ export const CreateModelSchema = z.strictObject({
   outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
+  /** Explicit routing choice among the supported endpoint types */
+  preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).optional(),
   /** Context window size */
   contextWindow: z.number().int().positive().optional(),
   /** Maximum input tokens */
@@ -66,6 +82,7 @@ export const CreateModelSchema = z.strictObject({
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })
+export const CreateModelSchema = CreateModelObjectSchema.superRefine(validatePreferredEndpoint)
 export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
 export const MODELS_BATCH_MAX_ITEMS = 500
@@ -84,7 +101,7 @@ export const CreateModelsSchema = z.array(CreateModelSchema).min(1).max(MODELS_B
 export type CreateModelsDto = z.infer<typeof CreateModelsSchema>
 
 /** DTO for updating an existing model — CreateModelDto minus identity fields, all optional, plus status fields */
-export const UpdateModelSchema = CreateModelSchema.omit({
+export const UpdateModelSchema = CreateModelObjectSchema.omit({
   providerId: true,
   modelId: true,
   presetModelId: true
@@ -96,6 +113,7 @@ export const UpdateModelSchema = CreateModelSchema.omit({
     isDeprecated: z.boolean().optional(),
     notes: z.string().optional()
   })
+  .superRefine(validatePreferredEndpoint)
 export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
 
 /**
