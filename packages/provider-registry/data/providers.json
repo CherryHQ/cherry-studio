@@ -697,6 +697,7 @@
     },
     {
       "authOptional": true,
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "LM Studio - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2053,5 +2054,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "6f2078bd03cfc7de"
+  "version": "fdfb570a7fc921a1"
 }

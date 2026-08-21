@@ -78,6 +78,33 @@ describe('resolvePiApi', () => {
     )
   })
 
+  // Regression for https://github.com/CherryHQ/cherry-studio/issues/19003: a
+  // local provider whose baseUrl is hardcoded in BOTH endpoint configs (lmstudio)
+  // has nothing dynamic to discover, so omitting `defaultChatEndpoint` only
+  // breaks gating — models synced from `/models` carry no `endpointTypes`, the
+  // three-way fallback resolves to `undefined`, and every model is silently
+  // filtered out of the Pi picker despite both endpoints being Pi-speakable.
+  it('resolves a hardcoded-local-provider model once a default chat endpoint is declared', () => {
+    const lmstudioShape = (defaultChatEndpoint?: Provider['defaultChatEndpoint']) =>
+      makeProvider({
+        id: 'lmstudio',
+        name: 'LM Studio',
+        authOptional: true,
+        ...(defaultChatEndpoint ? { defaultChatEndpoint } : {}),
+        endpointConfigs: {
+          'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'http://localhost:1234' },
+          'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'http://localhost:1234' }
+        }
+      })
+    const model = makeModel({ providerId: 'lmstudio', id: 'lmstudio::qwen' }) // no endpointTypes
+
+    // Without the default (the reported bug): silent exclusion.
+    expect(resolvePiApi(lmstudioShape(), model)).toBeUndefined()
+    // With the default: both declared endpoints are Pi-compatible; the openai
+    // chat route resolves to pi's openai-completions family.
+    expect(resolvePiApi(lmstudioShape('openai-chat-completions'), model)).toBe('openai-completions')
+  })
+
   it('is false for an unmapped provider', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'ollama-chat',
