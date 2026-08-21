@@ -7073,9 +7073,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "圖表",
-        "clearDate": "清除日期篩選",
-        "drilldownTitle": "{{date}} 明細",
         "entries": "請求",
+        "granularity": "粒度",
         "groupBy": "群組依據",
         "loadMore": "載入更多",
         "loading": "載入中...",
@@ -7085,7 +7084,6 @@
         "noEntries": "尚無記錄",
         "noEntriesDescription": "請嘗試較長的時間範圍或其他供應商。",
         "rollup": "彙總",
-        "selectedDate": "選定日期：{{date}}",
         "shareLabel": "佔比",
         "title": "探索",
         "top": "Top",
@@ -7099,7 +7097,6 @@
         "source": "助理 / Agent"
       },
       "heatmap": {
-        "ariaDate": "{{date}} 的用量",
         "title": "每日活動"
       },
       "metric": {
