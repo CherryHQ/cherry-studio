@@ -6,8 +6,9 @@
  * the two sides cannot drift. No service imports, no runtime state — this file
  * must stay importable from both processes.
  *
- * dsh drives models through `dsh-llm-pi-ai`. Cherry injects OpenAI and
- * Anthropic as declared routes and reuses pi-ai's Google catalog route for
+ * dsh drives generic models through `dsh-llm-pi-ai`; official DeepSeek chat
+ * models may use the native `dsh-llm-deepseek` route. Cherry injects OpenAI
+ * and Anthropic as declared routes and reuses pi-ai's Google catalog route for
  * Generate Content; providers whose Cherry endpoint has no equivalent fall
  * back to the local API Gateway when the model is gateway-routable.
  */
@@ -18,12 +19,12 @@ import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
- * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.7).
- * OpenAI and Anthropic use hand-declared protocol routes; Google Generate
- * Content reuses pi-ai's built-in `google` catalog provider. Azure and signed
+ * Transport families Cherry can inject into dsh (0.1.1-rc.2). OpenAI and
+ * Anthropic use hand-declared pi-ai protocol routes; Google Generate Content
+ * reuses pi-ai's built-in `google` catalog provider. Azure and signed
  * Bedrock/Vertex routes cannot be expressed by this composition contract.
  */
 export type DshApi = 'anthropic-messages' | 'google-generative-ai' | 'openai-completions' | 'openai-responses'
@@ -74,8 +75,9 @@ export function resolveDshEndpointType(provider: Provider, model: Model): Endpoi
 
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */
 export function resolveDshApi(provider: Provider, model: Model): DshApi | undefined {
-  // dsh runs as a subprocess with no per-request transport injection, so every login-based
-  // provider is undrivable — including the app-managed OAuth ones pi adapts in-process.
+  // Login-based providers keep their OAuth session in Cherry's main process;
+  // returning undefined sends them through the local Gateway instead of leaking
+  // a provider token into the dsh subprocess.
   if (isLoginBasedProvider(provider)) return undefined
   const endpointType = resolveDshEndpointType(provider, model)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
@@ -87,15 +89,25 @@ export function hasKnownDshContextWindow(model: Model): model is Model & { conte
   return typeof model.contextWindow === 'number' && Number.isFinite(model.contextWindow) && model.contextWindow > 0
 }
 
-/** DSH rc.7 always requires text input; undeclared modalities retain the existing chat-model default. */
+/** DSH requires text input; undeclared modalities retain the existing chat-model default. */
 export function hasDshTextInput(model: Model): boolean {
   return model.inputModalities === undefined || model.inputModalities.includes(MODALITY.TEXT)
 }
 
+/**
+ * Whether the local API Gateway can front this provider for a dsh session.
+ * External-CLI providers are intentionally excluded: the Gateway's AI SDK
+ * path cannot reuse their separate CLI login, even though their models are
+ * otherwise chat-routable.
+ */
+export function isDshGatewayRoutableModel(provider: Provider, model: Model): boolean {
+  return !isExternalCliProvider(provider) && isGatewayRoutableModel(model)
+}
+
 /** Whether a dsh agent can use this provider+model. Used for renderer filtering. */
 export function isDshCompatibleModel(provider: Provider, model: Model): boolean {
-  // No native wire family → the local API Gateway can still front any gateway-routable
-  // model as OpenAI-compatible (claude's picker rule); everything else stays fail-closed.
-  if (resolveDshApi(provider, model) === undefined && !isGatewayRoutableModel(model)) return false
+  // No native wire family → the local API Gateway can still front any provider
+  // model it can route as OpenAI-compatible; everything else stays fail-closed.
+  if (resolveDshApi(provider, model) === undefined && !isDshGatewayRoutableModel(provider, model)) return false
   return hasKnownDshContextWindow(model) && hasDshTextInput(model)
 }

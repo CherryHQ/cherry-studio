@@ -192,4 +192,21 @@ describe('api gateway model listing', () => {
 
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
   })
+
+  it('exposes app-managed OAuth models because the Gateway owns their provider request', async () => {
+    mocks.listProviders.mockReturnValue([{ id: 'openai-codex', name: 'OpenAI Codex', authMethods: ['oauth'] }])
+    mocks.listModels.mockReturnValue([
+      {
+        id: 'openai-codex::gpt-5-codex',
+        providerId: 'openai-codex',
+        apiModelId: 'gpt-5-codex',
+        ownedBy: 'OpenAI Codex',
+        capabilities: []
+      }
+    ])
+
+    const response = await getModels()
+
+    expect(response.data.map((model) => model.id)).toEqual(['openai-codex:gpt-5-codex'])
+  })
 })

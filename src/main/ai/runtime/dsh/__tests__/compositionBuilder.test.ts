@@ -45,16 +45,20 @@ function providerRoute(yml: string, providerName: string): Record<string, any> {
   return entryById(yml, 'llm').config?.providers?.[providerName]
 }
 
-function makeInjection(modelOverrides: Partial<Model> = {}, reasoningEffort: ReasoningEffortOption = 'default') {
+function makeInjection(
+  modelOverrides: Partial<Model> = {},
+  reasoningEffort: ReasoningEffortOption = 'default',
+  adapterFamily = 'openai'
+) {
   const provider = {
     id: 'deepseek',
     name: 'DeepSeek',
     apiFeatures: DEFAULT_API_FEATURES,
     defaultChatEndpoint: 'openai-chat-completions',
     endpointConfigs: {
-      'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'https://api.deepseek.com' }
+      'openai-chat-completions': { adapterFamily, baseUrl: 'https://api.deepseek.com' }
     },
-    settings: { extraHeaders: { 'X-Trace': 'on' } }
+    ...(adapterFamily === 'deepseek' ? {} : { settings: { extraHeaders: { 'X-Trace': 'on' } } })
   } as unknown as Provider
   const model = {
     id: 'deepseek::deepseek-chat',
@@ -72,6 +76,7 @@ function makeInjection(modelOverrides: Partial<Model> = {}, reasoningEffort: Rea
 function makeInput(overrides: Partial<DshCompositionInput> = {}): DshCompositionInput {
   const injection = makeInjection()
   return {
+    adapter: injection.adapter,
     providerName: injection.providerName,
     api: injection.api,
     baseUrl: injection.baseUrl,
@@ -238,6 +243,59 @@ describe('buildDshCompositionYaml', () => {
     expect(entryById(yml, 'sandbox-policy').config?.workspaceRoot).toBe('/tmp/dsh-workspace')
   })
 
+  it('mounts the native DeepSeek route for official multimodal models', () => {
+    const injection = makeInjection(
+      {
+        capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING],
+        reasoning: { selectableEfforts: ['low', 'high'] }
+      },
+      'high',
+      'deepseek'
+    )
+    const yml = buildDshCompositionYaml(
+      makeInput({
+        adapter: injection.adapter,
+        providerName: injection.providerName,
+        api: injection.api,
+        baseUrl: injection.baseUrl,
+        reasoning: injection.reasoning,
+        modelConfig: injection.modelConfig
+      })
+    )
+
+    expect(parseEntries(yml).some((entry) => entry.id === 'llm')).toBe(false)
+    expect(entryById(yml, 'llm-deepseek').name).toContain('dsh-llm-deepseek')
+    expect(entryById(yml, 'llm-deepseek').config).toMatchObject({
+      apiKeyEnv: 'CHERRY_DSH_API_KEY',
+      baseURL: 'https://api.deepseek.com',
+      thinking: 'enabled',
+      reasoningEffort: 'high',
+      models: [
+        expect.objectContaining({
+          id: 'deepseek-chat',
+          inputModalities: ['text', 'image']
+        })
+      ]
+    })
+  })
+
+  it('disables native DeepSeek thinking for text-only models', () => {
+    const injection = makeInjection({}, 'default', 'deepseek')
+    const yml = buildDshCompositionYaml(
+      makeInput({
+        adapter: injection.adapter,
+        providerName: injection.providerName,
+        api: injection.api,
+        baseUrl: injection.baseUrl,
+        modelConfig: injection.modelConfig
+      })
+    )
+
+    const config = entryById(yml, 'llm-deepseek').config
+    expect(config).toMatchObject({ thinking: 'disabled' })
+    expect(config).not.toHaveProperty('reasoningEffort')
+  })
+
   it('mounts the dsh-factory subagent split: continuable spawn, one-shot foreground fork', () => {
     const yml = buildDshCompositionYaml(makeInput())
     const ids = parseEntries(yml).map((entry) => entry.id)
@@ -378,7 +436,7 @@ describe('buildDshCompositionYaml', () => {
       expect(injection.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
       const route = providerRoute(yaml, 'google')
       expect(route).toBeDefined()
-      // Google is a catalog-provider reuse: an explicit api would be rejected by rc.6.
+      // Google is a catalog-provider reuse: an explicit api would be rejected by pi-ai.
       expect(route).not.toHaveProperty('api')
     }
   )

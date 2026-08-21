@@ -7,8 +7,9 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { admitEncodedImages } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-commands'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { type ContentBlock, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
@@ -24,6 +25,7 @@ import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
   type BridgeCommandResult,
+  type BridgeContentBlock,
   type BridgeContextUsage,
   type BridgeHostParams,
   type BridgePolicy,
@@ -32,7 +34,16 @@ import {
 } from './protocol'
 
 export const name = 'cherry-bridge'
-export const inject = ['approval', 'agents', 'tools', 'tokenMeter', 'subagents', 'userQuestions', 'planMode']
+export const inject = [
+  'approval',
+  'agents',
+  'attachments',
+  'tools',
+  'tokenMeter',
+  'subagents',
+  'userQuestions',
+  'planMode'
+]
 
 /** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
 interface BridgeToolOutputValue {
@@ -82,7 +93,8 @@ export function apply(ctx: Context): void {
         return openSession(params as BridgeHostParams<'session/open'>)
       case 'session/prompt': {
         const { sessionId, contentBlocks } = params as BridgeHostParams<'session/prompt'>
-        requireAgent(sessionId).followup(createUserMessage({ content: contentBlocks, source: { kind: 'user' } }))
+        const content = await materializePromptContent(contentBlocks)
+        requireAgent(sessionId).followup(createUserMessage({ content, source: { kind: 'user' } }))
         return {}
       }
       case 'session/cancel': {
@@ -144,6 +156,23 @@ export function apply(ctx: Context): void {
     }
   }
 
+  async function materializePromptContent(blocks: BridgeContentBlock[]): Promise<ContentBlock[]> {
+    const encodedImages = blocks.filter((block) => block.type === 'image')
+    if (encodedImages.length === 0)
+      return blocks.filter((block): block is Extract<BridgeContentBlock, { type: 'text' }> => block.type === 'text')
+    const refs = await admitEncodedImages(
+      ctx.attachments,
+      encodedImages.map(({ mediaType, data, name }) => ({ mediaType, data, ...(name ? { name } : {}) }))
+    )
+    let imageIndex = 0
+    return blocks.map((block) => {
+      if (block.type === 'text') return block
+      const attachment = refs[imageIndex++]
+      if (!attachment) throw new Error('dsh attachment admission returned fewer image refs than requested')
+      return { type: 'image', attachment }
+    })
+  }
+
   async function openSession(params: BridgeHostParams<'session/open'>): Promise<Record<string, never>> {
     policies.set(params.sessionId, params.policy)
     const agentOptions = {
@@ -194,7 +223,7 @@ export function apply(ctx: Context): void {
     const controller = new AbortController()
     pendingCommands.set(params.sessionId, controller)
     try {
-      const execution = await commands.execute(agent, params.line, controller.signal)
+      const execution = await commands.execute(agent, params.line, params.images ?? [], controller.signal)
       if (execution === undefined) return { handled: false }
       return {
         handled: true,
