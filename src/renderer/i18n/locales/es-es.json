@@ -6182,6 +6182,8 @@
         "compress_enabled_description": "Resume automáticamente los turnos antiguos al acercarse al límite de la ventana de contexto. Los asistentes pueden anularlo",
         "compress_model": "Modelo de compresión",
         "compress_model_follow": "Seguir el modelo actual",
+        "compress_threshold": "Umbral de activación de compresión",
+        "compress_threshold_description": "Comprime cuando la conversación supera este porcentaje de la ventana de contexto del modelo. Los asistentes pueden anularlo",
         "enabled": "Activar gestión del contexto",
         "enabled_description": "Gestiona el contexto de la conversación automáticamente: descarga las salidas de herramientas demasiado grandes y comprime el historial cerca del límite de la ventana. Si se desactiva no se gestiona nada y las solicitudes que superen la ventana fallarán",
         "max_messages": "Mensajes recientes conservados",

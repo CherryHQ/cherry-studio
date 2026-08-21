@@ -6182,6 +6182,8 @@
         "compress_enabled_description": "Résume automatiquement les tours plus anciens à l’approche de la limite de la fenêtre de contexte. Les assistants peuvent le remplacer",
         "compress_model": "Modèle de compression",
         "compress_model_follow": "Suivre le modèle actuel",
+        "compress_threshold": "Seuil de déclenchement de la compression",
+        "compress_threshold_description": "Compresse dès que la conversation dépasse ce pourcentage de la fenêtre de contexte du modèle. Les assistants peuvent le remplacer",
         "enabled": "Activer la gestion du contexte",
         "enabled_description": "Gère automatiquement le contexte de la conversation : décharge les sorties d’outils trop volumineuses et compresse l’historique à l’approche de la limite. Désactivée, rien n’est géré et les requêtes dépassant la fenêtre échouent",
         "max_messages": "Messages récents conservés",

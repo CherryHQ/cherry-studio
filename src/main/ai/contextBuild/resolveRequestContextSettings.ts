@@ -1,12 +1,12 @@
 import { application } from '@application'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
-import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
+import { clampThresholdPercent } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 
 import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
 import { resolveContextSettings } from './resolveContextSettings'
 
-/** The global layer: the four `chat.context_settings.*` preferences. Shared
+/** The global layer: the `chat.context_settings.*` preferences. Shared
  *  with the persist-time trimmer so both lanes resolve identically. */
 export function resolveGlobalContextSettings(): EffectiveContextSettings {
   const prefs = application.get('PreferenceService')
@@ -17,10 +17,9 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
     compress: {
       enabled: prefs.get('chat.context_settings.compress.enabled'),
       modelId: prefs.get('chat.context_settings.compress.model_id'),
-      // ponytail: no global pref for the trigger yet — the assistant override is
-      // the only surface that exposes it; add a `chat.context_settings.*` key
-      // (data-classify generate) when a global control is asked for.
-      thresholdPercent: DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent
+      // The generated preference schema carries no min/max, so a hand-edited
+      // config could park the trigger at 0 and compact on every step.
+      thresholdPercent: clampThresholdPercent(prefs.get('chat.context_settings.compress.threshold_percent'))
     }
   }
 }

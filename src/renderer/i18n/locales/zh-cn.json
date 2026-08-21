@@ -6182,6 +6182,8 @@
         "compress_enabled_description": "接近上下文窗口上限时自动摘要较早的对话。助手可单独覆盖",
         "compress_model": "压缩模型",
         "compress_model_follow": "跟随当前模型",
+        "compress_threshold": "压缩触发阈值",
+        "compress_threshold_description": "对话超过模型上下文窗口的该百分比时触发压缩。助手可单独覆盖",
         "enabled": "启用上下文管理",
         "enabled_description": "自动管理对话上下文：转存超长工具输出，并在接近窗口上限时压缩历史。关闭后不做处理，超出模型窗口的请求将失败",
         "max_messages": "保留最近消息数",

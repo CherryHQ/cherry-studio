@@ -6182,6 +6182,8 @@
         "compress_enabled_description": "接近上下文視窗上限時自動摘要較早的對話。助理可單獨覆寫",
         "compress_model": "壓縮模型",
         "compress_model_follow": "跟隨目前模型",
+        "compress_threshold": "壓縮觸發閾值",
+        "compress_threshold_description": "對話超過模型上下文視窗的該百分比時觸發壓縮。助手可單獨覆寫",
         "enabled": "啟用上下文管理",
         "enabled_description": "自動管理對話上下文：轉存過長的工具輸出，並在接近視窗上限時壓縮歷史。關閉後不做處理，超出模型視窗的請求將失敗",
         "max_messages": "保留最近訊息數",

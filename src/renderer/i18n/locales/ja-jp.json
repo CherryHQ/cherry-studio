@@ -6182,6 +6182,8 @@
         "compress_enabled_description": "コンテキストウィンドウの上限に近づいたとき、古いやり取りを自動で要約します。アシスタントごとに上書きできます",
         "compress_model": "圧縮モデル",
         "compress_model_follow": "現在のモデルに従う",
+        "compress_threshold": "圧縮のしきい値",
+        "compress_threshold_description": "会話がモデルのコンテキストウィンドウのこの割合を超えたら圧縮します。アシスタントごとに上書きできます",
         "enabled": "コンテキスト管理を有効にする",
         "enabled_description": "会話のコンテキストを自動管理します：大きすぎるツール出力を退避し、ウィンドウ上限に近づいたら履歴を圧縮します。無効にすると何も管理されず、ウィンドウを超えるリクエストは失敗します",
         "max_messages": "保持する直近メッセージ数",

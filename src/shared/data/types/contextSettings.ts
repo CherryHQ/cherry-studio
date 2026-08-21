@@ -70,6 +70,21 @@ export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSc
  */
 export const MIN_TRUNCATE_THRESHOLD = 2000
 
+/**
+ * Bounds for the compaction trigger, shared by both settings UIs and the
+ * resolver. A trigger at 0 would fold on every step (nothing to fold on the
+ * first one), and above 100 it can never fire.
+ */
+export const MIN_COMPRESS_THRESHOLD_PERCENT = 10
+export const MAX_COMPRESS_THRESHOLD_PERCENT = 100
+
+/** Non-finite (or absent) input falls back to the default rather than to NaN,
+ *  which would compare false against every estimate and compact forever. */
+export function clampThresholdPercent(value: number | null | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent
+  return Math.min(MAX_COMPRESS_THRESHOLD_PERCENT, Math.max(MIN_COMPRESS_THRESHOLD_PERCENT, Math.floor(value)))
+}
+
 /** Hardcoded floor. compress.enabled defaults TRUE (P2-B decision); the
  *  threshold mirrors CONTEXT_PERSIST_THRESHOLD_CHARS so the persist trigger
  *  and the default agree out of the box. */

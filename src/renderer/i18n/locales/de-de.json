@@ -6182,6 +6182,8 @@
         "compress_enabled_description": "Ältere Gesprächsrunden automatisch zusammenfassen, wenn das Kontextfenster fast erreicht ist. Assistenten können dies überschreiben",
         "compress_model": "Komprimierungsmodell",
         "compress_model_follow": "Aktuellem Modell folgen",
+        "compress_threshold": "Schwellenwert für Komprimierung",
+        "compress_threshold_description": "Komprimiert, sobald die Unterhaltung diesen Prozentsatz des Modell-Kontextfensters überschreitet. Assistenten können dies überschreiben",
         "enabled": "Kontextverwaltung aktivieren",
         "enabled_description": "Gesprächskontext automatisch verwalten: übergroße Werkzeugausgaben auslagern und den Verlauf nahe der Fenstergrenze komprimieren. Deaktiviert wird nichts verwaltet und Anfragen über die Fenstergröße schlagen fehl",
         "max_messages": "Beibehaltene letzte Nachrichten",

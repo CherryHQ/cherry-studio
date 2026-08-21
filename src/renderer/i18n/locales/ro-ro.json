@@ -6182,6 +6182,8 @@
         "compress_enabled_description": "Rezumă automat schimburile mai vechi când se apropie limita ferestrei de context. Asistenții pot suprascrie această setare",
         "compress_model": "Model de comprimare",
         "compress_model_follow": "Urmează modelul curent",
+        "compress_threshold": "Prag de declanșare a compresiei",
+        "compress_threshold_description": "Comprimă atunci când conversația depășește acest procent din fereastra de context a modelului. Asistenții pot suprascrie această setare",
         "enabled": "Activează gestionarea contextului",
         "enabled_description": "Gestionează automat contextul conversației: descarcă rezultatele prea mari ale instrumentelor și comprimă istoricul aproape de limita ferestrei. Dezactivată, nu se gestionează nimic, iar cererile care depășesc fereastra eșuează",
         "max_messages": "Mesaje recente păstrate",

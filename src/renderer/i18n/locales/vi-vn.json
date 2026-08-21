@@ -6182,6 +6182,8 @@
         "compress_enabled_description": "Tự động tóm tắt các lượt cũ khi gần chạm giới hạn cửa sổ ngữ cảnh. Trợ lý có thể ghi đè cài đặt này",
         "compress_model": "Mô hình nén",
         "compress_model_follow": "Theo mô hình hiện tại",
+        "compress_threshold": "Ngưỡng kích hoạt nén",
+        "compress_threshold_description": "Nén khi cuộc trò chuyện vượt quá tỷ lệ phần trăm này của cửa sổ ngữ cảnh của mô hình. Trợ lý có thể ghi đè cài đặt này",
         "enabled": "Bật quản lý ngữ cảnh",
         "enabled_description": "Tự động quản lý ngữ cảnh hội thoại: lưu tách kết quả công cụ quá lớn và nén lịch sử khi gần giới hạn cửa sổ. Khi tắt, không có gì được quản lý và các yêu cầu vượt cửa sổ sẽ thất bại",
         "max_messages": "Số tin nhắn gần nhất được giữ",
