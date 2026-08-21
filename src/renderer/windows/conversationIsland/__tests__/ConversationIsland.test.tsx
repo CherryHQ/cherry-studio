@@ -330,6 +330,28 @@ describe('ConversationIsland', () => {
     ])
   })
 
+  it('honors a real leave before the compact snapshot arrives', async () => {
+    const user = userEvent.setup()
+    mocks.initData = expandedSnapshot()
+    const view = render(<ConversationIsland />)
+
+    await user.click(screen.getByRole('button', { name: 'Waiting: Review plan' }))
+    vi.useFakeTimers()
+    fireEvent.pointerLeave(screen.getByTestId('conversation-island-surface'))
+
+    mocks.initData = snapshot({ secondaryCount: 1 })
+    view.rerender(<ConversationIsland />)
+    fireEvent.pointerEnter(screen.getByRole('button'))
+
+    await advance(499)
+    expect(expansionRequests()).toEqual([['conversation_island.set_expanded', { expanded: false }]])
+    await advance(1)
+    expect(expansionRequests()).toEqual([
+      ['conversation_island.set_expanded', { expanded: false }],
+      ['conversation_island.set_expanded', { expanded: true }]
+    ])
+  })
+
   it('keeps all activities in equal-height accessible rows inside a five-row scroller', () => {
     const activities = Array.from({ length: 6 }, (_, index) =>
       activity(`topic-${index + 1}`, `Activity ${index + 1}`, {

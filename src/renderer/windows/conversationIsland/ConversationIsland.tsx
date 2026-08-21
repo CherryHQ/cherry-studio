@@ -22,7 +22,7 @@ const STATE_INDICATOR_CLASS: Record<ConversationIslandStateKind, string> = {
 const EXPAND_DELAY_MS = 500
 const COLLAPSE_DELAY_MS = 250
 
-type FreshReentryState = 'idle' | 'waiting-for-compact-enter' | 'waiting-for-leave'
+type FreshReentryState = 'idle' | 'waiting-for-compact-enter' | 'left-before-compact' | 'waiting-for-leave'
 
 export default function ConversationIsland() {
   const snapshot = useWindowInitData<ConversationIslandSnapshot>()
@@ -71,7 +71,13 @@ export default function ConversationIsland() {
   const handlePointerEnter = () => {
     clearCollapseTimer()
 
-    if (freshReentryRef.current !== 'idle') {
+    if (freshReentryRef.current === 'left-before-compact') {
+      if (snapshot.expanded) {
+        freshReentryRef.current = 'waiting-for-leave'
+        return
+      }
+      freshReentryRef.current = 'idle'
+    } else if (freshReentryRef.current !== 'idle') {
       if (!snapshot.expanded && freshReentryRef.current === 'waiting-for-compact-enter') {
         freshReentryRef.current = 'waiting-for-leave'
       }
@@ -93,7 +99,9 @@ export default function ConversationIsland() {
 
     if (freshReentryRef.current !== 'idle') {
       clearCollapseTimer()
-      if (!snapshot.expanded && freshReentryRef.current === 'waiting-for-leave') {
+      if (snapshot.expanded && freshReentryRef.current === 'waiting-for-compact-enter') {
+        freshReentryRef.current = 'left-before-compact'
+      } else if (!snapshot.expanded && freshReentryRef.current === 'waiting-for-leave') {
         freshReentryRef.current = 'idle'
       }
       return
