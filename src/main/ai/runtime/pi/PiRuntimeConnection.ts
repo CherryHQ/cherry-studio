@@ -20,7 +20,7 @@ import {
   type AgentRuntimeContextSnapshot,
   buildAgentRuntimePrompt,
   captureAgentRuntimeContextSnapshot,
-  resolveAgentRuntimeContextPrompt
+  resolveAgentTurnContextPrompt
 } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
@@ -402,7 +402,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
     this.promptRunActive = true
-    if (!this.runtimeContext) {
+    if (!this.runtimeContext && !this.isCherryWebSearchEnabled()) {
       void session.prompt(content, options).then(
         () => this.finishPromptRun(),
         (error) => this.finishPromptRun(error)
@@ -412,12 +412,19 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     void this.enqueuePromptWithRuntimeContext(session, content, options)
   }
 
+  private isCherryWebSearchEnabled(): boolean {
+    return !this.disabledTools.has(buildPiMcpToolName('cherry-tools', WEB_SEARCH_TOOL_NAME))
+  }
+
   private async enqueuePromptWithRuntimeContext(
     session: AgentSession,
     content: string,
     options: { streamingBehavior: 'followUp' } | undefined
   ): Promise<void> {
-    const runtimeContext = await resolveAgentRuntimeContextPrompt(this.runtimeContext)
+    const runtimeContext = await resolveAgentTurnContextPrompt({
+      snapshot: this.runtimeContext,
+      webSearchEnabled: this.isCherryWebSearchEnabled()
+    })
     const payload = runtimeContext ? prependRuntimeContextReminderText(content, runtimeContext) : content
     await session.prompt(payload, options).then(
       () => this.finishPromptRun(),

@@ -2,7 +2,12 @@
  * TODO：distinguish static and dynamic system prompt and xml-based user prompt
  */
 
-import { buildRuntimeContextPrompt, replacePromptVariables } from '@main/utils/prompt'
+import {
+  buildCurrentDateContext,
+  buildRuntimeContextPrompt,
+  replacePromptVariables,
+  shouldInjectCurrentDateContext
+} from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
@@ -36,6 +41,17 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 
   if (assistant?.settings?.enableRuntimeContext) {
     sections.push(await buildRuntimeContextPrompt(model.name, assistant.settings.runtimeContextPrompt))
+  }
+
+  if (
+    shouldInjectCurrentDateContext({
+      webSearchEnabled: assistant?.settings?.enableWebSearch === true,
+      prompt: assistant?.prompt,
+      runtimeContextEnabled: assistant?.settings?.enableRuntimeContext,
+      runtimeContextPrompt: assistant?.settings?.runtimeContextPrompt
+    })
+  ) {
+    sections.push(buildCurrentDateContext())
   }
 
   if (tools && TOOL_SEARCH_TOOL_NAME in tools) {

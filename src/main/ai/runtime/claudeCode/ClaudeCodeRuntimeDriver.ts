@@ -19,8 +19,10 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { resolveAgentTurnContextPrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
 import { wrapRuntimeContextReminder, wrapSteerReminder } from '@main/ai/steerReminder'
+import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
   buildClaudeToolPolicy,
@@ -28,9 +30,9 @@ import {
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
-import { buildRuntimeContextPrompt } from '@main/utils/prompt'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import { WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -480,13 +482,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     this.adapter?.beginTurn()
 
-    const runtimeContext = this.runtimeContext
-      ? await buildRuntimeContextPrompt(this.runtimeContext.modelName, this.runtimeContext.template)
-      : undefined
+    const turnContext = await resolveAgentTurnContextPrompt({
+      snapshot: this.runtimeContext,
+      webSearchEnabled: this.isCherryWebSearchEnabled()
+    })
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
-      runtimeContext,
+      runtimeContext: turnContext,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
     this.lastSdkUserMessage = sdkMessage
@@ -1082,6 +1085,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private invocationLane(parentToolUseId: string | null | undefined): string {
     return parentToolUseId == null ? 'top-level' : `tool:${parentToolUseId}`
+  }
+
+  private isCherryWebSearchEnabled(): boolean {
+    return this.toolPolicySnapshot?.isDisabled?.(toCherryBuiltinRuntimeName(WEB_SEARCH_TOOL_NAME)) === false
   }
 }
 

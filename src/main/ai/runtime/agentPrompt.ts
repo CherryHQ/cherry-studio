@@ -2,7 +2,12 @@ import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
 import { getAppLanguage } from '@main/i18n'
-import { buildRuntimeContextPrompt, replacePromptVariables } from '@main/utils/prompt'
+import {
+  buildCurrentDateContext,
+  buildRuntimeContextPrompt,
+  replacePromptVariables,
+  shouldInjectCurrentDateContext
+} from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { languageEnglishNameMap } from '@shared/utils/languages'
@@ -55,6 +60,24 @@ export function resolveAgentRuntimeContextPrompt(
 ): Promise<string | undefined> {
   if (!snapshot) return Promise.resolve(undefined)
   return buildRuntimeContextPrompt(snapshot.modelName, snapshot.template)
+}
+
+/** Per-turn reminder body: optional runtime context plus Web Search current-date grounding. */
+export async function resolveAgentTurnContextPrompt(input: {
+  snapshot?: AgentRuntimeContextSnapshot
+  webSearchEnabled: boolean
+}): Promise<string | undefined> {
+  const runtimeContext = input.snapshot
+    ? await buildRuntimeContextPrompt(input.snapshot.modelName, input.snapshot.template)
+    : undefined
+  const injectDate = shouldInjectCurrentDateContext({
+    webSearchEnabled: input.webSearchEnabled,
+    runtimeContextEnabled: Boolean(input.snapshot),
+    runtimeContextPrompt: input.snapshot?.template
+  })
+  if (!injectDate) return runtimeContext
+  const dateContext = buildCurrentDateContext()
+  return runtimeContext ? `${runtimeContext}\n\n${dateContext}` : dateContext
 }
 
 export interface BuildAgentRuntimePromptOptions {

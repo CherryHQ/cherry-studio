@@ -1,4 +1,7 @@
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import type * as AgentPromptModule from '@main/ai/runtime/agentPrompt'
+import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import { WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   materializeNativeFilePart: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
   buildRuntimeContextPrompt: vi.fn(),
+  resolveAgentTurnContextPrompt: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -65,6 +69,11 @@ vi.mock('@main/utils/file', () => ({
 
 vi.mock('@main/utils/prompt', () => ({
   buildRuntimeContextPrompt: mocks.buildRuntimeContextPrompt
+}))
+
+vi.mock('@main/ai/runtime/agentPrompt', async (importActual) => ({
+  ...(await importActual<typeof AgentPromptModule>()),
+  resolveAgentTurnContextPrompt: mocks.resolveAgentTurnContextPrompt
 }))
 
 vi.mock('../settingsBuilder', async (importActual) => ({
@@ -334,6 +343,41 @@ function userMessage() {
   } as any
 }
 
+function makeToolPolicySnapshot(webSearchEnabled: boolean) {
+  const webSearchRuntimeName = toCherryBuiltinRuntimeName(WEB_SEARCH_TOOL_NAME)
+  return {
+    resolve: vi.fn(),
+    isDisabled: vi.fn((runtimeName: string) => (runtimeName === webSearchRuntimeName ? !webSearchEnabled : false)),
+    getPermissionMode: vi.fn(() => undefined),
+    setPermissionMode: vi.fn(),
+    update: vi.fn().mockResolvedValue(undefined)
+  }
+}
+
+async function connectDriver(settings: Record<string, unknown> = {}) {
+  const queryQueue = createAsyncQueue<any>()
+  const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+  mocks.createClaudeQuery.mockReturnValue(query)
+  mocks.buildRequest.mockResolvedValueOnce({
+    connectionConfig: {
+      rebuildSignature: 'sig-1',
+      live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+    },
+    key: 'warm-key',
+    options: { model: 'sonnet' },
+    settings,
+    sdkModelId: 'sonnet-sdk',
+    initializeTimeoutMs: 100
+  })
+  const connection = await new ClaudeCodeRuntimeDriver().connect({
+    sessionId: 'session-1',
+    agentId: 'agent-1',
+    modelId: 'claude-code::sonnet' as any
+  })
+  const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+  return { connection, iterator: sdkInput[Symbol.asyncIterator]() }
+}
+
 describe('ClaudeCodeRuntimeDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -359,6 +403,21 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
     mocks.materializeNativeFilePart.mockResolvedValue(null)
     mocks.buildRuntimeContextPrompt.mockResolvedValue('Runtime context')
+    mocks.resolveAgentTurnContextPrompt.mockImplementation(
+      async ({
+        snapshot,
+        webSearchEnabled
+      }: {
+        snapshot?: { modelName?: string; template?: string }
+        webSearchEnabled: boolean
+      }) => {
+        const runtimeContext = snapshot
+          ? await mocks.buildRuntimeContextPrompt(snapshot.modelName, snapshot.template)
+          : undefined
+        const dateContext = webSearchEnabled ? 'Current date: 2026-08-20' : undefined
+        return [runtimeContext, dateContext].filter(Boolean).join('\n\n') || undefined
+      }
+    )
     mocks.buildRequest.mockResolvedValue({
       connectionConfig: {
         rebuildSignature: 'sig-1',
@@ -620,6 +679,80 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     expect(mocks.buildRuntimeContextPrompt).toHaveBeenNthCalledWith(1, 'Claude Sonnet', 'Runtime at {{time}}')
     expect(mocks.buildRuntimeContextPrompt).toHaveBeenNthCalledWith(2, 'Claude Sonnet', 'Runtime at {{time}}')
+    void connection.close()
+  })
+
+  it('does not inject a current-date reminder when the tool-policy snapshot is missing', async () => {
+    // Bug: missing optional snapshot previously failed open (`isDisabled?.(name) !== true`),
+    // so settings: {} injected Current date even though Web Search was not known enabled.
+    const { connection, iterator } = await connectDriver()
+
+    await connection.send({ message: userMessage() })
+    const result = await iterator.next()
+
+    expect(mocks.resolveAgentTurnContextPrompt).toHaveBeenCalledWith({
+      snapshot: undefined,
+      webSearchEnabled: false
+    })
+    expect(result.value.message.content).not.toContain('Current date')
+    void connection.close()
+  })
+
+  it('does not inject a current-date reminder when cherry web_search is explicitly disabled', async () => {
+    const { connection, iterator } = await connectDriver({
+      toolPolicySnapshot: makeToolPolicySnapshot(false)
+    })
+
+    await connection.send({ message: userMessage() })
+    const result = await iterator.next()
+
+    expect(mocks.resolveAgentTurnContextPrompt).toHaveBeenCalledWith({
+      snapshot: undefined,
+      webSearchEnabled: false
+    })
+    expect(result.value.message.content).not.toContain('Current date')
+    expect(result.value.message.content).toContain('hello')
+    void connection.close()
+  })
+
+  it('prepends a per-turn current date when cherry web_search is explicitly enabled and runtime context is off', async () => {
+    const { connection, iterator } = await connectDriver({
+      toolPolicySnapshot: makeToolPolicySnapshot(true)
+    })
+
+    await connection.send({ message: userMessage() })
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: {
+        message: {
+          content: '<system-reminder>\nCurrent date: 2026-08-20\n</system-reminder>\n\nhello'
+        }
+      }
+    })
+    expect(mocks.resolveAgentTurnContextPrompt).toHaveBeenCalledWith({
+      snapshot: undefined,
+      webSearchEnabled: true
+    })
+    void connection.close()
+  })
+
+  it('composes runtime context through resolveAgentTurnContextPrompt with the fail-closed web search flag', async () => {
+    const { connection, iterator } = await connectDriver({
+      runtimeContext: { template: 'Runtime at {{time}}', modelName: 'Claude Sonnet' },
+      toolPolicySnapshot: makeToolPolicySnapshot(true)
+    })
+
+    await connection.send({ message: userMessage() })
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: {
+        message: {
+          content: '<system-reminder>\nRuntime context\n\nCurrent date: 2026-08-20\n</system-reminder>\n\nhello'
+        }
+      }
+    })
+    expect(mocks.resolveAgentTurnContextPrompt).toHaveBeenCalledWith({
+      snapshot: { template: 'Runtime at {{time}}', modelName: 'Claude Sonnet' },
+      webSearchEnabled: true
+    })
     void connection.close()
   })
 

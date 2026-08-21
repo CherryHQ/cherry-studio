@@ -7,7 +7,9 @@ vi.mock('@main/utils/prompt', () => ({
   buildRuntimeContextPrompt: vi.fn(
     async (_modelName: string, template?: string) => template ?? '## Runtime Context\n- Current date and time: now'
   ),
-  replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
+  replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20')),
+  shouldInjectCurrentDateContext: vi.fn(() => false),
+  buildCurrentDateContext: vi.fn(() => 'Current date: 2026-08-20')
 }))
 
 import { assembleSystemPrompt } from '../assembleSystemPrompt'

@@ -20,7 +20,7 @@ import {
   type AgentRuntimeContextSnapshot,
   buildAgentRuntimePrompt,
   captureAgentRuntimeContextSnapshot,
-  resolveAgentRuntimeContextPrompt
+  resolveAgentTurnContextPrompt
 } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
@@ -415,7 +415,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Admission miss (unknown name) — dsh client semantics: the line stays ordinary prose.
       if (handled) return
     }
-    const runtimeContext = await resolveAgentRuntimeContextPrompt(this.runtimeContext)
+    const runtimeContext = await resolveAgentTurnContextPrompt({
+      snapshot: this.runtimeContext,
+      webSearchEnabled: !this.disabledTools.has(buildDshCherryToolName('cherry-tools', WEB_SEARCH_TOOL_NAME))
+    })
     const wrapped = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const content = runtimeContext ? prependRuntimeContextReminderText(wrapped, runtimeContext) : wrapped
     this.markTurnActive()

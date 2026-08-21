@@ -142,7 +142,7 @@ vi.mock('@main/ai/agents/agentDataDirectory', () => ({
 vi.mock('@main/ai/runtime/agentPrompt', () => ({
   buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' }),
   captureAgentRuntimeContextSnapshot: vi.fn(() => undefined),
-  resolveAgentRuntimeContextPrompt: vi.fn(async () => undefined)
+  resolveAgentTurnContextPrompt: vi.fn(async () => undefined)
 }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn(() => []) }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))

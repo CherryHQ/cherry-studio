@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const preferenceGet = vi.hoisted(() =>
   vi.fn((key: string) => {
@@ -22,7 +22,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { buildRuntimeContextPrompt } from '../prompt'
+import { buildCurrentDateContext, buildRuntimeContextPrompt, shouldInjectCurrentDateContext } from '../prompt'
 
 describe('buildRuntimeContextPrompt', () => {
   it('resolves the supported system variables into one context block', async () => {
@@ -57,5 +57,49 @@ describe('buildRuntimeContextPrompt', () => {
     })
 
     await expect(buildRuntimeContextPrompt('Test Model', 'User: {{username}}')).resolves.toBe('User: Unknown Username')
+  })
+})
+
+describe('current date context', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('formats the local calendar date at request time', () => {
+    // Bug: a module-load Date would freeze "today" for the life of the Electron main process.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0))
+
+    expect(buildCurrentDateContext()).toContain('2026-08-20')
+    expect(buildCurrentDateContext()).toMatch(/^Current date: 2026-08-20/)
+  })
+
+  it('injects only when web search is on and no existing date variable already supplies it', () => {
+    expect(
+      shouldInjectCurrentDateContext({
+        webSearchEnabled: true,
+        runtimeContextEnabled: false
+      })
+    ).toBe(true)
+    expect(shouldInjectCurrentDateContext({ webSearchEnabled: false })).toBe(false)
+    expect(
+      shouldInjectCurrentDateContext({
+        webSearchEnabled: true,
+        prompt: 'Today is {{date}}'
+      })
+    ).toBe(false)
+    expect(
+      shouldInjectCurrentDateContext({
+        webSearchEnabled: true,
+        runtimeContextEnabled: true
+      })
+    ).toBe(false)
+    expect(
+      shouldInjectCurrentDateContext({
+        webSearchEnabled: true,
+        runtimeContextEnabled: true,
+        runtimeContextPrompt: 'Device: {{system}}'
+      })
+    ).toBe(true)
   })
 })
