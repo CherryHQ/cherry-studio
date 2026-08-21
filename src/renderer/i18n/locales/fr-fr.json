@@ -6245,6 +6245,10 @@
     "notification": {
       "assistant": "Notifications de fin de conversation",
       "backup": "Sauvegarder",
+      "conversation_island": {
+        "enabled": "Afficher l’îlot de conversation",
+        "show_title": "Afficher le titre de la conversation"
+      },
       "knowledge_embed": "Base de connaissances",
       "title": "Notifications",
       "update": "Mise à jour de l'application"

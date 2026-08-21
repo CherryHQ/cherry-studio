@@ -102,6 +102,23 @@
     "inspect": "Επιθεώρηση",
     "paste": "Επικόλληση"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "Η εργασία ολοκληρώθηκε",
+        "error": "Η εργασία απέτυχε",
+        "pending": "Προετοιμασία",
+        "streaming": "Εργασία σε εξέλιξη"
+      },
+      "assistant": {
+        "done": "Η απάντηση ολοκληρώθηκε",
+        "error": "Η απάντηση απέτυχε",
+        "pending": "Σκέψη",
+        "streaming": "Απάντηση"
+      },
+      "awaiting_confirmation": "Αναμονή επιβεβαίωσης"
+    }
+  },
   "dialog": {
     "all_files": "Όλα τα Αρχεία",
     "data_reset": {

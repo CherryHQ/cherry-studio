@@ -6245,6 +6245,10 @@
     "notification": {
       "assistant": "会話完了通知",
       "backup": "バックアップメッセージ",
+      "conversation_island": {
+        "enabled": "会話アイランドを表示",
+        "show_title": "会話タイトルを表示"
+      },
       "knowledge_embed": "ナレッジベースメッセージ",
       "title": "通知",
       "update": "アプリ更新"

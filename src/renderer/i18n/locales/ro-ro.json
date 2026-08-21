@@ -6245,6 +6245,10 @@
     "notification": {
       "assistant": "Notificări de finalizare a conversațiilor",
       "backup": "Mesaj backup",
+      "conversation_island": {
+        "enabled": "Afișează insula conversației",
+        "show_title": "Afișează titlul conversației"
+      },
       "knowledge_embed": "Mesaj bază de cunoștințe",
       "title": "Notificări",
       "update": "Actualizare aplicație"

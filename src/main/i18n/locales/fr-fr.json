@@ -102,6 +102,23 @@
     "inspect": "Vérifier",
     "paste": "Coller"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "Tâche terminée",
+        "error": "Échec de la tâche",
+        "pending": "Préparation",
+        "streaming": "En cours"
+      },
+      "assistant": {
+        "done": "Réponse terminée",
+        "error": "Échec de la réponse",
+        "pending": "Réflexion",
+        "streaming": "Réponse en cours"
+      },
+      "awaiting_confirmation": "En attente de confirmation"
+    }
+  },
   "dialog": {
     "all_files": "Tous les fichiers",
     "data_reset": {

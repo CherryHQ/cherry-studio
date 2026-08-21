@@ -6245,6 +6245,10 @@
     "notification": {
       "assistant": "Thông báo hoàn tất cuộc trò chuyện",
       "backup": "Tin nhắn sao lưu",
+      "conversation_island": {
+        "enabled": "Hiển thị Đảo hội thoại",
+        "show_title": "Hiển thị tiêu đề hội thoại"
+      },
       "knowledge_embed": "Thông báo từ KnowledgeBase",
       "title": "Thông báo",
       "update": "Cập nhật Ứng dụng"

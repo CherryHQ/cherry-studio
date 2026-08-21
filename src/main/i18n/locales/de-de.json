@@ -102,6 +102,23 @@
     "inspect": "Prüfen",
     "paste": "Einfügen"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "Aufgabe abgeschlossen",
+        "error": "Aufgabe fehlgeschlagen",
+        "pending": "Wird vorbereitet",
+        "streaming": "In Bearbeitung"
+      },
+      "assistant": {
+        "done": "Antwort abgeschlossen",
+        "error": "Antwort fehlgeschlagen",
+        "pending": "Denkt nach",
+        "streaming": "Antwortet"
+      },
+      "awaiting_confirmation": "Bestätigung ausstehend"
+    }
+  },
   "dialog": {
     "all_files": "Alle Dateien",
     "data_reset": {

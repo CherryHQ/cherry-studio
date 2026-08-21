@@ -6245,6 +6245,10 @@
     "notification": {
       "assistant": "Benachrichtigungen bei Gesprächsabschluss",
       "backup": "Sicherung",
+      "conversation_island": {
+        "enabled": "Konversationsinsel anzeigen",
+        "show_title": "Konversationstitel anzeigen"
+      },
       "knowledge_embed": "Wissensdatenbank",
       "title": "Benachrichtigungen",
       "update": "App-Update"

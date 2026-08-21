@@ -102,6 +102,23 @@
     "inspect": "要素を調査",
     "paste": "貼り付け"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "タスク完了",
+        "error": "タスクに失敗しました",
+        "pending": "準備中",
+        "streaming": "作業中"
+      },
+      "assistant": {
+        "done": "回答完了",
+        "error": "回答に失敗しました",
+        "pending": "思考中",
+        "streaming": "回答中"
+      },
+      "awaiting_confirmation": "確認待ち"
+    }
+  },
   "dialog": {
     "all_files": "すべてのファイル",
     "data_reset": {

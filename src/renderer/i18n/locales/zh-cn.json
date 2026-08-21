@@ -6245,6 +6245,10 @@
     "notification": {
       "assistant": "对话完成通知",
       "backup": "备份",
+      "conversation_island": {
+        "enabled": "显示对话灵动岛",
+        "show_title": "显示对话标题"
+      },
       "knowledge_embed": "知识库",
       "title": "通知",
       "update": "应用更新"

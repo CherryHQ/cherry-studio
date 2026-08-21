@@ -6245,6 +6245,10 @@
     "notification": {
       "assistant": "Notificações de conclusão de conversas",
       "backup": "Backup",
+      "conversation_island": {
+        "enabled": "Mostrar ilha de conversa",
+        "show_title": "Mostrar título da conversa"
+      },
       "knowledge_embed": "Base de conhecimento",
       "title": "Notificações",
       "update": "Atualização da Aplicação"

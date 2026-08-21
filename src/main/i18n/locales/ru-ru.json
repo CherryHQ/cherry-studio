@@ -102,6 +102,23 @@
     "inspect": "Проверить",
     "paste": "Вставить"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "Задача выполнена",
+        "error": "Ошибка задачи",
+        "pending": "Подготовка",
+        "streaming": "Выполняется"
+      },
+      "assistant": {
+        "done": "Ответ завершён",
+        "error": "Ошибка ответа",
+        "pending": "Размышляет",
+        "streaming": "Отвечает"
+      },
+      "awaiting_confirmation": "Ожидание подтверждения"
+    }
+  },
   "dialog": {
     "all_files": "Все файлы",
     "data_reset": {

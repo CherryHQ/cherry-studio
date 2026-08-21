@@ -23,25 +23,36 @@ import { type MacScreenGeometry, probeMacScreenGeometry, resolveConversationIsla
 const logger = loggerService.withContext('ConversationIslandService')
 const ISLAND_WIDTH = 320
 
-const STATUS_KEYS = {
-  assistant: {
-    pending: 'conversation_island.status.assistant.pending',
-    streaming: 'conversation_island.status.assistant.streaming',
-    'awaiting-approval': 'conversation_island.status.awaiting_confirmation',
-    done: 'conversation_island.status.assistant.done',
-    error: 'conversation_island.status.assistant.error'
-  },
-  agent: {
-    pending: 'conversation_island.status.agent.pending',
-    streaming: 'conversation_island.status.agent.streaming',
-    'awaiting-approval': 'conversation_island.status.awaiting_confirmation',
-    done: 'conversation_island.status.agent.done',
-    error: 'conversation_island.status.agent.error'
-  }
-} as const
-
 function snapshotState(status: ConversationIslandActivity['status']): ConversationIslandStateKind {
   return status === 'awaiting-approval' ? 'awaiting-confirmation' : status
+}
+
+function statusText(activity: ConversationIslandActivity): string {
+  if (activity.status === 'awaiting-approval') return t('conversation_island.status.awaiting_confirmation')
+
+  if (activity.target.conversationType === 'agent') {
+    switch (activity.status) {
+      case 'pending':
+        return t('conversation_island.status.agent.pending')
+      case 'streaming':
+        return t('conversation_island.status.agent.streaming')
+      case 'done':
+        return t('conversation_island.status.agent.done')
+      case 'error':
+        return t('conversation_island.status.agent.error')
+    }
+  }
+
+  switch (activity.status) {
+    case 'pending':
+      return t('conversation_island.status.assistant.pending')
+    case 'streaming':
+      return t('conversation_island.status.assistant.streaming')
+    case 'done':
+      return t('conversation_island.status.assistant.done')
+    case 'error':
+      return t('conversation_island.status.assistant.error')
+  }
 }
 
 function isTerminal(status: ConversationIslandActivity['status']): boolean {
@@ -273,7 +284,7 @@ export class ConversationIslandService extends BaseService {
       activityId: activity.topicId,
       target: activity.target,
       state: snapshotState(activity.status),
-      statusText: t(STATUS_KEYS[activity.target.conversationType][activity.status]),
+      statusText: statusText(activity),
       title,
       navigationTitle: title ?? fallback,
       secondaryCount,

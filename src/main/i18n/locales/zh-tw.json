@@ -102,6 +102,23 @@
     "inspect": "檢查",
     "paste": "貼上"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "任務完成",
+        "error": "任務失敗",
+        "pending": "準備中",
+        "streaming": "處理中"
+      },
+      "assistant": {
+        "done": "回覆完成",
+        "error": "回覆失敗",
+        "pending": "思考中",
+        "streaming": "回覆中"
+      },
+      "awaiting_confirmation": "等待確認"
+    }
+  },
   "dialog": {
     "all_files": "所有檔案",
     "data_reset": {

@@ -102,6 +102,23 @@
     "inspect": "Verificar",
     "paste": "Colar"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "Tarefa concluída",
+        "error": "Falha na tarefa",
+        "pending": "A preparar",
+        "streaming": "A trabalhar"
+      },
+      "assistant": {
+        "done": "Resposta concluída",
+        "error": "Falha na resposta",
+        "pending": "A pensar",
+        "streaming": "A responder"
+      },
+      "awaiting_confirmation": "A aguardar confirmação"
+    }
+  },
   "dialog": {
     "all_files": "Todos os Ficheiros",
     "data_reset": {

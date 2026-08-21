@@ -102,6 +102,23 @@
     "inspect": "检查",
     "paste": "粘贴"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "任务完成",
+        "error": "任务失败",
+        "pending": "准备中",
+        "streaming": "处理中"
+      },
+      "assistant": {
+        "done": "回答完成",
+        "error": "回答失败",
+        "pending": "思考中",
+        "streaming": "回答中"
+      },
+      "awaiting_confirmation": "等待确认"
+    }
+  },
   "dialog": {
     "all_files": "所有文件",
     "data_reset": {

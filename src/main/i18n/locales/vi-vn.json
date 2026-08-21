@@ -102,6 +102,23 @@
     "inspect": "Kiểm tra",
     "paste": "Dán"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "Đã hoàn thành tác vụ",
+        "error": "Tác vụ thất bại",
+        "pending": "Đang chuẩn bị",
+        "streaming": "Đang làm việc"
+      },
+      "assistant": {
+        "done": "Đã hoàn thành phản hồi",
+        "error": "Phản hồi thất bại",
+        "pending": "Đang suy nghĩ",
+        "streaming": "Đang phản hồi"
+      },
+      "awaiting_confirmation": "Đang chờ xác nhận"
+    }
+  },
   "dialog": {
     "all_files": "Tất cả các tệp",
     "data_reset": {

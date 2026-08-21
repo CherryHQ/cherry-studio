@@ -6245,6 +6245,10 @@
     "notification": {
       "assistant": "Conversation Completion Notifications",
       "backup": "Backup Message",
+      "conversation_island": {
+        "enabled": "Show Conversation Island",
+        "show_title": "Show conversation title"
+      },
       "knowledge_embed": "KnowledgeBase Message",
       "title": "Notifications",
       "update": "App Update"

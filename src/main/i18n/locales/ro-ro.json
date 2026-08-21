@@ -102,6 +102,23 @@
     "inspect": "Inspectează",
     "paste": "Lipește"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "Sarcină finalizată",
+        "error": "Sarcina a eșuat",
+        "pending": "Se pregătește",
+        "streaming": "În lucru"
+      },
+      "assistant": {
+        "done": "Răspuns finalizat",
+        "error": "Răspunsul a eșuat",
+        "pending": "Se gândește",
+        "streaming": "Răspunde"
+      },
+      "awaiting_confirmation": "Se așteaptă confirmarea"
+    }
+  },
   "dialog": {
     "all_files": "Toate fișierele",
     "data_reset": {

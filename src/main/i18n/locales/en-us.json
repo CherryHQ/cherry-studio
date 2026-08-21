@@ -102,6 +102,23 @@
     "inspect": "Inspect",
     "paste": "Paste"
   },
+  "conversation_island": {
+    "status": {
+      "agent": {
+        "done": "Task complete",
+        "error": "Task failed",
+        "pending": "Preparing",
+        "streaming": "Working"
+      },
+      "assistant": {
+        "done": "Response complete",
+        "error": "Response failed",
+        "pending": "Thinking",
+        "streaming": "Responding"
+      },
+      "awaiting_confirmation": "Awaiting confirmation"
+    }
+  },
   "dialog": {
     "all_files": "All Files",
     "data_reset": {
