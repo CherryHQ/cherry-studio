@@ -41,8 +41,9 @@ export const getAccessiblePathRelativePath = (
 }
 
 /**
- * Case-folding matches the main-side `isPathInside` (`src/main/utils/file/path.ts`):
- * case-insensitive on macOS/Windows (default APFS/NTFS), case-sensitive on Linux.
+ * UI-heuristic case folding for comparison keys only. Containment itself is
+ * case-sensitive on every platform (the path primitives refuse to guess), so
+ * this flag feeds nothing but `getPathComparisonKey`.
  */
 const isCaseInsensitivePlatform = isMac || isWin
 
@@ -63,13 +64,19 @@ const isCaseInsensitivePlatform = isMac || isWin
  * carries the OS's), so a case mismatch is genuinely reachable.
  *
  * Keying through `toPathKey` rather than folding separators here is what keeps
- * `/workspace/a\b.txt` — one POSIX file — from colliding with `/workspace/a/b.txt`.
- * Input that is not an absolute path, or has no canonical form (UNC), keys on
- * itself: unequal to everything but an identical spelling, which is the right
- * answer for dedup.
+ * `/workspace/a\b.txt` — one POSIX file — from colliding with `/workspace/a/b.txt`:
+ * it canonicalizes fine and never reaches the fallback below. Input that is not an
+ * absolute path, or has no canonical form (UNC), keys on a separator-folded
+ * spelling of itself — loose, but consistent across both spellings of one share,
+ * which is what folder-token dedup needs.
  */
 export const getPathComparisonKey = (value: string): string => {
   const parsed = AbsoluteFilePathSchema.safeParse(value)
-  const key = (parsed.success ? toPathKey(parsed.data) : null) ?? value
+  const canonical = parsed.success ? toPathKey(parsed.data) : null
+  // Un-canonicalizable input (UNC): fold separators so the listing side's
+  // normalized spelling and drag-and-drop's OS spelling of one share key
+  // identically instead of producing two tokens for the same folder.
+  // See https://github.com/CherryHQ/cherry-studio/issues/18631
+  const key = canonical ?? value.replace(/\\/g, '/')
   return isCaseInsensitivePlatform ? key.toLowerCase() : key
 }
