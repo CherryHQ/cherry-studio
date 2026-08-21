@@ -455,7 +455,6 @@
         "auto": "Αυτόματο",
         "fast": "Γρήγορο",
         "flex": "Ευέλικτο",
-        "groq_performance_hint": "Enterprise · περιβάλλον < 8K",
         "label": "Επίπεδο υπηρεσίας",
         "standard": "Τυπικό"
       },

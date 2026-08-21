@@ -32,6 +32,7 @@ import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
+import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
 import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
 import {
   type CherryMeta,
@@ -666,14 +667,19 @@ void (async () => {
       delete rest.metadata
       return { ...rest, ...(metadata ? { metadata } : {}) }
     })
+  const providers = buildProviders()
+  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
+  if (serviceTierErrors.length > 0) {
+    throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)
+  }
+
   fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
   console.log(`\nWROTE ${MODELS_PATH} (${list.length} models).`)
 
-  const providers = buildProviders()
   fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers }))
   console.log(`WROTE ${PROVIDERS_PATH} (${providers.length} providers).`)
 
-  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
   fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize(pm))
   console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.overrides.length} rows).`)
 

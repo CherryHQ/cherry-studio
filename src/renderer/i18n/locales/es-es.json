@@ -455,7 +455,6 @@
         "auto": "Automático",
         "fast": "Rápido",
         "flex": "Flexible",
-        "groq_performance_hint": "Empresa · contexto < 8K",
         "label": "Nivel de servicio",
         "standard": "Estándar"
       },

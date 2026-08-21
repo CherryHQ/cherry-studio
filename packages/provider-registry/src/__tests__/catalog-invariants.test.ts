@@ -20,6 +20,7 @@ import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
+import { getServiceTierCatalogErrors } from '../utils/serviceTierCatalog'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
@@ -342,6 +343,10 @@ describe('catalog invariants (data/*.json)', () => {
         .filter((override) => override.supportsFastMode && !fastProviders.has(override.providerId))
         .map((override) => `${override.providerId}/${override.modelId}`)
     ).toEqual([])
+  })
+
+  it('service tier overrides only expose options mapped by their endpoints', () => {
+    expect(getServiceTierCatalogErrors(providers, providerModelOverrides)).toEqual([])
   })
 
   it('budget wire operations require an explicit budget policy', () => {

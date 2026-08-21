@@ -455,7 +455,6 @@
         "auto": "Tự động",
         "fast": "Nhanh",
         "flex": "Linh hoạt",
-        "groq_performance_hint": "Doanh nghiệp · ngữ cảnh < 8K",
         "label": "Cấp dịch vụ",
         "standard": "Tiêu chuẩn"
       },

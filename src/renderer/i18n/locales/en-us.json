@@ -455,7 +455,6 @@
         "auto": "Auto",
         "fast": "Fast",
         "flex": "Flex",
-        "groq_performance_hint": "Enterprise · context < 8K",
         "label": "Service tier",
         "standard": "Standard"
       },

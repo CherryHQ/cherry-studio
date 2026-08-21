@@ -373,11 +373,6 @@ export function ComposerSpeedControl({
                   className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-accent">
                   <RadioGroupItem value={tier} size="sm" aria-label={t(SERVICE_TIER_LABEL_KEYS[tier])} />
                   <span>{t(SERVICE_TIER_LABEL_KEYS[tier])}</span>
-                  {model.providerId === 'groq' && tier === 'fast' ? (
-                    <span className="ml-auto text-[10px] text-muted-foreground">
-                      {t('agent.speed.service_tier.groq_performance_hint')}
-                    </span>
-                  ) : null}
                 </label>
               ))}
             </RadioGroup>

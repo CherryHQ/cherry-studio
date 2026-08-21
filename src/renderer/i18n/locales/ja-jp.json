@@ -455,7 +455,6 @@
         "auto": "自動",
         "fast": "高速",
         "flex": "フレックス",
-        "groq_performance_hint": "エンタープライズ · コンテキスト < 8K",
         "label": "サービス階層",
         "standard": "標準"
       },
