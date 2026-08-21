@@ -146,6 +146,20 @@ describe('InputNumber', () => {
     expect(input.className).toContain('aria-invalid:border-destructive')
   })
 
+  it('warns and settles on min when the range is empty', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const user = userEvent.setup()
+    const onBlur = vi.fn()
+    render(<InputNumber aria-label="amount" min={10} max={5} value={null} onBlur={onBlur} />)
+
+    await user.type(screen.getByLabelText('amount'), '7')
+    await user.tab()
+
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(10)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('min (10) is greater than max (5)'))
+    warn.mockRestore()
+  })
+
   it('lets className override the default height', () => {
     render(<InputNumber aria-label="amount" className="h-8 rounded-lg" value={1} onChange={vi.fn()} />)
 
