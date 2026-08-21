@@ -124,6 +124,7 @@ export default defineConfig({
         // preload requires explicit entry point configuration for multiple scripts
         input: {
           preload: resolve(__dirname, 'src/preload/preload.ts'),
+          conversationIsland: resolve(__dirname, 'src/preload/conversationIsland.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts') // Minimal preload
         },
         external: ['electron'],

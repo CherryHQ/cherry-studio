@@ -38,10 +38,14 @@ describe('WINDOW_TYPE_REGISTRY preload invariants', () => {
   it('every window using the shared preload disables the sandbox', () => {
     for (const entry of Object.values(WINDOW_TYPE_REGISTRY)) {
       if (!entry) continue
-      // `preload: ''` opts out of a preload entirely and may stay sandboxed; omitting the
-      // field means the default 'preload.js', which may not.
-      if (entry.preload === '') continue
+      // Only an omitted field selects the default code-split `preload.js`. Empty strings
+      // opt out, while named preloads are independently responsible for their bundle shape.
+      if (entry.preload !== undefined) continue
       expect(entry.windowOptions.webPreferences?.sandbox, `WindowType '${entry.type}'`).toBe(false)
     }
+  })
+
+  it('keeps the self-contained ConversationIsland preload sandboxed', () => {
+    expect(WINDOW_TYPE_REGISTRY[WindowType.ConversationIsland]?.windowOptions.webPreferences?.sandbox).toBe(true)
   })
 })

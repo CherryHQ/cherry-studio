@@ -9,6 +9,7 @@ export enum WindowType {
   Main = 'main',
   Print = 'print',
   QuickAssistant = 'quickAssistant',
+  ConversationIsland = 'conversationIsland',
   SubWindow = 'subWindow',
   SelectionToolbar = 'selectionToolbar',
   SelectionAction = 'selectionAction',

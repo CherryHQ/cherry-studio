@@ -335,6 +335,52 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Lazy macOS conversation-status panel. ConversationIslandService owns its
+  // transient create/show/close choreography; no singleton retention is used.
+  [WindowType.ConversationIsland]: {
+    type: WindowType.ConversationIsland,
+    lifecycle: 'singleton',
+    htmlPath: 'windows/conversationIsland/index.html',
+    preload: 'conversationIsland.js',
+    showMode: 'manual',
+    windowOptions: {
+      width: 320,
+      height: 38,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      focusable: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      roundedCorners: false,
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          acceptFirstMouse: true,
+          hiddenInMissionControl: true
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        devTools: false
+      }
+    },
+    behavior: {
+      alwaysOnTop: { level: 'screen-saver' },
+      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
+      macShowInDock: false
+    },
+    quirks: {
+      reapplyAlwaysOnTop: true
+    }
+  },
+
   // Floating toolbar that appears near user text selections.
   // Managed by SelectionService: onActivate opens it (hidden), showToolbarAtPosition positions + shows.
   [WindowType.SelectionToolbar]: {

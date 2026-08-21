@@ -265,6 +265,54 @@ describe('WINDOW_TYPE_REGISTRY Print window — domain-loaded print surface', ()
   })
 })
 
+describe('WINDOW_TYPE_REGISTRY ConversationIsland — transient macOS panel', () => {
+  it('stays lazy, sandboxed, non-focusable, and outside the Dock', () => {
+    const metadata = WINDOW_TYPE_REGISTRY[WindowType.ConversationIsland]
+
+    expect(metadata).toBeDefined()
+    expect(metadata?.lifecycle).toBe('singleton')
+    expect(metadata?.showMode).toBe('manual')
+    expect(metadata?.singletonConfig).toBeUndefined()
+    expect(metadata?.preload).toBe('conversationIsland.js')
+    expect(metadata?.htmlPath).toBe('windows/conversationIsland/index.html')
+    expect(metadata?.windowOptions).toMatchObject({
+      width: 320,
+      height: 38,
+      frame: false,
+      transparent: true,
+      focusable: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      roundedCorners: false,
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          acceptFirstMouse: true,
+          hiddenInMissionControl: true
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true
+      }
+    })
+    expect(metadata?.behavior).toEqual({
+      alwaysOnTop: { level: 'screen-saver' },
+      visibleOnAllWorkspaces: {
+        enabled: true,
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      },
+      macShowInDock: false
+    })
+    expect(metadata?.quirks?.reapplyAlwaysOnTop).toBe(true)
+  })
+})
+
 // Regression guard for issue #18186: a warm-created standby SubWindow is always
 // resident (pooled + standbySize:1 + warmup:'eager'). If it does not opt out of
 // Dock contribution, windowContributesToDock() returns true for it and the Dock
