@@ -2300,27 +2300,74 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('keeps the current draft when sending a new message fails', async () => {
-    const onSend = vi.fn().mockRejectedValue(new Error('open failed'))
+  it('keeps the current text, attachment, and draft tokens untouched when Main blocks the send', async () => {
+    const file = { fileTokenSourceId: 'source-1', name: 'draft.pdf', path: '/tmp/draft.pdf' } as any
+    const fileToken = {
+      id: 'file:source-1',
+      kind: 'file',
+      label: 'draft.pdf',
+      payload: file,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const quoteToken = {
+      id: 'quote-1',
+      kind: 'quote',
+      label: 'Quote',
+      promptText: 'quoted text',
+      index: 1,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const draft = { text: 'draft message', tokens: [fileToken, quoteToken] }
+    const pendingSend = createDeferred<boolean>()
+    const onSend = vi.fn().mockReturnValue(pendingSend.promise)
+    mocks.files = [file]
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: draft.text,
+      tokens: draft.tokens,
+      files: [file],
+      knowledgeBaseIds: []
+    })
 
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
-    act(() => {
-      mocks.surfaceProps?.onTextChange('draft message')
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('draft message')
+      expect(mocks.surfaceProps?.draftTokens).toEqual([fileToken, quoteToken])
     })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft message'))
+
+    let sendPromise: Promise<void | undefined> | undefined
+    act(() => {
+      sendPromise = Promise.resolve(mocks.surfaceProps?.onSendDraft(draft))
+    })
+
+    await waitFor(() => expect(onSend).toHaveBeenCalled())
+    expect(mocks.surfaceProps?.text).toBe('draft message')
+    expect(mocks.surfaceProps?.editable).toBe(false)
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
 
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'draft message', tokens: [] })
+      await mocks.surfaceProps?.onSendDraft(draft)
+    })
+    expect(onSend).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      pendingSend.resolve(false)
+      await sendPromise
     })
 
     expect(onSend).toHaveBeenCalledWith(
       'draft message',
       expect.objectContaining({
-        userMessageParts: [expect.objectContaining({ type: 'text', text: 'draft message' })]
+        userMessageParts: expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'draft message' })])
       })
     )
     expect(mocks.surfaceProps?.text).toBe('draft message')
+    expect(mocks.files).toEqual([file])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([fileToken, quoteToken])
+    expect(mocks.surfaceProps?.editable).toBe(true)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {

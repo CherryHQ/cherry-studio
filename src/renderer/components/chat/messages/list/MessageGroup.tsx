@@ -1,5 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
@@ -70,6 +71,7 @@ const MessageGroup = ({
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
+  const currentTabId = useCurrentTabId()
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
@@ -93,6 +95,19 @@ const MessageGroup = ({
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
   const previousMessageIdsRef = useRef(messages.map((message) => message.id))
   const activeBranchSelectionQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const messageElementsRef = useRef<Map<string, HTMLElement>>(new Map())
+
+  const registerRenderedMessageElement = useCallback(
+    (messageId: string, element: HTMLElement | null) => {
+      if (element) {
+        messageElementsRef.current.set(messageId, element)
+      } else {
+        messageElementsRef.current.delete(messageId)
+      }
+      registerMessageElement?.(messageId, element)
+    },
+    [registerMessageElement]
+  )
 
   const multiModelMessageStyle = useMemo(
     () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
@@ -161,7 +176,7 @@ const MessageGroup = ({
       setTimeoutTimer(
         'setSelectedMessage',
         () => {
-          const messageElement = document.getElementById(`message-${message.id}`)
+          const messageElement = messageElementsRef.current.get(message.id)
           if (messageElement) {
             if (!navigateWithScrollRuntime(messageElement)) {
               scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
@@ -216,7 +231,7 @@ const MessageGroup = ({
           const message = messages.find((item) => item.id === messageId)
           if (!message) return
 
-          const element = document.getElementById(`message-${message.id}`)
+          const element = messageElementsRef.current.get(message.id)
           if (!element) return
 
           const display = window.getComputedStyle(element).display
@@ -232,16 +247,6 @@ const MessageGroup = ({
       }
     )
   }, [actions, captureMode, messages, navigateWithScrollRuntime, setSelectedMessage])
-
-  useEffect(() => {
-    if (captureMode) return
-
-    messages.forEach((message) => {
-      const element = document.getElementById(`message-${message.id}`)
-      element && registerMessageElement?.(message.id, element)
-    })
-    return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
-  }, [captureMode, messages, registerMessageElement])
 
   const onSelectContext = useCallback(
     (msgId: string) => {
@@ -316,8 +321,11 @@ const MessageGroup = ({
 
       const messageContent = (
         <MessageWrapper
-          id={`message-${message.id}`}
+          id={`message-${currentTabId ? `${currentTabId}-` : ''}${captureMode ? 'capture-' : ''}${message.id}`}
           key={message.id}
+          data-message-id={message.id}
+          messageId={message.id}
+          onElementChange={registerRenderedMessageElement}
           className={classNames([
             {
               [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
@@ -369,7 +377,10 @@ const MessageGroup = ({
       groupContextMessageId,
       gridPopoverTrigger,
       partsByMessageId,
-      messageTail
+      messageTail,
+      captureMode,
+      currentTabId,
+      registerRenderedMessageElement
     ]
   )
 
@@ -446,14 +457,29 @@ const GridContainer = ({
 
 interface MessageWrapperProps {
   $isInPopover?: boolean
+  messageId?: string
+  onElementChange?: (messageId: string, element: HTMLElement | null) => void
 }
 
-const MessageWrapper = ({ className, $isInPopover, ...props }: ComponentProps<'div'> & MessageWrapperProps) => {
+const MessageWrapper = ({
+  className,
+  $isInPopover,
+  messageId,
+  onElementChange,
+  ...props
+}: Omit<ComponentProps<'div'>, 'ref'> & MessageWrapperProps) => {
   void $isInPopover
   const isHorizontal = className?.includes('horizontal')
   const isGridCard = className?.includes('grid') && !className?.includes('in-popover')
+  const setElementRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      if (messageId) onElementChange?.(messageId, element)
+    },
+    [messageId, onElementChange]
+  )
   return (
     <div
+      ref={messageId ? setElementRef : undefined}
       data-ui="chat.message"
       className={classNames([
         '[&.horizontal_.message-content-container]:overflow-y-auto! [&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
