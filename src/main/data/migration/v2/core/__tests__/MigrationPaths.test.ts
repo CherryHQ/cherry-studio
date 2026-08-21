@@ -71,7 +71,7 @@ vi.mock('@main/core/paths/constants', () => ({
   CHERRY_HOME_DIRNAME: '.cherrystudio',
   BOOT_CONFIG_PATH: '/mock/home/.cherrystudio/boot-config.json',
   LOGS_DIR: '/mock/logs',
-  resolveDevUserDataSuffix: () => 'Dev'
+  resolveDevUserDataPath: () => '/mock/userDataDev'
 }))
 
 vi.mock('@logger', () => ({

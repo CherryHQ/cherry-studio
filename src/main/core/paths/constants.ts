@@ -11,7 +11,7 @@
 //   - src/main/core/logger/LoggerService.ts          → uses LOGS_DIR
 //   - src/main/data/bootConfig/BootConfigService.ts  → uses BOOT_CONFIG_PATH
 //   - src/main/core/paths/pathRegistry.ts            → re-exposes LOGS_DIR as 'app.logs'
-//   - src/main/core/preboot/userDataLocation.ts      → uses resolveDevUserDataSuffix
+//   - src/main/core/preboot/userDataLocation.ts      → uses resolveDevUserDataPath
 
 import os from 'node:os'
 import path from 'node:path'
@@ -25,36 +25,44 @@ export const BOOT_CONFIG_PATH = path.join(CHERRY_HOME, 'boot-config.json')
 const DEFAULT_DEV_USER_DATA_SUFFIX = 'Dev'
 
 // The suffix is concatenated into directory names, so it must stay a single
-// portable path component: separators, traversal segments, drive colons, and
-// control/Windows-forbidden characters could normalize the dev directories
-// back onto the packaged ones (e.g. `/../CherryStudio`). Trailing dots are
-// rejected separately — Windows strips them, aliasing `CherryStudio.` (from
-// suffix `.`) onto the packaged `CherryStudio` directory.
-const VALID_DEV_USER_DATA_SUFFIX = /^[A-Za-z0-9._-]+$/
+// path component: separators, drive colons, and control/Windows-forbidden
+// characters could normalize the dev directories back onto the packaged ones
+// (e.g. `/../CherryStudio`). Trailing dots are rejected separately — Windows
+// strips them, aliasing `CherryStudio.` (from suffix `.`) onto the packaged
+// `CherryStudio` directory. Anything a filesystem accepts inside a single
+// component — spaces, non-ASCII — stays valid.
+const FORBIDDEN_DEV_USER_DATA_SUFFIX = /[\\/:*?"<>|]|\p{Cc}/u
 
 /**
  * Dev-instance directory suffix (`CherryStudio` → `CherryStudioDev`),
- * overridable via CS_DEV_USER_DATA_SUFFIX. Defined here (the earliest layer)
- * because it is applied twice from one definition: to the logs directory
- * below, and to userData by `core/preboot/userDataLocation.ts`.
+ * overridable via CS_DEV_USER_DATA_SUFFIX.
  *
- * Values that are not a single portable path component (ASCII letters,
- * digits, `.`, `_`, `-`; no trailing dot) fall back to the default like blank
- * values do. The warning goes through console — @logger is unavailable here
- * because LoggerService itself consumes LOGS_DIR from this file.
+ * Blank values fall back to the default; a value that is not a single path
+ * component aborts startup instead, because falling back would silently merge
+ * a profile meant to be isolated into the shared `Dev` one. Throwing is also
+ * the only way to report this: @logger is unavailable here, since
+ * LoggerService consumes LOGS_DIR from this file.
  */
-export function resolveDevUserDataSuffix(): string {
+function resolveDevUserDataSuffix(): string {
   const configured = process.env.CS_DEV_USER_DATA_SUFFIX?.trim()
   if (!configured) return DEFAULT_DEV_USER_DATA_SUFFIX
-  if (!VALID_DEV_USER_DATA_SUFFIX.test(configured) || configured.endsWith('.')) {
-    // eslint-disable-next-line no-restricted-syntax -- LoggerService imports LOGS_DIR from this module.
-    console.warn(
-      `[paths] CS_DEV_USER_DATA_SUFFIX ${JSON.stringify(configured)} is not a portable ` +
-        `path component; falling back to "${DEFAULT_DEV_USER_DATA_SUFFIX}"`
+  if (FORBIDDEN_DEV_USER_DATA_SUFFIX.test(configured) || configured.endsWith('.')) {
+    throw new Error(
+      `CS_DEV_USER_DATA_SUFFIX ${JSON.stringify(configured)} must be a single path component ` +
+        '(no path separator, drive colon, Windows-reserved character or trailing dot).'
     )
-    return DEFAULT_DEV_USER_DATA_SUFFIX
   }
   return configured
+}
+
+/**
+ * Dev-instance userData directory (`…/CherryStudio` → `…/CherryStudioDev`).
+ * Applied by `core/preboot/userDataLocation.ts` and — on Windows and Linux,
+ * where logs live inside userData — by the logs diversion below, so both
+ * derive from one definition.
+ */
+export function resolveDevUserDataPath(): string {
+  return app.getPath('userData') + resolveDevUserDataSuffix()
 }
 
 // Divert dev logs BEFORE the app.getPath('logs') call below caches Electron's
@@ -63,9 +71,10 @@ export function resolveDevUserDataSuffix(): string {
 // the not-yet-suffixed userData — so without this a dev run would interleave
 // its logs with a packaged install's.
 if (!app.isPackaged) {
-  const suffix = resolveDevUserDataSuffix()
   app.setAppLogsPath(
-    process.platform === 'darwin' ? app.getPath('logs') + suffix : path.join(app.getPath('userData') + suffix, 'logs')
+    process.platform === 'darwin'
+      ? app.getPath('logs') + resolveDevUserDataSuffix()
+      : path.join(resolveDevUserDataPath(), 'logs')
   )
 }
 

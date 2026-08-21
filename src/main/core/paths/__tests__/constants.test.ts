@@ -121,18 +121,17 @@ describe('LOGS_DIR dev diversion', () => {
     expect(LOGS_DIR).toBe(`${DEFAULT_LOGS}Dev`)
   })
 
-  it('dev: a traversal suffix cannot collapse LOGS_DIR onto the packaged directory', async () => {
+  it('dev: a traversal suffix aborts startup instead of collapsing LOGS_DIR onto the packaged directory', async () => {
     stubPlatform('darwin')
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', '/../CherryStudio')
     stubElectron()
-    const { LOGS_DIR } = await loadConstants()
-    expect(LOGS_DIR).toBe(`${DEFAULT_LOGS}Dev`)
-    warn.mockRestore()
+    await expect(loadConstants()).rejects.toThrow(/single path component/)
   })
 })
 
-describe('resolveDevUserDataSuffix validation', () => {
+// Falling back to `Dev` would silently merge a profile meant to be isolated
+// into the shared dev one, so an unusable suffix has to stop the run.
+describe('CS_DEV_USER_DATA_SUFFIX validation', () => {
   it.each([
     ['/../CherryStudio', 'POSIX traversal'],
     ['\\..\\CherryStudio', 'Windows traversal'],
@@ -140,34 +139,34 @@ describe('resolveDevUserDataSuffix validation', () => {
     ['C:', 'drive colon'],
     ['Dev|1', 'Windows-forbidden character'],
     ['Dev\u0007', 'control character'],
-    ['De v', 'interior whitespace'],
     ['.', 'single dot (Windows strips trailing dots)'],
     ['..', 'dots-only traversal'],
     ['Dev.', 'trailing dot']
-  ])('falls back to Dev for %j (%s)', async (value) => {
+  ])('aborts startup for %j (%s)', async (value) => {
     stubPlatform('darwin')
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', value)
     stubElectron()
-    const { resolveDevUserDataSuffix } = await loadConstants()
-    expect(resolveDevUserDataSuffix()).toBe('Dev')
-    expect(warn).toHaveBeenCalled()
-    warn.mockRestore()
+    await expect(loadConstants()).rejects.toThrow(/single path component/)
   })
 
-  it.each([['Dev2'], ['dev-agent_1'], ['.Dev'], ['2.0-rc.1']])('accepts portable component %j', async (value) => {
-    stubPlatform('darwin')
-    vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', value)
-    stubElectron()
-    const { resolveDevUserDataSuffix } = await loadConstants()
-    expect(resolveDevUserDataSuffix()).toBe(value)
-  })
+  // Spaces and non-ASCII are legal inside one component on every platform we
+  // ship, so they must survive validation.
+  it.each([['Dev2'], ['dev-agent_1'], ['.Dev'], ['2.0-rc.1'], ['Dev Oslo'], ['开发']])(
+    'accepts path component %j',
+    async (value) => {
+      stubPlatform('darwin')
+      vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', value)
+      stubElectron()
+      const { LOGS_DIR } = await loadConstants()
+      expect(LOGS_DIR).toBe(`${DEFAULT_LOGS}${value}`)
+    }
+  )
 
   it('trims surrounding whitespace before validating', async () => {
     stubPlatform('darwin')
     vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', '  Dev2  ')
     stubElectron()
-    const { resolveDevUserDataSuffix } = await loadConstants()
-    expect(resolveDevUserDataSuffix()).toBe('Dev2')
+    const { LOGS_DIR } = await loadConstants()
+    expect(LOGS_DIR).toBe(`${DEFAULT_LOGS}Dev2`)
   })
 })

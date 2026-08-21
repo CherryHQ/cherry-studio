@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { resolveDevUserDataSuffix } from '@main/core/paths/constants'
+import { resolveDevUserDataPath } from '@main/core/paths/constants'
 import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
@@ -48,7 +48,7 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
  */
 export function resolveUserDataLocation(): void {
   if (!app.isPackaged) {
-    const devPath = app.getPath('userData') + resolveDevUserDataSuffix()
+    const devPath = resolveDevUserDataPath()
     app.setPath('userData', devPath)
     logger.info('userData set with dev suffix', { devPath })
     return
