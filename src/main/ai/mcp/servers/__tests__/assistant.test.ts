@@ -48,12 +48,15 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.providerGetById }
 }))
 
-import AssistantServer, {
-  type AssistantToolName,
-  isAllowedAssistantNavigationPath,
-  isBlockedSourceFile,
-  SUPPORT_ASSISTANT_TOOL_NAMES
-} from '../assistant'
+import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import type { AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+
+import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
+
+const SUPPORT_ASSISTANT_TOOL_NAMES = resolveAgentCapabilities({
+  configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
+}).hostTools?.tools
 
 const temporaryDirectories: string[] = []
 
@@ -363,7 +366,6 @@ describe('create_agent', () => {
       model: 'anthropic::claude-sonnet',
       configuration: {
         permission_mode: 'default',
-        max_turns: 100,
         env_vars: {}
       }
     })
@@ -518,6 +520,25 @@ describe('diagnose mcp_status', () => {
 })
 
 describe('diagnose config', () => {
+  it('reports the quick model used by topic naming', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::gpt-4o-mini')
+
+    const server = new AssistantServer()
+    const result = await (
+      server as unknown as {
+        diagnoseConfig: () => Promise<{ content: Array<{ text: string }> }>
+      }
+    ).diagnoseConfig()
+    const config = JSON.parse(result.content[0].text) as Record<string, unknown>
+
+    expect(config.quickModel).toEqual({
+      id: 'openai::gpt-4o-mini',
+      provider: 'openai',
+      modelId: 'gpt-4o-mini'
+    })
+    expect(config).not.toHaveProperty('topicNamingModel')
+  })
+
   it('redacts assistant-visible proxy values to origin only', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue(
       'app.proxy.url',

@@ -330,6 +330,10 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.mcp': 'MCP',
           'library.config.agent.section.tools.tab.skills': '技能',
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
+          'agent.tools.builtin.bash.description': 'Run shell commands',
+          'agent.tools.builtin.bash.label': 'Run shell commands',
+          'agent.tools.builtin.read.description': 'Read files',
+          'agent.tools.builtin.read.label': 'Read files',
           'library.config.agent.model_config': 'Model',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
           'library.config.basic.field.description.placeholder': 'Describe this assistant',
@@ -500,6 +504,13 @@ const AGENT: AgentDetail = {
   modelName: 'Old Model',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z'
+}
+
+const PI_AGENT: AgentDetail = {
+  ...AGENT,
+  id: 'pi-agent-1',
+  type: 'pi',
+  name: 'Pi Agent'
 }
 
 beforeAll(() => {
@@ -1239,14 +1250,12 @@ describe('edit dialogs', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Plan Only/ }))
 
     selectTab('Advanced')
-    expect(screen.queryByText('Max turns')).not.toBeInTheDocument()
     expectHelpTrigger('Environment variables', 'One KEY=VALUE per line')
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'FOO=bar' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
-    expect(body.configuration).toHaveProperty('max_turns', undefined)
     expect(body.configuration).toEqual(
       expect.objectContaining({
         env_vars: { FOO: 'bar' },
@@ -1272,6 +1281,24 @@ describe('edit dialogs', () => {
 
     selectTab('技能')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('projects pi capabilities without exposing Claude-only fields', async () => {
+    render(<AgentEditDialog open resource={PI_AGENT} onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByText('Plan model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Small model')).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '技能' })).toBeInTheDocument()
+
+    selectTab('Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Read files' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Run shell commands' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['bash'] }) })
+    )
   })
 
   it('removes deleted knowledge bases from an open agent form', async () => {
@@ -1390,6 +1417,70 @@ describe('edit dialogs', () => {
         body: expect.objectContaining({
           skillUpdates: [{ skillId: 'skill-1', isEnabled: false }]
         })
+      })
+    )
+  })
+
+  it('restores a globally re-enabled persisted skill without overwriting local or hidden selections', async () => {
+    const hiddenSkill = {
+      id: 'skill-hidden',
+      name: 'Hidden Skill',
+      description: 'Hidden while globally disabled',
+      isEnabled: true
+    }
+    const localSkill = {
+      id: 'skill-local',
+      name: 'Local Edit Skill',
+      description: 'Changed in this dialog',
+      isEnabled: false
+    }
+    const reenabledSkill = {
+      id: 'skill-reenabled',
+      name: 'Re-enabled Skill',
+      description: 'Disabled when the dialog opened',
+      isEnabled: true
+    }
+    installedSkillsState.current = {
+      skills: [hiddenSkill, localSkill],
+      loading: false,
+      refreshing: false
+    }
+    const props = { open: true, resource: AGENT, onOpenChange: vi.fn(), initialTab: 'tools.skills' as const }
+    const { rerender } = render(<AgentEditDialog {...props} />)
+
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Hidden Skill' })).toBeChecked())
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: [localSkill]
+    }
+    rerender(<AgentEditDialog {...props} />)
+    expect(screen.queryByRole('switch', { name: 'Hidden Skill' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Local Edit Skill' }))
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: [hiddenSkill, localSkill, reenabledSkill]
+    }
+    rerender(<AgentEditDialog {...props} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Hidden Skill' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Local Edit Skill' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Re-enabled Skill' })).toBeChecked()
+    })
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenNthCalledWith(1, {
+        body: { skillUpdates: [{ skillId: 'skill-local', isEnabled: true }] }
+      })
+    )
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Re-enabled Skill' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenNthCalledWith(2, {
+        body: { skillUpdates: [{ skillId: 'skill-reenabled', isEnabled: false }] }
       })
     )
   })

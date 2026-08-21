@@ -408,8 +408,10 @@ function setupAgentHistory({
   return { onClose, onRecordSelect }
 }
 
+let agentHistoryLoaded = false
+
 describe('HistoryRecordsView agent mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
     MockCacheUtils.resetMocks()
     confirmActionShow.mockClear()
@@ -450,7 +452,27 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
     hookMocks.virtualListRenderRows.length = 0
-  })
+
+    if (!agentHistoryLoaded) {
+      await import('../AgentHistoryRecords')
+      hookMocks.useAgents.mockReturnValue({ agents: [], error: undefined, isLoading: false })
+      hookMocks.useSessions.mockReturnValue({
+        sessions: [],
+        pinIdBySessionId: new Map(),
+        error: undefined,
+        isLoading: false,
+        deleteSession: hookMocks.deleteSession,
+        deleteSessions: hookMocks.deleteSessions,
+        togglePin: hookMocks.togglePin
+      })
+      const { unmount } = render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} />)
+
+      await screen.findByRole('region', { name: 'History' })
+      unmount()
+      vi.clearAllMocks()
+      agentHistoryLoaded = true
+    }
+  }, 60_000)
 
   it('renders sessions from the existing agent session list data', () => {
     const { onClose, onRecordSelect } = setupAgentHistory({
@@ -938,6 +960,12 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
+    let resolveRename!: (session: AgentSessionEntity) => void
+    hookMocks.updateSession.mockReturnValueOnce(
+      new Promise<AgentSessionEntity>((resolve) => {
+        resolveRename = resolve
+      })
+    )
     const { onClose, onRecordSelect } = setupAgentHistory()
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
@@ -968,6 +996,14 @@ describe('HistoryRecordsView agent mode', () => {
         { showSuccessToast: false }
       )
     )
+    expect(screen.getByText('Renamed session')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveRename(createSession({ name: 'Renamed session' }))
+    })
+    expect(screen.getByText('Renamed session')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
   })
 
   it('pins a session from the history row context menu without selecting the row', async () => {

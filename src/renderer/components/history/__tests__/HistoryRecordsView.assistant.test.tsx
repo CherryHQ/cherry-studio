@@ -4,18 +4,18 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import deDE from '../../../i18n/locales/de-de.json'
+import elGR from '../../../i18n/locales/el-gr.json'
 import enUS from '../../../i18n/locales/en-us.json'
+import esES from '../../../i18n/locales/es-es.json'
+import frFR from '../../../i18n/locales/fr-fr.json'
+import jaJP from '../../../i18n/locales/ja-jp.json'
+import ptPT from '../../../i18n/locales/pt-pt.json'
+import roRO from '../../../i18n/locales/ro-ro.json'
+import ruRU from '../../../i18n/locales/ru-ru.json'
+import viVN from '../../../i18n/locales/vi-vn.json'
 import zhCN from '../../../i18n/locales/zh-cn.json'
-import deDE from '../../../i18n/translate/de-de.json'
-import elGR from '../../../i18n/translate/el-gr.json'
-import esES from '../../../i18n/translate/es-es.json'
-import frFR from '../../../i18n/translate/fr-fr.json'
-import jaJP from '../../../i18n/translate/ja-jp.json'
-import ptPT from '../../../i18n/translate/pt-pt.json'
-import roRO from '../../../i18n/translate/ro-ro.json'
-import ruRU from '../../../i18n/translate/ru-ru.json'
-import viVN from '../../../i18n/translate/vi-vn.json'
-import zhTW from '../../../i18n/translate/zh-tw.json'
+import zhTW from '../../../i18n/locales/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
   deleteTopic: vi.fn(),
@@ -419,9 +419,10 @@ function setupAssistantHistory({
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 const flushCommandMenuAction = flushAnimationFrame
+let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     confirmActionShow.mockClear()
     hookMocks.useAgents.mockReset()
@@ -466,7 +467,19 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: hookMocks.togglePin })
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
-  })
+
+    if (!assistantHistoryLoaded) {
+      await import('../AssistantHistoryRecords')
+      hookMocks.useTopics.mockReturnValue({ topics: [], error: undefined, isLoading: false })
+      hookMocks.useAssistants.mockReturnValue({ assistants: [] })
+      const { unmount } = render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} />)
+
+      await screen.findByRole('region', { name: 'History' })
+      unmount()
+      vi.clearAllMocks()
+      assistantHistoryLoaded = true
+    }
+  }, 60_000)
 
   it('selects a topic when the history title is clicked', () => {
     const { onClose, onRecordSelect } = setupAssistantHistory({ pinnedIds: ['topic-alpha'] })
@@ -1089,6 +1102,12 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('renames a topic from the history row context menu dialog without selecting the row', async () => {
+    let resolveRename!: () => void
+    hookMocks.updateTopic.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveRename = resolve
+      })
+    )
     const { onClose, onRecordSelect } = setupAssistantHistory()
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
@@ -1119,6 +1138,15 @@ describe('HistoryRecordsView assistant mode', () => {
         isNameManuallyEdited: true
       })
     )
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveRename()
+    })
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
     expect(toast.success).toHaveBeenCalledWith('Saved')
   })
 
@@ -1150,6 +1178,8 @@ describe('HistoryRecordsView assistant mode', () => {
     )
     expect(toast.error).toHaveBeenCalledWith('Rename failed')
     expect(toast.success).not.toHaveBeenCalled()
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
   })
 
   it('does not persist empty or unchanged topic names from history rename dialog', async () => {

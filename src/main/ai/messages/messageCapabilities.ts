@@ -14,7 +14,7 @@
 
 import type { Model } from '@shared/data/types/model'
 import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
-import type { ModelMessage, ToolResultPart, UIMessage } from 'ai'
+import type { ImagePart, ModelMessage, ToolResultPart, UIMessage } from 'ai'
 
 import type { TokenDialect } from '../tokens/dialect'
 
@@ -124,4 +124,73 @@ export function gateToolResultMedia(messages: ModelMessage[], caps: MediaCapabil
     })
     return messageChanged ? { ...message, content } : message
   })
+}
+
+/**
+ * OpenAI-style tool messages have no image slot. When the model itself supports vision, move
+ * base64 tool-result images into one synthetic user message after the complete contiguous tool
+ * result run; keeping the run intact preserves multi-tool call/result adjacency.
+ */
+export function routeToolResultMedia(
+  messages: ModelMessage[],
+  modelCaps: MediaCapabilities,
+  toolResultCaps: MediaCapabilities
+): ModelMessage[] {
+  if (toolResultCaps.image || !modelCaps.image) return gateToolResultMedia(messages, toolResultCaps)
+
+  let changed = false
+  const out: ModelMessage[] = []
+  let pendingParts: Array<{ type: 'text'; text: string } | ImagePart> = []
+
+  const flushImages = () => {
+    if (pendingParts.length === 0) return
+    out.push({ role: 'user', content: pendingParts })
+    pendingParts = []
+  }
+
+  messages.forEach((message, index) => {
+    if (message.role !== 'tool') {
+      flushImages()
+      out.push(message)
+      return
+    }
+
+    let messageChanged = false
+    const content = message.content.map((part) => {
+      if (part.type !== 'tool-result' || part.output.type !== 'content') return part
+      let partChanged = false
+      let imageIndex = 0
+      const value = part.output.value.map((item) => {
+        if (item.type !== 'image-data') return item
+        const anchor = `[tool-result attachment call_id=${JSON.stringify(part.toolCallId)} image=${++imageIndex}]`
+        pendingParts.push(
+          { type: 'text', text: anchor },
+          {
+            type: 'image',
+            image: item.data,
+            mediaType: item.mediaType,
+            ...(item.providerOptions && { providerOptions: item.providerOptions })
+          }
+        )
+        partChanged = true
+        return {
+          type: 'text' as const,
+          text: `${anchor} (${item.mediaType}): attached in the following user message`
+        }
+      })
+      if (!partChanged) return part
+      messageChanged = true
+      return { ...part, output: { ...part.output, value } }
+    })
+    if (messageChanged) {
+      changed = true
+      out.push({ ...message, content })
+    } else {
+      out.push(message)
+    }
+
+    if (messages[index + 1]?.role !== 'tool') flushImages()
+  })
+
+  return gateToolResultMedia(changed ? out : messages, toolResultCaps)
 }

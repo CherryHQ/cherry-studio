@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { Activity, createElement, type PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const bundledCatalogMocks = vi.hoisted(() => ({
@@ -107,6 +108,30 @@ describe('useBundledCatalog', () => {
       chinese.resolve(['最新'])
     })
     expect(result.current).toEqual({ isLoading: false, items: ['最新'] })
+  })
+
+  it('keeps a loaded catalog stable across an Activity hide and show cycle', async () => {
+    const load = vi.fn().mockResolvedValue(['preset'])
+    let mode: 'hidden' | 'visible' = 'visible'
+    const wrapper = ({ children }: PropsWithChildren) => createElement(Activity, { children, mode })
+    const { result, rerender } = renderHook(
+      () =>
+        useBundledCatalog({
+          catalog: 'test catalog',
+          load
+        }),
+      { wrapper }
+    )
+
+    await waitFor(() => expect(result.current.items).toEqual(['preset']))
+
+    mode = 'hidden'
+    rerender()
+    mode = 'visible'
+    rerender()
+
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(result.current).toEqual({ isLoading: false, items: ['preset'] })
   })
 
   it('degrades a failed reload to an empty catalog', async () => {

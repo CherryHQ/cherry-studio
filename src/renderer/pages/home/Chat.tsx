@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
@@ -12,6 +13,7 @@ import {
 import type { ChatConversationControlsSnapshot } from '@renderer/components/composer/variants/ChatComposer'
 import PromptPopup from '@renderer/components/popups/PromptPopup'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
@@ -77,6 +79,7 @@ const Chat: FC<Props> = (props) => {
   const activeTopic = props.activeTopic
   const centerSurface = props.centerSurface
   const showConversation = Boolean(activeTopic && !centerSurface)
+  const isActiveTab = useIsActiveTab()
   const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
   const assistantContext = useAssistant(activeTopic?.assistantId, {
@@ -129,6 +132,14 @@ const Chat: FC<Props> = (props) => {
     },
     { enabled: showConversation }
   )
+  useCommandHandler(
+    'topic.clear_messages',
+    () => {
+      if (!activeTopic) return
+      void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, activeTopic)
+    },
+    { enabled: showConversation && isActiveTab }
+  )
 
   const citationsPanelOpen = citationPanelCitations !== null
 
@@ -161,7 +172,7 @@ const Chat: FC<Props> = (props) => {
       onLocateMessageHandledProp?.()
     }
   }, [locateMessageIdProp, onLocateMessageHandledProp])
-  const center =
+  const centerContent =
     centerSurface?.content ??
     (activeTopic ? (
       <ChatContent
@@ -182,6 +193,8 @@ const Chat: FC<Props> = (props) => {
       // the empty center rather than spinning forever. Same split as AgentChat.
       <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
     ))
+  // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
+  const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>
 
   return (
     <ConversationShell

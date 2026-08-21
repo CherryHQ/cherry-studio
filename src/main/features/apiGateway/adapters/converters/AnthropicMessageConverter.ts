@@ -11,6 +11,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
   MessageCreateParams,
+  MessageParam,
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
@@ -112,6 +113,19 @@ function toolResultToOutput(
   return { output: lines.join('\n'), relocatedParts }
 }
 
+/** Anthropic text content (`string` or content blocks) flattened to one string. */
+function textContentToString(content: MessageCreateParams['system'] | MessageParam['content']): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n')
+}
+
+/**
+ * The Claude Agent SDK puts `system` messages inside `messages` (agent/skill catalogs,
+ * deferred-tool notices), which `MessageParam` does not model.
+ */
+type AgentInputMessage = MessageParam | { role: 'system'; content: MessageParam['content'] }
+
 /**
  * Reasoning cache interface for storing provider-specific reasoning state
  */
@@ -144,23 +158,24 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * `convertToModelMessages` (run by main) lifts that to the SDK `system`.
    * Tool calls become `dynamic-tool` parts; a matching tool_result in a later
    * message upgrades the part to `output-available` so history stays coherent.
+   *
+   * Inline `system` messages stay at their original index as `role: 'system'`
+   * UIMessages. Mapping them by position to `assistant` (every other non-user role)
+   * would attribute the Agent SDK's harness context to the model, and hoisting them
+   * would rewrite the prompt prefix on every turn one arrives, costing the prefix
+   * cache. `hoistSystemMessages` folds them only for targets that reject them.
    */
   toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
     this.prepareToolNames(params.tools)
     const messages: CherryUIMessage[] = []
 
+    // Array covariance widens without a cast, so `role` narrows natively from here on.
+    const inputMessages: AgentInputMessage[] = params.messages
+
     // System message
-    if (params.system) {
-      const systemText =
-        typeof params.system === 'string'
-          ? params.system
-          : params.system
-              .filter((block) => block.type === 'text')
-              .map((block) => block.text)
-              .join('\n')
-      if (systemText) {
-        messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
-      }
+    const systemText = textContentToString(params.system)
+    if (systemText) {
+      messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
     }
 
     // tool_use id → name (for tool_result parts) and tool_use id → result conversion.
@@ -180,7 +195,14 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       }
     }
 
-    for (const msg of params.messages) {
+    for (const msg of inputMessages) {
+      if (msg.role === 'system') {
+        const text = textContentToString(msg.content)
+        if (text) {
+          messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] })
+        }
+        continue
+      }
       const role = msg.role === 'user' ? 'user' : 'assistant'
 
       if (typeof msg.content === 'string') {
@@ -271,9 +293,11 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
     const aiSdkTools: ToolSet = {}
     for (const anthropicTool of tools) {
-      if (anthropicTool.type === 'bash_20250124') continue
       const toolDef = anthropicTool as AnthropicTool
       const rawSchema = toolDef.input_schema
+      // Client tools always carry `input_schema`; without it this is a server tool
+      // (bash/web_search/text_editor/tool_search/…) only Anthropic's own backend executes.
+      if (!rawSchema) continue
       const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 
       const aiTool = tool({

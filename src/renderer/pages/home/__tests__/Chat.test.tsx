@@ -1,5 +1,7 @@
+import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { Topic } from '@renderer/types/topic'
 import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +18,9 @@ const assistantContextMock = vi.hoisted(() => ({
   isModelPending: false
 }))
 const providerHookArgs = vi.hoisted(() => [] as unknown[][])
+const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
+const eventEmitMock = vi.hoisted(() => vi.fn())
+const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -116,6 +121,27 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: (command: string, handler: () => void | Promise<void>, options?: { enabled?: boolean }) => {
+    if (options?.enabled === false) commandHandlers.delete(command)
+    else commandHandlers.set(command, handler)
+  }
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useIsActiveTab: () => activeTabMock.current
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    CLEAR_MESSAGES: 'clear-messages',
+    FOCUS_CHAT_COMPOSER: 'focus-chat-composer'
+  },
+  EventEmitter: {
+    emit: eventEmitMock
+  }
+}))
+
 vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', () => ({
   ChatConversationControls: ({ assistantName }: { assistantName: string }) => (
     <div data-testid="chat-conversation-controls">{assistantName}</div>
@@ -126,12 +152,29 @@ vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
 }))
 
-vi.mock('../ChatContent', () => ({
-  default: (props: any) => {
+vi.mock('../ChatContent', async () => {
+  const { useChatLayoutMode } = await vi.importActual<typeof ChatLayoutModeContextModule>(
+    '@renderer/components/chat/layout/ChatLayoutModeContext'
+  )
+
+  function MockChatContent(props: any) {
     chatContentProps.current = props
-    return <div data-testid="chat-content" />
+    const { railGutterPx, setRailGutterPx } = useChatLayoutMode()
+
+    return (
+      <div data-testid="chat-content">
+        <output aria-label="rail gutter">{railGutterPx}</output>
+        <button type="button" onClick={() => setRailGutterPx(24)}>
+          reserve rail gutter
+        </button>
+      </div>
+    )
   }
-}))
+
+  return {
+    default: MockChatContent
+  }
+})
 
 vi.mock('../components/ChatNavbar', () => ({
   default: ({
@@ -168,6 +211,26 @@ describe('Chat', () => {
     assistantContextMock.isLoading = false
     assistantContextMock.isModelPending = false
     providerHookArgs.length = 0
+    commandHandlers.clear()
+    activeTabMock.current = true
+  })
+
+  it('routes the clear-messages command through the existing confirmation flow', () => {
+    render(<Chat activeTopic={topic} />)
+
+    act(() => {
+      void commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(eventEmitMock).toHaveBeenCalledWith('clear-messages', topic)
+  })
+
+  it('does not register the clear-messages command for a background tab', () => {
+    activeTabMock.current = false
+
+    render(<Chat activeTopic={topic} />)
+
+    expect(commandHandlers.has('topic.clear_messages')).toBe(false)
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
@@ -214,6 +277,18 @@ describe('Chat', () => {
     })
 
     expect(providerHookArgs.at(-1)).toEqual([undefined, { enabled: true }])
+  })
+
+  it('preserves the rail gutter while switching topics', async () => {
+    const user = userEvent.setup()
+    const view = render(<Chat activeTopic={topic} />)
+
+    await user.click(screen.getByRole('button', { name: 'reserve rail gutter' }))
+    expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
+
+    view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
+
+    expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
   })
 
   it('renders the navbar while the active topic is still resolving', () => {

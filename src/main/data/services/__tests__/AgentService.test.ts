@@ -1,3 +1,5 @@
+import '@data/services/AgentSessionMessageService'
+
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
@@ -210,7 +212,7 @@ describe('AgentService', () => {
       expect(agents).toHaveLength(0)
     })
 
-    it('places newly created agents by default orderKey sort', async () => {
+    it('places newly created agents first by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
 
@@ -221,7 +223,7 @@ describe('AgentService', () => {
       })
 
       const { agents } = agentService.listAgents()
-      expect(agents.at(-1)?.id).toBe(created.id)
+      expect(agents[0]?.id).toBe(created.id)
     })
 
     it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
@@ -244,7 +246,6 @@ describe('AgentService', () => {
       configuration: {
         avatar: '🍒',
         permission_mode: 'default' as const,
-        max_turns: 100,
         env_vars: {}
       }
     }
@@ -284,12 +285,22 @@ describe('AgentService', () => {
         configuration: {
           avatar: '🍒',
           permission_mode: 'default',
-          max_turns: 100,
           env_vars: {},
           builtin_role: 'assistant'
         }
       })
       expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('keeps a newly created built-in assistant after existing agents', () => {
+      const ordinary = createAgentForTest({
+        type: 'claude-code',
+        name: 'Ordinary Agent',
+        model: TEST_MODEL_ID
+      })
+      const builtin = agentService.ensureBuiltinAgent(defaults)
+
+      expect(agentService.listAgents().agents.map((agent) => agent.id)).toEqual([ordinary.id, builtin.id])
     })
 
     it('restores exactly one active assistant after the previous row was soft-deleted', () => {
@@ -361,7 +372,7 @@ describe('AgentService', () => {
         instructions: 'Keep fixed instructions',
         model: TEST_MODEL_ID,
         deletedAt: Date.UTC(2026, 0, 1),
-        configuration: { avatar: 'S', max_turns: 7 }
+        configuration: { avatar: 'S', heartbeat_interval: 7 }
       })
 
       const support = agentService.ensureBuiltinAgent({ ...defaults, builtinRole: 'support' })
@@ -372,7 +383,7 @@ describe('AgentService', () => {
         description: 'Keep description',
         instructions: 'Keep fixed instructions',
         model: TEST_MODEL_ID,
-        configuration: { avatar: 'S', max_turns: 7, builtin_role: 'support' }
+        configuration: { avatar: 'S', heartbeat_interval: 7, builtin_role: 'support' }
       })
       const [restoredRow] = dbh.db
         .select({ deletedAt: agentTable.deletedAt })
@@ -492,11 +503,11 @@ describe('AgentService', () => {
 
     it('removes an explicitly undefined key while preserving omitted siblings', async () => {
       const created = await insertAgent({
-        configuration: { avatar: '🤖', max_turns: 10 }
+        configuration: { avatar: '🤖', heartbeat_interval: 10 }
       })
 
       const updated = agentService.updateAgent(created.id, {
-        configuration: { max_turns: undefined }
+        configuration: { heartbeat_interval: undefined }
       })
 
       expect(updated?.configuration).toEqual({ avatar: '🤖' })
