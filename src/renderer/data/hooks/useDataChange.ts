@@ -3,7 +3,7 @@ import type { ParamsForPath } from '@shared/data/api/paths'
 import type { DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 import { useEffect, useRef } from 'react'
 
-export type UseDataChangeOptions<Path extends GetMethodApiPaths> = Path extends `${string}:${string}`
+export type UseDataChangeOptions<Path extends GetMethodApiPaths> = [Path] extends [`${string}:${string}`]
   ? {
       /** Concrete parameters for a template endpoint. All-routes effects still match. */
       routeParams?: Readonly<ParamsForPath<Path, 'GET'>>

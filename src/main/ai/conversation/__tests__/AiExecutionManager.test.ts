@@ -71,6 +71,7 @@ describe('AiExecutionManager', () => {
       },
       sink
     )
+    expect(manager.inFlightOperations().map(({ id }) => id)).toEqual([`chat:topic-1/${turnId}/${executionId}`])
     await vi.waitFor(() => expect(openStream).toHaveBeenCalledOnce())
 
     expect(

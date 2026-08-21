@@ -39,8 +39,8 @@ let namingSeq = 0
 const inFlightNamingWrites = new Map<string, Promise<void>>()
 
 function trackNamingWrite(prefix: string, run: () => Promise<void>): Promise<void> {
-  const promise = run()
   const key = `${prefix}#${++namingSeq}`
+  const promise = Promise.resolve().then(run)
   inFlightNamingWrites.set(key, promise)
   promise.catch(() => {}).finally(() => inFlightNamingWrites.delete(key))
   return promise

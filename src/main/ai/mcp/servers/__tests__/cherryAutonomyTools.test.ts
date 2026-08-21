@@ -294,6 +294,18 @@ describe('CherryAutonomyTools', () => {
       expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(expect.objectContaining({ replyPolicy: 'completion' }))
     })
 
+    it('rejects an explicit null reply policy instead of treating it as omitted', async () => {
+      const result = await callTool(
+        createServer('agent_test'),
+        { target_session_id: 'session_b', message: 'Return the result', reply: null },
+        'session_send'
+      )
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'reply' must be none or completion")
+      expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
+    })
+
     it('returns message evidence for session search candidates', async () => {
       mockSearchSessionMessages.mockReturnValue([
         {

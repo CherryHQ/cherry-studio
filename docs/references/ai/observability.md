@@ -41,14 +41,15 @@ The main-process observability boundary is `src/main/ai/observability`:
 The container `traceId` is persisted on the topic / agent-session row (one trace
 tree per container), but the span tree is first collected in the main-process
 `TraceStorageService` memory store.
-The durable history file is written by the stream terminal path:
+The durable history file is written by the Conversation cleanup path:
 
-- `PersistentChatContextProvider` attaches a `TraceFlushListener` to normal
-  chat turns.
-- `AgentConnectionManager` attaches the same listener to exact Agent
-  `ConversationRef` executions, including queued follow-up turns.
-- On the durable Conversation terminal event (`done`, `paused`, or `error`),
-  `TraceFlushListener` calls `TraceStorageService.saveSpans(topicId)`.
+- `PersistentChatContextProvider` and `AgentChatContextProvider` return a
+  `TraceFlushListener` as a history-port cleanup descriptor for the exact
+  committed turn.
+- `ConversationRuntimeService` invokes that descriptor only after the durable
+  Conversation terminal (`done`, `paused`, or `error`) reaches final
+  quiescence.
+- `TraceFlushListener` then calls `TraceStorageService.saveSpans(topicId)`.
 - Flush errors are logged as warnings and do not affect message completion.
 
 Collection and persistence are main-process only. Spans live in

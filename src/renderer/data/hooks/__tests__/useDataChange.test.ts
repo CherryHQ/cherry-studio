@@ -79,6 +79,19 @@ describe('useDataChange', () => {
     expect(unscoped).toHaveLength(2)
   })
 
+  it('does not accept route parameters for a conditional endpoint union', () => {
+    const listener = vi.fn()
+    const endpoint: '/topics' | '/topics/:id' = Math.random() > 0.5 ? '/topics' : '/topics/:id'
+
+    if (false) {
+      // A runtime endpoint union cannot prove that every call targets the template route.
+      // @ts-expect-error Conditional endpoint unions must be narrowed before routeParams are supplied.
+      useDataChange(endpoint, listener, { routeParams: { id: 't1' } })
+    }
+
+    expect(endpoint).toBeDefined()
+  })
+
   it('invokes the latest listener without resubscribing', () => {
     const first = vi.fn()
     const second = vi.fn()

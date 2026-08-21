@@ -35,6 +35,12 @@ The Conversation aggregate owns:
 - interaction resolution mode;
 - Stop, terminal persistence, and quiescence.
 
+Backup pause closes idle warm connections and prevents new prewarm starts.
+Connection starts, closes, and detached background-flow finalizers use exact
+operation IDs in the Agent fixed-point drain. Active foreground resources are
+pre-barrier work: Conversation drains their execution and terminal descendants,
+then Agent closes the newly idle connection.
+
 ## Driver event mapping
 
 | Driver event | Conversation/resource handling |
@@ -63,6 +69,46 @@ Agent rows are written by the Agent history adapter over
 Conversation persistence coordinator as Chat. Background flow chunks patch the
 assistant row that owns their root tool call and never fabricate a foreground
 turn.
+
+## Autonomous preemption
+
+Autonomous runtime output is a Conversation scheduling decision, not a
+connection-manager resume flag:
+
+```text
+Foreground
+  → Preempting (exact SuspendExecution effect)
+  → synchronously commit RuntimeInitiated assistant skeleton
+  → RuntimePreempted
+  → runtime terminal durable + ownership Released
+  → exact ResumeSuspendedExecution effect
+  → Foreground
+```
+
+Only one preemption layer is supported. A stale suspension result, skeleton
+commit failure, or runtime bind failure restores the foreground execution and
+discards the matching private buffer. `AgentConnectionManager` may buffer early
+chunks and terminal facts for the exact resource, but only the Conversation
+state machine decides resume, Stop, or inbox order.
+
+## System prompt ownership
+
+Cherry's runtime-neutral policy is materialized by
+`buildAgentRuntimePrompt()`. It owns instruction precedence, built-in Agent
+fallback and provisioning, prompt variables, channel security, citation and
+artifact guidance, and response language. A driver maps the resulting
+`{ base, append }` value into its SDK's native prompt representation; it may add
+native workspace/context mechanics but must not fork Cherry policy.
+
+## Pi driver resource boundary
+
+Runtime discovery follows trust class, not a blanket workspace switch. Pi may
+load text context such as `AGENTS.md` from the workspace explicitly selected by
+the user. It must not auto-load workspace executable resources, user-global
+extensions, skills, prompt files, or third-party tools without an explicit
+Cherry trust flow. Automatic writes remain confined to canonical selected roots;
+shell, external paths, symlink escapes, and approval-required mutations remain
+gated.
 
 ## Related references
 

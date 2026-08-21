@@ -17,19 +17,7 @@ const COALESCE_WINDOW_MS = 16
 const MAX_COALESCE_AGE_MS = 16
 const MAX_COALESCE_CHARS = 2048
 
-/** Id prefix for renderer (WebContents) listeners — full form `wc:${wc.id}:${topicId}`. */
 const RENDERER_LISTENER_ID_PREFIX = 'wc:'
-
-/**
- * True if `listener` streams to a renderer window (as opposed to an internal persistence / trace /
- * channel listener). Carried-forward filtering (e.g. a steer continuation re-attaching the prior
- * turn's windows) keys off this — using the predicate instead of an inline `'wc:'` literal keeps it
- * in lockstep with the id format, so a future id-format change can't silently stop windows
- * re-attaching to a continuation.
- */
-export function isRendererListener(listener: Pick<StreamListener, 'id'>): boolean {
-  return listener.id.startsWith(RENDERER_LISTENER_ID_PREFIX)
-}
 
 interface PendingDelta {
   type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta'

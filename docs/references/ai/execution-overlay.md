@@ -53,6 +53,12 @@ therefore retained by the stream queue. Attach returns compact buffered chunks
 with the same exact identity and sequence rules; there is no cycle, attempt, or
 control-revision protocol in Renderer.
 
+Attach is atomic from the observer's perspective: Main registers the observer
+before capturing per-execution high-water, and Renderer buffers concurrently
+arriving events until it has applied snapshot and replay. A Live snapshot may
+already contain settled siblings. NotFound requests a durable refresh; an IPC
+error remains retryable and neither condition fabricates terminal success.
+
 ## Seed rule
 
 An execution writing an existing assistant row starts from a clone of that
@@ -72,6 +78,10 @@ the Turn quiescent. `ExecutionStreamOverlayService` then:
 
 On refresh failure the overlay is retained and exposes `refreshError`; durable
 content is never replaced by a known-stale projection.
+
+Every committed execution follows this refresh-before-retire path, including
+explicit reset and overlay disposal. Those APIs may delete only uncommitted
+optimistic rows immediately.
 
 ## Per-Conversation React binding
 

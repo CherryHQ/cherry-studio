@@ -372,7 +372,12 @@ withWriteTx<T>(fn: (tx: DbTxWithEffects) => T): T
 withEffects<T>(fn: (effects: DataApiEffectCollector) => T): T
 ```
 
-Both callbacks must be **synchronous**. better-sqlite3 rejects a Promise-returning transaction callback, and `withEffects` publishes immediately when its callback returns. Nested `withWriteTx` calls share one effect scope and publish only at the outer commit. Every `withEffects` call owns an independent scope, so it cannot accidentally absorb a nested transaction's committed effects.
+Both callbacks must be **synchronous**. Production and test `DbService`
+implementations explicitly reject a Promise-returning callback before effects
+can publish. Nested `withWriteTx` calls share one effect scope and publish only
+at the outer commit. `withEffects` is an autocommit boundary and is rejected
+inside `withWriteTx`; transactional code must add declarations through
+`tx.effects` so rollback discards them.
 
 ### Usage
 
@@ -416,6 +421,7 @@ cancelByIds(ids: string[], error: JobError): void {
 | Rule | Rationale |
 | --- | --- |
 | `fn` must be synchronous and only do DB ops — no network / file IO / handler execution | better-sqlite3 rejects a Promise-returning callback; the transaction blocks the single connection until `fn` returns |
+| Never call `withEffects` inside `withWriteTx` | Use `tx.effects`; a separately published scope could escape rollback |
 | Do not wrap reads | WAL mode gives readers snapshot isolation; wrapping adds needless serialization |
 | Don't wrap a single autocommit write | one statement is already an implicit transaction — call `getDb()` (or the `*Tx` form) directly; `getDb()` still guards readiness |
 | Wrap tight loops in one `withWriteTx`, not per-iteration | One `BEGIN IMMEDIATE` transaction vs N |

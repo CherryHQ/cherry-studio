@@ -37,8 +37,8 @@ export class ConversationTerminalPersistenceCoordinator {
     void this.run(record, true)
   }
 
-  inFlightRuns(): readonly Promise<void>[] {
-    return [...this.records.values()].flatMap((record) => (record.run ? [record.run] : []))
+  inFlightOperations(): ReadonlyArray<{ id: ConversationEffectId; run: Promise<void> }> {
+    return [...this.records].flatMap(([id, record]) => (record.run ? [{ id, run: record.run }] : []))
   }
 
   private run(record: TerminalPersistenceRecord, abandonOnFailure: boolean): Promise<void> {

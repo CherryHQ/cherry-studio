@@ -18,20 +18,6 @@ import type { AiStreamRequest } from '../../types'
 import type { StreamCleanupPort, StreamListener, StreamPersistencePort } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
-export enum LiveExecutionChangeMode {
-  Replace = 'replace',
-  Append = 'append'
-}
-
-type PreparedLiveExecutionChange =
-  | { mode: LiveExecutionChangeMode.Replace; parentAnchorId: string; siblingsGroupId?: number }
-  | {
-      mode: LiveExecutionChangeMode.Append
-      groupAnchorMessageId: string
-      parentAnchorId: string
-      siblingsGroupId: number
-    }
-
 export interface ConversationExecutionContext {
   conversation: ConversationRef
   models: ReadonlyArray<{
@@ -132,7 +118,8 @@ export interface CommittedDispatchReservation {
   readonly pendingSteerFastMode?: boolean
   readonly reservedMessages?: CherryUIMessage[]
   readonly siblingsGroupId?: number
-  readonly liveExecutionChange?: PreparedLiveExecutionChange
+  /** This commit appended an execution to the current live group, so the active node stays put. */
+  readonly keepActiveNode?: true
 }
 
 export interface CommittedDispatch {

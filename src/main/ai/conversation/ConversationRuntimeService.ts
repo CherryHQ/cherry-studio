@@ -14,6 +14,7 @@ import {
 } from '@main/core/lifecycle'
 import { agentSessionMessageService } from '@main/data/services/AgentSessionMessageService'
 import { messageService } from '@main/data/services/MessageService'
+import { topicNamingService } from '@main/services/TopicNamingService'
 import {
   ConversationActiveNodeMove,
   type ConversationActivityId,
@@ -497,6 +498,7 @@ export class ConversationRuntimeService extends BaseService {
   }
 
   startAgentAutonomous(sessionId: string, headless: boolean): boolean {
+    if (this.isWriteQuiesced) return false
     const ref: ConversationRef = { kind: ConversationKind.Agent, id: sessionId }
     const inputId = toConversationInputId(crypto.randomUUID())
     const input: ConversationInput = {
@@ -948,7 +950,7 @@ export class ConversationRuntimeService extends BaseService {
       cleanupPorts: reservation.cleanupPorts,
       executions: new Map(plans.map(({ projection }) => [projection.id, projection])),
       reservedMessages: reservation.reservedMessages,
-      activeNodeDecision: reservation.liveExecutionChange
+      activeNodeDecision: reservation.keepActiveNode
         ? { move: ConversationActiveNodeMove.Keep }
         : { move: ConversationActiveNodeMove.Advance }
     }
@@ -1642,9 +1644,14 @@ export class ConversationRuntimeService extends BaseService {
         runs.push({ id: `admission:${conversationRefKey(actor.conversation)}`, run: actor.inFlightAdmission })
       }
     }
-    this.executionManager.inFlightRuns().forEach((run, index) => runs.push({ id: `execution:${index}`, run }))
-    this.runtime.inFlightPersistenceRuns().forEach((run, index) => runs.push({ id: `persistence:${index}`, run }))
+    for (const operation of this.executionManager.inFlightOperations()) {
+      runs.push({ id: `execution:${operation.id}`, run: operation.run })
+    }
+    for (const operation of this.runtime.inFlightPersistenceOperations()) {
+      runs.push({ id: `persistence:${operation.id}`, run: operation.run })
+    }
     for (const [id, run] of this.presentationOperations) runs.push({ id, run })
+    for (const [id, run] of topicNamingService.inFlightWrites()) runs.push({ id: `topic-naming:${id}`, run })
     return runs
   }
 

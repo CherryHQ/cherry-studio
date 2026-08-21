@@ -24,11 +24,6 @@ export type {
 } from '@shared/ai/transport'
 export type { CherryUIMessageChunk } from '@shared/data/types/message'
 
-export interface TransportTimings {
-  readonly startedAt: number
-  completedAt?: number
-}
-
 interface StreamTerminalBase {
   finalMessage?: CherryUIMessage
   modelId?: UniqueModelId
@@ -37,7 +32,6 @@ interface StreamTerminalBase {
   executionId?: ConversationExecutionId
   anchorMessageId?: string
   turnTerminal?: boolean
-  timings?: TransportTimings
   runtimeTiming?: MessageRuntimeTiming
 }
 

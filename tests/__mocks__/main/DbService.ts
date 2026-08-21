@@ -89,12 +89,17 @@ export class MockMainDbService {
   public withWriteTx = vi.fn(<T>(fn: (tx: unknown) => T): T => {
     const { result, committedEffects } = this.transactionEffectScope.collect((effects) => {
       const db = this.db as { transaction?: (fn: (tx: unknown) => unknown, options?: unknown) => unknown }
-      const run = (tx: unknown) =>
-        fn(
+      const run = (tx: unknown) => {
+        const result = fn(
           Object.assign(tx as object, {
             effects
           })
         )
+        if (result instanceof Promise) {
+          throw new Error('withWriteTx callback must be synchronous — the transaction commits when it returns')
+        }
+        return result
+      }
       if (typeof db?.transaction === 'function') {
         return db.transaction(run, { behavior: 'immediate' }) as T
       }
@@ -105,6 +110,9 @@ export class MockMainDbService {
   })
 
   public withEffects = vi.fn(<T>(fn: (effects: { add: (effect: DataApiDataChangeEffect) => void }) => T): T => {
+    if (this.transactionEffectScope.isCollecting) {
+      throw new Error('withEffects cannot run inside withWriteTx — add effects through tx.effects')
+    }
     const scope = new DataApiEffectScope()
     const { result, committedEffects } = scope.collect((effects) => {
       const result = fn(effects)

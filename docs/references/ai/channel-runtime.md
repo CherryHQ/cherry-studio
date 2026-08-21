@@ -68,7 +68,9 @@ its queued work, and suppresses later live updates. Only a newer successful
   lane; channel connection or listener liveness never decides turn admission.
 - Normal terminal output is offered to delivery only after durable Conversation
   persistence.
-- A deferred-recovery terminal is not externally delivered.
+- A deferred-recovery terminal produces an aggregate terminal effect with
+  `InternalOnly` audience. No Channel delivery effect is created, so listeners
+  do not need to infer or filter durability.
 - Channel delivery drain is independent from Conversation quiescence; shutdown
   orders producers, delivery, and adapter teardown through lifecycle services.
 

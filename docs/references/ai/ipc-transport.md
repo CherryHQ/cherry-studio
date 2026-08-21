@@ -34,7 +34,7 @@ Conversation owner to select a terminal outcome and abort exact live resources.
 | `SubmitMessage` | exact Conversation, user parts, optional tree anchor, models and reasoning |
 | `RegenerateMessage` | exact Conversation and replacement tree anchor |
 
-The resulting `ConversationOpenAck` includes its mode, reserved durable rows,
+The resulting `AiStreamOpenResponse` includes its mode, reserved durable rows,
 active execution projections, and active-node decision. `StreamDispatchService`
 publishes that acknowledgement to optimistic UI consumers; it does not own
 serialization or admission.
@@ -43,6 +43,10 @@ Active Chat input is committed to `Inbox.NextTurn` and requests a clean yield.
 Active Agent input is committed to `Inbox.NextStep` only when the Agent profile
 and driver accept redirect; otherwise it remains `Inbox.NextTurn`. These are
 Conversation decisions, not transport inference.
+
+While an execution is WaitingInteraction, ordinary Chat and Agent input always
+targets `Inbox.NextTurn`; the transport does not yield or redirect the waiting
+execution.
 
 ## Stream events
 
@@ -57,10 +61,28 @@ for one execution closes only that branch; a turn terminal closes the aggregate
 transport stream. The renderer does not compare cycles, attempts, watermarks,
 or control revisions.
 
-`ConversationStreamSubscription` owns per-execution branch demux for overlays.
-`IpcChatTransport` owns AI SDK's aggregate transport stream. Both acquire their
-observer lease through `StreamAttachmentService`, which sends `detach` only
-after the last window-local owner releases it.
+`ConversationStreamSubscription` exclusively owns per-execution chunks, replay,
+and branch settlement for overlays. `IpcChatTransport` owns only AI SDK's
+aggregate open/turn-terminal/abort stream; it does not maintain a second chunk
+pipeline. Both acquire their observer lease through `StreamAttachmentService`,
+which sends `detach` only after the last window-local owner releases it.
+
+## Attach snapshots
+
+`ai.stream.attach` returns a discriminated `Live`, `Settled`, or `NotFound`
+snapshot. Main registers the observer before capturing each execution's replay
+high-water. Renderer temporarily buffers live events, applies snapshot and
+replay, and then accepts only `chunkSeq` values above that execution's
+`throughChunkSeq`.
+
+- Live may include settled siblings beside live executions.
+- Settled includes every execution terminal plus the turn terminal; it never
+  invents empty final messages.
+- NotFound triggers a durable refresh. It is neither EOF nor Success.
+- IPC failure stays retryable and releases the failed attachment lease.
+- Replay retains at most 10,000 semantic entries. Text/reasoning deltas are
+  split at 16 KiB, while tool and approval boundaries remain distinct;
+  truncation is explicit.
 
 ## Shared status projection
 

@@ -1,6 +1,5 @@
 import {
   ConversationAttachStatus,
-  type ConversationExecutionId,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
@@ -9,7 +8,7 @@ import {
   toConversationExecutionId,
   toConversationTurnId
 } from '@shared/ai/conversation'
-import type { StreamChunkPayload, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
+import type { StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -40,14 +39,12 @@ interface MockAiApi {
   streamAttach: ReturnType<typeof vi.fn>
   streamAbort: ReturnType<typeof vi.fn>
   streamDetach: ReturnType<typeof vi.fn>
-  onStreamChunk: ReturnType<typeof vi.fn>
   onStreamDone: ReturnType<typeof vi.fn>
   onStreamError: ReturnType<typeof vi.fn>
 }
 
 function createMockAiApi() {
   const listeners = {
-    chunk: [] as Array<(data: StreamChunkPayload) => void>,
     done: [] as Array<(data: StreamDonePayload) => void>,
     error: [] as Array<(data: StreamErrorPayload) => void>
   }
@@ -57,13 +54,6 @@ function createMockAiApi() {
     streamAttach: vi.fn().mockResolvedValue({ status: ConversationAttachStatus.NotFound }),
     streamAbort: vi.fn().mockResolvedValue(undefined),
     streamDetach: vi.fn().mockResolvedValue(undefined),
-    onStreamChunk: vi.fn((cb) => {
-      listeners.chunk.push(cb)
-      return () => {
-        const i = listeners.chunk.indexOf(cb)
-        if (i >= 0) listeners.chunk.splice(i, 1)
-      }
-    }),
     onStreamDone: vi.fn((cb) => {
       listeners.done.push(cb)
       return () => {
@@ -97,8 +87,6 @@ function createMockAiApi() {
   }
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
-      case 'ai.stream.chunk':
-        return mockApi.onStreamChunk(cb)
       case 'ai.stream.done':
         return mockApi.onStreamDone(cb)
       case 'ai.stream.error':
@@ -113,22 +101,6 @@ function createMockAiApi() {
     listeners,
     request,
     on,
-    emitChunk: (
-      conversation: ConversationRef,
-      chunk: UIMessageChunk,
-      executionId: ConversationExecutionId = toConversationExecutionId('execution-1')
-    ) => {
-      for (const cb of [...listeners.chunk])
-        cb({
-          conversation,
-          turnId: toConversationTurnId('turn-1'),
-          executionId,
-          modelId: 'provider::model' as UniqueModelId,
-          outputNodeId: 'assistant-1',
-          chunkSeq: 1,
-          chunk
-        })
-    },
     emitDone: (conversation: ConversationRef, turnTerminal = true) => {
       for (const cb of [...listeners.done])
         cb({
@@ -194,7 +166,6 @@ describe('IpcChatTransport', () => {
     await stream.cancel()
 
     expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ conversation })
-    expect(mock.listeners.chunk).toHaveLength(0)
     expect(mock.listeners.done).toHaveLength(0)
     expect(mock.listeners.error).toHaveLength(0)
   })
@@ -216,21 +187,6 @@ describe('IpcChatTransport', () => {
     mock.emitDone(conversation)
 
     await expect(reader.read()).resolves.toMatchObject({ done: true })
-  })
-
-  it('primary stream ignores execution-scoped chunks', async () => {
-    const stream = await transport.sendMessages(baseOptions)
-    const reader = stream.getReader()
-
-    mock.emitChunk(
-      conversation,
-      { type: 'text-start', id: 'exec' } as UIMessageChunk,
-      toConversationExecutionId('execution-a')
-    )
-    mock.emitDone(conversation)
-
-    const { done } = await reader.read()
-    expect(done).toBe(true)
   })
 
   it('errors stream on error event', async () => {
@@ -295,14 +251,12 @@ describe('IpcChatTransport', () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    expect(mock.listeners.chunk).toHaveLength(1)
     expect(mock.listeners.done).toHaveLength(1)
     expect(mock.listeners.error).toHaveLength(1)
 
     mock.emitDone(conversation)
     await reader.read()
 
-    expect(mock.listeners.chunk).toHaveLength(0)
     expect(mock.listeners.done).toHaveLength(0)
     expect(mock.listeners.error).toHaveLength(0)
   })

@@ -94,6 +94,17 @@ describe('withWriteTx readiness guard — unit', () => {
     expect(notifyDataApiDataChange).not.toHaveBeenCalled()
   })
 
+  it('rejects a Promise-returning callback before commit or publication', () => {
+    const service = bareDbService(true)
+
+    expect(() =>
+      service.withWriteTx(async (tx) => {
+        tx.effects.add({ endpoint: '/topics/latest' })
+      })
+    ).toThrow(/must be synchronous/i)
+    expect(notifyDataApiDataChange).not.toHaveBeenCalled()
+  })
+
   it('merges nested transaction effects into the outer commit', () => {
     const service = bareDbService(true)
 
@@ -154,11 +165,7 @@ describe('withWriteTx integration — real better-sqlite3', () => {
     expect(rows).toHaveLength(0)
   })
 
-  it('rejects an async tx fn — enforces the synchronous-fn contract', () => {
-    // Production types `fn` as synchronous; this proves the engine-level guard
-    // that backs that type: better-sqlite3 throws if the callback returns a
-    // promise, so a stray `await` inside a write tx fails loudly instead of
-    // committing early.
+  it('also receives the engine-level async callback guard from better-sqlite3', () => {
     expect(() => dbh.db.transaction(async () => 'nope', { behavior: 'immediate' })).toThrow(/cannot return a promise/i)
   })
 })

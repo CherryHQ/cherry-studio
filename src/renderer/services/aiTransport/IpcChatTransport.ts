@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import {
   ConversationAttachStatus,
-  type ConversationExecutionId,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
@@ -10,7 +9,7 @@ import {
   conversationRefsEqual,
   ConversationStreamTerminalStatus
 } from '@shared/ai/conversation'
-import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
+import type { AiChatRequestBody, AiStreamOpenRequest } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
@@ -42,7 +41,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const mergedBody: Partial<AiChatRequestBody> = { ...this.#defaultBody, ...body }
 
     const conversation = mergedBody.conversation ?? { kind: ConversationKind.Chat, id: topicId }
-    const stream = this.buildListenerStream(conversation, undefined, abortSignal)
+    const stream = this.buildListenerStream(conversation, abortSignal)
 
     const lastMessage = messages.at(-1)
     const ipcRequest: AiStreamOpenRequest =
@@ -103,16 +102,13 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           return assertNever(terminal)
       }
     }
-    const replay = result.executions.flatMap(({ replay }) => replay.chunks)
-    logger.info('Reconnected to stream', { topicId, bufferedChunks: replay.length })
-    return this.buildListenerStream(conversation, replay, undefined, undefined, releaseAttachment)
+    logger.info('Reconnected to stream', { topicId })
+    return this.buildListenerStream(conversation, undefined, releaseAttachment)
   }
 
   private buildListenerStream(
     conversation: ConversationRef,
-    initialChunks?: StreamChunkPayload[],
     abortSignal?: AbortSignal,
-    executionId?: ConversationExecutionId,
     releaseAttachment = streamAttachmentService.acquire(conversation)
   ): ReadableStream<UIMessageChunk> {
     const unsubscribers: Array<() => void> = []
@@ -128,48 +124,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
     return new ReadableStream<UIMessageChunk>({
       start(controller) {
-        if (initialChunks) {
-          for (const data of initialChunks) {
-            if (matchesConversation(data) && executionId && data.executionId === executionId) {
-              controller.enqueue(data.chunk)
-            }
-          }
-        }
-
-        let pendingChunks: UIMessageChunk[] = []
-        let rafHandle: number | null = null
-        const flushPending = () => {
-          rafHandle = null
-          if (pendingChunks.length === 0 || isStreamClosed) {
-            pendingChunks = []
-            return
-          }
-          const batch = pendingChunks
-          pendingChunks = []
-          for (const chunk of batch) controller.enqueue(chunk)
-        }
-        const schedulePending = (chunk: UIMessageChunk) => {
-          pendingChunks.push(chunk)
-          if (rafHandle === null) rafHandle = requestAnimationFrame(flushPending)
-        }
-        const cancelPending = () => {
-          if (rafHandle !== null) {
-            cancelAnimationFrame(rafHandle)
-            rafHandle = null
-          }
-          pendingChunks = []
-        }
-        unsubscribers.push(cancelPending)
-
         const closeStream = () => {
           if (isStreamClosed) return
           isStreamClosed = true
-          // Drain pending RAF batch before close so the last few text-deltas
-          // aren't dropped between schedule and `done`.
-          if (rafHandle !== null) cancelAnimationFrame(rafHandle)
-          rafHandle = null
-          for (const chunk of pendingChunks) controller.enqueue(chunk)
-          pendingChunks = []
           cleanup()
           controller.close()
         }
@@ -177,7 +134,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         const errorStream = (err: Error) => {
           if (isStreamClosed) return
           isStreamClosed = true
-          cancelPending()
           cleanup()
           controller.error(err)
         }
@@ -193,20 +149,13 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
               return
             }
             errorStream(result.error)
-          }),
-          ipcApi.on('ai.stream.chunk', (data) => {
-            if (!matchesConversation(data) || isStreamClosed) return
-            if (executionId && data.executionId !== executionId) return
-            if (!executionId && data.executionId) return
-            schedulePending(data.chunk)
           })
         )
 
         unsubscribers.push(
           ipcApi.on('ai.stream.done', (data) => {
             if (!matchesConversation(data)) return
-            if (executionId && data.executionId !== executionId) return
-            if (!executionId && isPerExecutionOnly(data)) return
+            if (isPerExecutionOnly(data)) return
             closeStream()
           })
         )
@@ -214,8 +163,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           ipcApi.on('ai.stream.error', (data) => {
             if (!matchesConversation(data)) return
-            if (executionId && data.executionId !== executionId) return
-            if (!executionId && isPerExecutionOnly(data)) return
+            if (isPerExecutionOnly(data)) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )

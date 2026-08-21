@@ -4,6 +4,7 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { MessageData } from '@shared/data/types/message'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 
@@ -167,6 +168,13 @@ describe('setupTestDatabase — production code routing via MockMainDbService', 
     // Read using the DB instance obtained via the production access pattern.
     const rows = await fromApp.select().from(topicTable).where(eq(topicTable.id, 'topic-routing'))
     expect(rows).toHaveLength(1)
+  })
+
+  it('mock withWriteTx rejects Promise-returning callbacks like production', () => {
+    const dbService = application.get('DbService')
+
+    expect(() => dbService.withWriteTx(async () => undefined)).toThrow(/must be synchronous/i)
+    expect(MockMainDbServiceExport.dbService.publishedEffects).not.toHaveBeenCalled()
   })
 })
 

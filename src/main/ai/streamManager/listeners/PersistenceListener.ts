@@ -28,10 +28,7 @@ const logger = loggerService.withContext('PersistenceListener')
 
 /** Internal control signal: the persistence failure was already surfaced as an error event. */
 export class TerminalPersistenceError extends Error {
-  constructor(
-    readonly serializedError: SerializedError,
-    readonly durableErrorWritten: boolean
-  ) {
+  constructor(readonly serializedError: SerializedError) {
     super('Terminal persistence failed')
   }
 }
@@ -135,11 +132,9 @@ export class PersistenceListener implements StreamPersistencePort {
       })
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
-      let durableErrorWritten = false
       if (this.opts.backend.markTerminalError) {
         try {
           this.opts.backend.markTerminalError()
-          durableErrorWritten = true
         } catch (markErr) {
           logger.error('Failed to mark assistant message as terminal error after persist failure', {
             backend: this.opts.backend.kind,
@@ -149,7 +144,7 @@ export class PersistenceListener implements StreamPersistencePort {
           })
         }
       }
-      throw new TerminalPersistenceError(serializeError(err), durableErrorWritten)
+      throw new TerminalPersistenceError(serializeError(err))
     }
 
     if (status === ConversationOutcomeKind.Success && finalMessageForPersistence && this.opts.backend.afterPersist) {

@@ -76,7 +76,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 `src/main/ai/runtime/types.ts`:
 
 1. **Driver** (`AgentSessionRuntimeDriver`) — required members:
-   - `type` (the `AgentType` literal) and `capabilities: ['agent-session']`
+   - `type` (the `AgentType` literal) and
+     `capabilities: [AiRuntimeCapability.AgentSession]` imported from the
+     runtime contract
    - `validateSession(session)` — throw if the session can't be served
      (missing workspace, agent, model, unusable provider). Must be
      **side-effect free**: it runs on every dispatch, so it must not consume

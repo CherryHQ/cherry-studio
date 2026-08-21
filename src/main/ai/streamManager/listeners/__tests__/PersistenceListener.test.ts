@@ -31,7 +31,7 @@ vi.mock('@main/data/services/MessageService', () => ({
   }
 }))
 
-const { PersistenceListener } = await import('../PersistenceListener')
+const { PersistenceListener, TerminalPersistenceError } = await import('../PersistenceListener')
 const { TemporaryChatBackend } = await import('../../persistence/backends/TemporaryChatBackend')
 const { MessageServiceBackend } = await import('../../persistence/backends/MessageServiceBackend')
 
@@ -218,7 +218,6 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     await listener.onDone({
       finalMessage: makeFinalMessage(),
       status: ConversationOutcomeKind.Success,
-      timings: { startedAt: 10, completedAt: 20 },
       runtimeTiming
     })
 
@@ -343,9 +342,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     await expect(
       listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
-    ).rejects.toMatchObject({
-      durableErrorWritten: false
-    })
+    ).rejects.toBeInstanceOf(TerminalPersistenceError)
   })
 })
 
@@ -393,9 +390,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
     await expect(
       listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
-    ).rejects.toMatchObject({
-      durableErrorWritten: true
-    })
+    ).rejects.toBeInstanceOf(TerminalPersistenceError)
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
@@ -436,9 +431,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
     await expect(
       listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
-    ).rejects.toMatchObject({
-      durableErrorWritten: false
-    })
+    ).rejects.toBeInstanceOf(TerminalPersistenceError)
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
@@ -457,8 +450,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     await expect(
       listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
     ).rejects.toMatchObject({
-      serializedError: expect.objectContaining({ message: expect.stringContaining('write failed') }),
-      durableErrorWritten: true
+      serializedError: expect.objectContaining({ message: expect.stringContaining('write failed') })
     })
   })
 })
@@ -491,7 +483,6 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
       finalMessage,
       status: ConversationOutcomeKind.Success,
       modelId: 'openrouter::x' as UniqueModelId,
-      timings: { startedAt: 100, completedAt: 260 },
       runtimeTiming
     })
 

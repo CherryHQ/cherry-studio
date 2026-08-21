@@ -38,6 +38,7 @@ describe('ConversationTerminalPersistenceCoordinator', () => {
     const coordinator = new ConversationTerminalPersistenceCoordinator()
 
     coordinator.submit(effect, persist, publish)
+    expect(coordinator.inFlightOperations().map(({ id }) => id)).toEqual([effect.effectId])
     await vi.waitFor(() => expect(publish).toHaveBeenCalledWith(failure))
     coordinator.retryBlocked()
     await vi.waitFor(() =>

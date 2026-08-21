@@ -63,6 +63,19 @@ describe('withEffects', () => {
     expect(notifyDataApiDataChange).not.toHaveBeenCalled()
   })
 
+  it('rejects an independent effect scope inside a write transaction', () => {
+    const service = bareDbService(true)
+
+    expect(() =>
+      service.withWriteTx(() =>
+        service.withEffects((effects) => {
+          effects.add({ endpoint: '/topics/latest' })
+        })
+      )
+    ).toThrow(/cannot run inside withWriteTx/i)
+    expect(notifyDataApiDataChange).not.toHaveBeenCalled()
+  })
+
   it('does not discard a nested transaction effect when the autocommit scope fails', () => {
     const service = bareDbService(true)
     const committed: DataApiDataChangeEffect = { endpoint: '/topics/latest' }

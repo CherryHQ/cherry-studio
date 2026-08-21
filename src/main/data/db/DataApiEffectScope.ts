@@ -10,6 +10,10 @@ interface EffectScopeResult<Result> {
 export class DataApiEffectScope {
   private activeEffects: DataApiDataChangeEffect[] | undefined
 
+  get isCollecting(): boolean {
+    return this.activeEffects !== undefined
+  }
+
   collect<Result>(run: (effects: DataApiEffectCollector) => Result): EffectScopeResult<Result> {
     const effects = this.activeEffects ?? []
     const isOutermost = this.activeEffects === undefined

@@ -248,7 +248,16 @@ export class DbService extends BaseService {
       throw new Error('Database is not initialized, please call init() first!')
     }
     const { result, committedEffects } = this.getTransactionEffectScope().collect((effects) =>
-      this.db.transaction((tx) => fn(Object.assign(tx, { effects })), { behavior: 'immediate' })
+      this.db.transaction(
+        (tx) => {
+          const result = fn(Object.assign(tx, { effects }))
+          if (result instanceof Promise) {
+            throw new Error('withWriteTx callback must be synchronous — the transaction commits when it returns')
+          }
+          return result
+        },
+        { behavior: 'immediate' }
+      )
     )
     if (committedEffects) this.publishEffectsBestEffort(committedEffects)
     return result
@@ -264,6 +273,9 @@ export class DbService extends BaseService {
   public withEffects<T>(fn: (effects: DataApiEffectCollector) => T): T {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
+    }
+    if (this.transactionEffectScope?.isCollecting) {
+      throw new Error('withEffects cannot run inside withWriteTx — add effects through tx.effects')
     }
     const scope = new DataApiEffectScope()
     const { result, committedEffects } = scope.collect((effects) => {

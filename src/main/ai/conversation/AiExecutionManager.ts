@@ -393,6 +393,10 @@ export class AiExecutionManager implements ConversationExecutionPort {
     return [...this.runs.values()]
   }
 
+  inFlightOperations(): ReadonlyArray<{ id: string; run: Promise<void> }> {
+    return [...this.runs].map(([id, run]) => ({ id: id.replaceAll('\0', '/'), run }))
+  }
+
   private async run(key: string, resource: ConversationExecutionResource): Promise<void> {
     const { descriptor, abortController } = resource
     const signal = abortController.signal

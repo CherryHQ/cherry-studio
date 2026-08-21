@@ -630,7 +630,9 @@ export class CherryAutonomyTools {
     this.assertSessionToolsAuthorized()
     const receiverSessionId = typeof args.target_session_id === 'string' ? args.target_session_id.trim() : ''
     const content = typeof args.message === 'string' ? args.message.trim() : ''
-    const reply = AgentSessionDeliveryReplyPolicySchema.safeParse(args.reply ?? AgentSessionDeliveryReplyPolicy.None)
+    const reply = AgentSessionDeliveryReplyPolicySchema.safeParse(
+      args.reply === undefined ? AgentSessionDeliveryReplyPolicy.None : args.reply
+    )
     if (!reply.success) {
       throw new McpError(ErrorCode.InvalidParams, "'reply' must be none or completion")
     }

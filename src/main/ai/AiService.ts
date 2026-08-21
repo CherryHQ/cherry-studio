@@ -321,8 +321,8 @@ export interface AiRerankResult {
  * Lifecycle AI service. See `docs/references/ai/core-architecture.md`.
  *
  * DO NOT mirror `@DependsOn(['AiService'])` on ConversationRuntimeService —
- * `runExecutionLoop` looks AiService up at runtime, and every `send()`
- * caller routes through AiService first.
+ * AiExecutionManager resolves AiService only when an execution starts, and
+ * dispatch callers route through AiService first.
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)

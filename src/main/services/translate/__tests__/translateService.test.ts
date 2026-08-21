@@ -205,7 +205,6 @@ describe('translateService.open', () => {
       .catch((error: unknown) => error)
 
     await expect(persisted).resolves.toBeInstanceOf(TerminalPersistenceError)
-    await expect(persisted).resolves.toMatchObject({ durableErrorWritten: false })
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {

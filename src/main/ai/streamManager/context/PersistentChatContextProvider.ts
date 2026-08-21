@@ -79,7 +79,6 @@ import {
   type ConversationInteractionCommitResult,
   ConversationInteractionCommitResultKind,
   type DispatchContext,
-  LiveExecutionChangeMode,
   type ValidatedDispatch
 } from './ConversationHistoryPort'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
@@ -136,8 +135,8 @@ function buildAssistantMessageSnapshot(
 }
 
 /**
- * One OTel root span per execution. Stream-manager sets the span active
- * around `runExecutionLoop` so AI SDK spans become children.
+ * One OTel root span per execution. The execution manager sets the span active
+ * around the provider run so AI SDK spans become children.
  */
 function startTurnRootSpans(
   topicId: string,
@@ -511,15 +510,8 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
       if (liveGroupSourceAnchorMessageId && (!req.parentAnchorId || siblingsGroupId === undefined)) {
         throw new ConversationAdmissionError(ConversationAdmissionReason.TargetNotInLiveGroup)
       }
-      const preparedLiveExecutionChange =
-        liveGroupSourceAnchorMessageId && req.parentAnchorId && siblingsGroupId !== undefined
-          ? {
-              mode: LiveExecutionChangeMode.Append,
-              groupAnchorMessageId: liveGroupSourceAnchorMessageId,
-              parentAnchorId: req.parentAnchorId,
-              siblingsGroupId
-            }
-          : undefined
+      const keepActiveNode =
+        liveGroupSourceAnchorMessageId && req.parentAnchorId && siblingsGroupId !== undefined ? true : undefined
 
       const listeners: StreamListener[] = [subscriber]
       const cleanupPorts = [new TraceFlushListener(req.conversation.id)]
@@ -536,7 +528,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
         cleanupPorts,
         reservedMessages,
         siblingsGroupId,
-        liveExecutionChange: preparedLiveExecutionChange
+        keepActiveNode
       }
       return {
         reservation: committedReservation,

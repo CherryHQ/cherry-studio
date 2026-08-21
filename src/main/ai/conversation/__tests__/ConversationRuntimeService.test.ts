@@ -32,12 +32,16 @@ import { AiExecutionManager, ConversationRuntimeService } from '..'
 
 const services = vi.hoisted(() => ({
   cache: { getShared: vi.fn(), setShared: vi.fn() },
-  agentConnection: { prepareConversationAutonomous: vi.fn() }
+  agentConnection: { prepareConversationAutonomous: vi.fn() },
+  namingWrites: new Map<string, Promise<void>>()
 }))
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => (name === 'AgentConnectionManager' ? services.agentConnection : services.cache))
   }
+}))
+vi.mock('@main/services/TopicNamingService', () => ({
+  topicNamingService: { inFlightWrites: () => services.namingWrites }
 }))
 
 const modelId = createUniqueModelId('provider', 'model')
@@ -143,6 +147,7 @@ describe('ConversationRuntimeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
+    services.namingWrites.clear()
   })
 
   it('closes the exact Agent activity instance without clearing a newer generation', () => {
@@ -381,6 +386,38 @@ describe('ConversationRuntimeService', () => {
 
     finishCleanup()
     await expect(draining).resolves.toEqual({ stragglerIds: [] })
+    hold.dispose()
+  })
+
+  it('drains detached topic naming writes before a paused snapshot may proceed', async () => {
+    let finishNaming!: () => void
+    const namingRun = new Promise<void>((resolve) => {
+      finishNaming = resolve
+    })
+    services.namingWrites.set('chat:topic-1#1', namingRun)
+    const service = new ConversationRuntimeService({ providers: [] })
+    const hold = service.pause('backup')
+    const draining = service.drainInFlight({ timeoutMs: 5_000 })
+
+    let drained = false
+    void draining.then(() => {
+      drained = true
+    })
+    await Promise.resolve()
+    expect(drained).toBe(false)
+
+    services.namingWrites.delete('chat:topic-1#1')
+    finishNaming()
+    await expect(draining).resolves.toEqual({ stragglerIds: [] })
+    hold.dispose()
+  })
+
+  it('rejects autonomous admission while a pause barrier is active', () => {
+    const service = new ConversationRuntimeService({ providers: [] })
+    const hold = service.pause('backup')
+
+    expect(service.startAgentAutonomous('session-1', false)).toBe(false)
+
     hold.dispose()
   })
 

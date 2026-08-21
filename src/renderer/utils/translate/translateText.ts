@@ -1,4 +1,5 @@
 import { ipcApi } from '@renderer/ipc'
+import { ConversationStreamTerminalStatus } from '@shared/ai/conversation'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { t } from 'i18next'
@@ -75,10 +76,14 @@ export const translateText = async (
     )
 
     unsubscribers.push(
-      ipcApi.on('ai.prompt.done', ({ streamId: eventStreamId }) => {
+      ipcApi.on('ai.prompt.done', ({ streamId: eventStreamId, status }) => {
         if (eventStreamId !== streamId) return
         const trimmed = accumulated.trim()
         cleanup()
+        if (status === ConversationStreamTerminalStatus.Paused) {
+          reject(new DOMException('Translation aborted', 'AbortError'))
+          return
+        }
         if (!trimmed) {
           reject(new Error(t('translate.error.empty')))
           return

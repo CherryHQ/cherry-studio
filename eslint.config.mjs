@@ -93,7 +93,7 @@ const BAN_DRIZZLE_MIGRATOR = {
     "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
 }
 const BAN_DATA_CHANGE_PUBLISHER = {
-  group: ['@data/dataApiDataChange', '**/data/dataApiDataChange'],
+  group: ['@data/dataApiDataChange', '**/data/dataApiDataChange', '**/dataApiDataChange'],
   message: 'Publish DataApi effects through DbService.withWriteTx()/withEffects(); do not call the IPC publisher directly.'
 }
 
@@ -735,6 +735,12 @@ export default defineConfig([
   },
   {
     files: ['src/main/data/db/DbService.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
+    }
+  },
+  {
+    files: ['src/main/data/**/__tests__/**/*.{ts,tsx,js,jsx}', 'src/main/data/**/*.test.*'],
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
     }

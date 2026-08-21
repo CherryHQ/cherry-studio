@@ -8,9 +8,10 @@ sources:
 
 # AI core architecture
 
-Chat and Agent share one business owner: `ConversationRuntimeService` and its
-pure `ConversationAggregate`. Existing Chat and Agent message tables remain the
-durable history stores.
+Chat and Agent share one business owner: `ConversationRuntimeService`. It uses
+one `ConversationActor` admission lane per conversation and the pure
+`ConversationRuntime` domain state machine. Existing Chat and Agent message
+tables remain the durable history stores.
 
 ```text
 Renderer / Channel / Schedule / Delivery
@@ -19,7 +20,7 @@ Renderer / Channel / Schedule / Delivery
   → side-effect-free validation
   → pure aggregate transition preview
   → synchronous history commit
-  → ConversationAggregate commit
+  → ConversationRuntime transition commit
   → typed execution / terminal-persistence / presentation effects
   → exact EffectId result command
 ```

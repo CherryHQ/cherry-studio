@@ -326,10 +326,13 @@ export class AgentConnectionManager extends BaseService {
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
-  /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
+  /** Detached-flow finalizers can outlive their entry; values are stable drain operation ids. */
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; connection start ids reject stale completions. */
   private readonly connectionStarts = new Map<string, { id: string; promise: Promise<boolean> }>()
+  /** A close outlives the entry it invalidates, so backup drain needs an independent exact registry. */
+  private readonly connectionCloses = new Map<string, { sessionId: string; promise: Promise<void> }>()
+  private readonly closingEntries = new WeakMap<AgentConnectionEntry, Promise<void>>()
   /** Parked stream resources keyed by session. Conversation owns whether and when they resume. */
   private readonly suspendedConversationTurns = new Map<
     string,
@@ -638,6 +641,7 @@ export class AgentConnectionManager extends BaseService {
    */
   async primeConnection(sessionId: string): Promise<void> {
     try {
+      if (this.isWriteQuiesced) return
       const existing = this.entries.get(sessionId)
       if (existing) {
         // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
@@ -830,7 +834,7 @@ export class AgentConnectionManager extends BaseService {
     })
   }
 
-  /** Resource-plane redirect; ConversationAggregate owns fallback queueing when this returns false. */
+  /** Resource-plane redirect; ConversationRuntime owns fallback queueing when this returns false. */
   redirectConversationInput(
     sessionId: string,
     message: AgentSessionMessageEntity,
@@ -907,12 +911,23 @@ export class AgentConnectionManager extends BaseService {
       this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.AutonomousTurnCleared })
     }
 
-    this.refreshIdleTimer(entry)
+    if (this.isWriteQuiesced && !this.isSessionBusy(sessionId)) {
+      void this.closeSession(sessionId)
+    } else {
+      this.refreshIdleTimer(entry)
+    }
   }
 
   closeSession(sessionId: string): Promise<void> {
     const entry = this.entries.get(sessionId)
-    if (!entry) return Promise.resolve()
+    if (!entry) {
+      const existing = [...this.connectionCloses.values()]
+        .filter((operation) => operation.sessionId === sessionId)
+        .map((operation) => operation.promise)
+      return Promise.allSettled(existing).then(() => undefined)
+    }
+    const existingClose = this.closingEntries.get(entry)
+    if (existingClose) return existingClose
     const fallbackConnection = this.currentConnection(entry)
     const pendingConnectionStart = this.connectionStarts.get(sessionId)?.promise
     const connectionLoop = entry.connectionLoop
@@ -924,7 +939,15 @@ export class AgentConnectionManager extends BaseService {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
       closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
     }
-    return Promise.allSettled([closing, pendingConnectionStart, connectionLoop]).then(() => undefined)
+    const id = crypto.randomUUID()
+    const promise = Promise.allSettled([closing, pendingConnectionStart, connectionLoop])
+      .then(() => undefined)
+      .finally(() => {
+        this.connectionCloses.delete(id)
+      })
+    this.connectionCloses.set(id, { sessionId, promise })
+    this.closingEntries.set(entry, promise)
+    return promise
   }
 
   /**
@@ -1073,7 +1096,13 @@ export class AgentConnectionManager extends BaseService {
   /** Hold connection-local writes during backup/restore. */
   pause(reason?: string): Disposable {
     const token = Symbol(reason ?? 'agent-session-runtime-pause')
+    const firstHold = this.pauseHolds.size === 0
     this.pauseHolds.add(token)
+    if (firstHold) {
+      for (const sessionId of [...this.entries.keys()]) {
+        if (!this.isSessionBusy(sessionId)) void this.closeSession(sessionId)
+      }
+    }
     logger.info('AgentConnectionManager paused', { reason: reason ?? null, holds: this.pauseHolds.size })
     return {
       dispose: () => {
@@ -1102,10 +1131,26 @@ export class AgentConnectionManager extends BaseService {
     const seen = new WeakSet<Promise<unknown>>()
     const pending = new Map<Promise<unknown>, string>()
     const collect = (): void => {
-      for (const [flush, sessionId] of this.inFlightBackgroundFlowFlushes) {
+      for (const [sessionId, operation] of this.connectionStarts) {
+        const promise = operation.promise
+        if (seen.has(promise)) continue
+        seen.add(promise)
+        pending.set(promise, `connection-start:${sessionId}:${operation.id}`)
+        const remove = () => pending.delete(promise)
+        promise.then(remove, remove)
+      }
+      for (const [operationId, operation] of this.connectionCloses) {
+        const promise = operation.promise
+        if (seen.has(promise)) continue
+        seen.add(promise)
+        pending.set(promise, `connection-close:${operation.sessionId}:${operationId}`)
+        const remove = () => pending.delete(promise)
+        promise.then(remove, remove)
+      }
+      for (const [flush, operationId] of this.inFlightBackgroundFlowFlushes) {
         if (seen.has(flush)) continue
         seen.add(flush)
-        pending.set(flush, sessionId)
+        pending.set(flush, `background-flow:${operationId}`)
         const remove = () => pending.delete(flush)
         flush.then(remove, remove)
       }
@@ -1712,6 +1757,7 @@ export class AgentConnectionManager extends BaseService {
       status: 'idle'
     })
     this.refreshContextUsage(entry)
+    this.closeIdleEntryWhilePaused(entry)
   }
 
   private handleCompactionError(entry: AgentConnectionEntry, error: string): void {
@@ -1747,6 +1793,7 @@ export class AgentConnectionManager extends BaseService {
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.conversation.id), {
       status: 'idle'
     })
+    this.closeIdleEntryWhilePaused(entry)
   }
 
   private refreshContextUsage(entry: AgentConnectionEntry, connection = this.currentConnection(entry)): void {
@@ -1866,7 +1913,9 @@ export class AgentConnectionManager extends BaseService {
       this.clearIdleTimer(entry)
     } else {
       void this.finishBackgroundFlows(entry)
-      if (!this.isSessionBusy(entry.conversation.id)) this.refreshIdleTimer(entry)
+      if (!this.closeIdleEntryWhilePaused(entry) && !this.isSessionBusy(entry.conversation.id)) {
+        this.refreshIdleTimer(entry)
+      }
     }
   }
 
@@ -2074,7 +2123,7 @@ export class AgentConnectionManager extends BaseService {
         if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
       })
     entry.backgroundFlowFlush = flush
-    this.inFlightBackgroundFlowFlushes.set(flush, entry.conversation.id)
+    this.inFlightBackgroundFlowFlushes.set(flush, `${entry.conversation.id}:${crypto.randomUUID()}`)
     void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
     return flush
   }
@@ -2542,7 +2591,10 @@ export class AgentConnectionManager extends BaseService {
   }
 
   private closeAll(): Promise<void> {
-    const closings = [...this.entries.keys()].map((sessionId) => this.closeSession(sessionId))
+    const closings = [
+      ...this.connectionCloses.values().map(({ promise }) => promise),
+      ...[...this.entries.keys()].map((sessionId) => this.closeSession(sessionId))
+    ]
     return Promise.allSettled(closings).then(() => undefined)
   }
 
@@ -2636,6 +2688,12 @@ export class AgentConnectionManager extends BaseService {
     if (!entry.backgroundActivityId) return
     application.get('ConversationRuntimeService').closeAgentActivity(entry.conversation.id, entry.backgroundActivityId)
     entry.backgroundActivityId = undefined
+  }
+
+  private closeIdleEntryWhilePaused(entry: AgentConnectionEntry): boolean {
+    if (!this.isWriteQuiesced || this.isSessionBusy(entry.conversation.id)) return false
+    void this.closeSession(entry.conversation.id)
+    return true
   }
 }
 

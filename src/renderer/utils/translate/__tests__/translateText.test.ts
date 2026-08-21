@@ -1,3 +1,4 @@
+import { ConversationStreamTerminalStatus } from '@shared/ai/conversation'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,7 +56,7 @@ interface MockPromptApi {
 
 interface MockListeners {
   chunk: Array<(data: { streamId: string; chunk: unknown }) => void>
-  done: Array<(data: { streamId: string }) => void>
+  done: Array<(data: { streamId: string; status: ConversationStreamTerminalStatus }) => void>
   error: Array<(data: { streamId: string; error?: { name?: string; message?: string } }) => void>
 }
 
@@ -76,7 +77,7 @@ function createMocks(): {
         if (i >= 0) listeners.chunk.splice(i, 1)
       }
     }),
-    onDone: vi.fn((cb: (data: { streamId: string }) => void) => {
+    onDone: vi.fn((cb: (data: { streamId: string; status: ConversationStreamTerminalStatus }) => void) => {
       listeners.done.push(cb)
       return () => {
         const i = listeners.done.indexOf(cb)
@@ -133,8 +134,12 @@ function emitChunk(listeners: MockListeners, delta: string, streamId: string) {
   }
 }
 
-function emitDone(listeners: MockListeners, streamId: string) {
-  for (const cb of [...listeners.done]) cb({ streamId })
+function emitDone(
+  listeners: MockListeners,
+  streamId: string,
+  status: ConversationStreamTerminalStatus = ConversationStreamTerminalStatus.Done
+) {
+  for (const cb of [...listeners.done]) cb({ streamId, status })
 }
 
 function emitError(listeners: MockListeners, error: { name?: string; message: string }, streamId: string) {
@@ -287,6 +292,18 @@ describe('translateText (main-driven streaming)', () => {
       if (delta !== undefined) emitChunk(mockListeners, delta, streamId)
       emitDone(mockListeners, streamId)
       await expect(promise).rejects.toThrow('t(translate.error.empty)')
+    })
+  })
+
+  describe('paused output', () => {
+    it('rejects with AbortError instead of classifying partial output as an empty translation', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockRequest)
+      emitDone(mockListeners, lastStreamId(mockRequest), ConversationStreamTerminalStatus.Paused)
+
+      const error = await promise.catch((reason) => reason)
+      expect(error).toMatchObject({ name: 'AbortError' })
+      expect((error as DOMException).message).not.toBe('t(translate.error.empty)')
     })
   })
 

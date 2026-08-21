@@ -261,8 +261,8 @@ export class ConversationRuntime {
     this.persistence.retryBlocked()
   }
 
-  inFlightPersistenceRuns(): readonly Promise<void>[] {
-    return this.persistence.inFlightRuns()
+  inFlightPersistenceOperations(): ReadonlyArray<{ id: ConversationEffectId; run: Promise<void> }> {
+    return this.persistence.inFlightOperations()
   }
 
   forgetIfQuiescent(ref: ConversationRef, turnId: ConversationTurnId): boolean {
