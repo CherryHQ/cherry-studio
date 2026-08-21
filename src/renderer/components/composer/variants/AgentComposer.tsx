@@ -1146,7 +1146,7 @@ const AgentComposerInner = ({
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
       rootSearchItems: skillItems,
-      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      action: ({ parentPanel, queryAnchor, quickPanel }) => {
         void refreshAvailableSkills().catch((error) => {
           logger.warn('Failed to refresh available skills when opening the skills panel', { error })
         })
@@ -1156,7 +1156,8 @@ const AgentComposerInner = ({
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
           queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          triggerInfo: { type: 'button' },
+          trackInputQuery: true
         })
       }
     }

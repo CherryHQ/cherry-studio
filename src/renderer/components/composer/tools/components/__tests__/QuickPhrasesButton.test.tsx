@@ -148,7 +148,8 @@ describe('QuickPhrasesToolRuntime', () => {
         parentPanel,
         queryAnchor: 0,
         symbol: 'quick-phrases',
-        triggerInfo
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true
       })
     )
   })
