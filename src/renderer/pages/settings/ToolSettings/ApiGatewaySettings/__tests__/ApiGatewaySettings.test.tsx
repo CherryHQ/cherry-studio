@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,35 +7,40 @@ import ApiGatewaySettings from '../ApiGatewaySettings'
 
 const useApiGatewayMock = vi.fn()
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ComponentProps<'button'> & { loading?: boolean }) => {
-    const { loading, ...buttonProps } = props
-    return (
-      <button type="button" data-loading={loading || undefined} {...buttonProps}>
-        {children}
-      </button>
-    )
-  },
-  IndicatorLight: () => <span />,
-  Input: (props: ComponentProps<'input'>) => <input {...props} />,
-  InputGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  InputGroupAddon: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  InputGroupButton: ({
-    asChild,
-    children,
-    type = 'button',
-    ...props
-  }: ComponentProps<'button'> & { asChild?: boolean }) =>
-    asChild ? (
-      children
-    ) : (
-      <button type={type} {...props}>
-        {children}
-      </button>
-    ),
-  InputGroupInput: (props: ComponentProps<'input'>) => <input {...props} />,
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+
+  return {
+    ...actual,
+    Button: ({ children, ...props }: ComponentProps<'button'> & { loading?: boolean }) => {
+      const { loading, ...buttonProps } = props
+      return (
+        <button type="button" data-loading={loading || undefined} {...buttonProps}>
+          {children}
+        </button>
+      )
+    },
+    IndicatorLight: () => <span />,
+    Input: (props: ComponentProps<'input'>) => <input {...props} />,
+    InputGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    InputGroupAddon: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    InputGroupButton: ({
+      asChild,
+      children,
+      type = 'button',
+      ...props
+    }: ComponentProps<'button'> & { asChild?: boolean }) =>
+      asChild ? (
+        children
+      ) : (
+        <button type={type} {...props}>
+          {children}
+        </button>
+      ),
+    InputGroupInput: (props: ComponentProps<'input'>) => <input {...props} />,
+    Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  }
+})
 
 vi.mock('@renderer/components/CopyButton', () => ({
   default: ({

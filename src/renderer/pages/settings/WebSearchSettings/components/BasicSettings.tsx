@@ -1,4 +1,4 @@
-import { Button, InfoTooltip, Input, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, InputNumber, Tooltip } from '@cherrystudio/ui'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import {
   SettingDivider,
@@ -28,16 +28,15 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
-  const [draftMaxResultsInput, setDraftMaxResultsInput] = useState(String(maxResults))
+  const [draftMaxResults, setDraftMaxResults] = useState<number | null>(maxResults)
   const [maxResultsBaseline, setMaxResultsBaseline] = useState(maxResults)
-  const maxResultsDirty = draftMaxResultsInput !== String(maxResultsBaseline)
-  const isMaxResultsDefault =
-    maxResultsBaseline === DEFAULT_MAX_RESULTS && draftMaxResultsInput === String(DEFAULT_MAX_RESULTS)
+  const maxResultsDirty = draftMaxResults !== maxResultsBaseline
+  const isMaxResultsDefault = maxResultsBaseline === DEFAULT_MAX_RESULTS && draftMaxResults === DEFAULT_MAX_RESULTS
   const persist = useWebSearchPersist()
 
   useEffect(() => {
     if (!maxResultsDirty) {
-      setDraftMaxResultsInput(String(maxResults))
+      setDraftMaxResults(maxResults)
     }
     setMaxResultsBaseline(maxResults)
   }, [maxResults, maxResultsDirty])
@@ -47,12 +46,11 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
       return
     }
 
-    const parsedValue = Number(draftMaxResultsInput)
-    const nextMaxResults = Number.isFinite(parsedValue) ? Math.min(100, Math.max(1, Math.trunc(parsedValue))) : 1
+    const nextMaxResults = draftMaxResults === null ? 1 : Math.min(100, Math.max(1, Math.trunc(draftMaxResults)))
 
     void persist(() => setMaxResults(nextMaxResults), 'Failed to save web search max results').then((result) => {
       if (result.ok) {
-        setDraftMaxResultsInput(String(nextMaxResults))
+        setDraftMaxResults(nextMaxResults)
         setMaxResultsBaseline(nextMaxResults)
       }
     })
@@ -61,7 +59,7 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
   const resetMaxResults = () => {
     void persist(() => setMaxResults(DEFAULT_MAX_RESULTS), 'Failed to reset web search max results').then((result) => {
       if (result.ok) {
-        setDraftMaxResultsInput(String(DEFAULT_MAX_RESULTS))
+        setDraftMaxResults(DEFAULT_MAX_RESULTS)
         setMaxResultsBaseline(DEFAULT_MAX_RESULTS)
       }
     })
@@ -102,21 +100,15 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
                 </Button>
               </Tooltip>
             )}
-            <Input
+            <InputNumber
               aria-label={t('settings.tool.websearch.search_max_result.label')}
-              type="number"
               min={1}
               max={100}
               step={1}
-              value={draftMaxResultsInput}
+              value={draftMaxResults}
               className="h-8 w-20 text-center text-sm"
-              onChange={(e) => setDraftMaxResultsInput(e.target.value)}
+              onChange={setDraftMaxResults}
               onBlur={commitMaxResultsDraft}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.currentTarget.blur()
-                }
-              }}
             />
           </div>
         </SettingRow>

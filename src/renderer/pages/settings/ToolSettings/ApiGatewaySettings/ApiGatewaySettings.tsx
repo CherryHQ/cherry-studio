@@ -1,11 +1,11 @@
 import {
   Button,
   IndicatorLight,
-  Input,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
+  InputNumber,
   Tooltip
 } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
@@ -78,11 +78,8 @@ const ApiGatewaySettings: FC = () => {
     toast.success(t('apiGateway.messages.apiKeyRegenerated'))
   }
 
-  const handlePortChange = (value: string) => {
-    const port = Number.parseInt(value, 10) || API_SERVER_DEFAULTS.PORT
-    if (port >= 1000 && port <= 65535) {
-      void setApiGatewayConfig({ port })
-    }
+  const handlePortChange = (value: number | null) => {
+    void setApiGatewayConfig({ port: value ?? API_SERVER_DEFAULTS.PORT })
   }
 
   const openApiDocs = () => {
@@ -184,14 +181,15 @@ const ApiGatewaySettings: FC = () => {
               </Field>
               <Field>
                 <SettingRowTitle>{t('apiGateway.fields.port.label')}</SettingRowTitle>
-                <Input
+                <InputNumber
                   className="mt-2 w-full font-mono text-xs tabular-nums"
                   aria-label={t('apiGateway.fields.port.label')}
-                  type="number"
                   min={1000}
                   max={65535}
+                  step={1}
+                  changeOnBlur
                   value={serverPort}
-                  onChange={(event) => handlePortChange(event.target.value)}
+                  onChange={handlePortChange}
                 />
               </Field>
             </ConnectionFields>
