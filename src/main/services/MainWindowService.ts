@@ -634,9 +634,14 @@ export class MainWindowService extends BaseService {
    *   内容总是落到主窗口；其余情况（主窗口、selection toolbar 等）保持发往主窗口。
    */
   public quoteToMainWindow(text: string, sourceWebContents?: Electron.WebContents): void {
+    // Track the intended landing spot so a failure log names the right window:
+    // quotes either go to a detached SubWindow (identified by id) or fall back
+    // to the main window — debugging them requires telling the two paths apart.
+    let quoteTarget = 'main window'
     try {
       const sourceWindow = this.resolveQuoteSourceWindow(sourceWebContents)
-      if (sourceWindow && !sourceWindow.isDestroyed()) {
+      if (sourceWindow) {
+        quoteTarget = `sub window ${sourceWindow.id}`
         // SubWindow already has a composer mounted with the same App_QuoteToMain
         // listener, so sending here inserts the quote into the detached window.
         sourceWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
@@ -652,11 +657,15 @@ export class MainWindowService extends BaseService {
         }, 100)
       }
     } catch (error) {
-      logger.error('Failed to quote to main window:', error as Error)
+      logger.error(`Failed to quote to ${quoteTarget}:`, error as Error)
     }
   }
 
-  /** Resolve the BrowserWindow that hosts a quote IPC sender, when it is a SubWindow. */
+  /**
+   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a detached
+   * SubWindow. Returns null otherwise — including when that window is already
+   * destroyed — so callers need no further liveness check on the result.
+   */
   private resolveQuoteSourceWindow(sourceWebContents?: Electron.WebContents): BrowserWindow | null {
     if (!sourceWebContents) return null
     const windowManager = application.get('WindowManager')
