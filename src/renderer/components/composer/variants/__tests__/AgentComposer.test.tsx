@@ -293,9 +293,9 @@ vi.mock('@data/CacheService', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
-  default: ({ workdir, menuTrigger }: { workdir: string; menuTrigger?: ReactNode }) => (
-    <div data-testid="workspace-open-button" data-workdir={workdir}>
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: ({ targetPath, menuTrigger }: { targetPath: string; menuTrigger?: ReactNode }) => (
+    <div data-testid="workspace-open-button" data-workdir={targetPath}>
       {menuTrigger}
     </div>
   )
@@ -1259,7 +1259,7 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeFalsy()
   })
 
-  it('restores the draft and leaves the queue empty when a steer send fails while streaming', async () => {
+  it('keeps the draft and leaves the queue empty when a steer send fails while streaming', async () => {
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     render(
       <AgentComposer
@@ -1271,6 +1271,11 @@ describe('AgentComposer', () => {
       />
     )
 
+    act(() => {
+      mocks.surfaceProps?.onTextChange('hello')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('hello'))
+
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
     })
@@ -1278,8 +1283,6 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(getQueueDock()).toBeFalsy()
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
-    // The failed steer send must not wipe the draft: the composer keeps the pre-send text
-    // and the persisted draft cache is rewritten with the pre-send content.
     expect(mocks.surfaceProps?.text).toBe('hello')
     expect(vi.mocked(cacheService.set)).toHaveBeenLastCalledWith(
       'agent.composer_draft.session_session-1',
@@ -4743,7 +4746,7 @@ describe('AgentComposer', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
-  it('restores the current draft, files, and skill tokens when sending a new agent message fails', async () => {
+  it('keeps the current draft, files, and skill tokens untouched when Main blocks a new agent message', async () => {
     mocks.availableSkills = [pdfSkill]
     mocks.draftText = 'draft message'
     const skillToken = {
@@ -4761,7 +4764,8 @@ describe('AgentComposer', () => {
     } as ComposerSerializedToken
     mocks.draftTokens = [skillToken, fileToken]
     mocks.files = [file]
-    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+    const pendingSend = createDeferred<boolean>()
+    mocks.sendMessage.mockReturnValueOnce(pendingSend.promise)
 
     render(
       <AgentComposer
@@ -4774,24 +4778,32 @@ describe('AgentComposer', () => {
     )
 
     act(() => {
+      mocks.surfaceProps?.onTextChange('draft message')
       mocks.surfaceProps?.onTokensChange(mocks.draftTokens ?? [])
     })
 
     await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('draft message')
       expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken, fileToken])
     })
 
     fireEvent.click(screen.getByText('send'))
 
-    await waitFor(() => {
-      expect(mocks.surfaceProps?.text).toBe('draft message')
-    })
-
-    expect(mocks.sendMessage).toHaveBeenCalled()
-    expect(mocks.setFiles).toHaveBeenCalledWith([])
-    expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
     expect(mocks.surfaceProps?.text).toBe('draft message')
     expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken, fileToken])
+    expect(mocks.surfaceProps?.editable).toBe(false)
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.setFiles).not.toHaveBeenCalledWith([])
+
+    fireEvent.click(screen.getByText('send'))
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      pendingSend.resolve(false)
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editable).toBe(true))
     expect(cacheService.set).toHaveBeenLastCalledWith(
       'agent.composer_draft.session_session-1',
       {
@@ -4804,9 +4816,8 @@ describe('AgentComposer', () => {
       },
       86400000
     )
-    expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
     expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
-    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {

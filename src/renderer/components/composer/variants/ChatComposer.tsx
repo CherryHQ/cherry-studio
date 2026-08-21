@@ -163,7 +163,7 @@ export interface ChatComposerProps {
       fastMode?: boolean
       chatTarget?: ComposerChatTarget
     }
-  ) => void | Promise<void>
+  ) => boolean | void | Promise<boolean | void>
   chatTarget?: ComposerChatTarget
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
@@ -556,6 +556,8 @@ const ChatComposerInner = ({
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
+  const [isDirectSending, setIsDirectSending] = useState(false)
+  const directSendInFlightRef = useRef(false)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -1415,7 +1417,7 @@ const ChatComposerInner = ({
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildFilePartsForAttachments(attachments)
-        await onSend(payload.text, {
+        const sent = await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
@@ -1423,16 +1425,18 @@ const ChatComposerInner = ({
           ...(payload.fastMode ? { fastMode: true } : {}),
           chatTarget: payload.chatTarget
         })
+        if (sent === false) return false
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         return true
       } catch (error) {
         logger.warn('send failed', { error })
+        toast.error(t('chat.input.send_failed'))
         return false
       } finally {
         setIsSending(false)
       }
     },
-    [onSend, saveHistory]
+    [onSend, saveHistory, t]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1462,8 +1466,7 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
     markSeen,
-    onDrain: sendQueuedPayload,
-    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
+    onDrain: sendQueuedPayload
   })
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
@@ -1641,6 +1644,8 @@ const ChatComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
+      if (directSendInFlightRef.current) return
+
       if (staleEditingMessage) {
         restoreSavedDraft()
         stopEditing()
@@ -1683,25 +1688,18 @@ const ChatComposerInner = ({
         return
       }
 
-      if (selectedModelForMissingAssistantDefault) {
-        await handleModelSelect(selectedModelForMissingAssistantDefault)
-      }
+      directSendInFlightRef.current = true
+      setIsDirectSending(true)
+      try {
+        if (selectedModelForMissingAssistantDefault) {
+          await handleModelSelect(selectedModelForMissingAssistantDefault)
+        }
 
-      // Optimistically clear the draft so the cleared input doubles as the re-entry
-      // guard, but snapshot it first: a pre-stream failure never reaches the streaming
-      // UI, so restore the draft (text + files + knowledge bases; tokens re-derive) and
-      // surface the failure instead of silently discarding what the user typed.
-      const previousText = text
-      const previousFiles = files
-      const previousKnowledgeBases = selectedKnowledgeBases
-
-      clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload)
-      if (!sent) {
-        setText(previousText)
-        setFiles(previousFiles)
-        setSelectedKnowledgeBases(previousKnowledgeBases)
-        toast.error(t('chat.input.send_failed'))
+        const sent = await sendQueuedPayload(payload)
+        if (sent) clearCurrentDraft()
+      } finally {
+        directSendInFlightRef.current = false
+        setIsDirectSending(false)
       }
     },
     [
@@ -1711,27 +1709,21 @@ const ChatComposerInner = ({
       commitEditedMessage,
       editingMessageForCurrentTopic,
       enqueueFollowup,
-      files,
       handleModelSelect,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
-      selectedKnowledgeBases,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
-      setFiles,
-      setSelectedKnowledgeBases,
-      setText,
       staleEditingMessage,
       stopEditing,
       restoreSavedDraft,
-      t,
-      text
+      t
     ]
   )
 
@@ -1840,6 +1832,7 @@ const ChatComposerInner = ({
             (text.trim().length === 0 && files.length === 0) ||
             (loading && !canSteer) ||
             isSavingEdit ||
+            isDirectSending ||
             sendDisabled ||
             searching ||
             runtimeModelPending ||
@@ -1849,7 +1842,7 @@ const ChatComposerInner = ({
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            isSavingEdit || sendDisabled || hasPendingReference
+            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }
@@ -1882,7 +1875,6 @@ const ChatComposerInner = ({
                   // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                   const sent = await sendQueuedPayload(item.payload)
                   if (sent) removeFollowup(id)
-                  else toast.error(t('chat.input.send_failed'))
                 }}
                 onEdit={(id) => {
                   const item = queuedFollowups.find((entry) => entry.id === id)
@@ -1904,7 +1896,7 @@ const ChatComposerInner = ({
           quickPanelEnabled={config.enableQuickPanel ?? true}
           enableDragDrop={config.enableDragDrop ?? true}
           enableSpellCheck={enableSpellCheck}
-          editable={!searching}
+          editable={!searching && !isDirectSending}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}

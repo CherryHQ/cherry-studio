@@ -28,6 +28,7 @@ import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
+import { isRetiredProvider } from '@main/data/retiredProviders'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
@@ -59,7 +60,6 @@ import { recoverV1ProviderLogoIconKey } from './utils/providerLogoCompat'
 const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
-const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
 /** Defaults materialized for non-system providers by final-v1 migrations 127, 129, and 132. */
 const V1_CUSTOM_PROVIDER_DIALECT_BASELINE = {
   streamOptions: true,
@@ -464,7 +464,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           skippedManagedProviders++
           continue
         }
-        if (RETIRED_PROVIDER_IDS.has(provider.id)) {
+        if (isRetiredProvider(provider.id, provider.presetProviderId)) {
           skippedRetiredProviders++
           continue
         }

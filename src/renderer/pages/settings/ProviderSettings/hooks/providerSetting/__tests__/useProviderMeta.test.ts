@@ -122,14 +122,14 @@ describe('useProviderMeta', () => {
   it('keeps api options hidden for system OpenAI-compatible providers without visible settings', () => {
     useProviderMock.mockReturnValue({
       provider: {
-        id: 'github',
-        presetProviderId: 'github',
-        name: 'GitHub Models',
+        id: 'cerebras',
+        presetProviderId: 'cerebras',
+        name: 'Cerebras AI',
         defaultChatEndpoint: 'openai-chat-completions',
         endpointConfigs: {
           'openai-chat-completions': {
-            baseUrl: 'https://models.github.ai/inference',
-            adapterFamily: 'openai-compatible'
+            baseUrl: 'https://api.cerebras.ai/v1',
+            adapterFamily: 'cerebras'
           }
         },
         authType: 'api-key',
@@ -140,7 +140,7 @@ describe('useProviderMeta', () => {
       }
     })
 
-    const { result } = renderHook(() => useProviderMeta('github'))
+    const { result } = renderHook(() => useProviderMeta('cerebras'))
 
     expect(result.current.showApiOptionsButton).toBe(false)
   })

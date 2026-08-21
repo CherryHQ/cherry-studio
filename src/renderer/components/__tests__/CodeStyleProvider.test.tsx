@@ -1,6 +1,6 @@
 import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
 import { getHighlighter, getShiki, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -49,7 +49,8 @@ vi.mock('@renderer/utils/shiki', () => ({
 }))
 
 const Probe = () => {
-  const { highlightCode, loadThemeNames, themeNames, activeCmTheme, activeShikiTheme } = useCodeStyle()
+  const { highlightCode, activeCmTheme, activeShikiTheme } = useCodeStyle()
+  const { loadThemeNames, themeNames } = useCodeStyleThemeCatalog()
   return (
     <>
       <span data-testid="has-dracula">{String(themeNames.includes('dracula'))}</span>

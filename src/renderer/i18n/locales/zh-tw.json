@@ -3504,6 +3504,12 @@
         "title": "隱藏"
       }
     },
+    "split": {
+      "already_open": "已顯示在另一側",
+      "choose": "選擇要並排顯示的小程式",
+      "close": "關閉分割檢視",
+      "open": "分割檢視"
+    },
     "title": "小程式",
     "unpin_failed": "取消固定小程式失敗",
     "update_partial_failure": "{{total}} 個更新中有 {{failed}} 個失敗"
@@ -3615,6 +3621,7 @@
     }
   },
   "navigate": {
+    "model_settings": "前往模型設定",
     "provider_settings": "前往供應商設定頁面"
   },
   "notes": {
@@ -4534,6 +4541,10 @@
         "custom": "自訂功能",
         "delete_confirm": "確定要刪除這個自訂功能嗎？",
         "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "用於「解釋」、「總結」、「潤飾」及使用預設模型的自訂功能。",
+          "translate_description": "用於產生翻譯結果；自動語言偵測也可能使用快速模型。"
+        },
         "reset": {
           "button": "重設",
           "confirm": "確定要重設為預設功能嗎？自訂功能不會被刪除。",
@@ -6221,8 +6232,9 @@
       "provider_key_confirm_title": "為 {{provider}} 新增 API 金鑰",
       "provider_name": "供應商名稱",
       "quick_assistant_default_tag": "預設",
-      "quick_assistant_model": "快速助理模型",
+      "quick_assistant_response_settings": "回應設定",
       "quick_assistant_selection": "選擇助理",
+      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "用於對話命名、搜尋關鍵字提煉等簡單任務的模型",
         "label": "快速模型",
@@ -7067,9 +7079,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "圖表",
-        "clearDate": "清除日期篩選",
-        "drilldownTitle": "{{date}} 明細",
         "entries": "請求",
+        "granularity": "粒度",
         "groupBy": "群組依據",
         "loadMore": "載入更多",
         "loading": "載入中...",
@@ -7079,7 +7090,6 @@
         "noEntries": "尚無記錄",
         "noEntriesDescription": "請嘗試較長的時間範圍或其他供應商。",
         "rollup": "彙總",
-        "selectedDate": "選定日期：{{date}}",
         "shareLabel": "佔比",
         "title": "探索",
         "top": "Top",
@@ -7093,7 +7103,6 @@
         "source": "助理 / Agent"
       },
       "heatmap": {
-        "ariaDate": "{{date}} 的用量",
         "title": "每日活動"
       },
       "metric": {

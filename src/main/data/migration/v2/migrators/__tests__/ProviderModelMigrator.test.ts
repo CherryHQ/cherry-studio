@@ -162,6 +162,24 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings?.some((w) => w.includes('managed CherryAI'))).toBe(true)
     })
 
+    it('skips providers whose upstream services have retired', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('github', [{ id: 'openai/gpt-4o' }]),
+            { ...makeProvider('github-copy'), presetProviderId: 'github' },
+            makeProvider('openai')
+          ]
+        }
+      })
+
+      const result = await migrator.prepare(migrationContext)
+
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(1)
+      expect(result.warnings).toContain('Skipped 2 retired provider(s)')
+    })
+
     it('returns an error ID when preparation fails', async () => {
       const cause = new Error('redux state unreadable')
       const migrationContext = {

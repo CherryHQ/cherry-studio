@@ -42,9 +42,12 @@ import { resolveEndpointDialect } from '@shared/utils/provider'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { isRetiredProvider } from '../retiredProviders'
+
 const logger = loggerService.withContext('DataApi:ProviderService')
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 /**
  * Internal update input. `logo` is NOT part of the PATCH DTO (logo edits go
@@ -100,6 +103,15 @@ function assertManagedCherryAiProviderMutationAllowed(providerId: string, operat
   }
 
   throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI provider cannot be modified')
+}
+
+function assertProviderAvailable<T extends ProviderIdentity>(
+  row: T | null | undefined,
+  providerId: string
+): asserts row is T {
+  if (!row || isRetiredProvider(row.providerId, row.presetProviderId)) {
+    throw DataApiErrorFactory.notFound('Provider', providerId)
+  }
 }
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
@@ -309,7 +321,7 @@ class ProviderService {
             .all()
         : db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey)).all()
 
-    return rows.map(rowToRuntimeProvider)
+    return rows.filter((row) => !isRetiredProvider(row.providerId, row.presetProviderId)).map(rowToRuntimeProvider)
   }
 
   /**
@@ -319,9 +331,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+    assertProviderAvailable(row, providerId)
 
     return rowToRuntimeProvider(row)
   }
@@ -330,6 +340,9 @@ class ProviderService {
    * Create a new provider
    */
   create(dto: CreateProviderDto): Provider {
+    if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
+      throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
+    }
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
     const endpointConfigs = projectEndpointConfigOverrides(
@@ -396,6 +409,7 @@ class ProviderService {
       // into the row and break the "row stores only overrides" contract.
       const [current] = tx
         .select({
+          providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
           endpointConfigs: userProviderTable.endpointConfigs,
           isEnabled: userProviderTable.isEnabled,
@@ -406,9 +420,7 @@ class ProviderService {
         .limit(1)
         .all()
 
-      if (!current) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(current, providerId)
 
       const updates: Partial<InsertUserProviderRow> = {}
 
@@ -513,9 +525,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+    assertProviderAvailable(row, providerId)
 
     const allKeys = row.apiKeys ?? []
     if (override !== undefined) {
@@ -570,9 +580,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+    assertProviderAvailable(row, providerId)
 
     const apiKeys = row.apiKeys ?? []
     return options.enabled ? apiKeys.filter((k) => k.isEnabled) : apiKeys
@@ -585,9 +593,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+    assertProviderAvailable(row, providerId)
 
     return row.authConfig ?? null
   }
@@ -608,9 +614,7 @@ class ProviderService {
         .limit(1)
         .all()
 
-      if (!row) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
 
@@ -653,9 +657,21 @@ class ProviderService {
   replaceApiKeys(providerId: string, apiKeys: ApiKeyEntry[]): Provider {
     assertManagedCherryAiProviderMutationAllowed(providerId, `replace API keys for provider ${providerId}`)
 
-    const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
     const db = application.get('DbService').getDb()
     const provider = db.transaction((tx) => {
+      const [current] = tx
+        .select({
+          providerId: userProviderTable.providerId,
+          presetProviderId: userProviderTable.presetProviderId
+        })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
+        .all()
+
+      assertProviderAvailable(current, providerId)
+
+      const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
       const [row] = tx
         .update(userProviderTable)
         .set({ apiKeys: normalizedApiKeys })
@@ -670,7 +686,7 @@ class ProviderService {
       return rowToRuntimeProvider(row)
     })
 
-    logger.info('Replaced provider API keys', { providerId, count: normalizedApiKeys.length })
+    logger.info('Replaced provider API keys', { providerId, count: apiKeys.length })
 
     return provider
   }
@@ -698,9 +714,7 @@ class ProviderService {
         .limit(1)
         .all()
 
-      if (!row) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
       const keyIndex = existingKeys.findIndex((entry) => entry.id === keyId)
@@ -770,9 +784,7 @@ class ProviderService {
         .limit(1)
         .all()
 
-      if (!row) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
       const updatedKeys = existingKeys.filter((entry) => entry.id !== keyId)
@@ -803,15 +815,16 @@ class ProviderService {
   delete(providerId: string): void {
     const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
-        .select({ presetProviderId: userProviderTable.presetProviderId })
+        .select({
+          providerId: userProviderTable.providerId,
+          presetProviderId: userProviderTable.presetProviderId
+        })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
         .all()
 
-      if (!provider) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(provider, providerId)
 
       // Block deletion of canonical preset rows. `presetProviderId === providerId`
       // covers presets that group under themselves; the registry check also

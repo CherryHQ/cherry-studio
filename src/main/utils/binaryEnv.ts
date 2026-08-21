@@ -78,6 +78,11 @@ export function getBinaryExecutionEnv(): Record<string, string> {
     MISE_CACHE_DIR: path.join(dataDir, 'cache'),
     MISE_STATE_DIR: path.join(dataDir, 'state'),
     MISE_SHIMS_DIR: getBinaryShimsDir(),
+    // rustup owns rust's binaries, so they live outside MISE_DATA_DIR. Both the
+    // install subprocess and every launched tool must agree on where, or the
+    // rustup proxies re-download the whole toolchain into the user's real home.
+    MISE_RUSTUP_HOME: application.getPath('feature.binary.data.isolated.rustup'),
+    MISE_CARGO_HOME: application.getPath('feature.binary.data.isolated.cargo'),
     MISE_YES: '1',
     MISE_NO_ANALYTICS: '1',
     MISE_EXPERIMENTAL: '1'
