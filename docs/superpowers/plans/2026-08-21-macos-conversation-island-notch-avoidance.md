@@ -52,7 +52,8 @@ expect(resolveConversationIslandBounds(display, geometries, 320)).toEqual({
 运行：
 
 ```bash
-pnpm test src/main/services/conversationIsland/__tests__/macScreenGeometry.test.ts
+pnpm exec vitest run --silent --project main \
+  src/main/services/conversationIsland/__tests__/macScreenGeometry.test.ts
 ```
 
 预期：FAIL；合法 notch placement 缺少 `notchWidth: 120`，其余几何用例仍通过。
@@ -91,7 +92,8 @@ return {
 运行：
 
 ```bash
-pnpm test src/main/services/conversationIsland/__tests__/macScreenGeometry.test.ts
+pnpm exec vitest run --silent --project main \
+  src/main/services/conversationIsland/__tests__/macScreenGeometry.test.ts
 ```
 
 预期：PASS；全部 7 个现有/新增参数化用例通过。
@@ -142,7 +144,8 @@ it('forwards the measured physical notch width to initial and updated snapshots'
 运行：
 
 ```bash
-pnpm test src/main/services/conversationIsland/__tests__/ConversationIslandService.test.ts
+pnpm exec vitest run --silent --project main \
+  src/main/services/conversationIsland/__tests__/ConversationIslandService.test.ts
 ```
 
 预期：FAIL；`initData` 有 `presentation: 'notch'`，但没有 `notchWidth`。
@@ -222,7 +225,8 @@ private buildSnapshot(
 运行：
 
 ```bash
-pnpm test src/main/services/conversationIsland/__tests__/ConversationIslandService.test.ts
+pnpm exec vitest run --silent --project main \
+  src/main/services/conversationIsland/__tests__/ConversationIslandService.test.ts
 ```
 
 预期：PASS；现有生命周期、标题缓存、TTL 和显示器用例不变，新用例确认 `184` 原样转发。
@@ -295,7 +299,8 @@ it('keeps capsule styling for capsule snapshots and invalid notch widths', () =>
 运行：
 
 ```bash
-pnpm test src/renderer/windows/conversationIsland/__tests__/ConversationIsland.test.tsx
+pnpm exec vitest run --silent --project renderer \
+  src/renderer/windows/conversationIsland/__tests__/ConversationIsland.test.tsx
 ```
 
 预期：FAIL；当前连续 flex 行没有三翼 test id、中央宽度或 `bg-black`，缺宽度时仍使用 notch 圆角。
@@ -387,7 +392,8 @@ const stateIndicator = (
 运行：
 
 ```bash
-pnpm test src/renderer/windows/conversationIsland/__tests__/ConversationIsland.test.tsx
+pnpm exec vitest run --silent --project renderer \
+  src/renderer/windows/conversationIsland/__tests__/ConversationIsland.test.tsx
 ```
 
 预期：PASS；新增 2 个行为用例及现有渲染、导航、错误隔离用例全部通过。
@@ -412,9 +418,10 @@ git commit -S --signoff -m "feat(conversation-island): avoid physical notch occl
 运行：
 
 ```bash
-pnpm test \
+pnpm exec vitest run --silent --project main \
   src/main/services/conversationIsland/__tests__/macScreenGeometry.test.ts \
-  src/main/services/conversationIsland/__tests__/ConversationIslandService.test.ts \
+  src/main/services/conversationIsland/__tests__/ConversationIslandService.test.ts
+pnpm exec vitest run --silent --project renderer \
   src/renderer/windows/conversationIsland/__tests__/ConversationIsland.test.tsx
 ```
 
