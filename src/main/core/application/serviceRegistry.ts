@@ -3,10 +3,11 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
+import { AgentConnectionManager } from '@main/ai/agentSession/AgentConnectionManager'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
-import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
-import { ChannelManager } from '@main/ai/channels'
+import { ChannelDeliveryService, ChannelIngressService, ChannelManager } from '@main/ai/channels'
+import { ConversationRuntimeService, PromptStreamManager } from '@main/ai/conversation'
 import { EmbeddingInferenceService } from '@main/ai/inference/EmbeddingInferenceService'
 import { OcrInferenceService } from '@main/ai/inference/OcrInferenceService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
@@ -18,7 +19,6 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
-import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -135,14 +135,17 @@ export const services = {
   OpenClawService,
   PdfTranslationService,
   ClaudeCodeProcessManager,
-  AgentSessionRuntimeService,
+  AgentConnectionManager,
   AgentSessionDeliveryService,
   AgentJobsService,
   ChannelManager,
+  ChannelDeliveryService,
+  ConversationRuntimeService,
+  PromptStreamManager,
   AiService,
+  ChannelIngressService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
-  AiStreamManager,
   EmbeddingInferenceService,
   OcrInferenceService,
   KnowledgeService,

@@ -5,16 +5,12 @@ import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
-import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
+import { ConversationAdmissionError } from '@main/ai/conversation'
+import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type {
-  AiStreamOpenRequest,
-  AiToolResultResponse,
-  PersistedToolOutput,
-  PersistedToolOutputBlobRef
-} from '@shared/ai/transport'
+import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
+import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -27,7 +23,7 @@ const logger = loggerService.withContext('ipc/ai')
 
 /**
  * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
- * the streaming-chat ops delegate to `AiStreamManager`. Business logic, provider
+ * the streaming-chat ops delegate to `ConversationRuntimeService`. Business logic, provider
  * resolution, the image abort registry and the stream registry all stay in those
  * services — these handlers only translate the IPC call.
  *
@@ -56,7 +52,7 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
   } catch (error) {
-    if (error instanceof AiStreamAdmissionError) {
+    if (error instanceof ConversationAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
     }
     throw error
@@ -76,14 +72,15 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
 
 /** The persisted half of `ai.tool.get_result` — matches the same shape projection replaces. */
 async function findPersistedToolOutput(
-  topicId: string,
+  conversation: ConversationRef,
   messageId: string,
   toolCallId: string
 ): Promise<AiToolResultResponse> {
   try {
-    const parts = isAgentSessionTopic(topicId)
-      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
-      : messageService.getById(messageId).data.parts
+    const parts =
+      conversation.kind === ConversationKind.Agent
+        ? agentSessionMessageService.getSessionMessage(conversation.id, messageId).data.parts
+        : messageService.getById(messageId).data.parts
     for (const part of parts ?? []) {
       if (!isToolUIPart(part) || part.state !== 'output-available') continue
       if (part.toolCallId !== toolCallId) continue
@@ -93,7 +90,7 @@ async function findPersistedToolOutput(
       return { found: true, output: part.output }
     }
   } catch (e) {
-    logger.warn('ai.tool.get_result persisted lookup failed', { topicId, messageId, toolCallId, err: e })
+    logger.warn('ai.tool.get_result persisted lookup failed', { conversation, messageId, toolCallId, err: e })
   }
   return { found: false }
 }
@@ -170,35 +167,37 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.provider.model.check': (request) =>
     exposeAiError('ai.provider.model.check', () => application.get('AiService').checkModel(request)),
 
-  // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
+  // ── Conversation control and execution attachment. ──
   'ai.stream.open': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
-    const subscriber = new WebContentsListener(wc, request.topicId)
-    return exposeAiStreamAdmission(() =>
-      application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
-    )
+    const subscriber = new WebContentsListener(wc, request.conversation)
+    return exposeAiStreamAdmission(() => application.get('ConversationRuntimeService').dispatch(subscriber, request))
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.attach requires a managed window')
-    return application.get('AiStreamManager').attach(wc, request)
+    return application.get('ConversationRuntimeService').attach(wc, request.conversation)
   },
   'ai.stream.detach': async (request, { senderId }) => {
     // Best-effort: a gone window has no listener to remove, so a missing WebContents is a no-op.
     const wc = senderWebContents(senderId)
-    if (wc) application.get('AiStreamManager').detach(wc, request)
+    if (!wc) return
+    application.get('ConversationRuntimeService').detach(wc, request.conversation)
   },
-  'ai.stream.abort': async ({ topicId }) => {
-    application.get('AiStreamManager').abort(topicId, 'user-requested')
+  'ai.stream.abort': async ({ conversation }) => {
+    application.get('ConversationRuntimeService').stop(conversation, 'user-requested')
+  },
+  'ai.prompt.abort': async ({ streamId }) => {
+    application.get('PromptStreamManager').abort(streamId, 'user-requested')
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
-  'ai.tool.get_result': async ({ topicId, messageId, toolCallId }) => {
+  'ai.tool.get_result': async ({ conversation, messageId, toolCallId }) => {
     // Active stream first: it is the only source holding the value before the message persists.
-    const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
+    const live = application.get('ConversationRuntimeService').getDeferredToolOutput(conversation, toolCallId)
     if (live.found) return live
-    return findPersistedToolOutput(topicId, messageId, toolCallId)
+    return findPersistedToolOutput(conversation, messageId, toolCallId)
   },
   // The continuation dispatch streams to the caller window, so it needs that window's WebContents.
   'ai.tool.respond_approval': (payload, { senderId }) =>
@@ -219,10 +218,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // The per-session connection is shared across windows, so the runtime service aggregates leases
   // by (session × sender WebContents) and tears down only once no window holds the session.
   'ai.agent.session.prewarm': async ({ sessionId }, { senderId }) => {
-    application.get('AgentSessionRuntimeService').acquireWarmLease(sessionId, senderWebContents(senderId))
+    application.get('AgentConnectionManager').acquireWarmLease(sessionId, senderWebContents(senderId))
   },
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
-    application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
+    application.get('AgentConnectionManager').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
@@ -233,10 +232,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
-    application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
+    application.get('AgentConnectionManager').refreshContextUsageOnDemand(sessionId)
   },
   'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
-    application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
+    application.get('AgentConnectionManager').stopBackgroundTask(sessionId, taskId),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.task.create': ({ agentId, ...form }) =>

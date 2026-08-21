@@ -79,7 +79,7 @@ function googleStatusName(status: number): string {
 /**
  * Best-effort `{ status, message, type }` from any thrown value — a real `Error`,
  * an OpenAI / AI-SDK error, or a `SerializedError` plain object (carrying
- * `statusCode` / `message`, as produced by `AiStreamManager.onError` and thrown by
+ * `statusCode` / `message`, as produced by `PromptStreamManager` and thrown by
  * `processMessage`). Reads only status/message/type; the AI-SDK `APICallError`
  * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
  * are intentionally ignored so they never reach the client.

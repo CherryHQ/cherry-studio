@@ -2,10 +2,37 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
-import { ChannelManager, registerAdapterFactory } from '../ChannelManager'
+import { ChannelDeliveryService } from '../ChannelDeliveryService'
+import { ChannelDeliveryEvent, ChannelManager, registerAdapterFactory } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
+// Real delivery service: these tests exercise FIFO, dedupe, the bounded send and drain, so a
+// stub would assert nothing. Held indirectly because `vi.mock` factories are hoisted above
+// module-level initialization; it resolves adapters back through the manager under test.
+const holder = vi.hoisted(() => ({ manager: undefined as any, delivery: undefined as any }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    ChannelManager: {
+      resolveConnectedAdapter: (channelId: string) => holder.manager?.resolveConnectedAdapter(channelId)
+    },
+    ChannelDeliveryService: {
+      updateLive: (request: unknown) => holder.delivery.updateLive(request),
+      enqueueTerminal: (request: unknown) => holder.delivery.enqueueTerminal(request),
+      isActive: () => holder.delivery.isActive(),
+      open: () => holder.delivery.open(),
+      block: (channelId: string) => holder.delivery.block(channelId),
+      reopen: (channelId: string, connectionEpoch: number) => holder.delivery.reopen(channelId, connectionEpoch),
+      close: () => holder.delivery.close(),
+      drain: (channelIds?: ReadonlySet<string>) => holder.delivery.drain(channelIds)
+    }
+  } as never)
+})
+
 const channelManager = new ChannelManager()
+holder.manager = channelManager
+holder.delivery = new ChannelDeliveryService()
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -36,7 +63,7 @@ vi.mock('../ChannelMessageHandler', () => ({
 }))
 
 class MockAdapter extends ChannelAdapter {
-  connect = vi.fn().mockResolvedValue(undefined)
+  connect = vi.fn(async () => this.markConnected())
   disconnect = vi.fn().mockResolvedValue(undefined)
   sendMessage = vi.fn().mockResolvedValue(undefined)
   sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
@@ -51,6 +78,7 @@ class MockAdapter extends ChannelAdapter {
 
 // Track adapters created by the factory
 let createdAdapters: MockAdapter[] = []
+let nextConnectError: Error | undefined
 
 describe('ChannelManager', () => {
   beforeEach(async () => {
@@ -58,6 +86,7 @@ describe('ChannelManager', () => {
     await channelManager.stop()
     vi.clearAllMocks()
     createdAdapters = []
+    nextConnectError = undefined
     // Re-register the mock factory (the map persists across tests since we don't resetModules)
     registerAdapterFactory('telegram', (channel, agentId) => {
       const adapter = new MockAdapter({
@@ -66,6 +95,7 @@ describe('ChannelManager', () => {
         agentId,
         channelConfig: channel.config
       })
+      if (nextConnectError) adapter.connect.mockRejectedValue(nextConnectError)
       createdAdapters.push(adapter)
       return adapter
     })
@@ -117,6 +147,160 @@ describe('ChannelManager', () => {
 
     await channelManager.stop()
     createdAdapters.forEach((a) => expect(a.disconnect).toHaveBeenCalledTimes(1))
+  })
+
+  it('serializes terminal deliveries for the same channel chat', async () => {
+    // Requests are data now, so FIFO is observable where it matters: at the adapter's send.
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    const events: string[] = []
+    let releaseFirst!: () => void
+    createdAdapters[0].sendMessage.mockImplementation(async (_chatId: string, text: string) => {
+      if (text === 'first') {
+        events.push('first:start')
+        await new Promise<void>((resolve) => {
+          releaseFirst = () => {
+            events.push('first:end')
+            resolve()
+          }
+        })
+        return
+      }
+      events.push('second')
+    })
+
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-1',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'first'
+    })
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-2',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'second'
+    })
+
+    await vi.waitFor(() => expect(events).toEqual(['first:start']))
+    releaseFirst()
+    await vi.waitFor(() => expect(events).toEqual(['first:start', 'first:end', 'second']))
+  })
+
+  it('accepts a terminal delivery id at most once', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    const deliver = createdAdapters[0].sendMessage
+    const delivery = {
+      id: 'deduplicated-delivery',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'once'
+    }
+
+    expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(true)
+    expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(false)
+    await vi.waitFor(() => expect(deliver).toHaveBeenCalledTimes(1))
+  })
+
+  it('drains terminal deliveries before disconnecting adapters', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    let releaseDelivery!: () => void
+    createdAdapters[0].sendMessage.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseDelivery = resolve
+        })
+    )
+
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-before-stop',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'pending'
+    })
+
+    const stopping = channelManager.stop()
+    await vi.waitFor(() => expect(releaseDelivery).toBeTypeOf('function'))
+    expect(createdAdapters[0].disconnect).not.toHaveBeenCalled()
+
+    releaseDelivery()
+    await stopping
+    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
+  })
+
+  // C2: a hung adapter must not own the queue forever, and a timed-out send may in fact have
+  // been delivered — so the channel is blocked rather than retried.
+  it('bounds a hung delivery, blocks the channel, and never retries it', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+      await channelManager.start()
+      createdAdapters[0].sendMessage.mockImplementation(() => new Promise<void>(() => {}))
+
+      expect(
+        channelManager.enqueueTerminalDelivery({
+          id: 'hung-delivery',
+          channelId: 'ch-1',
+          chatId: 'chat-1',
+          event: ChannelDeliveryEvent.Done,
+          text: 'never lands'
+        })
+      ).toBe(true)
+      // B is already in the owned FIFO before A times out. Blocking must purge it rather than
+      // letting its pre-created continuation run through the now-untrusted channel.
+      expect(
+        channelManager.enqueueTerminalDelivery({
+          id: 'queued-before-timeout',
+          channelId: 'ch-1',
+          chatId: 'chat-1',
+          event: ChannelDeliveryEvent.Done,
+          text: 'must be skipped'
+        })
+      ).toBe(true)
+      await vi.waitFor(() => expect(createdAdapters[0].sendMessage).toHaveBeenCalledTimes(1))
+
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      // Ownership released and the already-queued request was skipped without a second send...
+      expect(createdAdapters[0].sendMessage).toHaveBeenCalledTimes(1)
+      // ...and later arrivals are rejected by the same channel-wide gate.
+      expect(
+        channelManager.enqueueTerminalDelivery({
+          id: 'follow-up',
+          channelId: 'ch-1',
+          chatId: 'chat-1',
+          event: ChannelDeliveryEvent.Done,
+          text: 'blocked'
+        })
+      ).toBe(false)
+      expect(channelManager.updateLive({ channelId: 'ch-1', chatId: 'chat-1', text: 'later chunk' })).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Refusing new work is the delivery service's own gate now; the lifecycle DAG stops it before
+  // ChannelManager, so producers can no longer enqueue past a shutdown that already began.
+  it('rejects new terminal deliveries after shutdown starts', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    await channelManager.start()
+    holder.delivery.close()
+
+    const accepted = channelManager.enqueueTerminalDelivery({
+      id: 'delivery-after-stop',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'after-stop'
+    })
+
+    expect(accepted).toBe(false)
   })
 
   it('disconnectAgent disconnects all adapters for agent and clears session tracker', async () => {
@@ -206,6 +390,80 @@ describe('ChannelManager', () => {
     // New adapter created for ch-1
     expect(createdAdapters).toHaveLength(3)
     expect(createdAdapters[2].connect).toHaveBeenCalledTimes(1)
+    expect(
+      channelManager.enqueueTerminalDelivery({
+        id: 'after-successful-reconnect',
+        channelId: 'ch-1',
+        chatId: 'chat-1',
+        event: ChannelDeliveryEvent.Done,
+        text: 'new epoch'
+      })
+    ).toBe(true)
+    await vi.waitFor(() => expect(createdAdapters[2].sendMessage).toHaveBeenCalledTimes(1))
+  })
+
+  it('aborts the old live epoch and routes later chunks through the replacement adapter', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    const adapterA = createdAdapters[0]
+    adapterA.onTextUpdate = vi.fn().mockResolvedValue(undefined)
+
+    expect(channelManager.updateLive({ channelId: 'ch-1', chatId: 'chat-1', text: 'first' })).toBe(true)
+    const oldSignal = vi.mocked(adapterA.onTextUpdate).mock.calls[0][2]?.signal
+    expect(oldSignal?.aborted).toBe(false)
+
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    await channelManager.syncChannel('ch-1', { awaitConnect: true })
+    const adapterB = createdAdapters[1]
+    adapterB.onTextUpdate = vi.fn().mockResolvedValue(undefined)
+
+    expect(oldSignal?.aborted).toBe(true)
+    expect(channelManager.updateLive({ channelId: 'ch-1', chatId: 'chat-1', text: 'second' })).toBe(true)
+    expect(adapterA.onTextUpdate).toHaveBeenCalledOnce()
+    expect(adapterB.onTextUpdate).toHaveBeenCalledWith(
+      'chat-1',
+      'second',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  it('keeps delivery blocked when an awaited reconnect fails', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    await channelManager.start()
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    nextConnectError = new Error('awaited connect failed')
+
+    await expect(channelManager.syncChannel('ch-1', { awaitConnect: true })).rejects.toThrow('awaited connect failed')
+
+    expect(
+      channelManager.enqueueTerminalDelivery({
+        id: 'after-awaited-connect-failure',
+        channelId: 'ch-1',
+        chatId: 'chat-1',
+        event: ChannelDeliveryEvent.Done,
+        text: 'must stay blocked'
+      })
+    ).toBe(false)
+  })
+
+  it('keeps delivery blocked when a background reconnect fails', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    await channelManager.start()
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    nextConnectError = new Error('background connect failed')
+
+    await channelManager.syncChannel('ch-1')
+    await vi.waitFor(() => expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1))
+
+    expect(
+      channelManager.enqueueTerminalDelivery({
+        id: 'after-background-connect-failure',
+        channelId: 'ch-1',
+        chatId: 'chat-1',
+        event: ChannelDeliveryEvent.Done,
+        text: 'must stay blocked'
+      })
+    ).toBe(false)
   })
 
   it('inactive channels are skipped', async () => {

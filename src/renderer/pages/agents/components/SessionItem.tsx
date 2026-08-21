@@ -14,9 +14,10 @@ import {
 } from '@renderer/components/chat/resourceList/base'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
+import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
+import { ConversationKind, conversationRefKey, ConversationStatus } from '@shared/ai/conversation'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -84,29 +85,31 @@ const SessionItem = ({
   const rightPanelActions = useOptionalRightPanelActions()
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
-  const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
+  const conversation = useMemo(() => ({ kind: ConversationKind.Agent, id: session.id }) as const, [session.id])
+  const scopeKey = conversationRefKey(conversation)
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const {
     status,
-    awaitingApprovalAnchors,
+    awaitingInteractionExecutions,
     isFulfilled: isStreamFulfilled,
     isPending: isStreamPending,
     markSeen
-  } = useTopicStreamStatus(topicId)
+  } = useConversationStreamStatus(conversation)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
-  const isRenaming = renamingTopics?.includes(topicId) === true
-  const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
+  const isRenaming = renamingTopics?.includes(scopeKey) === true
+  const isNewlyRenamed = newlyRenamedTopics?.includes(scopeKey) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
   // A live stream can pause for tool approval without a status transition
   // (anchors set mid-stream), while the MCP needsApproval path ends the stream
   // with the terminal 'awaiting-approval' status — the badge must cover both.
   // Unlike the completion dot, awaiting-approval is an ongoing state, so it
   // stays on the selected row too (it only yields to hover actions).
-  const showAwaitingApprovalBadge = awaitingApprovalAnchors.length > 0 || classifyTurn(status).isAwaitingApproval
-  const isStreamErrored = status === 'error'
+  const showAwaitingApprovalBadge =
+    awaitingInteractionExecutions.length > 0 || classifyTurn(status).isAwaitingInteraction
+  const isStreamErrored = status === ConversationStatus.Error
   // The status overlay (spinner / red / green dot) sits at ONE fixed spot
   // (right-1.5) on every row so the indicators line up. Running (spinner) and
   // errored (red) are ongoing states that stay on the selected row too — only

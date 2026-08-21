@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * Exercises the streaming path of `processMessage`: the `ReadableStream` wiring,
  * the `SseListener` push → adapter/formatter → SSE-frame flow, terminal close,
- * startup commitment, and `signal`-driven abort. The AiStreamManager, provider
+ * startup commitment, and `signal`-driven abort. The PromptStreamManager, provider
  * lookup, and adapter factories are stubbed; the real listener/stream glue runs.
  */
 
@@ -44,7 +44,7 @@ const {
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) =>
-      name === 'AiStreamManager'
+      name === 'PromptStreamManager'
         ? { streamPrompt: mockStreamPrompt, abort: mockAbort }
         : name === 'ApiGatewayService'
           ? {

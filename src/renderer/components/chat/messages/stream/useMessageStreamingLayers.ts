@@ -7,7 +7,7 @@
  */
 
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
-import type { ActiveExecution } from '@shared/ai/transport'
+import type { ConversationExecutionProjection } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useMemo } from 'react'
 
@@ -21,8 +21,8 @@ interface MessageStreamingLayersParams {
   messages: CherryUIMessage[]
   /** messageId -> latest streamed parts from the execution overlay. */
   overlay: Record<string, CherryMessagePart[]>
-  /** Executions whose anchor rows mark the mutable streaming tail. */
-  executions: readonly ActiveExecution[]
+  /** Executions whose output rows mark the mutable streaming tail. */
+  executions: readonly ConversationExecutionProjection[]
   /** Latest assistant snapshot per execution. */
   liveAssistants: CherryUIMessage[]
   translationOverlay?: Record<string, TranslationOverlayEntry>
@@ -32,21 +32,6 @@ interface MessageStreamingLayersResult {
   partsByMessageId: Record<string, CherryMessagePart[]>
   liveMessageIds: readonly string[]
   streamingLayers: MessageStreamingLayers
-}
-
-/**
- * Canonical `onHandoff` callback for `useTopicOverlayHandoffOnTerminal`:
- * refresh the DB rows first so dropping the live overlay never flashes stale
- * base parts, and drop the overlay even when the refresh fails.
- */
-export function createOverlayRefreshHandoff(refresh: () => Promise<unknown>, resetOverlay: () => void) {
-  return async () => {
-    try {
-      await refresh()
-    } finally {
-      resetOverlay()
-    }
-  }
 }
 
 export function useMessageStreamingLayers({
@@ -65,7 +50,7 @@ export function useMessageStreamingLayers({
     () =>
       Array.from(
         new Set([
-          ...executions.flatMap((execution) => (execution.anchorMessageId ? [execution.anchorMessageId] : [])),
+          ...executions.flatMap((execution) => (execution.outputNodeId ? [execution.outputNodeId] : [])),
           ...liveAssistants.map((message) => message.id)
         ])
       ),

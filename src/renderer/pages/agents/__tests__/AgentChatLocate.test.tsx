@@ -277,20 +277,23 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({
     overlay: {},
     liveAssistants: [],
+    optimisticMessages: [],
+    projectedExecutions: [],
+    activeNodeOverride: null,
+    seedReservations: vi.fn(),
     disposeOverlay: vi.fn(),
     reset: vi.fn()
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({ isPending: false, conversationBusy: false })
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
     `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+  buildAgentSessionScopeKey: (sessionId: string) => `agent:${sessionId}`
 }))
 
 vi.mock('../messages/agentMessageListAdapter', () => ({
@@ -457,7 +460,7 @@ describe('AgentChat locate pending message', () => {
 
     await waitFor(() => {
       expect(agentSessionPartsMocks.locateAgentMessageInList).toHaveBeenCalledWith(
-        'agent-session:session-1',
+        'agent:session-1',
         'session-message-target',
         true
       )

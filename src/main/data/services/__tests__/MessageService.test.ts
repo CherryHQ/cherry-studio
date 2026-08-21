@@ -16,18 +16,12 @@ import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
 import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
-  notifyDataApiDataChangeMock: vi.fn()
-}))
-
-vi.mock('@data/dataApiDataChange', () => ({
-  notifyDataApiDataChange: notifyDataApiDataChangeMock
-}))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -137,7 +131,7 @@ describe('MessageService', () => {
 
   beforeEach(async () => {
     mockMainLoggerService.warn.mockClear()
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
     const [providerAKey, providerBKey, modelAKey, modelBKey] = generateOrderKeySequence(4)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'provider-a', name: 'Provider A', orderKey: providerAKey },
@@ -3166,13 +3160,14 @@ describe('MessageService', () => {
     it('publishes the message read-model change after every committed approval decision', async () => {
       await seedAnchorWithTwoApprovals()
       const getMessageProjectionNotifications = () =>
-        notifyDataApiDataChangeMock.mock.calls
-          .map(([effects]) => effects)
-          .filter(([effect]) => effect?.endpoint === '/topics/:topicId/messages')
+        publishedEffects.mock.calls
+          .map(([effects]) => effects.filter((effect) => effect.endpoint === '/topics/:topicId/messages'))
+          .filter((effects) => effects.length > 0)
       const expectedNotification = [
         {
           endpoint: '/topics/:topicId/messages',
           kind: 'projection',
+          routeParams: { topicId: 'topic-ap' },
           entityIds: ['anchor']
         }
       ]

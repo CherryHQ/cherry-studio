@@ -1,20 +1,20 @@
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
+import { ConversationKind, conversationRefKey } from '@shared/ai/conversation'
+import { classifyTurn, type ConversationStatusSnapshotEntry } from '@shared/ai/transport'
 import { useCallback, useMemo } from 'react'
 
 export type AgentSessionStreamState = {
   isPending: boolean
-  status: TopicStatusSnapshotEntry['status']
+  status: ConversationStatusSnapshotEntry['status']
 }
 
 const getAgentSessionStreamStatusCacheKey = (sessionId: string) =>
-  `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
+  `conversation.statuses.${conversationRefKey({ kind: ConversationKind.Agent, id: sessionId })}` as const
 const SESSION_ID_SEPARATOR = '\u0000'
 const EMPTY_AGENT_SESSION_STREAM_STATUSES = new Map<string, AgentSessionStreamState>()
 
 function toAgentSessionStreamState(
-  entry: TopicStatusSnapshotEntry | null | undefined
+  entry: ConversationStatusSnapshotEntry | null | undefined
 ): AgentSessionStreamState | undefined {
   if (!entry) return undefined
 
@@ -51,7 +51,7 @@ export function useAgentSessionStreamStatuses(
     [sessionIdsKey]
   )
   const selector = useCallback(
-    (values: readonly (TopicStatusSnapshotEntry | null | undefined)[]) => {
+    (values: readonly (ConversationStatusSnapshotEntry | null | undefined)[]) => {
       const entries: Array<[string, AgentSessionStreamState]> = []
       uniqueSessionIds.forEach((sessionId, index) => {
         const state = toAgentSessionStreamState(values[index])

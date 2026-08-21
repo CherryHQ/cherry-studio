@@ -45,6 +45,7 @@ import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -52,7 +53,6 @@ import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResource
 import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming, useTopicMutations } from '@renderer/hooks/useTopic'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
@@ -80,7 +80,8 @@ import {
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
-import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
+import { ConversationKind, conversationRefKey, ConversationStatus } from '@shared/ai/conversation'
+import { classifyTurn, type ConversationStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
 import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
@@ -534,9 +535,12 @@ export function Topics({
     [assistantsForDisplayOrder]
   )
 
-  const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } = useTopicStreamStatus(
-    activeTopic?.id ?? ''
+  const activeConversation = useMemo(
+    () => ({ kind: ConversationKind.Chat, id: activeTopic?.id ?? '' }) as const,
+    [activeTopic?.id]
   )
+  const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } =
+    useConversationStreamStatus(activeConversation)
 
   useEffect(() => {
     if (isActiveTopicStreamFulfilled) {
@@ -702,7 +706,7 @@ export function Topics({
         finishTopicRenaming(topic.id)
       }
     },
-    [t, updateTopic, finishTopicRenaming]
+    [t, updateTopic]
   )
 
   const topicGroupBy = useMemo(
@@ -867,13 +871,13 @@ export function Topics({
     (topic: Topic) => {
       conversationNav.openConversationTab(topic.id, topic.name, { forceNew: true })
     },
-    [conversationNav, t]
+    [conversationNav]
   )
   const openTopicInNewWindow = useCallback(
     (topic: Topic) => {
       conversationNav.openConversationWindow(topic.id, topic.name)
     },
-    [conversationNav, t]
+    [conversationNav]
   )
 
   const handleToggleAssistantPin = useCallback(
@@ -1552,36 +1556,37 @@ export function Topics({
 }
 
 type TopicListBodyVariant = 'draggable' | 'plain'
-type TopicStreamState = {
+type TopicListConversationState = {
   isAwaitingApproval: boolean
   isErrored: boolean
   isFulfilled: boolean
   isPending: boolean
 }
 
-const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
+const EMPTY_TOPIC_STREAM_STATE: TopicListConversationState = Object.freeze({
   isAwaitingApproval: false,
   isErrored: false,
   isFulfilled: false,
   isPending: false
 })
 
-const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
+const getTopicStreamStatusCacheKey = (topicId: string) =>
+  `conversation.statuses.${conversationRefKey({ kind: ConversationKind.Chat, id: topicId })}` as const
 
 const getTopicStreamLastSeenCompletionCacheKey = (topicId: string) =>
-  `topic.stream.last_seen_completion.${topicId}` as const
+  `conversation.last_seen_completion.${conversationRefKey({ kind: ConversationKind.Chat, id: topicId })}` as const
 
-const selectTopicStreamState = (
-  values: readonly [TopicStatusSnapshotEntry | null | undefined, number | null | undefined]
-): TopicStreamState => {
+const selectTopicListConversationState = (
+  values: readonly [ConversationStatusSnapshotEntry | null | undefined, number | null | undefined]
+): TopicListConversationState => {
   const [statusEntry, lastSeenCompletion] = values
   const status = statusEntry?.status
   const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
   const flags = classifyTurn(status)
   const streamStatus = {
-    isAwaitingApproval: flags.isAwaitingApproval || (statusEntry?.awaitingApprovalAnchors.length ?? 0) > 0,
-    isErrored: status === 'error',
-    isFulfilled: status === 'done' && lastCompletedAt !== lastSeenCompletion,
+    isAwaitingApproval: flags.isAwaitingInteraction || (statusEntry?.awaitingInteractionExecutions.length ?? 0) > 0,
+    isErrored: status === ConversationStatus.Error,
+    isFulfilled: status === ConversationStatus.Done && lastCompletedAt !== lastSeenCompletion,
     isPending: flags.isStreamLive
   }
 
@@ -1592,10 +1597,10 @@ const selectTopicStreamState = (
     : EMPTY_TOPIC_STREAM_STATE
 }
 
-const useTopicListStreamStatus = (topicId: string): TopicStreamState =>
+const useTopicListStreamStatus = (topicId: string): TopicListConversationState =>
   useSharedCacheSelector(
     [getTopicStreamStatusCacheKey(topicId), getTopicStreamLastSeenCompletionCacheKey(topicId)],
-    selectTopicStreamState
+    selectTopicListConversationState
   )
 
 interface TopicListBodyProps {

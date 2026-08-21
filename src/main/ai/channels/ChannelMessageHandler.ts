@@ -7,16 +7,22 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   isAgentSessionWorkspaceError,
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
-import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
+import {
+  ChannelAdapterListener,
+  startAgentSessionRun,
+  StartAgentSessionRunMode,
+  StartAgentSessionRunRejection,
+  type StreamListener
+} from '@main/ai/streamManager'
 import type { Disposable } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -26,8 +32,12 @@ import { SLASH_COMMANDS } from './constants'
 const logger = loggerService.withContext('ChannelMessageHandler')
 
 class AgentSessionRunNotStartedError extends Error {
-  constructor(readonly reason: 'busy' | 'session-invalid') {
-    super(reason === 'busy' ? t('agent.session.run_status.busy') : t('agent.session.run_status.unavailable'))
+  constructor(readonly reason: StartAgentSessionRunRejection) {
+    super(
+      reason === StartAgentSessionRunRejection.Busy
+        ? t('agent.session.run_status.busy')
+        : t('agent.session.run_status.unavailable')
+    )
     this.name = 'AgentSessionRunNotStartedError'
   }
 }
@@ -102,12 +112,12 @@ export class ChannelMessageHandler {
   /** Queued work whose write admission hasn't landed yet — `drainInFlight`'s wait-set.
    *  Resolved (idempotently) once a turn is admitted, a command write completes, or processing
    *  exits early; NOT held open for the full turn (post-admission stream writes are
-   *  AiStreamManager's drain). Entries self-remove on resolve. */
+   *  ConversationRuntimeService's drain). Entries self-remove on resolve. */
   private readonly pendingAdmissions = new Map<string, Promise<void>>()
   private admissionSeq = 0
 
   // ── Write quiesce (backup restore) ───────────────────────────────
-  // Contract shared with JobManager / AiStreamManager / AgentSessionRuntimeService
+  // Contract shared with JobManager / ConversationRuntimeService / AgentConnectionManager
   // (issues #16849/#16850). Every adapter acks at the transport layer on receipt,
   // so a buffered batch is the only copy of its messages — pause() therefore
   // FLUSHES the buffers immediately (never cancels), and messages arriving while
@@ -738,7 +748,7 @@ export class ChannelMessageHandler {
    * which settles the turn as `paused` and lets the still-alive sentinel resolve.
    */
   private abortSessionStream(sessionId: string, reason: string): void {
-    application.get('AiStreamManager').abort(buildAgentSessionTopicId(sessionId), reason)
+    application.get('ConversationRuntimeService').abort({ kind: ConversationKind.Agent, id: sessionId }, reason)
   }
 
   /**
@@ -929,13 +939,24 @@ export class ChannelMessageHandler {
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
-        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
+        listeners: [
+          sentinel,
+          new ChannelAdapterListener(
+            application.get('ChannelManager'),
+            adapter.channelId,
+            chatId,
+            false,
+            responseOptions
+          )
+        ],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
       })
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
       // Add durable admission only if channels require guaranteed busy-session delivery.
-      if (started.mode === 'not-started') throw new AgentSessionRunNotStartedError(started.reason)
+      if (started.mode === StartAgentSessionRunMode.NotStarted) {
+        throw new AgentSessionRunNotStartedError(started.reason)
+      }
     } finally {
       // The write-quiesce admission point: the turn's rows are written and it entered the AI
       // in-flight set (or the run threw) — either way the drain stops waiting on this batch.

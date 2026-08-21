@@ -4,7 +4,6 @@ import path from 'node:path'
 import { createInterface } from 'node:readline'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import { loggerService } from '@logger'
@@ -328,8 +327,8 @@ export class PdfTranslationService extends BaseService {
       const source = await this.registerSourceEntry(request.sourcePath, request.jobId)
       this.throwIfCancelled(job)
 
-      const history = application.get('DbService').withWriteTx((tx) =>
-        translateHistoryService.createFileTx(tx, {
+      application.get('DbService').withWriteTx((tx) => {
+        const history = translateHistoryService.createFileTx(tx, {
           sourceText: path.basename(request.sourcePath),
           targetText: fileName,
           sourceLanguage: toPersistedLangCodeOrNull(request.sourceLangCode),
@@ -337,8 +336,8 @@ export class PdfTranslationService extends BaseService {
           targetFileEntryId: entry.id,
           ...(source ? { sourceFileEntryId: source.id } : {})
         })
-      )
-      notifyDataApiDataChange([{ endpoint: '/translate/histories', kind: 'membership', entityIds: [history.id] }])
+        tx.effects.add({ endpoint: '/translate/histories', kind: 'membership', entityIds: [history.id] })
+      })
 
       return { outputPath: fileManager.getPhysicalPath(entry.id), fileName }
     } catch (error) {

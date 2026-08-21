@@ -42,10 +42,15 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
+} from '../types'
+import {
+  AgentRuntimeEventType,
+  AgentRuntimeMessageAssociation,
+  AgentRuntimeReconcileResult,
+  AgentSessionUsageCaptureOwner
 } from '../types'
 import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
 import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
@@ -90,7 +95,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   private readonly providerSpans = new Set<Span>()
   private readonly toolSpans = new Map<string, Span>()
-  private readonly adapter = new PiStreamAdapter({ enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) })
+  private readonly adapter = new PiStreamAdapter({
+    enqueue: (chunk) => this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk })
+  })
   private session?: AgentSession
   private mcpBridge?: PiMcpToolBridge
   private unsubscribe?: () => void
@@ -230,7 +237,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         agentDataPath,
         emit: (event: AgentRuntimeEvent) => this.eventQueue.push(event),
         getInteractionState: () =>
-          application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
+          application.get('ConversationRuntimeService').getAgentInteractionState(this.input.sessionId),
         getPermissionMode: () => this.permissionMode,
         isDisabled: (toolName: string) => this.disabledTools.has(toolName),
         additionalReadOnlyRoots: additionalSkillPaths,
@@ -359,7 +366,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   send(input: AgentRuntimeUserInput): void {
     const session = this.session
     if (!session) {
-      this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
+      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: new Error('pi session is not started') })
       return
     }
     const rawContent = buildAgentUserContent(input.message)
@@ -383,7 +390,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           this.manualCompactInFlight = false
           if (this.closed) return
           logger.error('pi compact failed', error as Error)
-          this.eventQueue.push({ type: 'error', error })
+          this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
         }
       )
       return
@@ -414,7 +421,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.removePendingSteer(pending)
       if (this.closed) return
       logger.error('pi steer failed', error as Error)
-      this.eventQueue.push({ type: 'error', error })
+      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
     })
     return true
   }
@@ -453,7 +460,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         input.knowledgeBaseIds
       )
     } catch (error) {
-      if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
+      if (error instanceof PiInvalidConnectionSnapshotError) return AgentRuntimeReconcileResult.Invalid
       throw error
     }
     const { agent } = snapshot
@@ -472,9 +479,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.disabledTools = applicableDisabledTools
 
     if (snapshot.signature !== this.connectionSignature) {
-      return 'rebuild'
+      return AgentRuntimeReconcileResult.Rebuild
     }
-    return policyChanged ? 'patched' : 'current'
+    return policyChanged ? AgentRuntimeReconcileResult.Patched : AgentRuntimeReconcileResult.Current
   }
 
   /**
@@ -522,7 +529,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     if (isUserMessageStart(event) && this.pendingSteers.length > 0) {
       const delivered = this.takeDeliveredSteers()
-      if (delivered.length > 0) this.eventQueue.push({ type: 'steer-boundary', inputs: delivered })
+      if (delivered.length > 0) this.eventQueue.push({ type: AgentRuntimeEventType.SteerBoundary, inputs: delivered })
     }
 
     this.adapter.handleEvent(event)
@@ -536,7 +543,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
 
     if (event.type === 'compaction_start') {
-      this.eventQueue.push({ type: 'compaction-start', trigger: mapCompactionTrigger(event.reason) })
+      this.eventQueue.push({ type: AgentRuntimeEventType.CompactionStart, trigger: mapCompactionTrigger(event.reason) })
       return
     }
 
@@ -570,15 +577,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (undelivered.length > 0) {
       // pi does not drain its steering queue when a run ends. The host owns re-queuing.
       this.session?.clearQueue()
-      this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
+      this.eventQueue.push({ type: AgentRuntimeEventType.SteerUndelivered, inputs: undelivered })
     }
     if (error || this.lastStopReason === 'error') {
       const failure = error instanceof Error ? error : new Error(this.lastAgentError ?? 'pi agent turn failed')
       logger.error('pi prompt failed', failure)
-      this.eventQueue.push({ type: 'error', error: failure })
+      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: failure })
     } else {
       this.emitContextUsage()
-      this.eventQueue.push({ type: 'turn-complete' })
+      this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
     }
     this.lastStopReason = undefined
     this.lastAgentError = undefined
@@ -595,7 +602,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
   private recordProviderInvocation(message: AssistantMessage): void {
     if (this.closed) return
-    if (this._usageCapture?.owner !== 'agent-sdk') return
+    if (this._usageCapture?.owner !== AgentSessionUsageCaptureOwner.AgentSdk) return
     if (message.stopReason === 'error' || message.stopReason === 'aborted') return
 
     const providerRequestId = message.responseId?.trim() || `${message.timestamp}:${message.model}`
@@ -609,11 +616,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
     const outputTokens = finiteTokenCount(message.usage.output)
     this.eventQueue.push({
-      type: 'usage',
+      type: AgentRuntimeEventType.Usage,
       invocation: {
         requestId,
         model: message.responseModel?.trim() || message.model || this.modelId,
-        messageAssociation: 'current-turn',
+        messageAssociation: AgentRuntimeMessageAssociation.CurrentTurn,
         usage: {
           inputTokens,
           outputTokens,
@@ -718,16 +725,25 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // clearing the flag here makes the later reject handler a no-op.
       if (this.manualCompactInFlight) {
         this.manualCompactInFlight = false
-        this.eventQueue.push({ type: 'error', error: new Error(event.errorMessage ?? 'pi compaction aborted') })
+        this.eventQueue.push({
+          type: AgentRuntimeEventType.Error,
+          error: new Error(event.errorMessage ?? 'pi compaction aborted')
+        })
         return
       }
       // Auto-compaction failure stays non-terminal — the surrounding turn owns the terminal event.
-      this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
+      this.eventQueue.push({
+        type: AgentRuntimeEventType.CompactionError,
+        error: event.errorMessage ?? 'pi compaction aborted'
+      })
       return
     }
     // `willRetry` keeps the surrounding agent turn open; it does not defer this compaction result.
     // pi emits this successful compaction_end only once before retrying the model.
-    this.eventQueue.push({ type: 'compaction-complete', anchor: buildCompactionAnchor(event.reason, event.result) })
+    this.eventQueue.push({
+      type: AgentRuntimeEventType.CompactionComplete,
+      anchor: buildCompactionAnchor(event.reason, event.result)
+    })
     this.maybeCompleteManualCompactTurn()
   }
 
@@ -735,7 +751,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.closed) return
     if (!this.manualCompactInFlight) return
     this.manualCompactInFlight = false
-    this.eventQueue.push({ type: 'turn-complete' })
+    this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
   }
 
   private takeDeliveredSteers(): AgentRuntimeUserInput[] {
@@ -753,7 +769,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const usage = this.session?.getContextUsage()
     // Skip the emit while pi cannot yet report occupancy (see getContextUsage).
     if (!usage || usage.tokens == null) return
-    this.eventQueue.push({ type: 'context-usage', usage: this.projectContextUsage(usage) })
+    this.eventQueue.push({ type: AgentRuntimeEventType.ContextUsage, usage: this.projectContextUsage(usage) })
   }
 
   /** pi reports occupancy/window directly; Cherry owns per-category breakdown, which
@@ -770,7 +786,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const token = this.session?.sessionId
     if (!token || token === this.resumeToken) return
     this.resumeToken = token
-    this.eventQueue.push({ type: 'resume-token', token })
+    this.eventQueue.push({ type: AgentRuntimeEventType.ResumeToken, token })
   }
 }
 

@@ -24,6 +24,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
+import { ConversationKind, ConversationOpenMode, ConversationOpenTrigger } from '@shared/ai/conversation'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   AssistantTurnOptions,
@@ -334,17 +335,17 @@ export function useChatWriteActions(params: Params): Result {
 
       if (canRetryInPlace) {
         const ack = await ipcApi.request('ai.stream.open', {
-          trigger: 'regenerate-message',
-          topicId: topic.id,
+          trigger: ConversationOpenTrigger.RegenerateMessage,
+          conversation: { kind: ConversationKind.Chat, id: topic.id },
           parentAnchorId,
           retryMessageId: target.id,
           mentionedModelIds: [regenModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
-        if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        if (ack.mode === ConversationOpenMode.Blocked) throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
-          preserveActiveNode: ack.preserveActiveNode
+          activeNodeDecision: ack.activeNodeDecision
         })
         return
       }
@@ -354,17 +355,17 @@ export function useChatWriteActions(params: Params): Result {
       // new execution without moving activeNodeId; settled groups use the ordinary regenerate path.
       if (target?.role === 'assistant' && parentAnchorId && options?.modelId) {
         const ack = await ipcApi.request('ai.stream.open', {
-          trigger: 'regenerate-message',
-          topicId: topic.id,
+          trigger: ConversationOpenTrigger.RegenerateMessage,
+          conversation: { kind: ConversationKind.Chat, id: topic.id },
           parentAnchorId,
           appendToLiveGroupMessageId: target.id,
           mentionedModelIds: [options.modelId],
           ...turnOptionsRequestFields(turnOptions)
         })
-        if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        if (ack.mode === ConversationOpenMode.Blocked) throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
-          preserveActiveNode: ack.preserveActiveNode
+          activeNodeDecision: ack.activeNodeDecision
         })
         return
       }
@@ -427,20 +428,20 @@ export function useChatWriteActions(params: Params): Result {
       // data yet), so the anchor lookup would miss the new user. We
       // already know the anchor is the new user's own id.
       const ack = await ipcApi.request('ai.stream.open', {
-        trigger: 'regenerate-message',
-        topicId: topic.id,
+        trigger: ConversationOpenTrigger.RegenerateMessage,
+        conversation: { kind: ConversationKind.Chat, id: topic.id },
         parentAnchorId: newMessage.id,
         ...(shouldPreserveInheritedModelIds && { mentionedModelIds: inheritedModelIds }),
         ...turnOptionsRequestFields(effectiveTurnOptions)
       })
 
-      if (ack.mode === 'blocked') {
+      if (ack.mode === ConversationOpenMode.Blocked) {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
       await seedReservedMessages(ack.reservedMessages ?? [], {
         activeExecutions: ack.activeExecutions,
-        preserveActiveNode: ack.preserveActiveNode
+        activeNodeDecision: ack.activeNodeDecision
       })
     },
     [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
@@ -463,20 +464,20 @@ export function useChatWriteActions(params: Params): Result {
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
       const turnOptions = getInheritedTurnOptions(uiMessages, target)
       const ack = await ipcApi.request('ai.stream.open', {
-        trigger: 'regenerate-message',
-        topicId: topic.id,
+        trigger: ConversationOpenTrigger.RegenerateMessage,
+        conversation: { kind: ConversationKind.Chat, id: topic.id },
         parentAnchorId,
         ...(modelId && { mentionedModelIds: [modelId] }),
         ...turnOptionsRequestFields(turnOptions)
       })
 
-      if (ack.mode === 'blocked') {
+      if (ack.mode === ConversationOpenMode.Blocked) {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
       await seedReservedMessages(ack.reservedMessages ?? [], {
         activeExecutions: ack.activeExecutions,
-        preserveActiveNode: ack.preserveActiveNode
+        activeNodeDecision: ack.activeNodeDecision
       })
     },
     [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]

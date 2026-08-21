@@ -1,7 +1,7 @@
-import type { AgentSessionRuntimeDriver, AiRuntimeDriver } from './types'
+import { type AgentSessionRuntimeDriver, AiRuntimeCapability, type AiRuntimeDriver } from './types'
 
 function isAgentSessionRuntimeDriver(driver: AiRuntimeDriver): driver is AgentSessionRuntimeDriver {
-  return driver.capabilities.includes('agent-session') && 'connect' in driver
+  return driver.capabilities.includes(AiRuntimeCapability.AgentSession) && 'connect' in driver
 }
 
 class RuntimeDriverRegistry {

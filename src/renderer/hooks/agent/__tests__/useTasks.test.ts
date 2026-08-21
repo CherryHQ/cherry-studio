@@ -129,7 +129,9 @@ describe('useTask', () => {
     MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', { data: taskEntity as any, refetch })
     renderHook(() => useTask('t-1'))
 
-    MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-tasks/:taskId', entityIds: ['t-1'] }])
+    MockUseDataApiUtils.emitDataChange([
+      { endpoint: '/agent-tasks/:taskId', routeParams: { taskId: 't-1' }, entityIds: ['t-1'] }
+    ])
 
     expect(refetch).toHaveBeenCalled()
   })

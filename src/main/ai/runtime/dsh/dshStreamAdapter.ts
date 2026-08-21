@@ -29,7 +29,7 @@ import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
-import type { AgentRuntimeEvent } from '../types'
+import { AgentRuntimeAutonomousState, type AgentRuntimeEvent, AgentRuntimeEventType } from '../types'
 
 /** dsh transport tag consumed by the renderer's tool-part routing. */
 export const DSH_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.dsh.transport
@@ -42,7 +42,12 @@ export interface DshInvocationMetrics {
 
 export type DshCompactionRuntimeEvent = Extract<
   AgentRuntimeEvent,
-  { type: 'compaction-start' | 'compaction-complete' | 'compaction-error' }
+  {
+    type:
+      | AgentRuntimeEventType.CompactionStart
+      | AgentRuntimeEventType.CompactionComplete
+      | AgentRuntimeEventType.CompactionError
+  }
 >
 
 export interface DshStreamSink {
@@ -62,7 +67,7 @@ export interface DshStreamSink {
   onCompaction(event: DshCompactionRuntimeEvent): void
   /** A runtime-started turn (goal round): `started` fires before the turn's first chunk,
    *  `finished` before its `onTurnEnd` — the host opens/settles a receive-only stream. */
-  onAutonomousTurnState(state: 'started' | 'finished'): void
+  onAutonomousTurnState(state: AgentRuntimeAutonomousState): void
   /** Committed `plan/mode` fold (last one wins). `false` after an approved exit —
    *  the connection re-opens its policy since Cherry's stored mode is not rewritten. */
   onPlanMode(active: boolean): void
@@ -156,7 +161,7 @@ export class DshStreamAdapter {
   /** Content with no host-opened turn = the runtime started its own (goal-round) turn. */
   private ensureTurnOpen(): void {
     if (this.turnActive) return
-    this.sink.onAutonomousTurnState('started')
+    this.sink.onAutonomousTurnState(AgentRuntimeAutonomousState.Started)
     this.turnActive = true
     this.autonomousTurn = true
   }
@@ -199,7 +204,7 @@ export class DshStreamAdapter {
         if (this.autonomousTurn) {
           this.autonomousTurn = false
           // Ownership release must precede the terminal turn-complete (host contract).
-          this.sink.onAutonomousTurnState('finished')
+          this.sink.onAutonomousTurnState(AgentRuntimeAutonomousState.Finished)
         }
         this.sink.onTurnEnd(event.data.reason)
         return
@@ -471,7 +476,7 @@ export class DshStreamAdapter {
       turn: data.turn,
       trigger
     })
-    this.sink.onCompaction({ type: 'compaction-start', trigger })
+    this.sink.onCompaction({ type: AgentRuntimeEventType.CompactionStart, trigger })
   }
 
   private handleCompactionSummary(data: SessionEventMap['compaction/summary'], seq: number): void {
@@ -495,7 +500,7 @@ export class DshStreamAdapter {
     this.activeCompactions.delete(data.compactionId)
     const error = data.error || undefined
     if (error !== undefined) {
-      this.sink.onCompaction({ type: 'compaction-error', error })
+      this.sink.onCompaction({ type: AgentRuntimeEventType.CompactionError, error })
       return
     }
     const completedAt = Date.now()
@@ -506,7 +511,7 @@ export class DshStreamAdapter {
         ? { preTokens: state.shadowedTokenCount, postTokens: state.summaryTokens }
         : {}
     this.sink.onCompaction({
-      type: 'compaction-complete',
+      type: AgentRuntimeEventType.CompactionComplete,
       anchor: {
         status: 'done',
         phase: 'agent-session',

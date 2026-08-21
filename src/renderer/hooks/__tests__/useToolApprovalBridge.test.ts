@@ -1,4 +1,5 @@
 import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,6 +44,7 @@ function makeApprovalMatch(): MessageToolApprovalMatch {
 }
 
 describe('useToolApprovalBridge', () => {
+  const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
   beforeEach(() => {
     mocks.respondToolApproval.mockReset()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
@@ -51,7 +53,7 @@ describe('useToolApprovalBridge', () => {
   it('delivers approval decisions to main with anchor context', async () => {
     const match = makeApprovalMatch()
 
-    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
+    const { result } = renderHook(() => useToolApprovalBridge(conversation))
 
     await act(async () => {
       await result.current({ match, approved: true })
@@ -62,7 +64,7 @@ describe('useToolApprovalBridge', () => {
       approved: true,
       reason: undefined,
       updatedInput: undefined,
-      topicId: 'topic-1',
+      conversation,
       anchorId: 'assistant-1'
     })
   })
@@ -70,7 +72,7 @@ describe('useToolApprovalBridge', () => {
   it('throws when main does not accept the approval response', async () => {
     mocks.respondToolApproval.mockResolvedValueOnce({ ok: false })
     const match = makeApprovalMatch()
-    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
+    const { result } = renderHook(() => useToolApprovalBridge(conversation))
 
     await expect(result.current({ match, approved: true })).rejects.toThrow('Main rejected the tool-approval decision')
   })
@@ -78,7 +80,7 @@ describe('useToolApprovalBridge', () => {
   it('throws when delivery to main fails', async () => {
     mocks.respondToolApproval.mockRejectedValueOnce(new Error('ipc boom'))
     const match = makeApprovalMatch()
-    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
+    const { result } = renderHook(() => useToolApprovalBridge(conversation))
 
     await expect(result.current({ match, approved: true })).rejects.toThrow('ipc boom')
   })

@@ -17,9 +17,13 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import { AgentInteractionTurnKind, AgentUserResponseMode } from '@main/ai/conversation'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
+  AgentSessionDeliveryReplyPolicy,
+  AgentSessionDeliveryReplyPolicySchema,
+  AgentSessionDeliveryStatus,
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
@@ -306,7 +310,7 @@ const SESSION_DELIVERIES_TOOL: Tool = {
     properties: {
       direction: { type: 'string', enum: ['incoming', 'outgoing'] },
       request_id: { type: 'string', description: 'Optional request id; correlated results are included.' },
-      status: { type: 'string', enum: ['accepted', 'delivering', 'consumed', 'failed'] },
+      status: { type: 'string', enum: Object.values(AgentSessionDeliveryStatus) },
       limit: { type: 'number', description: 'Maximum deliveries to return (default 20, max 100).' }
     }
   }
@@ -340,7 +344,7 @@ const SESSION_SEND_TOOL: Tool = {
       message: { type: 'string', description: 'Message for the target Agent.' },
       reply: {
         type: 'string',
-        enum: ['none', 'completion'],
+        enum: Object.values(AgentSessionDeliveryReplyPolicy),
         description: 'completion returns one asynchronous terminal result in a separate turn.'
       }
     },
@@ -463,8 +467,11 @@ export class CherryAutonomyTools {
   }
 
   private assertSessionToolsAuthorized(): void {
-    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(this.sessionId)
-    if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') {
+    const interaction = application.get('ConversationRuntimeService').getAgentInteractionState(this.sessionId)
+    if (
+      interaction.currentTurn === AgentInteractionTurnKind.Headless ||
+      interaction.userResponse === AgentUserResponseMode.Unavailable
+    ) {
       throw new AgentSessionDeliveryRoutingError(
         'SESSION_TOOL_FORBIDDEN',
         'Cross-Session discovery and delegation require an interactive user turn'
@@ -623,8 +630,8 @@ export class CherryAutonomyTools {
     this.assertSessionToolsAuthorized()
     const receiverSessionId = typeof args.target_session_id === 'string' ? args.target_session_id.trim() : ''
     const content = typeof args.message === 'string' ? args.message.trim() : ''
-    const reply = args.reply === undefined ? 'none' : args.reply
-    if (reply !== 'none' && reply !== 'completion') {
+    const reply = AgentSessionDeliveryReplyPolicySchema.safeParse(args.reply ?? AgentSessionDeliveryReplyPolicy.None)
+    if (!reply.success) {
       throw new McpError(ErrorCode.InvalidParams, "'reply' must be none or completion")
     }
     if (!receiverSessionId) throw new McpError(ErrorCode.InvalidParams, "'target_session_id' is required")
@@ -635,7 +642,7 @@ export class CherryAutonomyTools {
       senderSessionId: this.sessionId,
       receiverSessionId,
       content,
-      replyPolicy: reply
+      replyPolicy: reply.data
     })
     return {
       content: [
@@ -644,7 +651,7 @@ export class CherryAutonomyTools {
           text: JSON.stringify({
             ok: true,
             requestId: accepted.id,
-            status: 'accepted',
+            status: AgentSessionDeliveryStatus.Accepted,
             delivery: accepted.delivery
           })
         }

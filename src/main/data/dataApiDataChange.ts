@@ -9,18 +9,17 @@ const logger = loggerService.withContext('DataApiDataChange')
  * Broadcast a DataApi data change notification to all windows.
  *
  * This is the single publish point of the "DataApi data change notification"
- * capability: after a business write successfully commits, the owning data
- * service states which read models changed (as {@link DataApiDataChangeEffect}
- * entries) and every renderer decides its own convergence. It is deliberately
+ * capability: data services state which read models changed as
+ * {@link DataApiDataChangeEffect} entries, `DbService` publishes them after the
+ * owning write commits, and every renderer decides its own convergence. It is deliberately
  * an IPC-deployment special case, NOT part of the portable `api/` transport
  * framework — it depends on WindowManager, and HTTP-adapter consumers do not
  * receive these notifications.
  *
  * ## Governance exception (strictly fenced)
  *
- * "Data service → notify → IPC" is a narrow exception to the DataApi layering
- * rules: a data service may publish a read-model observation signal after its
- * data is committed, for cross-window data convergence. Fences (all hard):
+ * "Data service → effect declaration → DbService → IPC" is a narrow exception
+ * to the DataApi layering rules for cross-window data convergence. Fences (all hard):
  * - publish only after commit, never inside a transaction (listeners must not
  *   run while the write lock is held, and a rollback must be unreachable from
  *   the notify call);
@@ -38,14 +37,14 @@ const logger = loggerService.withContext('DataApiDataChange')
  *
  * ## Publish invariants
  *
- * - Timing: call after the outermost public write commits and before the
- *   public operation returns — after `withWriteTx` returns for transactional
- *   writes, after the statement returns for single autocommit writes (do NOT
- *   wrap a single write in a transaction just to notify). On failure the
- *   exception propagates and this call is never reached.
- * - `*Tx()` helpers never notify; only the outermost public operation does.
- *   A cross-domain composite operation notifies once at its orchestration
- *   point with all effects inlined.
+ * - Only `DbService` calls this publisher. Transactional services add effects
+ *   through `tx.effects`; `withWriteTx` broadcasts their deduplicated union
+ *   after the outermost commit. A rollback publishes nothing.
+ * - A single autocommit write declares its already-committed effects through
+ *   `DbService.withEffects()` (do NOT add a transaction just to notify).
+ * - Nested transactions share the outer transaction's effect scope. A
+ *   cross-domain composite operation therefore publishes one union without
+ *   manually copying child effects.
  * - No-op writes that provably changed nothing may skip notifying; when
  *   proving that is not cheap, notify — a missed signal is a convergence bug,
  *   an extra one is a redundant refetch.

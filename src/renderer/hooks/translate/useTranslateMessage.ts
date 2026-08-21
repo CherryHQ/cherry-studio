@@ -85,7 +85,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
       // user is explicitly asking for a different target. Server-side abort
       // is best-effort; the renderer teardown is the source of truth.
       if (activeRef.current) {
-        void ipcApi.request('ai.stream.abort', { topicId: activeRef.current.streamId }).catch(() => {})
+        void ipcApi.request('ai.prompt.abort', { streamId: activeRef.current.streamId }).catch(() => {})
         teardown(null)
       }
 
@@ -107,8 +107,8 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         targetLanguage: language.langCode as TranslateLangCode
       })
 
-      const unsubChunk = ipcApi.on('ai.stream.chunk', ({ topicId, chunk }) => {
-        if (topicId !== streamId) return
+      const unsubChunk = ipcApi.on('ai.prompt.chunk', ({ streamId: eventStreamId, chunk }) => {
+        if (eventStreamId !== streamId) return
         if (
           chunk &&
           (chunk as { type?: string }).type === 'text-delta' &&
@@ -122,9 +122,9 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         }
       })
 
-      const unsubDone = ipcApi.on('ai.stream.done', async ({ topicId, status }) => {
-        if (topicId !== streamId) return
-        if (status === 'success') {
+      const unsubDone = ipcApi.on('ai.prompt.done', async ({ streamId: eventStreamId, status }) => {
+        if (eventStreamId !== streamId) return
+        if (status === 'done') {
           try {
             refresh()
           } catch (err) {
@@ -135,8 +135,8 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         teardown(streamId)
       })
 
-      const unsubError = ipcApi.on('ai.stream.error', ({ topicId }) => {
-        if (topicId !== streamId) return
+      const unsubError = ipcApi.on('ai.prompt.error', ({ streamId: eventStreamId }) => {
+        if (eventStreamId !== streamId) return
         setOverlay?.(messageId, null)
         teardown(streamId)
       })
@@ -163,7 +163,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
   const cancel = useCallback(() => {
     const active = activeRef.current
     if (!active) return
-    void ipcApi.request('ai.stream.abort', { topicId: active.streamId }).catch(() => {})
+    void ipcApi.request('ai.prompt.abort', { streamId: active.streamId }).catch(() => {})
     // onStreamError / onStreamDone (status: 'paused') will clear the overlay.
   }, [])
 

@@ -29,6 +29,7 @@ import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
+import type { TopicBranchLiveContribution } from './useChatRuntimeState'
 
 const EMPTY_MODELS: ChatConversationControlsSnapshot['mentionedModels'] = []
 const NOOP_MODEL_SELECT: ChatConversationControlsSnapshot['onModelSelect'] = () => undefined
@@ -159,9 +160,9 @@ const Chat: FC<Props> = (props) => {
   }, [activeTopicId])
 
   const handleBranchLiveStateChange = useCallback(
-    (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
-      const topicId = state?.topicId ?? activeTopicId
-      if (topicId) setTopicBranchLiveState(topicId, state)
+    (contribution: TopicBranchLiveContribution) => {
+      if (contribution.topicId !== activeTopicId) return
+      setTopicBranchLiveState(contribution.topicId, contribution.state)
     },
     [activeTopicId, setTopicBranchLiveState]
   )

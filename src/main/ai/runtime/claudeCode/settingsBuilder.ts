@@ -24,6 +24,7 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { AgentInteractionTurnKind, AgentUserResponseMode } from '@main/ai/conversation'
 import type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import {
@@ -57,6 +58,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
+import { AgentRuntimeInteractionPresentation } from '../types'
 import { AgentsMdLoader } from './AgentsMdLoader'
 import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
 import {
@@ -186,7 +188,7 @@ export async function buildClaudeCodeSessionSettings(
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
-  // `emit` per-stream (see AgentSessionRuntimeService's stream adapter setup).
+  // `emit` per-stream (see ConversationRuntimeService's stream adapter setup).
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = sessionState().getToolApprovalEmitterHolder(session.id)
@@ -462,13 +464,13 @@ async function buildToolPermissions(
     // no-responder denial at fire time too. It mirrors the guard table's headless rules — Full Access
     // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
     // `canUseTool` under bypassPermissions.
-    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    const interactionState = application.get('ConversationRuntimeService').getAgentInteractionState(session.id)
     const policy = findBuiltinToolPolicy(toolName, mountedServers)
     const approvalHoldsInThisMode =
       policy?.approval === 'required' &&
       !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
     const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
-    if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
+    if (requiresInteractiveResponder && interactionState.userResponse === AgentUserResponseMode.Unavailable) {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
 
@@ -480,11 +482,12 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
-    const hasLiveTurnStream = interactionState.userResponse === 'stream'
+    const hasLiveTurnStream = interactionState.userResponse === AgentUserResponseMode.Stream
     // A headless turn (channel / scheduled) is unattended work with no approval UI, like a sub-agent.
     // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
     const isBackgroundAgent =
-      (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
+      (typeof opts.agentID === 'string' && opts.agentID.length > 0) ||
+      interactionState.currentTurn === AgentInteractionTurnKind.Headless
     const requiresUserResponse = requiresInteractiveResponder || opts.matchedAskRule !== undefined
 
     // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
@@ -503,7 +506,7 @@ async function buildToolPermissions(
       (!hasLiveTurnStream && !requiresUserResponse) ||
       (requiresUserResponse &&
         (!hasLiveTurnStream || isBackgroundAgent) &&
-        interactionState.userResponse === 'unavailable')
+        interactionState.userResponse === AgentUserResponseMode.Unavailable)
     ) {
       logger.warn('Approval requested outside a live interactive turn — denying', {
         toolName,
@@ -512,7 +515,10 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
-    const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
+    const presentation =
+      !hasLiveTurnStream || isBackgroundAgent
+        ? AgentRuntimeInteractionPresentation.Message
+        : AgentRuntimeInteractionPresentation.Stream
     const approvalId = randomUUID()
     const emit = sessionState().peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {

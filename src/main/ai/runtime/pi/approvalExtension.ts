@@ -35,7 +35,8 @@ import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import type { AgentRuntimeEvent } from '../types'
+import { AgentUserResponseMode } from '../../conversation'
+import { type AgentRuntimeEvent, AgentRuntimeEventType, AgentRuntimeInteractionPresentation } from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
@@ -74,7 +75,7 @@ export interface PiApprovalContext {
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
   emit: (event: AgentRuntimeEvent) => void
   /** Resolve responder availability at tool fire-time so warm connections follow the current turn. */
-  getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
+  getInteractionState: () => { userResponse: AgentUserResponseMode }
   /** Live permission mode; read at fire-time so a warm-connection `reconcile` takes effect. */
   getPermissionMode: () => AgentPermissionMode | undefined
   /** Live disabled-tool predicate; read at fire-time for the same reason. */
@@ -172,7 +173,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       return
 
     const interactionState = ctx.getInteractionState()
-    if (interactionState.userResponse === 'unavailable') {
+    if (interactionState.userResponse === AgentUserResponseMode.Unavailable) {
       return {
         block: true,
         reason: approvalRequired
@@ -182,7 +183,10 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     const approvalId = randomUUID()
-    const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
+    const presentation =
+      interactionState.userResponse === AgentUserResponseMode.Stream
+        ? AgentRuntimeInteractionPresentation.Stream
+        : AgentRuntimeInteractionPresentation.Message
     const resumeExecutionTimeout = onApprovalPending?.()
     let decision: DispatchDecision
     try {
@@ -202,7 +206,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
         // settled the promise, and emitting would leave an unanswerable card.
         if (!pending) return
         ctx.emit({
-          type: 'tool-approval-request',
+          type: AgentRuntimeEventType.ToolApprovalRequest,
           request: {
             approvalId,
             toolCallId,

@@ -131,6 +131,6 @@ A table rebuild (drizzle's `INSERT…SELECT` drops the implicit rowid) **and `VA
 | FTS keys on `fts_rowid`, not `rowid` | Implicit rowid reshuffles on rebuild/VACUUM → silent desync. |
 | Default `integrity-check` is unreliable | Use `integrity-check, 1` for external-content FTS. |
 | `fts_rowid` is local-only | Never back it up; restore through the trigger. |
-| Multi-statement writes use a transaction | `withWriteTx` is the conventional wrapper (a direct `db.transaction()` is equivalent) — each runs as one synchronous transaction; the single connection serializes writes by construction. |
+| Multi-statement writes use a transaction | `withWriteTx` is the business-write wrapper: it runs one synchronous transaction and publishes collected DataApi effects after commit. A direct `db.transaction()` has equivalent SQLite atomicity but no effect scope. |
 | Packaged migrations need `extraResources` | Works in dev, fails packaged if not shipped. |
 | PRAGMAs set once on one connection | better-sqlite3 keeps a single persistent connection, so `synchronous`/`foreign_keys` are set once at boot and never revert. |

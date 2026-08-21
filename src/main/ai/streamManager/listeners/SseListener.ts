@@ -6,7 +6,7 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
  * StreamListener that writes UIMessageChunk to an HTTP SSE response.
  *
  * Used by API Gateway endpoints (e.g. /v1/chat/completions with stream=true)
- * to subscribe to AiStreamManager as an equal subscriber alongside
+ * to subscribe to PromptStreamManager as an equal observer alongside
  * WebContentsListener and ChannelAdapterListener.
  *
  * Two mapping modes (pick one via options):

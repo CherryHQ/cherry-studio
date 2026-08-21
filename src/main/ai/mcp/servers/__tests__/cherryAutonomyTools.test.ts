@@ -78,8 +78,8 @@ vi.mock('@application', async () => {
       createTask: mockCreateTask,
       deleteTask: mockDeleteTask
     },
-    AgentSessionRuntimeService: {
-      getInteractionState: mockGetInteractionState
+    ConversationRuntimeService: {
+      getAgentInteractionState: mockGetInteractionState
     },
     AgentSessionDeliveryService: {
       accept: mockAcceptSessionDelivery,

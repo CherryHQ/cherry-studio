@@ -1,3 +1,4 @@
+import { ConversationKind } from '@shared/ai/conversation'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
@@ -31,7 +32,7 @@ const GENERATED_IMAGE_RESULTS: ReadonlyArray<[string, string, unknown]> = [
     'mcp__cherry-tools__generate_image',
     {
       $deferredToolResult: {
-        topicId: 'agent-session:session-1',
+        conversation: { kind: ConversationKind.Agent, id: 'session-1' },
         messageId: 'message-1',
         toolCallId: 'generate-image'
       }
@@ -589,7 +590,7 @@ describe('projectCompletedMessageParts', () => {
           input: { action: 'add_channel', type: 'feishu', auth_mode: 'qr' },
           output: {
             $deferredToolResult: {
-              topicId: 'agent-session:session-1',
+              conversation: { kind: ConversationKind.Agent, id: 'session-1' },
               messageId: 'message-1',
               toolCallId: 'channel-auth'
             }

@@ -13,17 +13,17 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import {
+  AgentSessionDeliveryOutcome,
+  AgentSessionDeliveryReplyPolicy,
+  AgentSessionDeliveryStatus
+} from '@shared/ai/agentSessionDelivery'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
-  notifyDataApiDataChangeMock: vi.fn()
-}))
-
-vi.mock('@data/dataApiDataChange', () => ({
-  notifyDataApiDataChange: notifyDataApiDataChangeMock
-}))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 const SESSION_ID = 'session-1'
 const USER_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
@@ -66,7 +66,7 @@ describe('AgentSessionMessageService', () => {
   }
 
   beforeEach(async () => {
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
     await seedSession({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
   })
 
@@ -86,6 +86,56 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID, USER_MESSAGE_ID)).toBe(false)
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
+  it('settles only an existing pending assistant without recreating or overwriting messages', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+
+    expect(
+      agentSessionMessageService.settlePendingAssistantMessage({
+        sessionId: SESSION_ID,
+        messageId: ASSISTANT_MESSAGE_ID,
+        runtimeResumeToken: 'runtime-resume-token',
+        status: 'paused',
+        data: { parts: [{ type: 'text', text: 'partial' }] }
+      })
+    ).toBe(true)
+    expect(
+      dbh.db
+        .select({
+          status: agentSessionMessageTable.status,
+          data: agentSessionMessageTable.data,
+          runtimeResumeToken: agentSessionMessageTable.runtimeResumeToken
+        })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+        .get()
+    ).toEqual({
+      status: 'paused',
+      data: { parts: [{ type: 'text', text: 'partial' }] },
+      runtimeResumeToken: 'runtime-resume-token'
+    })
+
+    expect(
+      agentSessionMessageService.settlePendingAssistantMessage({
+        sessionId: SESSION_ID,
+        messageId: ASSISTANT_MESSAGE_ID,
+        status: 'error',
+        data: { parts: [] }
+      })
+    ).toBe(false)
+    expect(
+      agentSessionMessageService.settlePendingAssistantMessage({
+        sessionId: SESSION_ID,
+        messageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d099',
+        status: 'paused',
+        data: { parts: [] }
+      })
+    ).toBe(false)
+    expect(dbh.db.select().from(agentSessionMessageTable).all()).toHaveLength(1)
   })
 
   describe('cross-session delivery', () => {
@@ -126,10 +176,14 @@ describe('AgentSessionMessageService', () => {
       expect(
         agentSessionMessageService.listRecoverableSessionDeliveries('same-target').map((message) => message.id)
       ).toEqual([sameAgent.id])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['same-target'] },
         { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: ['same-target'] },
-        { endpoint: '/agent-sessions/:sessionId', entityIds: ['same-target'] },
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          routeParams: { sessionId: 'same-target' },
+          entityIds: ['same-target']
+        },
         { endpoint: '/agent-sessions/latest' },
         {
           endpoint: '/agent-sessions/:sessionId/messages',
@@ -174,11 +228,24 @@ describe('AgentSessionMessageService', () => {
           status: 'accepted'
         }
       })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: [created.session.id] },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'order',
+          dimension: 'lastActivityAt',
+          entityIds: [created.session.id]
+        },
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          routeParams: { sessionId: created.session.id },
+          entityIds: [created.session.id]
+        },
+        { endpoint: '/agent-sessions/latest' },
         {
           endpoint: '/agent-sessions/:sessionId/messages',
           kind: 'membership',
+          routeParams: { sessionId: created.session.id },
           entityIds: [created.message.id]
         }
       ])
@@ -209,7 +276,7 @@ describe('AgentSessionMessageService', () => {
 
       const sessionsAfter = await dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable)
       expect(sessionsAfter).toEqual(sessionsBefore)
-      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      expect(publishedEffects).not.toHaveBeenCalled()
     })
 
     it('rejects a forged sender identity without writing a message', async () => {
@@ -260,13 +327,22 @@ describe('AgentSessionMessageService', () => {
         content: 'durable work'
       })
 
-      agentSessionMessageService.transitionSessionDelivery('target', accepted.id, 'delivering', {
-        expected: ['accepted'],
-        turnRef: 'assistant-turn'
-      })
+      agentSessionMessageService.transitionSessionDelivery(
+        'target',
+        accepted.id,
+        AgentSessionDeliveryStatus.Delivering,
+        {
+          expected: [AgentSessionDeliveryStatus.Accepted],
+          turnRef: 'assistant-turn'
+        }
+      )
       expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toHaveLength(1)
 
-      const consumed = agentSessionMessageService.updateSessionDeliveryStatus('target', accepted.id, 'consumed')
+      const consumed = agentSessionMessageService.updateSessionDeliveryStatus(
+        'target',
+        accepted.id,
+        AgentSessionDeliveryStatus.Consumed
+      )
       expect(consumed?.delivery).toMatchObject({ status: 'consumed', statusAt: expect.any(String) })
       expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toEqual([])
     })
@@ -298,7 +374,7 @@ describe('AgentSessionMessageService', () => {
         senderSessionId: 'sender',
         receiverSessionId: 'target',
         content: 'Do the work',
-        replyPolicy: 'completion'
+        replyPolicy: AgentSessionDeliveryReplyPolicy.Completion
       })
       const assistantId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d090'
       agentSessionMessageService.saveMessage({
@@ -310,22 +386,27 @@ describe('AgentSessionMessageService', () => {
           data: { parts: [{ type: 'text', text: 'Frozen result' }] }
         }
       })
-      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
-        expected: ['accepted'],
-        turnRef: assistantId
-      })
+      agentSessionMessageService.transitionSessionDelivery(
+        'target',
+        request.id,
+        AgentSessionDeliveryStatus.Delivering,
+        {
+          expected: [AgentSessionDeliveryStatus.Accepted],
+          turnRef: assistantId
+        }
+      )
 
       const first = agentSessionMessageService.finalizeSessionDelivery({
         requestSessionId: 'target',
         requestMessageId: request.id,
         assistantMessageId: assistantId,
-        outcome: 'success'
+        outcome: AgentSessionDeliveryOutcome.Success
       })
       const second = agentSessionMessageService.finalizeSessionDelivery({
         requestSessionId: 'target',
         requestMessageId: request.id,
         assistantMessageId: assistantId,
-        outcome: 'success'
+        outcome: AgentSessionDeliveryOutcome.Success
       })
 
       expect(first).toMatchObject({
@@ -349,10 +430,14 @@ describe('AgentSessionMessageService', () => {
         status: 'consumed',
         outcome: 'success'
       })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['sender'] },
         { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: ['sender'] },
-        { endpoint: '/agent-sessions/:sessionId', entityIds: ['sender'] },
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          routeParams: { sessionId: 'sender' },
+          entityIds: ['sender']
+        },
         { endpoint: '/agent-sessions/latest' },
         {
           endpoint: '/agent-sessions/:sessionId/messages',
@@ -385,7 +470,7 @@ describe('AgentSessionMessageService', () => {
         senderSessionId: 'sender',
         receiverSessionId: 'target',
         content: 'Do the work',
-        replyPolicy: 'completion'
+        replyPolicy: AgentSessionDeliveryReplyPolicy.Completion
       })
 
       agentSessionService.delete('target')
@@ -414,12 +499,17 @@ describe('AgentSessionMessageService', () => {
         senderSessionId: 'sender',
         receiverSessionId: 'target',
         content: 'Do the work',
-        replyPolicy: 'completion'
+        replyPolicy: AgentSessionDeliveryReplyPolicy.Completion
       })
-      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
-        expected: ['accepted'],
-        turnRef: 'assistant-turn'
-      })
+      agentSessionMessageService.transitionSessionDelivery(
+        'target',
+        request.id,
+        AgentSessionDeliveryStatus.Delivering,
+        {
+          expected: [AgentSessionDeliveryStatus.Accepted],
+          turnRef: 'assistant-turn'
+        }
+      )
 
       agentService.deleteAgent('agent-b', { deleteSessions: false })
 
@@ -773,13 +863,13 @@ describe('AgentSessionMessageService', () => {
       sessionId: SESSION_ID,
       message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
     })
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
 
     agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
     expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('resume-token')
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+    expect(publishedEffects).toHaveBeenCalledWith([
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
@@ -915,9 +1005,8 @@ describe('AgentSessionMessageService', () => {
       { publishDataChange: true }
     )
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith(
+    expect(publishedEffects).toHaveBeenLastCalledWith(
       expect.arrayContaining([
-        { endpoint: '/agent-sessions/latest' },
         {
           endpoint: '/agent-sessions/:sessionId/messages',
           kind: 'membership',
@@ -939,14 +1028,16 @@ describe('AgentSessionMessageService', () => {
       { publishDataChange: true }
     )
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'projection',
-        routeParams: { sessionId: SESSION_ID },
-        entityIds: [USER_MESSAGE_ID]
-      }
-    ])
+    expect(publishedEffects).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [USER_MESSAGE_ID]
+        }
+      ])
+    )
   })
 
   it('reads and updates message data within the owning Agent session', async () => {
@@ -1044,14 +1135,16 @@ describe('AgentSessionMessageService', () => {
       expect.objectContaining({ toolCallId: 'task-root' }),
       expect.objectContaining({ type: 'text', text: 'Subagent finished' })
     ])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'projection',
-        routeParams: { sessionId: SESSION_ID },
-        entityIds: [ASSISTANT_MESSAGE_ID]
-      }
-    ])
+    expect(publishedEffects).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [ASSISTANT_MESSAGE_ID]
+        }
+      ])
+    )
   })
 
   it('keeps the session timestamp aligned with a newly saved message batch', async () => {

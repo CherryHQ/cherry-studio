@@ -18,14 +18,14 @@ ordering, then bridges one streaming pass to a `ReadableStream<UIMessageChunk>`
 with a stable id for the first emitted message.
 
 The stream is **single-pass**: `Agent.stream` runs the AI SDK stream exactly
-once and pipes it through. There is no mid-stream message injection — steering
-a chat turn is handled upstream by queueing a steer, yielding at a step
-boundary, and chaining a continuation (see
-[Stream Manager](./stream-manager.md#steering)).
+once and pipes it through. There is no mid-stream message injection. A Chat
+follow-up is committed to `Inbox.NextTurn`; the current run yields at a clean
+boundary and the Conversation owner opens the successor after settlement.
 
-`Agent` does not know about topics, IPC, persistence, or multi-model
-fan-out. Those concerns live in the stream manager — see
-[Stream Manager](./stream-manager.md).
+`Agent` does not know about Conversations, IPC, persistence, or multi-model
+fan-out. Those concerns live in the Conversation owner and execution resource —
+see [Conversation Runtime](./conversation-runtime.md) and
+[Execution Resources](./stream-manager.md).
 
 ## API
 
@@ -72,7 +72,7 @@ Hook contributions come from three sources, all folded by `composeHooks`:
 3. **Caller hooks** — `AiService` adds the analytics hook only (usage is
    accumulated via `onStepFinish`, then flushed idempotently from `onFinish`,
    `onAbort`, or `onError`). It does *not* contribute a root-span/trace lifecycle hook —
-   the OTel root span is owned by `AiStreamManager.runExecutionLoop`.
+   the OTel root span is owned by the exact execution resource.
 
 Composition rules per hook key:
 
@@ -97,15 +97,13 @@ removed and hook signatures stay stable.
 
 There is no in-loop steering. `Agent.stream` makes a single AI SDK pass and
 never folds a mid-flight follow-up into the running turn — doing so mutated
-in-flight history and had no clean turn boundary. A new chat submission to a
-live topic is handled one level up by the stream manager: it persists and
-queues the steer, the current step loop yields cleanly, and a continuation
-answers the queued row — see [Stream Manager → Steering](./stream-manager.md#steering).
+in-flight history and had no clean turn boundary. A new Chat submission to a
+live Conversation is committed to `Inbox.NextTurn`; after clean yield and
+durable settlement, the Conversation owner claims that exact input.
 
 Agent-session runtimes are different: a driver with `redirect` can inject the
-follow-up at a runtime-native safe point; otherwise the host queues it on
-`pendingTurns` for the next turn —
-see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
+follow-up at a runtime-native safe point; otherwise the Conversation owner keeps
+it in `Inbox.NextTurn` — see [Agent Session Runtime](./agent-session-runtime.md).
 
 ## Error and abort
 

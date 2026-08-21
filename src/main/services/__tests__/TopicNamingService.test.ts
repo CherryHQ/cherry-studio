@@ -719,7 +719,7 @@ describe('TopicNamingService', () => {
       // captured before its caller's promise resolves.
       expect(service.inFlightWrites().size).toBe(1)
       const [agentKey] = [...service.inFlightWrites().keys()]
-      expect(agentKey).toMatch(/^agent-session:session-1#\d+$/)
+      expect(agentKey).toMatch(/^agent:session-1#\d+$/)
 
       await pending
       await flushSettles()

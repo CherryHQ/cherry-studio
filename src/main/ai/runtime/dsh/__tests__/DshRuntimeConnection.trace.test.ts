@@ -1,7 +1,12 @@
 import { trace } from '@opentelemetry/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeTraceContext } from '../../types'
+import {
+  type AgentRuntimeConnectInput,
+  AgentRuntimeEventType,
+  AgentRuntimeInteractionPresentation,
+  type AgentRuntimeTraceContext
+} from '../../types'
 
 interface FakeSpan {
   name: string
@@ -260,13 +265,13 @@ describe('DshRuntimeConnection tracing', () => {
 
     const { emit } = vi.mocked(DshBridgeServer).mock.calls[0][0]
     emit({
-      type: 'tool-approval-request',
+      type: AgentRuntimeEventType.ToolApprovalRequest,
       request: {
         approvalId: 'approval-1',
         toolCallId: 'call-1',
         toolName: 'exit_plan_mode',
         input: { plan: '# Ship it' },
-        presentation: 'stream'
+        presentation: AgentRuntimeInteractionPresentation.Stream
       }
     })
 

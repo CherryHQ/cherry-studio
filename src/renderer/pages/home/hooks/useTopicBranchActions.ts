@@ -1,12 +1,13 @@
 import { useMutation } from '@data/hooks/useDataApi'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { ConversationKind, ConversationStatus } from '@shared/ai/conversation'
 import { useCallback } from 'react'
 
 import { getTopicBranchCachePaths } from './useTopicMessagesCache'
 
 export function useTopicBranchActions(topicId: string) {
-  const { isPending, status } = useTopicStreamStatus(topicId)
+  const { isPending, status } = useConversationStreamStatus({ kind: ConversationKind.Chat, id: topicId })
   const branchCachePaths = getTopicBranchCachePaths(topicId)
   const { trigger: reserveBranchTrigger } = useMutation('POST', '/messages/:id/branches', {
     refresh: branchCachePaths
@@ -17,7 +18,7 @@ export function useTopicBranchActions(topicId: string) {
 
   const reserveBranch = useCallback(
     async (anchorMessageId: string) => {
-      const activate = !isPending && status !== 'awaiting-approval'
+      const activate = !isPending && status !== ConversationStatus.AwaitingInteraction
       await reserveBranchTrigger({
         params: { id: anchorMessageId },
         body: { activate }

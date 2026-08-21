@@ -32,7 +32,7 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, resolveApiGatewayRuntime } from '../agentApiGateway'
-import type { AgentSessionUsageCapture } from '../types'
+import { type AgentSessionUsageCapture, AgentSessionUsageCaptureOwner } from '../types'
 
 // dsh-llm-pi-ai uses maxTokens as a per-request output cap. Keep pi's
 // conservative default when Cherry has no more specific output limit.
@@ -238,7 +238,7 @@ export function buildDshProviderInjection(
       reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
     },
     usageCapture: {
-      owner: 'agent-sdk',
+      owner: AgentSessionUsageCaptureOwner.AgentSdk,
       credentialReceipt: credentialReceipt ?? { attribution: 'unknown' },
       providerId: provider.id,
       providerName: provider.name ?? null,
@@ -294,7 +294,7 @@ export function buildDshGatewayInjection(
       reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
     },
     // The gateway middleware records provider usage; agent-sdk capture would double-count.
-    usageCapture: { owner: 'provider-calls' }
+    usageCapture: { owner: AgentSessionUsageCaptureOwner.ProviderCalls }
   }
 }
 

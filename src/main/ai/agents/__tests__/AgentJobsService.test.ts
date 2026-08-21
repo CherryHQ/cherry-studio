@@ -37,8 +37,7 @@ vi.mock('@application', async () => {
   return mod.mockApplicationFactory()
 })
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 // The real handler pulls in the whole runAgentTask execution chain; the
 // service under test only needs SOME registered handler for 'agent.task'.
@@ -146,7 +145,7 @@ describe('AgentJobsService', () => {
   })
 
   beforeEach(() => {
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
   })
 
   afterAll(async () => {
@@ -405,11 +404,20 @@ describe('AgentJobsService', () => {
 
       expect(updated?.reuseSession).toBe(false)
       expect(updated?.reuseSessionId).toBeNull()
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
-        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [task.id] },
-        { endpoint: '/agent-tasks/:taskId', entityIds: [task.id] },
-        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] }
+        { endpoint: '/agent-tasks/:taskId', routeParams: { taskId: task.id }, entityIds: [task.id] },
+        {
+          endpoint: '/agents/:agentId/tasks',
+          kind: 'projection',
+          routeParams: { agentId: AGENT_ID },
+          entityIds: [task.id]
+        },
+        {
+          endpoint: '/agents/:agentId/tasks/:taskId',
+          routeParams: { agentId: AGENT_ID, taskId: task.id },
+          entityIds: [task.id]
+        }
       ])
     })
 
@@ -484,7 +492,7 @@ describe('AgentJobsService', () => {
         name: 'Scheduled task',
         workspace: { type: 'system' }
       })
-      notifyDataApiDataChangeMock.mockClear()
+      publishedEffects.mockClear()
 
       expect(
         service.bindTaskSessionReuse({
@@ -518,7 +526,7 @@ describe('AgentJobsService', () => {
         reuse: { enabled: true, revision: 0 },
         unrelated: 'keep-me'
       })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      expect(publishedEffects).toHaveBeenCalledTimes(1)
     })
   })
 

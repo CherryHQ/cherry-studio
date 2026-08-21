@@ -13,7 +13,7 @@ host/driver architecture itself (turn lifecycle, resume tokens, follow-up
 queue) read [Agent Session Runtime](./agent-session-runtime.md) first — this
 document is the operational checklist.
 
-The host (`AgentSessionRuntimeService`) is type-agnostic: it dispatches on
+The host (`AgentConnectionManager`) is type-agnostic: it dispatches on
 `agent.type` through `runtimeDriverRegistry` and never branches on a concrete
 runtime. Renderer UI is descriptor-driven: it reads
 `AGENT_RUNTIME_CAPABILITIES[agent.type]` and never branches on a concrete
@@ -126,7 +126,7 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    `dsh/dshStreamAdapter.ts`.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
-   (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
+   (called from `AgentConnectionManager.onInit`). Do **not** create a
    side-effect `register.ts` module — an unimported side-effect module is
    how pi's registration was silently lost in a merge.
 

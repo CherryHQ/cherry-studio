@@ -6,8 +6,8 @@
  * branch (derived state changes → re-render) must hold.
  */
 import { cacheService } from '@data/CacheService'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
+import { ConversationKind, conversationRefKey, ConversationStatus } from '@shared/ai/conversation'
+import type { ConversationStatusSnapshotEntry } from '@shared/ai/transport'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,12 +18,12 @@ vi.unmock('@data/CacheService')
 vi.unmock('@data/hooks/useCache')
 
 const SESSION_ID = 'session-stream-test'
-const KEY = `topic.stream.statuses.${buildAgentSessionTopicId(SESSION_ID)}` as const
+const KEY = `conversation.statuses.${conversationRefKey({ kind: ConversationKind.Agent, id: SESSION_ID })}` as const
 
-const makeEntry = (status: TopicStreamStatus, lastCompletedAt: number): TopicStatusSnapshotEntry => ({
+const makeEntry = (status: ConversationStatus, lastCompletedAt: number): ConversationStatusSnapshotEntry => ({
   status,
   activeExecutions: [],
-  awaitingApprovalAnchors: [],
+  awaitingInteractionExecutions: [],
   lastCompletedAt
 })
 
@@ -61,15 +61,15 @@ describe('useAgentSessionStreamStatuses', () => {
     const { result } = renderHook(() => useAgentSessionStreamStatuses([SESSION_ID]))
 
     act(() => {
-      cacheService.setShared(KEY, makeEntry('streaming', 1))
+      cacheService.setShared(KEY, makeEntry(ConversationStatus.Streaming, 1))
     })
 
-    expect(result.current.get(SESSION_ID)).toEqual({ isPending: true, status: 'streaming' })
+    expect(result.current.get(SESSION_ID)).toEqual({ isPending: true, status: ConversationStatus.Streaming })
   })
 
   it('comparator equal branch: raw entry fields change, derived state does not → no re-render', () => {
     act(() => {
-      cacheService.setShared(KEY, makeEntry('streaming', 1))
+      cacheService.setShared(KEY, makeEntry(ConversationStatus.Streaming, 1))
     })
 
     let renderCount = 0
@@ -82,7 +82,7 @@ describe('useAgentSessionStreamStatuses', () => {
 
     act(() => {
       // Notification fires (value deep-differs) but status/isPending are unchanged.
-      cacheService.setShared(KEY, makeEntry('streaming', 2))
+      cacheService.setShared(KEY, makeEntry(ConversationStatus.Streaming, 2))
     })
 
     expect(renderCount).toBe(renders)
@@ -91,16 +91,16 @@ describe('useAgentSessionStreamStatuses', () => {
 
   it('comparator unequal branch: derived state change re-renders with the new map', () => {
     act(() => {
-      cacheService.setShared(KEY, makeEntry('streaming', 1))
+      cacheService.setShared(KEY, makeEntry(ConversationStatus.Streaming, 1))
     })
 
     const { result } = renderHook(() => useAgentSessionStreamStatuses([SESSION_ID]))
     expect(result.current.get(SESSION_ID)?.isPending).toBe(true)
 
     act(() => {
-      cacheService.setShared(KEY, makeEntry('done', 3))
+      cacheService.setShared(KEY, makeEntry(ConversationStatus.Done, 3))
     })
 
-    expect(result.current.get(SESSION_ID)).toEqual({ isPending: false, status: 'done' })
+    expect(result.current.get(SESSION_ID)).toEqual({ isPending: false, status: ConversationStatus.Done })
   })
 })

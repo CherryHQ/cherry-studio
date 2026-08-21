@@ -12,16 +12,12 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import AdmZip from 'adm-zip'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 vi.mock('@main/utils/markdownParser', () => ({
   parseSkillMetadata: vi.fn(),
@@ -61,6 +57,8 @@ vi.mock('../skillArchive', async (importOriginal) => {
 import * as skillArchive from '../skillArchive'
 import * as skillPaths from '../skillPaths'
 import { SkillService } from '../SkillService'
+
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
@@ -210,12 +208,12 @@ describe('SkillService', () => {
         .get()
 
       expect(disabledSkill?.isGlobalEnabled).toBe(false)
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      expect(publishedEffects).toHaveBeenCalledWith([
         { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID_1] },
         { endpoint: '/skills', kind: 'membership', dimension: 'agentId', entityIds: [SKILL_ID_1] },
-        { endpoint: '/skills/:skillId', entityIds: [SKILL_ID_1] }
+        { endpoint: '/skills/:skillId', routeParams: { skillId: SKILL_ID_1 }, entityIds: [SKILL_ID_1] }
       ])
-      const emittedEffects = notifyDataApiDataChangeMock.mock.calls[0]?.[0] as DataApiDataChangeEffect[]
+      const emittedEffects = publishedEffects.mock.calls[0]?.[0]
       const membershipEffect = emittedEffects.find((effect) => effect.kind === 'membership')
       expect(Object.values(SKILL_LIST_MEMBERSHIP_DIMENSIONS)).toContain(membershipEffect?.dimension)
       expect(globallyListed.find((skill) => skill.id === SKILL_ID_1)?.isGlobalEnabled).toBe(false)

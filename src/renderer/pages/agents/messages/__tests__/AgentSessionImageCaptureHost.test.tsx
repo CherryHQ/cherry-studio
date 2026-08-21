@@ -71,7 +71,7 @@ describe('AgentSessionImageCaptureHost', () => {
     expect(messageListProviderMock).toHaveBeenCalledWith(
       expect.objectContaining({
         topic: expect.objectContaining({
-          id: 'agent-session:session-a',
+          id: 'agent:session-a',
           name: 'New task'
         })
       })

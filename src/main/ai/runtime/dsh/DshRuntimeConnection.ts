@@ -40,9 +40,15 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentSessionUsageCapture
+} from '../types'
+import {
+  AgentRuntimeAutonomousState,
+  AgentRuntimeEventType,
+  AgentRuntimeMessageAssociation,
+  AgentRuntimeReconcileResult,
+  AgentSessionUsageCaptureOwner
 } from '../types'
 import { buildDshCompositionYaml, resolveDshRuntimeBinPath } from './compositionBuilder'
 import { DshBridgeServer } from './DshBridgeServer'
@@ -89,16 +95,16 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private readonly adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
       this.subagents.noteMainChunk(chunk)
-      this.eventQueue.push({ type: 'chunk', chunk })
+      this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk })
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
     onTurnEnd: (reason) => this.handleTurnEnd(reason),
     onCompaction: (event) => this.eventQueue.push(event),
-    onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
+    onApiRetry: (retry) => this.eventQueue.push({ type: AgentRuntimeEventType.ApiRetry, retry }),
     onAutonomousTurnState: (state) => {
       // Reconcile treats a goal round like any live turn: policy swaps wait for idle.
-      if (state === 'started') this.markTurnActive()
-      this.eventQueue.push({ type: 'autonomous-turn-state', state })
+      if (state === AgentRuntimeAutonomousState.Started) this.markTurnActive()
+      this.eventQueue.push({ type: AgentRuntimeEventType.AutonomousTurnState, state })
     },
     onPlanMode: (active) => this.handlePlanModeFold(active)
   })
@@ -176,26 +182,26 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         // accumulator tolerates orphans; the turn stream's does not (it dies
         // silently and the whole turn persists empty).
         if (turnToken !== null && turnToken === this.turnEpoch && this.turnActive) {
-          this.eventQueue.push({ type: 'chunk', chunk })
+          this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk })
         } else {
-          this.eventQueue.push({ type: 'background-flow-chunk', rootToolCallId, chunk })
+          this.eventQueue.push({ type: AgentRuntimeEventType.BackgroundFlowChunk, rootToolCallId, chunk })
         }
       },
       emitTaskEvent: (data, edgeId) => {
         if (this.closed) return
-        this.eventQueue.push({ type: 'background-task-event', data })
+        this.eventQueue.push({ type: AgentRuntimeEventType.BackgroundTaskEvent, data })
         if (this.turnActive) {
           this.eventQueue.push({
-            type: 'chunk',
+            type: AgentRuntimeEventType.Chunk,
             chunk: { type: 'data-agent-task-event', id: `task-${data.taskId}-${edgeId}`, data }
           })
         }
       },
       emitTasks: (tasks) => {
-        if (!this.closed) this.eventQueue.push({ type: 'background-tasks', tasks })
+        if (!this.closed) this.eventQueue.push({ type: AgentRuntimeEventType.BackgroundTasks, tasks })
       },
       emitWorkState: (active) => {
-        if (!this.closed) this.eventQueue.push({ type: 'background-work-state', active })
+        if (!this.closed) this.eventQueue.push({ type: AgentRuntimeEventType.BackgroundWorkState, active })
       },
       recordChildUsage: (info) =>
         this.recordProviderInvocation(
@@ -340,7 +346,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         sessionId: this.input.sessionId,
         emit: (event) => this.emitBridgeEvent(event),
         getInteractionState: () =>
-          application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
+          application.get('ConversationRuntimeService').getAgentInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
         onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
       })
@@ -398,7 +404,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   async send(input: Parameters<AgentRuntimeConnection['send']>[0]): Promise<void> {
     const bridge = this.bridge
     if (!bridge) {
-      this.eventQueue.push({ type: 'error', error: new Error('dsh session is not started') })
+      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: new Error('dsh session is not started') })
       return
     }
     const rawContent = buildAgentUserContent(input.message)
@@ -422,7 +428,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.adapter.abortTurn()
       if (this.closed) return
       logger.error('dsh prompt failed', error as Error)
-      this.eventQueue.push({ type: 'error', error })
+      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
     }
   }
 
@@ -458,7 +464,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         input.knowledgeBaseIds
       )
     } catch (error) {
-      if (error instanceof DshInvalidConnectionSnapshotError) return 'invalid'
+      if (error instanceof DshInvalidConnectionSnapshotError) return AgentRuntimeReconcileResult.Invalid
       throw error
     }
     const { agent } = snapshot
@@ -490,7 +496,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       } catch (error) {
         // Fail closed: the plugin may still be enforcing the OLD policy.
         logger.error('dsh policy update failed', error as Error)
-        return 'failed'
+        return AgentRuntimeReconcileResult.Failed
       }
     }
     if (planBoundaryChanged) {
@@ -502,7 +508,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       } catch (error) {
         // Fail closed: prompt guidance and enforcement would disagree.
         logger.error('dsh plan mode switch failed', error as Error)
-        return 'failed'
+        return AgentRuntimeReconcileResult.Failed
       }
     }
     if (
@@ -510,9 +516,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       snapshot.signature !== this.connectionSignature ||
       (input.reasoningEffort ?? 'default') !== this.reasoningEffort
     ) {
-      return 'rebuild'
+      return AgentRuntimeReconcileResult.Rebuild
     }
-    return policyChanged ? 'patched' : 'current'
+    return policyChanged ? AgentRuntimeReconcileResult.Patched : AgentRuntimeReconcileResult.Current
   }
 
   /**
@@ -680,7 +686,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       if (this.closed) return
       logger.error('dsh notification stream failed', error as Error)
-      this.eventQueue.push({ type: 'error', error })
+      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
       this.eventQueue.close()
     }
   }
@@ -702,7 +708,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.turnActive = false
       if (this.closed) return true
       logger.error('dsh command dispatch failed', error as Error)
-      this.eventQueue.push({ type: 'error', error })
+      this.eventQueue.push({ type: AgentRuntimeEventType.Error, error })
       return true
     }
     if (!outcome.handled) {
@@ -711,16 +717,16 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
     if (outcome.text) this.pushCommandOutput(outcome.text)
     this.turnActive = false
-    this.eventQueue.push({ type: 'turn-complete' })
+    this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
     return true
   }
 
   /** Command outcomes are host-fabricated assistant text — they never reach the model. */
   private pushCommandOutput(text: string): void {
     const id = `dsh-command-${randomUUID()}`
-    this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-start', id } })
-    this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-delta', id, delta: text } })
-    this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
+    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk: { type: 'text-start', id } })
+    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk: { type: 'text-delta', id, delta: text } })
+    this.eventQueue.push({ type: AgentRuntimeEventType.Chunk, chunk: { type: 'text-end', id } })
   }
 
   private handleTurnEnd(reason: TurnEndReason): void {
@@ -729,21 +735,21 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     switch (reason.kind) {
       case 'completed':
       case 'max-tokens':
-        this.eventQueue.push({ type: 'turn-complete' })
+        this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
         return
       case 'aborted':
       case 'interrupted':
         // Arrives only during teardown/cancel — the host is already settling this turn.
-        this.eventQueue.push({ type: 'turn-complete' })
+        this.eventQueue.push({ type: AgentRuntimeEventType.TurnComplete })
         return
       case 'error': {
         const message = reason.error.message.trim() || 'dsh agent turn failed'
-        this.eventQueue.push({ type: 'error', error: new Error(message) })
+        this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: new Error(message) })
         return
       }
       default:
         // 'blocked' and merge-extended kinds fail loud rather than stranding the host turn.
-        this.eventQueue.push({ type: 'error', error: new Error(`dsh turn ended: ${reason.kind}`) })
+        this.eventQueue.push({ type: AgentRuntimeEventType.Error, error: new Error(`dsh turn ended: ${reason.kind}`) })
     }
   }
 
@@ -758,7 +764,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     sessionId: string = this.input.sessionId
   ): void {
     if (this.closed) return
-    if (this._usageCapture?.owner !== 'agent-sdk') return
+    if (this._usageCapture?.owner !== AgentSessionUsageCaptureOwner.AgentSdk) return
 
     const requestId = `dsh-agent:${sessionId}:${info.turn}:${info.seq}`
     if (this.committedInvocationIds.has(requestId)) return
@@ -770,11 +776,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
     const outputTokens = finiteTokenCount(info.usage.outputTokens)
     this.eventQueue.push({
-      type: 'usage',
+      type: AgentRuntimeEventType.Usage,
       invocation: {
         requestId,
         model: info.model?.trim() || this.modelId,
-        messageAssociation: 'current-turn',
+        messageAssociation: AgentRuntimeMessageAssociation.CurrentTurn,
         usage: {
           inputTokens,
           outputTokens,
@@ -796,7 +802,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const token = this.input.sessionId
     if (token === this.resumeToken) return
     this.resumeToken = token
-    this.eventQueue.push({ type: 'resume-token', token })
+    this.eventQueue.push({ type: AgentRuntimeEventType.ResumeToken, token })
   }
 }
 

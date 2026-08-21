@@ -17,11 +17,11 @@ import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/service
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Pin } from '@shared/data/types/pin'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const publishedEffects = MockMainDbServiceExport.dbService.publishedEffects
 
 describe('ProviderService.delete — preset protection boundary', () => {
   const dbh = setupTestDatabase()
@@ -162,7 +162,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       targetPins.push(pinService.pin({ entityType: 'model', entityId }))
     }
     const siblingPin = pinService.pin({ entityType: 'model', entityId: siblingModelId })
-    notifyDataApiDataChangeMock.mockClear()
+    publishedEffects.mockClear()
 
     providerService.delete('openai-work')
 
@@ -171,7 +171,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       expect(pins.find((row) => row.id === pin.id)).toBeUndefined()
     }
     expect(pins.find((row) => row.id === siblingPin.id)).toBeDefined()
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+    expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('purges pins for every model under the provider as part of the delete transaction', async () => {

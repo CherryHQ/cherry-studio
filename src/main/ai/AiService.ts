@@ -20,12 +20,12 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
@@ -36,15 +36,9 @@ import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
-import {
-  type EmbeddingModelUsage,
-  isToolUIPart,
-  type LanguageModelUsage,
-  type ModelMessage,
-  type UIMessageChunk
-} from 'ai'
+import { type EmbeddingModelUsage, type LanguageModelUsage, type ModelMessage, type UIMessageChunk } from 'ai'
 
-import { isAgentSessionTopic } from './agentSession/topic'
+import type { MessageRuntimeTimingSink } from './conversation'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
@@ -59,7 +53,7 @@ import { listModels as listModelsFromProvider, probeOllamaModel } from './provid
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
-import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
+import { WebContentsListener } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
@@ -70,6 +64,7 @@ import type {
   InProcessUsageContext,
   ListModelsRequest
 } from './types'
+import { AiRuntimeKind } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
@@ -325,13 +320,13 @@ export interface AiRerankResult {
 /**
  * Lifecycle AI service. See `docs/references/ai/core-architecture.md`.
  *
- * DO NOT mirror `@DependsOn(['AiService'])` on AiStreamManager —
+ * DO NOT mirror `@DependsOn(['AiService'])` on ConversationRuntimeService —
  * `runExecutionLoop` looks AiService up at runtime, and every `send()`
  * caller routes through AiService first.
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
+@DependsOn(['McpRuntimeService', 'McpCatalogService', 'ConversationRuntimeService', 'JobManager'])
 export class AiService extends BaseService {
   // Per-request AbortControllers for the `ai.image.generate` route, paired with the
   // `ai.image.abort` route. Key is the renderer-generated requestId. Entries are
@@ -376,7 +371,7 @@ export class AiService extends BaseService {
   ): Promise<AiToolApprovalRespondResponse> {
     // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
     // the exact `canUseTool` invocation that issued this approval id.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
+    const dispatched = application.get('AgentConnectionManager').respondToolApproval(
       payload.approvalId,
       {
         approved: payload.approved,
@@ -387,117 +382,45 @@ export class AiService extends BaseService {
     )
     if (dispatched) return { ok: true }
 
-    // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
-    if (!payload.topicId || !payload.anchorId) {
+    // MCP path: the Conversation actor serializes the durable decision and any continuation.
+    if (!payload.conversation || payload.conversation.kind !== ConversationKind.Chat || !payload.anchorId) {
       logger.warn('Tool-approval response had no live registry entry and no anchor context', {
         approvalId: payload.approvalId
       })
       return { ok: false }
     }
 
-    // The approval card is clickable the moment the `tool-approval-request` chunk arrives (the live
-    // overlay), not only at terminal. So a response can land while a stream is still live on this
-    // topic — a sibling exec in a multi-model turn, or another approved continuation already
-    // running. The continue-conversation dispatch below would then hit send()'s inject path and
-    // silently discard the approved turn (its models dropped, the tool never runs, the row stays
-    // `pending`) while still returning a success-shaped response. This cheap pre-check refuses the
-    // common case before mutating the row; the narrow TOCTOU that slips through (a submit starts a
-    // turn between here and the dispatch) is closed under the dispatch lock by send() throwing,
-    // caught below. The renderer surfaces the failure and resets the card; this backend slice does
-    // not promise an automatic retry.
-    if (application.get('AiStreamManager').hasLiveStream(payload.topicId)) {
-      logger.warn(
-        'Tool-approval response arrived while a stream is live — refusing to avoid a swallowed continuation',
-        {
-          approvalId: payload.approvalId,
-          topicId: payload.topicId
-        }
-      )
-      return { ok: false }
-    }
-
-    // Main is the single authority for the approval mutation: the
-    // renderer no longer PATCHes (it sourced parts from a DB projection
-    // that didn't carry the overlay-only `approval-requested` part and
-    // raced/overwrote the persisted row). The decision is carried
-    // explicitly in the IPC payload; apply it here to the DB-authoritative
-    // parts (the original stream's terminal persistence wrote the
-    // `approval-requested` part onto this row) and persist.
     const decision = {
       approvalId: payload.approvalId,
       approved: payload.approved,
       ...(payload.reason !== undefined && { reason: payload.reason }),
       ...(payload.updatedInput !== undefined && { updatedInput: payload.updatedInput })
     }
-    // A stale click on a deleted message must resolve through the documented
-    // result shape, not throw out of the handler (getById rejects when the
-    // anchor is missing), consistent with the no-context branch above.
-    // Serialize the parts mutation per anchor inside one write transaction: a multi-tool turn can
-    // request several approvals on one row, and two concurrent responses must not read the same
-    // stale parts and clobber each other's decision (or both compute a stale "still pending" and
-    // neither resume). Returns the committed parts, or null when the anchor row is gone — a stale
-    // click on a deleted message, resolved through the result shape instead of throwing.
-    const approvalResult = messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
-    if (approvalResult === null) {
-      logger.warn('Tool-approval response anchor is missing or deleted', {
-        approvalId: payload.approvalId,
-        anchorId: payload.anchorId
-      })
-      return { ok: false }
-    }
-    const { parts: committedParts, appliedApprovalIds, alreadySettledApprovalIds } = approvalResult
-    if (appliedApprovalIds.length === 0 && alreadySettledApprovalIds.includes(decision.approvalId)) {
-      logger.warn('Ignoring duplicate tool-approval response for an already-settled approval', {
-        approvalId: decision.approvalId,
-        anchorId: payload.anchorId
-      })
-      return { ok: true }
-    }
-    // Only resume once every approval on this turn is decided — a turn can request several tools
-    // at once; the not-yet-decided ones keep their cards. Reading the committed post-write parts
-    // means concurrent responders agree on who fires the continuation.
-    const anyStillPending = committedParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
-    if (anyStillPending) {
-      return { ok: true }
-    }
-
-    // The continuation needs a renderer to stream to; without the caller window there's nothing to
-    // surface it on, so resolve through the result shape instead of dispatching into the void.
-    if (!senderWc) {
-      logger.warn('Tool-approval continuation skipped: no caller window', { approvalId: payload.approvalId })
-      return { ok: false }
-    }
-
-    const aiStreamManager = application.get('AiStreamManager')
-    const subscriber = new WebContentsListener(senderWc, payload.topicId)
     try {
-      await aiStreamManager.dispatch(subscriber, {
-        trigger: 'continue-conversation',
-        topicId: payload.topicId,
-        parentAnchorId: payload.anchorId,
-        // Idempotent against the conditional write above; safety net when the part wasn't on the row.
-        approvalDecisions: [decision]
-      })
+      const ok = await application
+        .get('ConversationRuntimeService')
+        .respondChatToolApproval(
+          payload.conversation,
+          payload.anchorId,
+          decision,
+          senderWc ? new WebContentsListener(senderWc, payload.conversation) : undefined
+        )
+      return { ok }
     } catch (error) {
-      // dispatch runs prepareDispatch+send under the per-topic dispatch lock. If a concurrent submit
-      // started a live turn after the hasLiveStream pre-check above, send() refuses to inject-drop the
-      // prepared continuation (throws) rather than swallowing it with a success shape. Resolve through
-      // the result shape so the renderer can reset the card instead of leaving it stuck submitting.
-      logger.warn('Tool-approval continuation dispatch failed (likely raced a live submit)', {
+      logger.warn('Tool-approval actor command failed', {
         approvalId: payload.approvalId,
-        topicId: payload.topicId,
+        conversation: payload.conversation,
         error: error instanceof Error ? error.message : String(error)
       })
       return { ok: false }
     }
-    return { ok: true }
   }
 
   // ── Streaming chat (agent.stream) ──
 
   /**
    * Raw `UIMessageChunk` stream from `Agent.stream`. Caller (usually
-   * `AiStreamManager`) owns read/multicast/accumulation/terminal dispatch.
+   * `AiExecutionManager`) owns read/multicast/accumulation and reports exact terminal facts.
    * Pre-stream errors reject the Promise; mid-stream errors come through
    * the stream itself.
    */
@@ -511,16 +434,12 @@ export class AiService extends BaseService {
       throw new Error('streamText requires requestOptions.signal — no AbortController was attached by the caller')
     }
 
-    if (request.runtime?.kind === 'agent-session') {
-      return application.get('AgentSessionRuntimeService').openTurnStream({
-        sessionId: request.runtime.sessionId,
+    if (request.runtime?.kind === AiRuntimeKind.AgentSession) {
+      return application.get('AgentConnectionManager').openExecutionStream({
+        conversation: { kind: ConversationKind.Agent, id: request.runtime.sessionId },
         turnId: request.runtime.turnId,
         signal
       })
-    }
-
-    if (isAgentSessionTopic(request.chatId)) {
-      throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}

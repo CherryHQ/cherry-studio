@@ -7,6 +7,7 @@
  * which backend is wired in.
  */
 
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -19,7 +20,7 @@ const messageFinalizeMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
-    appendAssistantMessage: appendAssistantMessageMock
+    settleAssistantMessage: appendAssistantMessageMock
   }
 }))
 
@@ -30,7 +31,7 @@ vi.mock('@main/data/services/MessageService', () => ({
   }
 }))
 
-const { PersistenceListener, TerminalPersistenceError } = await import('../PersistenceListener')
+const { PersistenceListener } = await import('../PersistenceListener')
 const { TemporaryChatBackend } = await import('../../persistence/backends/TemporaryChatBackend')
 const { MessageServiceBackend } = await import('../../persistence/backends/MessageServiceBackend')
 
@@ -57,7 +58,7 @@ function makeStreamingReasoningMessage(startedAt: number): CherryUIMessage {
   } as unknown as CherryUIMessage
 }
 
-function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
+function makeListener(modelId?: UniqueModelId) {
   return new PersistenceListener({
     topicId: 'abc',
     modelId,
@@ -66,8 +67,7 @@ function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
       messageId: 'assistant-message-id',
       modelId,
       messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
-    }),
-    onPersistFailed
+    })
   })
 }
 
@@ -77,10 +77,14 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     appendAssistantMessageMock.mockReturnValue({ id: 'msg-a' })
   })
 
-  it('appends the assistant message on onDone with status=success', async () => {
+  it('settles the reserved assistant message on onDone with status=success', async () => {
     const listener = makeListener('openai::gpt-4o')
 
-    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success', modelId: 'openai::gpt-4o' })
+    await listener.onDone({
+      finalMessage: makeFinalMessage(),
+      status: ConversationOutcomeKind.Success,
+      modelId: 'openai::gpt-4o'
+    })
 
     expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
     const [topicId, payload, runtimeStats, messageId] = appendAssistantMessageMock.mock.calls[0]
@@ -95,36 +99,39 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(messageId).toBe('assistant-message-id')
   })
 
-  it.each(['success', 'paused', 'error'] as const)('never persists retry status parts after %s', async (status) => {
-    const listener = makeListener()
-    const finalMessage = {
-      id: 'retry-message',
-      role: 'assistant',
-      parts: [
-        {
-          type: 'data-retry',
-          id: 'retry',
-          data: { state: 'retrying', modelId: 'fallback-model', attempt: 2, reason: 'http 429' }
-        },
-        { type: 'text', text: 'answer' }
-      ]
-    } as unknown as CherryUIMessage
+  it.each([ConversationOutcomeKind.Success, ConversationOutcomeKind.Paused, ConversationOutcomeKind.Error] as const)(
+    'never persists retry status parts after %s',
+    async (status) => {
+      const listener = makeListener()
+      const finalMessage = {
+        id: 'retry-message',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'data-retry',
+            id: 'retry',
+            data: { state: 'retrying', modelId: 'fallback-model', attempt: 2, reason: 'http 429' }
+          },
+          { type: 'text', text: 'answer' }
+        ]
+      } as unknown as CherryUIMessage
 
-    if (status === 'success') {
-      await listener.onDone({ finalMessage, status })
-    } else if (status === 'paused') {
-      await listener.onPaused({ finalMessage, status })
-    } else {
-      await listener.onError({
-        finalMessage,
-        status,
-        error: { name: 'Error', message: 'boom', stack: null }
-      })
+      if (status === ConversationOutcomeKind.Success) {
+        await listener.onDone({ finalMessage, status })
+      } else if (status === ConversationOutcomeKind.Paused) {
+        await listener.onPaused({ finalMessage, status })
+      } else {
+        await listener.onError({
+          finalMessage,
+          status,
+          error: { name: 'Error', message: 'boom', stack: null }
+        })
+      }
+
+      const parts = appendAssistantMessageMock.mock.calls[0][1].data.parts as Array<{ type: string }>
+      expect(parts.some((part) => part.type === 'data-retry')).toBe(false)
     }
-
-    const parts = appendAssistantMessageMock.mock.calls[0][1].data.parts as Array<{ type: string }>
-    expect(parts.some((part) => part.type === 'data-retry')).toBe(false)
-  })
+  )
 
   it('strips empty text/reasoning parts before the backend write', async () => {
     const listener = makeListener('openai::gpt-4o')
@@ -140,7 +147,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       ]
     } as unknown as CherryUIMessage
 
-    await listener.onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-4o' })
+    await listener.onDone({ finalMessage, status: ConversationOutcomeKind.Success, modelId: 'openai::gpt-4o' })
 
     const payload = appendAssistantMessageMock.mock.calls[0][1]
     const parts = payload.data.parts as Array<{ type: string; text: string }>
@@ -166,7 +173,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       }
     } as unknown as CherryUIMessage
 
-    await listener.onDone({ finalMessage, status: 'success' })
+    await listener.onDone({ finalMessage, status: ConversationOutcomeKind.Success })
 
     expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
     expect(appendAssistantMessageMock.mock.calls[0][1]).not.toHaveProperty('stats')
@@ -190,7 +197,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     }
     await listener.onDone({
       finalMessage: makeFinalMessage(),
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       timings: { startedAt: 10, completedAt: 20 },
       runtimeTiming
     })
@@ -204,7 +211,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     await listener.onDone({
       finalMessage: makeFinalMessage(),
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       modelId: 'anthropic::claude-sonnet'
     })
 
@@ -214,7 +221,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
   it('onPaused writes status=paused', async () => {
     const listener = makeListener()
 
-    await listener.onPaused({ finalMessage: makeFinalMessage(), status: 'paused' })
+    await listener.onPaused({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Paused })
 
     expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
     expect(appendAssistantMessageMock.mock.calls[0][1].status).toBe('paused')
@@ -226,7 +233,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     await listener.onPaused({
       finalMessage: makeStreamingReasoningMessage(2000),
-      status: 'paused'
+      status: ConversationOutcomeKind.Paused
     })
     nowSpy.mockRestore()
 
@@ -249,7 +256,11 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       parts: [{ type: 'text', text: 'so far so good' }]
     } as unknown as UIMessage
 
-    await listener.onError({ status: 'error', error: err, finalMessage: finalMessage as CherryUIMessage })
+    await listener.onError({
+      status: ConversationOutcomeKind.Error,
+      error: err,
+      finalMessage: finalMessage as CherryUIMessage
+    })
 
     expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendAssistantMessageMock.mock.calls[0][1]
@@ -267,7 +278,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const err: SerializedError = { name: 'Error', message: 'boom', stack: null }
 
     await listener.onError({
-      status: 'error',
+      status: ConversationOutcomeKind.Error,
       error: err,
       finalMessage: makeStreamingReasoningMessage(3000)
     })
@@ -286,7 +297,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const listener = makeListener()
     const err: SerializedError = { name: 'Error', message: 'boom', stack: null }
 
-    await listener.onError({ status: 'error', error: err })
+    await listener.onError({ status: ConversationOutcomeKind.Error, error: err })
 
     expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendAssistantMessageMock.mock.calls[0][1]
@@ -299,7 +310,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
   it('skips persistence when onDone arrives without a finalMessage', async () => {
     const listener = makeListener()
 
-    await listener.onDone({ finalMessage: undefined, status: 'success' })
+    await listener.onDone({ finalMessage: undefined, status: ConversationOutcomeKind.Success })
 
     expect(appendAssistantMessageMock).not.toHaveBeenCalled()
   })
@@ -309,7 +320,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     await listener.onPaused({
       finalMessage: undefined,
-      status: 'paused',
+      status: ConversationOutcomeKind.Paused,
       timings: { startedAt: 1000, completedAt: 2500.9 }
     })
 
@@ -322,9 +333,11 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     })
     const listener = makeListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
+    await expect(
+      listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
+    ).rejects.toMatchObject({
+      durableErrorWritten: false
+    })
   })
 })
 
@@ -337,19 +350,18 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   function makeMessageServiceListener() {
     return new PersistenceListener({
       topicId: 'topic-1',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed: vi.fn()
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
     })
   }
 
   it('finalizes an empty paused placeholder instead of leaving it pending', async () => {
     const listener = makeMessageServiceListener()
 
-    await listener.onPaused({ finalMessage: undefined, status: 'paused' })
+    await listener.onPaused({ finalMessage: undefined, status: ConversationOutcomeKind.Paused })
 
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: { parts: [] },
-      status: 'paused',
+      status: ConversationOutcomeKind.Paused,
       runtimeStats: undefined
     })
     expect(messageUpdateMock).not.toHaveBeenCalled()
@@ -358,7 +370,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   it('does not create an empty successful ordinary-chat reply', async () => {
     const listener = makeMessageServiceListener()
 
-    await listener.onDone({ finalMessage: undefined, status: 'success' })
+    await listener.onDone({ finalMessage: undefined, status: ConversationOutcomeKind.Success })
 
     expect(messageFinalizeMock).not.toHaveBeenCalled()
     expect(messageUpdateMock).not.toHaveBeenCalled()
@@ -371,14 +383,16 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
     const listener = makeMessageServiceListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
+    await expect(
+      listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
+    ).rejects.toMatchObject({
+      durableErrorWritten: true
+    })
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
     // The recovery write flips the frozen `pending` placeholder to a terminal `error`.
-    expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
+    expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: ConversationOutcomeKind.Error })
   })
 
   it('retains frozen turn options when finalizing the assistant placeholder', async () => {
@@ -387,18 +401,17 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       backend: new MessageServiceBackend({
         assistantMessageId: 'assistant-1',
         turnOptions: { reasoningEffort: 'high', fastMode: true }
-      }),
-      onPersistFailed: vi.fn()
+      })
     })
 
-    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+    await listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
 
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: {
         parts: makeFinalMessage().parts,
         turnOptions: { reasoningEffort: 'high', fastMode: true }
       },
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       runtimeStats: undefined
     })
     expect(messageUpdateMock).not.toHaveBeenCalled()
@@ -413,53 +426,32 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     })
     const listener = makeMessageServiceListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
+    await expect(
+      listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
+    ).rejects.toMatchObject({
+      durableErrorWritten: false
+    })
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
   })
 
-  it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
+  it('carries the persistence failure for the manager to publish after settlement', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')
     })
     messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
-    const onPersistFailed = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'topic-1',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
     })
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
-
-    expect(onPersistFailed).toHaveBeenCalledTimes(1)
-    expect(onPersistFailed).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining('write failed') })
-    )
-  })
-
-  it('raises the control signal even when the persistence-failure callback throws', async () => {
-    messageFinalizeMock.mockImplementationOnce(() => {
-      throw new Error('write failed')
+    await expect(
+      listener.onDone({ finalMessage: makeFinalMessage(), status: ConversationOutcomeKind.Success })
+    ).rejects.toMatchObject({
+      serializedError: expect.objectContaining({ message: expect.stringContaining('write failed') }),
+      durableErrorWritten: true
     })
-    const onPersistFailed = vi.fn(() => {
-      throw new Error('renderer notification failed')
-    })
-    const listener = new PersistenceListener({
-      topicId: 'topic-1',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed
-    })
-
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
-      TerminalPersistenceError
-    )
-    expect(onPersistFailed).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -483,14 +475,13 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     const listener = new PersistenceListener({
       topicId: 'topic-1',
       modelId: 'openrouter::x' as UniqueModelId,
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed: vi.fn()
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
     })
 
     const runtimeTiming = { startedAt: 1_000, completedAt: 1_160, spans: [] }
     await listener.onDone({
       finalMessage,
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       modelId: 'openrouter::x' as UniqueModelId,
       timings: { startedAt: 100, completedAt: 260 },
       runtimeTiming
@@ -498,7 +489,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
 
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: { parts: [{ type: 'text', text: 'hi' }] },
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       runtimeStats: { runtimeTiming, contextTokens: 13 }
     })
     expect(messageUpdateMock).not.toHaveBeenCalled()

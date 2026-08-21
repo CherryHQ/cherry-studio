@@ -1,8 +1,10 @@
 /** Cross-process wire contract for tool results resolved on demand through `ai.tool.get_result`. */
 
+import type { ConversationRef } from '../conversation'
+
 /** Where a deferred tool result can be fetched from. */
 export interface DeferredToolResultRef {
-  topicId: string
+  conversation: ConversationRef
   messageId: string
   toolCallId: string
 }
@@ -32,8 +34,11 @@ export function isDeferredToolOutput(value: unknown): value is DeferredToolOutpu
   return (
     typeof ref === 'object' &&
     ref !== null &&
-    typeof ref.topicId === 'string' &&
-    !!ref.topicId &&
+    typeof ref.conversation === 'object' &&
+    ref.conversation !== null &&
+    typeof ref.conversation.id === 'string' &&
+    !!ref.conversation.id &&
+    typeof ref.conversation.kind === 'string' &&
     typeof ref.messageId === 'string' &&
     !!ref.messageId &&
     typeof ref.toolCallId === 'string' &&

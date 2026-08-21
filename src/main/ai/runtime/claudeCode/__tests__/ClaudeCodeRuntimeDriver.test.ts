@@ -2044,7 +2044,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
   // the drop is silent-but-safe: the connection stays usable and later messages still flow.
   it('drops task_notification arriving after the result without breaking the connection', async () => {
     const queryQueue = createAsyncQueue<any>()
-    // Context usage refresh is owned by AgentSessionRuntimeService, so the driver emits no
+    // Context usage refresh is owned by AgentConnectionManager, so the driver emits no
     // post-result probe and the event sequence below stays deterministic.
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)

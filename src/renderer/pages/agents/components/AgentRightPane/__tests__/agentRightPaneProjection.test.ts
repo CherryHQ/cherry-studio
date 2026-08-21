@@ -1,4 +1,5 @@
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
@@ -108,7 +109,8 @@ describe('agent right pane projections', () => {
   })
 
   it('uses a lazily resolved selected output and preserves child parts untouched', () => {
-    const deferred = { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'root' } }
+    const conversation = { kind: ConversationKind.Agent, id: 't1' } as const
+    const deferred = { $deferredToolResult: { conversation, messageId: 'm1', toolCallId: 'root' } }
     const selected = toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Explore the repo' }, deferred)
     const child = toolPart(
       'child',
@@ -117,7 +119,7 @@ describe('agent right pane projections', () => {
       'output-available',
       { file_path: '/tmp/example' },
       {
-        $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'child' }
+        $deferredToolResult: { conversation, messageId: 'm1', toolCallId: 'child' }
       }
     )
     const parts = [selected, child]

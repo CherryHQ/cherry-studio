@@ -52,7 +52,7 @@ import { useToolResult } from '@renderer/hooks/useToolResult'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
@@ -717,7 +717,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const topic = useMemo<Topic>(
     () => ({
-      id: meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : 'agent-session:tool-flow',
+      id: buildAgentSessionScopeKey(meta.sessionId ?? 'tool-flow'),
       type: TopicType.Session as TopicTypeEnum,
       assistantId: meta.agentId,
       name: meta.sessionName ?? meta.sessionId ?? 'agent-tool-flow',
@@ -729,6 +729,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     [meta.agentId, meta.sessionId, meta.sessionName]
   )
   const providerValue = useAgentMessageListProviderValue({
+    sessionId: meta.sessionId ?? 'tool-flow',
     topic,
     messages,
     partsByMessageId,
@@ -1142,7 +1143,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
 
 function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   if (!active) return null
-  const traceTopicId = scope.meta.sessionId ? buildAgentSessionTopicId(scope.meta.sessionId) : ''
+  const traceTopicId = scope.meta.sessionId ? buildAgentSessionScopeKey(scope.meta.sessionId) : ''
   return (
     <Suspense fallback={null}>
       <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />

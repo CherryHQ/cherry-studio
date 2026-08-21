@@ -49,7 +49,7 @@ export const translateText = async (
 
   if (signal) {
     abortListener = () => {
-      void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => {
+      void ipcApi.request('ai.prompt.abort', { streamId }).catch(() => {
         // Already aborted / stream gone — main drives the final reject via the stream error event.
       })
     }
@@ -61,8 +61,8 @@ export const translateText = async (
     // inside `translate.open`, so the first chunk can land between `open()`'s
     // resolve and any post-await subscriber registration.
     unsubscribers.push(
-      ipcApi.on('ai.stream.chunk', ({ topicId, chunk }) => {
-        if (topicId !== streamId) return
+      ipcApi.on('ai.prompt.chunk', ({ streamId: eventStreamId, chunk }) => {
+        if (eventStreamId !== streamId) return
         if (
           chunk &&
           (chunk as { type?: string }).type === 'text-delta' &&
@@ -75,8 +75,8 @@ export const translateText = async (
     )
 
     unsubscribers.push(
-      ipcApi.on('ai.stream.done', ({ topicId }) => {
-        if (topicId !== streamId) return
+      ipcApi.on('ai.prompt.done', ({ streamId: eventStreamId }) => {
+        if (eventStreamId !== streamId) return
         const trimmed = accumulated.trim()
         cleanup()
         if (!trimmed) {
@@ -89,8 +89,8 @@ export const translateText = async (
     )
 
     unsubscribers.push(
-      ipcApi.on('ai.stream.error', ({ topicId, error }) => {
-        if (topicId !== streamId) return
+      ipcApi.on('ai.prompt.error', ({ streamId: eventStreamId, error }) => {
+        if (eventStreamId !== streamId) return
         cleanup()
         // Preserve error.name (e.g. 'AbortError') so downstream
         // `isAbortError(...)` classifies user stops correctly.

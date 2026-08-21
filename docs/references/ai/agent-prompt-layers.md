@@ -6,7 +6,7 @@ sources:
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
   - src/main/ai/agents/prompt.ts
   - src/main/ai/agents/bootstrap.ts
-  - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/AgentConnectionManager.ts
 ---
 
 # Agent Prompt Layers
@@ -68,4 +68,4 @@ not force a rebuild every turn.
 - Runtime drivers under `src/main/ai/runtime/{claudeCode,pi,dsh}/` map that contract into their SDK/composition.
 - `src/main/ai/agents/prompt.ts` owns workspace base selection and persona/memory context.
 - `src/main/ai/agents/bootstrap.ts` owns first-run persona and user onboarding guidance.
-- `src/main/ai/agentSession/AgentSessionRuntimeService.ts` owns next-turn connection reconciliation.
+- `src/main/ai/agentSession/AgentConnectionManager.ts` owns next-turn connection reconciliation.

@@ -3,7 +3,7 @@
  *
  * Stateless orchestration — resolves the configured translate model + builds
  * the interpolated prompt from main-side preferences/DataApi, then hands the
- * stream off to `AiStreamManager.streamPrompt` with a `WebContentsListener`
+ * stream off to `PromptStreamManager.streamPrompt` with a `PromptWebContentsListener`
  * keyed by a fresh `translate:${uuid}` streamId.
  *
  * Renderer subscribers consume `ai.stream.chunk` / `done` / `error` events
@@ -26,9 +26,10 @@ import { isQwenMTModel } from '@shared/utils/model'
 
 import {
   PersistenceListener,
+  PromptWebContentsListener,
   type StreamListener,
-  TranslationBackend,
-  WebContentsListener
+  type StreamPersistencePort,
+  TranslationBackend
 } from '../../ai/streamManager'
 
 const logger = loggerService.withContext('TranslateService')
@@ -90,7 +91,7 @@ interface ResolvedPayload {
 export class TranslateService {
   /**
    * IPC entry-point (called from `AiService.onInit`). Resolves the model +
-   * prompt, then dispatches the stream through `AiStreamManager.streamPrompt`.
+   * prompt, then dispatches the stream through `PromptStreamManager.streamPrompt`.
    * Returns the `streamId` synchronously so the renderer can subscribe to
    * `ai.stream.chunk` / `ai.stream.done` / `ai.stream.error` before chunks
    * start flowing.
@@ -106,32 +107,33 @@ export class TranslateService {
     const { uniqueModelId, content } = this.resolveTranslatePayload(req.text, targetLanguage)
 
     const listeners: StreamListener[] = []
+    const persistencePorts: StreamPersistencePort[] = []
     // Built first so the persistence listener can surface a persist failure through it:
     // TranslationBackend has no markTerminalError, so without this a post-stream persist
     // failure would leave the renderer on a `success` it already received and silently lose
     // the translation on reload.
-    const wcListener = new WebContentsListener(sender, req.streamId)
+    const wcListener = new PromptWebContentsListener(sender, req.streamId)
     if (req.messageId) {
-      listeners.push(
+      persistencePorts.push(
         new PersistenceListener({
           topicId: req.streamId,
           backend: new TranslationBackend({
             messageId: req.messageId,
             targetLanguage: req.targetLangCode,
             sourceLanguage: req.sourceLangCode
-          }),
-          onPersistFailed: (error) => wcListener.onError({ error, status: 'error', isTopicDone: true })
+          })
         })
       )
     }
     listeners.push(wcListener)
 
-    const streamManager = application.get('AiStreamManager')
+    const streamManager = application.get('PromptStreamManager')
     streamManager.streamPrompt({
       streamId: req.streamId,
       uniqueModelId,
       prompt: content,
       listener: listeners,
+      persistencePorts,
       reasoningEffort: 'none'
     })
 

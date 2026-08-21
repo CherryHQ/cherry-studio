@@ -1,3 +1,4 @@
+import { ConversationKind } from '@shared/ai/conversation'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
@@ -146,7 +147,11 @@ describe('resolveMessageCitations', () => {
   it('resolves citations from the skeleton riding a deferred reference (transport)', () => {
     const mc = resolveMessageCitations([
       webToolPart({
-        $deferredToolResult: { topicId: 'topic-1', messageId: 'm1', toolCallId: 'c1' },
+        $deferredToolResult: {
+          conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
+          messageId: 'm1',
+          toolCallId: 'c1'
+        },
         excerpt: { head: 'h', tail: 't', totalChars: 100_000, totalLines: 2_000 },
         skeleton: webResults('dfr')
       })
@@ -156,7 +161,13 @@ describe('resolveMessageCitations', () => {
 
   it('yields nothing for a deferred reference without a skeleton (unchanged behavior)', () => {
     const mc = resolveMessageCitations([
-      webToolPart({ $deferredToolResult: { topicId: 'topic-1', messageId: 'm1', toolCallId: 'c1' } })
+      webToolPart({
+        $deferredToolResult: {
+          conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
+          messageId: 'm1',
+          toolCallId: 'c1'
+        }
+      })
     ])
     expect(mc.all).toHaveLength(0)
   })

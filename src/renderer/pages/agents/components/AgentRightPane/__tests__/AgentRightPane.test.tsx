@@ -6,6 +6,7 @@ import {
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
@@ -918,7 +919,11 @@ describe('AgentRightPane', () => {
   })
 
   it('resolves a deferred selected flow output by its stored address', async () => {
-    const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
+    const deferredToolResult = {
+      conversation: { kind: ConversationKind.Agent, id: 'session-a' },
+      messageId: 'm1',
+      toolCallId: 'flow-1'
+    }
     const flowPart = {
       type: 'dynamic-tool',
       toolCallId: 'flow-1',

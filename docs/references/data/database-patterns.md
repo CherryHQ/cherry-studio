@@ -356,22 +356,23 @@ For initial data population (default preferences, builtin languages, preset prov
 
 ## Write Serialization (`DbService.withWriteTx`)
 
-`application.get('DbService').withWriteTx(fn)` runs `fn` as one synchronous `BEGIN IMMEDIATE` transaction on the single persistent connection.
+`application.get('DbService').withWriteTx(fn)` runs `fn` as one synchronous `BEGIN IMMEDIATE` transaction on the single persistent connection. Its `tx.effects` collector is also the transaction-aware publish boundary for DataApi read-model changes.
 
 **When it earns its keep.** With better-sqlite3 every statement is atomic on its own — a lone `getDb().insert(...).run()` is a complete implicit transaction and needs no wrapper. A transaction earns its keep only when a mutation must commit **all-or-nothing across more than one statement**:
 
 - **Use it** when composing multiple writes, or a read-then-write (validate/select then insert/update/delete), into one atomic unit — the majority of write paths here (create/update/delete that also touch join tables, purge pins/tags, reorder via neighbour reads, or cascade-delete). The premise is **atomicity** (rollback across statements), not serialization: the single synchronous connection already serializes every write by construction.
 - **Don't use** for a single autocommit write — call `getDb()` directly, or pass `getDb()` to the write's `*Tx` form (`this.fooTx(getDb(), …)`). Routing a lone write through `withWriteTx` buys nothing for atomicity and falsely implies a multi-statement invariant. The `*Tx` form stays composable, so the same primitive can still be pulled into a larger `withWriteTx` when a caller genuinely needs multi-write atomicity.
 
-**`withWriteTx` vs `db.transaction()`.** `withWriteTx(fn)` is a thin wrapper over `getDb().transaction(fn, { behavior: 'immediate' })` behind the `isReady` guard. `BEGIN IMMEDIATE` takes the write lock up front, which only matters when a second connection writes concurrently; the main DB uses one connection, so it behaves identically to a plain `db.transaction(fn)`. Prefer `withWriteTx` as the conventional, greppable write seam with the correct write-intent default — but a direct `db.transaction()` is **equivalent** for atomicity and not an error. `withWriteTx` is **not** the readiness gate: `getDb()` already throws when the DB isn't ready, so writes made outside `withWriteTx` are still guarded. The single synchronous connection serializes all access, so there is no process-wide mutex and no `SQLITE_BUSY` retry — the libsql-era serialization this wrapper originally existed for (upstream #288) is gone.
+**`withWriteTx` vs `db.transaction()`.** Both provide the same SQLite atomicity, but only `withWriteTx` supplies `tx.effects`, merges nested effect declarations, discards them on rollback, and publishes their deduplicated union after the outermost commit. Use it for DataApi business transactions. A direct `db.transaction()` is reserved for internal/boot paths that do not participate in DataApi read-model convergence. `BEGIN IMMEDIATE` takes the write lock up front, which only matters when a second connection writes concurrently; the main DB uses one connection, so there is no process-wide mutex or `SQLITE_BUSY` retry.
 
 ### Signature
 
 ```ts
-withWriteTx<T>(fn: (tx: DbOrTx) => T): T
+withWriteTx<T>(fn: (tx: DbTxWithEffects) => T): T
+withEffects<T>(fn: (effects: DataApiEffectCollector) => T): T
 ```
 
-`fn` must be **synchronous** — better-sqlite3 rejects a Promise-returning transaction callback. Internals: one synchronous `BEGIN IMMEDIATE` transaction behind the `isReady` guard; the single connection serializes all access, so callers never contend.
+Both callbacks must be **synchronous**. better-sqlite3 rejects a Promise-returning transaction callback, and `withEffects` publishes immediately when its callback returns. Nested `withWriteTx` calls share one effect scope and publish only at the outer commit. Every `withEffects` call owns an independent scope, so it cannot accidentally absorb a nested transaction's committed effects.
 
 ### Usage
 
@@ -386,12 +387,18 @@ jobService.setMetadataTx(dbService.getDb(), jobId, merged)
 dbService.withWriteTx((tx) => {
   jobService.cancelByIdsTx(tx, ids, error)
   jobService.resetToPendingByIdsTx(tx, otherIds)
+  tx.effects.add({ endpoint: '/jobs', kind: 'projection', entityIds: ids })
+})
+
+// A successful single-statement autocommit write declares effects afterward:
+dbService.withEffects((effects) => {
+  effects.add({ endpoint: '/jobs', kind: 'projection', entityIds: [jobId] })
 })
 ```
 
 ### Two-form DAO pattern
 
-Each write method has a composable `*Tx` form and a thin non-Tx wrapper. A single-write method's wrapper passes `getDb()` to the `*Tx` form; a multi-write / read-then-write method's wrapper composes one or more `*Tx` calls inside a single `withWriteTx`. Either way the `*Tx` form stays composable, so batch/recovery paths can pull it into a larger transaction. See `JobService` / `JobScheduleService` for canonical examples.
+Each write method has a composable `*Tx` form and a thin non-Tx wrapper. A single-write method's wrapper passes `getDb()` to the `*Tx` form and declares any read-model effects afterward with `withEffects`; a multi-write / read-then-write method composes its writes inside `withWriteTx` and adds effects through `tx.effects`. Nested transactional composition automatically produces one post-commit effect batch.
 
 ```ts
 cancelByIdsTx(tx: DbOrTx, ids: string[], error: JobError): void { /* SQL via tx */ }
@@ -417,7 +424,7 @@ cancelByIds(ids: string[], error: JobError): void {
 
 | Path | Action |
 | --- | --- |
-| Multi-statement / read-then-write mutations | Wrap in a transaction — `withWriteTx` (preferred) or a direct `db.transaction()` |
+| Multi-statement / read-then-write business mutations | Use `withWriteTx`; reserve direct `db.transaction()` for paths with no DataApi effects |
 | Single-statement writes | Don't wrap — call `getDb()` (or the `*Tx` form) directly |
 | Boot-only writes (migrations, seeders) | Leave |
 | Pure reads | Leave |

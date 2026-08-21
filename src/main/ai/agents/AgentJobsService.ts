@@ -176,7 +176,7 @@ export class AgentJobsService extends BaseService {
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
-    if (reuseConfigChanged || bindingCleared) agentTaskService.notifyReadModelChange([taskId])
+    if (reuseConfigChanged || bindingCleared) agentTaskService.notifyReadModelChange([taskId], agentId)
 
     logger.info('Task updated', { taskId, agentId })
     return agentTaskService.getTask(agentId, taskId)
@@ -256,7 +256,7 @@ export class AgentJobsService extends BaseService {
         expectedAgentId: params.agentId
       })
     })
-    if (bound) agentTaskService.notifyReadModelChange([params.scheduleId])
+    if (bound) agentTaskService.notifyReadModelChange([params.scheduleId], params.agentId)
     return bound
   }
 

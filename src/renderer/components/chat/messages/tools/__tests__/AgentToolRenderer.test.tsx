@@ -1,6 +1,7 @@
 import type * as CherryUi from '@cherrystudio/ui'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { ConversationKind } from '@shared/ai/conversation'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,6 +44,7 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
+  useOptionalMessageListConversation: () => undefined,
   useOptionalMessageListUi: () => ({}),
   useOptionalMessageListTopicId: () => undefined
 }))
@@ -525,14 +527,20 @@ describe('AgentToolRenderer', () => {
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'done',
         arguments: { file_path: '/test.ts' },
-        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-1' } }
+        response: {
+          $deferredToolResult: {
+            conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
+            messageId: 'message-1',
+            toolCallId: 'call-defer-1'
+          }
+        }
       })
 
       render(<MessageTools toolResponse={toolResponse} />)
 
       await waitFor(() =>
         expect(mockGetToolResult).toHaveBeenCalledWith('ai.tool.get_result', {
-          topicId: 'topic-1',
+          conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
           messageId: 'message-1',
           toolCallId: 'call-defer-1'
         })
@@ -547,7 +555,13 @@ describe('AgentToolRenderer', () => {
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'done',
         arguments: { file_path: '/test.ts' },
-        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-2' } }
+        response: {
+          $deferredToolResult: {
+            conversation: { kind: ConversationKind.Chat, id: 'topic-1' },
+            messageId: 'message-1',
+            toolCallId: 'call-defer-2'
+          }
+        }
       })
 
       render(<MessageTools toolResponse={toolResponse} />)
@@ -998,11 +1012,10 @@ describe('AgentToolRenderer', () => {
       const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
       fireEvent.click(groupTrigger)
 
-      const agentRow = screen
-        .getAllByRole('button')
-        .find((element) => element !== groupTrigger && element.tagName === 'DIV')
-      expect(agentRow).toBeDefined()
-      fireEvent.click(agentRow!)
+      const agentRow = within(screen.getByTestId('child-tool-group-content')).getByRole('button', {
+        name: /Handle.*Inspect renderer/
+      })
+      fireEvent.click(agentRow)
 
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',

@@ -2,17 +2,34 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
-import type { ActiveExecution, AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
+import { ConversationOpenMode } from '@shared/ai/conversation'
+import type {
+  ActiveNodeDecision,
+  AiStreamOpenRequest,
+  AiStreamOpenResponse,
+  ConversationExecutionProjection
+} from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useConversationTurnController')
 
-export type ConversationTurnPhase = 'draft' | 'persisting' | 'opening' | 'streaming' | 'ready'
+export enum ConversationTurnControllerPhase {
+  Draft = 'draft',
+  Persisting = 'persisting',
+  Opening = 'opening',
+  Streaming = 'streaming',
+  Ready = 'ready'
+}
+
+export enum ConversationTurnControllerLayout {
+  Draft = 'draft',
+  Docked = 'docked'
+}
 
 export interface ReservedMessageSeedOptions {
-  activeExecutions?: readonly ActiveExecution[]
-  preserveActiveNode?: boolean
+  activeExecutions?: readonly ConversationExecutionProjection[]
+  activeNodeDecision?: ActiveNodeDecision
 }
 
 export interface ConversationHistoryAdapter {
@@ -36,7 +53,7 @@ export function useConversationTurnController<TInput, TConversation>({
   buildStreamRequest,
   refreshMetadata
 }: UseConversationTurnControllerOptions<TInput, TConversation>) {
-  const [phase, setPhase] = useState<ConversationTurnPhase>('draft')
+  const [phase, setPhase] = useState(ConversationTurnControllerPhase.Draft)
   const scopeEpochRef = useRef(0)
 
   useLayoutEffect(() => {
@@ -44,7 +61,7 @@ export function useConversationTurnController<TInput, TConversation>({
   }, [scopeKey])
 
   useEffect(() => {
-    setPhase('draft')
+    setPhase(ConversationTurnControllerPhase.Draft)
   }, [scopeKey])
 
   const send = useCallback(
@@ -53,14 +70,14 @@ export function useConversationTurnController<TInput, TConversation>({
       const isCurrentScope = () => scopeEpochRef.current === scopeEpoch
       let conversation: TConversation | null = null
       try {
-        setPhase('persisting')
+        setPhase(ConversationTurnControllerPhase.Persisting)
         conversation = await ensureConversation(input)
         if (!conversation) {
-          if (isCurrentScope()) setPhase('draft')
+          if (isCurrentScope()) setPhase(ConversationTurnControllerPhase.Draft)
           return null
         }
 
-        if (isCurrentScope()) setPhase('opening')
+        if (isCurrentScope()) setPhase(ConversationTurnControllerPhase.Opening)
         const ack = await ipcApi.request('ai.stream.open', buildStreamRequest(input, conversation))
         // The captured conversation may have committed even if the user switched scopes while
         // Main was opening the stream. Its metadata cache still must converge; only scope-owned
@@ -70,9 +87,9 @@ export function useConversationTurnController<TInput, TConversation>({
         })
         if (!isCurrentScope()) return ack
 
-        if (ack.mode === 'blocked') {
+        if (ack.mode === ConversationOpenMode.Blocked) {
           toast.error(getStreamBlockedMessage(ack))
-          if (isCurrentScope()) setPhase('ready')
+          if (isCurrentScope()) setPhase(ConversationTurnControllerPhase.Ready)
           return ack
         }
 
@@ -80,11 +97,11 @@ export function useConversationTurnController<TInput, TConversation>({
         if (reservedMessages.length > 0) {
           await historyAdapter.seedReservedMessages(reservedMessages, {
             activeExecutions: ack.activeExecutions,
-            preserveActiveNode: ack.preserveActiveNode
+            activeNodeDecision: ack.activeNodeDecision
           })
         }
 
-        if (isCurrentScope()) setPhase('streaming')
+        if (isCurrentScope()) setPhase(ConversationTurnControllerPhase.Streaming)
         return ack
       } catch (err) {
         if (isCurrentScope()) {
@@ -93,7 +110,7 @@ export function useConversationTurnController<TInput, TConversation>({
           } catch (rollbackErr) {
             logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
           }
-          setPhase('draft')
+          setPhase(ConversationTurnControllerPhase.Draft)
         }
         throw err
       }
@@ -103,7 +120,10 @@ export function useConversationTurnController<TInput, TConversation>({
 
   return {
     phase,
-    layout: phase === 'draft' ? ('draft' as const) : ('docked' as const),
+    layout:
+      phase === ConversationTurnControllerPhase.Draft
+        ? ConversationTurnControllerLayout.Draft
+        : ConversationTurnControllerLayout.Docked,
     send
   }
 }

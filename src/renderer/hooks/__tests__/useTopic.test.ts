@@ -317,10 +317,10 @@ describe('useTopicById', () => {
       routeParams: { id: 'topic-a' }
     })
 
-    listener?.([{ endpoint: '/topics/:id', entityIds: ['topic-b'] }])
+    listener?.([{ endpoint: '/topics/:id', routeParams: { id: 'topic-b' }, entityIds: ['topic-b'] }])
     expect(mutate).not.toHaveBeenCalled()
 
-    listener?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
+    listener?.([{ endpoint: '/topics/:id', routeParams: { id: 'topic-a' }, entityIds: ['topic-a'] }])
     expect(mutate).toHaveBeenCalledOnce()
   })
 })

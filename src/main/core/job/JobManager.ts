@@ -139,7 +139,7 @@ interface RecoveryResumePoint {
  */
 @Injectable('JobManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['SchedulerService'])
+@DependsOn(['SchedulerService', 'ChannelManager'])
 export class JobManager extends BaseService {
   private readonly handlers = new Map<string, JobHandler>()
   private readonly queues = new Map<string, DispatchQueue>()

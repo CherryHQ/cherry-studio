@@ -8,7 +8,7 @@
  * resubscription behavior, and latest-listener delivery.
  */
 import { dataApiService } from '@data/DataApiService'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import { type DataApiDataChangeEffect, DataApiDataChangeScope } from '@shared/data/api/types'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,6 +65,20 @@ describe('useDataChange', () => {
     expect(mockService.onDataChanged).toHaveBeenCalledTimes(1)
   })
 
+  it('exposes endpoint arrays as unscoped subscriptions', () => {
+    type ArraySubscriptionArguments = Parameters<typeof useDataChange>
+    const listener = vi.fn()
+    const endpoints = ['/topics/:id', '/topics/:topicId/tree'] as const
+    const acceptArraySubscription = (...args: ArraySubscriptionArguments) => args
+    const unscoped = acceptArraySubscription(endpoints, listener)
+
+    // One route-parameter object cannot correctly scope endpoints with different parameter names.
+    // @ts-expect-error Array subscriptions intentionally reject shared routeParams.
+    acceptArraySubscription(endpoints, listener, { routeParams: { id: 't1' } })
+
+    expect(unscoped).toHaveLength(2)
+  })
+
   it('invokes the latest listener without resubscribing', () => {
     const first = vi.fn()
     const second = vi.fn()
@@ -90,14 +104,22 @@ describe('useDataChange', () => {
       routeParams: { id: 't1' },
       entityIds: ['t1']
     }
-    const unscoped: DataApiDataChangeEffect = { endpoint: '/topics/:id', entityIds: ['t1'] }
-    mockService._emitDataChange([
-      matching,
-      { endpoint: '/topics/:id', routeParams: { id: 't2' }, entityIds: ['t2'] },
-      unscoped
-    ])
+    mockService._emitDataChange([matching, { endpoint: '/topics/:id', routeParams: { id: 't2' }, entityIds: ['t2'] }])
 
-    expect(listener).toHaveBeenCalledExactlyOnceWith([matching, unscoped])
+    expect(listener).toHaveBeenCalledExactlyOnceWith([matching])
+  })
+
+  it('delivers an explicit all-routes effect to a route-scoped subscriber', () => {
+    const listener = vi.fn()
+    renderHook(() => useDataChange('/topics/:id', listener, { routeParams: { id: 't1' } }))
+
+    const effect: DataApiDataChangeEffect = {
+      endpoint: '/topics/:id',
+      scope: DataApiDataChangeScope.AllRoutes
+    }
+    mockService._emitDataChange([effect])
+
+    expect(listener).toHaveBeenCalledExactlyOnceWith([effect])
   })
 
   it('uses the latest route parameters without resubscribing', () => {

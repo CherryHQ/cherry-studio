@@ -1,10 +1,9 @@
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { ConversationKind, ConversationOpenTrigger } from '@shared/ai/conversation'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { buildAgentSessionTopicId } from '../../agentSession/topic'
-import { agentChatContextProvider } from '../context/AgentChatContextProvider'
 import type { StreamListener } from '../types'
 
 /**
@@ -14,9 +13,19 @@ import type { StreamListener } from '../types'
  * owns its claim, persistence, recovery, and finalization; this facade remains for scheduled and
  * channel turns that need the ordinary runtime admission path.
  */
+export enum StartAgentSessionRunMode {
+  Started = 'started',
+  NotStarted = 'not-started'
+}
+
+export enum StartAgentSessionRunRejection {
+  Busy = 'busy',
+  SessionInvalid = 'session-invalid'
+}
+
 export type StartAgentSessionRunResult =
-  | { mode: 'started' }
-  | { mode: 'not-started'; reason: 'busy' | 'session-invalid' }
+  | { mode: StartAgentSessionRunMode.Started }
+  | { mode: StartAgentSessionRunMode.NotStarted; reason: StartAgentSessionRunRejection }
 
 export async function startAgentSessionRun(input: {
   sessionId: string
@@ -30,78 +39,36 @@ export async function startAgentSessionRun(input: {
   }
   const [primary, ...extras] = input.listeners
 
-  const topicId = buildAgentSessionTopicId(input.sessionId)
-  const manager = application.get('AiStreamManager')
-  let result: StartAgentSessionRunResult = { mode: 'not-started', reason: 'session-invalid' }
-
-  await manager.withDispatchLock(topicId, async () => {
-    if (manager.isWriteQuiesced) {
-      throw new Error(
-        'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'
-      )
+  const conversation = { kind: ConversationKind.Agent, id: input.sessionId } as const
+  const runtime = application.get('ConversationRuntimeService')
+  if (runtime.isWriteQuiesced) {
+    throw new Error('ConversationRuntimeService is write-quiesced; refusing a new agent-session turn')
+  }
+  if (input.requireIdle) {
+    if (runtime.hasLiveConversation(conversation)) {
+      return { mode: StartAgentSessionRunMode.NotStarted, reason: StartAgentSessionRunRejection.Busy }
     }
-
-    if (input.requireIdle) {
-      if (
-        manager.hasLiveStream(topicId) ||
-        application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)
-      ) {
-        result = { mode: 'not-started', reason: 'busy' }
-        return
-      }
-      try {
-        const session = agentSessionService.getById(input.sessionId)
-        if (session.agentId !== input.requireIdle.expectedAgentId) {
-          result = { mode: 'not-started', reason: 'session-invalid' }
-          return
-        }
-      } catch (error) {
-        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-          result = { mode: 'not-started', reason: 'session-invalid' }
-          return
-        }
-        throw error
-      }
-    }
-
-    let prepared
     try {
-      prepared = await agentChatContextProvider.prepareDispatch(
-        primary,
-        {
-          trigger: 'submit-message',
-          topicId,
-          userMessageParts: input.userParts,
-          headless: input.headless === true
-        },
-        {
-          hasLiveStream: false,
-          requireIdle: input.requireIdle !== undefined,
-          expectedAgentId: input.requireIdle?.expectedAgentId
-        }
-      )
-    } catch (error) {
-      if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {
-        result = { mode: 'not-started', reason: 'busy' }
-        return
+      const session = agentSessionService.getById(input.sessionId)
+      if (session.agentId !== input.requireIdle.expectedAgentId) {
+        return { mode: StartAgentSessionRunMode.NotStarted, reason: StartAgentSessionRunRejection.SessionInvalid }
       }
-      if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        result = { mode: 'not-started', reason: 'session-invalid' }
-        return
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        return { mode: StartAgentSessionRunMode.NotStarted, reason: StartAgentSessionRunRejection.SessionInvalid }
       }
       throw error
     }
-
-    manager.send({
-      topicId: prepared.topicId,
-      models: prepared.models,
-      listeners: input.requireIdle
-        ? [primary, ...extras, ...prepared.listeners.filter((listener) => listener.id !== primary.id)]
-        : [...prepared.listeners, ...extras],
-      siblingsGroupId: prepared.siblingsGroupId,
-      lifecycle: prepared.lifecycle
-    })
-    result = { mode: 'started' }
-  })
-  return result
+  }
+  await runtime.dispatch(
+    primary,
+    {
+      trigger: ConversationOpenTrigger.SubmitMessage,
+      conversation,
+      userMessageParts: input.userParts,
+      headless: input.headless === true
+    },
+    extras
+  )
+  return { mode: StartAgentSessionRunMode.Started }
 }

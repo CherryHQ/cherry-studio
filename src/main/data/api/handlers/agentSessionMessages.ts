@@ -4,6 +4,7 @@
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
+import { ConversationKind } from '@shared/ai/conversation'
 import { toDataApiError } from '@shared/data/api/errors'
 import {
   type AgentSessionMessageEntity,
@@ -19,8 +20,11 @@ function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId
 
   // The stateless projection lives in the lower `utils/` tier so `data/` does not import from
   // the `ai/` business tier (main-process-architecture §3).
-  const topicId = `agent-session:${sessionId}`
-  const parts = projectMessagePartsForRenderer(message.data.parts, topicId, message.id)
+  const parts = projectMessagePartsForRenderer(
+    message.data.parts,
+    { kind: ConversationKind.Agent, id: sessionId },
+    message.id
+  )
   if (parts === message.data.parts) return message
   return { ...message, data: { ...message.data, parts } }
 }

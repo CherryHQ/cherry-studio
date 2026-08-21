@@ -6,6 +6,7 @@ import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTa
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { ConversationKind, type ConversationRef, conversationRefKey, ConversationStatus } from '@shared/ai/conversation'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -255,14 +256,14 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   }
 })
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: (topicId: string) => {
-    const status = topicStreamStatusMocks.statuses.get(topicId)
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: (conversation: ConversationRef) => {
+    const status = topicStreamStatusMocks.statuses.get(conversation.id)
     return {
       activeExecutions: [],
       isFulfilled: status?.isFulfilled ?? false,
       isPending: status?.isPending ?? false,
-      markSeen: () => topicStreamStatusMocks.markSeen(topicId),
+      markSeen: () => topicStreamStatusMocks.markSeen(conversation.id),
       status: undefined
     }
   }
@@ -707,9 +708,10 @@ function droppableData(id: string) {
   return { current: data }
 }
 
-const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as never
+const topicStreamStatusCacheKey = (topicId: string) =>
+  `conversation.statuses.${conversationRefKey({ kind: ConversationKind.Chat, id: topicId })}` as never
 const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
-  `topic.stream.last_seen_completion.${topicId}` as never
+  `conversation.last_seen_completion.${conversationRefKey({ kind: ConversationKind.Chat, id: topicId })}` as never
 
 function setTopicDraft(topicId: string, text: string) {
   writeChatDraftCache(topicId, {
@@ -728,14 +730,11 @@ function clearTopicDraftCache(...topicIds: string[]) {
   }
 }
 
-function setTopicStreamCacheStatus(
-  topicId: string,
-  status: 'aborted' | 'awaiting-approval' | 'done' | 'error' | 'pending' | 'streaming',
-  hasAwaitingApprovalAnchor = false
-) {
+function setTopicStreamCacheStatus(topicId: string, status: ConversationStatus, hasAwaitingApprovalAnchor = false) {
   cacheService.setShared(topicStreamStatusCacheKey(topicId), {
     status,
-    awaitingApprovalAnchors: hasAwaitingApprovalAnchor ? [{ executionId: 'exec-1' }] : []
+    lastCompletedAt: status === ConversationStatus.Done ? Date.now() : null,
+    awaitingInteractionExecutions: hasAwaitingApprovalAnchor ? [{ executionId: 'exec-1' }] : []
   } as never)
   cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
 }
@@ -2162,7 +2161,7 @@ describe('Topics', () => {
   })
 
   it('keeps inactive topic stream indicator visible and opens fulfilled topics', () => {
-    setTopicStreamCacheStatus('topic-c', 'pending')
+    setTopicStreamCacheStatus('topic-c', ConversationStatus.Pending)
     let view = renderTopicList()
     let setActiveTopic = view.setActiveTopic
 
@@ -2174,7 +2173,7 @@ describe('Topics', () => {
     expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
-    setTopicStreamCacheStatus('topic-c', 'done')
+    setTopicStreamCacheStatus('topic-c', ConversationStatus.Done)
     view.unmount()
     view = renderTopicList()
     setActiveTopic = view.setActiveTopic
@@ -2221,7 +2220,7 @@ describe('Topics', () => {
 
   it('shows the draft only after a higher-priority topic status clears', () => {
     setTopicDraft('topic-c', 'Draft while running')
-    setTopicStreamCacheStatus('topic-c', 'pending')
+    setTopicStreamCacheStatus('topic-c', ConversationStatus.Pending)
     renderTopicList()
 
     let topicRow = getTopicRow('Gamma topic')
@@ -2238,13 +2237,13 @@ describe('Topics', () => {
   it('keeps running and error indicators on the active topic but suppresses its completion dot', () => {
     const activeTopic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
 
-    setTopicStreamCacheStatus('topic-a', 'pending')
+    setTopicStreamCacheStatus('topic-a', ConversationStatus.Pending)
     let view = renderTopicList({ activeTopic })
 
     let topicRow = getTopicRow('Alpha topic')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).toHaveAccessibleName('Running')
 
-    act(() => setTopicStreamCacheStatus('topic-a', 'error'))
+    act(() => setTopicStreamCacheStatus('topic-a', ConversationStatus.Error))
     view.unmount()
     view = renderTopicList({ activeTopic })
 
@@ -2252,7 +2251,7 @@ describe('Topics', () => {
     const errorIndicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(errorIndicator).toHaveAccessibleName('Error')
 
-    act(() => setTopicStreamCacheStatus('topic-a', 'done'))
+    act(() => setTopicStreamCacheStatus('topic-a', ConversationStatus.Done))
     view.unmount()
     renderTopicList({ activeTopic })
 
@@ -2275,7 +2274,7 @@ describe('Topics', () => {
 
   it('shows an awaiting-approval badge for a terminal topic without a spinner', () => {
     setTopicDraft('topic-c', 'Draft while awaiting approval')
-    setTopicStreamCacheStatus('topic-c', 'awaiting-approval')
+    setTopicStreamCacheStatus('topic-c', ConversationStatus.AwaitingInteraction)
     renderTopicList()
 
     const topicRow = getTopicRow('Gamma topic')
@@ -2287,7 +2286,7 @@ describe('Topics', () => {
   })
 
   it('shows only the awaiting-approval badge when a live topic pauses for approval', () => {
-    setTopicStreamCacheStatus('topic-c', 'streaming', true)
+    setTopicStreamCacheStatus('topic-c', ConversationStatus.Streaming, true)
     renderTopicList()
 
     const topicRow = getTopicRow('Gamma topic')
@@ -2297,14 +2296,14 @@ describe('Topics', () => {
   })
 
   it('announces an errored topic stream and hides aborted streams', () => {
-    setTopicStreamCacheStatus('topic-c', 'error')
+    setTopicStreamCacheStatus('topic-c', ConversationStatus.Error)
     let view = renderTopicList()
 
     let topicRow = getTopicRow('Gamma topic')
     const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(indicator).toHaveAccessibleName('Error')
 
-    setTopicStreamCacheStatus('topic-c', 'aborted')
+    setTopicStreamCacheStatus('topic-c', ConversationStatus.Aborted)
     view.unmount()
     view = renderTopicList()
 

@@ -6,6 +6,7 @@
 
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -21,12 +22,19 @@ import {
   type PersistenceBackend,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
-import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamPausedResult, StreamPersistencePort } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
 
 /** Internal control signal: the persistence failure was already surfaced as an error event. */
-export class TerminalPersistenceError extends Error {}
+export class TerminalPersistenceError extends Error {
+  constructor(
+    readonly serializedError: SerializedError,
+    readonly durableErrorWritten: boolean
+  ) {
+    super('Terminal persistence failed')
+  }
+}
 
 export interface PersistenceListenerOptions {
   /** Listener id namespace — typically the topic id. */
@@ -34,17 +42,10 @@ export interface PersistenceListenerOptions {
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
   modelId?: UniqueModelId
   backend: PersistenceBackend
-  /**
-   * Called when persistence fails after a terminal event. The DB row is already driven to
-   * `error`; this lets the caller surface that error while the manager suppresses the original
-   * terminal notification.
-   */
-  onPersistFailed: (error: SerializedError) => void
 }
 
-export class PersistenceListener implements StreamListener {
+export class PersistenceListener implements StreamPersistencePort {
   readonly id: string
-  readonly terminalPhase = 'persistence' as const
 
   constructor(private readonly opts: PersistenceListenerOptions) {
     this.id = `persistence:${opts.backend.kind}:${opts.topicId}:${opts.modelId ?? 'default'}`
@@ -55,29 +56,21 @@ export class PersistenceListener implements StreamListener {
     return this.opts.backend.kind
   }
 
-  onChunk(): void {
-    // Message timing is captured by the runtime collector, not inferred from chunks here.
-  }
-
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming)
+    return this.persistAssistant(result.finalMessage, ConversationOutcomeKind.Success, result.runtimeTiming)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    return this.persistAssistant(result.finalMessage, 'paused', result.runtimeTiming)
+    return this.persistAssistant(result.finalMessage, ConversationOutcomeKind.Paused, result.runtimeTiming)
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
-    return this.persistAssistant(withErrorPart, 'error', result.runtimeTiming)
-  }
-
-  isAlive(): boolean {
-    return true
+    return this.persistAssistant(withErrorPart, ConversationOutcomeKind.Error, result.runtimeTiming)
   }
 
   private owns(modelId: UniqueModelId | undefined): boolean {
@@ -86,11 +79,11 @@ export class PersistenceListener implements StreamListener {
 
   private async persistAssistant(
     finalMessage: CherryUIMessage | undefined,
-    status: 'success' | 'paused' | 'error',
+    status: ConversationOutcomeKind,
     runtimeTiming: MessageRuntimeTiming | undefined
   ): Promise<void> {
     const canPersistEmpty =
-      status === 'success'
+      status === ConversationOutcomeKind.Success
         ? this.opts.backend.canPersistEmptySuccessTerminal
         : this.opts.backend.canPersistEmptyTerminal
     if (!finalMessage && !canPersistEmpty) {
@@ -142,31 +135,24 @@ export class PersistenceListener implements StreamListener {
       })
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
-      try {
-        this.opts.backend.markTerminalError?.()
-      } catch (markErr) {
-        logger.error('Failed to mark assistant message as terminal error after persist failure', {
-          backend: this.opts.backend.kind,
-          topicId: this.opts.topicId,
-          status,
-          err: markErr
-        })
+      let durableErrorWritten = false
+      if (this.opts.backend.markTerminalError) {
+        try {
+          this.opts.backend.markTerminalError()
+          durableErrorWritten = true
+        } catch (markErr) {
+          logger.error('Failed to mark assistant message as terminal error after persist failure', {
+            backend: this.opts.backend.kind,
+            topicId: this.opts.topicId,
+            status,
+            err: markErr
+          })
+        }
       }
-      // Surface the persistence error now; the manager suppresses the original terminal notification.
-      try {
-        this.opts.onPersistFailed(serializeError(err))
-      } catch (notifyErr) {
-        logger.error('Failed to surface terminal persistence error', {
-          backend: this.opts.backend.kind,
-          topicId: this.opts.topicId,
-          status,
-          err: notifyErr
-        })
-      }
-      throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
+      throw new TerminalPersistenceError(serializeError(err), durableErrorWritten)
     }
 
-    if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
+    if (status === ConversationOutcomeKind.Success && finalMessageForPersistence && this.opts.backend.afterPersist) {
       void this.opts.backend.afterPersist(finalMessageForPersistence).catch((err) => {
         logger.warn('afterPersist hook failed', {
           backend: this.opts.backend.kind,

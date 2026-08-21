@@ -519,8 +519,8 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({
     isPending: false,
     isFulfilled: mocks.topicFulfilled,
     markSeen: mocks.markTopicSeen
@@ -4938,12 +4938,12 @@ describe('AgentComposer', () => {
     mocks.surfaceFocus.mockClear()
 
     await act(async () => {
-      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:other-session' })
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent:other-session' })
     })
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
 
     await act(async () => {
-      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:session-1' })
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent:session-1' })
     })
     expect(mocks.surfaceFocus).toHaveBeenCalledTimes(1)
   })

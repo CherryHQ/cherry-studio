@@ -33,7 +33,7 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -297,11 +297,11 @@ const AgentChat = ({
   const handleRestoreComposerFocus = useCallback(() => {
     if (!runtime.sessionId) return
     void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, {
-      topicId: buildAgentSessionTopicId(runtime.sessionId)
+      topicId: buildAgentSessionScopeKey(runtime.sessionId)
     })
   }, [runtime.sessionId])
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
-  const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
+  const sessionTopicId = runtimeSessionId ? buildAgentSessionScopeKey(runtimeSessionId) : ''
 
   useEffect(() => {
     if (!runtimeSessionId || !locateMessageId) {

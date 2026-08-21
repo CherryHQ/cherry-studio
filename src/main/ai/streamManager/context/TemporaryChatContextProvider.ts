@@ -6,11 +6,11 @@
 
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
-import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
 import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
@@ -20,27 +20,46 @@ import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
-import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
+import {
+  type CommittedDispatch,
+  type ConversationExecutionContext,
+  ConversationHistoryAdapterKind,
+  type ConversationHistoryPort,
+  type DispatchContext,
+  type ValidatedDispatch
+} from './ConversationHistoryPort'
 import type { MainDispatchRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels } from './modelResolution'
 
 const logger = loggerService.withContext('TemporaryChatContextProvider')
 
-export class TemporaryChatContextProvider implements ChatContextProvider {
+export class TemporaryChatContextProvider implements ConversationHistoryPort {
   readonly name = 'temporary'
   readonly isPersistentConversation = false
 
-  canHandle(topicId: string): boolean {
-    // Defensive — agent-session prefix is never temporary regardless of `hasTopic`.
-    if (isAgentSessionTopic(topicId)) return false
-    return temporaryChatService.hasTopic(topicId)
+  canHandle(conversation: ConversationRef): boolean {
+    return conversation.kind === ConversationKind.Chat && temporaryChatService.hasTopic(conversation.id)
   }
 
-  async prepareDispatch(
-    subscriber: StreamListener,
+  async validateDispatch(
     req: MainDispatchRequest,
-    ctx: DispatchContext
-  ): Promise<PreparedDispatch> {
+    ctx: DispatchContext,
+    signal: AbortSignal
+  ): Promise<ValidatedDispatch> {
+    signal.throwIfAborted()
+    return { kind: ConversationHistoryAdapterKind.TemporaryChat, request: req, context: ctx, executionCount: 1 }
+  }
+
+  commitDispatch(
+    subscriber: StreamListener,
+    validation: ValidatedDispatch,
+    context: DispatchContext
+  ): CommittedDispatch {
+    if (validation.kind !== ConversationHistoryAdapterKind.TemporaryChat) {
+      throw new Error(`Temporary Chat received ${validation.kind} validation`)
+    }
+    const req = validation.request
+    const ctx = context
     if (req.trigger === 'regenerate-message') {
       throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
     }
@@ -59,8 +78,8 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       throw new Error('Cannot submit to a temporary chat while a turn is in flight')
     }
 
-    const topic = temporaryChatService.getTopic(req.topicId)
-    if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
+    const topic = temporaryChatService.getTopic(req.conversation.id)
+    if (!topic) throw new Error(`Temporary topic not found: ${req.conversation.id}`)
 
     const selectedModelId = req.mentionedModelIds?.[0]
     const { assistantId, defaultModelId } =
@@ -72,7 +91,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     if (req.mentionedModelIds?.length) {
       if (req.mentionedModelIds.length > 1) {
         logger.warn('Temporary chat received multiple mentionedModelIds — only the first is used', {
-          topicId: req.topicId,
+          topicId: req.conversation.id,
           mentioned: req.mentionedModelIds
         })
       }
@@ -88,56 +107,87 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
       : undefined
 
-    // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
-    temporaryChatService.appendMessage(req.topicId, {
-      role: 'user',
-      data: { parts: req.userMessageParts },
-      status: 'success',
-      modelId: model.id
-    })
-
-    const prior = temporaryChatService.listMessages(req.topicId)
-    const fullHistory: CherryUIMessage[] = prior.map((m) => ({
-      id: m.id,
-      role: toContentRole(m.role),
-      parts: m.data.parts ?? []
-    }))
+    const prior = temporaryChatService.listMessages(req.conversation.id)
     // Same scope rule as the persistent provider, and likewise independent of
     // the `enabled` kill-switch, which owns the overflow policy instead.
     const contextSettings = resolveContextSettings({
       globals: resolveGlobalContextSettings(),
       assistant: assistant?.settings?.contextSettings
     })
-    const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
-
     const messageId = uuidv7()
-    const listeners: StreamListener[] = [
-      subscriber,
-      new PersistenceListener({
-        topicId: req.topicId,
+    const skeleton = temporaryChatService.commitTurnSkeleton(req.conversation.id, {
+      user: {
+        role: 'user',
+        data: { parts: req.userMessageParts },
+        status: 'success',
+        modelId: model.id
+      },
+      assistant: {
+        id: messageId,
+        role: 'assistant',
+        data: { parts: [] },
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, messageId, modelId: model.id, messageSnapshot }),
-        onPersistFailed: (error) =>
-          void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+        messageSnapshot
+      }
+    })
+    const fullHistory: CherryUIMessage[] = [...prior, skeleton.user].map((message) => ({
+      id: message.id,
+      role: toContentRole(message.role),
+      parts: message.data.parts ?? []
+    }))
+    const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
+    const listeners: StreamListener[] = [subscriber]
+    const persistencePorts = [
+      new PersistenceListener({
+        topicId: req.conversation.id,
+        modelId: model.id,
+        backend: new TemporaryChatBackend({
+          topicId: req.conversation.id,
+          messageId,
+          modelId: model.id,
+          messageSnapshot
+        })
       })
     ]
 
-    const streamRequest: AiStreamRequest = {
-      chatId: req.topicId,
-      trigger: 'submit-message',
-      assistantId,
-      uniqueModelId: model.id,
-      messageId,
-      messages: history,
-      knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
-      reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
-      ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
-    }
-
+    const reservedMessages: CherryUIMessage[] = [skeleton.user, skeleton.assistant].map((message) => ({
+      id: message.id,
+      role: toContentRole(message.role),
+      parts: message.data.parts ?? [],
+      metadata: {
+        status: message.status,
+        createdAt: message.createdAt,
+        modelId: message.modelId ?? undefined,
+        messageSnapshot: message.messageSnapshot ?? undefined
+      }
+    }))
     return {
-      topicId: req.topicId,
-      models: [{ modelId: model.id, request: streamRequest }],
-      listeners
+      reservation: {
+        conversation: req.conversation,
+        models: [{ modelId: model.id, outputNodeId: messageId }],
+        listeners,
+        persistencePorts,
+        cleanupPorts: [],
+        reservedMessages
+      },
+      prepareExecutionContext: async (signal) => {
+        signal.throwIfAborted()
+        const streamRequest: AiStreamRequest = {
+          chatId: req.conversation.id,
+          trigger: 'submit-message',
+          assistantId,
+          uniqueModelId: model.id,
+          messageId,
+          messages: history,
+          knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
+          reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
+          ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
+        }
+        return {
+          conversation: req.conversation,
+          models: [{ modelId: model.id, request: streamRequest }]
+        } satisfies ConversationExecutionContext
+      }
     }
   }
 }

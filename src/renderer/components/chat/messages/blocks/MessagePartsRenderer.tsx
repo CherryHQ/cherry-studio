@@ -17,8 +17,8 @@
 import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
 import {
@@ -35,6 +35,7 @@ import {
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import { ConversationKind } from '@shared/ai/conversation'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -1530,13 +1531,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
-  const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
-  const topicTurnState = classifyTurn(topicStreamStatus)
+  const { status: conversationStatus } = useConversationStreamStatus({
+    kind: ConversationKind.Chat,
+    id: message.topicId
+  })
+  const turnState = classifyTurn(conversationStatus)
   const isProcessing = useIsActiveTurnTarget(message)
-  const isActiveTurnProcessing = isProcessing && (topicStreamStatus === undefined || topicTurnState.isTurnActive)
+  const isActiveTurnProcessing = isProcessing && (conversationStatus === undefined || turnState.isTurnActive)
   const isStreamLive =
-    isActiveTurnProcessing &&
-    (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
+    isActiveTurnProcessing && (conversationStatus === undefined ? message.status === 'pending' : turnState.isStreamLive)
   const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 

@@ -1,4 +1,5 @@
-import { type AiStreamAdmissionReason, isAiStreamAdmissionReason } from '@shared/ai/transport'
+import type { ConversationAdmissionReason } from '@shared/ai/conversation'
+import { isConversationAdmissionReason } from '@shared/ai/transport'
 import type { SerializedError } from '@shared/types/error'
 
 import { IpcError } from './IpcError'
@@ -52,8 +53,8 @@ export function aiErrorDetail(e: unknown): SerializedError | undefined {
   return e instanceof IpcError && e.code === aiErrorCodes.AI_REQUEST_FAILED ? (e.data as SerializedError) : undefined
 }
 
-export function aiStreamAdmissionReason(e: unknown): AiStreamAdmissionReason | undefined {
+export function aiStreamAdmissionReason(e: unknown): ConversationAdmissionReason | undefined {
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_STREAM_ADMISSION_REJECTED) return undefined
   if (!e.data || typeof e.data !== 'object' || !('reason' in e.data)) return undefined
-  return isAiStreamAdmissionReason(e.data.reason) ? e.data.reason : undefined
+  return isConversationAdmissionReason(e.data.reason) ? e.data.reason : undefined
 }

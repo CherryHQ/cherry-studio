@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import {
   type AgentGlobalSkillRow,
@@ -128,16 +127,16 @@ export class AgentGlobalSkillService {
       .all()
     if (!updated) return null
 
-    notifyDataApiDataChange([
-      { endpoint: '/skills', kind: 'projection', entityIds: [id] },
-      {
+    application.get('DbService').withEffects((effects) => {
+      effects.add({ endpoint: '/skills', kind: 'projection', entityIds: [id] })
+      effects.add({
         endpoint: '/skills',
         kind: 'membership',
         dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
         entityIds: [id]
-      },
-      { endpoint: '/skills/:skillId', entityIds: [id] }
-    ])
+      })
+      effects.add({ endpoint: '/skills/:skillId', routeParams: { skillId: id }, entityIds: [id] })
+    })
     return this.rowToInstalledSkill(updated)
   }
 
