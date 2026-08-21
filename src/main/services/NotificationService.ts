@@ -5,10 +5,11 @@ import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
   CONVERSATION_NOTIFICATION_ACTION_KEY,
@@ -18,6 +19,14 @@ import {
 import { Notification as ElectronNotification } from 'electron'
 
 const logger = loggerService.withContext('NotificationService')
+const TOPIC_STATUS_PREFIX = 'topic.stream.statuses.'
+
+export interface ConversationActivityChangedEvent {
+  topicId: string
+  target: ConversationNavigationTarget
+  snapshot: TopicStatusSnapshotEntry | null
+  changedAt: number
+}
 
 function isConversationTarget(meta: unknown): meta is ConversationNavigationTarget {
   if (!meta || typeof meta !== 'object') return false
@@ -34,7 +43,25 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 @DependsOn(['AgentSessionRuntimeService', 'AiStreamManager', 'ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
+  private readonly _onConversationActivityChanged = this.registerDisposable(
+    new Emitter<ConversationActivityChangedEvent>()
+  )
+  public readonly onConversationActivityChanged: Event<ConversationActivityChangedEvent> =
+    this._onConversationActivityChanged.event
+
   protected onInit(): void {
+    const cacheService = application.get('CacheService')
+    this.registerDisposable(
+      cacheService.subscribeSharedChange('topic.stream.statuses.${topicId}', (snapshot, _oldSnapshot, key) =>
+        this.emitConversationActivity(snapshot, key)
+      )
+    )
+    this.registerDisposable(
+      cacheService.subscribeSharedChange(
+        'topic.stream.statuses.agent-session:${sessionId}',
+        (snapshot, _oldSnapshot, key) => this.emitConversationActivity(snapshot, key)
+      )
+    )
     this.registerDisposable(
       application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
     )
@@ -115,13 +142,25 @@ export class NotificationService extends BaseService {
     void this.sendNotification(notification)
   }
 
+  private emitConversationActivity(snapshot: TopicStatusSnapshotEntry | null | undefined, concreteKey: string): void {
+    const topicId = concreteKey.slice(TOPIC_STATUS_PREFIX.length)
+    if (!topicId) return
+
+    this._onConversationActivityChanged.fire({
+      topicId,
+      target: this.resolveConversationTarget(topicId),
+      snapshot: snapshot ?? null,
+      changedAt: Date.now()
+    })
+  }
+
   private resolveConversationTarget(topicId: string): ConversationNavigationTarget {
     return isAgentSessionTopic(topicId)
       ? { conversationType: 'agent', conversationId: extractAgentSessionId(topicId) }
       : { conversationType: 'assistant', conversationId: topicId }
   }
 
-  private resolveConversationName(target: ConversationNavigationTarget): string {
+  public resolveConversationName(target: ConversationNavigationTarget): string {
     const fallback = target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
 
     try {
