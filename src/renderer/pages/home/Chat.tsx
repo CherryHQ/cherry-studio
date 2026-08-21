@@ -11,7 +11,6 @@ import {
   type ChatConversationControlsProps
 } from '@renderer/components/composer/variants/chat/ChatConversationControls'
 import type { ChatConversationControlsSnapshot } from '@renderer/components/composer/variants/ChatComposer'
-import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import PromptPopup from '@renderer/components/popups/PromptPopup'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -20,9 +19,12 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { FC, ReactNode } from 'react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -137,13 +139,19 @@ const Chat: FC<Props> = (props) => {
   )
   useCommandHandler(
     'topic.clear_messages',
-    () => {
+    async () => {
       if (!activeTopic) return
-      void ConfirmActionPopup.show({
+      const confirmed = await popup.confirm({
         title: t('chat.input.clear.title'),
         content: t('chat.input.clear.content'),
-        action: () => clearTopicMessages(activeTopic.id)
+        centered: true
       })
+      if (!confirmed) return
+      try {
+        await clearTopicMessages(activeTopic.id)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      }
     },
     { enabled: showConversation && isActiveTab }
   )

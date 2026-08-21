@@ -1,4 +1,5 @@
 import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -19,9 +20,8 @@ const assistantContextMock = vi.hoisted(() => ({
 }))
 const providerHookArgs = vi.hoisted(() => [] as unknown[][])
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
-const clearTopicMessagesMock = vi.hoisted(() => vi.fn())
-const confirmActionShow = vi.hoisted(() => vi.fn())
 const eventEmitMock = vi.hoisted(() => vi.fn())
+const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 const topic: Topic = {
@@ -81,18 +81,10 @@ vi.mock('@renderer/components/popups/PromptPopup', () => ({
   }
 }))
 
-vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({
-  default: { show: confirmActionShow }
-}))
-
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
     setTimeoutTimer: vi.fn()
   })
-}))
-
-vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
-  useClearTopicMessages: () => clearTopicMessagesMock
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -140,6 +132,10 @@ vi.mock('@renderer/hooks/command', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useIsActiveTab: () => activeTabMock.current
+}))
+
+vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
+  useClearTopicMessages: () => clearTopicMessagesMock
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -224,23 +220,27 @@ describe('Chat', () => {
     activeTabMock.current = true
   })
 
-  it('confirms before clearing messages from the active topic', async () => {
+  it('clears the active topic once the confirmation is accepted', async () => {
     render(<Chat activeTopic={topic} />)
 
-    act(() => {
-      void commandHandlers.get('topic.clear_messages')?.()
-    })
-
-    expect(confirmActionShow).toHaveBeenCalledOnce()
-    expect(clearTopicMessagesMock).not.toHaveBeenCalled()
-
-    const action = confirmActionShow.mock.calls[0]?.[0]?.action
-    if (!action) throw new Error('Expected clear-messages confirmation action')
     await act(async () => {
-      await action()
+      await commandHandlers.get('topic.clear_messages')?.()
     })
 
-    expect(clearTopicMessagesMock).toHaveBeenCalledExactlyOnceWith('topic-1')
+    expect(popup.confirm).toHaveBeenCalled()
+    expect(clearTopicMessagesMock).toHaveBeenCalledWith(topic.id)
+  })
+
+  it('leaves the topic untouched when the confirmation is dismissed', async () => {
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+
+    render(<Chat activeTopic={topic} />)
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(clearTopicMessagesMock).not.toHaveBeenCalled()
   })
 
   it('does not register the clear-messages command for a background tab', () => {
