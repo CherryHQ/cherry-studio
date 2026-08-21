@@ -1096,9 +1096,9 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
   it('sets pending-auth status and throws when OAuth callback times out', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
-    callbackServerMock.waitForAuthCode.mockReset().mockRejectedValue(
-      new Error('Timed out waiting for OAuth authorization code after 60s')
-    )
+    callbackServerMock.waitForAuthCode
+      .mockReset()
+      .mockRejectedValue(new Error('Timed out waiting for OAuth authorization code after 60s'))
 
     const service = new McpRuntimeService()
     const server = urlServer('streamableHttp')
@@ -1165,7 +1165,12 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     let resolveBackgroundCode!: (code: string) => void
     callbackServerMock.waitForAuthCode
       .mockRejectedValueOnce(new Error('Timed out waiting for OAuth authorization code after 8s'))
-      .mockImplementationOnce(() => new Promise<string>((r) => { resolveBackgroundCode = r }))
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((r) => {
+            resolveBackgroundCode = r
+          })
+      )
 
     const service = new McpRuntimeService()
     const server = urlServer('streamableHttp')
