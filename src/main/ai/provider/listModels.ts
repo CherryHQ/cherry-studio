@@ -395,10 +395,13 @@ const ovmsFetcher: ModelFetcher = {
       responseSchema: OVMSConfigResponseSchema,
       abortSignal: signal
     })
-    const entries = Object.entries(response).filter(([, info]) =>
-      info?.model_version_status?.some((v) => v?.state === 'AVAILABLE')
+    // List every model registered in OVMS config regardless of its server-side
+    // loading state (AVAILABLE, LOADING, FAILED_PRECONDITION, etc.).  Users
+    // expect downloaded models to appear in the model manager even when OVMS
+    // fails to load them server-side — the UI communicates readiness, not OVMS.
+    return dedup(Object.entries(response), ([name]) => name).map(([name]) =>
+      toModel(name, provider, { ownedBy: 'ovms' })
     )
-    return dedup(entries, ([name]) => name).map(([name]) => toModel(name, provider, { ownedBy: 'ovms' }))
   }
 }
 

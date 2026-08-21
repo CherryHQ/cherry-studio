@@ -14,17 +14,27 @@ interface WebviewSearchProps {
   webviewRef: React.RefObject<WebviewTag | null>
   isWebviewReady: boolean
   appId: string
+  /**
+   * Whether this instance answers the host window's Find shortcut. In split
+   * view every pane mounts one of these, and the host `keydown` listener is
+   * global — without a gate, one Ctrl/Cmd+F opens every pane's search at once.
+   * The webview-scoped IPC path stays active either way.
+   */
+  hostShortcutEnabled?: boolean
 }
 
 const logger = loggerService.withContext('WebviewSearch')
 
-const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId }) => {
+const OVERLAY_SELECTOR = '[data-webview-search-overlay]'
+
+const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId, hostShortcutEnabled = true }) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const [query, setQuery] = useState('')
   const [matchCount, setMatchCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
   const attachedWebviewRef = useRef<WebviewTag | null>(null)
@@ -229,12 +239,23 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        // Only the pane that owns the shortcut opens; the others must not, or
+        // one keypress opens every mounted pane's search overlay.
+        if (!hostShortcutEnabled) return
         event.preventDefault()
         openSearch()
         return
       }
 
       if (!isVisible) return
+
+      // A lone overlay is unambiguously the target and always answers; with
+      // rivals, focus decides, and pane ownership only when none holds it.
+      const active = document.activeElement
+      const ownsFocus = overlayRef.current?.contains(active) ?? false
+      const overlayFocused = active instanceof Element && active.closest(OVERLAY_SELECTOR) !== null
+      const hasRival = document.querySelectorAll(OVERLAY_SELECTOR).length > 1
+      if (hasRival && (overlayFocused ? !ownsFocus : !hostShortcutEnabled)) return
 
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -256,7 +277,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     return () => {
       window.removeEventListener('keydown', handleKeydown, true)
     }
-  }, [closeSearch, goToNext, goToPrevious, isVisible, openSearch])
+  }, [closeSearch, goToNext, goToPrevious, hostShortcutEnabled, isVisible, openSearch])
 
   useEffect(() => {
     if (!isWebviewReady) {
@@ -295,7 +316,10 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const disableNavigation = !query || matchCount === 0
 
   return (
-    <div className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
+    <div
+      ref={overlayRef}
+      data-webview-search-overlay=""
+      className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
       <Input
         ref={inputRef}
         autoFocus
