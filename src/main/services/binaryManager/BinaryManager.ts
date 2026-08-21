@@ -14,6 +14,7 @@ import {
   dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
+  isPathWithin,
   mergeBinaryExecutionEnv
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
@@ -41,6 +42,9 @@ import type {
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
+
+import { sanitizedCommandError } from './commandError'
+import { provideManagedPython } from './pythonRuntime'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -85,15 +89,8 @@ const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: '
 // killing it mid-download surfaces as a bogus "install failed".
 const MISE_COMMAND_TIMEOUT_MS = 120_000
 const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
-const PYTHON_MIRROR_TIMEOUT_MS = 5 * 60_000
-const PYTHON_OFFICIAL_TIMEOUT_MS = 10 * 60_000
-const PYTHON_RUNTIME_VERSION = '3.12.13'
 const CHINA_PIP_INDEX = 'https://pypi.tuna.tsinghua.edu.cn/simple'
 const OFFICIAL_PIP_INDEX = 'https://pypi.org/simple'
-// uv appends `/{build-tag}/{archive}` to the mirror base, so the mirror only has
-// to mimic python-build-standalone's release layout — version metadata and
-// checksums still come from uv's built-in catalog.
-const MODELSCOPE_PYTHON_MIRROR = 'https://www.modelscope.cn/datasets/awwaawwa/BabelDOCAssets/resolve/master/python'
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
@@ -149,13 +146,6 @@ function parseAmbientUrl(value: string | undefined, setting: string): string | u
 
 function toPipxRegistryUrl(indexUrl: string): string {
   return `${indexUrl.replace(/\/+$/, '')}/{}/`
-}
-
-function isPathWithin(root: string, candidate: string): boolean {
-  const normalizedRoot = isWin ? path.resolve(root).toLowerCase() : path.resolve(root)
-  const normalizedCandidate = isWin ? path.resolve(candidate).toLowerCase() : path.resolve(candidate)
-  const relative = path.relative(normalizedRoot, normalizedCandidate)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 // Single source of truth for tools shipped inside the app and extracted at
@@ -230,7 +220,6 @@ export class BinaryManager extends BaseService {
   private isolatedEnv: Record<string, string> | null = null
   private isolatedEnvPromise: Promise<Record<string, string>> | null = null
   private usesDefaultChinaPipIndex = false
-  private inChina = false
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
   // Serializes custom-registry read-modify-write with filesystem mutations so
@@ -331,7 +320,6 @@ export class BinaryManager extends BaseService {
           this.isolatedEnv = null
           this.isolatedEnvPromise = null
           this.usesDefaultChinaPipIndex = false
-          this.inChina = false
         }
       )
     )
@@ -832,7 +820,6 @@ export class BinaryManager extends BaseService {
     }
 
     const inChina = await regionService.isInChina().catch(() => false)
-    this.inChina = inChina
     this.usesDefaultChinaPipIndex = false
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
@@ -970,17 +957,6 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  private async runBundledUv(
-    args: string[],
-    opts: { timeoutMs: number; env?: Record<string, string> }
-  ): Promise<{ stdout: string; stderr: string }> {
-    const uvBin = application.getPath('cherry.bin', getBinaryName('uv'))
-    if (!fs.existsSync(uvBin)) throw new Error('Bundled uv is not available')
-
-    const env = { ...(await this.getIsolatedEnv()), ...opts.env }
-    return execFileAsync(uvBin, args, { cwd: os.tmpdir(), env, timeout: opts.timeoutMs })
-  }
-
   private async resolveManagedBinaryPath(toolName: string): Promise<string | null> {
     try {
       // `mise which` exits 0 if mise *thinks* the tool is installed; it does
@@ -1066,100 +1042,6 @@ export class BinaryManager extends BaseService {
     return runtimeBin
   }
 
-  /**
-   * `uv python find` is offline, so a hit costs nothing; the extra `--version`
-   * spawn is what catches an interpreter left corrupted by a half-written install.
-   */
-  private async findManagedPython(targetVersion: string, uvEnv: Record<string, string>): Promise<string | null> {
-    let pythonPath: string | undefined
-    try {
-      const { stdout } = await this.runBundledUv(
-        [
-          'python',
-          'find',
-          targetVersion,
-          '--managed-python',
-          '--no-python-downloads',
-          '--no-project',
-          '--resolve-links'
-        ],
-        { timeoutMs: MISE_COMMAND_TIMEOUT_MS, env: uvEnv }
-      )
-      pythonPath = stdout.trim().split(/\r?\n/)[0]
-    } catch {
-      return null
-    }
-    // Never adopt a system interpreter: only Cherry's own install dir counts.
-    if (!pythonPath || !path.isAbsolute(pythonPath) || !isPathWithin(uvEnv.UV_PYTHON_INSTALL_DIR, pythonPath)) {
-      return null
-    }
-    try {
-      await execFileAsync(pythonPath, ['--version'], {
-        cwd: os.tmpdir(),
-        env: await this.getIsolatedEnv(),
-        timeout: MISE_COMMAND_TIMEOUT_MS
-      })
-    } catch (error) {
-      logger.warn('Rejected unhealthy Cherry-managed Python runtime', {
-        path: pythonPath,
-        error: this.errorMessage(error)
-      })
-      return null
-    }
-    return pythonPath
-  }
-
-  private async preparePythonRuntime(runtime: string): Promise<string> {
-    const requested = runtime.slice(runtime.lastIndexOf('@') + 1)
-    const targetVersion = semverValid(requested) ?? (requested === '3.12' ? PYTHON_RUNTIME_VERSION : requested)
-    const installDir = application.getPath('feature.binary.data', 'uv-python')
-    const uvEnv = {
-      UV_PYTHON_INSTALL_DIR: installDir,
-      UV_HTTP_TIMEOUT: '30',
-      UV_HTTP_RETRIES: '2'
-    }
-
-    const existing = await this.findManagedPython(targetVersion, uvEnv)
-    if (existing) return existing
-
-    await fsp.mkdir(installDir, { recursive: true })
-    const installArgs = [
-      'python',
-      'install',
-      targetVersion,
-      '--install-dir',
-      installDir,
-      '--no-bin',
-      '--managed-python',
-      '--no-config'
-    ]
-    const failures: string[] = []
-
-    if (this.inChina) {
-      try {
-        await this.runBundledUv(installArgs, {
-          timeoutMs: PYTHON_MIRROR_TIMEOUT_MS,
-          env: { ...uvEnv, UV_PYTHON_INSTALL_MIRROR: MODELSCOPE_PYTHON_MIRROR }
-        })
-      } catch (error) {
-        failures.push(`ModelScope: ${this.errorMessage(error)}`)
-      }
-    }
-
-    if (!this.inChina || failures.length > 0) {
-      try {
-        await this.runBundledUv(installArgs, { timeoutMs: PYTHON_OFFICIAL_TIMEOUT_MS, env: uvEnv })
-      } catch (error) {
-        failures.push(`official: ${this.errorMessage(error)}`)
-        throw new Error(`Failed to install Python ${targetVersion}\n${failures.join('\n')}`)
-      }
-    }
-
-    const installed = await this.findManagedPython(targetVersion, uvEnv)
-    if (!installed) throw new Error(`Managed Python is not runnable after install: ${targetVersion}`)
-    return installed
-  }
-
   private async installPipxTool(args: string[], pythonPath: string, includePrerelease: boolean): Promise<void> {
     // mise's pipx backend shells out to uv, which honours UV_PYTHON — so mise
     // never needs a Python of its own, and none is passed to `mise use`.
@@ -1228,7 +1110,10 @@ export class BinaryManager extends BaseService {
     const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
     // Cherry provisions Python itself, so the pipx runtime stays out of `mise
     // use` — naming it there is what makes mise fetch its own Python.
-    const pythonPath = backend === 'pipx' && runtime ? await this.preparePythonRuntime(runtime) : undefined
+    const pythonPath =
+      backend === 'pipx' && runtime
+        ? await provideManagedPython(runtime.slice(runtime.lastIndexOf('@') + 1), await this.getIsolatedEnv())
+        : undefined
     const useArgs = [
       'use',
       '-g',
@@ -2205,14 +2090,6 @@ export class BinaryManager extends BaseService {
   }
 
   private errorMessage(err: unknown): string {
-    let message = err instanceof Error ? err.message : String(err)
-    const stderr = (err as { stderr?: unknown } | null)?.stderr
-    if (typeof stderr === 'string' && stderr.trim() && !message.includes(stderr.trim())) {
-      message = `${message}\n${stderr.trim()}`
-    }
-    return message
-      .replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/gi, '$1***@')
-      .replace(/([?&](?:access_?token|api_?key|auth|credential|password|secret)=)[^&\s]+/gi, '$1***')
-      .replace(/(authorization:\s*(?:bearer|basic)\s+)[^\s]+/gi, '$1***')
+    return sanitizedCommandError(err)
   }
 }

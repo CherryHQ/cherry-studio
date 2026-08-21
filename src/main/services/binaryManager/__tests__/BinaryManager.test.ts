@@ -2551,7 +2551,6 @@ describe('BinaryManager', () => {
   describe('installWithMise', () => {
     const UV_BIN = '/mock/cherry.bin/uv'
     const MANAGED_PYTHON = '/mock/feature.binary.data/uv-python/cpython-3.12.13/bin/python'
-    const MODELSCOPE_MIRROR = 'https://www.modelscope.cn/datasets/awwaawwa/BabelDOCAssets/resolve/master/python'
     const BABELDOC = { name: 'babeldoc-stream', tool: 'pipx:babeldoc-stream' }
     const uvCalls = (subcommand: string) =>
       mockExecFileAsync.mock.calls.filter(
@@ -2587,70 +2586,16 @@ describe('BinaryManager', () => {
       expect(useCall?.[2].env).toMatchObject({ UV_PYTHON: MANAGED_PYTHON, UV_PYTHON_DOWNLOADS: 'never' })
     })
 
-    it('refuses an interpreter outside Cherry storage and installs a managed one instead', async () => {
-      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === UV_BIN)
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      let installed = false
-
-      mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
-        if (bin === UV_BIN && args[1] === 'install') {
-          installed = true
-          return { stdout: '', stderr: '' }
-        }
-        if (bin === UV_BIN && args[1] === 'find') {
-          return { stdout: `${installed ? MANAGED_PYTHON : '/usr/bin/python3'}\n`, stderr: '' }
-        }
-        if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
-        return { stdout: '', stderr: '' }
-      })
-
-      await expect((service as any).preparePythonRuntime('python@3.12')).resolves.toBe(MANAGED_PYTHON)
-      expect(uvCalls('install')).toHaveLength(1)
-    })
-
-    it('reinstalls when the stored interpreter no longer runs', async () => {
-      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === UV_BIN)
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      let repaired = false
-
-      mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
-        if (bin === UV_BIN && args[1] === 'install') {
-          repaired = true
-          return { stdout: '', stderr: '' }
-        }
-        if (bin === UV_BIN && args[1] === 'find') return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
-        if (bin === MANAGED_PYTHON) {
-          if (!repaired) throw new Error('dyld: library not loaded')
-          return { stdout: 'Python 3.12.13\n', stderr: '' }
-        }
-        return { stdout: '', stderr: '' }
-      })
-
-      await expect((service as any).preparePythonRuntime('python@3.12')).resolves.toBe(MANAGED_PYTHON)
-      expect(uvCalls('install')).toHaveLength(1)
-    })
-
-    it('installs Python from the ModelScope mirror, then retries a failed Tsinghua pip install on PyPI', async () => {
+    it('retries a failed Tsinghua pip install on PyPI', async () => {
       vi.mocked(regionService.isInChina).mockResolvedValue(true)
       ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === UV_BIN)
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      let installed = false
       let pipAttempts = 0
 
       mockExecFileAsync.mockImplementation(
         async (bin: string, args: string[], options: { env?: Record<string, string> }) => {
-          if (bin === UV_BIN && args[1] === 'install') {
-            expect(options.env?.UV_PYTHON_INSTALL_MIRROR).toBe(MODELSCOPE_MIRROR)
-            installed = true
-            return { stdout: '', stderr: '' }
-          }
-          if (bin === UV_BIN && args[1] === 'find') {
-            if (!installed) throw new Error('no managed python')
-            return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
-          }
+          if (bin === UV_BIN && args[1] === 'find') return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
           if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
           if (args.includes('pipx:babeldoc-stream@latest')) {
             pipAttempts += 1
@@ -2673,37 +2618,6 @@ describe('BinaryManager', () => {
 
       await expect((service as any).installWithMise(BABELDOC, undefined, [])).resolves.toBe('0.6.4.post4')
       expect(pipAttempts).toBe(2)
-    })
-
-    it('falls back to the official Python source only after the ModelScope mirror fails', async () => {
-      vi.mocked(regionService.isInChina).mockResolvedValue(true)
-      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === UV_BIN)
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      let installed = false
-
-      mockExecFileAsync.mockImplementation(
-        async (bin: string, args: string[], options: { env?: Record<string, string> }) => {
-          if (bin === UV_BIN && args[1] === 'install') {
-            if (options.env?.UV_PYTHON_INSTALL_MIRROR) throw new Error('ModelScope unavailable')
-            installed = true
-            return { stdout: '', stderr: '' }
-          }
-          if (bin === UV_BIN && args[1] === 'find') {
-            if (!installed) throw new Error('no managed python')
-            return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
-          }
-          if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
-          return { stdout: '', stderr: '' }
-        }
-      )
-
-      await expect((service as any).preparePythonRuntime('python@3.12')).resolves.toBe(MANAGED_PYTHON)
-
-      const installs = uvCalls('install')
-      expect(installs).toHaveLength(2)
-      expect(installs[0]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBe(MODELSCOPE_MIRROR)
-      expect(installs[1]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBeUndefined()
     })
 
     it('stops at Tsinghua when the default China pip install succeeds', async () => {

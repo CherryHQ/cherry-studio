@@ -49,6 +49,18 @@ export function getBinaryShimsDir(): string {
 }
 
 /**
+ * Whether `candidate` resolves inside `root` — the containment test for
+ * "is this binary one of ours". Case-insensitive on Windows, matching the
+ * filesystem, so a drive-letter or casing difference cannot smuggle a path
+ * past the check.
+ */
+export function isPathWithin(root: string, candidate: string): boolean {
+  const normalize = (value: string) => (isWin ? path.resolve(value).toLowerCase() : path.resolve(value))
+  const relative = path.relative(normalize(root), normalize(candidate))
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+/**
  * Directories that hold Cherry-managed binaries, in resolution order:
  * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
  *
