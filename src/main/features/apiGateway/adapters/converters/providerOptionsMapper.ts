@@ -43,7 +43,6 @@ function resolveProviderReasoningContext(
     invocationModel: reasoningProfile.support
       ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
       : model,
-    provider,
     providerOptionsKey: resolveEndpointProviderOptionsKey(provider, resolvedEndpoint),
     reasoningProfile
   }
@@ -60,8 +59,7 @@ function buildProviderOptions(
     selection: effort,
     model: context.invocationModel,
     profile: context.reasoningProfile.wire,
-    maxTokens,
-    assistantSummary: context.provider.settings?.summaryText
+    maxTokens
   })
   return buildResolvedReasoningProviderOptions({
     aiSdkProviderId: context.aiSdkProviderId,

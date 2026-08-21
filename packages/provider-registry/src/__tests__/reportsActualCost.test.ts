@@ -8,18 +8,17 @@ import * as fs from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { ApiFeaturesSchema, ProviderListSchema } from '../schemas/provider'
+import { ProviderListSchema } from '../schemas/provider'
 
-describe('ApiFeaturesSchema.reportsActualCost', () => {
-  it('defaults to false', () => {
-    expect(ApiFeaturesSchema.parse({}).reportsActualCost).toBe(false)
-  })
-
-  it('declares OpenRouter actual-cost ownership and currency in providers.json', () => {
+describe('provider reportsActualCost', () => {
+  it('defaults ordinary providers to false and declares OpenRouter as authoritative', () => {
     const raw = fs.readFileSync(new URL('../../data/providers.json', import.meta.url), 'utf-8')
     const { providers } = ProviderListSchema.parse(JSON.parse(raw))
+    const openai = providers.find((p) => p.id === 'openai')
     const openrouter = providers.find((p) => p.id === 'openrouter')
-    expect(openrouter?.apiFeatures?.reportsActualCost).toBe(true)
+
+    expect(openai?.reportsActualCost).toBe(false)
+    expect(openrouter?.reportsActualCost).toBe(true)
     expect(openrouter?.reportedCostCurrency).toBe('USD')
   })
 })

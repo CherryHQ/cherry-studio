@@ -451,7 +451,20 @@
       "fast": "Nhanh",
       "faster": "Nhanh hơn",
       "label": "Tốc độ",
+      "service_tier": {
+        "auto": "Tự động",
+        "fast": "Nhanh",
+        "flex": "Linh hoạt",
+        "label": "Cấp dịch vụ",
+        "standard": "Tiêu chuẩn"
+      },
       "smarter": "Thông minh hơn",
+      "summary": {
+        "auto": "Tự động",
+        "concise": "Ngắn gọn",
+        "detailed": "Chi tiết",
+        "label": "Tóm tắt suy luận"
+      },
       "title": "Cài đặt phản hồi"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "Chèn prompt do máy chủ MCP cung cấp",
         "empty": "Không có prompt MCP nào",
+        "fill_arguments": "Điền tham số prompt",
+        "fill_arguments_description": "Nhập các tham số của prompt trước khi chèn",
+        "insert": "Chèn",
         "insert_failed": "Không thể chèn prompt",
         "title": "Prompt MCP"
       },
@@ -6329,10 +6345,6 @@
             "token_threshold": "Ngưỡng Token Bộ nhớ đệm",
             "token_threshold_help": "Các tin nhắn vượt quá số lượng token này sẽ được lưu vào bộ nhớ đệm. Đặt thành 0 để tắt bộ nhớ đệm."
           },
-          "array_content": {
-            "help": "Nhà cung cấp có hỗ trợ trường nội dung của tin nhắn ở dạng mảng không?",
-            "label": "Hỗ trợ nội dung tin nhắn định dạng mảng"
-          },
           "developer_role": {
             "help": "Nhà cung cấp có hỗ trợ tin nhắn với vai trò: \"developer\" không?",
             "label": "Thông báo hỗ trợ nhà phát triển"
@@ -6342,17 +6354,13 @@
             "label": "Hỗ trợ bật enable_thinking"
           },
           "label": "Cài đặt API",
-          "service_tier": {
-            "help": "Liệu nhà cung cấp có hỗ trợ cấu hình tham số service_tier hay không. Khi được bật, tham số này có thể điều chỉnh trong cài đặt service tier trên trang chat. (Chỉ dành cho mô hình OpenAI)",
-            "label": "Hỗ trợ service_tier"
+          "reasoning_summary": {
+            "help": "Gửi reasoning.summary đến điểm cuối Responses này. Chỉ bật khi máy chủ chấp nhận tham số OpenAI này.",
+            "label": "Hỗ trợ tóm tắt suy luận"
           },
           "stream_options": {
             "help": "Nhà cung cấp có hỗ trợ tham số stream_options không?",
             "label": "Hỗ trợ stream_options"
-          },
-          "verbosity": {
-            "help": "Cho dù nhà cung cấp có hỗ trợ tham số độ chi tiết hay không",
-            "label": "Hỗ trợ chế độ chi tiết"
           }
         },
         "url": {
@@ -7073,9 +7081,8 @@
       "explore": {
         "analysis": "Phân tích",
         "chart": "Biểu đồ",
-        "clearDate": "Xóa bộ lọc ngày",
-        "drilldownTitle": "Phân tích chi tiết {{date}}",
         "entries": "Yêu cầu",
+        "granularity": "Độ chi tiết",
         "groupBy": "Nhóm theo",
         "loadMore": "Tải thêm",
         "loading": "Đang tải...",
@@ -7085,7 +7092,6 @@
         "noEntries": "Không có mục nào",
         "noEntriesDescription": "Thử một cửa sổ rộng hơn hoặc một nhà cung cấp khác.",
         "rollup": "Cuộn lên / Tổng hợp (tùy ngữ cảnh)",
-        "selectedDate": "Ngày đã chọn: {{date}}",
         "shareLabel": "Chia sẻ",
         "title": "Khám phá",
         "top": "Đầu",
@@ -7099,7 +7105,6 @@
         "source": "Trợ lý / Agent"
       },
       "heatmap": {
-        "ariaDate": "Sử dụng vào {{date}}",
         "title": "Hoạt động hàng ngày"
       },
       "metric": {

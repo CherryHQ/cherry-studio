@@ -131,6 +131,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
+      serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 

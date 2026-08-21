@@ -451,7 +451,20 @@
       "fast": "Rapide",
       "faster": "Plus rapide",
       "label": "Vitesse",
+      "service_tier": {
+        "auto": "Automatique",
+        "fast": "Rapide",
+        "flex": "Flexible",
+        "label": "Niveau de service",
+        "standard": "Standard"
+      },
       "smarter": "Plus intelligent",
+      "summary": {
+        "auto": "Automatique",
+        "concise": "Concis",
+        "detailed": "Détaillé",
+        "label": "Résumé du raisonnement"
+      },
       "title": "Paramètres de réponse"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "Insérer un prompt publié par un serveur MCP",
         "empty": "Aucun prompt MCP disponible",
+        "fill_arguments": "Renseigner les arguments du prompt",
+        "fill_arguments_description": "Saisissez les arguments de ce prompt avant de l'insérer",
+        "insert": "Insérer",
         "insert_failed": "Impossible d'insérer le prompt",
         "title": "Prompts MCP"
       },
@@ -6329,10 +6345,6 @@
             "token_threshold": "Seuil de jeton de cache",
             "token_threshold_help": "Les messages dépassant ce nombre de jetons seront mis en cache. Mettre à 0 pour désactiver la mise en cache."
           },
-          "array_content": {
-            "help": "Ce fournisseur prend-il en charge le champ content du message sous forme de tableau ?",
-            "label": "Prise en charge du format de tableau pour le contenu du message"
-          },
           "developer_role": {
             "help": "Le fournisseur prend-il en charge les messages avec le rôle : « développeur » ?",
             "label": "Prise en charge du message développeur"
@@ -6342,17 +6354,13 @@
             "label": "Prise en charge de enable_thinking"
           },
           "label": "Paramètres de l'API",
-          "service_tier": {
-            "help": "Le fournisseur prend-il en charge la configuration du paramètre service_tier ? Lorsqu'il est activé, ce paramètre peut être ajusté dans les paramètres de niveau de service sur la page de conversation. (Modèles OpenAI uniquement)",
-            "label": "Prend en charge service_tier"
+          "reasoning_summary": {
+            "help": "Envoie reasoning.summary à ce point de terminaison Responses. Activez cette option uniquement si le serveur accepte ce paramètre OpenAI.",
+            "label": "Prendre en charge le résumé du raisonnement"
           },
           "stream_options": {
             "help": "Le fournisseur prend-il en charge le paramètre stream_options ?",
             "label": "Prise en charge des options de flux"
-          },
-          "verbosity": {
-            "help": "Si le fournisseur prend en charge le paramètre de verbosité",
-            "label": "Prend en charge la verbosité"
           }
         },
         "url": {
@@ -7073,9 +7081,8 @@
       "explore": {
         "analysis": "Analyse",
         "chart": "Graphique",
-        "clearDate": "Effacer le filtre de date",
-        "drilldownTitle": "{{date}} détail",
         "entries": "Demandes",
+        "granularity": "Granularité",
         "groupBy": "Grouper par",
         "loadMore": "Charger plus",
         "loading": "Chargement...",
@@ -7085,7 +7092,6 @@
         "noEntries": "Aucune entrée",
         "noEntriesDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
         "rollup": "Agrégation",
-        "selectedDate": "Date sélectionnée : {{date}}",
         "shareLabel": "Partager",
         "title": "Explorer",
         "top": "Haut",
@@ -7099,7 +7105,6 @@
         "source": "Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Utilisation le {{date}}",
         "title": "Activité quotidienne"
       },
       "metric": {

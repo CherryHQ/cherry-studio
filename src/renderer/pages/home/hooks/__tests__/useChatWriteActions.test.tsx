@@ -16,7 +16,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
 }))
-vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
@@ -31,14 +31,12 @@ function makeCache() {
     seedReservedMessages: vi.fn(async () => {}),
     patchMessageInBranch: vi.fn(),
     rollbackBranch: vi.fn(async () => {}),
-    clearBranchCache: vi.fn(async () => {}),
     deleteMessageTrigger: vi.fn(async () => ({ deletedIds: [] })),
     deleteMessageGroupTrigger: vi.fn(async () => ({ deletedIds: [] })),
     patchMessageTrigger: vi.fn(async () => {}),
     createSiblingTrigger: vi.fn(async () => ({})),
     createMessageTrigger: vi.fn(async () => ({})),
-    setActiveNodeTrigger: vi.fn(async () => ({})),
-    clearTopicMessagesTrigger: vi.fn(async () => ({ deletedIds: [] }))
+    setActiveNodeTrigger: vi.fn(async () => ({}))
   } as unknown as Parameters<typeof useChatWriteActions>[0]['cache']
 }
 
@@ -453,7 +451,7 @@ describe('useChatWriteActions — regenerate', () => {
   it('inherits the persisted turn options when retrying an assistant message', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.parts = [{ type: 'text', text: 'answer' }]
-    assistantMessage.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    assistantMessage.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
     const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
 
     await actions.regenerate('a1')
@@ -463,6 +461,7 @@ describe('useChatWriteActions — regenerate', () => {
       body: expect.objectContaining({
         parentAnchorId: 'u1',
         reasoningEffort: 'high',
+        serviceTier: 'flex',
         fastMode: true
       })
     })
@@ -471,6 +470,7 @@ describe('useChatWriteActions — regenerate', () => {
   it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
     const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
     failedAssistant.metadata.modelId = 'provider::model-a'
+    failedAssistant.metadata.turnOptions = { serviceTier: 'fast' }
     failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
     const activeExecution = {
       executionId: 'provider::model-a',
@@ -497,7 +497,8 @@ describe('useChatWriteActions — regenerate', () => {
       topicId: 't1',
       parentAnchorId: 'u1',
       retryMessageId: 'a1',
-      mentionedModelIds: ['provider::model-a']
+      mentionedModelIds: ['provider::model-a'],
+      serviceTier: 'fast'
     })
     expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
       activeExecutions: [activeExecution],
@@ -568,7 +569,7 @@ describe('useChatWriteActions — regenerate', () => {
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.metadata.isActiveBranch = true
-    assistantMessage.metadata.turnOptions = { reasoningEffort: 'minimal', fastMode: false }
+    assistantMessage.metadata.turnOptions = { reasoningEffort: 'minimal', serviceTier: 'standard', fastMode: false }
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
 
     await actions.resend('u1')
@@ -577,6 +578,7 @@ describe('useChatWriteActions — regenerate', () => {
       expect.objectContaining({
         parentAnchorId: 'u1',
         reasoningEffort: 'minimal',
+        serviceTier: 'standard',
         fastMode: false
       })
     )
@@ -607,6 +609,7 @@ describe('useChatWriteActions — fork and resend', () => {
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, {
       reasoningEffort: 'high',
+      serviceTier: 'flex',
       fastMode: true
     })
 
@@ -616,6 +619,7 @@ describe('useChatWriteActions — fork and resend', () => {
         topicId: 't1',
         parentAnchorId: 'forked-user',
         reasoningEffort: 'high',
+        serviceTier: 'flex',
         fastMode: true
       })
     )
@@ -627,10 +631,10 @@ describe('useChatWriteActions — fork and resend', () => {
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     const firstAssistant = uiMsg('a1', 'assistant', 'u1')
     firstAssistant.metadata.modelId = 'provider::model-a'
-    firstAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    firstAssistant.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
     const secondAssistant = uiMsg('a2', 'assistant', 'u1')
     secondAssistant.metadata.modelId = 'provider::model-b'
-    secondAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    secondAssistant.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), firstAssistant, secondAssistant], cache)
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
@@ -639,6 +643,7 @@ describe('useChatWriteActions — fork and resend', () => {
       expect.objectContaining({
         mentionedModelIds: ['provider::model-a', 'provider::model-b'],
         reasoningEffort: 'high',
+        serviceTier: 'flex',
         fastMode: true
       })
     )

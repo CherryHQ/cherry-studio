@@ -451,7 +451,20 @@
       "fast": "Rápido",
       "faster": "Mais rápido",
       "label": "Velocidade",
+      "service_tier": {
+        "auto": "Automático",
+        "fast": "Rápido",
+        "flex": "Flexível",
+        "label": "Nível de serviço",
+        "standard": "Padrão"
+      },
       "smarter": "Mais inteligente",
+      "summary": {
+        "auto": "Automático",
+        "concise": "Conciso",
+        "detailed": "Detalhado",
+        "label": "Resumo do raciocínio"
+      },
       "title": "Configurações de resposta"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "Inserir um prompt publicado por um servidor MCP",
         "empty": "Nenhum prompt MCP disponível",
+        "fill_arguments": "Preencher argumentos do prompt",
+        "fill_arguments_description": "Forneça os valores deste prompt antes de o inserir",
+        "insert": "Inserir",
         "insert_failed": "Falha ao inserir o prompt",
         "title": "Prompts MCP"
       },
@@ -6329,10 +6345,6 @@
             "token_threshold": "Limite de Token de Cache",
             "token_threshold_help": "Mensagens que excederem essa contagem de tokens serão armazenadas em cache. Defina como 0 para desativar o cache."
           },
-          "array_content": {
-            "help": "O fornecedor suporta que o campo content da mensagem seja do tipo array?",
-            "label": "suporta o formato de matriz do conteúdo da mensagem"
-          },
           "developer_role": {
             "help": "O fornecedor suporta mensagens com role: \"developer\"?",
             "label": "Mensagem de suporte ao programador"
@@ -6342,17 +6354,13 @@
             "label": "Apoiar enable_thinking"
           },
           "label": "Definições da API",
-          "service_tier": {
-            "help": "Se o fornecedor suporta a configuração do parâmetro service_tier. Quando ativado, este parâmetro pode ser ajustado nas definições do nível de serviço na página de conversa. (Apenas para modelos OpenAI)",
-            "label": "Suporta service_tier"
+          "reasoning_summary": {
+            "help": "Envia reasoning.summary para este endpoint Responses. Ative apenas se o servidor aceitar este parâmetro da OpenAI.",
+            "label": "Suportar resumo do raciocínio"
           },
           "stream_options": {
             "help": "O fornecedor suporta o parâmetro stream_options?",
             "label": "suporta stream_options"
-          },
-          "verbosity": {
-            "help": "Se o fornecedor suporta o parâmetro de verbosidade",
-            "label": "Suportar verbosidade"
           }
         },
         "url": {
@@ -7073,9 +7081,8 @@
       "explore": {
         "analysis": "Análise",
         "chart": "Gráfico",
-        "clearDate": "Limpar filtro de data",
-        "drilldownTitle": "Detalhamento de {{date}}",
         "entries": "Pedidos",
+        "granularity": "Granularidade",
         "groupBy": "Agrupar por",
         "loadMore": "Carregar mais",
         "loading": "A carregar...",
@@ -7085,7 +7092,6 @@
         "noEntries": "Sem entradas",
         "noEntriesDescription": "Experimente uma janela mais ampla ou um fornecedor diferente.",
         "rollup": "Agregação",
-        "selectedDate": "Data selecionada: {{date}}",
         "shareLabel": "Partilhar",
         "title": "Explorar",
         "top": "Topo",
@@ -7099,7 +7105,6 @@
         "source": "Assistente / Agente"
       },
       "heatmap": {
-        "ariaDate": "Uso em {{date}}",
         "title": "Atividade diária"
       },
       "metric": {

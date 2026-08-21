@@ -87,6 +87,7 @@ patchedDependencies:
   emoji-picker-react@4.19.1: patches/emoji-picker-react@4.19.1.patch
   '@ai-sdk/xai@3.0.111': patches/@ai-sdk__xai@3.0.111.patch
   '@ai-sdk/openai-compatible@2.0.62': patches/@ai-sdk__openai-compatible@2.0.62.patch
+  '@ai-sdk/open-responses@1.0.34': patches/@ai-sdk__open-responses@1.0.34.patch
   ai@6.0.185: patches/ai@6.0.185.patch
   ppu-paddle-ocr@6.0.0: patches/ppu-paddle-ocr@6.0.0.patch
   '@ai-sdk/react@3.0.187': patches/@ai-sdk__react@3.0.187.patch
@@ -131,6 +132,7 @@ supportedArchitectures:
     - arm64
 
 minimumReleaseAgeExclude:
+  - '@ai-sdk/open-responses@1.0.34'
   - '@deepseek-ai/cordis@4.0.1'
   - '@deepseek-ai/cosmokit@1.8.2'
   - '@deepseek-ai/dsh-agent@0.1.0-rc.7'
