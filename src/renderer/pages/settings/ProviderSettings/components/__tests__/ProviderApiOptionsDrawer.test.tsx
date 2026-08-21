@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ProviderUtils from '@shared/utils/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,8 +45,11 @@ vi.mock('@shared/utils/provider', async (importOriginal) => ({
   isSystemProvider: (...args: unknown[]) => isSystemProviderMock(...args)
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+
   return {
+    ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button type="button" onClick={onClick} {...props}>
         {children}
@@ -175,8 +179,8 @@ describe('ProviderApiOptionsDrawer', () => {
 
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue(1024)
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue(2)
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue('1024')
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue('2')
   })
 
   it('renders nothing for a non-OpenAI provider without anthropic cache support', () => {
