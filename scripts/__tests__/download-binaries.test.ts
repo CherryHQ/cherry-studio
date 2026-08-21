@@ -1,8 +1,8 @@
 /**
- * Build-script coverage for the MinGit additions to download-binaries.js:
- * the `zip-tree` extraction mode (real extraction against a committed fixture,
- * no fs mocking — the platform unzip/Expand-Archive branch actually runs) and
- * the `isWindowsOnly` skip rule in verifyBundledBinaries.
+ * Build-script coverage for download-binaries.js: the `zip-tree` extraction mode
+ * (real extraction against a committed fixture, no fs mocking — the platform
+ * unzip/Expand-Archive branch actually runs), the shippability rules in
+ * verifyBundledBinaries, and the shared-cache linking and reclaim logic.
  */
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -80,7 +80,10 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
   }
 
   /** A shippable bundle for `tool`: every binary plus a matching marker. */
-  function makeCompleteBundle(platformKey: string, tool: { versionFile: string; version: string; packages: any }) {
+  function makeCompleteBundle(
+    platformKey: string,
+    tool: { version: string; versionFile: string; packages: Record<string, { binaries: string[] }> }
+  ) {
     const resourcesDir = makeResourcesDir(platformKey, tool.packages[platformKey].binaries)
     fs.writeFileSync(path.join(resourcesDir, platformKey, tool.versionFile), tool.version, 'utf8')
     return resourcesDir

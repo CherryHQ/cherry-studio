@@ -35,6 +35,21 @@ function curlFailure(status: number): Error {
   return Object.assign(new Error(`curl exited ${status}`), { status })
 }
 
+/** Stub the next curl invocation, handing `write` the -o destination it was given. */
+function stubCurl(write: (dest: string) => void) {
+  execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
+    write(args[args.indexOf('-o') + 1])
+    return ''
+  }) as never)
+}
+
+function listFiles(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name)
+    return entry.isDirectory() ? listFiles(full) : [full]
+  })
+}
+
 describe('download – resume and fallback', () => {
   it('keeps the partial file when the transfer drops, so the next run can resume', () => {
     const dest = path.join(makeTmpDir(), 'rg.14.1.1.part')
@@ -52,18 +67,14 @@ describe('download – resume and fallback', () => {
   it('re-downloads without resume when the server refuses the range', () => {
     const dest = path.join(makeTmpDir(), 'rg.14.1.1.part')
     fs.writeFileSync(dest, 'unusable leftover')
-    execFileSync
-      .mockImplementationOnce(() => {
-        throw curlFailure(33)
-      })
-      .mockImplementationOnce(((_cmd: string, args: string[]) => {
-        expect(args).not.toContain('-C')
-        fs.writeFileSync(dest, 'complete payload')
-        return ''
-      }) as never)
+    execFileSync.mockImplementationOnce(() => {
+      throw curlFailure(33)
+    })
+    stubCurl((target) => fs.writeFileSync(target, 'complete payload'))
 
     download('https://example.invalid/rg.tar.gz', dest)
 
+    expect(execFileSync.mock.calls[1][1]).not.toContain('-C')
     expect(fs.readFileSync(dest, 'utf8')).toBe('complete payload')
   })
 
@@ -93,13 +104,6 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
     }
   }
 
-  function stubCurlWriting(content: string) {
-    execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
-      fs.writeFileSync(args[args.indexOf('-o') + 1], content)
-      return ''
-    }) as never)
-  }
-
   it('does not write through the links a previous dev run left in the bundle', () => {
     const cache = makeTmpDir()
     const bundle = makeTmpDir()
@@ -107,7 +111,7 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
     fs.writeFileSync(path.join(cache, 'faketool'), 'cached 1.0.0 build')
     fs.linkSync(path.join(cache, 'faketool'), path.join(bundle, 'faketool'))
     fs.writeFileSync(path.join(bundle, '.fake-version'), '1.0.0')
-    stubCurlWriting(PAYLOAD)
+    stubCurl((dest) => fs.writeFileSync(dest, PAYLOAD))
 
     downloadTool(tool, 'test-arch', bundle, { versionFile: '.fake-version' })
 
@@ -119,33 +123,24 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
 
   it('keeps the partial file when a run fails, and resumes onto it next time', () => {
     const dir = makeTmpDir()
-    execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
-      fs.writeFileSync(args[args.indexOf('-o') + 1], 'half of the payload')
+    stubCurl((dest) => {
+      fs.writeFileSync(dest, 'half of the payload')
       throw curlFailure(18)
-    }) as never)
+    })
 
     expect(() => downloadTool(tool, 'test-arch', dir)).toThrow()
 
-    const partials: string[] = []
-    const walk = (d: string) => {
-      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-        const full = path.join(d, e.name)
-        if (e.isDirectory()) walk(full)
-        else if (e.name.endsWith('.part')) partials.push(full)
-      }
-    }
-    walk(dir)
+    const partials = listFiles(dir).filter((file) => file.endsWith('.part'))
     // Cleanup must not be in a finally: the bytes are what the next -C - resumes.
     expect(partials).toHaveLength(1)
     expect(fs.readFileSync(partials[0], 'utf8')).toBe('half of the payload')
 
     // The retry has to reuse that exact path, or the resume is pointless.
     let resumedOnto = ''
-    execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
-      resumedOnto = args[args.indexOf('-o') + 1]
-      fs.writeFileSync(resumedOnto, PAYLOAD)
-      return ''
-    }) as never)
+    stubCurl((dest) => {
+      resumedOnto = dest
+      fs.writeFileSync(dest, PAYLOAD)
+    })
 
     downloadTool(tool, 'test-arch', dir)
 
@@ -153,9 +148,22 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
     expect(fs.readFileSync(path.join(dir, 'faketool'), 'utf8')).toBe(PAYLOAD)
   })
 
+  it('clears retired debris even when the download itself is a cache hit', () => {
+    const dir = makeTmpDir()
+    fs.writeFileSync(path.join(dir, 'faketool'), PAYLOAD)
+    // A previous run died between the two renames of a zip-tree commit. The
+    // binary is present, so this run short-circuits — the debris still has to go.
+    fs.mkdirSync(path.join(dir, '.retired-4242-git', 'cmd'), { recursive: true })
+
+    downloadTool(tool, 'test-arch', dir)
+
+    expect(fs.readdirSync(dir).filter((e) => e.startsWith('.retired-'))).toEqual([])
+    expect(execFileSync).not.toHaveBeenCalled()
+  })
+
   it('leaves no staging or retired debris behind on success', () => {
     const dir = makeTmpDir()
-    stubCurlWriting(PAYLOAD)
+    stubCurl((dest) => fs.writeFileSync(dest, PAYLOAD))
 
     downloadTool(tool, 'test-arch', dir)
 
@@ -164,22 +172,13 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
 
   it('deletes a corrupt download so a bad resume cannot wedge every future run', () => {
     const dir = makeTmpDir()
-    stubCurlWriting('corrupted bytes')
+    stubCurl((dest) => fs.writeFileSync(dest, 'corrupted bytes'))
 
     expect(() => downloadTool(tool, 'test-arch', dir)).toThrow(/SHA256 mismatch/)
 
     // Left in place, curl -C - would append to the bad bytes forever and every
     // run in every worktree would fail with no way out but deleting the cache.
-    const survivors: string[] = []
-    const walk = (d: string) => {
-      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-        const full = path.join(d, e.name)
-        if (e.isDirectory()) walk(full)
-        else survivors.push(full)
-      }
-    }
-    walk(dir)
-    expect(survivors).toEqual([])
+    expect(listFiles(dir)).toEqual([])
   })
 })
 
@@ -200,13 +199,6 @@ describe('downloadTool – zip-tree commit (MinGit)', () => {
     }
   }
 
-  function stubCurlDeliveringFixture() {
-    execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
-      fs.copyFileSync(FIXTURE_ZIP, args[args.indexOf('-o') + 1])
-      return ''
-    }) as never)
-  }
-
   /** A bundle holding an older MinGit, as a packaging run would find it. */
   function seedPreviousTree(dir: string, files: Record<string, string>) {
     for (const [rel, content] of Object.entries(files)) {
@@ -219,7 +211,7 @@ describe('downloadTool – zip-tree commit (MinGit)', () => {
   it('replaces the previous tree instead of merging into it', () => {
     const dir = makeTmpDir()
     seedPreviousTree(dir, { 'cmd/git.txt': 'old launcher', 'cmd/dropped.txt': 'from an older release' })
-    stubCurlDeliveringFixture()
+    stubCurl((dest) => fs.copyFileSync(FIXTURE_ZIP, dest))
 
     downloadTool(tool, 'test-arch', dir, { versionFile: '.mingit-version' })
 
@@ -233,7 +225,7 @@ describe('downloadTool – zip-tree commit (MinGit)', () => {
   it('restores the previous tree when the commit fails, rather than leaving none', () => {
     const dir = makeTmpDir()
     seedPreviousTree(dir, { 'cmd/git.txt': 'previous working tree' })
-    stubCurlDeliveringFixture()
+    stubCurl((dest) => fs.copyFileSync(FIXTURE_ZIP, dest))
     const realRename = cjsFs.renameSync
     const rename = vi.spyOn(cjsFs, 'renameSync').mockImplementation(((from: string, to: string) => {
       // Fail only the publish — the way Windows reports a tree held open — and

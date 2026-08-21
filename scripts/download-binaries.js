@@ -10,10 +10,8 @@
  * Without --packaging (dev), downloads go to a cache shared by every git worktree
  * of this repository and are hard-linked into resources/binaries/, so a second
  * worktree costs links instead of a fresh download. before-pack.js passes
- * --packaging to route new downloads straight into resources/. Note that the
- * flag only decides where a download goes: links a previous dev run left in
- * resources/ are up to date and stay, which is harmless because packaging only
- * ever reads and copies them.
+ * --packaging to route new downloads straight into resources/; links a previous
+ * dev run left there are up to date and stay, since packaging only reads them.
  */
 const crypto = require('crypto')
 const fs = require('fs')
@@ -73,12 +71,14 @@ function resolveSharedCacheRoot() {
 function linkFile(src, dest, stats) {
   const srcStat = fs.statSync(src)
   const destStat = fs.statSync(dest, { throwIfNoEntry: false })
-  // ino is 0 on filesystems that do not report one; never treat that as a match.
-  if (destStat && srcStat.ino !== 0 && destStat.ino === srcStat.ino) return
-  // A copied bundle never matches inodes, so compare size+mtime too or every run
-  // re-copies ~200MB. getTime(), since utimesSync loses sub-ms precision.
-  if (destStat && destStat.size === srcStat.size && destStat.mtime.getTime() === srcStat.mtime.getTime()) return
-  if (destStat) fs.rmSync(dest, { recursive: true, force: true })
+  if (destStat) {
+    // ino is 0 on filesystems that do not report one; never treat that as a match.
+    if (srcStat.ino !== 0 && destStat.ino === srcStat.ino) return
+    // A copied bundle never matches inodes, so compare size+mtime too or every run
+    // re-copies ~200MB. getTime(), since utimesSync loses sub-ms precision.
+    if (destStat.size === srcStat.size && destStat.mtime.getTime() === srcStat.mtime.getTime()) return
+    fs.rmSync(dest, { recursive: true, force: true })
+  }
   fs.mkdirSync(path.dirname(dest), { recursive: true })
   try {
     fs.linkSync(src, dest)
@@ -537,6 +537,10 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
     return
   }
 
+  // Before the up-to-date check: debris from a run that died mid-commit lives
+  // here, and a later cache hit would otherwise skip past it forever.
+  sweepRetired(outputDir)
+
   const binaryPaths = pkg.binaries.map((binary) => path.join(outputDir, binary))
   const versionPath = versionFile ? path.join(outputDir, versionFile) : null
 
@@ -567,7 +571,7 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
   }
 
   commitStaged(staging, outputDir, pkg)
-  for (const b of pkg.binaries) chmodExec(path.join(outputDir, b))
+  for (const binaryPath of binaryPaths) chmodExec(binaryPath)
 
   if (versionPath) {
     // Rename, never write in place: an in-place write keeps the marker's inode
@@ -650,22 +654,19 @@ function main() {
     }
   }
 
+  const downloadDir = cacheRoot ? path.join(cacheRoot, platformKey) : bundleDir
+
   if (!cacheRoot) {
-    sweepRetired(bundleDir)
     report(failed, `All binaries downloaded to ${bundleDir}`)
     return
   }
 
-  sweepRetired(path.join(cacheRoot, platformKey))
   const stats = materialize(TOOLS, platformKey, cacheRoot, bundleDir)
   const reclaimed = sweepUnreferencedVersions(cacheRoot, platformKey, UNREFERENCED_CACHE_TTL_MS)
 
   const how =
     stats.copied > 0 ? `${stats.linked} linked, ${stats.copied} copied (hard links unavailable)` : 'hard-linked'
-  report(
-    failed,
-    `Bundle ${how} from ${path.join(cacheRoot, platformKey)}${reclaimed ? `, reclaimed ${reclaimed} unused version(s)` : ''}`
-  )
+  report(failed, `Bundle ${how} from ${downloadDir}${reclaimed ? `, reclaimed ${reclaimed} unused version(s)` : ''}`)
 }
 
 /** Retired trees exist only between two renames; anything left is debris. */
