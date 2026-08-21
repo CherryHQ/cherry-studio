@@ -6,6 +6,20 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
+/**
+ * Cap for attach-replay chunks to prevent the renderer main thread from blocking
+ * when a long-running stream has a large ring buffer. Main's `maxBufferChunks`
+ * (10K) can serialize thousands of chunks in one IPC response; routing and
+ * processing them all synchronously freezes the UI for seconds on a long agent
+ * session stream. Capping the replay at this value keeps the worst-case
+ * synchronous work bounded while the live IPC listener delivers the tail.
+ *
+ * Chunks between the replay point and the live listener's start may be skipped,
+ * but this is acceptable: they are already beyond Main's ring-buffer cap, and
+ * the live stream covers the final state.
+ */
+const MAX_ATTACH_REPLAY_CHUNKS = 1000
+
 const logger = loggerService.withContext('TopicStreamSubscription')
 
 export interface ExecutionTerminal {
@@ -457,9 +471,16 @@ export class TopicStreamSubscription {
         if (this.#disposed) return
         this.#attached = true
         switch (res.status) {
-          case 'attached':
-            for (const payload of res.bufferedChunks) this.#routeChunk(payload)
+          case 'attached': {
+            const chunks = res.bufferedChunks
+            const replay =
+              chunks.length > MAX_ATTACH_REPLAY_CHUNKS
+                ? (logger.warn('attach replay capped', { total: chunks.length, topicId: this.#topicId }),
+                  chunks.slice(-MAX_ATTACH_REPLAY_CHUNKS))
+                : chunks
+            for (const payload of replay) this.#routeChunk(payload)
             break
+          }
           case 'not-found':
           case 'done':
             this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: false })
