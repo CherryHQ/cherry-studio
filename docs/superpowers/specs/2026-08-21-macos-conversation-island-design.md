@@ -4,14 +4,18 @@ Status: approved
 
 ## Summary
 
-Add an opt-in macOS Conversation Island that presents the state of Assistant Conversations and Agent Sessions at the top of the display where the activity originated. The feature uses one short-lived Electron window, existing conversation status cache entries, existing navigation IPC, and a one-shot AppKit geometry probe. It does not add a native helper, poll for activity, process streamed tokens, or remain resident while idle.
+Add an opt-in macOS Conversation Island that presents Assistant Conversation and Agent Session state at the top of the display where the activity originated. The compact surface shows the Primary Activity. When at least two activities are eligible, a 500 ms hover expands the same Electron window into a dense list of all eligible Conversation Activities; leaving the full surface for 250 ms collapses it.
 
-This is a medium-sized, macOS-specific feature. The expected production implementation is five to eight engineering days plus two to three days of real-device QA. The largest uncertainty is window placement across macOS versions, notched and non-notched displays, fullscreen Spaces, and display topology changes.
+The feature reuses existing conversation status cache entries, navigation IPC, Preference, localization, WindowManager, and a one-shot AppKit geometry probe. It does not add a native helper, poll for activity, process streamed tokens, or remain resident while idle.
+
+This is a medium-sized, macOS-specific feature. The largest uncertainty is window placement and pointer continuity while resizing across macOS versions, notched and non-notched displays, fullscreen Spaces, and display topology changes.
 
 ## Goals
 
 - Surface current conversation state outside the conversation view without stealing focus.
 - Cover both Assistant Conversations and Agent Sessions.
+- Show every eligible Conversation Activity on deliberate hover, while keeping the idle surface compact.
+- Keep row targets stable enough to click while statuses continue changing.
 - Place the island precisely around a built-in display notch when AppKit exposes reliable geometry.
 - Provide a centered top-capsule fallback on external, non-notched, or unrecognized displays.
 - Make the disabled and idle costs structurally close to zero.
@@ -20,12 +24,13 @@ This is a medium-sized, macOS-specific feature. The expected production implemen
 
 ## Non-goals
 
-- Reproduce Cindy's expanded session list, mascot, sounds, per-tool progress, streaming preview, or hover interactions.
+- Reproduce Cindy's mascot, sounds, per-tool progress, streaming preview, large cards, or native helper architecture.
 - Render message content, Markdown, reasoning text, tool output, or token progress.
+- Add inline approval, pinning, click-to-expand, keyboard navigation, a context menu, or drag placement.
 - Add a notification history or replace macOS Notification Center.
 - Add Windows or Linux variants.
 - Add a bundled Swift helper, native Node extension, or third-party Dynamic Island library.
-- Add an idle island, terminal-state carousel, drag placement, layout persistence, or per-display user preferences.
+- Add an idle island, terminal-state carousel, layout persistence, or per-display user preferences.
 - Change `AiStreamManager`, `CacheService`, `WindowManager`, `core/paths`, or another shared infrastructure contract.
 
 ## Repository and reference evidence
@@ -35,63 +40,95 @@ This is a medium-sized, macOS-specific feature. The expected production implemen
 - `ChatStreamLifecycle` already writes `topic.stream.statuses.${topicId}` to the main-owned shared Cache. `CacheService.subscribeSharedChange()` can observe template-key changes from either process without renderer polling. Because Agent Session topic IDs use the deliberate `agent-session:` namespace while runtime template segments exclude colons, complete observation uses the existing general topic template plus the narrower `agent-session:${sessionId}` template; it does not change Cache matching rules.
 - `TopicStreamStatus` already defines `pending`, `streaming`, `awaiting-approval`, `done`, `error`, and `aborted`.
 - `ConversationNavigationService` and `navigation.focus_or_open_conversation` already focus or open both Assistant Conversations and Agent Sessions.
-- `WindowManager` already supports manual singleton panels, `showInactive()`, macOS panel windows, screen-saver stacking, fullscreen Spaces, Dock suppression, and always-on-top reapplication.
+- `WindowManager` already supports manual singleton panels, `showInactive()`, macOS panel windows, screen-saver stacking, fullscreen Spaces, Dock suppression, always-on-top reapplication, and init-data updates.
+- The existing screenshot overlay establishes the relevant process boundary: renderer pointer events trigger a semantic IpcApi command; the main handler validates its sender and delegates the authoritative action.
+- Electron 41 supports programmatic `BrowserWindow.setBounds(bounds, animate)` on macOS and exposes the system reduced-motion setting.
 - Preference is the repository owner for stable user-configurable feature toggles. New v2-only keys originate in `target-key-definitions.json` and are generated; generated Preference schemas are not edited by hand.
 - `NotificationService` already owns presentation-ready conversation notifications, topic-to-navigation-target projection, title fallback, and the existing completion/approval triggers. It becomes the single main-process conversation-notification source; system notifications and Conversation Island remain independent presentation policies over that source and may both be enabled.
 
 ### Cindy lessons
 
-Cindy keeps product arbitration in TypeScript and sends a compact priority snapshot to a native AppKit/SwiftUI helper. The useful patterns are the single, main-owned priority answer and its treatment of the physical notch as an explicit occluded layout region. On a hardware-notch display, Cindy places leading content and trailing content in separate side wings with a center spacer equal to the measured notch width. Its black surface visually joins those wings to the hardware. Its persistent helper process, JSON-lines protocol, hover tracking, session list, streaming preview, sounds, mascot, restart state, and per-display layout preferences are intentionally excluded.
+Cindy confirms that a short hover dwell, delayed collapse, stable expanded ordering, and a bounded visible list make the island usable without an explicit open action. Its current implementation uses a 500 ms expansion delay, a shorter delayed collapse, and at most five visible sessions before internal scrolling. Cindy does not provide a setting to hide titles; its Agent Island settings cover enablement and unrelated presentation choices.
+
+Cherry Studio adopts the interaction principles, not Cindy's architecture or information density. Cindy's persistent helper process, JSON-lines protocol, native SwiftUI surface, global hover tracking, large session cards, streaming preview, tools, sounds, mascot, restart state, and per-display preferences remain excluded. Cherry also keeps the physical notch as an explicit occluded layout region instead of inferring it from window size.
 
 Relevant Cindy sources:
 
 - <https://github.com/makecindy/cindy/blob/main/apps/desktop/src/main/agent-island/state.ts>
-- <https://github.com/makecindy/cindy/blob/main/apps/desktop/src/main/agent-island/MacAgentIslandNativeHost.ts>
-- <https://github.com/makecindy/cindy/blob/main/apps/desktop/src/shared/agentIsland.ts>
-- <https://github.com/makecindy/cindy/blob/336d2bf9353eb48ac8263e57624fd55fc7f546fb/apps/desktop/native/agent-island/macos-agent-island-helper.swift#L2434-L2455>
-- <https://github.com/makecindy/cindy/blob/336d2bf9353eb48ac8263e57624fd55fc7f546fb/apps/desktop/native/agent-island/macos-agent-island-helper.swift#L2548-L2615>
+- <https://github.com/makecindy/cindy/blob/main/apps/desktop/native/agent-island/macos-agent-island-helper.swift>
+- <https://github.com/makecindy/cindy/blob/main/apps/desktop/src/renderer/hooks/useAgentIslandSettings.ts>
+- <https://github.com/makecindy/cindy/blob/main/apps/desktop/src/renderer/components/settings/AgentIslandSection.tsx>
 
 The small `electron-dynamic-island` project was also considered. Its Electron-only approach is closer to Cherry Studio, but its model-based notch approximation and limited multi-display handling do not satisfy this design's geometry requirements. Cherry Studio can implement the small required surface directly without adding a dependency.
 
 ## User experience
 
-### Settings
+### Settings and title policy
 
-Add a macOS-only group under **Settings → Notifications**:
+Add one macOS-only group under **Settings → Notifications**:
 
 | Preference | Default | Presentation |
 |---|---:|---|
 | `feature.conversation_island.enabled` | `false` | Main “macOS Conversation Island” switch |
-| `feature.conversation_island.show_title` | `true` | Nested “Show conversation title” switch, visible only when enabled |
 
-The group is hidden on Windows and Linux. The keys still use Preference rather than `app.notification.*` because the island is an independent feature surface, not a system-notification transport.
+The group is hidden on Windows and Linux. The key uses Preference because the island is an independent user-configurable feature surface, not a system-notification transport.
 
-### Compact layout
+Conversation titles always appear in compact and expanded modes. There is no `feature.conversation_island.show_title` preference. The title is the stored topic or Agent Session name; message content is never a fallback. An empty or unavailable name uses the existing localized “new conversation” or “new agent task” fallback. Titles are bounded before crossing into the renderer and use one-line ellipsis when space is limited.
 
-The window contains one single-line surface. Its layout depends on whether the AppKit probe recognized a physical notch.
+### Compact mode
+
+The initial window is 320 × 38 logical pixels and presents the Primary Activity on a single line.
 
 Capsule fallback:
 
 ```text
-[state indicator] [state text] · [optional title] [+N]
+[state indicator] [state text] · [title] [+N]
 ```
 
 Hardware-notch presentation:
 
 ```text
-[state indicator] [state text] [physical notch: no content] [optional title] [+N]
+[state indicator] [state text] [physical notch: no content] [title] [+N]
 ```
 
-- Title is enabled by default after the user opts into the feature.
-- The title is the stored topic or Agent Session name. Message content is never a fallback.
-- An empty or unavailable name uses the existing localized “new conversation” or “new agent task” fallback.
-- The renderer keeps the existing fixed compact width. Long titles use one-line ellipsis.
-- The hardware-notch presentation is an opaque black top-connected surface with no border, backdrop blur, or theme-dependent background. The capsule fallback keeps its existing theme-aware popover styling and full rounding.
-- The hardware-notch presentation uses a three-column grid: a leading wing for the state, a center spacer equal to the measured physical notch width, and a trailing wing for the optional title and `+N`. Both wings clip overflow. Text truncates before entering the center spacer; the state indicator and `+N` have higher layout priority than text.
-- If title display is disabled, the trailing wing contains only `+N` when present. No replacement content is added to the center spacer.
 - `+N` counts all other eligible activities. It is absent when the Primary Activity is the only eligible activity.
-- The entire visible pill is clickable and opens the Primary Activity.
-- There is no hover expansion, context menu, drag behavior, or invisible hit area beyond the pill.
+- The compact surface does not expand when only one activity is eligible.
+- Long text truncates before indicators, counts, or the physical notch spacer.
+- Clicking the compact surface opens the Primary Activity through the existing navigation route.
+- Pending and streaming use one restrained CSS state animation. Awaiting Confirmation, done, and error are static.
+
+### Expanded mode
+
+When `secondaryCount > 0`, keeping the pointer inside the compact surface for 500 ms requests expanded mode. The same window grows around its horizontal center and downward from its top anchor to approximately 420 logical pixels wide.
+
+The expanded content is a dense, equal-height list:
+
+```text
+● 正在回复    Conversation title
+○ 等待确认    Conversation title
+○ 任务完成    Agent Session title
+```
+
+- Every row contains only a state indicator, localized state text, and required title.
+- The Primary Activity receives a subtle surface emphasis; it is not a larger hero card.
+- Two through five activities determine the surface height. Six or more keep five visible rows and scroll inside the exact window bounds.
+- The window does not grow for every additional activity beyond the fifth row.
+- Clicking any row first requests collapse, then opens that row's existing navigation target.
+- After a row click, expansion is locked until the pointer fully leaves and enters again. Window shrinkage under a stationary pointer cannot reopen it.
+- Leaving the entire expanded surface starts a 250 ms collapse delay. Re-entering before the delay ends cancels collapse, which also absorbs transient `mouseleave` events caused by resizing.
+- There is no pin, explicit close control, inline action, message preview, tool detail, or keyboard-only expanded mode.
+
+### Stable expanded structure
+
+Main freezes the target display, row order, and visible membership snapshot at the moment expansion succeeds. This prevents changing statuses from moving click targets under the pointer.
+
+- Existing rows update their semantic state and localized state text in place.
+- A newly eligible activity appends to the end of the frozen order.
+- A `done` or `error` row whose normal terminal lifetime expires remains visible until collapse.
+- An explicitly aborted or removed activity disappears immediately because its navigation target is no longer valid.
+- If the emphasized Primary Activity is removed, the first remaining row receives emphasis without reordering the list.
+- If immediate removals leave fewer than two rows, main collapses to compact mode.
+- On collapse, main prunes expired entries and recomputes Primary Activity, display ownership, compact count, and order from authoritative current state.
 
 ### State wording and lifetime
 
@@ -104,9 +141,7 @@ Hardware-notch presentation:
 | `error` | 回复失败 | 执行失败 | 6 seconds |
 | `aborted` | Hidden | Hidden | Immediate removal |
 
-All wording is localized. Pending and streaming have one restrained CSS state animation. Awaiting Confirmation, done, and error are static. State remains identifiable through text and shape, not color alone. `prefers-reduced-motion` disables all nonessential motion.
-
-The Conversation Island appears while Cherry Studio is foreground or background and over fullscreen applications. Showing it never activates Cherry Studio. Clicking it intentionally focuses or opens the target conversation.
+All wording is localized. State remains identifiable through text and shape, not color alone. The Conversation Island appears while Cherry Studio is foreground or background and over fullscreen applications. Showing or expanding it never activates Cherry Studio. Clicking a row intentionally focuses or opens its target conversation.
 
 ### Primary Activity arbitration
 
@@ -116,18 +151,19 @@ At any moment, one eligible activity is the Primary Activity:
 2. Newly completed or failed activities still inside their terminal lifetime.
 3. Live pending or streaming activities.
 
-Within a class, the activity with the most recent state change wins. A newly completed or failed activity may temporarily replace a live activity. Multiple terminal activities do not form a queue: the newest wins, older eligible activities remain represented by `+N`, and every terminal entry expires on its own deadline.
+Within a class, the activity with the most recent state change wins. A newly completed or failed activity may temporarily replace a live activity. Multiple terminal activities do not form a queue: the newest wins, older eligible activities remain represented by `+N`, and every terminal entry expires on its own deadline unless an expanded snapshot temporarily retains it.
 
 ## Display ownership and geometry
 
 ### Origin display
 
-When an activity is first observed as pending, the main service snapshots the currently focused full-chrome Cherry Studio window and its Electron display ID. This is a best-effort attribution that avoids adding a source-window contract to `AiStreamManager`.
+When an activity is first observed as pending, the main service snapshots the currently focused full-chrome Cherry Studio window and its Electron display ID. This is best-effort attribution that avoids adding a source-window contract to `AiStreamManager`.
 
 - A renderer-triggered request from an unfocused Cherry window may use the fallback display.
 - A background or headless Agent Session with no visible origin prefers the internal display, then Electron's primary display.
-- When Primary Activity changes, the island moves to that activity's recorded display.
-- If the recorded display has disconnected, the service uses the internal-display/primary-display fallback.
+- In compact mode, the island moves when a new Primary Activity owns a different recorded display.
+- Expanded mode freezes the current display so pointer targets do not jump between screens.
+- If the recorded or frozen display disconnects, the service immediately collapses and uses the internal-display/primary-display fallback.
 - The island does not follow later window movement during the same activity.
 
 ### Notch probe
@@ -142,7 +178,7 @@ The script returns strict JSON containing only required `NSScreen` fields:
 - `auxiliaryTopLeftArea`;
 - `auxiliaryTopRightArea`.
 
-The result is size-limited, parsed and validated before use. A short timeout terminates the child process. No user data enters the script or arguments, and the probe does not require Accessibility or Automation permission.
+The result is size-limited, parsed, and validated before use. A short timeout terminates the child process. No user data enters the script or arguments, and the probe does not require Accessibility or Automation permission.
 
 The service maps `NSScreenNumber` to Electron display IDs. It derives the notch center and gap width from the auxiliary areas, then positions the Electron window using the target display's Electron bounds. A recognized-notch placement carries that validated gap width forward as the physical occlusion width; the renderer does not infer it from the window size. Missing APIs, malformed output, command-resolution failure, timeout, ID mismatch, or implausible geometry all select the top-capsule fallback and carry no occlusion width.
 
@@ -152,26 +188,30 @@ Probe results are cached and refreshed only on:
 - display added, removed, or metrics changed;
 - system resume.
 
-There is no geometry poll and no per-activity `osascript` execution.
+There is no geometry poll and no per-activity `osascript` execution. A display topology or metrics event, and system resume, force compact mode before reprobe and repositioning rather than retaining stale expanded bounds.
 
-### Window behavior
+### Window shape and placement
 
 Add `WindowType.ConversationIsland` as a manual singleton with no retention configuration:
 
-- frameless, transparent, non-resizable macOS panel;
+- frameless, transparent, non-user-resizable macOS panel;
 - context isolation on, Node integration off, sandbox on;
 - minimal feature preload exposing only the generic IpcApi bridge;
 - non-focusable and shown with `showInactive()`;
 - `acceptFirstMouse`, `hiddenInMissionControl`, `skipTaskbar`, and no Dock contribution;
 - screen-saver always-on-top level with visibility on all workspaces and fullscreen Spaces;
 - reapply always-on-top after every show;
-- exact window bounds equal the pill hit area.
+- exact window bounds equal the visible surface and hit area in both modes.
 
-On a recognized notched display, the black surface joins the top edge around the physical notch while all meaningful content remains in the two visible side wings. On other displays, it is a theme-aware rounded capsule centered eight pixels below the top edge.
+On a recognized notched display, the surface is opaque black, anchored to the physical top edge, and visually joins the hardware notch. Compact content occupies two visible side wings around the measured occlusion. Expanded rows begin below the physical notch and remain inside the approximately 420-pixel black surface, whose bottom corners are rounded.
 
-The window is created on the first eligible activity, reused while any activity remains eligible, and destroyed when the activity set becomes empty after terminal lifetimes. Disabling the feature immediately closes the window and clears display listeners and timers. The lightweight `NotificationService` activity listener remains so enabling during a live response can present the current activity.
+On other displays, or whenever notch geometry is unreliable, both modes use the existing theme-aware, fully rounded capsule/popover treatment centered eight pixels below the top edge. Cherry Studio does not draw a fake black notch on a non-notched display.
 
-## Architecture
+Main computes and applies every compact and expanded bound. It grows the same window symmetrically left and right and downward, preserving the top anchor. It uses native macOS `setBounds(nextBounds, animate)` for the short resize when system reduced motion is off, and applies bounds without animation when reduced motion is on. Renderer content may use a light motion-safe opacity transition; rows do not bounce or stagger.
+
+The window is created on the first eligible activity, reused while any activity remains eligible, and destroyed when the activity set becomes empty after terminal lifetimes. Disabling the feature immediately closes the window and clears display listeners, timers, expanded state, and frozen structure. The lightweight `NotificationService` activity listener remains so enabling during a live response can present the current activity.
+
+## Architecture and ownership
 
 ```mermaid
 flowchart LR
@@ -182,11 +222,13 @@ flowchart LR
   Preference[PreferenceService] --> Service
   Screen[Electron screen events] --> Geometry[JXA AppKit geometry probe]
   Geometry --> Service
-  Service --> State[Ephemeral island activity reducer]
-  State --> Snapshot[Primary Activity snapshot]
+  Service --> State[Activity reducer and expanded freeze]
+  State --> Snapshot[Compact or expanded snapshot]
   Snapshot --> WM[WindowManager init-data update]
-  WM --> Pill[Minimal React pill window]
-  Pill -->|existing navigation IPC| Navigation[ConversationNavigationService]
+  WM --> Surface[Conversation Island renderer]
+  Surface -->|set_expanded| Handler[Validated IpcApi handler]
+  Handler --> Service
+  Surface -->|existing navigation IPC| Navigation[ConversationNavigationService]
 ```
 
 ### Main-process ownership
@@ -196,55 +238,71 @@ flowchart LR
 - `topic.stream.statuses.${topicId}` for ordinary Assistant Conversation keys;
 - `topic.stream.statuses.agent-session:${sessionId}` for namespaced Agent Session keys.
 
-The second pattern places the colon in the fixed prefix, so it works with the existing runtime placeholder character set. `NotificationService` converts every concrete key into the existing `ConversationNavigationTarget`, emits a main-only `ConversationActivityChangedEvent`, and remains the sole owner of conversation name lookup and localized fallback. This is an in-process lifecycle event, not a new IpcApi event or shared event bus. Existing system-notification foreground/background gates and completion/approval IDs do not change.
+The second pattern places the colon in the fixed prefix, so it works with the existing runtime placeholder character set. `NotificationService` converts every concrete key into the existing `ConversationNavigationTarget`, emits a main-only `ConversationActivityChangedEvent`, and remains the sole owner of conversation name lookup and localized fallback. This is an in-process lifecycle event, not a shared event bus. Existing system-notification foreground/background gates and completion/approval IDs do not change.
 
-`ConversationIslandService` is a macOS-conditional lifecycle service because it owns the island activity reducer, preference subscriptions, display listeners while enabled, transient timers, and a managed window. It depends on `NotificationService` and never reads the shared Cache directly. Its topic grows into `src/main/services/conversationIsland/` only because the implementation has three independent responsibilities:
+`ConversationIslandService` is a macOS-conditional lifecycle service because it owns:
 
-- lifecycle orchestration and island snapshot projection;
-- pure activity arbitration and expiry;
-- feature-local macOS display geometry probing and validation.
+- the authoritative activity reducer and Primary Activity arbitration;
+- resolved and bounded titles for all eligible activities;
+- expanded/compact mode, frozen order and display, and terminal retention;
+- preference and language subscriptions;
+- display listeners, transient expiry timers, geometry, and managed window bounds.
 
-No new top-level directory or `features/` domain is justified.
+It depends on `NotificationService` and never reads the shared Cache directly. Its topic lives in `src/main/services/conversationIsland/` because lifecycle orchestration, a pure activity reducer, and feature-local geometry are separate implementation responsibilities. No new top-level directory or shared infrastructure abstraction is justified.
 
-The service subscribes to `NotificationService.onConversationActivityChanged` before any island window exists. The event path performs constant work per status transition and never receives streamed content. The in-memory map contains only live activities and terminal activities with an expiry timestamp. While the feature is disabled, expired entries are pruned lazily on the next status change or enable instead of arming a timer.
+The service subscribes to `NotificationService.onConversationActivityChanged` before any island window exists. The event path performs constant work per status transition and never receives streamed content. The in-memory map contains only live activities and terminal activities with an expiry timestamp. While disabled, expired entries are pruned lazily on the next status change or enable instead of arming a timer.
 
-When both the feature and title display are enabled, the service asks `NotificationService` for the conversation name only when an activity first becomes Primary and caches it for that activity lifetime. Turning title display off removes title data from subsequent island snapshots and avoids island-triggered name queries; independently enabled system notifications may still resolve their own title. A runtime `app.language` change rebuilds the localized snapshot without recreating the window.
+Titles are resolved when an activity first becomes presentation-eligible and cached for its activity lifetime. Entering expanded mode ensures all frozen rows have resolved fallback-safe titles before publishing the snapshot. A runtime `app.language` change rebuilds localized state and fallback text without recreating the window or changing frozen order.
 
 ### Renderer ownership
 
 The feature preload is a self-contained CommonJS entry. It exposes only the existing generic `ipcApi` request/event bridge and imports no local preload module, because Electron's sandbox cannot load Rollup-generated relative preload chunks. A build assertion verifies that `conversationIsland.js` contains no relative `require()` call.
 
-Add a small `src/renderer/windows/conversationIsland/` entry containing:
+The small `src/renderer/windows/conversationIsland/` entry contains an HTML entry with strict CSP, a minimal entry point importing only needed styles, and one React surface consuming typed `useWindowInitData` snapshots. It intentionally does not call the regular `prepareWindow()` path and does not initialize theme providers, custom CSS, renderer Preference cache, DataApi DevTools, or renderer i18n. Main sends already-localized presentation text.
 
-- an HTML entry with a strict CSP;
-- a minimal entry point that imports only the needed styles;
-- one React component consuming typed `useWindowInitData` snapshots;
-- a click handler calling existing `navigation.focus_or_open_conversation`.
+Renderer owns only pointer interpretation and local interaction timers:
 
-It intentionally does not call the regular `prepareWindow()` path and does not initialize theme providers, custom CSS, renderer Preference cache, DataApi DevTools, or renderer i18n. Main sends already-localized presentation text. This avoids the full-window bootstrap while retaining React's existing component and test conventions.
+- start or cancel the 500 ms hover dwell;
+- start or cancel the 250 ms full-leave delay;
+- prevent re-expansion after a row click until a real leave/re-enter cycle;
+- cancel a pending expansion when the latest snapshot no longer has a secondary activity;
+- render compact or expanded snapshots and invoke row navigation.
+
+Renderer does not compute bounds, choose a display, arbitrate activity order, retain expired rows, or treat raw pointer events as main-process state.
 
 ### Cross-process contract
 
-A declaration-only snapshot type belongs in `src/shared/types/conversationIsland.ts`. It contains only:
+The existing generic preload bridge remains unchanged. Add one narrow IpcApi command:
 
-- stable Primary Activity identity and navigation target;
-- localized state text and semantic state kind;
-- optional bounded title;
-- a localized navigation title that is retained when the visible-title preference is off, so the existing navigation route can still name a newly opened tab without querying renderer state;
-- secondary activity count;
-- notched/fallback presentation variant;
-- the validated physical notch width for the notched variant only.
+```text
+conversation_island.set_expanded({ expanded: boolean })
+```
 
-Initial and subsequent snapshots use `WindowManager` init data and `pushInitData()`. The existing `window.reused` IpcApi event updates `useWindowInitData` in place. Clicking uses the existing navigation request. No new IpcApi schema, handler, preload method, or event bus is needed.
+This command expresses a feature mode transition rather than forwarding `mouseenter` or `mouseleave`. Its main handler validates that `IpcContext.senderId` belongs to the current Conversation Island window, no-ops for missing or mismatched senders, and delegates to an idempotent service method. It does not accept dimensions, positions, display IDs, or activity order. A broad `window.set_bounds` capability and renderer self-resizing are explicitly rejected.
+
+A declaration-only snapshot type belongs in `src/shared/types/conversationIsland.ts`. It contains:
+
+- presentation variant and validated physical notch width when applicable;
+- compact Primary Activity item and secondary count;
+- authoritative compact/expanded mode;
+- an optional ordered expanded item list.
+
+Each activity item contains only stable identity, existing navigation target, required bounded title, semantic state kind, and localized state text. Initial and subsequent snapshots use `WindowManager` init data and `pushInitData()`. The existing `window.reused` IpcApi event updates `useWindowInitData` in place. Clicking continues to use `navigation.focus_or_open_conversation` after requesting collapse.
+
+No DataApi resource, Cache entry, Preference key, renderer-global channel, or custom preload method stores expanded state. Expanded state is transient main-service memory because it controls authoritative window geometry and frozen presentation; the renderer retains only timers and the post-click re-entry latch.
 
 ## Failure isolation
 
-- Conversation state production never depends on the island. Every island failure is logged and swallowed at the feature boundary.
+- Conversation state production never depends on the island. Every island failure is logged through the central logger and swallowed at the feature boundary.
+- An expansion request with fewer than two eligible activities is an idempotent no-op.
+- A late request, missing window, or request from a non-island sender is a no-op and exposes no generic window capability.
 - Geometry failure selects the top capsule; it does not hide the feature.
-- Missing or invalid physical notch width cannot select the three-column notch layout.
-- Title lookup failure uses a localized generic title.
-- Window creation or renderer failure hides the island until a later state change; there is no restart loop.
-- Disabling the setting synchronously prevents further presentation work and releases the window.
+- Missing or invalid physical notch width cannot select the notch layout.
+- Display disconnection, display metrics change, or system resume collapses the surface, clears its frozen structure, reprobes when required, and repositions from current state.
+- Explicit abort removes a row immediately. If no activity remains, the window closes; if fewer than two remain expanded, it collapses.
+- Feature disablement clears pending service work, expanded mode, frozen structure, listeners, and the managed window immediately.
+- Window creation, resize animation, or renderer failure resets expanded mode and attempts a compact fallback or closes the window. It must never leave a large transparent hit area blocking other applications.
+- Clicking collapses before calling existing navigation. Navigation failure is logged centrally and does not add an inline island error surface.
 - App shutdown disposes notification/activity subscriptions, screen listeners, child process, and timers through their lifecycle services.
 
 ## Performance contract
@@ -263,12 +321,13 @@ Initial and subsequent snapshots use `WindowManager` init data and `pushInitData
 
 ### Active
 
-- At most one extra BrowserWindow.
+- At most one extra BrowserWindow in compact or expanded mode.
 - No per-token work and no message-body transfer.
-- No global mouse monitor, hover loop, sound, or expanded state.
+- No global mouse monitor; hover interpretation uses events inside the exact island window only.
+- Expanded height is capped at five visible rows; further rows scroll internally.
 - The window is destroyed after the last terminal lifetime ends.
 
-Tracked-app verification must compare disabled, enabled-idle, single-activity, and concurrent-activity scenarios and record process count, CPU, and memory. The structural acceptance criterion is that disabled and enabled-idle add no renderer/helper process and active adds at most one transient renderer.
+Tracked-app verification compares disabled, enabled-idle, single-activity, and concurrent-activity scenarios and records process count, CPU, and memory. Disabled and enabled-idle add no renderer/helper process; active adds at most one transient renderer.
 
 ## Expected change scope
 
@@ -276,64 +335,88 @@ Tracked-app verification must compare disabled, enabled-idle, single-activity, a
 
 | Area | Expected change |
 |---|---|
-| Preferences | Two v2-only target definitions and generated Preference output |
-| Settings | One macOS-only group in the existing Notification settings page |
-| Shared | One declaration-only snapshot type |
+| Preferences | Keep one v2-only enable target; remove the branch-only `show_title` target and regenerate Preference output |
+| Settings | Keep one macOS-only enable group and remove the title control |
+| Shared | Extend the declaration-only snapshot type and add one narrow IpcApi schema |
 | Notifications | Extend `NotificationService` with one normalized conversation-activity event while preserving existing delivery rules |
-| Main lifecycle | One registered conditional service topic with reducer and geometry helper |
-| Window system | One `WindowType`, one registry entry, and renderer build input |
-| Preload | One minimal IpcApi-only preload entry |
-| Renderer | One small conversation-island window entry and pill component |
-| Localization | Main status/fallback strings and renderer setting labels in all supported locales |
+| Main lifecycle | Extend the conditional service with frozen expanded state, title resolution, bounds, and reduced-motion handling |
+| IPC | Add one sender-validating feature handler for `set_expanded` |
+| Window system | Keep one `WindowType`, one singleton registry entry, and one renderer build input; do not extend WindowManager |
+| Preload | No contract change to the minimal generic IpcApi-only preload |
+| Renderer | Extend the small surface with dense rows, pointer timers, scrolling, and the post-click re-entry latch |
+| Localization | Keep main status/fallback strings and renderer enable label; remove title-setting strings |
 
-Expected hand-written production footprint: roughly 14–18 files and 700–1,100 lines. Generated Preference output and locale catalogs increase the changed-file count without adding architectural complexity. There is no database migration, DataApi resource, new IPC route, native binary, third-party runtime dependency, or shared infrastructure extension.
+`feature.conversation_island.show_title` exists only on this unshipped feature branch. Removing its generator source and regenerating the schema requires no SQLite migration or compatibility fallback. `feature.conversation_island.enabled` remains Preference-owned. There is no DataApi resource, database migration, native binary, third-party runtime dependency, or shared infrastructure extension.
 
 ### Tests worth adding
 
 Each test below protects a distinct regression:
 
-- Pure reducer tests: incorrect priority, tie-breaking, `+N`, terminal expiry, immediate abort removal, or accidental terminal queuing.
-- Geometry parser tests: malformed JXA output accepted as geometry, invalid notch gaps, missing display IDs, fallback not selected, or recognized notch width not carried into the placement.
-- Notification service tests: both Assistant and namespaced Agent Cache keys produce the same normalized activity contract, while existing completion/approval delivery and foreground/background gates remain unchanged.
-- Island service tests: feature-off window creation, title queries while hidden, duplicate windows, missed runtime preference changes, leaked timers/listeners, and failure propagation into status handling.
+- Pure reducer tests: incorrect priority or tie-breaking; frozen order changing; status update reordering a row; new activity not appending; terminal expiry disappearing while expanded; abort retaining a dead target; or collapse failing to re-arbitrate.
+- Renderer fake-timer tests: expansion with one activity; expansion before 500 ms; missed dwell cancellation; collapse before 250 ms; re-entry failing to cancel collapse; resize-driven leave flicker; or click allowing immediate re-expansion without a real leave/re-enter cycle.
+- Renderer contract tests: more than five rows growing the window instead of scrolling; required titles missing; wrong row target opened; or notch and fallback treatments becoming indistinguishable.
+- IpcApi handler tests: a wrong, stale, or missing sender changing the island; valid island requests failing to delegate; or repeated requests losing idempotence.
+- Island service tests: feature-off window creation; duplicate windows; incomplete expanded title snapshots; wrong dynamic bounds; stale frozen display/order; display disconnect not collapsing; language change recreating the window; disable leaking state/listeners; or resize failure leaving an expanded hit area.
+- Geometry tests: expanded width losing center/top anchoring; two-to-five row height errors; six-plus rows increasing bounds; invalid notch gaps; fallback not selected; or recognized notch width not carried into placement.
+- Notification and settings tests: both Assistant and namespaced Agent keys produce the normalized activity contract; existing delivery gates remain unchanged; the group is macOS-only; `enabled` persists; or removed `show_title` schema/UI/i18n references survive regeneration.
 - Window registry invariant test: wrong lifecycle, preload, focus, Dock, fullscreen, sandbox, or always-on-top configuration.
-- Renderer component test: visible state/title/count contract, physical-notch center spacer and black treatment, unchanged capsule treatment, and click invoking the existing navigation route.
-- Notification settings test: macOS-only visibility and both Preference writes.
 
-Do not add snapshots, render-without-crashing cases, class-name assertions for ordinary styling, or duplicate tests of the existing navigation service.
+Do not add snapshots, render-without-crashing cases, ordinary class-name assertions, or duplicate tests of the existing navigation service.
 
 ### Verification
 
-Implementation verification should include:
+Implementation verification includes:
 
-1. Focused unit/component tests for the files above.
-2. `pnpm lint` for formatting, types, generated Preference contracts, and i18n checks.
-3. `pnpm docs:check` when the design or reference documentation changes.
-4. Real tracked-app tests on:
+1. Regenerate Preference schemas after removing the generator source for `show_title`.
+2. Run `pnpm i18n:sync` after removing its source locale key and translate any genuinely new strings.
+3. Run focused unit and component tests for the reducer, renderer timers, handler, service, settings, and geometry.
+4. Run `pnpm lint` for formatting, types, generated contracts, and i18n checks.
+5. Run `pnpm docs:check` when this specification or reference documentation changes.
+6. Perform tracked-app tests on:
    - a notched built-in display;
    - a non-notched or external display;
-   - mixed-display activity and display disconnection;
-   - fullscreen Spaces;
-   - sleep/resume;
+   - one versus multiple eligible activities;
+   - five versus more than five activities;
+   - click navigation and the leave/re-enter lock;
+   - mixed-display activity, display metrics change, and display disconnection;
+   - fullscreen Spaces and sleep/resume;
    - foreground and background Cherry Studio;
-   - title on/off;
+   - system reduced motion on and off;
    - Assistant and Agent wording;
    - concurrent activity and simultaneous terminal transitions;
    - system notifications enabled alongside the island.
 
+The full repository test suite is not required unless implementation expands beyond these named cross-process surfaces. Exact bounds must always equal the visible hit area, showing and resizing must not steal focus, row targets must remain stable while expanded, and invisible transparent window regions must not block other applications.
+
 ## Alternatives rejected
+
+### Fixed transparent expanded-size window
+
+Keeping a 420-pixel window permanently avoids native resizing, but its invisible area would intercept pointer input over other applications. Passing mouse events through that area conflicts with reliable hover entry and scrolling. Exact compact and expanded bounds are safer.
+
+### Separate expanded overlay window
+
+A second window preserves compact geometry, but introduces seams, ordering, focus, fullscreen Space, display-change, and lifecycle synchronization problems. One singleton window already owns the surface and can resize programmatically.
+
+### Renderer-owned bounds
+
+Allowing the renderer to submit dimensions appears direct, but exposes a broad window capability and duplicates display/notch policy across processes. A semantic boolean command keeps pointer timing in renderer and geometry authority in main.
+
+### Main-owned raw hover timers
+
+Forwarding `mouseenter` and `mouseleave` makes main interpret noisy DOM events and resize artifacts. Renderer is the correct owner of local pointer timing; main receives only the requested semantic mode transition.
+
+### Cindy-style card stack or Primary hero
+
+Large cards support richer messages, tools, and metadata that Cherry deliberately does not transfer. A Primary hero also consumes space and visually demotes other actionable activities. Dense equal rows show more useful targets with less motion; a subtle Primary emphasis preserves compact-mode continuity.
 
 ### Cindy-style native helper
 
-It can reduce renderer overhead and gives native shape/hover control, but requires a second UI implementation, signed universal binary, packaging changes, a process protocol, restart policy, and substantially broader testing. Those costs are not justified for a one-line transient status surface.
+It can reduce renderer overhead and gives native shape control, but requires a second UI implementation, signed universal binary, packaging changes, process protocol, restart policy, and substantially broader testing. Those costs are not justified for this bounded transient list.
 
 ### Permanent hidden Electron window
 
-It reduces first-show latency but keeps renderer memory resident whenever the preference is enabled. The approved design accepts a small cold-show delay after idle periods and destroys the window when activity ends.
-
-### Content row below the physical notch
-
-It provides more uninterrupted title width, but increases the black surface height and visual weight. The approved compact surface instead uses the existing height and places content in the two visible side wings, truncating low-priority text when necessary.
+It reduces first-show latency but keeps renderer memory resident whenever the preference is enabled. The design accepts a small cold-show delay after idle periods and destroys the window when activity ends.
 
 ### Renderer-owned status reporting
 
@@ -341,7 +424,7 @@ It could carry exact source-window identity but duplicates status projection acr
 
 ### Island-owned Cache subscription
 
-It keeps the first implementation superficially local, but duplicates topic-to-target parsing, title fallback, and notification semantics already owned by `NotificationService`. Extending the existing notification source with a narrow main-only activity event gives the system-notification and island presenters one normalization boundary without changing their different delivery policies.
+It keeps the first implementation superficially local, but duplicates topic-to-target parsing, title fallback, and notification semantics already owned by `NotificationService`. Extending the existing notification source with a narrow main-only activity event gives system-notification and island presenters one normalization boundary without changing their different delivery policies.
 
 ### Extending `AiStreamManager` with source-window metadata
 

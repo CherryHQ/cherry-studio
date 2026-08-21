@@ -9,7 +9,7 @@ An in-progress or recently changed interaction belonging to either an Assistant 
 _Avoid_: Task, stream, request
 
 **Primary Activity**:
-The single Conversation Activity currently presented when several activities are eligible for attention.
+The single Conversation Activity prioritized in the compact Conversation Island when several activities are eligible for attention.
 _Avoid_: Latest task, active stream
 
 **Assistant Conversation**:
@@ -21,8 +21,8 @@ A goal-oriented conversation executed by an agent.
 _Avoid_: Assistant conversation, background task
 
 **Conversation Island**:
-A macOS-only transient surface at the top of a display that presents the Primary Activity without replacing the conversation itself.
-_Avoid_: System notification, activity list, Dynamic Island clone
+A macOS-only transient surface at the top of a display that presents the Primary Activity compactly and eligible Conversation Activities when expanded, without replacing the conversation itself.
+_Avoid_: System notification, Dynamic Island clone
 
 **Awaiting Confirmation**:
 A Conversation Activity that cannot continue until the user responds to a confirmation or other required interaction.
