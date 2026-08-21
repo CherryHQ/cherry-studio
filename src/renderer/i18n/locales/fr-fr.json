@@ -2870,6 +2870,13 @@
         "polish_failed_title": "Échec du polissage de l'invite",
         "polish_variables_changed_description": "Le résultat poli a changé ou supprimé des variables d'invite. Réessayez.",
         "polish_variables_changed_title": "Impossible d'appliquer l'invite polie",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "Jetons :",
         "variables_description": "Insérez ces variables système dans le prompt système ; avant chaque réponse de l'assistant, elles sont remplies avec les informations actuelles.",
         "variables_example": "Exemple : Aujourd'hui est {{variable}}, et la date actuelle est utilisée.",

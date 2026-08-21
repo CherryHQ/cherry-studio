@@ -234,4 +234,52 @@ describe('transformAnthropicCacheParams', () => {
     expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
     expect(countCacheMarkers({ ...out, tools: undefined })).toBe(0)
   })
+
+  it('skips volatile cache markers when runtime context is enabled', async () => {
+    const out = await transform(
+      {
+        prompt: [textMessage('system', 'x '.repeat(3000)), textMessage('user', 'u '.repeat(3000))]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 1 }),
+      { id: 'a1', prompt: 'Stable prompt', settings: { enableRuntimeContext: true } } as Assistant
+    )
+
+    expect(countCacheMarkers(out)).toBe(0)
+  })
+
+  it('skips system and trailing markers when web search injects a current date but keeps stable tool markers', async () => {
+    // Bug: a request-time current date in the system prompt would otherwise be cached across days.
+    const out = await transform(
+      {
+        prompt: [
+          textMessage('system', 'x '.repeat(3000)),
+          textMessage('user', 'u '.repeat(3000)),
+          textMessage('assistant', 'a '.repeat(3000))
+        ],
+        tools: [makeTool('mcp_tool', 6000)]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 2 }),
+      { id: 'a1', prompt: 'Stable prompt', settings: { enableWebSearch: true } } as Assistant
+    )
+
+    expect(hasCacheControl(out.prompt[0])).toBe(false)
+    expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
+    expect(countCacheMarkers({ ...out, tools: undefined })).toBe(0)
+  })
+
+  it('keeps cache markers for a static runtime context override', async () => {
+    const out = await transform(
+      {
+        prompt: [textMessage('system', 'x '.repeat(3000)), textMessage('user', 'u '.repeat(3000))]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 1 }),
+      {
+        id: 'a1',
+        prompt: 'Stable prompt',
+        settings: { enableRuntimeContext: true, runtimeContextPrompt: 'Static device context' }
+      } as Assistant
+    )
+
+    expect(countCacheMarkers(out)).toBeGreaterThan(0)
+  })
 })

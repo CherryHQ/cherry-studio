@@ -24,6 +24,17 @@ export function wrapSteerReminder(text: string): string {
   ].join('\n')
 }
 
+/** Wrap resolved runtime context so long-lived agent connections can refresh it per turn. */
+export function wrapRuntimeContextReminder(content: string): string {
+  const safe = defangSystemReminderTags(content)
+  return `${SYSTEM_REMINDER_OPEN}\n${safe}\n${SYSTEM_REMINDER_CLOSE}`
+}
+
+export function prependRuntimeContextReminderText(text: string, runtimeContext: string): string {
+  const reminder = wrapRuntimeContextReminder(runtimeContext)
+  return text.trim() ? `${reminder}\n\n${text}` : reminder
+}
+
 /** Extract complete reminder bodies from a trusted SDK synthetic message. */
 export function extractSystemReminderBodies(text: string): string[] {
   const bodies: string[] = []

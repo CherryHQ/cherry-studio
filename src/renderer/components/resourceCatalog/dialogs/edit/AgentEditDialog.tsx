@@ -62,6 +62,7 @@ import {
   FieldLabelWithHelp,
   KnowledgeBaseField,
   type ModelLabels,
+  PromptRuntimeContextToggle,
   PromptVariablesPopover,
   TextInputField,
   useDebouncedAutoSave
@@ -87,6 +88,8 @@ type AgentEditFormValues = {
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
+  runtimeContextEnabled: boolean
+  runtimeContextPrompt: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
 }
@@ -142,6 +145,8 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
+    runtimeContextEnabled: form.runtimeContextEnabled,
+    runtimeContextPrompt: form.runtimeContextPrompt,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval
   }
@@ -172,6 +177,8 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
+    runtimeContextEnabled: values.runtimeContextEnabled,
+    runtimeContextPrompt: values.runtimeContextPrompt,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval
   }
@@ -205,6 +212,8 @@ function advanceAgentFormBaseline(
     if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
     if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
+    if (hasOwn(configuration, 'runtime_context_enabled')) next.runtimeContextEnabled = submitted.runtimeContextEnabled
+    if (hasOwn(configuration, 'runtime_context_prompt')) next.runtimeContextPrompt = submitted.runtimeContextPrompt
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
   }
@@ -221,6 +230,8 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
+  form.setValue('runtimeContextEnabled', next.runtimeContextEnabled, { shouldDirty: true })
+  form.setValue('runtimeContextPrompt', next.runtimeContextPrompt, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
 }
@@ -787,6 +798,7 @@ function AgentPromptField({
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const instructions = form.watch('instructions')
   const name = form.watch('name')
+  const runtimeContextPrompt = useWatch({ control: form.control, name: 'runtimeContextPrompt' })
   const processedInstructions = usePromptProcessor({
     prompt: instructions,
     modelName: modelName ?? undefined
@@ -800,6 +812,22 @@ function AgentPromptField({
     handlePromptChange(nextInstructions)
     setResetPreviewKey((key) => key + 1)
   }
+
+  const runtimeContextControl = (
+    <FormField
+      control={form.control}
+      name="runtimeContextEnabled"
+      render={({ field }) => (
+        <PromptRuntimeContextToggle
+          checked={field.value}
+          prompt={runtimeContextPrompt}
+          onCheckedChange={field.onChange}
+          onPromptChange={(value) => form.setValue('runtimeContextPrompt', value, { shouldDirty: true })}
+          portalContainer={portalContainer}
+        />
+      )}
+    />
+  )
 
   return (
     <FormField
@@ -820,7 +848,8 @@ function AgentPromptField({
           previewValue={processedInstructions || instructions}
           resetPreviewKey={resetPreviewKey}
           fill
-          actions={
+          labelAddon={runtimeContextControl}
+          editorActions={
             <PromptPolishActions
               value={instructions}
               fallbackSource={name}

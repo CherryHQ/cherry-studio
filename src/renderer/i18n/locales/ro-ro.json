@@ -2870,6 +2870,13 @@
         "polish_failed_title": "Eșuat la îmbunătățirea promptului",
         "polish_variables_changed_description": "Rezultatul îmbunătățit a modificat sau eliminat variabilele din prompt. Încearcă din nou.",
         "polish_variables_changed_title": "Nu s-a putut aplica promptul rafinat",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "Tokeni:",
         "variables_description": "Inserează aceste variabile de sistem în promptul de sistem; înainte de fiecare răspuns al asistentului, ele sunt completate cu informațiile curente.",
         "variables_example": "Exemplu: Astăzi este {{variable}}, iar data curentă este folosită.",

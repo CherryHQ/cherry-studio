@@ -108,6 +108,8 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
+  /** Display name of the exact connection-scoped model selected by the request builder. */
+  runtimeContextModelName?: string
   /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
   maxOutputTokens?: number
   /** Model-declared output reservation, subtracted from the window to get the usable input budget. */
@@ -323,6 +325,14 @@ export async function buildClaudeCodeSessionSettings(
     steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
+    ...(agentConfig?.runtime_context_enabled
+      ? {
+          runtimeContext: {
+            template: agentConfig.runtime_context_prompt,
+            modelName: options?.runtimeContextModelName ?? agent.modelName ?? agent.model ?? undefined
+          }
+        }
+      : {}),
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),

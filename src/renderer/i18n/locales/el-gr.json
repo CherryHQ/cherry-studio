@@ -2870,6 +2870,13 @@
         "polish_failed_title": "Αποτυχία γυαλίσματος της προτροπής",
         "polish_variables_changed_description": "Το εξευγενισμένο αποτέλεσμα άλλαξε ή αφαίρεσε μεταβλητές προτροπής. Δοκιμάστε ξανά.",
         "polish_variables_changed_title": "Δεν ήταν δυνατή η εφαρμογή του βελτιωμένου prompt",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "Διακριτικά:",
         "variables_description": "Εισάγετε αυτές τις μεταβλητές συστήματος στο prompt του συστήματος· πριν από κάθε απάντηση του βοηθού, συμπληρώνονται με τις τρέχουσες πληροφορίες.",
         "variables_example": "Παράδειγμα: Σήμερα είναι {{variable}}, και χρησιμοποιείται η τρέχουσα ημερομηνία.",

@@ -16,10 +16,12 @@ import os from 'node:os'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { RUNTIME_CONTEXT_PROMPT_PRESET } from '@shared/ai/prompts'
 
 const logger = loggerService.withContext('utils:prompt')
 
 export const VOLATILE_PROMPT_VARIABLES = ['{{time}}', '{{datetime}}'] as const
+const CURRENT_DATE_PROMPT_VARIABLES = ['{{date}}', '{{datetime}}'] as const
 
 const supportedVariables = [
   '{{username}}',
@@ -33,6 +35,43 @@ const supportedVariables = [
 
 export const containsSupportedVariables = (userSystemPrompt: string): boolean =>
   supportedVariables.some((variable) => userSystemPrompt.includes(variable))
+
+function formatCurrentDateIso(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/** Request-time calendar date for Web Search query grounding. Not a module-load snapshot. */
+export function buildCurrentDateContext(): string {
+  const date = formatCurrentDateIso()
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  return timeZone ? `Current date: ${date} (${timeZone})` : `Current date: ${date}`
+}
+
+function promptSuppliesCurrentDate(prompt: string | undefined): boolean {
+  if (!prompt) return false
+  return CURRENT_DATE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable))
+}
+
+function runtimeContextSuppliesCurrentDate(enabled: boolean | undefined, template?: string): boolean {
+  if (!enabled) return false
+  const source = template?.trim() ? template : RUNTIME_CONTEXT_PROMPT_PRESET
+  return promptSuppliesCurrentDate(source)
+}
+
+export function shouldInjectCurrentDateContext(input: {
+  webSearchEnabled: boolean
+  prompt?: string
+  runtimeContextEnabled?: boolean
+  runtimeContextPrompt?: string
+}): boolean {
+  if (!input.webSearchEnabled) return false
+  if (promptSuppliesCurrentDate(input.prompt)) return false
+  return !runtimeContextSuppliesCurrentDate(input.runtimeContextEnabled, input.runtimeContextPrompt)
+}
 
 export const replacePromptVariables = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
   if (typeof userSystemPrompt !== 'string') {
@@ -113,3 +152,6 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   return userSystemPrompt
 }
+
+export const buildRuntimeContextPrompt = (modelName?: string, template?: string): Promise<string> =>
+  replacePromptVariables(template?.trim() ? template : RUNTIME_CONTEXT_PROMPT_PRESET, modelName)

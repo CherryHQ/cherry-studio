@@ -140,11 +140,16 @@ vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
 vi.mock('@main/ai/runtime/agentPrompt', () => ({
-  buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' })
+  buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' }),
+  captureAgentRuntimeContextSnapshot: vi.fn(() => undefined),
+  resolveAgentTurnContextPrompt: vi.fn(async () => undefined)
 }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn(() => []) }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))
-vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: string) => text) }))
+vi.mock('@main/ai/steerReminder', () => ({
+  wrapSteerReminder: vi.fn((text: string) => text),
+  prependRuntimeContextReminderText: vi.fn((text: string) => text)
+}))
 
 const { DshBridgeServer } = await import('../DshBridgeServer')
 const { DshRuntimeConnection } = await import('../DshRuntimeConnection')

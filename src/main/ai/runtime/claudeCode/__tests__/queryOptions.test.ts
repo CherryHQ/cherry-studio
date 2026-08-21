@@ -16,6 +16,7 @@ describe('createClaudeCodeQueryOptions', () => {
         toolPolicySnapshot: {},
         warmQueryInitializeTimeoutMs: 100,
         mcpToolMetadata: {},
+        runtimeContext: { template: 'Current time: {{time}}', modelName: 'Claude Sonnet' },
         spawnClaudeCodeProcess: ignoredSpawn
       } as any
     })
@@ -27,6 +28,7 @@ describe('createClaudeCodeQueryOptions', () => {
     expect(opts).not.toHaveProperty('toolPolicySnapshot')
     expect(opts).not.toHaveProperty('warmQueryInitializeTimeoutMs')
     expect(opts).not.toHaveProperty('mcpToolMetadata')
+    expect(opts).not.toHaveProperty('runtimeContext')
     expect(opts.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
   })
 })

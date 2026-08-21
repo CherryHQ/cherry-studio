@@ -17,7 +17,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
-import { VOLATILE_PROMPT_VARIABLES } from '../../../../../utils/prompt'
+import { shouldInjectCurrentDateContext, VOLATILE_PROMPT_VARIABLES } from '../../../../../utils/prompt'
 import type { RequestFeature } from '../feature'
 
 const MAX_CACHE_BREAKPOINTS = 4
@@ -27,7 +27,24 @@ const cacheProviderOptions = {
 
 function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
   const prompt = assistant?.prompt
-  return Boolean(prompt && VOLATILE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable)))
+  const runtimeContextPrompt = assistant?.settings?.runtimeContextPrompt
+  const hasVolatileRuntimeContext =
+    assistant?.settings?.enableRuntimeContext &&
+    (!runtimeContextPrompt?.trim() ||
+      VOLATILE_PROMPT_VARIABLES.some((variable) => runtimeContextPrompt.includes(variable)))
+
+  const injectsCurrentDate = shouldInjectCurrentDateContext({
+    webSearchEnabled: assistant?.settings?.enableWebSearch === true,
+    prompt,
+    runtimeContextEnabled: assistant?.settings?.enableRuntimeContext,
+    runtimeContextPrompt
+  })
+
+  return Boolean(
+    hasVolatileRuntimeContext ||
+      injectsCurrentDate ||
+      (prompt && VOLATILE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable)))
+  )
 }
 
 function estimateContentTokens(content: LanguageModelV3Message['content']): number {

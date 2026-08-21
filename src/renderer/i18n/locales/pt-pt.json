@@ -2870,6 +2870,13 @@
         "polish_failed_title": "Falha ao aprimorar o prompt",
         "polish_variables_changed_description": "O resultado polido alterou ou removeu variáveis de prompt. Tente novamente.",
         "polish_variables_changed_title": "Não foi possível aplicar o prompt polido",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "Tokens:",
         "variables_description": "Introduza essas variáveis de sistema no prompt do sistema; antes de cada resposta do assistente, elas são preenchidas com as informações atuais.",
         "variables_example": "Exemplo: Hoje é {{variable}}, e a data atual é utilizada.",

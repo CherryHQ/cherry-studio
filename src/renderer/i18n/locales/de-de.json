@@ -2870,6 +2870,13 @@
         "polish_failed_title": "Fehler beim Polieren des Prompts",
         "polish_variables_changed_description": "Das polierte Ergebnis hat die Eingabeaufforderungsvariablen geändert oder entfernt. Bitte versuchen Sie es erneut.",
         "polish_variables_changed_title": "Konnte polierten Prompt nicht anwenden",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "Token",
         "variables_description": "Fügen Sie diese Systemvariablen in die Systemaufforderung ein; vor jeder Antwort des Assistenten werden sie mit den aktuellen Informationen gefüllt.",
         "variables_example": "Beispiel: Heute ist {{variable}}, und das aktuelle Datum wird verwendet.",

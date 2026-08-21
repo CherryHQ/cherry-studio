@@ -53,6 +53,8 @@ describe('initialAssistantFormState', () => {
       modelId: 'openai::gpt-5',
       temperature: 0.7,
       enableTemperature: true,
+      enableRuntimeContext: true,
+      runtimeContextPrompt: '',
       mcpMode: 'manual',
       knowledgeBaseIds: ['kb-1'],
       mcpServerIds: ['mcp-1']
@@ -63,6 +65,15 @@ describe('initialAssistantFormState', () => {
     const groupId = '11111111-1111-4111-8111-111111111111'
     const assistant = createAssistant({ groupId })
     expect(initialAssistantFormState(assistant).groupId).toBe(groupId)
+  })
+
+  it('keeps runtime context disabled for legacy settings without the toggle', () => {
+    const legacySettings = { ...DEFAULT_ASSISTANT_SETTINGS }
+    delete legacySettings.enableRuntimeContext
+
+    const assistant = createAssistant({ settings: legacySettings })
+
+    expect(initialAssistantFormState(assistant).enableRuntimeContext).toBe(false)
   })
 
   it.each([true, 'legacy-mode'])('normalizes an invalid runtime MCP mode (%s) to the default', (mcpMode) => {
@@ -247,6 +258,19 @@ describe('diffAssistantUpdate', () => {
 
     const result = diffAssistantUpdate(form, baseline, assistant)
     expect(result?.dto.settings?.customParameters).toEqual([{ name: 'seed', type: 'number', value: 42 }])
+  })
+
+  it('persists runtime context through assistant settings', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableRuntimeContext: false } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, enableRuntimeContext: true, runtimeContextPrompt: 'Custom runtime context' }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto.settings?.enableRuntimeContext).toBe(true)
+    expect(result?.dto.settings?.runtimeContextPrompt).toBe('Custom runtime context')
   })
 })
 

@@ -2870,6 +2870,13 @@
         "polish_failed_title": "Не удалось улучшить промпт",
         "polish_variables_changed_description": "Готовый результат изменил или удалил переменные промпта. Попробуйте снова.",
         "polish_variables_changed_title": "Не удалось применить улучшенный промпт",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "Токены:",
         "variables_description": "Вставьте эти системные переменные в системный промпт; перед каждым ответом ассистента они заполняются актуальной информацией.",
         "variables_example": "Пример: Сегодня {{variable}}, и используется текущая дата.",

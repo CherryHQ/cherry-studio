@@ -2870,6 +2870,13 @@
         "polish_failed_title": "Error al pulir el mensaje",
         "polish_variables_changed_description": "El resultado pulido cambió o eliminó variables del prompt. Inténtalo de nuevo.",
         "polish_variables_changed_title": "No se pudo aplicar el mensaje pulido",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "Tokens:",
         "variables_description": "Inserta estas variables del sistema en el indicador del sistema; antes de cada respuesta del asistente, se completan con la información actual.",
         "variables_example": "Ejemplo: Hoy es {{variable}}, y se utiliza la fecha actual.",

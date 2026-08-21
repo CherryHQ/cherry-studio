@@ -2870,6 +2870,13 @@
         "polish_failed_title": "プロンプトの推敲に失敗しました",
         "polish_variables_changed_description": "洗練された結果により、プロンプト変数が変更または削除されました。もう一度お試しください。",
         "polish_variables_changed_title": "磨き上げたプロンプトを適用できませんでした",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "トークン:",
         "variables_description": "これらのシステム変数をシステムプロンプトに挿入してください。アシスタントの各返答の前に、現在の情報で変数が埋められます。",
         "variables_example": "例：今日は{{variable}}で、現在の日付が使用されます。",

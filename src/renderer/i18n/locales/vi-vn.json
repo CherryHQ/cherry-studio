@@ -2870,6 +2870,13 @@
         "polish_failed_title": "Không thể chỉnh sửa lời nhắc",
         "polish_variables_changed_description": "Kết quả đã hoàn thiện đã thay đổi hoặc xóa các biến nhắc nhở. Hãy thử lại.",
         "polish_variables_changed_title": "Không thể áp dụng lời nhắc đã được đánh bóng",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "tokens_label": "Mã thông báo:",
         "variables_description": "Chèn các biến hệ thống này vào lời nhắc hệ thống; trước mỗi phản hồi của trợ lý, chúng sẽ được điền với thông tin hiện tại.",
         "variables_example": "Ví dụ: Hôm nay là {{variable}}, và ngày hiện tại được sử dụng.",
