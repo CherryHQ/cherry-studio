@@ -27,7 +27,7 @@ function run(source: string, children: PhrasingContent[]): PhrasingContent[] {
   const processor = unified().use(remarkLiteralAutolinkFix)
   const paragraph: Paragraph = { type: 'paragraph', children }
   const tree: Root = { type: 'root', children: [paragraph] }
-  const result = processor.runSync(tree, { value: source }) as Root
+  const result = processor.runSync(tree, { value: source })
   const first = result.children[0]
   return first?.type === 'paragraph' ? first.children : []
 }

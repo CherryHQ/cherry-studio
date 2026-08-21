@@ -47,7 +47,7 @@ function startsAsAngleAutolink(source: string, node: Link): boolean {
 }
 
 function parseInlineTail(value: string): PhrasingContent[] {
-  const tree = unified().use(remarkParse).parse(value) as Root
+  const tree = unified().use(remarkParse).parse(value)
   const nodes = tree.children.flatMap((child) => (child.type === 'paragraph' ? child.children : []))
   // Positions from the sub-parse point into the tail substring, not the source document.
   for (const node of nodes) {
@@ -95,7 +95,7 @@ export const remarkLiteralAutolinkFix: Plugin<[], Root> = () => (tree, file) => 
 
   visit(tree, 'link', (node, index, parent) => {
     if (!parent || typeof index !== 'number') return
-    const plan = buildFix(node as Link, index, parent, source)
+    const plan = buildFix(node, index, parent, source)
     if (plan) plans.push(plan)
   })
 
