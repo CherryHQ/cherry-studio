@@ -19,6 +19,8 @@ const assistantContextMock = vi.hoisted(() => ({
 }))
 const providerHookArgs = vi.hoisted(() => [] as unknown[][])
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
+const clearTopicMessagesMock = vi.hoisted(() => vi.fn())
+const confirmActionShow = vi.hoisted(() => vi.fn())
 const eventEmitMock = vi.hoisted(() => vi.fn())
 const activeTabMock = vi.hoisted(() => ({ current: true }))
 
@@ -79,10 +81,18 @@ vi.mock('@renderer/components/popups/PromptPopup', () => ({
   }
 }))
 
+vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({
+  default: { show: confirmActionShow }
+}))
+
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
     setTimeoutTimer: vi.fn()
   })
+}))
+
+vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
+  useClearTopicMessages: () => clearTopicMessagesMock
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -134,7 +144,6 @@ vi.mock('@renderer/hooks/tab', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'clear-messages',
     FOCUS_CHAT_COMPOSER: 'focus-chat-composer'
   },
   EventEmitter: {
@@ -215,14 +224,23 @@ describe('Chat', () => {
     activeTabMock.current = true
   })
 
-  it('routes the clear-messages command through the existing confirmation flow', () => {
+  it('confirms before clearing messages from the active topic', async () => {
     render(<Chat activeTopic={topic} />)
 
     act(() => {
       void commandHandlers.get('topic.clear_messages')?.()
     })
 
-    expect(eventEmitMock).toHaveBeenCalledWith('clear-messages', topic)
+    expect(confirmActionShow).toHaveBeenCalledOnce()
+    expect(clearTopicMessagesMock).not.toHaveBeenCalled()
+
+    const action = confirmActionShow.mock.calls[0]?.[0]?.action
+    if (!action) throw new Error('Expected clear-messages confirmation action')
+    await act(async () => {
+      await action()
+    })
+
+    expect(clearTopicMessagesMock).toHaveBeenCalledExactlyOnceWith('topic-1')
   })
 
   it('does not register the clear-messages command for a background tab', () => {

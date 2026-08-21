@@ -11,7 +11,9 @@ import {
   type ChatConversationControlsProps
 } from '@renderer/components/composer/variants/chat/ChatConversationControls'
 import type { ChatConversationControlsSnapshot } from '@renderer/components/composer/variants/ChatComposer'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import PromptPopup from '@renderer/components/popups/PromptPopup'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -68,6 +70,7 @@ interface Props {
 
 const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
+  const clearTopicMessages = useClearTopicMessages()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [topicDisplayMode] = usePreference('topic.tab.display_mode')
@@ -136,7 +139,11 @@ const Chat: FC<Props> = (props) => {
     'topic.clear_messages',
     () => {
       if (!activeTopic) return
-      void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, activeTopic)
+      void ConfirmActionPopup.show({
+        title: t('chat.input.clear.title'),
+        content: t('chat.input.clear.content'),
+        action: () => clearTopicMessages(activeTopic.id)
+      })
     },
     { enabled: showConversation && isActiveTab }
   )
