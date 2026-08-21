@@ -10,14 +10,24 @@
  * Without --packaging (dev), downloads go to a cache shared by every git worktree
  * of this repository and are hard-linked into resources/binaries/, so a second
  * worktree costs links instead of a fresh download. before-pack.js passes
- * --packaging to download straight into resources/ for the bundle.
+ * --packaging to route new downloads straight into resources/. Note that the
+ * flag only decides where a download goes: links a previous dev run left in
+ * resources/ are up to date and stay, which is harmless because packaging only
+ * ever reads and copies them.
  */
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
 
-const BINARIES_ROOT = path.join(__dirname, '..', 'resources', 'binaries')
+const REPO_ROOT = path.join(__dirname, '..')
+const BINARIES_ROOT = path.join(REPO_ROOT, 'resources', 'binaries')
+
+// Staging lives under a per-checkout id, not a pid: the same worktree must find
+// its own partial download again to resume it, while two worktrees running
+// against the shared cache at once must never write the same path.
+const STAGING_PREFIX = '.staging-'
+const STAGING_DIR = STAGING_PREFIX + crypto.createHash('sha256').update(REPO_ROOT).digest('hex').slice(0, 8)
 
 /**
  * Cache root shared by all worktrees: `<git-common-dir>/cherry-binaries`.
@@ -29,12 +39,12 @@ const BINARIES_ROOT = path.join(__dirname, '..', 'resources', 'binaries')
 function resolveSharedCacheRoot() {
   try {
     const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
-      cwd: path.join(__dirname, '..'),
+      cwd: REPO_ROOT,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore']
     }).trim()
     if (!commonDir) return null
-    return path.join(path.resolve(path.join(__dirname, '..'), commonDir), 'cherry-binaries')
+    return path.join(path.resolve(REPO_ROOT, commonDir), 'cherry-binaries')
   } catch {
     return null
   }
@@ -43,11 +53,21 @@ function resolveSharedCacheRoot() {
 /**
  * Mirror `srcDir` into `destDir` as hard links, so both paths share one inode
  * and the copy costs no extra disk. Falls back to a real copy when linking is
- * unavailable (different volume, filesystem without hard links).
+ * unavailable (different volume, filesystem without hard links). Anything in
+ * `destDir` with no counterpart in the cache is removed: a shrinking release
+ * (MinGit dropping a file) would otherwise leave it behind forever, which is
+ * the very thing `extract`'s zip-tree branch wipes the destination to avoid.
  */
 function materialize(srcDir, destDir) {
   fs.mkdirSync(destDir, { recursive: true })
-  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+  const mirrored = fs
+    .readdirSync(srcDir, { withFileTypes: true })
+    .filter((entry) => !entry.name.startsWith(STAGING_PREFIX))
+  const wanted = new Set(mirrored.map((entry) => entry.name))
+  for (const stale of fs.readdirSync(destDir)) {
+    if (!wanted.has(stale)) fs.rmSync(path.join(destDir, stale), { recursive: true, force: true })
+  }
+  for (const entry of mirrored) {
     const src = path.join(srcDir, entry.name)
     const dest = path.join(destDir, entry.name)
     if (entry.isDirectory()) {
@@ -346,11 +366,13 @@ function download(url, dest) {
     // does not restart from zero. `dest` is always version-scoped, so a resume
     // can only ever continue the same asset.
     execFileSync('curl', ['-fSL', '-C', '-', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
-  } catch {
-    // Servers without byte-range support make curl fail outright; drop whatever
-    // is on disk and take the plain path. A resume that *succeeds* onto corrupt
-    // bytes is caught by verifyHash instead, which deletes the file so the next
-    // run starts clean.
+  } catch (error) {
+    // 33 is curl's range error — the server refused the resume, which a plain
+    // download fixes. Every other failure (a dropped connection above all) must
+    // propagate with the partial file intact, or resuming would be useless in
+    // exactly the case it exists for. Corrupt resumed bytes are caught by
+    // verifyHash, which deletes the file so the next run starts clean.
+    if (error.status !== 33) throw error
     fs.rmSync(dest, { force: true })
     execFileSync('curl', ['-fSL', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
   }
@@ -422,7 +444,6 @@ function downloadTool(tool, platformKey, outputDir) {
   }
 
   const binaryPaths = pkg.binaries.map((binary) => path.join(outputDir, binary))
-  const primaryDest = binaryPaths[0]
   const versionPath = path.join(outputDir, tool.versionFile)
 
   if (isUpToDate(binaryPaths, versionPath, tool.version)) {
@@ -431,26 +452,55 @@ function downloadTool(tool, platformKey, outputDir) {
     return
   }
 
+  // Everything lands in staging first. Several worktrees may run this against
+  // one shared cache: writing the final paths directly would let two downloads
+  // interleave on the same file, or one run delete an archive another is still
+  // reading. Filenames stay version-scoped so a resume can only ever continue
+  // the same asset, never splice a new version onto the previous one.
+  const staging = path.join(outputDir, STAGING_DIR, tool.name)
+  fs.mkdirSync(staging, { recursive: true })
+
   if (pkg.archive === 'none') {
-    // Download to a version-scoped temp file and rename on success: `primaryDest`
-    // may still hold the complete previous version, which a resume would splice
-    // into garbage, and an interrupted run must not leave half a binary in place.
-    const partialPath = `${primaryDest}.${tool.version}.part`
-    download(pkg.url, partialPath)
-    verifyHash(partialPath, pkg.sha256)
-    fs.renameSync(partialPath, primaryDest)
+    const staged = path.join(staging, `${pkg.binaries[0]}.${tool.version}.part`)
+    download(pkg.url, staged)
+    verifyHash(staged, pkg.sha256)
+    fs.renameSync(staged, path.join(staging, pkg.binaries[0]))
   } else {
     const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
-    const archivePath = path.join(outputDir, `${tool.name}-${tool.version}.${ext}`)
+    const archivePath = path.join(staging, `${tool.name}-${tool.version}.${ext}`)
     download(pkg.url, archivePath)
     verifyHash(archivePath, pkg.sha256)
-    extract(archivePath, pkg.archive, outputDir, pkg)
+    extract(archivePath, pkg.archive, staging, pkg)
     fs.unlinkSync(archivePath)
   }
+
+  commitStaged(staging, outputDir, pkg)
+  // Only on success: an interrupted run keeps its partial file to resume from.
+  fs.rmSync(staging, { recursive: true, force: true })
 
   for (const b of pkg.binaries) chmodExec(path.join(outputDir, b))
   fs.writeFileSync(versionPath, tool.version, 'utf8')
   console.log(`[${tool.name}] Installed ${pkg.binaries.join(', ')} ${tool.version}`)
+}
+
+/**
+ * Move a verified staging result to its final location with rename, which is
+ * atomic: a concurrent run either sees the old file or the new one, never a
+ * half-written mix. `zip-tree` moves the whole tree, retiring any previous one
+ * first so a shrinking release cannot leave orphans behind.
+ */
+function commitStaged(staging, outputDir, pkg) {
+  if (pkg.dir) {
+    const finalDir = path.join(outputDir, pkg.dir)
+    const retired = `${finalDir}.retired-${process.pid}`
+    if (fs.existsSync(finalDir)) fs.renameSync(finalDir, retired)
+    fs.renameSync(path.join(staging, pkg.dir), finalDir)
+    fs.rmSync(retired, { recursive: true, force: true })
+    return
+  }
+  for (const binary of pkg.binaries) {
+    fs.renameSync(path.join(staging, binary), path.join(outputDir, binary))
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
@@ -479,6 +529,14 @@ function main() {
       }
       console.warn(`[${tool.name}] Download failed (non-fatal): ${error.message}`)
     }
+  }
+
+  // Drop the staging root once every tool has committed. A failed download keeps
+  // its own directory under it to resume from, and rmdir then simply fails.
+  try {
+    fs.rmdirSync(path.join(outputDir, STAGING_DIR))
+  } catch {
+    // still holds an unfinished download
   }
 
   if (cacheRoot) {
@@ -523,7 +581,7 @@ function verifyBundledBinaries(platform, arch, options = {}) {
   console.log(`Verified all bundled binaries exist for ${platformKey}`)
 }
 
-module.exports = { extract, materialize, resolveSharedCacheRoot, verifyBundledBinaries, TOOLS }
+module.exports = { download, extract, materialize, verifyBundledBinaries, TOOLS }
 
 // Only auto-download when run directly (node scripts/download-binaries.js ...).
 // before-pack.js requires this module for verifyBundledBinaries without

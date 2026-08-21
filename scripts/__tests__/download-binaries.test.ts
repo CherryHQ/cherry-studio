@@ -5,15 +5,20 @@
  * the `isWindowsOnly` skip rule in verifyBundledBinaries.
  */
 import * as fs from 'node:fs'
+import { createRequire } from 'node:module'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
 import { extract, materialize, TOOLS, verifyBundledBinaries } from '../download-binaries'
 
 const FIXTURE_ZIP = path.join(__dirname, 'fixtures', 'mingit-tree.zip')
+
+// The script is CJS and calls require('fs'); that module object is mutable,
+// unlike the ESM namespace this file imports, so it is what a spy must target.
+const cjsFs = createRequire(import.meta.url)('fs') as typeof fs
 
 let tmpDirs: string[] = []
 function makeTmpDir(prefix: string): string {
@@ -173,6 +178,51 @@ describe('materialize – shared-cache mirroring', () => {
 
     expect(fs.readFileSync(path.join(bundle, 'uv'), 'utf8')).toBe('new version')
     expect(fs.statSync(path.join(bundle, 'uv')).ino).toBe(fs.statSync(path.join(cache, 'uv')).ino)
+  })
+
+  it('falls back to a real copy when hard-linking is unavailable', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    fs.writeFileSync(path.join(cache, 'rg'), 'payload')
+    const linkSync = vi.spyOn(cjsFs, 'linkSync').mockImplementation(() => {
+      throw Object.assign(new Error('cross-device link'), { code: 'EXDEV' })
+    })
+
+    try {
+      materialize(cache, bundle)
+    } finally {
+      linkSync.mockRestore()
+    }
+
+    expect(fs.readFileSync(path.join(bundle, 'rg'), 'utf8')).toBe('payload')
+    expect(fs.statSync(path.join(bundle, 'rg')).ino).not.toBe(fs.statSync(path.join(cache, 'rg')).ino)
+  })
+
+  it('removes files the cache no longer has, so a shrinking release leaves no orphan', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    fs.mkdirSync(path.join(cache, 'git', 'cmd'), { recursive: true })
+    fs.writeFileSync(path.join(cache, 'git', 'cmd', 'git.exe'), 'launcher')
+    fs.mkdirSync(path.join(bundle, 'git', 'cmd'), { recursive: true })
+    fs.writeFileSync(path.join(bundle, 'git', 'cmd', 'git.exe'), 'launcher')
+    fs.writeFileSync(path.join(bundle, 'git', 'cmd', 'dropped.exe'), 'from an older version')
+
+    materialize(cache, bundle)
+
+    expect(fs.existsSync(path.join(bundle, 'git', 'cmd', 'dropped.exe'))).toBe(false)
+    expect(fs.existsSync(path.join(bundle, 'git', 'cmd', 'git.exe'))).toBe(true)
+  })
+
+  it('never mirrors staging directories into the bundle', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    fs.writeFileSync(path.join(cache, 'uv'), 'payload')
+    fs.mkdirSync(path.join(cache, '.staging-deadbeef', 'uv'), { recursive: true })
+    fs.writeFileSync(path.join(cache, '.staging-deadbeef', 'uv', 'uv.0.1.0.part'), 'half a download')
+
+    materialize(cache, bundle)
+
+    expect(fs.readdirSync(bundle)).toEqual(['uv'])
   })
 
   it('is idempotent — a second run leaves the same inode in place', () => {
