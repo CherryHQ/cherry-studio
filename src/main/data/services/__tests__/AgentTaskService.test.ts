@@ -220,6 +220,7 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks).toHaveLength(1)
       expect(result.total).toBe(1)
       expect(result.tasks[0].id).toBe('s1')
+      expect(result.tasks[0]).not.toHaveProperty('runSummary')
     })
 
     it('returns heartbeat tasks when includeHeartbeat=true', () => {

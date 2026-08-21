@@ -155,15 +155,6 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
-export const TaskRunSummarySchema = z.discriminatedUnion('status', [
-  z.strictObject({ status: z.literal('queued') }),
-  z.strictObject({ status: z.literal('running') }),
-  z.strictObject({ status: z.literal('completed'), finishedAt: z.string() }),
-  z.strictObject({ status: z.literal('failed'), finishedAt: z.string() }),
-  z.strictObject({ status: z.literal('cancelled'), finishedAt: z.string() })
-])
-export type TaskRunSummary = z.infer<typeof TaskRunSummarySchema>
-
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
@@ -188,12 +179,15 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   enabled: z.boolean(),
   /** Output-only derived label kept for UI continuity (active / paused / completed). */
   status: z.enum(['active', 'paused', 'completed']),
-  /** Latest relevant Job projected for overview display; null until the task has a Job. */
-  runSummary: TaskRunSummarySchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
+export type TaskRunSummary =
+  | { status: 'queued' }
+  | { status: 'running' }
+  | { status: 'completed' | 'failed' | 'cancelled'; finishedAt: string }
+export type ScheduledTaskListItem = ScheduledTaskEntity & { runSummary: TaskRunSummary | null }
 
 export const TaskRunLogEntitySchema = z.strictObject({
   id: z.string(),
@@ -296,7 +290,7 @@ export type AgentSchemas = {
   '/agent-tasks': {
     GET: {
       query?: ListQuery
-      response: OffsetPaginationResponse<ScheduledTaskEntity>
+      response: OffsetPaginationResponse<ScheduledTaskListItem>
     }
   }
 

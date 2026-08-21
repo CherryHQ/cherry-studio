@@ -91,7 +91,7 @@ import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
-import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskEntity, ScheduledTaskListItem, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
@@ -401,7 +401,7 @@ function formatTaskCardTime(value: string) {
   })
 }
 
-const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSummary']> }> = ({ summary }) => {
+const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskListItem['runSummary']> }> = ({ summary }) => {
   const { t } = useTranslation()
 
   if (summary.status === 'queued') {
@@ -447,7 +447,7 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
   )
 }
 
-const TaskCardRunStatus: FC<{ task: ScheduledTaskEntity }> = ({ task }) => {
+const TaskCardRunStatus: FC<{ task: ScheduledTaskListItem }> = ({ task }) => {
   const { t } = useTranslation()
   const nextRun = task.status === 'active' ? task.nextRun : null
 

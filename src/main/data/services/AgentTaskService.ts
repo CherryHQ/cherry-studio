@@ -15,7 +15,12 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { ScheduledTaskEntity, TaskRunLogEntity, TaskRunSummary } from '@shared/data/api/schemas/agents'
+import type {
+  ScheduledTaskEntity,
+  ScheduledTaskListItem,
+  TaskRunLogEntity,
+  TaskRunSummary
+} from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -192,10 +197,15 @@ export class AgentTaskService {
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
   listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
-    tasks: ScheduledTaskEntity[]
+    tasks: ScheduledTaskListItem[]
     total: number
   } {
-    return this.queryTasks(options)
+    const result = this.queryTasks(options)
+    const runSummaries = this.getRunSummariesByScheduleIds(result.tasks.map((task) => task.id))
+    return {
+      tasks: result.tasks.map((task) => ({ ...task, runSummary: runSummaries.get(task.id) ?? null })),
+      total: result.total
+    }
   }
 
   private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
@@ -222,11 +232,8 @@ export class AgentTaskService {
         : sorted
 
     const sessionIds = agentSessionService.getTaskSessionIdsByScheduleIds(sliced.map((task) => task.id))
-    const runSummaries = this.getRunSummariesByScheduleIds(sliced.map((task) => task.id))
     return {
-      tasks: sliced.map((s) =>
-        this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null, runSummaries.get(s.id) ?? null)
-      ),
+      tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
       total: filtered.length
     }
   }
@@ -263,11 +270,7 @@ export class AgentTaskService {
   // Mappers (snapshot → entity)
   // ------------------------------------------------------------------
 
-  private toScheduledTaskEntity(
-    snapshot: JobScheduleSnapshot,
-    reuseSessionId: string | null,
-    runSummary: TaskRunSummary | null = null
-  ): ScheduledTaskEntity {
+  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot, reuseSessionId: string | null): ScheduledTaskEntity {
     const tmpl = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
     if (!tmpl) {
       throw DataApiErrorFactory.invalidOperation('read task', 'invalid agent task template')
@@ -292,7 +295,6 @@ export class AgentTaskService {
       lastRun: snapshot.lastRun,
       enabled: snapshot.enabled,
       status: deriveStatus(snapshot),
-      runSummary,
       createdAt: snapshot.createdAt,
       updatedAt: snapshot.updatedAt
     }

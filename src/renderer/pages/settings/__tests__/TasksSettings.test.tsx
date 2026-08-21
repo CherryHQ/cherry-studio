@@ -1,6 +1,6 @@
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { ScheduledTaskEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
@@ -44,7 +44,6 @@ const taskDataMock = vi.hoisted(() => {
     lastRun: null,
     enabled: true,
     status: 'active' as 'active' | 'paused' | 'completed',
-    runSummary: null,
     createdAt: '2026-06-25T00:00:00.000Z',
     updatedAt: '2026-06-25T00:00:00.000Z'
   }
@@ -52,9 +51,14 @@ const taskDataMock = vi.hoisted(() => {
   return {
     defaultTask,
     task: { ...defaultTask },
-    tasks: null as null | ScheduledTaskEntity[]
+    tasks: null as null | ScheduledTaskListItem[]
   }
 })
+
+const toListTask = (
+  task: ScheduledTaskEntity,
+  runSummary: ScheduledTaskListItem['runSummary'] = null
+): ScheduledTaskListItem => ({ ...task, runSummary })
 
 const agentDataMock = vi.hoisted(() => ({
   agents: [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
@@ -188,7 +192,7 @@ vi.mock('@renderer/hooks/agent/useTasks', () => {
     useAllTasks: () => {
       React.useSyncExternalStore(subscribeTasks, () => tasksVersionMock.version)
       return {
-        tasks: taskDataMock.tasks ?? [taskDataMock.task],
+        tasks: taskDataMock.tasks ?? [toListTask(taskDataMock.task)],
         total: taskPaginationMock.total,
         page: taskPaginationMock.page,
         pageCount: taskPaginationMock.pageCount,
@@ -854,12 +858,14 @@ describe('TasksSettings routing and creation', () => {
     navigationMocks.taskId = undefined
     taskDataMock.task = {
       ...taskDataMock.defaultTask,
-      nextRun: '2026-06-26T09:00:00.000Z',
-      runSummary: {
+      nextRun: '2026-06-26T09:00:00.000Z'
+    }
+    taskDataMock.tasks = [
+      toListTask(taskDataMock.task, {
         status: 'failed',
         finishedAt: '2026-06-25T00:01:00.000Z'
-      }
-    }
+      })
+    ]
 
     render(<TasksSettings />)
 
@@ -874,36 +880,36 @@ describe('TasksSettings routing and creation', () => {
   it('shows only valid next-run information for each task state', async () => {
     navigationMocks.taskId = undefined
     taskDataMock.tasks = [
-      {
-        ...taskDataMock.defaultTask,
-        id: 'running-task',
-        name: 'Running task',
-        nextRun: '2026-06-26T09:00:00.000Z',
-        runSummary: {
-          status: 'running'
-        }
-      },
-      {
+      toListTask(
+        {
+          ...taskDataMock.defaultTask,
+          id: 'running-task',
+          name: 'Running task',
+          nextRun: '2026-06-26T09:00:00.000Z'
+        },
+        { status: 'running' }
+      ),
+      toListTask({
         ...taskDataMock.defaultTask,
         id: 'never-run-task',
         name: 'Never-run task',
         nextRun: '2026-06-26T10:00:00.000Z'
-      },
-      {
-        ...taskDataMock.defaultTask,
-        id: 'queued-task',
-        name: 'Queued task',
-        runSummary: {
-          status: 'queued'
-        }
-      },
-      {
+      }),
+      toListTask(
+        {
+          ...taskDataMock.defaultTask,
+          id: 'queued-task',
+          name: 'Queued task'
+        },
+        { status: 'queued' }
+      ),
+      toListTask({
         ...taskDataMock.defaultTask,
         id: 'paused-task',
         name: 'Paused task',
         status: 'paused',
         nextRun: '2026-06-26T11:00:00.000Z'
-      }
+      })
     ]
 
     render(<TasksSettings />)
@@ -946,7 +952,7 @@ describe('TasksSettings routing and creation', () => {
       name: 'Weekly review',
       status: 'paused' as const
     }
-    taskDataMock.tasks = [taskDataMock.defaultTask, pausedTask]
+    taskDataMock.tasks = [toListTask(taskDataMock.defaultTask), toListTask(pausedTask)]
 
     render(<TasksSettings />)
 
