@@ -6340,6 +6340,10 @@
             "label": "Hỗ trợ bật enable_thinking"
           },
           "label": "Cài đặt API",
+          "reasoning_summary": {
+            "help": "Gửi reasoning.summary đến điểm cuối Responses này. Chỉ bật khi máy chủ chấp nhận tham số OpenAI này.",
+            "label": "Hỗ trợ tóm tắt suy luận"
+          },
           "stream_options": {
             "help": "Nhà cung cấp có hỗ trợ tham số stream_options không?",
             "label": "Hỗ trợ stream_options"

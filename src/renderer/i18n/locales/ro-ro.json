@@ -6340,6 +6340,10 @@
             "label": "Suportă enable_thinking"
           },
           "label": "Setări API",
+          "reasoning_summary": {
+            "help": "Trimite reasoning.summary către acest endpoint Responses. Activează numai dacă serverul acceptă acest parametru OpenAI.",
+            "label": "Acceptă rezumatul raționamentului"
+          },
           "stream_options": {
             "help": "Furnizorul acceptă parametrul stream_options?",
             "label": "Suportă stream_options"

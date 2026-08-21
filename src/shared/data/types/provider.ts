@@ -36,7 +36,9 @@ export const EndpointDialectSchema = z.object({
   /** Accepts chat-completions `stream_options` for usage data. Absent ⇒ true. */
   streamOptions: z.boolean().optional(),
   /** Accepts messages with `role: "developer"`. Absent ⇒ false. */
-  developerRole: z.boolean().optional()
+  developerRole: z.boolean().optional(),
+  /** Accepts OpenAI Responses `reasoning.summary`. Absent ⇒ use the registry wire. */
+  reasoningSummary: z.boolean().optional()
 })
 
 export type EndpointDialect = z.infer<typeof EndpointDialectSchema>

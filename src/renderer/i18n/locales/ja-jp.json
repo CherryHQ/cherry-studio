@@ -6340,6 +6340,10 @@
             "label": "enable_thinking をサポート"
           },
           "label": "API設定",
+          "reasoning_summary": {
+            "help": "この Responses エンドポイントに reasoning.summary を送信します。サーバーがこの OpenAI パラメータを受け付ける場合のみ有効にしてください。",
+            "label": "推論要約をサポート"
+          },
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"

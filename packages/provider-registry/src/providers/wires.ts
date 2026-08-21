@@ -50,25 +50,4 @@ export function modeWire(
   return profile as ReasoningWireProfile
 }
 
-const REASONING_SUMMARY = [
-  // A literal default the assistant setting overwrites when present — later operation wins.
-  { target: 'reasoningSummary', value: { source: 'literal', value: 'auto' } },
-  { target: 'reasoningSummary', value: { source: 'assistant-summary' } }
-] as const satisfies readonly { target: ReasoningWireTarget; value: ReasoningWireValue }[]
-
-/**
- * OpenAI's own Responses reasoning wire: the shared effort vocabulary plus
- * `reasoning.summary`, which OpenAI leaves null unless asked — no summary means
- * no visible thinking at all. Third-party Responses hosts emit summaries on
- * their own and reject the field (Ark 400s `unknown field "summary"`), so this
- * wire stays opt-in per provider rather than being the format default.
- */
-export const openaiResponsesSummaryWire: ReasoningWireProfile = {
-  default: { operations: [...REASONING_SUMMARY] },
-  off: { operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }] },
-  auto: {
-    operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }, ...REASONING_SUMMARY],
-    effortMap: { auto: 'medium' }
-  },
-  effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }, ...REASONING_SUMMARY] }
-}
+export { openaiResponsesSummaryWire } from '../reasoningProfiles'

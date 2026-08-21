@@ -121,7 +121,7 @@ describe('ProviderApiOptionsDrawer', () => {
     })
   })
 
-  it('does not offer chat-only stream options on a Responses endpoint', () => {
+  it('offers the summary compatibility switch only on a Responses endpoint and persists it there', () => {
     useProviderMock.mockReturnValue({
       provider: {
         ...provider,
@@ -135,6 +135,16 @@ describe('ProviderApiOptionsDrawer', () => {
 
     expect(screen.getByLabelText('settings.provider.api.options.developer_role.label')).toBeInTheDocument()
     expect(screen.queryByLabelText('settings.provider.api.options.stream_options.label')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('settings.provider.api.options.reasoning_summary.label'))
+
+    expect(updateProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        'openai-responses': {
+          baseUrl: 'https://api.example.com/v1',
+          dialect: { reasoningSummary: true }
+        }
+      }
+    })
   })
 
   it('patches providerSettings.cacheControl when cache threshold changes', () => {

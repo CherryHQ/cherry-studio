@@ -42,7 +42,12 @@ export type {
 } from './schemas/enums'
 
 // Schema-inferred types (replaces proto types)
-export { REASONING_FORMAT_PROFILES, selectFormatWire } from './reasoningProfiles'
+export {
+  configureOpenAIResponsesSummary,
+  openaiResponsesSummaryWire,
+  REASONING_FORMAT_PROFILES,
+  selectFormatWire
+} from './reasoningProfiles'
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,

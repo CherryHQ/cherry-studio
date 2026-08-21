@@ -312,7 +312,9 @@ describe('useProviderMutations', () => {
 
     expect(patchCall).toBeDefined()
     // P0: list + entity + /* wildcard covers useProvider(id) and all sub-resource hooks
-    expect(patchCall![2]).toEqual({ refresh: ['/providers', '/providers/openai', '/providers/openai/*'] })
+    expect(patchCall![2]).toEqual({
+      refresh: ['/providers', '/providers/openai', '/providers/openai/*', '/models', '/models/*']
+    })
 
     expect(deleteCall).toBeDefined()
     expect(deleteCall![2]).toEqual({ refresh: ['/providers', '/providers/openai', '/providers/openai/*'] })
@@ -380,7 +382,7 @@ describe('useProviderMutations', () => {
 
     expect(patchCall).toBeDefined()
     expect(patchCall![2]).toEqual({
-      refresh: ['/providers', '/providers/openai-main', '/providers/openai-main/*']
+      refresh: ['/providers', '/providers/openai-main', '/providers/openai-main/*', '/models', '/models/*']
     })
   })
 

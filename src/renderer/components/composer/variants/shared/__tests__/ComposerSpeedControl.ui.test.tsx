@@ -193,10 +193,9 @@ describe('ComposerSpeedControl UI', () => {
     )
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
-    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(
+      screen.queryByRole('button', { name: 'assistants.settings.reasoning_effort.default' })
+    ).not.toBeInTheDocument()
     expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
@@ -261,10 +260,9 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-max', '2')
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '1')
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(
+      screen.queryByRole('button', { name: 'assistants.settings.reasoning_effort.default' })
+    ).not.toBeInTheDocument()
   })
 
   it('restores provider Default after selecting an explicit slider tier', async () => {

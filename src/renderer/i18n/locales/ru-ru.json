@@ -6340,6 +6340,10 @@
             "label": "Поддержка enable_thinking"
           },
           "label": "API настройки",
+          "reasoning_summary": {
+            "help": "Отправляет reasoning.summary в эту конечную точку Responses. Включайте, только если сервер принимает этот параметр OpenAI.",
+            "label": "Поддерживать сводку рассуждений"
+          },
           "stream_options": {
             "help": "Поддерживает ли этот провайдер параметр stream_options",
             "label": "Поддержка stream_options"

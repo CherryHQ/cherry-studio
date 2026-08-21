@@ -6340,6 +6340,10 @@
             "label": "支援 enable_thinking"
           },
           "label": "API 設定",
+          "reasoning_summary": {
+            "help": "向此 Responses 端點傳送 reasoning.summary。請僅在伺服器接受此 OpenAI 參數時啟用。",
+            "label": "支援思考摘要"
+          },
           "stream_options": {
             "help": "該供應商是否支援 stream_options 參數",
             "label": "支援 stream_options"

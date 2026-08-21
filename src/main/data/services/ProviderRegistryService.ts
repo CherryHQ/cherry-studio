@@ -30,6 +30,7 @@ import type {
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import {
   buildPersistedEndpointConfigs,
+  configureOpenAIResponsesSummary,
   deriveLegacyReasoningFields,
   ENDPOINT_TYPE,
   inferAdapterFamily,
@@ -143,6 +144,7 @@ export interface ReasoningProviderContext {
   id: Provider['id']
   presetProviderId?: Provider['presetProviderId'] | null
   defaultChatEndpoint?: Provider['defaultChatEndpoint']
+  endpointConfigs?: Provider['endpointConfigs']
 }
 
 function isEmptyPricingEcho(value: unknown): boolean {
@@ -210,13 +212,18 @@ export function resolveReasoningProfileFromRegistry(input: {
   format?: ProviderReasoningFormat
   contract?: ProviderModelReasoningContract
   wireDialect?: ReasoningWireDialect
+  reasoningSummary?: boolean
 }): ResolvedReasoningProfile {
   const endpointDefault = input.endpointType ? DEFAULT_FORMAT_BY_ENDPOINT[input.endpointType] : undefined
   const formatType = input.format?.type ?? endpointDefault ?? 'openai-chat'
   const formatDefault = REASONING_FORMAT_PROFILES[formatType]
   // Priority is unchanged; only the last-resort default becomes dialect-aware,
   // so per-model contracts and endpoint-wide wires still win outright.
-  const wire = input.contract?.wire ?? input.format?.wire ?? selectFormatWire(formatDefault, input.wireDialect)
+  const baseWire = input.contract?.wire ?? input.format?.wire ?? selectFormatWire(formatDefault, input.wireDialect)
+  const wire =
+    formatType === 'openai-responses' && input.reasoningSummary !== undefined
+      ? configureOpenAIResponsesSummary(baseWire, input.reasoningSummary)
+      : baseWire
 
   return { format: formatType, support: input.contract?.support, wire }
 }
@@ -882,6 +889,7 @@ class ProviderRegistryService {
       return {
         id: provider.id,
         presetProviderId,
+        endpointConfigs: provider.endpointConfigs,
         defaultChatEndpoint:
           provider.defaultChatEndpoint ??
           (presetProviderId === null ? undefined : (registryProvider?.defaultChatEndpoint ?? undefined))
@@ -930,7 +938,8 @@ class ProviderRegistryService {
       endpointType,
       format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
       contract,
-      wireDialect: reasoning?.wireDialect
+      wireDialect: reasoning?.wireDialect,
+      reasoningSummary: endpointType ? context.endpointConfigs?.[endpointType]?.dialect?.reasoningSummary : undefined
     })
     return { ...resolved, support: reasoning }
   }
@@ -998,7 +1007,10 @@ class ProviderRegistryService {
       endpointType: effectiveEndpoint,
       format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
       contract,
-      wireDialect
+      wireDialect,
+      reasoningSummary: effectiveEndpoint
+        ? provider.endpointConfigs?.[effectiveEndpoint]?.dialect?.reasoningSummary
+        : undefined
     })
     return { ...resolved, support }
   }

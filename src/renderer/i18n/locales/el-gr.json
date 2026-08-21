@@ -6340,6 +6340,10 @@
             "label": "Υποστήριξη enable_thinking"
           },
           "label": "Ρυθμίσεις API",
+          "reasoning_summary": {
+            "help": "Στέλνει το reasoning.summary σε αυτό το τελικό σημείο Responses. Ενεργοποιήστε το μόνο αν ο διακομιστής αποδέχεται αυτήν την παράμετρο OpenAI.",
+            "label": "Υποστήριξη σύνοψης συλλογισμού"
+          },
           "stream_options": {
             "help": "Υποστηρίζει ο πάροχος την παράμετρο stream_options;",
             "label": "Υποστήριξη stream_options"

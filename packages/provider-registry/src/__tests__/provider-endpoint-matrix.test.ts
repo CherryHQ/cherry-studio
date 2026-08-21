@@ -120,10 +120,16 @@ describe('deepseek endpoint matrix', () => {
  */
 describe('opencode (Zen Go) endpoint matrix', () => {
   it('serves the Responses endpoint through the OpenAI adapter', () => {
-    expect(provider('opencode').endpointConfigs?.['openai-responses']).toEqual({
+    const endpoint = provider('opencode').endpointConfigs?.['openai-responses']
+
+    expect(endpoint).toMatchObject({
       adapterFamily: 'openai',
       baseUrl: 'https://opencode.ai/zen/go/v1',
       reasoningFormat: { type: 'openai-responses' }
+    })
+    expect(endpoint?.reasoningFormat?.wire?.effort?.operations).toContainEqual({
+      target: 'reasoningSummary',
+      value: { source: 'assistant-summary' }
     })
   })
 

@@ -6340,6 +6340,10 @@
             "label": "Soporta enable_thinking"
           },
           "label": "Configuración de la API",
+          "reasoning_summary": {
+            "help": "Envía reasoning.summary a este endpoint de Responses. Actívalo solo si el servidor acepta este parámetro de OpenAI.",
+            "label": "Admitir resumen del razonamiento"
+          },
           "stream_options": {
             "help": "¿Admite el proveedor el parámetro stream_options?",
             "label": "Admite stream_options"

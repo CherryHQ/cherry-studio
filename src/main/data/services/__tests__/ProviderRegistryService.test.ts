@@ -131,9 +131,8 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { mergePresetModel, projectRuntimeReasoning, providerRegistryService } = await import(
-  '../ProviderRegistryService'
-)
+const { mergePresetModel, projectRuntimeReasoning, providerRegistryService, resolveReasoningProfileFromRegistry } =
+  await import('../ProviderRegistryService')
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -972,5 +971,20 @@ describe('projectRuntimeReasoning summary options', () => {
 
     expect(withSummary.summaryOptions).toEqual(['auto', 'concise', 'detailed'])
     expect(withoutSummary.summaryOptions).toBeUndefined()
+  })
+
+  it('lets an endpoint override enable or disable the Responses summary wire', () => {
+    const enabled = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-responses',
+      reasoningSummary: true
+    })
+    const disabled = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-responses',
+      format: { type: 'openai-responses', wire: enabled.wire },
+      reasoningSummary: false
+    })
+
+    expect(projectRuntimeReasoning(effortSupport, enabled.wire).summaryOptions).toEqual(['auto', 'concise', 'detailed'])
+    expect(projectRuntimeReasoning(effortSupport, disabled.wire).summaryOptions).toBeUndefined()
   })
 })

@@ -70,7 +70,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const endpointType = provider?.defaultChatEndpoint ?? undefined
   const dialect = provider
     ? resolveEndpointDialect(provider, endpointType)
-    : { streamOptions: true, developerRole: false }
+    : { streamOptions: true, developerRole: false, reasoningSummary: false }
 
   const cacheControl = provider?.settings?.cacheControl
   const cacheTokenThreshold =
@@ -99,6 +99,11 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         key: 'streamOptions',
         label: t('settings.provider.api.options.stream_options.label'),
         help: t('settings.provider.api.options.stream_options.help')
+      },
+      {
+        key: 'reasoningSummary',
+        label: t('settings.provider.api.options.reasoning_summary.label'),
+        help: t('settings.provider.api.options.reasoning_summary.help')
       }
     ],
     [t]
@@ -118,9 +123,13 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       return []
     }
 
-    return endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-      ? openAIOptions
-      : openAIOptions.filter(({ key }) => key === 'developerRole')
+    if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+      return openAIOptions.filter(({ key }) => key !== 'reasoningSummary')
+    }
+    if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+      return openAIOptions.filter(({ key }) => key !== 'streamOptions')
+    }
+    return openAIOptions.filter(({ key }) => key === 'developerRole')
   }, [endpointType, openAIOptions, provider])
 
   const handleSaveError = useCallback(() => {

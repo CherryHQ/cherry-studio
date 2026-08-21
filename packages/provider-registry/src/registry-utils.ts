@@ -55,6 +55,14 @@ export interface PersistedEndpointConfig {
   dialect?: EndpointDialect
 }
 
+function wireCarriesReasoningSummary(config: RegistryEndpointConfig): boolean {
+  const wire = config.reasoningFormat?.wire
+  if (!wire || wire.disabled) return false
+  return [wire.default, wire.auto, wire.effort].some((mode) =>
+    mode?.operations.some((operation) => operation.value.source === 'assistant-summary')
+  )
+}
+
 /**
  * Project registry endpoint configs onto the connection facts persisted in
  * user_provider. Main-only reasoning profiles deliberately stay in registry
@@ -73,7 +81,13 @@ export function buildPersistedEndpointConfigs(
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
-    if (regConfig.dialect) config.dialect = regConfig.dialect
+    const dialect = { ...regConfig.dialect }
+    // Renderer-safe projection of the main-only wire, so a preset's effective
+    // switch state can be displayed and overridden without exposing the wire.
+    if (dialect.reasoningSummary === undefined && wireCarriesReasoningSummary(regConfig)) {
+      dialect.reasoningSummary = true
+    }
+    if (Object.keys(dialect).length > 0) config.dialect = dialect
 
     if (Object.keys(config).length > 0) configs[k] = config
   }

@@ -198,7 +198,8 @@ export function resolveEndpointDialect(
   const declared = endpointType ? provider.endpointConfigs?.[endpointType]?.dialect : undefined
   return {
     streamOptions: declared?.streamOptions ?? true,
-    developerRole: declared?.developerRole ?? false
+    developerRole: declared?.developerRole ?? false,
+    reasoningSummary: declared?.reasoningSummary ?? false
   }
 }
 
