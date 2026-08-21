@@ -459,20 +459,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   onContextWindowChange={setContextWindow}
                   // The committed value is passed through rather than read back
                   // from state, which has not re-rendered yet at this point.
-                  onContextWindowCommit={(contextWindow) => {
-                    setContextWindow(contextWindow)
-                    autoSave({ contextWindow })
-                  }}
+                  onContextWindowCommit={(contextWindow) => autoSave({ contextWindow })}
                   onMaxInputTokensChange={setMaxInputTokens}
-                  onMaxInputTokensCommit={(maxInputTokens) => {
-                    setMaxInputTokens(maxInputTokens)
-                    autoSave({ maxInputTokens })
-                  }}
+                  onMaxInputTokensCommit={(maxInputTokens) => autoSave({ maxInputTokens })}
                   onMaxOutputTokensChange={setMaxOutputTokens}
-                  onMaxOutputTokensCommit={(maxOutputTokens) => {
-                    setMaxOutputTokens(maxOutputTokens)
-                    autoSave({ maxOutputTokens })
-                  }}
+                  onMaxOutputTokensCommit={(maxOutputTokens) => autoSave({ maxOutputTokens })}
                 />
               </div>
 

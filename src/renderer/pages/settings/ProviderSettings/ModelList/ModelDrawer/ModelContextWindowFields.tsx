@@ -8,11 +8,23 @@ interface ModelContextWindowFieldsProps {
   maxInputTokens: string
   maxOutputTokens: string
   onContextWindowChange: (value: string) => void
+  /** Optional: the normalized value always reaches `onContextWindowChange` first. */
   onContextWindowCommit?: (value: string) => void
   onMaxInputTokensChange: (value: string) => void
   onMaxInputTokensCommit?: (value: string) => void
   onMaxOutputTokensChange: (value: string) => void
   onMaxOutputTokensCommit?: (value: string) => void
+}
+
+/**
+ * `InputNumber` renders `value`, not its own normalized result, so the settled
+ * value has to go back through the change callback or the field keeps showing
+ * what was typed — a decimal in an integer field, a number below `min`.
+ */
+const settle = (onChange: (value: string) => void, onCommit?: (value: string) => void) => (value: number | null) => {
+  const next = value === null ? '' : String(value)
+  onChange(next)
+  onCommit?.(next)
 }
 
 export function ModelContextWindowFields({
@@ -42,7 +54,7 @@ export function ModelContextWindowFields({
           placeholder={t('settings.models.add.context_window.placeholder')}
           className={drawerClasses.input}
           onChange={(value) => onContextWindowChange(value === null ? '' : String(value))}
-          onBlur={(value) => onContextWindowCommit?.(value === null ? '' : String(value))}
+          onBlur={settle(onContextWindowChange, onContextWindowCommit)}
         />
       </ProviderField>
 
@@ -58,7 +70,7 @@ export function ModelContextWindowFields({
           placeholder={t('settings.models.add.max_input_tokens.placeholder')}
           className={drawerClasses.input}
           onChange={(value) => onMaxInputTokensChange(value === null ? '' : String(value))}
-          onBlur={(value) => onMaxInputTokensCommit?.(value === null ? '' : String(value))}
+          onBlur={settle(onMaxInputTokensChange, onMaxInputTokensCommit)}
         />
       </ProviderField>
 
@@ -74,7 +86,7 @@ export function ModelContextWindowFields({
           placeholder={t('settings.models.add.max_output_tokens.placeholder')}
           className={drawerClasses.input}
           onChange={(value) => onMaxOutputTokensChange(value === null ? '' : String(value))}
-          onBlur={(value) => onMaxOutputTokensCommit?.(value === null ? '' : String(value))}
+          onBlur={settle(onMaxOutputTokensChange, onMaxOutputTokensCommit)}
         />
       </ProviderField>
     </>
