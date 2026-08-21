@@ -766,10 +766,9 @@ function HeartbeatSettingsField({
                   min={1}
                   max={1440}
                   step={1}
-                  changeOnBlur
                   className="h-9 w-full"
                   value={field.value || null}
-                  onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)}
+                  onBlur={(v) => field.onChange(typeof v === 'number' ? v : 0)}
                 />
               </FormControl>
               <FormMessage className="col-start-2" />

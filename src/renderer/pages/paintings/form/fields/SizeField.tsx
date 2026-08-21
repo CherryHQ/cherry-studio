@@ -23,7 +23,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           aria-label={t('paintings.generate.width')}
           placeholder={t('paintings.generate.width')}
           value={widthValue === undefined || widthValue === null ? null : Number(widthValue)}
-          onChange={(value) => onChange({ [widthKey]: value === null ? '' : value })}
+          onBlur={(value) => onChange({ [widthKey]: value === null ? '' : value })}
           min={validation.minWidth}
           max={validation.maxWidth}
           step={1}
@@ -34,7 +34,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           aria-label={t('paintings.generate.height')}
           placeholder={t('paintings.generate.height')}
           value={heightValue === undefined || heightValue === null ? null : Number(heightValue)}
-          onChange={(value) => onChange({ [heightKey]: value === null ? '' : value })}
+          onBlur={(value) => onChange({ [heightKey]: value === null ? '' : value })}
           min={validation.minHeight}
           max={validation.maxHeight}
           step={1}

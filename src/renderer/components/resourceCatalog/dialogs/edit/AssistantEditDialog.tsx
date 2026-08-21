@@ -757,10 +757,9 @@ function AssistantAdvancedFields({
               <InputNumber
                 min={1}
                 step={1}
-                changeOnBlur
                 className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) =>
+                onBlur={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
                 }
               />
@@ -818,10 +817,9 @@ function AssistantAdvancedFields({
                 min={MIN_TOOL_CALLS}
                 max={MAX_TOOL_CALLS}
                 step={1}
-                changeOnBlur
                 className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) =>
+                onBlur={(value) =>
                   field.onChange(
                     typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
                   )
@@ -912,7 +910,6 @@ function ContextManagementFields({
               <InputNumber
                 min={1}
                 step={1}
-                changeOnBlur
                 placeholder={
                   globalDefaults.maxMessages === null
                     ? t('library.config.basic.context_count_unlimited')
@@ -920,7 +917,7 @@ function ContextManagementFields({
                 }
                 className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) => field.onChange(value === null ? null : Math.floor(value))}
+                onBlur={(value) => field.onChange(value === null ? null : Math.floor(value))}
               />
             </FormControl>
             <FormMessage />
@@ -998,10 +995,9 @@ function ContextManagementFields({
                     // fs_read's per-call cap. See MIN_TRUNCATE_THRESHOLD.
                     min={MIN_TRUNCATE_THRESHOLD}
                     step={1}
-                    changeOnBlur
                     className="h-8 rounded-lg px-2.5"
                     value={field.value}
-                    onChange={(value) =>
+                    onBlur={(value) =>
                       field.onChange(
                         typeof value === 'number' && Number.isFinite(value)
                           ? Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value))

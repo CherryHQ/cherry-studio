@@ -10,7 +10,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -75,17 +75,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const cacheTokenThreshold =
     cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
   const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
-  const [tokenThresholdDraft, setTokenThresholdDraft] = useState<number | null>(cacheTokenThreshold)
-  const [cacheLastNDraft, setCacheLastNDraft] = useState<number | null>(cacheLastNMessages)
-  const effectiveCacheTokenThreshold = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
-
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-    setTokenThresholdDraft(cacheTokenThreshold)
-    setCacheLastNDraft(cacheLastNMessages)
-  }, [cacheLastNMessages, cacheTokenThreshold, open])
+  const effectiveCacheTokenThreshold = clampInteger(cacheTokenThreshold, 0, CACHE_TOKEN_THRESHOLD_MAX)
 
   const openAIOptions = useMemo<ApiOption[]>(
     () => [
@@ -181,24 +171,30 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     [handleSaveError, provider, updateProvider]
   )
 
-  const commitTokenThreshold = useCallback(() => {
-    const next = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
-    setTokenThresholdDraft(next)
-    updateCacheSettings({
-      enabled: next > 0,
-      tokenThreshold: next
-    })
-  }, [tokenThresholdDraft, updateCacheSettings])
+  // `onCommit` delivers the normalized value once per edit, so these fields hold
+  // no local draft — the saved value is what they render.
+  const commitTokenThreshold = useCallback(
+    (value: number | null) => {
+      const next = clampInteger(value, 0, CACHE_TOKEN_THRESHOLD_MAX)
+      updateCacheSettings({
+        enabled: next > 0,
+        tokenThreshold: next
+      })
+    },
+    [updateCacheSettings]
+  )
 
-  const commitCacheLastNMessages = useCallback(() => {
-    const next = clampInteger(cacheLastNDraft, 0, CACHE_LAST_N_MAX)
-    setCacheLastNDraft(next)
-    updateCacheSettings({
-      enabled: effectiveCacheTokenThreshold > 0,
-      tokenThreshold: effectiveCacheTokenThreshold,
-      cacheLastNMessages: next
-    })
-  }, [cacheLastNDraft, effectiveCacheTokenThreshold, updateCacheSettings])
+  const commitCacheLastNMessages = useCallback(
+    (value: number | null) => {
+      const next = clampInteger(value, 0, CACHE_LAST_N_MAX)
+      updateCacheSettings({
+        enabled: effectiveCacheTokenThreshold > 0,
+        tokenThreshold: effectiveCacheTokenThreshold,
+        cacheLastNMessages: next
+      })
+    },
+    [effectiveCacheTokenThreshold, updateCacheSettings]
+  )
 
   if (!provider) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
@@ -255,8 +251,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                     min={0}
                     max={CACHE_TOKEN_THRESHOLD_MAX}
                     step={1}
-                    value={tokenThresholdDraft}
-                    onChange={setTokenThresholdDraft}
+                    value={cacheTokenThreshold}
                     onBlur={commitTokenThreshold}
                     className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                   />
@@ -279,8 +274,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                         min={0}
                         max={CACHE_LAST_N_MAX}
                         step={1}
-                        value={cacheLastNDraft}
-                        onChange={setCacheLastNDraft}
+                        value={cacheLastNMessages}
                         onBlur={commitCacheLastNMessages}
                         className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                       />

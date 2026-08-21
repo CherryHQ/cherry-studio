@@ -32,10 +32,10 @@ describe('InputNumber', () => {
     expect(screen.getByLabelText('amount')).toHaveValue('-0.5')
   })
 
-  it('truncates the fraction on blur when step is an integer', async () => {
+  it('truncates the fraction when committing if step is an integer', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<InputNumber aria-label="amount" min={0} step={1} value={null} onChange={onChange} />)
+    const onBlur = vi.fn()
+    render(<InputNumber aria-label="amount" min={0} step={1} value={null} onBlur={onBlur} />)
 
     await user.type(screen.getByLabelText('amount'), '3.9')
     // The fraction stays visible while typing — truncating per keystroke would
@@ -43,7 +43,7 @@ describe('InputNumber', () => {
     expect(screen.getByLabelText('amount')).toHaveValue('3.9')
 
     await user.tab()
-    expect(onChange).toHaveBeenLastCalledWith(3)
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(3)
   })
 
   it('keeps only the first decimal point when step allows decimals', async () => {
@@ -64,15 +64,15 @@ describe('InputNumber', () => {
     expect(screen.getByLabelText('amount')).toHaveValue('5')
   })
 
-  it('clamps to the range on blur', async () => {
+  it('clamps to the range when committing', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<InputNumber aria-label="amount" min={10} max={99} value={null} onChange={onChange} />)
+    const onBlur = vi.fn()
+    render(<InputNumber aria-label="amount" min={10} max={99} value={null} onBlur={onBlur} />)
 
     await user.type(screen.getByLabelText('amount'), '5')
     await user.tab()
 
-    expect(onChange).toHaveBeenLastCalledWith(10)
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(10)
   })
 
   it('reports null for an emptied field', async () => {
@@ -85,16 +85,34 @@ describe('InputNumber', () => {
     expect(onChange).toHaveBeenLastCalledWith(null)
   })
 
-  it('does not report a value mid-edit when changeOnBlur is set', async () => {
+  it('keeps onChange per-keystroke and onBlur once', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber aria-label="amount" min={0} changeOnBlur value={null} onChange={onChange} />)
+    const onBlur = vi.fn()
+    render(<InputNumber aria-label="amount" min={0} value={null} onChange={onChange} onBlur={onBlur} />)
 
     await user.type(screen.getByLabelText('amount'), '42')
-    expect(onChange).not.toHaveBeenCalled()
+    expect(onChange.mock.calls).toEqual([[4], [42]])
+    expect(onBlur).not.toHaveBeenCalled()
 
     await user.tab()
-    expect(onChange).toHaveBeenCalledExactlyOnceWith(42)
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(42)
+  })
+
+  it('reports the raw value to onChange and the normalized one to onBlur', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const onBlur = vi.fn()
+    render(
+      <InputNumber aria-label="amount" min={10} max={99} step={1} value={null} onChange={onChange} onBlur={onBlur} />
+    )
+
+    await user.type(screen.getByLabelText('amount'), '5')
+    // Not clamped yet: doing so mid-edit would make "50" unreachable.
+    expect(onChange).toHaveBeenLastCalledWith(5)
+
+    await user.tab()
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(10)
   })
 
   it('follows an external value change while unfocused', () => {

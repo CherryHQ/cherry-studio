@@ -10,7 +10,6 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
@@ -28,41 +27,21 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
-  const [draftMaxResults, setDraftMaxResults] = useState<number | null>(maxResults)
-  const [maxResultsBaseline, setMaxResultsBaseline] = useState(maxResults)
-  const maxResultsDirty = draftMaxResults !== maxResultsBaseline
-  const isMaxResultsDefault = maxResultsBaseline === DEFAULT_MAX_RESULTS && draftMaxResults === DEFAULT_MAX_RESULTS
+  const isMaxResultsDefault = maxResults === DEFAULT_MAX_RESULTS
   const persist = useWebSearchPersist()
 
-  useEffect(() => {
-    if (!maxResultsDirty) {
-      setDraftMaxResults(maxResults)
-    }
-    setMaxResultsBaseline(maxResults)
-  }, [maxResults, maxResultsDirty])
-
-  const commitMaxResultsDraft = () => {
-    if (!maxResultsDirty) {
+  // `onCommit` fires once per edit with the normalized value, so the field needs
+  // no local draft: a failed save leaves the saved value shown.
+  const commitMaxResults = (value: number | null) => {
+    const next = value === null ? 1 : Math.min(100, Math.max(1, Math.trunc(value)))
+    if (next === maxResults) {
       return
     }
-
-    const nextMaxResults = draftMaxResults === null ? 1 : Math.min(100, Math.max(1, Math.trunc(draftMaxResults)))
-
-    void persist(() => setMaxResults(nextMaxResults), 'Failed to save web search max results').then((result) => {
-      if (result.ok) {
-        setDraftMaxResults(nextMaxResults)
-        setMaxResultsBaseline(nextMaxResults)
-      }
-    })
+    void persist(() => setMaxResults(next), 'Failed to save web search max results')
   }
 
   const resetMaxResults = () => {
-    void persist(() => setMaxResults(DEFAULT_MAX_RESULTS), 'Failed to reset web search max results').then((result) => {
-      if (result.ok) {
-        setDraftMaxResults(DEFAULT_MAX_RESULTS)
-        setMaxResultsBaseline(DEFAULT_MAX_RESULTS)
-      }
-    })
+    void persist(() => setMaxResults(DEFAULT_MAX_RESULTS), 'Failed to reset web search max results')
   }
 
   return (
@@ -105,10 +84,9 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
               min={1}
               max={100}
               step={1}
-              value={draftMaxResults}
+              value={maxResults}
               className="h-8 w-20 text-center text-sm"
-              onChange={setDraftMaxResults}
-              onBlur={commitMaxResultsDraft}
+              onBlur={commitMaxResults}
             />
           </div>
         </SettingRow>

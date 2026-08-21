@@ -8,11 +8,11 @@ interface ModelContextWindowFieldsProps {
   maxInputTokens: string
   maxOutputTokens: string
   onContextWindowChange: (value: string) => void
-  onContextWindowBlur?: () => void
+  onContextWindowCommit?: (value: string) => void
   onMaxInputTokensChange: (value: string) => void
-  onMaxInputTokensBlur?: () => void
+  onMaxInputTokensCommit?: (value: string) => void
   onMaxOutputTokensChange: (value: string) => void
-  onMaxOutputTokensBlur?: () => void
+  onMaxOutputTokensCommit?: (value: string) => void
 }
 
 export function ModelContextWindowFields({
@@ -20,11 +20,11 @@ export function ModelContextWindowFields({
   maxInputTokens,
   maxOutputTokens,
   onContextWindowChange,
-  onContextWindowBlur,
+  onContextWindowCommit,
   onMaxInputTokensChange,
-  onMaxInputTokensBlur,
+  onMaxInputTokensCommit,
   onMaxOutputTokensChange,
-  onMaxOutputTokensBlur
+  onMaxOutputTokensCommit
 }: ModelContextWindowFieldsProps) {
   const { t } = useTranslation()
 
@@ -42,7 +42,7 @@ export function ModelContextWindowFields({
           placeholder={t('settings.models.add.context_window.placeholder')}
           className={drawerClasses.input}
           onChange={(value) => onContextWindowChange(value === null ? '' : String(value))}
-          onBlur={onContextWindowBlur}
+          onBlur={(value) => onContextWindowCommit?.(value === null ? '' : String(value))}
         />
       </ProviderField>
 
@@ -58,7 +58,7 @@ export function ModelContextWindowFields({
           placeholder={t('settings.models.add.max_input_tokens.placeholder')}
           className={drawerClasses.input}
           onChange={(value) => onMaxInputTokensChange(value === null ? '' : String(value))}
-          onBlur={onMaxInputTokensBlur}
+          onBlur={(value) => onMaxInputTokensCommit?.(value === null ? '' : String(value))}
         />
       </ProviderField>
 
@@ -74,7 +74,7 @@ export function ModelContextWindowFields({
           placeholder={t('settings.models.add.max_output_tokens.placeholder')}
           className={drawerClasses.input}
           onChange={(value) => onMaxOutputTokensChange(value === null ? '' : String(value))}
-          onBlur={onMaxOutputTokensBlur}
+          onBlur={(value) => onMaxOutputTokensCommit?.(value === null ? '' : String(value))}
         />
       </ProviderField>
     </>
