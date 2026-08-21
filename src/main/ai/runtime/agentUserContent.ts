@@ -3,17 +3,24 @@ import { fileURLToPath } from 'node:url'
 
 import { defangSystemReminderTags } from '@main/ai/untrustedContent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { FileUIPart } from '@shared/data/types/message'
+
+export interface AgentUserContentOptions {
+  /** Omit selected attachments when the runtime can transmit them natively. */
+  includeAttachment?: (part: FileUIPart) => boolean
+}
 
 /**
- * Build the user-turn content sent to an agent runtime. Agent runtimes are
- * filesystem agents (they have no native multimodal channel here), so attached
- * files are forwarded as their absolute paths appended to the text — the agent
- * reads them with its own tools. Driver-neutral: shared by the Claude Code and
- * pi drivers so they cannot drift on attachment handling.
+ * Build the user-turn text sent to a filesystem agent. Attached files are
+ * forwarded as absolute paths; runtimes with native content blocks can filter
+ * attachments and add their own representation.
  */
-export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
+export function buildAgentUserContent(
+  message: AgentSessionMessageEntity,
+  options: AgentUserContentOptions = {}
+): string {
   const text = extractMessageText(message)
-  const paths = extractAttachmentPaths(message)
+  const paths = extractAttachmentPaths(message, options.includeAttachment)
   const content =
     paths.length === 0
       ? text
@@ -57,11 +64,14 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
 }
 
 /** Absolute local paths of `file://`-backed attachment parts (composer attachments). */
-function extractAttachmentPaths(message: AgentSessionMessageEntity): string[] {
+function extractAttachmentPaths(
+  message: AgentSessionMessageEntity,
+  includeAttachment: AgentUserContentOptions['includeAttachment'] = () => true
+): string[] {
   const paths: string[] = []
   for (const part of message.data?.parts ?? []) {
     // `parts` is a typed `CherryMessagePart[]`, so `type === 'file'` narrows to `FileUIPart`.
-    if (part.type !== 'file' || !part.url.startsWith('file://')) continue
+    if (part.type !== 'file' || !part.url.startsWith('file://') || !includeAttachment(part)) continue
     paths.push(fileURLToPath(part.url))
   }
   return paths

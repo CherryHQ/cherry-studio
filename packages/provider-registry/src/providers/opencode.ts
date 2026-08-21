@@ -36,11 +36,13 @@ const chatFixedModels = [
   'mimo-v2-5',
   'mimo-v2-5-pro',
   'mimo-v2-omni',
-  'mimo-v2-pro'
+  'mimo-v2-pro',
+  'ox-alpha'
 ]
 
 const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
+  { modelId: 'deepseek-v4-flash-vision-exp', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
   { modelId: 'glm-5-2', values: ['high', 'max'] },
   { modelId: 'hy3', values: ['none', 'low', 'high'] },

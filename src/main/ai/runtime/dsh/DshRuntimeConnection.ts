@@ -6,6 +6,7 @@ import { application } from '@application'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
+  type BridgeImageBlock,
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
@@ -17,7 +18,6 @@ import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
-import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -61,6 +61,7 @@ import { ensureDshRuntime } from './dshRuntime'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
+import { buildDshUserContentBlocks } from './dshUserContent'
 import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot } from './modelInjection'
 
 const logger = loggerService.withContext('DshRuntimeConnection')
@@ -118,6 +119,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private turnEpoch = 0
   private modelId = ''
   private contextWindow = 0
+  private supportsImages = false
   private reasoningEffort: ReasoningEffortOption = 'default'
   private workspacePath = ''
   private agentDataPath = ''
@@ -254,6 +256,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
     this.modelId = injection.modelId
     this.contextWindow = injection.modelConfig.contextWindow
+    this.supportsImages = injection.modelConfig.input.includes('image')
     this.reasoningEffort = this.input.reasoningEffort ?? 'default'
     this._usageCapture = injection.usageCapture
     this.workspacePath = workspacePath
@@ -294,6 +297,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       .join('\n\n')
 
     const yaml = buildDshCompositionYaml({
+      adapter: injection.adapter,
       providerName: injection.providerName,
       api: injection.api,
       baseUrl: injection.baseUrl,
@@ -405,21 +409,31 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'error', error: new Error('dsh session is not started') })
       return
     }
-    const rawContent = buildAgentUserContent(input.message)
+    const contentBlocks = await buildDshUserContentBlocks(input.message, { includeImages: this.supportsImages })
+    const rawContent = contentBlocks
+      .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n')
     // A systemReminder message is a host-requeued steer, never a command line (pi parity).
     if (!input.systemReminder && isDshCommandLine(rawContent)) {
-      const handled = await this.runSlashCommand(bridge, rawContent.trim())
+      const images = contentBlocks.filter((block) => block.type === 'image')
+      const handled = await this.runSlashCommand(bridge, rawContent.trim(), images)
       // Admission miss (unknown name) — dsh client semantics: the line stays ordinary prose.
       if (handled) return
     }
-    const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
+    const content = input.systemReminder
+      ? [
+          { type: 'text' as const, text: wrapSteerReminder(rawContent) },
+          ...contentBlocks.filter((block) => block.type === 'image')
+        ]
+      : contentBlocks
     this.markTurnActive()
     // Before the request: the turn can start streaming before the socket result returns.
     this.adapter.beginTurn()
     try {
       await bridge.request('session/prompt', {
         sessionId: this.input.sessionId,
-        contentBlocks: [{ type: 'text', text: content }]
+        contentBlocks: content
       })
     } catch (error) {
       this.turnActive = false
@@ -669,7 +683,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
-        // The SDK server forwards session-log envelopes verbatim; the rc.6 pin keeps this
+        // The SDK server forwards session-log envelopes verbatim; the pinned DSH release keeps this
         // single wire-boundary cast sound. Unknown merged types fall through the adapter.
         const event = params.event as SessionEvent
         if (params.sessionId !== this.input.sessionId) {
@@ -697,11 +711,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    * compaction stream their own session events alongside. Returns false on an
    * admission miss so the caller falls back to a normal prompt.
    */
-  private async runSlashCommand(bridge: DshBridgeServer, line: string): Promise<boolean> {
+  private async runSlashCommand(bridge: DshBridgeServer, line: string, images: BridgeImageBlock[]): Promise<boolean> {
     this.markTurnActive()
     let outcome
     try {
-      outcome = await bridge.requestCommand(this.input.sessionId, line)
+      outcome = await bridge.requestCommand(this.input.sessionId, line, images)
     } catch (error) {
       this.turnActive = false
       if (this.closed) return true
