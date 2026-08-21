@@ -2,7 +2,7 @@ import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { secretCipher } from '@main/core/security/secretCipher'
+import { envelopeMethodOf, secretCipher } from '@main/core/security/secretCipher'
 import { eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ProviderCredentialSweepService')
@@ -10,6 +10,8 @@ const logger = loggerService.withContext('ProviderCredentialSweepService')
 export interface CredentialSweepResult {
   converted: number
   skipped: number
+  /** At-rest envelope distribution across all scanned credential values. */
+  envelopes: { ss: number; aes: number; plain: number; unknown: number }
 }
 
 /**
@@ -35,9 +37,8 @@ export class ProviderCredentialSweepService extends BaseService {
       logger.info('Provider credential sweep done', result)
       logger.info('Secret storage backend', secretCipher.getReport())
     } catch (error) {
-      // Boot must not break when the backend is temporarily unavailable —
-      // affected rows stay plaintext and the next boot retries (fail-closed
-      // applies to user-initiated writes, not to this idempotent sweep).
+      // Boot must not break on a temporarily unavailable backend — rows stay
+      // plaintext and the next boot retries (this sweep is idempotent).
       logger.error('Provider credential sweep failed; retrying next boot', { error })
     }
   }
@@ -47,11 +48,30 @@ export class ProviderCredentialSweepService extends BaseService {
       const rows = tx.select().from(userProviderTable).all()
       let converted = 0
       let skipped = 0
+      const envelopes = { ss: 0, aes: 0, plain: 0, unknown: 0 }
 
       for (const row of rows) {
         const apiKeys = row.apiKeys ?? []
+        for (const entry of apiKeys) {
+          if (entry.key) envelopes[envelopeMethodOf(entry.key)] += 1
+        }
+        const auth = row.authConfig
+        if (auth) {
+          const secrets =
+            auth.type === 'oauth'
+              ? [auth.accessToken, auth.refreshToken]
+              : auth.type === 'iam-aws'
+                ? [auth.accessKeyId, auth.secretAccessKey]
+                : auth.type === 'iam-gcp'
+                  ? [auth.credentialsEnvelope, auth.credentials ? JSON.stringify(auth.credentials) : undefined]
+                  : []
+          for (const value of secrets) {
+            if (value) envelopes[envelopeMethodOf(value)] += 1
+          }
+        }
+
         const needsKeys = secretCipher.needsEncryptionApiKeys(apiKeys)
-        const needsAuth = secretCipher.needsEncryptionAuthConfig(row.authConfig)
+        const needsAuth = secretCipher.needsEncryptionAuthConfig(auth)
         if (!needsKeys && !needsAuth) {
           skipped += 1
           continue
@@ -60,14 +80,14 @@ export class ProviderCredentialSweepService extends BaseService {
         tx.update(userProviderTable)
           .set({
             ...(needsKeys ? { apiKeys: secretCipher.encryptApiKeys(apiKeys) } : {}),
-            ...(needsAuth ? { authConfig: secretCipher.encryptAuthConfig(row.authConfig) } : {})
+            ...(needsAuth ? { authConfig: secretCipher.encryptAuthConfig(auth) } : {})
           })
           .where(eq(userProviderTable.providerId, row.providerId))
           .run()
         converted += 1
       }
 
-      return { converted, skipped }
+      return { converted, skipped, envelopes }
     })
   }
 }

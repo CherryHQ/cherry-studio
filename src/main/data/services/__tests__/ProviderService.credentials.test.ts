@@ -204,6 +204,107 @@ describe('ProviderService credential read/write boundary (S7)', () => {
     ])
   })
 
+  it('preserves the stored envelope of an undecryptable entry when adding another key', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'half-broken',
+      name: 'HalfBroken',
+      orderKey: 'a0',
+      apiKeys: [
+        { id: 'bad', key: `v1:ss:${Buffer.from('foreign').toString('base64')}`, isEnabled: true, label: 'bad' },
+        { id: 'good', key: 'sk-good', isEnabled: true }
+      ]
+    })
+
+    providerService.addApiKey('half-broken', 'sk-second')
+
+    const row = await rawRow('half-broken')
+    const bad = row.apiKeys.find((entry) => entry.id === 'bad')
+    expect(bad?.key).toMatch(/^v1:ss:/)
+    expect(bad?.key).not.toBe('')
+    // The decrypt read still surfaces the re-entry marker for the bad entry.
+    expect(providerService.getApiKeys('half-broken')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'bad', key: '', decryptFailed: true })])
+    )
+  })
+
+  it('preserves the stored envelope when replaceApiKeys echoes a decryptFailed entry', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'echo-keep',
+      name: 'EchoKeep',
+      orderKey: 'a0',
+      apiKeys: [
+        { id: 'bad', key: `v1:ss:${Buffer.from('foreign').toString('base64')}`, isEnabled: false, label: 'old' },
+        { id: 'gone', key: 'sk-old', isEnabled: true }
+      ]
+    })
+
+    providerService.replaceApiKeys('echo-keep', [
+      { id: 'bad', key: '', decryptFailed: true, isEnabled: true, label: 'renamed' },
+      { id: 'fresh', key: 'sk-fresh', isEnabled: true }
+    ])
+
+    const row = await rawRow('echo-keep')
+    const bad = row.apiKeys.find((entry) => entry.id === 'bad')
+    expect(bad?.key).toMatch(/^v1:ss:/)
+    expect(bad).toMatchObject({ isEnabled: true, label: 'renamed' })
+    expect(row.apiKeys.find((entry) => entry.id === 'fresh')?.key).toMatch(/^v1:ss:/)
+    expect(row.apiKeys.find((entry) => entry.id === 'gone')).toBeUndefined()
+  })
+
+  it('keeps the stored envelope when updateApiKey edits an undecryptable entry without a new value', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'label-edit',
+      name: 'LabelEdit',
+      orderKey: 'a0',
+      apiKeys: [{ id: 'bad', key: `v1:ss:${Buffer.from('foreign').toString('base64')}`, isEnabled: true }]
+    })
+
+    providerService.updateApiKey('label-edit', 'bad', { label: 'relabeled' })
+
+    const row = await rawRow('label-edit')
+    expect(row.apiKeys[0].key).toMatch(/^v1:ss:/)
+    expect(row.apiKeys[0].label).toBe('relabeled')
+  })
+
+  it('keeps the stored authConfig when update receives a decryptFailed echo', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'gcp-echo',
+      name: 'GcpEcho',
+      orderKey: 'a0',
+      authConfig: {
+        type: 'iam-gcp',
+        project: 'p',
+        location: 'global',
+        credentialsEnvelope: `v1:ss:${Buffer.from('foreign').toString('base64')}`
+      }
+    })
+
+    providerService.update('gcp-echo', {
+      name: 'Renamed',
+      authConfig: { type: 'iam-gcp', project: 'p', location: 'global', decryptFailed: true }
+    })
+
+    const row = await rawRow('gcp-echo')
+    expect(row.name).toBe('Renamed')
+    const storedAuth = expectVariant(row.authConfig, 'iam-gcp')
+    expect(storedAuth.credentialsEnvelope).toMatch(/^v1:ss:/)
+  })
+
+  it('never serves a decryptFailed entry to the wire from resolveApiKey', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'rotation-broken',
+      name: 'RotationBroken',
+      orderKey: 'a0',
+      apiKeys: [
+        { id: 'bad', key: `v1:ss:${Buffer.from('foreign').toString('base64')}`, isEnabled: true },
+        { id: 'good', key: 'sk-good', isEnabled: true }
+      ]
+    })
+
+    const resolved = providerService.resolveApiKey('rotation-broken')
+    expect(resolved.value).toBe('sk-good')
+  })
+
   it('fails closed on an encrypt error: the write aborts and nothing lands in the row', async () => {
     await seedProvider('openai')
     providerService.addApiKey('openai', 'sk-first')

@@ -306,3 +306,39 @@ async function importFreshCipher({ keyfileRoot }: { keyfileRoot: string }) {
   ;(freshApp.getPath as Mock).mockImplementation((_ns: string, filename?: string) => join(keyfileRoot, filename ?? ''))
   return import('../secretCipher').then((m) => m.secretCipher)
 }
+
+describe('secretCipher encryptApiKeys hardening', () => {
+  it('encrypts a non-empty key even when the input carries a decryptFailed flag', () => {
+    // A caller-supplied flag must never act as a "skip encryption" switch.
+    const stored = secretCipher.encryptApiKeys([{ id: 'k1', key: 'sk-flagged', isEnabled: true, decryptFailed: true }])
+    expect(stored[0].key).toMatch(/^v1:ss:/)
+    expect(stored[0].key).not.toContain('sk-flagged')
+    expect(stored[0].decryptFailed).toBeUndefined()
+  })
+
+  it('passes stored envelopes through unchanged (idempotent re-encrypt)', () => {
+    const envelope = secretCipher.encryptValue('sk-real')
+    const stored = secretCipher.encryptApiKeys([{ id: 'k1', key: envelope, isEnabled: true }])
+    expect(stored[0].key).toBe(envelope)
+  })
+})
+
+describe('secretCipher AES key-file fallback (malformed file)', () => {
+  it('recreates a malformed key file as a fresh 0600 key', async () => {
+    ssState.available = false
+    const dir = mkdtempSync(join(tmpdir(), 'secret-cipher-test-'))
+    try {
+      writeFileSync(join(dir, 'secret.key'), Buffer.alloc(8))
+
+      const cipher = await importFreshCipher({ keyfileRoot: dir })
+      const envelope = cipher.encryptValue('sk-after-recreate')
+
+      expect(cipher.decryptValue(envelope)).toEqual({ value: 'sk-after-recreate', failed: false })
+      expect(statSync(join(dir, 'secret.key')).size).toBe(32)
+      expect(statSync(join(dir, 'secret.key')).mode & 0o777).toBe(0o600)
+    } finally {
+      ssState.available = true
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

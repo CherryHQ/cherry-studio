@@ -41,7 +41,15 @@ export type SecretBackend = 'safe-storage' | 'aes-keyfile' | 'unavailable'
 
 /** Whether a stored value is an encrypted envelope (vs legacy plaintext). */
 export function isEnvelopeValue(value: string): boolean {
-  return value.startsWith(ENVELOPE_PREFIX)
+  return typeof value === 'string' && value.startsWith(ENVELOPE_PREFIX)
+}
+
+/** Classify a stored credential value by envelope method (boot diagnostics). */
+export function envelopeMethodOf(value: string | undefined | null): 'ss' | 'aes' | 'unknown' | 'plain' {
+  if (!value) return 'plain'
+  if (value.startsWith(`${ENVELOPE_PREFIX}${METHOD_SAFE_STORAGE}:`)) return 'ss'
+  if (value.startsWith(`${ENVELOPE_PREFIX}${METHOD_AES}:`)) return 'aes'
+  return isEnvelopeValue(value) ? 'unknown' : 'plain'
 }
 
 export interface DecryptResult {
@@ -153,17 +161,19 @@ class SecretCipher {
         return { value: '', failed: true }
       }
     }
-    // Unknown envelope method: a future format read by this version. Failing
-    // (not returning the envelope string as if it were the credential) keeps
-    // garbage off the wire and routes the user to the re-entry UI.
+    // Unknown envelope method: fail rather than hand the envelope string to
+    // the network as if it were the credential (future-format safety).
     logger.warn('Unknown credential envelope method', { method: rest.split(':', 1)[0] })
     return { value: '', failed: true }
   }
 
   encryptApiKeys(entries: ApiKeyEntry[]): ApiKeyEntry[] {
-    return entries.map((entry) =>
-      entry.decryptFailed || !entry.key ? entry : { ...entry, key: this.encryptValue(entry.key) }
-    )
+    return entries.map((entry) => {
+      // Skip only empty values and envelopes carried through from the stored
+      // row; a caller-supplied decryptFailed flag must never disable encryption.
+      if (!entry.key || isEnvelopeValue(entry.key)) return entry
+      return { ...entry, key: this.encryptValue(entry.key), decryptFailed: undefined }
+    })
   }
 
   /** Whether any stored key value is still legacy plaintext (sweep detection). */
@@ -188,9 +198,13 @@ class SecretCipher {
 
   decryptApiKeys(providerId: string, entries: ApiKeyEntry[]): ApiKeyEntry[] {
     return entries.map((entry) => {
+      if (typeof entry.key !== 'string') {
+        this.notifyDecryptFailure({ providerId, kind: 'api-key', label: entry.label ?? entry.id })
+        return { ...entry, key: '', decryptFailed: true }
+      }
       const result = this.decryptValue(entry.key)
       if (!result.failed) {
-        return { ...entry, key: result.value }
+        return { ...entry, key: result.value, decryptFailed: undefined }
       }
       this.notifyDecryptFailure({ providerId, kind: 'api-key', label: entry.label ?? entry.id })
       return { ...entry, key: '', decryptFailed: true }

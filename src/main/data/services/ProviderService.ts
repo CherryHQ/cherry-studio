@@ -419,6 +419,7 @@ class ProviderService {
           providerSettings: userProviderTable.providerSettings,
           apiFeatures: userProviderTable.apiFeatures,
           endpointConfigs: userProviderTable.endpointConfigs,
+          authConfig: userProviderTable.authConfig,
           isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
@@ -447,7 +448,13 @@ class ProviderService {
           current.endpointConfigs
         )
       }
-      if (dto.authConfig !== undefined) updates.authConfig = secretCipher.encryptAuthConfig(dto.authConfig)
+      if (dto.authConfig !== undefined) {
+        // A decryptFailed echo carries empty secrets; overwriting would drop
+        // the stored envelope a later successful decrypt could still restore.
+        const isFailedEcho =
+          dto.authConfig !== null && 'decryptFailed' in dto.authConfig && dto.authConfig.decryptFailed === true
+        updates.authConfig = isFailedEcho ? current.authConfig : secretCipher.encryptAuthConfig(dto.authConfig)
+      }
       const presetMetadata =
         dto.defaultChatEndpoint !== undefined || dto.apiFeatures !== undefined
           ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(providerId, current.presetProviderId)
@@ -551,7 +558,8 @@ class ProviderService {
       return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
     }
 
-    const enabledKeys = allKeys.filter((k) => k.isEnabled)
+    // decryptFailed entries hold an empty value — never serve them to the wire.
+    const enabledKeys = allKeys.filter((k) => k.isEnabled && !k.decryptFailed)
 
     if (enabledKeys.length === 0) {
       return unknownCredential('')
@@ -636,7 +644,8 @@ class ProviderService {
 
       // Decrypt for the plaintext dedupe below, re-encrypt the whole list on
       // write (envelopes are randomized and never comparable at rest).
-      const existingKeys = secretCipher.decryptApiKeys(providerId, row.apiKeys ?? [])
+      const storedKeys = row.apiKeys ?? []
+      const existingKeys = secretCipher.decryptApiKeys(providerId, storedKeys)
 
       // Skip if key value already exists
       if (existingKeys.some((k) => k.key === key)) {
@@ -650,7 +659,12 @@ class ProviderService {
         isEnabled: true
       }
 
-      const updatedKeys = secretCipher.encryptApiKeys([...existingKeys, newEntry])
+      // Failed entries carry their original envelope through so a transient
+      // decrypt failure (e.g. one denied Keychain prompt) stays recoverable.
+      const updatedKeys = secretCipher.encryptApiKeys([
+        ...existingKeys.map((entry, index) => (entry.decryptFailed ? storedKeys[index] : entry)),
+        newEntry
+      ])
 
       const [updated] = tx
         .update(userProviderTable)
@@ -682,7 +696,8 @@ class ProviderService {
       const [current] = tx
         .select({
           providerId: userProviderTable.providerId,
-          presetProviderId: userProviderTable.presetProviderId
+          presetProviderId: userProviderTable.presetProviderId,
+          apiKeys: userProviderTable.apiKeys
         })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
@@ -692,10 +707,19 @@ class ProviderService {
       assertProviderAvailable(current, providerId)
 
       const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
+      // An echoed decryptFailed entry (empty key) has nothing to encrypt —
+      // keep the stored envelope for that id so the failure stays recoverable.
+      const storedById = new Map((current.apiKeys ?? []).map((entry) => [entry.id, entry]))
+      const carriedApiKeys = normalizedApiKeys.map((entry) => {
+        const stored = entry.key ? undefined : storedById.get(entry.id)
+        return stored
+          ? { ...stored, isEnabled: entry.isEnabled, ...(entry.label ? { label: entry.label } : {}) }
+          : entry
+      })
       // Fail-closed: an encrypt failure aborts the transaction, never stores plaintext.
       const [row] = tx
         .update(userProviderTable)
-        .set({ apiKeys: secretCipher.encryptApiKeys(normalizedApiKeys) })
+        .set({ apiKeys: secretCipher.encryptApiKeys(carriedApiKeys) })
         .where(eq(userProviderTable.providerId, providerId))
         .returning()
         .all()
@@ -739,7 +763,8 @@ class ProviderService {
 
       // Decrypt first: the dedupe compare and the entry merge below work on
       // plaintext; the result is re-encrypted as a whole before it lands.
-      const existingKeys = secretCipher.decryptApiKeys(providerId, row.apiKeys ?? [])
+      const storedKeys = row.apiKeys ?? []
+      const existingKeys = secretCipher.decryptApiKeys(providerId, storedKeys)
       const keyIndex = existingKeys.findIndex((entry) => entry.id === keyId)
 
       if (keyIndex === -1) {
@@ -755,13 +780,19 @@ class ProviderService {
         throw DataApiErrorFactory.conflict('API key already exists', 'API key')
       }
 
+      // Failed entries keep their original envelope unless this update hands
+      // them a fresh key value (a transient decrypt failure stays recoverable).
       const updatedKeys = existingKeys.map((entry, index) => {
+        if (entry.decryptFailed && index !== keyIndex) {
+          return storedKeys[index]
+        }
+
         if (index !== keyIndex) {
           return entry
         }
 
         const updatedEntry = {
-          ...entry,
+          ...(entry.decryptFailed && !nextKeyValue ? storedKeys[index] : entry),
           ...(updates.isEnabled !== undefined ? { isEnabled: updates.isEnabled } : {}),
           // A fresh key value supersedes any decryptFailed marker.
           ...(nextKeyValue ? { key: nextKeyValue, decryptFailed: undefined } : {})

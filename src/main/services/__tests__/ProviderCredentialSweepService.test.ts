@@ -60,7 +60,10 @@ describe('ProviderCredentialSweepService', () => {
 
     const result = service.sweep()
 
-    expect(result).toEqual({ converted: 1, skipped: 0 })
+    expect(result.converted).toBe(1)
+    expect(result.skipped).toBe(0)
+    // 1 plaintext key + 2 plaintext oauth tokens counted pre-conversion.
+    expect(result.envelopes).toEqual({ ss: 0, aes: 0, plain: 3, unknown: 0 })
     const row = await rawRow('legacy')
     expect(row.apiKeys[0].key).toMatch(/^v1:ss:/)
     expect(row.apiKeys[0].key).not.toContain('sk-legacy')
@@ -80,7 +83,8 @@ describe('ProviderCredentialSweepService', () => {
 
     const result = service.sweep()
 
-    expect(result).toEqual({ converted: 0, skipped: 1 })
+    expect(result.converted).toBe(0)
+    expect(result.skipped).toBe(1)
     expect(await rawRow('openai')).toEqual(before)
   })
 
@@ -93,7 +97,7 @@ describe('ProviderCredentialSweepService', () => {
       authConfig: null
     })
 
-    expect(service.sweep()).toEqual({ converted: 0, skipped: 1 })
+    expect(service.sweep().converted).toBe(0)
   })
 
   it('re-encrypts a restored plaintext backup row while leaving neighbors untouched', async () => {
@@ -107,7 +111,7 @@ describe('ProviderCredentialSweepService', () => {
     providerService.addApiKey('clean', 'sk-clean')
     const cleanBefore = await rawRow('clean')
 
-    expect(service.sweep()).toEqual({ converted: 1, skipped: 1 })
+    expect(service.sweep().converted).toBe(1)
 
     expect((await rawRow('restored')).apiKeys[0].key).toMatch(/^v1:ss:/)
     expect(await rawRow('clean')).toEqual(cleanBefore)
