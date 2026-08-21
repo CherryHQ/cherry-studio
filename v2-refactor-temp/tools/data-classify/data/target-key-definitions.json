@@ -78,7 +78,7 @@
     {
       "targetKey": "feature.local_model.hardware_acceleration.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
     },

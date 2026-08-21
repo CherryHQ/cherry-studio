@@ -66,10 +66,16 @@ export const useAgent = (id: string | null) => {
 /**
  * List + mutate all agents. Plain deletion removes the agent only; sessions are
  * preserved as orphaned history unless a caller explicitly requests session deletion.
+ *
+ * @param options.enabled - Skip the list query when the caller has nothing to render
+ *   for it (mutations stay usable). Defaults to `true`.
  */
-export const useAgents = () => {
+export const useAgents = (options: { enabled?: boolean } = {}) => {
   const { t } = useTranslation()
-  const { data, isLoading, error, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
+  const { data, isLoading, error, refetch } = useQuery('/agents', {
+    enabled: options.enabled ?? true,
+    query: { limit: AGENTS_MAX_LIMIT }
+  })
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const invalidate = useInvalidateCache()
 

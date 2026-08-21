@@ -3490,6 +3490,12 @@
         "title": "Ocultar"
       }
     },
+    "split": {
+      "already_open": "Já apresentada no outro painel",
+      "choose": "Escolha uma miniaplicação para mostrar ao lado",
+      "close": "Fechar visualização dividida",
+      "open": "Visualização dividida"
+    },
     "title": "Pequena aplicação",
     "unpin_failed": "Falha ao desafixar o miniaplicação",
     "update_partial_failure": "{{failed}} de {{total}} atualizações falharam"

@@ -3490,6 +3490,12 @@
         "title": "Ascunde"
       }
     },
+    "split": {
+      "already_open": "Se afișează deja în celălalt panou",
+      "choose": "Alege o miniaplicație de afișat alături",
+      "close": "Închide vizualizarea divizată",
+      "open": "Vizualizare divizată"
+    },
     "title": "MiniApp",
     "unpin_failed": "Nu s-a reușit dezancorarea mini-aplicației",
     "update_partial_failure": "{{failed}} din {{total}} actualizări au eșuat"

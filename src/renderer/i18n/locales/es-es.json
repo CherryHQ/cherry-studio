@@ -3490,6 +3490,12 @@
         "title": "Ocultar"
       }
     },
+    "split": {
+      "already_open": "Ya se muestra en el otro panel",
+      "choose": "Elige una miniaplicación para mostrar al lado",
+      "close": "Cerrar vista dividida",
+      "open": "Vista dividida"
+    },
     "title": "Mini programa",
     "unpin_failed": "Error al desanclar la miniaplicación",
     "update_partial_failure": "{{failed}} de {{total}} actualizaciones fallaron"

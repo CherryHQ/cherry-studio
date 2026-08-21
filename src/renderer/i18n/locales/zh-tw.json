@@ -3490,6 +3490,12 @@
         "title": "隱藏"
       }
     },
+    "split": {
+      "already_open": "已顯示在另一側",
+      "choose": "選擇要並排顯示的小程式",
+      "close": "關閉分割檢視",
+      "open": "分割檢視"
+    },
     "title": "小程式",
     "unpin_failed": "取消固定小程式失敗",
     "update_partial_failure": "{{total}} 個更新中有 {{failed}} 個失敗"

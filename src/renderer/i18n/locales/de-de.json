@@ -3490,6 +3490,12 @@
         "title": "Ausblenden"
       }
     },
+    "split": {
+      "already_open": "Wird bereits im anderen Bereich angezeigt",
+      "choose": "Mini-App für die geteilte Ansicht wählen",
+      "close": "Geteilte Ansicht schließen",
+      "open": "Geteilte Ansicht"
+    },
     "title": "Mini-Apps",
     "unpin_failed": "Fehler beim Lösen der Mini-App",
     "update_partial_failure": "{{failed}} von {{total}} Aktualisierungen sind fehlgeschlagen"
