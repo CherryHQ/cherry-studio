@@ -114,7 +114,12 @@ vi.mock('electron', () => {
     },
     systemPreferences: {
       getMediaAccessStatus: vi.fn(),
-      askForMediaAccess: vi.fn()
+      askForMediaAccess: vi.fn(),
+      getAnimationSettings: vi.fn(() => ({
+        shouldRenderRichAnimation: true,
+        scrollAnimationsEnabledBySystem: true,
+        prefersReducedMotion: false
+      }))
     },
     nativeTheme: {
       themeSource: 'system',

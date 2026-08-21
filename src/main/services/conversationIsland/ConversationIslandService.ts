@@ -14,16 +14,27 @@ import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import type { ConversationActivityChangedEvent } from '@main/services/NotificationService'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
-import type { ConversationIslandSnapshot, ConversationIslandStateKind } from '@shared/types/conversationIsland'
-import { type Display, type Rectangle, screen } from 'electron'
+import type {
+  ConversationIslandActivityItem,
+  ConversationIslandSnapshot,
+  ConversationIslandStateKind
+} from '@shared/types/conversationIsland'
+import { type Display, type Rectangle, screen, systemPreferences } from 'electron'
 
 import { type ConversationIslandActivity, reduceActivities, selectPrimaryActivity } from './activityReducer'
+import {
+  createExpandedActivityState,
+  type ExpandedActivityState,
+  reconcileExpandedActivityState,
+  resolveExpandedActivities
+} from './expandedActivityState'
 import {
   COMPACT_ISLAND_SIZE,
   type ConversationIslandPlacement,
   type MacScreenGeometry,
   probeMacScreenGeometry,
-  resolveConversationIslandBounds
+  resolveConversationIslandBounds,
+  resolveConversationIslandSize
 } from './macScreenGeometry'
 
 const logger = loggerService.withContext('ConversationIslandService')
@@ -64,6 +75,18 @@ function isTerminal(status: ConversationIslandActivity['status']): boolean {
   return status === 'done' || status === 'error'
 }
 
+function sameBounds(left: Rectangle, right: Rectangle): boolean {
+  return left.x === right.x && left.y === right.y && left.width === right.width && left.height === right.height
+}
+
+function shouldAnimateBoundsUpdate(): boolean {
+  try {
+    return !systemPreferences.getAnimationSettings().prefersReducedMotion
+  } catch {
+    return false
+  }
+}
+
 @Injectable('ConversationIslandService')
 @Conditional(onPlatform('darwin'))
 @DependsOn(['NotificationService', 'WindowManager', 'PowerService'])
@@ -73,7 +96,9 @@ export class ConversationIslandService extends BaseService {
   private readonly titleCache = new Map<string, { turnId?: string; title: string }>()
   private geometries = new Map<number, MacScreenGeometry>()
   private enabled = false
+  private expandedState: ExpandedActivityState | null = null
   private windowId: string | null = null
+  private positionedWindowId: string | null = null
   private expiryTimer: ReturnType<typeof setTimeout> | null = null
   private probeController: AbortController | null = null
   private screenCleanup: (() => void) | null = null
@@ -84,11 +109,16 @@ export class ConversationIslandService extends BaseService {
     this.registerDisposable(
       windowManager.onWindowCreatedByType(WindowType.ConversationIsland, ({ id }) => {
         this.windowId = id
+        this.positionedWindowId = null
       })
     )
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.ConversationIsland, ({ id }) => {
-        if (this.windowId === id) this.windowId = null
+        if (this.windowId === id) {
+          this.windowId = null
+          this.positionedWindowId = null
+          this.expandedState = null
+        }
       })
     )
 
@@ -114,6 +144,7 @@ export class ConversationIslandService extends BaseService {
 
   protected onStop(): void {
     this.enabled = false
+    this.expandedState = null
     this.deactivateResources()
     this.activities.clear()
     this.titleCache.clear()
@@ -151,6 +182,7 @@ export class ConversationIslandService extends BaseService {
     this.enabled = enabled
 
     if (!enabled) {
+      this.expandedState = null
       this.deactivateResources()
       for (const [topicId, activity] of this.activities) {
         if (isTerminal(activity.status)) this.activities.delete(topicId)
@@ -170,6 +202,7 @@ export class ConversationIslandService extends BaseService {
 
   private activateResources(): void {
     const refreshGeometry = () => {
+      this.expandedState = null
       this.refreshPresentation()
       this.probeGeometry()
     }
@@ -189,6 +222,7 @@ export class ConversationIslandService extends BaseService {
   }
 
   private deactivateResources(): void {
+    this.expandedState = null
     this.screenCleanup?.()
     this.screenCleanup = null
     this.powerResumeSubscription?.dispose()
@@ -197,6 +231,29 @@ export class ConversationIslandService extends BaseService {
     this.probeController = null
     this.clearExpiryTimer()
     this.closeIslandWindow()
+  }
+
+  public setExpanded(expanded: boolean): void {
+    if (!expanded) {
+      if (!this.expandedState) return
+      this.expandedState = null
+      this.refreshPresentation()
+      return
+    }
+
+    if (!this.enabled || this.expandedState) return
+
+    const now = Date.now()
+    const selection = selectPrimaryActivity(this.activities, now)
+    if (!selection.primary) return
+
+    const display = this.resolveActivityDisplay(selection.primary.originDisplayId)
+    const expandedState = createExpandedActivityState(this.activities, now, display.id)
+    if (!expandedState) return
+
+    this.expandedState = expandedState
+    this.clearExpiryTimer()
+    this.refreshPresentation(now)
   }
 
   private probeGeometry(): void {
@@ -246,19 +303,54 @@ export class ConversationIslandService extends BaseService {
   }
 
   private refreshPresentation(now = Date.now()): void {
-    const selection = selectPrimaryActivity(this.activities, now)
-    this.pruneTitleCache()
-    if (!this.enabled || !selection.primary) {
+    if (!this.enabled) {
+      this.expandedState = null
       this.closeIslandWindow()
       this.clearExpiryTimer()
       return
     }
 
+    if (this.expandedState) {
+      const expandedState = reconcileExpandedActivityState(this.expandedState, this.activities, now)
+      this.expandedState = expandedState
+      if (!expandedState) this.expandedState = null
+      else {
+        const display = screen.getAllDisplays().find((candidate) => candidate.id === expandedState.displayId)
+        if (!display) {
+          this.expandedState = null
+          return this.refreshPresentation(now)
+        }
+        const activities = resolveExpandedActivities(expandedState, this.activities)
+        const primary = activities.find((activity) => activity.topicId === expandedState.primaryActivityId)
+        if (primary) {
+          this.pruneTitleCache()
+          this.clearExpiryTimer()
+          try {
+            const compactPlacement = resolveConversationIslandBounds(display, this.geometries, COMPACT_ISLAND_SIZE)
+            const size = resolveConversationIslandSize(compactPlacement.presentation, activities.length)
+            const placement = resolveConversationIslandBounds(display, this.geometries, size)
+            const snapshot = this.buildSnapshot(primary, activities.length - 1, placement, activities)
+            this.showOrUpdateWindow(snapshot, placement.bounds)
+            return
+          } catch (error) {
+            logger.error('Failed to present expanded Conversation Island activity', error as Error)
+            this.expandedState = null
+            try {
+              this.presentCompact(now)
+            } catch (compactError) {
+              logger.error('Failed to restore compact Conversation Island activity', compactError as Error)
+              this.dismissIslandWindow()
+            }
+            this.scheduleNextExpiry(now)
+            return
+          }
+        }
+        this.expandedState = null
+      }
+    }
+
     try {
-      const display = this.resolveActivityDisplay(selection.primary.originDisplayId)
-      const placement = resolveConversationIslandBounds(display, this.geometries, COMPACT_ISLAND_SIZE)
-      const snapshot = this.buildSnapshot(selection.primary, selection.secondaryCount, placement)
-      this.showOrUpdateWindow(snapshot, placement.bounds)
+      this.presentCompact(now)
     } catch (error) {
       logger.error('Failed to present Conversation Island activity', error as Error)
     }
@@ -266,11 +358,22 @@ export class ConversationIslandService extends BaseService {
     this.scheduleNextExpiry(now)
   }
 
-  private buildSnapshot(
-    activity: ConversationIslandActivity,
-    secondaryCount: number,
-    placement: ConversationIslandPlacement
-  ): ConversationIslandSnapshot {
+  private presentCompact(now: number): void {
+    const selection = selectPrimaryActivity(this.activities, now)
+    this.pruneTitleCache()
+    if (!selection.primary) {
+      this.closeIslandWindow()
+      this.clearExpiryTimer()
+      return
+    }
+
+    const display = this.resolveActivityDisplay(selection.primary.originDisplayId)
+    const placement = resolveConversationIslandBounds(display, this.geometries, COMPACT_ISLAND_SIZE)
+    const snapshot = this.buildSnapshot(selection.primary, selection.secondaryCount, placement)
+    this.showOrUpdateWindow(snapshot, placement.bounds)
+  }
+
+  private buildActivityItem(activity: ConversationIslandActivity): ConversationIslandActivityItem {
     const fallback = activity.target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
     const cached = this.titleCache.get(activity.topicId)
     let title = cached && cached.turnId === activity.turnId ? cached.title : undefined
@@ -284,10 +387,23 @@ export class ConversationIslandService extends BaseService {
       target: activity.target,
       state: snapshotState(activity.status),
       statusText: statusText(activity),
-      title,
+      title
+    }
+  }
+
+  private buildSnapshot(
+    activity: ConversationIslandActivity,
+    secondaryCount: number,
+    placement: ConversationIslandPlacement,
+    activities?: ConversationIslandActivity[]
+  ): ConversationIslandSnapshot {
+    return {
+      ...this.buildActivityItem(activity),
       secondaryCount,
       presentation: placement.presentation,
-      notchWidth: placement.notchWidth
+      notchWidth: placement.notchWidth,
+      expanded: activities !== undefined,
+      ...(activities ? { activities: activities.map((item) => this.buildActivityItem(item)) } : {})
     }
   }
 
@@ -299,7 +415,11 @@ export class ConversationIslandService extends BaseService {
 
     const window = windowManager.getWindow(this.windowId)
     if (!window || window.isDestroyed()) throw new Error('Conversation Island window is unavailable')
-    window.setBounds(bounds)
+    const isInitialPosition = this.positionedWindowId !== this.windowId
+    if (isInitialPosition || !sameBounds(window.getBounds(), bounds)) {
+      window.setBounds(bounds, isInitialPosition ? false : shouldAnimateBoundsUpdate())
+      this.positionedWindowId = this.windowId
+    }
     window.showInactive()
   }
 
@@ -339,10 +459,22 @@ export class ConversationIslandService extends BaseService {
     if (!this.windowId) return
     const windowId = this.windowId
     this.windowId = null
+    this.positionedWindowId = null
     try {
       application.get('WindowManager').close(windowId)
     } catch (error) {
       logger.error('Failed to close Conversation Island window', error as Error)
     }
+  }
+
+  private dismissIslandWindow(): void {
+    if (this.windowId) {
+      try {
+        application.get('WindowManager').getWindow(this.windowId)?.hide()
+      } catch (error) {
+        logger.error('Failed to hide Conversation Island window', error as Error)
+      }
+    }
+    this.closeIslandWindow()
   }
 }

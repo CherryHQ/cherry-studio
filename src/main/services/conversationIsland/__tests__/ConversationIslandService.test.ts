@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => {
     focusedWindowInfos: [] as WindowInfo[],
     geometryProbe: vi.fn(),
     geometryResolve: vi.fn(),
+    geometrySize: vi.fn(),
     i18nSuffix: '',
     loggerError: vi.fn(),
     loggerWarn: vi.fn(),
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => {
     powerListener: undefined as (() => void) | undefined,
     preferenceListeners: new Map<string, (value: any) => void>(),
     preferences: new Map<string, any>(),
+    prefersReducedMotion: false,
     resolveName: vi.fn(),
     screenListeners,
     screen: {
@@ -66,16 +68,30 @@ vi.mock('@main/utils/fullChromeWindows', () => ({
 vi.mock('../macScreenGeometry', () => ({
   COMPACT_ISLAND_SIZE: { width: 320, height: 38 },
   probeMacScreenGeometry: (...args: unknown[]) => mocks.geometryProbe(...args),
-  resolveConversationIslandBounds: (...args: unknown[]) => mocks.geometryResolve(...args)
+  resolveConversationIslandBounds: (...args: unknown[]) => mocks.geometryResolve(...args),
+  resolveConversationIslandSize: (...args: unknown[]) => mocks.geometrySize(...args)
 }))
 
-vi.mock('electron', () => ({ screen: mocks.screen }))
+vi.mock('electron', () => ({
+  screen: mocks.screen,
+  systemPreferences: {
+    getAnimationSettings: () => ({
+      shouldRenderRichAnimation: true,
+      scrollAnimationsEnabledBySystem: true,
+      prefersReducedMotion: mocks.prefersReducedMotion
+    })
+  }
+}))
 
-function createWindow(bounds = { x: 0, y: 0, width: 320, height: 38 }) {
+function createWindow(initialBounds = { x: 0, y: 0, width: 320, height: 38 }) {
+  let bounds = { ...initialBounds }
   return {
     getBounds: vi.fn(() => bounds),
+    hide: vi.fn(),
     isDestroyed: vi.fn(() => false),
-    setBounds: vi.fn(),
+    setBounds: vi.fn((nextBounds: typeof bounds) => {
+      bounds = { ...nextBounds }
+    }),
     showInactive: vi.fn()
   }
 }
@@ -189,6 +205,12 @@ function changePreference(key: string, value: unknown): void {
   mocks.preferenceListeners.get(key)?.(value)
 }
 
+function latestSnapshot(): any {
+  const pushed = services.windowManager.pushInitData.mock.lastCall?.[1]
+  if (pushed) return pushed
+  return (services.windowManager.open.mock.lastCall?.[1] as { initData?: unknown } | undefined)?.initData
+}
+
 async function flushPromises(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
@@ -214,12 +236,17 @@ describe('ConversationIslandService', () => {
         presentation: 'capsule'
       })
     )
+    mocks.geometrySize.mockImplementation((presentation: 'notch' | 'capsule', activityCount: number) => ({
+      width: 420,
+      height: activityCount * 44 + (presentation === 'notch' ? 46 : 16)
+    }))
     mocks.i18nSuffix = ''
     mocks.name = 'Research notes'
     mocks.openError = undefined
     mocks.powerListener = undefined
     mocks.preferenceListeners.clear()
     mocks.preferences.clear()
+    mocks.prefersReducedMotion = false
     mocks.preferences.set('feature.conversation_island.enabled', false)
     mocks.preferences.set('app.language', 'en-US')
     mocks.resolveName.mockImplementation(() => mocks.name)
@@ -377,6 +404,251 @@ describe('ConversationIslandService', () => {
       title: 'New Chat-fr',
       statusText: 'conversation_island.status.assistant.streaming-fr'
     })
+  })
+
+  it('refuses a single activity and expands two activities with a complete ordered snapshot', () => {
+    const titles = new Map([
+      ['topic-streaming', 'Streaming research'],
+      ['topic-approval', 'Approval request']
+    ])
+    mocks.resolveName.mockImplementation((target: { conversationId: string }) => titles.get(target.conversationId))
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('streaming', 100, 'topic-streaming')
+
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-streaming', expanded: false, secondaryCount: 0 })
+    expect(latestSnapshot().activities).toBeUndefined()
+
+    emitActivity('awaiting-approval', 200, 'topic-approval', 'agent')
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+
+    expect(latestSnapshot()).toMatchObject({
+      activityId: 'topic-approval',
+      state: 'awaiting-confirmation',
+      statusText: 'conversation_island.status.awaiting_confirmation',
+      title: 'Approval request',
+      secondaryCount: 1,
+      expanded: true,
+      activities: [
+        {
+          activityId: 'topic-approval',
+          state: 'awaiting-confirmation',
+          statusText: 'conversation_island.status.awaiting_confirmation',
+          title: 'Approval request'
+        },
+        {
+          activityId: 'topic-streaming',
+          state: 'streaming',
+          statusText: 'conversation_island.status.assistant.streaming',
+          title: 'Streaming research'
+        }
+      ]
+    })
+  })
+
+  it('retains terminal activities while expanded and prunes them when collapsed', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('streaming', 100, 'topic-live')
+    emitActivity('pending', 200, 'topic-primary')
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+
+    emitActivity('done', 300, 'topic-primary')
+    vi.setSystemTime(4_301)
+    changePreference('app.language', 'fr-FR')
+    expect(latestSnapshot()).toMatchObject({
+      expanded: true,
+      activities: [{ activityId: 'topic-primary', state: 'done' }, { activityId: 'topic-live' }]
+    })
+    expect(vi.getTimerCount()).toBe(0)
+
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(false)
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-live', expanded: false, secondaryCount: 0 })
+    expect(latestSnapshot().activities).toBeUndefined()
+  })
+
+  it('reconciles updates in place, appends new activity, and promotes or collapses after removals', () => {
+    const titles = new Map([
+      ['topic-primary', 'Primary'],
+      ['topic-second', 'Second'],
+      ['topic-new', 'New']
+    ])
+    mocks.resolveName.mockImplementation((target: { conversationId: string }) => titles.get(target.conversationId))
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-second')
+    emitActivity('streaming', 200, 'topic-primary')
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+
+    titles.set('topic-second', 'Second turn')
+    emitActivity('awaiting-approval', 300, 'topic-second', 'assistant', 'topic-second-turn-2')
+    emitActivity('streaming', 400, 'topic-new')
+    expect(latestSnapshot()).toMatchObject({
+      activityId: 'topic-primary',
+      expanded: true,
+      activities: [
+        { activityId: 'topic-primary', state: 'streaming', title: 'Primary' },
+        { activityId: 'topic-second', state: 'awaiting-confirmation', title: 'Second turn' },
+        { activityId: 'topic-new', state: 'streaming', title: 'New' }
+      ]
+    })
+
+    emitActivity('aborted', 500, 'topic-primary')
+    expect(latestSnapshot()).toMatchObject({
+      activityId: 'topic-second',
+      expanded: true,
+      activities: [{ activityId: 'topic-second' }, { activityId: 'topic-new' }]
+    })
+
+    emitActivity('aborted', 600, 'topic-new')
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-second', expanded: false, secondaryCount: 0 })
+    expect(latestSnapshot().activities).toBeUndefined()
+  })
+
+  it('clears expansion for display changes, resume, and disable', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-a')
+    emitActivity('streaming', 200, 'topic-b')
+    const setExpanded = () => {
+      ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+      expect(latestSnapshot().expanded).toBe(true)
+    }
+
+    setExpanded()
+    mocks.screen.emit('display-added', {}, externalDisplay)
+    expect(latestSnapshot().expanded).toBe(false)
+
+    setExpanded()
+    mocks.screen.emit('display-metrics-changed', {}, internalDisplay, ['bounds'])
+    expect(latestSnapshot().expanded).toBe(false)
+
+    setExpanded()
+    mocks.displays = [externalDisplay]
+    mocks.screen.emit('display-removed', {}, internalDisplay)
+    expect(latestSnapshot().expanded).toBe(false)
+
+    setExpanded()
+    mocks.powerListener?.()
+    expect(latestSnapshot().expanded).toBe(false)
+
+    setExpanded()
+    changePreference('feature.conversation_island.enabled', false)
+    changePreference('feature.conversation_island.enabled', true)
+    expect(services.windowManager.open.mock.lastCall?.[1]).toMatchObject({ initData: { expanded: false } })
+  })
+
+  it('rebuilds expanded titles and status text on language change without changing order', () => {
+    const titles = new Map([
+      ['topic-a', 'Alpha'],
+      ['topic-b', 'Beta']
+    ])
+    mocks.resolveName.mockImplementation((target: { conversationId: string }) => titles.get(target.conversationId))
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('streaming', 100, 'topic-a')
+    emitActivity('pending', 200, 'topic-b')
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+    const order = latestSnapshot().activities.map((activity: { activityId: string }) => activity.activityId)
+
+    titles.set('topic-a', 'Alpha traduit')
+    titles.set('topic-b', 'Bêta traduit')
+    mocks.i18nSuffix = '-fr'
+    changePreference('app.language', 'fr-FR')
+
+    expect(latestSnapshot().activities.map((activity: { activityId: string }) => activity.activityId)).toEqual(order)
+    expect(latestSnapshot().activities).toMatchObject([
+      {
+        activityId: 'topic-b',
+        title: 'Bêta traduit',
+        statusText: 'conversation_island.status.assistant.pending-fr'
+      },
+      {
+        activityId: 'topic-a',
+        title: 'Alpha traduit',
+        statusText: 'conversation_island.status.assistant.streaming-fr'
+      }
+    ])
+  })
+
+  it('derives expanded bounds from compact presentation on the frozen display', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-a')
+    emitActivity('streaming', 200, 'topic-b')
+    mocks.geometryResolve.mockClear()
+
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+
+    expect(mocks.geometryResolve).toHaveBeenNthCalledWith(1, internalDisplay, expect.any(Map), {
+      width: 320,
+      height: 38
+    })
+    expect(mocks.geometrySize).toHaveBeenLastCalledWith('capsule', 2)
+    expect(mocks.geometryResolve).toHaveBeenNthCalledWith(2, internalDisplay, expect.any(Map), {
+      width: 420,
+      height: 104
+    })
+    expect(latestSnapshot()).toMatchObject({ expanded: true, presentation: 'capsule' })
+  })
+
+  it('animates only changed follow-up bounds when reduced motion is disabled', () => {
+    let offset = 0
+    mocks.geometryResolve.mockImplementation(
+      (display: any, _geometry: unknown, size: { width: number; height: number }) => ({
+        bounds: { x: display.bounds.x + offset, y: display.bounds.y + 8, ...size },
+        presentation: 'capsule'
+      })
+    )
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+    const window = mocks.windows.get('island-1')
+
+    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 8, width: 320, height: 38 }, false)
+    window.setBounds.mockClear()
+    emitActivity('streaming', 200)
+    expect(window.setBounds).not.toHaveBeenCalled()
+
+    offset = 20
+    emitActivity('awaiting-approval', 300)
+    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 20, y: 8, width: 320, height: 38 }, true)
+
+    mocks.prefersReducedMotion = true
+    offset = 40
+    emitActivity('streaming', 400)
+    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 40, y: 8, width: 320, height: 38 }, false)
+  })
+
+  it('falls back to compact bounds when expanded presentation fails', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-a')
+    emitActivity('streaming', 200, 'topic-b')
+    const window = mocks.windows.get('island-1')
+    window.setBounds.mockImplementationOnce(() => {
+      throw new Error('expanded resize failed')
+    })
+
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+
+    expect(latestSnapshot()).toMatchObject({ expanded: false })
+    expect(latestSnapshot().activities).toBeUndefined()
+    expect(window.getBounds()).toEqual({ x: 0, y: 8, width: 320, height: 38 })
+    expect(window.showInactive).toHaveBeenCalled()
+  })
+
+  it('dismisses the window when expanded presentation and compact retry both fail', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-a')
+    emitActivity('streaming', 200, 'topic-b')
+    const window = mocks.windows.get('island-1')
+    window.showInactive.mockClear()
+    window.showInactive.mockImplementationOnce(() => {
+      throw new Error('expanded show failed')
+    })
+    window.showInactive.mockImplementationOnce(() => {
+      throw new Error('compact show failed')
+    })
+
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+
+    expect(window.hide).toHaveBeenCalledOnce()
+    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
+    expect(mocks.windows.has('island-1')).toBe(false)
   })
 
   it('refreshes geometry for display and resume events only while enabled', async () => {
