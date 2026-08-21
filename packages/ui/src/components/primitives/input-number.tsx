@@ -34,6 +34,7 @@ interface InputNumberProps
   onBlur?: (value: number | null) => void
   /** Also decides whether a minus sign can be typed: omitted or negative allows it. */
   min?: number
+  /** Must be at least `min`: an empty range settles on `min` and warns. */
   max?: number
   /** Also decides whether the value is an integer: an integer `step` truncates on commit. */
   step?: number
@@ -58,7 +59,7 @@ function sanitize(raw: string, min?: number): string {
   return negative ? `-${body}` : body
 }
 
-/** Normalizes on commit only: an integer `step` truncates, then the value is clamped into range. */
+/** Normalizes on commit only: an integer `step` truncates, then the value is clamped into range. `min` wins an empty range. */
 function parse(raw: string, min?: number, max?: number, step?: number): number | null {
   const parsed = Number(raw)
   if (raw === '' || !Number.isFinite(parsed)) {
@@ -83,6 +84,10 @@ function InputNumber({
   onKeyDown,
   ...props
 }: InputNumberProps) {
+  if (min !== undefined && max !== undefined && min > max) {
+    console.warn(`InputNumber: min (${min}) is greater than max (${max}); the field will settle on min.`)
+  }
+
   // Non-null only while the field is focused: an unfocused field renders `value`
   // directly, so there is no second copy of it to keep in sync.
   const [draft, setDraft] = React.useState<string | null>(null)
