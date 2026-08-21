@@ -271,8 +271,9 @@ describe('WINDOW_TYPE_REGISTRY ConversationIsland — transient macOS panel', ()
 
     expect(metadata).toBeDefined()
     expect(metadata?.lifecycle).toBe('singleton')
+    if (metadata?.lifecycle !== 'singleton') throw new Error('ConversationIsland must be a singleton')
     expect(metadata?.showMode).toBe('manual')
-    expect(metadata?.singletonConfig).toBeUndefined()
+    expect(metadata.singletonConfig).toBeUndefined()
     expect(metadata?.preload).toBe('conversationIsland.js')
     expect(metadata?.htmlPath).toBe('windows/conversationIsland/index.html')
     expect(metadata?.windowOptions).toMatchObject({
