@@ -7,6 +7,8 @@
  * re-dispatches them, letting the normal keybinding resolution decide what runs.
  */
 
+import { getShortcutBindingFromKeyboardEvent, isValidShortcut, type KeyboardEventLike } from './shortcut'
+
 /** `sendToHost` channel the MiniApp guest preload uses to reach its host window. */
 export const MINI_APP_KEYDOWN_CHANNEL = 'miniapp:keydown'
 
@@ -29,21 +31,20 @@ const HOST_OWNED_KEYS = new Set(['f', 'p', 's'])
 export const isHostOwnedGuestKey = (event: Pick<MiniAppKeyPayload, 'key' | 'ctrlKey' | 'metaKey'>): boolean =>
   (event.ctrlKey || event.metaKey) && HOST_OWNED_KEYS.has(event.key.toLowerCase())
 
-// Keys that can carry a shortcut on their own. Everything else only qualifies with a
-// modifier, which keeps ordinary typing — passwords included — inside the guest frame.
-const BARE_SHORTCUT_KEYS = new Set(['Escape', 'Enter', 'Tab'])
-
-const isFunctionKey = (key: string) => /^F([1-9]|1[0-2])$/.test(key)
-
 /**
  * Whether a guest keydown could resolve to a host command. Forwarding everything would
- * put every keystroke on the IPC channel and re-run keybinding resolution per character.
+ * put every keystroke on the IPC channel — plaintext characters from guest login forms
+ * included — and re-run keybinding resolution per character.
  *
- * A user-rebound bare letter key would not reach the host; no shipped binding uses one
- * (`Escape` is the only bare default, and it is non-editable).
+ * Bindable *is* the criterion, so this defers to {@link isValidShortcut} rather than
+ * approximating it: whatever a user can bind, a guest can reach the host with.
  */
-export const isForwardableGuestKey = (event: Pick<MiniAppKeyPayload, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'>) =>
-  event.ctrlKey || event.metaKey || event.altKey || BARE_SHORTCUT_KEYS.has(event.key) || isFunctionKey(event.key)
+export const isForwardableGuestKey = (event: KeyboardEventLike): boolean => {
+  const binding = getShortcutBindingFromKeyboardEvent(event)
+  // The find overlay drives next-match off a bare Enter. That is component handling
+  // rather than a command, so no binding covers it.
+  return isValidShortcut(binding) || (binding.length === 1 && binding[0] === 'Enter')
+}
 
 export const toMiniAppKeyPayload = (event: KeyboardEvent): MiniAppKeyPayload => ({
   key: event.key,

@@ -7,6 +7,7 @@ const key = (over: Partial<Parameters<typeof isForwardableGuestKey>[0]>) => ({
   ctrlKey: false,
   metaKey: false,
   altKey: false,
+  shiftKey: false,
   ...over
 })
 
@@ -18,18 +19,26 @@ describe('isForwardableGuestKey', () => {
     }
   })
 
-  it('forwards every key a shipped command can bind to', () => {
+  it('forwards anything a user could bind a command to', () => {
     expect(isForwardableGuestKey(key({ key: 'f', ctrlKey: true }))).toBe(true)
     expect(isForwardableGuestKey(key({ key: 'Tab', ctrlKey: true }))).toBe(true)
     expect(isForwardableGuestKey(key({ key: '=', metaKey: true }))).toBe(true)
     expect(isForwardableGuestKey(key({ key: 'Escape' }))).toBe(true)
-    expect(isForwardableGuestKey(key({ key: 'Enter' }))).toBe(true)
+    // The whole function-key range is bindable bare, not just F1-F12.
     expect(isForwardableGuestKey(key({ key: 'F12' }))).toBe(true)
+    expect(isForwardableGuestKey(key({ key: 'F13' }))).toBe(true)
+    expect(isForwardableGuestKey(key({ key: 'F24' }))).toBe(true)
   })
 
-  it('does not mistake letters for function keys', () => {
+  it('forwards the find overlay’s Enter navigation', () => {
+    expect(isForwardableGuestKey(key({ key: 'Enter' }))).toBe(true)
+    expect(isForwardableGuestKey(key({ key: 'Enter', shiftKey: true }))).toBe(true)
+  })
+
+  it('leaves bare keys that cannot carry a binding with the guest', () => {
+    // Tab alone moves focus inside the page; only Ctrl+Tab is bindable.
+    expect(isForwardableGuestKey(key({ key: 'Tab' }))).toBe(false)
     expect(isForwardableGuestKey(key({ key: 'F' }))).toBe(false)
-    expect(isForwardableGuestKey(key({ key: 'F13' }))).toBe(false)
   })
 })
 
