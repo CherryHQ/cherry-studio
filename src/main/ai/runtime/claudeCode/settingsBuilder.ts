@@ -53,6 +53,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -106,6 +107,8 @@ export function registerMcpSessionCatalogSync(
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  /** Effective session-owned primary model frozen for this connection. */
+  primaryModelId?: UniqueModelId
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
   /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
@@ -165,7 +168,7 @@ export async function buildClaudeCodeSessionSettings(
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
-    buildEnvironment(provider, agent),
+    buildEnvironment(provider, agent, options?.primaryModelId ?? session.modelId),
     discoverPlugins(cwd, agent.id)
   ])
   const mcpWarm = await mcpWarmPromise

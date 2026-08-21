@@ -328,6 +328,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   return {
     id: 'session-alpha',
     agentId: 'agent-alpha',
+    modelId: null,
     name: 'Alpha session',
     description: 'Planning notes',
     workspaceId: 'ws-/Users/jd/project-a',

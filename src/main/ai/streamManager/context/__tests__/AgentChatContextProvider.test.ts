@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
+  getModel: vi.fn(),
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
   hasSessionMessages: vi.fn(),
@@ -25,6 +26,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.getModel }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -92,7 +97,12 @@ describe('AgentChatContextProvider', () => {
       validateSession: mocks.runtimeValidateSession,
       listAvailableTools: vi.fn().mockResolvedValue([])
     })
-    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { path: '/tmp' }
+    })
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -101,6 +111,7 @@ describe('AgentChatContextProvider', () => {
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet'
     })
+    mocks.getModel.mockReturnValue({ name: 'Claude Sonnet' })
     mocks.saveMessage.mockImplementation(({ sessionId, message }) => ({
       id: message.id,
       sessionId,

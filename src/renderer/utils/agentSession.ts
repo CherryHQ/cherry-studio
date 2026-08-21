@@ -1,3 +1,6 @@
+import type { ModelSnapshot } from '@shared/data/types/message'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+
 const SESSION_TOPIC_PREFIX = 'agent-session:'
 
 export const buildAgentFileWorkspaceKey = (workspaceId?: string | null, workspacePath?: string): string => {
@@ -10,6 +13,14 @@ export const buildAgentSessionTopicId = (sessionId: string): string => {
 
 export const extractAgentSessionIdFromTopicId = (topicId: string): string => {
   return topicId.replace(SESSION_TOPIC_PREFIX, '')
+}
+
+export const getAgentSessionModelFallbackSnapshot = (session: {
+  modelId?: string | null
+}): ModelSnapshot | undefined => {
+  if (!session.modelId || !isUniqueModelId(session.modelId)) return undefined
+  const { providerId, modelId } = parseUniqueModelId(session.modelId)
+  return { id: modelId, name: modelId, provider: providerId }
 }
 
 import discordIcon from '@renderer/assets/images/channel/discord.svg'

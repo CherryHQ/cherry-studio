@@ -106,6 +106,54 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('backfills each existing agent session from its agent model', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0013_handy_northstar'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('provider-session-model', 'Provider', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO user_model
+           (id, provider_id, model_id, preset_model_id, order_key, created_at, updated_at)
+         VALUES ('provider-session-model::model-a', 'provider-session-model', 'model-a', 'model-a', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent (id, type, name, instructions, model, order_key, created_at, updated_at)
+         VALUES ('agent-session-model', 'claude-code', 'Agent', '', 'provider-session-model::model-a', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-session-model', 'Workspace', '/tmp/session-model', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session
+           (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-model', 'agent-session-model', 'Session', 'workspace-session-model', 'a0', ?, ?, ?)`
+      )
+      .run(now, now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT model_id FROM agent_session WHERE id = 'session-model'`).get()).toEqual({
+      model_id: 'provider-session-model::model-a'
+    })
+    sqlite.prepare(`DELETE FROM user_model WHERE id = 'provider-session-model::model-a'`).run()
+    expect(sqlite.prepare(`SELECT model_id FROM agent_session WHERE id = 'session-model'`).get()).toEqual({
+      model_id: null
+    })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
   it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
     const now = Date.now()

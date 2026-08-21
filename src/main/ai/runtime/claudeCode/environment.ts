@@ -17,7 +17,7 @@ import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
@@ -139,7 +139,8 @@ export async function getClaudeCodeLoginShellEnvironment(
 
 export async function buildEnvironment(
   provider: Provider,
-  agent: AgentEntity
+  agent: AgentEntity,
+  primaryModelId: UniqueModelId | null
 ): Promise<Record<string, string | undefined>> {
   const proxyEnvironment = getProxyEnvironment(process.env)
   const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
@@ -149,14 +150,14 @@ export async function buildEnvironment(
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.
 
-  // agent.model is UniqueModelId ("providerId::modelId"). DB lookup for
+  // primaryModelId is the session-owned UniqueModelId ("providerId::modelId"). DB lookup for
   // apiModelId, fall back to raw if missing.
-  if (!agent.model) {
-    throw new Error(`buildEnvironment: agent ${agent.id} has no model`)
+  if (!primaryModelId) {
+    throw new Error(`buildEnvironment: session for agent ${agent.id} has no model`)
   }
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(agent.model)
-  const { providerId: sonnetProviderId, modelId: sonnetModelId } = parseUniqueModelId(agent?.planModel ?? agent.model)
-  const { providerId: haikuProviderId, modelId: haikuModelId } = parseUniqueModelId(agent?.smallModel ?? agent.model)
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(primaryModelId)
+  const { providerId: sonnetProviderId, modelId: sonnetModelId } = parseUniqueModelId(agent.planModel ?? primaryModelId)
+  const { providerId: haikuProviderId, modelId: haikuModelId } = parseUniqueModelId(agent.smallModel ?? primaryModelId)
   // Resolve each model id independently: one model missing from the table must not force the others
   // to fall back, and each falls back to its OWN raw id (not the main model's). Common for
   // agent-specific models that aren't in the model table.

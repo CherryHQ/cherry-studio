@@ -350,6 +350,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         {
           id: 'session-1',
           agentId: 'agent-1',
+          modelId: 'anthropic::claude-sonnet',
           workspace: { type: 'user', path: '/workspace/project' }
         } as never,
         {} as never
@@ -379,6 +380,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -406,6 +408,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -458,6 +461,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -482,6 +486,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -504,6 +509,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -520,6 +526,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -534,6 +541,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -549,6 +557,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -571,6 +580,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -584,6 +594,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -603,6 +614,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -621,6 +633,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         {
           id: 'session-1',
           agentId: 'agent-1',
+          modelId: 'anthropic::claude-sonnet',
           workspace: { type: 'user', path: '/workspace/project' }
         } as never,
         {} as never,
@@ -641,6 +654,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -674,6 +688,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
@@ -706,6 +721,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -723,6 +739,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -746,6 +763,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -767,6 +785,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -791,6 +810,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -825,6 +845,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -859,6 +880,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -892,6 +914,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -922,6 +945,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -941,6 +965,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const disabledSession = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -986,6 +1011,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -1030,6 +1056,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-support',
         agentId: 'support-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -1050,6 +1077,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-normal',
         agentId: 'agent-2',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -1098,6 +1126,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -1162,6 +1191,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-assistant',
         agentId: 'assistant-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -1193,6 +1223,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1245,7 +1276,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       setPermissionMode: vi.fn()
     })
     const settings = await buildClaudeCodeSessionSettings(
-      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
       {} as never
     )
     const decisions = await Promise.all(
@@ -1282,6 +1318,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         const session = {
           id: 'session-1',
           agentId: 'agent-1',
+          modelId: 'anthropic::claude-sonnet',
           workspace: { type: 'user', path: workspacePath }
         }
         const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1333,6 +1370,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1384,6 +1422,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1410,6 +1449,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1424,6 +1464,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1448,6 +1489,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1471,6 +1513,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1494,6 +1537,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1516,6 +1560,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1538,6 +1583,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1563,6 +1609,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1581,6 +1628,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1605,6 +1653,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1649,6 +1698,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1687,6 +1737,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -1717,6 +1768,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -1755,6 +1807,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1806,6 +1859,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -1849,6 +1903,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         {
           id: 'session-1',
           agentId: 'agent-1',
+          modelId: 'anthropic::claude-sonnet',
           workspace: { type: 'user', path: '/workspace/project' }
         } as never,
         {} as never
@@ -1893,6 +1948,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1935,6 +1991,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -1997,6 +2054,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       const session = {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       }
 
@@ -2045,6 +2103,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2095,6 +2154,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2144,6 +2204,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -2165,6 +2226,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2186,6 +2248,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2213,6 +2276,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2264,6 +2328,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'support-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: workspacePath }
     }
 
@@ -2309,6 +2374,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2356,6 +2422,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2384,6 +2451,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2412,6 +2480,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2460,6 +2529,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'support-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
@@ -2505,6 +2575,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2516,6 +2587,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2559,6 +2631,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2583,6 +2656,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2607,6 +2681,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2652,6 +2727,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -2666,7 +2742,12 @@ describe('buildClaudeCodeSessionSettings', () => {
   // reach the running subprocess instead of a stale per-build instance.
   describe('warm-pool session-state resolution', () => {
     const sessionWith = (id: string) =>
-      ({ id, agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } }) as never
+      ({
+        id,
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      }) as never
 
     const preToolUseHooks = (settings: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>) =>
       settings.hooks?.PreToolUse?.[0]?.hooks ?? []
@@ -3056,6 +3137,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
@@ -3198,6 +3280,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       return {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
         workspace: { type: 'user', path: '/workspace/project' }
       }
     }
