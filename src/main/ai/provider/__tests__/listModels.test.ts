@@ -154,8 +154,9 @@ describe('listModels — Ollama capabilities', () => {
   })
 
   it('reads the trained context window from /api/show so num_ctx is not left at Ollama default', async () => {
-    // /api/tags carries no context length; without this the model has no contextWindow, no
-    // num_ctx is sent, and Ollama runs the request at 2048 tokens (#18643).
+    // /api/tags carries no context length; without this the model has no contextWindow and no
+    // num_ctx is sent, leaving Ollama to size by VRAM — 4k below 24 GiB, which an agent's tool
+    // preamble overruns on its own (#18643).
     aiSdkGetFromApiMock.mockResolvedValueOnce({
       value: { models: [{ name: 'qwen3:32b', capabilities: ['completion', 'tools'] }] }
     })
