@@ -25,6 +25,7 @@ import type {
 import { extensionRegistry } from './ExtensionRegistry'
 import type { ProviderExtensionConfig } from './ProviderExtension'
 import { ProviderExtension } from './ProviderExtension'
+import { withReasoningModelBodyRewrite } from './reasoningModelBodyRewrite'
 
 // ==================== Core Extensions ====================
 
@@ -187,7 +188,16 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     if (!settings) {
       throw new Error('OpenAI Compatible provider requires settings')
     }
-    return (await import('@ai-sdk/openai-compatible')).createOpenAICompatible(settings)
+    const { createOpenAICompatible } = await import('@ai-sdk/openai-compatible')
+    return createOpenAICompatible({
+      ...settings,
+      // GPT-5.x / o-series reject legacy `max_tokens` (they require
+      // `max_completion_tokens`), but @ai-sdk/openai-compatible always emits the
+      // legacy name on the wire. Wrap the caller-injected fetch (e.g. the
+      // proxy-aware customFetch) so matching request bodies are rewritten before
+      // hitting the wire; everything else passes through untouched.
+      fetch: withReasoningModelBodyRewrite(settings.fetch ?? fetch.bind(globalThis))
+    })
   },
   createRerankingModel: (modelId, settings) => {
     if (!settings) {
