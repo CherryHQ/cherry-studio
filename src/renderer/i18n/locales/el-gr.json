@@ -1573,6 +1573,7 @@
       "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
+      "hermes": "Hermes",
       "kimi_code": "Kimi Code",
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",

@@ -1,7 +1,7 @@
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
 import { parseDotenv } from './dotenv'
-import { parseJsonOrThrow, parseTomlOrThrow, readExternal, resolveAbs } from './file'
+import { parseJsonOrThrow, parseTomlOrThrow, parseYamlOrThrow, readExternal, resolveAbs } from './file'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 
 export function getDraftFile(
@@ -55,6 +55,8 @@ function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<str
       return parseTomlOrThrow(file.content)
     case 'dotenv':
       return parseDotenv(file.content)
+    case 'yaml':
+      return parseYamlOrThrow(file.content)
   }
 }
 

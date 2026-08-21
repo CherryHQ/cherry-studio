@@ -1,6 +1,7 @@
 import { redactSecretText } from '@shared/utils/redaction'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
+import { parse as parseYaml } from 'yaml'
 
 /** Resolve `~`/relative paths to absolute (renderer cannot call application.getPath). */
 export async function resolveAbs(p: string): Promise<string> {
@@ -61,6 +62,12 @@ export async function readValidatedTomlOrNull(absPath: string, label: string): P
   return content === null ? null : parseOrThrow(content, label, absPath, parseTomlOrThrow)
 }
 
+/** Like readValidatedYaml, but returns null (instead of {}) when the file doesn't exist. */
+export async function readValidatedYamlOrNull(absPath: string, label: string): Promise<Record<string, any> | null> {
+  const content = await readExternalOrNull(absPath)
+  return content === null ? null : parseOrThrow(content, label, absPath, parseYamlOrThrow)
+}
+
 export function parseTomlOrThrow(content: string): Record<string, any> {
   if (!content) return {}
   try {
@@ -68,6 +75,20 @@ export function parseTomlOrThrow(content: string): Record<string, any> {
   } catch (err) {
     // smol-toml embeds a source codeblock (the offending line +/- 1) straight into its own message,
     // so this must be redacted right here — every call site (direct or through parseOrThrow) inherits it.
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(redactSecretText(rawMessage))
+  }
+}
+
+export function parseYamlOrThrow(content: string): Record<string, any> {
+  if (!content) return {}
+  try {
+    const parsed = parseYaml(content)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('invalid YAML root: expected an object')
+    }
+    return parsed as Record<string, any>
+  } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err)
     throw new Error(redactSecretText(rawMessage))
   }
