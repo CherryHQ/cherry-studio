@@ -1,6 +1,7 @@
 /**
  * Runtime-neutral context-window fallback for agent runtimes (pi, dsh), which
- * need a compaction boundary even when Cherry's model row declares none.
+ * need a compaction boundary even when Cherry's model row declares none. Model
+ * filtering no longer gates on the window, so this stays main-side.
  */
 
 import type { Model } from '@shared/data/types/model'
