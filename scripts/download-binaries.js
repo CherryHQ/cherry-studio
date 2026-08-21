@@ -341,7 +341,19 @@ function isUpToDate(binaryPaths, versionPath, expectedVersion) {
 
 function download(url, dest) {
   console.log(`  Downloading: ${url}`)
-  execFileSync('curl', ['-fSL', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
+  try {
+    // -C - resumes a partial file, so an interrupted transfer over a slow link
+    // does not restart from zero. `dest` is always version-scoped, so a resume
+    // can only ever continue the same asset.
+    execFileSync('curl', ['-fSL', '-C', '-', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
+  } catch {
+    // Servers without byte-range support make curl fail outright; drop whatever
+    // is on disk and take the plain path. A resume that *succeeds* onto corrupt
+    // bytes is caught by verifyHash instead, which deletes the file so the next
+    // run starts clean.
+    fs.rmSync(dest, { force: true })
+    execFileSync('curl', ['-fSL', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
+  }
 }
 
 function extract(archivePath, archive, outputDir, pkg) {
@@ -420,11 +432,16 @@ function downloadTool(tool, platformKey, outputDir) {
   }
 
   if (pkg.archive === 'none') {
-    download(pkg.url, primaryDest)
-    verifyHash(primaryDest, pkg.sha256)
+    // Download to a version-scoped temp file and rename on success: `primaryDest`
+    // may still hold the complete previous version, which a resume would splice
+    // into garbage, and an interrupted run must not leave half a binary in place.
+    const partialPath = `${primaryDest}.${tool.version}.part`
+    download(pkg.url, partialPath)
+    verifyHash(partialPath, pkg.sha256)
+    fs.renameSync(partialPath, primaryDest)
   } else {
     const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
-    const archivePath = path.join(outputDir, `${tool.name}.${ext}`)
+    const archivePath = path.join(outputDir, `${tool.name}-${tool.version}.${ext}`)
     download(pkg.url, archivePath)
     verifyHash(archivePath, pkg.sha256)
     extract(archivePath, pkg.archive, outputDir, pkg)
