@@ -183,7 +183,6 @@ function isExecutableShim(shimPath: string): Promise<boolean> {
   )
 }
 
-
 // Single source of truth for tools shipped inside the app and extracted at
 // boot. `internal` marks infrastructure (mise) excluded from the UI probe.
 // Binary names are base names; .exe is appended on Windows at use sites.
