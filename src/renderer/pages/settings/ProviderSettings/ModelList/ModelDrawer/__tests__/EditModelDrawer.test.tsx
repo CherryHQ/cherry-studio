@@ -240,15 +240,18 @@ describe('EditModelDrawer pricing', () => {
     expect(cacheReadPrice).toHaveValue('1.25')
   })
 
-  it('rejects non-digits in a tier boundary input', async () => {
+  it('keeps a tier boundary an integer', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
 
     const minInputTokens = screen.getByLabelText(/models\.price\.min_input_tokens/)
     await user.clear(minInputTokens)
     await user.type(minInputTokens, '12a.8')
+    expect(minInputTokens).toHaveValue('12.8')
 
-    expect(minInputTokens).toHaveValue('128')
+    await user.tab()
+
+    expect(minInputTokens).toHaveValue('12')
   })
 
   it('preserves explicit zero cache rates and unedited pricing fields when a price is saved', async () => {

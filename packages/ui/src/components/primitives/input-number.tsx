@@ -24,23 +24,24 @@ const sizeClasses: Record<NonNullable<InputNumberProps['size']>, string> = {
 const allowsNegative = (min?: number) => min === undefined || min < 0
 const allowsDecimal = (step?: number) => step === undefined || !Number.isInteger(step)
 
-/** Filters to the character set the declared constraints permit; keeps partial input like "1." or "-". */
-function sanitize(raw: string, min?: number, step?: number): string {
+/** Filters to digits, one decimal point, and a minus sign where `min` permits it. Keeps partial input like "1." */
+function sanitize(raw: string, min?: number): string {
   const negative = allowsNegative(min) && raw.trimStart().startsWith('-')
-  const kept = raw.replace(allowsDecimal(step) ? /[^\d.]/g : /[^\d]/g, '')
-  const [integerPart, ...fractionParts] = kept.split('.')
+  const [integerPart, ...fractionParts] = raw.replace(/[^\d.]/g, '').split('.')
   const body = fractionParts.length > 0 ? `${integerPart}.${fractionParts.join('')}` : integerPart
   return negative ? `-${body}` : body
 }
 
-function parse(raw: string, min?: number, max?: number): number | null {
+/** Normalizes on commit only: an integer `step` truncates, then the value is clamped into range. */
+function parse(raw: string, min?: number, max?: number, step?: number): number | null {
   const parsed = Number(raw)
   if (raw === '' || !Number.isFinite(parsed)) {
     return null
   }
-  if (min !== undefined && parsed < min) return min
-  if (max !== undefined && parsed > max) return max
-  return parsed
+  const normalized = allowsDecimal(step) ? parsed : Math.trunc(parsed)
+  if (min !== undefined && normalized < min) return min
+  if (max !== undefined && normalized > max) return max
+  return normalized
 }
 
 function InputNumber({
@@ -67,7 +68,7 @@ function InputNumber({
   }, [editing, value])
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const next = sanitize(event.target.value, min, step)
+    const next = sanitize(event.target.value, min)
     setDraft(next)
     if (!changeOnBlur) {
       // Report the raw parse: clamping mid-edit would trap the user below `min`.
@@ -76,7 +77,7 @@ function InputNumber({
   }
 
   const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    const committed = parse(draft, min, max)
+    const committed = parse(draft, min, max, step)
     setEditing(false)
     setDraft(committed === null ? '' : String(committed))
     onChange(committed)

@@ -32,13 +32,18 @@ describe('InputNumber', () => {
     expect(screen.getByLabelText('amount')).toHaveValue('-0.5')
   })
 
-  it('drops the decimal point when step is an integer', async () => {
+  it('truncates the fraction on blur when step is an integer', async () => {
     const user = userEvent.setup()
-    render(<Controlled min={0} step={1} />)
+    const onChange = vi.fn()
+    render(<InputNumber aria-label="amount" min={0} step={1} value={null} onChange={onChange} />)
 
-    await user.type(screen.getByLabelText('amount'), '1.5')
+    await user.type(screen.getByLabelText('amount'), '3.9')
+    // The fraction stays visible while typing — truncating per keystroke would
+    // glue "9" onto "3" and produce 39.
+    expect(screen.getByLabelText('amount')).toHaveValue('3.9')
 
-    expect(screen.getByLabelText('amount')).toHaveValue('15')
+    await user.tab()
+    expect(onChange).toHaveBeenLastCalledWith(3)
   })
 
   it('keeps only the first decimal point when step allows decimals', async () => {
