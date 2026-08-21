@@ -106,7 +106,8 @@
         "defaultBinding": [
           "Escape"
         ],
-        "editable": false
+        "editable": false,
+        "when": "!webview.focused"
       }
     },
     {
@@ -446,7 +447,7 @@
     }
   ],
   "providers": {
-    "version": "6f2078bd03cfc7de",
+    "version": "d4aebe86a12ca8f8",
     "count": 61,
     "entries": [
       {

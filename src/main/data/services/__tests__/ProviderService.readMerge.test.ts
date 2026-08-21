@@ -31,7 +31,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           },
           defaultChatEndpoint: 'openai-chat-completions',
-          apiFeatures: { serviceTier: false },
+          reportsActualCost: false,
           reportedCostCurrency: 'USD'
         },
         {
@@ -221,37 +221,32 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     const provider = providerService.getByProviderId('cherryin')
 
     // Registry baseline over app defaults; nothing frozen in the row.
-    expect(provider.apiFeatures.serviceTier).toBe(false)
+    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toBeUndefined()
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(provider.reportedCostCurrency).toBe('USD')
   })
 
-  it('persists apiFeatures as a delta: single-key PATCH merges, baseline echoes vanish', async () => {
+  it('persists an endpoint dialect as a delta: deviations stick, registry echoes vanish', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'cherryin',
       presetProviderId: 'cherryin',
       name: 'CherryIN',
       orderKey: 'a0'
     })
+    const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
 
-    // Toggle one flag away from the baseline (registry says serviceTier: false).
-    providerService.update('cherryin', { apiFeatures: { serviceTier: true } })
+    // A deviation from the registry (which declares no dialect, so developerRole defaults false).
+    providerService.update('cherryin', { endpointConfigs: { [chat]: { dialect: { developerRole: true } } } })
     let [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'cherryin'))
-    expect(row.apiFeatures).toEqual({ serviceTier: true })
-    expect(providerService.getByProviderId('cherryin').apiFeatures.serviceTier).toBe(true)
-
-    // A full-snapshot echo that matches the baseline reduces the row to null.
-    providerService.update('cherryin', {
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
-      }
+    expect(row.endpointConfigs?.[chat]?.dialect).toEqual({ developerRole: true })
+    expect(providerService.getByProviderId('cherryin').endpointConfigs?.[chat]?.dialect).toEqual({
+      developerRole: true
     })
+
+    // Echoing the registry's own value is not an override — the row keeps no dialect.
+    providerService.update('cherryin', { endpointConfigs: { [chat]: { dialect: { developerRole: false } } } })
     ;[row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'cherryin'))
-    expect(row.apiFeatures).toBeNull()
+    expect(row.endpointConfigs?.[chat]?.dialect).toBeUndefined()
   })
 
   it('drops a defaultChatEndpoint echo that matches the registry baseline', async () => {

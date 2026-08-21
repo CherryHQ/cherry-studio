@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ImportAssistantSchema } from '../assistants'
+import { ImportAssistantSchema, UpdateAssistantSchema } from '../assistants'
 
 describe('ImportAssistantSchema', () => {
   it('accepts and normalizes a v1 group name beyond the current edit limit', () => {
@@ -27,5 +27,10 @@ describe('ImportAssistantSchema', () => {
         groupId: '11111111-1111-4111-8111-111111111111'
       }).success
     ).toBe(false)
+  })
+
+  it('validates persisted service tier selections', () => {
+    expect(UpdateAssistantSchema.parse({ settings: { service_tier: 'flex' } }).settings?.service_tier).toBe('flex')
+    expect(UpdateAssistantSchema.safeParse({ settings: { service_tier: 'turbo' } }).success).toBe(false)
   })
 })

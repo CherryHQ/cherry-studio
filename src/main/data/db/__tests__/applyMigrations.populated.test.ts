@@ -106,6 +106,69 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
+    const now = Date.now()
+    const insert = sqlite.prepare(
+      `INSERT INTO user_provider
+        (provider_id, name, endpoint_configs, default_chat_endpoint, api_features, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    insert.run(
+      'chat-relay',
+      'Chat Relay',
+      JSON.stringify({ 'openai-chat-completions': { baseUrl: 'https://chat.example/v1' } }),
+      'openai-chat-completions',
+      JSON.stringify({ streamOptions: false, developerRole: true, arrayContent: false }),
+      'a0',
+      now,
+      now
+    )
+    insert.run(
+      'responses-relay',
+      'Responses Relay',
+      null,
+      'openai-responses',
+      JSON.stringify({ streamOptions: false, developerRole: false }),
+      'a1',
+      now,
+      now
+    )
+    insert.run(
+      'anthropic-relay',
+      'Anthropic Relay',
+      null,
+      'anthropic-messages',
+      JSON.stringify({ streamOptions: false, developerRole: true }),
+      'a2',
+      now,
+      now
+    )
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite
+      .prepare('SELECT provider_id, endpoint_configs FROM user_provider ORDER BY order_key')
+      .all() as Array<{ provider_id: string; endpoint_configs: string | null }>
+    expect(
+      rows.map((row) => [row.provider_id, row.endpoint_configs ? JSON.parse(row.endpoint_configs) : null])
+    ).toEqual([
+      [
+        'chat-relay',
+        {
+          'openai-chat-completions': {
+            baseUrl: 'https://chat.example/v1',
+            dialect: { streamOptions: false, developerRole: true }
+          }
+        }
+      ],
+      ['responses-relay', { 'openai-responses': { dialect: { developerRole: false } } }],
+      ['anthropic-relay', null]
+    ])
+    const columns = sqlite.pragma('table_info(user_provider)') as Array<{ name: string }>
+    expect(columns.some(({ name }) => name === 'api_features')).toBe(false)
+  })
+
   it('quarantines legacy channel sessions without changing conversation history', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_rare_vertigo'))
     const now = Date.now()

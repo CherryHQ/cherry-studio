@@ -69,9 +69,6 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
-  apiFeatures: {
-    arrayContent: false
-  },
   serverTools: [
     {
       id: 'web-search',

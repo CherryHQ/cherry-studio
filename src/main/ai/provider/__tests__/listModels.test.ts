@@ -10,14 +10,21 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 // HTTP call through @ai-sdk/provider-utils' getFromApi. Mock all of them at the
 // module boundary: ProviderService / VertexAiService to avoid the DB and signing,
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
-const { getRotatedApiKeyMock, getAuthConfigMock, getAuthHeadersMock, getCopilotTokenMock, aiSdkGetFromApiMock } =
-  vi.hoisted(() => ({
-    getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
-    getAuthConfigMock: vi.fn(),
-    getAuthHeadersMock: vi.fn(),
-    getCopilotTokenMock: vi.fn(),
-    aiSdkGetFromApiMock: vi.fn()
-  }))
+const {
+  getRotatedApiKeyMock,
+  getAuthConfigMock,
+  getAuthHeadersMock,
+  getCopilotTokenMock,
+  aiSdkGetFromApiMock,
+  aiSdkPostJsonToApiMock
+} = vi.hoisted(() => ({
+  getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+  getAuthConfigMock: vi.fn(),
+  getAuthHeadersMock: vi.fn(),
+  getCopilotTokenMock: vi.fn(),
+  aiSdkGetFromApiMock: vi.fn(),
+  aiSdkPostJsonToApiMock: vi.fn()
+}))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
@@ -42,7 +49,8 @@ vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof AiSdkProviderUtils>()
   return {
     ...actual,
-    getFromApi: aiSdkGetFromApiMock
+    getFromApi: aiSdkGetFromApiMock,
+    postJsonToApi: aiSdkPostJsonToApiMock
   }
 })
 
@@ -53,6 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
+  aiSdkPostJsonToApiMock.mockResolvedValue({ value: {} })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
   aiSdkGetFromApiMock.mockResolvedValue({
     value: {
@@ -142,6 +151,51 @@ describe('listModels — Ollama capabilities', () => {
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
     })
+  })
+
+  it('reads the trained context window from /api/show so num_ctx is not left at Ollama default', async () => {
+    // /api/tags carries no context length; without this the model has no contextWindow and no
+    // num_ctx is sent, leaving Ollama to size by VRAM — 4k below 24 GiB, which an agent's tool
+    // preamble overruns on its own (#18643).
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion', 'tools'] }] }
+    })
+    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+      value: { model_info: { 'general.architecture': 'qwen3', 'qwen3.context_length': 40960 } }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0]).toMatchObject({ apiModelId: 'qwen3:32b', contextWindow: 40960 })
+    expect(aiSdkPostJsonToApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'http://ollama.test:11434/api/show',
+      body: { model: 'qwen3:32b' }
+    })
+  })
+
+  it('still lists a model whose /api/show call fails', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion'] }] }
+    })
+    aiSdkPostJsonToApiMock.mockRejectedValueOnce(new Error('connection refused'))
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].contextWindow).toBeUndefined()
+  })
+
+  it('ignores a context length that does not match the reported architecture', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion'] }] }
+    })
+    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+      value: { model_info: { 'general.architecture': 'qwen3', 'llama.context_length': 8192 } }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0].contextWindow).toBeUndefined()
   })
 })
 
