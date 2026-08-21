@@ -30,7 +30,9 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     )
   },
-  withChatPlugins: () => ({})
+  withChatPlugins: () => ({}),
+  defaultMarkdownPlugins: {},
+  withMath: () => ({})
 }))
 
 vi.mock('../../MessageListProvider', () => ({
