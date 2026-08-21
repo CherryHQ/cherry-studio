@@ -1,1 +1,0 @@
-ALTER TABLE `user_provider` DROP COLUMN `api_features`;

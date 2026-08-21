@@ -74,11 +74,4 @@ WHERE json_valid(`api_features`)
     OR `default_chat_endpoint` = 'openai-responses'
   );
 --> statement-breakpoint
--- Nothing reads these keys any more; leaving them behind would let a future
--- read-merge resurrect a value the user can no longer see or change.
-UPDATE `user_provider`
-SET `api_features` = NULLIF(
-  json_remove(`api_features`, '$.streamOptions', '$.developerRole', '$.arrayContent'),
-  json_object()
-)
-WHERE json_valid(`api_features`);
+ALTER TABLE `user_provider` DROP COLUMN `api_features`;
