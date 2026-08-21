@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -23,20 +22,16 @@ const GpuStackSettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
 
   const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
-  const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
-
-  useEffect(() => {
-    setKeepAliveMinutes(provider?.settings?.keepAliveTime ?? 0)
-  }, [provider?.settings?.keepAliveTime])
-
-  const handleBlur = async () => {
-    if (keepAliveMinutes === keepAliveTime) return
+  // `onCommit` fires once per edit with the normalized value, so the field needs
+  // no local draft: a failed save leaves the saved value shown.
+  const handleCommit = async (value: number | null) => {
+    const next = value ?? 0
+    if (next === keepAliveTime) return
     try {
-      await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } })
+      await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: next } })
     } catch (error) {
       logger.error('Failed to save GPUStack keep alive time', { providerId, error })
       toast.error(t('settings.provider.save_failed'))
-      setKeepAliveMinutes(keepAliveTime)
     }
   }
 
@@ -44,15 +39,7 @@ const GpuStackSettings: FC<Props> = ({ providerId }) => {
     <div>
       <ProviderSettingsSubtitle className="mb-1">{t('gpustack.keep_alive_time.title')}</ProviderSettingsSubtitle>
       <InputGroup>
-        <InputNumber
-          value={keepAliveMinutes}
-          min={0}
-          step={5}
-          onChange={(v) => setKeepAliveMinutes(Number(v ?? 0))}
-          onBlur={() => {
-            void handleBlur()
-          }}
-        />
+        <InputNumber value={keepAliveTime} min={0} step={5} onBlur={(v) => void handleCommit(v)} />
         <InputGroupAddon align="inline-end">
           <InputGroupText>{t('gpustack.keep_alive_time.placeholder')}</InputGroupText>
         </InputGroupAddon>

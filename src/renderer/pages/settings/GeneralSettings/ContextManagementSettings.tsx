@@ -73,12 +73,11 @@ export const ContextManagementSettings = () => {
           <InputNumber
             min={1}
             step={1}
-            changeOnBlur
             aria-label={t('settings.models.context_management.max_messages')}
             placeholder={t('settings.models.context_management.max_messages_unlimited')}
             className="h-8 rounded-lg px-2.5"
             value={maxMessages}
-            onChange={(value) => void setMaxMessages(value === null ? null : Math.floor(value))}
+            onBlur={(value) => void setMaxMessages(value === null ? null : Math.floor(value))}
           />
         </div>
       </SettingRow>
@@ -115,11 +114,10 @@ export const ContextManagementSettings = () => {
                 min={MIN_TRUNCATE_THRESHOLD}
                 // step=1000 made the 50000 default a stepMismatch.
                 step={1}
-                changeOnBlur
                 aria-label={t('settings.models.context_management.truncate_threshold')}
                 className="h-8 rounded-lg px-2.5"
                 value={truncateThreshold}
-                onChange={(value) => {
+                onBlur={(value) => {
                   if (typeof value !== 'number' || !Number.isFinite(value)) return
                   void setTruncateThreshold(Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value)))
                 }}

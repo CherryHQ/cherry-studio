@@ -281,8 +281,15 @@ describe('ModelSettings', () => {
     render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
 
     fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
-    fireEvent.change(screen.getByLabelText('settings.models.retry.max_attempts'), { target: { value: '99' } })
-    fireEvent.change(screen.getByLabelText('settings.models.retry.max_attempts'), { target: { value: '' } })
+
+    const attempts = screen.getByLabelText('settings.models.retry.max_attempts')
+    // Typing alone writes nothing: the preference is written once the field settles.
+    fireEvent.change(attempts, { target: { value: '99' } })
+    expect(harness.preferenceSetters['chat.retry.max_attempts']).not.toHaveBeenCalled()
+
+    fireEvent.blur(attempts)
+    fireEvent.change(attempts, { target: { value: '' } })
+    fireEvent.blur(attempts)
 
     expect(harness.preferenceSetters['chat.retry.enabled']).toHaveBeenCalledWith(false)
     expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(1, 10)

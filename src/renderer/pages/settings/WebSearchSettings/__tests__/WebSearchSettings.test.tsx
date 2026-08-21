@@ -309,7 +309,7 @@ describe('WebSearchSettings', () => {
     ['abc', 1],
     ['3.9', 3]
   ])('normalizes max-result draft %s to %s on commit', async (value, expected) => {
-    render(<WebSearchSettings />)
+    const { rerender } = render(<WebSearchSettings />)
     openAdvancedSettings()
 
     fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
@@ -319,12 +319,16 @@ describe('WebSearchSettings', () => {
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(expected)
-      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(String(expected))
     })
+
+    // The mocked preference hook does not re-render on write, so the field is
+    // re-read explicitly to check what it now shows.
+    rerender(<WebSearchSettings />)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(String(expected))
   })
 
   it('resets max results to the default value when customized', async () => {
-    render(<WebSearchSettings />)
+    const { rerender } = render(<WebSearchSettings />)
     openAdvancedSettings()
 
     expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
@@ -338,12 +342,15 @@ describe('WebSearchSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(10)
     })
 
+    rerender(<WebSearchSettings />)
     fireEvent.click(screen.getByRole('button', { name: 'common.reset' }))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(5)
-      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('5')
     })
+
+    rerender(<WebSearchSettings />)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('5')
   })
 
   it('syncs clean blacklist drafts from external preference changes', () => {

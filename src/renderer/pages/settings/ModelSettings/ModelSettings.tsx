@@ -377,9 +377,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   className={compact ? 'h-7 w-16 px-2' : 'w-24'}
                   aria-label={t('settings.models.retry.max_attempts')}
                   value={retryMaxAttempts}
-                  // Clamped here, not on blur: this field persists on every
-                  // keystroke, so an out-of-range value must never be written.
-                  onChange={(value) => void setRetryMaxAttempts(Math.min(10, Math.max(1, value ?? 1)))}
+                  onBlur={(value) => void setRetryMaxAttempts(value ?? 1)}
                 />
               </ModelSettingRow>
               <SettingDivider />

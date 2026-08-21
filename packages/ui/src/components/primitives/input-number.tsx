@@ -3,15 +3,40 @@ import * as React from 'react'
 
 import { Input } from './input'
 
+/**
+ * A number field that owns the text being typed, so partial input like `"1."`,
+ * `"-"` or `"3.9"` survives while the caret is in it.
+ *
+ * Because it owns that text it must settle it when the caret leaves: on
+ * blur/Enter the field normalizes what was typed — clamped into `[min, max]`,
+ * truncated when `step` is an integer — and renders the result. **That is not
+ * configurable**; a field cannot be left showing `"1."`.
+ *
+ * `onBlur` reports what that normalization produced. It states a fact — "this
+ * is the value the field settled on" — and leaves the meaning to the caller:
+ * persist it, ignore it, or diff it against something else.
+ *
+ * Both callbacks take the value, not the DOM event: the raw `FocusEvent` would
+ * be misleading here anyway, since `event.target.value` at that point is still
+ * the text the user typed.
+ */
 interface InputNumberProps
-  extends Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode' | 'value' | 'onChange' | 'size'> {
+  extends Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode' | 'value' | 'onChange' | 'onBlur' | 'size'> {
   value: number | null
-  onChange: (value: number | null) => void
+  /**
+   * Fires on every keystroke, with the value as typed — parsed but NOT
+   * normalized, because clamping mid-edit would trap the caret below `min`
+   * (typing `50` into a `min={10}` field would stop at the first `5`).
+   * Use it for live coupling: a slider that tracks the field, form state, etc.
+   */
+  onChange?: (value: number | null) => void
+  /** Fires on blur/Enter with the normalized value — the same one now rendered. */
+  onBlur?: (value: number | null) => void
+  /** Also decides whether a minus sign can be typed: omitted or negative allows it. */
   min?: number
   max?: number
+  /** Also decides whether the value is an integer: an integer `step` truncates on commit. */
   step?: number
-  /** Report only on blur/Enter instead of on every keystroke. */
-  changeOnBlur?: boolean
   size?: 'small' | 'middle' | 'large'
 }
 
@@ -51,7 +76,6 @@ function InputNumber({
   min,
   max,
   step,
-  changeOnBlur = false,
   size = 'middle',
   className,
   onFocus,
@@ -67,16 +91,12 @@ function InputNumber({
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = sanitize(event.target.value, min)
     setDraft(next)
-    if (!changeOnBlur) {
-      // Report the raw parse: clamping mid-edit would trap the user below `min`.
-      onChange(next === '' || !Number.isFinite(Number(next)) ? null : Number(next))
-    }
+    onChange?.(next === '' || !Number.isFinite(Number(next)) ? null : Number(next))
   }
 
-  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    onChange(parse(text, min, max, step))
+  const handleBlur = () => {
     setDraft(null)
-    onBlur?.(event)
+    onBlur?.(parse(text, min, max, step))
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {

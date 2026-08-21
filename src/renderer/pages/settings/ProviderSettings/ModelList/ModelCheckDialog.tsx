@@ -459,7 +459,7 @@ export default function ModelCheckDialog() {
                     step={1}
                     value={timeoutSeconds}
                     className="w-24"
-                    onChange={(value) => setTimeoutSeconds(value ?? 5)}
+                    onBlur={(value) => setTimeoutSeconds(value ?? 5)}
                   />
                   <span className="text-muted-foreground text-sm">{t('settings.models.check.timeout_unit')}</span>
                 </div>

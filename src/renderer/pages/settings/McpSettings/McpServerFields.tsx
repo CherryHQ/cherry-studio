@@ -595,7 +595,7 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
                   step={1}
                   placeholder="60"
                   value={field.value ?? null}
-                  onChange={(value) => field.onChange(value ?? undefined)}
+                  onBlur={(value) => field.onChange(value ?? undefined)}
                   className="h-8 w-24 py-0"
                 />
                 <span className="text-foreground-tertiary text-xs">s</span>

@@ -188,9 +188,8 @@ const ApiGatewaySettings: FC = () => {
                   min={1000}
                   max={65535}
                   step={1}
-                  changeOnBlur
                   value={serverPort}
-                  onChange={handlePortChange}
+                  onBlur={handlePortChange}
                 />
               </Field>
             </ConnectionFields>
