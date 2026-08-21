@@ -22,6 +22,7 @@ renderer-side transport that connects to them.
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi, and DSH drivers |
 | [Adding an Agent Runtime](./adding-a-runtime.md) | Operational checklist for a new runtime: capability descriptor, driver package, registration points, design rules |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
+| [Provider State Ownership](./provider-state-ownership.md) | Where provider facts, endpoint dialects, connection overrides, and per-request controls belong |
 
 ### Subsystems
 
@@ -146,6 +147,10 @@ src/main/ai/
   (MiniMax, Silicon, AiHubMix, …) carry one `adapterFamily` per endpoint.
   Picking the SDK package never reads `apiHost` or provider id heuristics
   at request time. See [Adapter Family](./adapter-family.md).
+- **One provider fact, one owner.** Host facts live on registry providers,
+  protocol deviations on endpoint configs, user connection deltas on provider
+  rows, and per-request choices on assistants. See
+  [Provider State Ownership](./provider-state-ownership.md).
 
 ## Related references
 
