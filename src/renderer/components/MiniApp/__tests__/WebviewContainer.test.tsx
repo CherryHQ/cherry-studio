@@ -34,7 +34,43 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+import { MINI_APP_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
+
 import WebviewContainer from '../WebviewContainer'
+
+const renderWebview = () => {
+  const { container } = render(
+    <WebviewContainer
+      appid="chatgpt"
+      url="https://chat.openai.com"
+      onSetRefCallback={vi.fn()}
+      onLoadedCallback={vi.fn()}
+      onNavigateCallback={vi.fn()}
+    />
+  )
+  const webview = container.querySelector('webview')!
+  expect(webview).not.toBeNull()
+  return webview
+}
+
+const focusOn = (element: Element | null) => {
+  Object.defineProperty(document, 'activeElement', { value: element, configurable: true })
+}
+
+const sendGuestKey = (webview: Element, payload: Record<string, unknown>) => {
+  act(() => {
+    webview.dispatchEvent(
+      Object.assign(new Event('ipc-message'), { channel: MINI_APP_KEYDOWN_CHANNEL, args: [payload] })
+    )
+  })
+}
+
+const captureWindowKeydown = () => {
+  const seen: KeyboardEvent[] = []
+  const listener = (event: Event) => seen.push(event as KeyboardEvent)
+  window.addEventListener('keydown', listener)
+  return { seen, stop: () => window.removeEventListener('keydown', listener) }
+}
 
 describe('WebviewContainer', () => {
   beforeEach(() => {
@@ -43,6 +79,7 @@ describe('WebviewContainer', () => {
 
   afterEach(() => {
     cleanup()
+    focusOn(document.body)
     vi.useRealTimers()
     vi.clearAllMocks()
   })
@@ -139,5 +176,41 @@ describe('WebviewContainer', () => {
     })
 
     expect(onLoaded).toHaveBeenCalledWith('chatgpt')
+  })
+
+  it('replays a guest keydown on the host window, targeted at the WebView it came from', () => {
+    const webview = renderWebview()
+    focusOn(webview)
+    const { seen, stop } = captureWindowKeydown()
+
+    sendGuestKey(webview, { key: 'f', code: 'KeyF', ctrlKey: true, shiftKey: false, isTrusted: true })
+    stop()
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0].key).toBe('f')
+    expect(seen[0].ctrlKey).toBe(true)
+    expect(seen[0].target).toBe(webview)
+  })
+
+  it('drops a keydown the guest page synthesized instead of a real key press', () => {
+    const webview = renderWebview()
+    focusOn(webview)
+    const { seen, stop } = captureWindowKeydown()
+
+    sendGuestKey(webview, { key: 'f', code: 'KeyF', ctrlKey: true, isTrusted: false })
+    stop()
+
+    expect(seen).toHaveLength(0)
+  })
+
+  it('drops a guest keydown that arrives while the WebView is not focused', () => {
+    const webview = renderWebview()
+    focusOn(document.body)
+    const { seen, stop } = captureWindowKeydown()
+
+    sendGuestKey(webview, { key: 'f', code: 'KeyF', ctrlKey: true, isTrusted: true })
+    stop()
+
+    expect(seen).toHaveLength(0)
   })
 })

@@ -2,8 +2,9 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
-import { app, dialog, session, shell, webContents } from 'electron'
+import { dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
+import { join } from 'path'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
@@ -58,82 +59,12 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
   })
 }
 
-const attachKeyboardHandler = (contents: Electron.WebContents) => {
-  if (contents.getType?.() !== 'webview') {
-    return
-  }
-
-  const handleBeforeInput = (event: Electron.Event, input: Electron.Input) => {
-    if (!input) {
-      return
-    }
-
-    const key = input.key?.toLowerCase()
-    if (!key) {
-      return
-    }
-
-    // Helper to check if this is a shortcut we handle
-    const isHandledShortcut = (k: string) => {
-      const isFindShortcut = (input.control || input.meta) && k === 'f'
-      const isPrintShortcut = (input.control || input.meta) && k === 'p'
-      const isSaveShortcut = (input.control || input.meta) && k === 's'
-      const isEscape = k === 'escape'
-      const isEnter = k === 'enter'
-      return isFindShortcut || isPrintShortcut || isSaveShortcut || isEscape || isEnter
-    }
-
-    if (!isHandledShortcut(key)) {
-      return
-    }
-
-    const host = contents.hostWebContents
-    if (!host || host.isDestroyed()) {
-      return
-    }
-
-    const isFindShortcut = (input.control || input.meta) && key === 'f'
-    const isPrintShortcut = (input.control || input.meta) && key === 'p'
-    const isSaveShortcut = (input.control || input.meta) && key === 's'
-
-    // Always prevent Cmd/Ctrl+F to override the guest page's native find dialog
-    if (isFindShortcut) {
-      event.preventDefault()
-    }
-
-    // Prevent default print/save dialogs and handle them with custom logic
-    if (isPrintShortcut || isSaveShortcut) {
-      event.preventDefault()
-    }
-
-    // Send the hotkey event to the renderer
-    // The renderer will decide whether to preventDefault for Escape and Enter
-    // based on whether the search bar is visible
-    const windowId = application.get('WindowManager').getWindowIdByWebContents(host)
-    if (windowId) {
-      application.get('IpcApiService').send(windowId, 'webview.search_hotkey_pressed', {
-        webviewId: contents.id,
-        key,
-        control: Boolean(input.control),
-        meta: Boolean(input.meta),
-        shift: Boolean(input.shift),
-        alt: Boolean(input.alt)
-      })
-    }
-  }
-
-  contents.on('before-input-event', handleBeforeInput)
-  contents.once('destroyed', () => {
-    contents.removeListener('before-input-event', handleBeforeInput)
-  })
-}
-
 @Injectable('WebviewService')
 @ServicePhase(Phase.WhenReady)
 export class WebviewService extends BaseService {
   protected async onInit() {
     this.initSessionUserAgent()
-    this.initWebviewHotkeys()
+    this.initKeyboardRelayPreload()
   }
 
   /**
@@ -159,19 +90,16 @@ export class WebviewService extends BaseService {
   }
 
   /**
-   * Attach keyboard hotkey handlers to all existing and future webviews.
+   * Install the keyboard relay into every MiniApp guest. Registered on the session so
+   * a compromised renderer cannot choose the guest's preload via the `<webview>` tag.
    */
-  private initWebviewHotkeys() {
-    webContents.getAllWebContents().forEach((contents) => {
-      if (contents.isDestroyed()) return
-      attachKeyboardHandler(contents)
+  private initKeyboardRelayPreload() {
+    const wvSession = session.fromPartition('persist:webview')
+    const id = wvSession.registerPreloadScript({
+      type: 'frame',
+      filePath: join(__dirname, '../preload/miniApp.js')
     })
-
-    const handler = (_: Electron.Event, contents: Electron.WebContents) => {
-      attachKeyboardHandler(contents)
-    }
-    app.on('web-contents-created', handler)
-    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
+    this.registerDisposable(() => wvSession.unregisterPreloadScript(id))
   }
 
   /**
