@@ -2,7 +2,7 @@
 title: Quick assistant is now an input bar that expands into a chat panel
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#19106"
 date: 2026-08-21
 ---
 
