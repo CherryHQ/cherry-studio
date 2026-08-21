@@ -231,6 +231,33 @@ describe('DeepSeek Harness config transaction', () => {
     })
   })
 
+  it('writes the versioned credentials layout DSH 0.1.1 accepts', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 1,
+      refs: { [identity.credentialRef]: 'sk-sensitive' }
+    })
+  })
+
+  it('updates the managed ref inside an already versioned credentials document', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+    await writeFile(
+      path.join(dir, '.credentials.yaml'),
+      `version: 1\nrefs:\n  OTHER_KEY: keep\n  ${identity.credentialRef}: sk-stale\n`,
+      { mode: 0o600 }
+    )
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 1,
+      refs: { OTHER_KEY: 'keep', [identity.credentialRef]: 'sk-sensitive' }
+    })
+  })
+
   it('rejects an invalid managed credential reference', async () => {
     await expect(
       writeDeepSeekHarnessConfig(dir, { ...projection(), credentialRef: 'invalid-reference' })
