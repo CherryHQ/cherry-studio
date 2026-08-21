@@ -2,7 +2,7 @@
 title: Provider API keys and OAuth tokens are now stored encrypted
 category: changed
 severity: notice
-introduced_in_pr: "#<PR-1 number>"
+introduced_in_pr: "#19138"
 date: 2026-08-22
 ---
 
