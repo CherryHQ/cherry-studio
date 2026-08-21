@@ -1,7 +1,6 @@
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { CodeCli } from '@shared/types/codeCli'
@@ -44,15 +43,6 @@ export function useHermesDashboardController(selectedCliTool: CodeCli): HermesDa
   )
 
   const onLaunch = useCallback(async () => {
-    const confirmed = await popup.confirm({
-      title: t('code.hermes_dashboard.confirm.title'),
-      content: t('code.hermes_dashboard.confirm.content'),
-      okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      centered: true
-    })
-    if (!confirmed) return
-
     try {
       setLaunching(true)
       setStatus('starting')

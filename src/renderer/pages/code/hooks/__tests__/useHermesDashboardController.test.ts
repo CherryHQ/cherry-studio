@@ -3,7 +3,6 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  confirm: vi.fn(),
   openSmartMiniApp: vi.fn(),
   request: vi.fn()
 }))
@@ -15,7 +14,6 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ error: vi.fn() }) }
 }))
-vi.mock('@renderer/services/popup', () => ({ popup: { confirm: mocks.confirm } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
@@ -24,7 +22,6 @@ const { useHermesDashboardController } = await import('../useHermesDashboardCont
 describe('useHermesDashboardController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.confirm.mockResolvedValue(true)
     mocks.request.mockImplementation((route: string) => {
       if (route === 'hermes_dashboard.start') return Promise.resolve({ success: true, url: 'http://127.0.0.1:49152' })
       if (route === 'hermes_dashboard.get_status') return Promise.resolve({ status: 'stopped' })
@@ -36,19 +33,13 @@ describe('useHermesDashboardController', () => {
 
   afterEach(() => vi.restoreAllMocks())
 
-  it('confirms native-config ownership before starting and opening the Dashboard', async () => {
+  it('starts and opens the Dashboard without a confirmation prompt', async () => {
     const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
 
     await act(async () => {
       await result.current.onLaunch()
     })
 
-    expect(mocks.confirm).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'code.hermes_dashboard.confirm.title',
-        content: 'code.hermes_dashboard.confirm.content'
-      })
-    )
     expect(mocks.request).toHaveBeenCalledWith('hermes_dashboard.start')
     expect(mocks.openSmartMiniApp).toHaveBeenCalledWith({
       appId: 'hermes-dashboard',
@@ -56,17 +47,6 @@ describe('useHermesDashboardController', () => {
       url: 'http://127.0.0.1:49152/?cherry_navigation_revision=1774560000000',
       logo: 'nousresearch'
     })
-  })
-
-  it('does not start Dashboard when the native-config warning is declined', async () => {
-    mocks.confirm.mockResolvedValue(false)
-    const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
-
-    await act(async () => {
-      await result.current.onLaunch()
-    })
-
-    expect(mocks.request).not.toHaveBeenCalledWith('hermes_dashboard.start')
   })
 
   it('refreshes Dashboard status only while Hermes is selected', async () => {
