@@ -91,15 +91,23 @@ describe('ConversationIsland', () => {
     expect(within(screen.getByTestId('notch-trailing')).getByText('+2')).toBeVisible()
   })
 
-  it('keeps capsule styling for capsule snapshots and invalid notch widths', () => {
+  it('keeps capsule styling for capsule snapshots', () => {
     mocks.initData = snapshot()
-    const view = render(<ConversationIsland />)
+    render(<ConversationIsland />)
 
     expect(screen.queryByTestId('notch-occlusion')).toBeNull()
     expect(screen.getByRole('button')).toHaveClass('rounded-full', 'bg-popover/95')
+  })
 
-    mocks.initData = snapshot({ presentation: 'notch', notchWidth: undefined })
-    view.rerender(<ConversationIsland />)
+  it.each([
+    { notchWidth: undefined },
+    { notchWidth: Number.NaN },
+    { notchWidth: Number.POSITIVE_INFINITY },
+    { notchWidth: 0 },
+    { notchWidth: -1 }
+  ])('keeps capsule styling for invalid notch width $notchWidth', ({ notchWidth }) => {
+    mocks.initData = snapshot({ presentation: 'notch', notchWidth })
+    render(<ConversationIsland />)
 
     expect(screen.queryByTestId('notch-occlusion')).toBeNull()
     expect(screen.getByRole('button')).toHaveClass('rounded-full', 'bg-popover/95')
