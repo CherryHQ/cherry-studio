@@ -989,6 +989,7 @@
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
+      "ai_disclaimer": "内容由AI生成，注意核实重要信息",
       "cancel_editing": "取消编辑",
       "clear": {
         "content": "确定要清除当前对话所有消息吗？",

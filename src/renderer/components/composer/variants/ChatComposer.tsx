@@ -1751,6 +1751,7 @@ const ChatComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          showAiDisclaimer
           text={text}
           onTextChange={handleTextChange}
           tokens={tokens}

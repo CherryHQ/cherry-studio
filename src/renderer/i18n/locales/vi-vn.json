@@ -989,6 +989,7 @@
       "welcome_title": "Hôm nay chúng ta nên nói về điều gì?"
     },
     "input": {
+      "ai_disclaimer": "Nội dung do AI tạo — hãy kiểm chứng kỹ các thông tin quan trọng",
       "cancel_editing": "Hủy chỉnh sửa",
       "clear": {
         "content": "Bạn có muốn xóa tất cả tin nhắn của chủ đề hiện tại không?",

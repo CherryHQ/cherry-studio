@@ -989,6 +989,7 @@
       "welcome_title": "今天我們要談些什麼？"
     },
     "input": {
+      "ai_disclaimer": "內容由AI生成，注意核實重要資訊",
       "cancel_editing": "取消編輯",
       "clear": {
         "content": "您想要清除目前對話的所有訊息嗎？",

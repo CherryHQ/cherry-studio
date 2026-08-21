@@ -379,6 +379,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               <div className="relative">{inputbarElement}</div>
             </>
           )}
+          {props.showAiDisclaimer ? (
+            <div className="-mt-3 pt-[3px] pb-[8px] text-center text-[11px] text-foreground-tertiary opacity-70">
+              {t('chat.input.ai_disclaimer')}
+            </div>
+          ) : null}
         </div>
       </div>
     </NarrowLayout>

@@ -989,6 +989,7 @@
       "welcome_title": "¿De qué hablaremos hoy?"
     },
     "input": {
+      "ai_disclaimer": "Contenido generado por IA: comprueba con atención la información importante",
       "cancel_editing": "Cancelar edición",
       "clear": {
         "content": "¿Estás seguro de que quieres eliminar todos los mensajes de la sesión actual?",
