@@ -423,7 +423,7 @@ const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSumm
     )
   }
 
-  const time = formatTaskCardTime(summary.finishedAt ?? summary.startedAt)
+  const time = formatTaskCardTime(summary.finishedAt)
   if (summary.status === 'completed') {
     return (
       <span className="flex items-center gap-1.5 text-foreground">

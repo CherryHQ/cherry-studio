@@ -7,7 +7,8 @@
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { eq, type SQL } from 'drizzle-orm'
+import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -322,17 +323,13 @@ describe('AgentTaskService (read side)', () => {
 
       const result = agentTaskService.listAllTasks()
 
-      expect(result.tasks[0].runSummary).toMatchObject({
-        status: 'running',
-        startedAt: new Date(now - 2_000).toISOString(),
-        finishedAt: null
-      })
+      expect(result.tasks[0].runSummary).toEqual({ status: 'running' })
 
       dbh.db.update(jobTable).set({ status: 'completed', finishedAt: now }).where(eq(jobTable.status, 'running')).run()
-      expect(agentTaskService.listAllTasks().tasks[0].runSummary?.status).toBe('queued')
+      expect(agentTaskService.listAllTasks().tasks[0].runSummary).toEqual({ status: 'queued' })
 
       dbh.db.update(jobTable).set({ status: 'delayed' }).where(eq(jobTable.status, 'pending')).run()
-      expect(agentTaskService.listAllTasks().tasks[0].runSummary?.status).toBe('queued')
+      expect(agentTaskService.listAllTasks().tasks[0].runSummary).toEqual({ status: 'queued' })
     })
 
     it('projects the newest terminal run and leaves tasks without jobs empty', () => {
@@ -393,10 +390,73 @@ describe('AgentTaskService (read side)', () => {
 
       const result = agentTaskService.listAllTasks()
 
-      expect(result.tasks.find((task) => task.id === withJobs.id)?.runSummary).toMatchObject({
-        status: 'cancelled'
+      expect(result.tasks.find((task) => task.id === withJobs.id)?.runSummary).toEqual({
+        status: 'cancelled',
+        finishedAt: new Date(now - 100).toISOString()
       })
       expect(result.tasks.find((task) => task.id === withoutJobs.id)?.runSummary).toBeNull()
+    })
+
+    it('uses bounded index seeks instead of ranking the retained schedule history', () => {
+      const schedule = makeSnapshot({ id: 'query-plan-task', name: 'query-plan-task' })
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([schedule])
+      const now = Date.now()
+      dbh.db
+        .insert(jobScheduleTable)
+        .values({
+          id: schedule.id,
+          type: schedule.type,
+          name: schedule.name ?? '',
+          trigger: schedule.trigger,
+          jobInputTemplate: schedule.jobInputTemplate,
+          enabled: schedule.enabled,
+          catchUpPolicy: schedule.catchUpPolicy,
+          metadata: schedule.metadata,
+          createdAt: Date.parse(schedule.createdAt),
+          updatedAt: Date.parse(schedule.updatedAt)
+        })
+        .run()
+      dbh.db
+        .insert(jobTable)
+        .values(
+          Array.from({ length: 500 }, (_, index) => ({
+            id: `0198a000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
+            type: 'agent.task',
+            status: index === 499 ? ('completed' as const) : ('pending' as const),
+            queue: 'agent:test',
+            scheduleId: schedule.id,
+            scheduledAt: now + index,
+            startedAt: index === 499 ? now + index : null,
+            finishedAt: index === 499 ? now + index + 1 : null,
+            maxAttempts: 1,
+            input: {},
+            createdAt: now + index,
+            updatedAt: now + index
+          }))
+        )
+        .run()
+
+      const allSpy = vi.spyOn(dbh.db, 'all')
+      agentTaskService.listAllTasks()
+
+      const dialect = new SQLiteSyncDialect({ casing: 'snake_case' })
+      const queries = allSpy.mock.calls.map(([query]) => dialect.sqlToQuery(query as SQL))
+      const plans = queries.flatMap(({ sql: query, params }) =>
+        dbh.sqlite
+          .prepare(`EXPLAIN QUERY PLAN ${query}`)
+          .all(...params)
+          .map((row) => (row as { detail: string }).detail)
+      )
+
+      expect(queries).toHaveLength(3)
+      expect(queries.some(({ sql: query }) => /row_number/i.test(query))).toBe(false)
+      expect(plans.some((detail) => /USE TEMP B-TREE FOR ORDER BY/i.test(detail))).toBe(false)
+      expect(plans).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('job_status_idx'),
+          expect.stringContaining('job_schedule_id_finished_at_idx')
+        ])
+      )
     })
   })
 

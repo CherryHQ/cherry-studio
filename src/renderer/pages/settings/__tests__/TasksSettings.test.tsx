@@ -857,7 +857,6 @@ describe('TasksSettings routing and creation', () => {
       nextRun: '2026-06-26T09:00:00.000Z',
       runSummary: {
         status: 'failed',
-        startedAt: '2026-06-25T00:00:00.000Z',
         finishedAt: '2026-06-25T00:01:00.000Z'
       }
     }
@@ -881,9 +880,7 @@ describe('TasksSettings routing and creation', () => {
         name: 'Running task',
         nextRun: '2026-06-26T09:00:00.000Z',
         runSummary: {
-          status: 'running',
-          startedAt: '2026-06-25T00:00:00.000Z',
-          finishedAt: null
+          status: 'running'
         }
       },
       {
@@ -897,9 +894,7 @@ describe('TasksSettings routing and creation', () => {
         id: 'queued-task',
         name: 'Queued task',
         runSummary: {
-          status: 'queued',
-          startedAt: '2026-06-25T00:00:00.000Z',
-          finishedAt: null
+          status: 'queued'
         }
       },
       {
