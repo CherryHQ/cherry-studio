@@ -1,6 +1,6 @@
 # macOS 对话灵动岛实现计划
 
-> **状态：已被取代。** 本计划记录当前分支的历史实施步骤，但其“无悬停展开”和 `show_title` 约束已由 [`macOS Conversation Island Design`](../specs/2026-08-21-macos-conversation-island-design.md) 取代。不得继续执行本计划的未完成步骤；设计规格复核后应另写实现计划。
+> **状态：已被取代。** 本计划记录当前分支的历史实施步骤，但其“无悬停展开”和 `show_title` 约束已由 [`macOS Conversation Island Design`](../specs/2026-08-21-macos-conversation-island-design.md) 取代。后续工作改用 [`macOS 对话灵动岛悬停展开实现计划`](./2026-08-21-macos-conversation-island-hover-expansion.md)。
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
