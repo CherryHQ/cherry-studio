@@ -451,7 +451,20 @@
       "fast": "Schnell",
       "faster": "Schneller",
       "label": "Geschwindigkeit",
+      "service_tier": {
+        "auto": "Automatisch",
+        "fast": "Schnell",
+        "flex": "Flexibel",
+        "label": "Dienststufe",
+        "standard": "Standard"
+      },
       "smarter": "Intelligenter",
+      "summary": {
+        "auto": "Automatisch",
+        "concise": "Kompakt",
+        "detailed": "Ausführlich",
+        "label": "Denkzusammenfassung"
+      },
       "title": "Antworteinstellungen"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "Einen von einem MCP-Server bereitgestellten Prompt einfügen",
         "empty": "Keine MCP-Prompts verfügbar",
+        "fill_arguments": "Prompt-Argumente ausfüllen",
+        "fill_arguments_description": "Geben Sie die Argumente ein, bevor der Prompt eingefügt wird",
+        "insert": "Einfügen",
         "insert_failed": "Prompt konnte nicht eingefügt werden",
         "title": "MCP-Prompts"
       },
@@ -3490,6 +3506,12 @@
         "title": "Ausblenden"
       }
     },
+    "split": {
+      "already_open": "Wird bereits im anderen Bereich angezeigt",
+      "choose": "Mini-App für die geteilte Ansicht wählen",
+      "close": "Geteilte Ansicht schließen",
+      "open": "Geteilte Ansicht"
+    },
     "title": "Mini-Apps",
     "unpin_failed": "Fehler beim Lösen der Mini-App",
     "update_partial_failure": "{{failed}} von {{total}} Aktualisierungen sind fehlgeschlagen"
@@ -3601,6 +3623,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Zu den Modelleinstellungen",
     "provider_settings": "Zu Anbietereinstellungen navigieren"
   },
   "notes": {
@@ -4520,6 +4543,10 @@
         "custom": "Benutzerdefinierte Funktionen",
         "delete_confirm": "Diese benutzerdefinierte Funktion wirklich löschen?",
         "drag_hint": "Zum Sortieren ziehen, nach oben bewegen, um Funktion zu aktivieren ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Wird für „Erklären“, „Zusammenfassen“, „Überarbeiten“ und benutzerdefinierte Aktionen verwendet, die das Standardmodell nutzen.",
+          "translate_description": "Wird zum Erstellen von Übersetzungen verwendet. Die automatische Spracherkennung kann zusätzlich das Schnellmodell verwenden."
+        },
         "reset": {
           "button": "Zurücksetzen",
           "confirm": "Wirklich auf Standardfunktionen zurücksetzen? Benutzerdefinierte Funktionen werden nicht gelöscht.",
@@ -6207,8 +6234,9 @@
       "provider_key_confirm_title": "API-Schlüssel für {{provider}} hinzufügen",
       "provider_name": "Anbietername",
       "quick_assistant_default_tag": "Standard",
-      "quick_assistant_model": "Schnellassistent-Modell",
+      "quick_assistant_response_settings": "Antworteinstellungen",
       "quick_assistant_selection": "Assistent auswählen",
+      "quick_assistant_usage_method": "Verwendungsart",
       "quick_model": {
         "description": "Modell für einfache Aufgaben wie Themenbenennung und Keyword-Extraktion",
         "label": "Schnellmodell",
@@ -6317,10 +6345,6 @@
             "token_threshold": "Cache-Token-Schwellenwert",
             "token_threshold_help": "Nachrichten, die diese Token-Anzahl überschreiten, werden zwischengespeichert. Auf 0 setzen, um das Caching zu deaktivieren."
           },
-          "array_content": {
-            "help": "Unterstützt Array-Format für message content",
-            "label": "Unterstützt Array-Format für message content"
-          },
           "developer_role": {
             "help": "Unterstützt der Anbieter Nachrichten mit der Rolle „developer“?",
             "label": "Unterstützt Developer Message"
@@ -6330,17 +6354,13 @@
             "label": "Unterstützt enable_thinking"
           },
           "label": "API-Einstellungen",
-          "service_tier": {
-            "help": "Legt fest, ob der Anbieter die Konfiguration des Parameters service_tier unterstützt. Wenn diese Option aktiviert ist, kann der Parameter in den Dienststufeneinstellungen der Chatseite angepasst werden. Nur für OpenAI-Modelle.",
-            "label": "Unterstützt service_tier"
+          "reasoning_summary": {
+            "help": "Sendet reasoning.summary an diesen Responses-Endpunkt. Nur aktivieren, wenn der Server diesen OpenAI-Parameter akzeptiert.",
+            "label": "Reasoning-Zusammenfassung unterstützen"
           },
           "stream_options": {
             "help": "Unterstützt der Anbieter den Parameter stream_options?",
             "label": "Unterstützt stream_options"
-          },
-          "verbosity": {
-            "help": "Ob der Anbieter den Ausführlichkeitsparameter unterstützt",
-            "label": "Unterstützung der Ausführlichkeit"
           }
         },
         "url": {
@@ -7061,9 +7081,8 @@
       "explore": {
         "analysis": "Analyse",
         "chart": "Diagramm",
-        "clearDate": "Datumsfilter löschen",
-        "drilldownTitle": "{{date}} Drilldown",
         "entries": "Anfragen",
+        "granularity": "Granularität",
         "groupBy": "Gruppieren nach",
         "loadMore": "Mehr laden",
         "loading": "Wird geladen...",
@@ -7073,7 +7092,6 @@
         "noEntries": "Keine Einträge",
         "noEntriesDescription": "Probieren Sie ein breiteres Fenster oder einen anderen Anbieter aus.",
         "rollup": "Zusammenfassung",
-        "selectedDate": "Ausgewähltes Datum: {{date}}",
         "shareLabel": "Teilen",
         "title": "Erkunden",
         "top": "Höchste",
@@ -7087,7 +7105,6 @@
         "source": "Assistent / Agent"
       },
       "heatmap": {
-        "ariaDate": "Verwendung am {{date}}",
         "title": "Tägliche Aktivität"
       },
       "metric": {

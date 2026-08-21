@@ -124,6 +124,11 @@ export function buildPathRegistry() {
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
     'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
     'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
+    // mise's rust recipe drives rustup, which keeps its toolchains outside the
+    // mise install dir. Pinning both homes keeps install and execution pointed at
+    // the same copy — the user's real ~/.rustup is never read or written.
+    'feature.binary.data.isolated.rustup': path.join(appUserDataToolchainMise, 'rustup'),
+    'feature.binary.data.isolated.cargo': path.join(appUserDataToolchainMise, 'cargo'),
 
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
@@ -134,6 +139,8 @@ export function buildPathRegistry() {
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
     'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
+    // Server catalog `@cherry/mcp-auto-install` reads when a custom registry is configured
+    'feature.mcp.registry_file': path.join(CHERRY_HOME, 'config', 'mcp-registry.json'),
 
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),

@@ -1,6 +1,6 @@
 import { type CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
+import { CodeStyleContext, CodeStyleThemeCatalogContext } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'
 import { getHighlighter, getMarkdownIt, getShiki, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
@@ -181,8 +181,6 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       getShikiPreProperties,
       highlightCode,
       shikiMarkdownIt,
-      loadThemeNames,
-      themeNames,
       activeShikiTheme,
       isShikiThemeDark,
       activeCmTheme
@@ -194,13 +192,23 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       getShikiPreProperties,
       highlightCode,
       shikiMarkdownIt,
-      loadThemeNames,
-      themeNames,
       activeShikiTheme,
       isShikiThemeDark,
       activeCmTheme
     ]
   )
 
-  return <CodeStyleContext value={contextValue}>{children}</CodeStyleContext>
+  const themeCatalogContextValue = useMemo(
+    () => ({
+      loadThemeNames,
+      themeNames
+    }),
+    [loadThemeNames, themeNames]
+  )
+
+  return (
+    <CodeStyleContext value={contextValue}>
+      <CodeStyleThemeCatalogContext value={themeCatalogContextValue}>{children}</CodeStyleThemeCatalogContext>
+    </CodeStyleContext>
+  )
 }

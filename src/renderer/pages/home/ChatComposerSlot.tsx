@@ -25,7 +25,7 @@ interface ChatComposerSlotBaseProps {
       userMessageParts?: CherryMessagePart[]
       chatTarget?: ComposerChatTarget
     }
-  ) => Promise<void>
+  ) => Promise<boolean>
   chatTarget: ComposerChatTarget
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>

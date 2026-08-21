@@ -73,6 +73,7 @@ import {
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
+import { buildPluginDirectoryIndex } from './skillDependencies'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
 
@@ -199,7 +200,8 @@ export async function buildClaudeCodeSessionSettings(
     agent,
     mountedServers,
     agentDataPath,
-    agentsMdLoader
+    agentsMdLoader,
+    await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? [])
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -409,7 +411,8 @@ async function buildToolPermissions(
   agent: AgentEntity,
   mountedServers: ReadonlySet<string>,
   agentDataPath: string,
-  agentsMdLoader: AgentsMdLoader
+  agentsMdLoader: AgentsMdLoader,
+  pluginDirectories: ReadonlyMap<string, string>
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -547,6 +550,7 @@ async function buildToolPermissions(
     agentDataPath,
     builtinRole,
     mountedServers,
+    pluginDirectories,
     agentsMdLoader
   })
 

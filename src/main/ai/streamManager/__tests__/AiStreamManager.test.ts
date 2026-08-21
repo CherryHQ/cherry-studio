@@ -2415,12 +2415,17 @@ describe('AiStreamManager', () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
 
       expect(mgr.hasPendingSteer('a')).toBe(false)
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', 'high', 'flex', true)
       expect(mgr.hasPendingSteer('a')).toBe(true)
 
       await flush()
       expect(dispatchSpy).toHaveBeenCalledTimes(1)
-      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), {
+        ...steerReq('a', 'u1'),
+        reasoningEffort: 'high',
+        serviceTier: 'flex',
+        fastMode: true
+      })
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 

@@ -21,6 +21,7 @@ import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
   ENDPOINT_TYPE,
+  type EndpointType,
   MODALITY,
   type Model,
   MODEL_CAPABILITY,
@@ -30,7 +31,7 @@ import {
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { getRawModelId } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
@@ -156,7 +157,7 @@ export function buildPiProviderInjection(
     ? formatApiHost(resolvedEndpoint.baseUrl, false)
     : formatPiBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const modelConfig = buildPiModelConfig(provider, model, modelId, api)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
 
   const providerConfig: ProviderConfig = {
     name: provider.name,
@@ -286,7 +287,13 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
 }
 
-function buildPiModelConfig(provider: Provider, model: Model, id: string, api: PiApi): ProviderModelConfig {
+function buildPiModelConfig(
+  provider: Provider,
+  model: Model,
+  id: string,
+  api: PiApi,
+  endpointType: EndpointType | undefined
+): ProviderModelConfig {
   const input: ('text' | 'image')[] = ['text']
   const supportsImage =
     model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
@@ -309,7 +316,7 @@ function buildPiModelConfig(provider: Provider, model: Model, id: string, api: P
     // Cherry's provider capability is the source of truth; pi otherwise infers
     // developer-role support from the endpoint URL.
     ...(api === 'openai-completions' || api === 'openai-responses'
-      ? { compat: { supportsDeveloperRole: provider.apiFeatures.developerRole } }
+      ? { compat: { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole } }
       : {}),
     // CherryIN requires replaying its thinking block even when the compatible endpoint omits a signature delta.
     ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
