@@ -92,7 +92,6 @@ const MessageGroup = ({
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(() =>
     getEffectiveMultiModelMessageStyle(messages, getMessageUiState, multiModelMessageStyleSetting)
   )
-  const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
   const previousMessageIdsRef = useRef(messages.map((message) => message.id))
   const activeBranchSelectionQueueRef = useRef<Promise<void>>(Promise.resolve())
   const messageElementsRef = useRef<Map<string, HTMLElement>>(new Map())
@@ -152,7 +151,6 @@ const MessageGroup = ({
       }
       updateMessageUiState(nextSelectedMessage.id, { foldSelected: true })
       setSelectedMessageIdState(nextSelectedMessage.id)
-      setSelectedIndex(messages.findIndex((message) => message.id === nextSelectedMessage.id))
     }
   }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState])
 
@@ -188,39 +186,6 @@ const MessageGroup = ({
     },
     [actions, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
   )
-  // 添加对流程图节点点击事件的监听
-  useEffect(() => {
-    // 只在组件挂载和消息数组变化时添加监听器
-    if (captureMode || !isGrouped || messageLength <= 1) return
-
-    const handleFlowNavigate = (event: CustomEvent) => {
-      const { messageId } = event.detail
-
-      // 查找对应的消息在当前消息组中的索引
-      const targetIndex = messages.findIndex((msg) => msg.id === messageId)
-
-      // 如果找到消息且不是当前选中的索引，则切换标签
-      if (targetIndex !== -1 && targetIndex !== selectedIndex) {
-        setSelectedIndex(targetIndex)
-
-        // 使用setSelectedMessage函数来切换标签，这是处理foldSelected的关键
-        const targetMessage = messages[targetIndex]
-        if (targetMessage) {
-          setSelectedMessage(targetMessage)
-        }
-      }
-    }
-
-    // 添加事件监听器
-    document.addEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
-
-    // 清理函数
-    return () => {
-      document.removeEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, selectedIndex, isGrouped, messageLength, captureMode])
-
   useEffect(() => {
     if (captureMode) return
 

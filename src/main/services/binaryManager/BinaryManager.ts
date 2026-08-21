@@ -89,7 +89,16 @@ const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: '
 // killing it mid-download surfaces as a bogus "install failed".
 const MISE_COMMAND_TIMEOUT_MS = 120_000
 const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
-const CHINA_PIP_INDEX = 'https://pypi.tuna.tsinghua.edu.cn/simple'
+
+// Tried in order for China users who have not chosen an index themselves. A
+// mirror that has not synced a freshly published release fails the install
+// outright, and mirror lag is neither rare nor short: Tsinghua's PyPI sync has
+// stalled for over a day at a time, and the university mirrors that pull from
+// it stall with it. Tencent syncs independently, and pypi.org is the backstop.
+const CHINA_PIP_INDEXES = [
+  'https://pypi.tuna.tsinghua.edu.cn/simple',
+  'https://mirrors.cloud.tencent.com/pypi/simple'
+] as const
 const OFFICIAL_PIP_INDEX = 'https://pypi.org/simple'
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
@@ -146,6 +155,19 @@ function parseAmbientUrl(value: string | undefined, setting: string): string | u
 
 function toPipxRegistryUrl(indexUrl: string): string {
   return `${indexUrl.replace(/\/+$/, '')}/{}/`
+}
+
+// Retrying an index only means something if every layer moves with it: mise
+// resolves the version through MISE_PIPX_REGISTRY_URL and hands the download to
+// uv, which it only tells about an *extra* index (UV_INDEX) — so UV_DEFAULT_INDEX
+// is what actually displaces pypi.org, and PIP_INDEX_URL covers a pipx fallback.
+function pipIndexEnv(index: string): Record<string, string> {
+  return {
+    PIP_INDEX_URL: index,
+    MISE_PIPX_REGISTRY_URL: toPipxRegistryUrl(index),
+    UV_DEFAULT_INDEX: index,
+    UV_INDEX_URL: index
+  }
 }
 
 // Single source of truth for tools shipped inside the app and extracted at
@@ -219,6 +241,8 @@ export class BinaryManager extends BaseService {
   // concurrent first callers share a single build and a single region lookup.
   private isolatedEnv: Record<string, string> | null = null
   private isolatedEnvPromise: Promise<Record<string, string>> | null = null
+  // Set while building the isolated env: only Cherry's own China default may be
+  // retried against other indexes. Read after awaiting getIsolatedEnv().
   private usesDefaultChinaPipIndex = false
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
@@ -826,8 +850,8 @@ export class BinaryManager extends BaseService {
         env['NPM_CONFIG_REGISTRY'] = 'https://registry.npmmirror.com'
       }
       if (!env['PIP_INDEX_URL']) {
-        env['PIP_INDEX_URL'] = CHINA_PIP_INDEX
-        env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(CHINA_PIP_INDEX)
+        env['PIP_INDEX_URL'] = CHINA_PIP_INDEXES[0]
+        env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(CHINA_PIP_INDEXES[0])
         this.usesDefaultChinaPipIndex = true
       }
     }
@@ -895,7 +919,7 @@ export class BinaryManager extends BaseService {
       includePrerelease?: boolean
       shellOutNpm?: boolean
       prependPath?: string
-      env?: Record<string, string | undefined>
+      env?: Record<string, string>
     }
   ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
@@ -927,10 +951,7 @@ export class BinaryManager extends BaseService {
         env[pathKey] = pathValue
         if (!isWin) env.PATH = pathValue
       }
-      for (const [key, value] of Object.entries(opts.env ?? {})) {
-        if (value === undefined) delete env[key]
-        else env[key] = value
-      }
+      if (opts.env) Object.assign(env, opts.env)
     }
     const timeoutMs = opts?.timeoutMs ?? MISE_COMMAND_TIMEOUT_MS
     const startedAt = Date.now()
@@ -1045,38 +1066,32 @@ export class BinaryManager extends BaseService {
   private async installPipxTool(args: string[], pythonPath: string, includePrerelease: boolean): Promise<void> {
     // mise's pipx backend shells out to uv, which honours UV_PYTHON — so mise
     // never needs a Python of its own, and none is passed to `mise use`.
-    const commonEnv = {
+    const pythonEnv = {
       UV_PYTHON: pythonPath,
       UV_PYTHON_DOWNLOADS: 'never',
       UV_HTTP_TIMEOUT: '30',
       UV_HTTP_RETRIES: '2'
     }
-    const indexEnv = (index: string) => ({
-      ...commonEnv,
-      PIP_INDEX_URL: index,
-      MISE_PIPX_REGISTRY_URL: toPipxRegistryUrl(index),
-      UV_DEFAULT_INDEX: index,
-      UV_INDEX_URL: index
-    })
-    // An index the user chose is used as-is: falling back would silently pull
-    // packages from somewhere they did not ask for.
-    const attempts = this.usesDefaultChinaPipIndex
-      ? [
-          { source: 'tsinghua', env: indexEnv(CHINA_PIP_INDEX) },
-          { source: 'official', env: indexEnv(OFFICIAL_PIP_INDEX) }
-        ]
-      : [{ source: 'configured', env: commonEnv }]
-    const failures: string[] = []
+    const opts = { timeoutMs: MISE_INSTALL_TIMEOUT_MS, includePrerelease }
+    // usesDefaultChinaPipIndex is a by-product of building the isolated env, and
+    // an index the user chose is used as-is: retrying elsewhere would silently
+    // pull packages from somewhere they did not ask for.
+    await this.getIsolatedEnv()
+    if (!this.usesDefaultChinaPipIndex) {
+      await this.runMise(args, { ...opts, env: pythonEnv })
+      return
+    }
 
-    for (const attempt of attempts) {
+    const failures: string[] = []
+    for (const index of [...CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX]) {
       try {
-        await this.runMise(args, { timeoutMs: MISE_INSTALL_TIMEOUT_MS, env: attempt.env, includePrerelease })
+        await this.runMise(args, { ...opts, env: { ...pythonEnv, ...pipIndexEnv(index) } })
         return
       } catch (error) {
-        failures.push(`${attempt.source}: ${this.errorMessage(error)}`)
+        failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
       }
     }
-    throw new Error(`Failed to install pipx tool\n${failures.join('\n')}`)
+    throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
   }
 
   private async installWithMise(
@@ -1122,8 +1137,9 @@ export class BinaryManager extends BaseService {
       toolSpec
     ]
 
-    if (pythonPath) await this.installPipxTool(useArgs, pythonPath, includePrerelease)
-    else {
+    if (pythonPath) {
+      await this.installPipxTool(useArgs, pythonPath, includePrerelease)
+    } else {
       await this.runMise(useArgs, {
         timeoutMs: MISE_INSTALL_TIMEOUT_MS,
         includePrerelease,
