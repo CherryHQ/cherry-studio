@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import { type SidebarFavoriteItem, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
   setAppOrder: vi.fn(() => Promise.resolve()),
   appOrder: [] as SidebarAppId[],
   sortableCalls: [] as any[],
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  theme: 'light'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -101,6 +102,15 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({
+    theme: mocks.theme,
+    settedTheme: mocks.theme,
+    toggleTheme: vi.fn(),
+    setTheme: vi.fn()
+  })
+}))
+
 vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: mocks.toastError
@@ -160,10 +170,17 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { APP_ICON_BACKGROUNDS_DARK, APP_ICON_BACKGROUNDS_LIGHT } from '../appIconBackgrounds'
 import LaunchpadPage from '../LaunchpadPage'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
 const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+
+function getAppTileFace(name: string): HTMLElement {
+  const face = screen.getByRole('button', { name }).querySelector('span.size-14.rounded-2xl')
+  expect(face).toBeInstanceOf(HTMLElement)
+  return face as HTMLElement
+}
 const createMiniApp = (appId: string, overrides: Partial<MiniApp> = {}): MiniApp =>
   ({
     appId,
@@ -192,6 +209,7 @@ describe('LaunchpadPage', () => {
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
+    mocks.theme = ThemeMode.light
   })
 
   it('renders the launchpad page chrome and app grid', () => {
@@ -215,6 +233,83 @@ describe('LaunchpadPage', () => {
     expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the launchpad grid at the original compact density', () => {
+    mocks.pinnedMiniApps = [
+      {
+        appId: 'calculator',
+        name: 'Calculator',
+        logo: 'calc-logo',
+        url: 'https://example.com',
+        presetMiniAppId: 'calculator',
+        status: 'pinned',
+        orderKey: ''
+      }
+    ]
+
+    render(<LaunchpadPage />)
+
+    const appsHeading = screen.getByRole('heading', { name: 'Apps' })
+    const appsGrid = appsHeading.nextElementSibling
+    const miniAppsGrid = screen.getByRole('heading', { name: 'Mini Apps' }).nextElementSibling
+    const content = appsHeading.closest('section')?.parentElement
+
+    expect(content).toHaveClass('max-w-180', 'gap-5')
+    expect(appsGrid).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
+    expect(appsGrid).not.toHaveClass('gap-x-14', 'gap-y-8')
+    expect(miniAppsGrid).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
+    expect(screen.getByRole('button', { name: 'Chat' })).toHaveClass('mx-auto', 'w-[92px]')
+    expect(screen.getByRole('button', { name: 'Calculator' }).parentElement).toHaveClass(
+      'mx-auto',
+      'w-[92px]',
+      'justify-center'
+    )
+  })
+
+  it('paints sidebar app tiles with distinct light-mode mesh gradients and grain', () => {
+    render(<LaunchpadPage />)
+
+    const chat = getAppTileFace('Chat')
+    const knowledge = getAppTileFace('Knowledge')
+
+    expect(chat).toHaveStyle({
+      background: APP_ICON_BACKGROUNDS_LIGHT.assistants
+    })
+    expect(knowledge).toHaveStyle({
+      background: APP_ICON_BACKGROUNDS_LIGHT.knowledge
+    })
+    expect(chat.style.background).not.toEqual(knowledge.style.background)
+    expect(chat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
+    expect(knowledge.querySelector('.mix-blend-overlay')).toBeInTheDocument()
+  })
+
+  it('switches sidebar app tile palettes when the resolved theme is dark', () => {
+    const { rerender } = render(<LaunchpadPage />)
+    const lightChatBackground = getAppTileFace('Chat').style.background
+
+    mocks.theme = ThemeMode.dark
+    rerender(<LaunchpadPage />)
+
+    const darkChat = getAppTileFace('Chat')
+    expect(darkChat).toHaveStyle({
+      background: APP_ICON_BACKGROUNDS_DARK.assistants
+    })
+    expect(darkChat.style.background).not.toEqual(lightChatBackground)
+    expect(darkChat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
+  })
+
+  it('keeps the DeepSeek Harness shortcut on its own muted tile, not the app mesh palette', () => {
+    render(<LaunchpadPage />)
+
+    const shortcut = screen.getByRole('button', { name: 'DSH' })
+    const face = shortcut.querySelector('span.size-14.rounded-2xl')
+
+    expect(face).toHaveClass('bg-muted', 'border-border-subtle')
+    expect(face).not.toHaveStyle({
+      background: APP_ICON_BACKGROUNDS_LIGHT.assistants
+    })
+    expect(shortcut.querySelector('.mix-blend-overlay')).not.toBeInTheDocument()
   })
 
   it('orders app tiles by the launchpad app order, appending the rest canonically', () => {

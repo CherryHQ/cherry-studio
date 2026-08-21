@@ -9,14 +9,18 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { APP_ICON_BACKGROUNDS_DARK, APP_ICON_BACKGROUNDS_LIGHT } from './appIconBackgrounds'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
 const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
@@ -26,20 +30,13 @@ const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
-  assistants: 'linear-gradient(135deg, #1F2937, #374151)',
-  agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
-  paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
-  translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
-  mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
-  knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
-  files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
-  code_tools: 'linear-gradient(135deg, #4B5563, #6B7280)',
-  notes: 'linear-gradient(135deg, #F97316, #FB923C)'
-}
+// Grayscale film grain (SVG turbulence) layered over the gradient at low opacity + overlay blend.
+const NOISE_BG =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
 
 export default function LaunchpadPage() {
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
@@ -136,6 +133,8 @@ export default function LaunchpadPage() {
     [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
   )
 
+  const appIconBackgrounds = theme === ThemeMode.dark ? APP_ICON_BACKGROUNDS_DARK : APP_ICON_BACKGROUNDS_LIGHT
+
   // Sidebar-backed app tiles keep their existing launchpad order. The direct
   // Harness shortcut is fixed because it is not a sidebar destination.
   const appMenuItems = useMemo(
@@ -149,12 +148,12 @@ export default function LaunchpadPage() {
             id: favorite,
             icon: <Icon size={32} />,
             text: t(getSidebarIconLabelKey(favorite)),
-            bgColor: APP_ICON_BACKGROUNDS[favorite],
+            bgColor: appIconBackgrounds[favorite],
             menuItems: getAppContextMenuItems(favorite)
           }
         ]
       }),
-    [defaultPaintingProvider, getAppContextMenuItems, orderedAppIds, t]
+    [appIconBackgrounds, defaultPaintingProvider, getAppContextMenuItems, orderedAppIds, t]
   )
 
   // Mini app tiles are ordered by their global `orderKey` (shared with the mini
@@ -206,9 +205,14 @@ export default function LaunchpadPage() {
         className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
         <span className="relative flex size-14 items-center justify-center">
           <span
-            className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
+            className="relative flex size-14 items-center justify-center overflow-hidden rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
             style={{ background: item.bgColor }}>
-            {item.icon}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-[0.18] mix-blend-overlay"
+              style={{ backgroundImage: NOISE_BG }}
+            />
+            <span className="relative z-10 flex">{item.icon}</span>
           </span>
         </span>
         <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
