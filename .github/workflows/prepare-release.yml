@@ -17,6 +17,11 @@ permissions:
   contents: write
   id-token: write
 
+concurrency:
+  group: release-state
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
@@ -38,15 +43,73 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Verify published release baseline
+        id: release-baseline
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+        run: |
+          git fetch origin "refs/heads/main:refs/remotes/origin/main" --tags
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "Pre Release must run from the current origin/main head" >&2
+            exit 1
+          fi
+
+          CURRENT_VERSION="$(node -p "require('./package.json').version")"
+          if ! node -e "const semver = require('semver'); process.exit(semver.valid(process.argv[1]) ? 0 : 1)" "$CURRENT_VERSION"; then
+            echo "package.json contains an invalid semantic version: $CURRENT_VERSION" >&2
+            exit 1
+          fi
+
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          LATEST_PUBLISHED="$(jq -c '
+            [.[][] | select(.draft == false and .published_at != null)] |
+            sort_by(.published_at) | last // empty
+          ' <<< "$RELEASE_PAGES")"
+          if [ -z "$LATEST_PUBLISHED" ]; then
+            echo "No published release exists to use as the preparation baseline" >&2
+            exit 1
+          fi
+
+          BASELINE_TAG="v$CURRENT_VERSION"
+          if [ "$(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")" != "$BASELINE_TAG" ]; then
+            echo "main records $BASELINE_TAG, but the latest published release is $(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")" >&2
+            echo "Merge the latest Post Release metadata pull request before preparing another release" >&2
+            exit 1
+          fi
+          if ! git rev-parse --verify "refs/tags/$BASELINE_TAG" >/dev/null; then
+            echo "Published baseline tag $BASELINE_TAG is missing from git" >&2
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$BASELINE_TAG" HEAD; then
+            MARKER="release-metadata-boundary: $BASELINE_TAG"
+            BOUNDARY_SHA=""
+            while IFS= read -r COMMIT_SHA; do
+              if git show -s --format=%B "$COMMIT_SHA" | grep -Fqx "$MARKER"; then
+                BOUNDARY_SHA="$COMMIT_SHA"
+                break
+              fi
+            done < <(git log --format=%H HEAD)
+            if [ -z "$BOUNDARY_SHA" ]; then
+              echo "$BASELINE_TAG is not an ancestor of main and its metadata boundary is missing" >&2
+              exit 1
+            fi
+          fi
+
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Resolve requested version
         id: release-version
         shell: bash
         env:
+          CURRENT_VERSION: ${{ steps.release-baseline.outputs.version }}
           REQUESTED_VERSION: ${{ github.event.inputs.version }}
         run: |
           TARGET_VERSION="$(node <<'NODE'
           const semver = require('semver')
-          const currentVersion = require('./package.json').version
+          const currentVersion = process.env.CURRENT_VERSION
           const requestedVersion = process.env.REQUESTED_VERSION.trim()
           const exactVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 
@@ -59,6 +122,9 @@ jobs:
 
           if (!targetVersion) {
             throw new Error(`Invalid release version intent: ${requestedVersion}`)
+          }
+          if (!semver.gt(targetVersion, currentVersion)) {
+            throw new Error(`Release version ${targetVersion} must be greater than ${currentVersion}`)
           }
           process.stdout.write(targetVersion)
           NODE
@@ -102,7 +168,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git:*),Bash(gh release list:*),Bash(cat:*),Bash(pnpm build:builtin-knowledge),Edit,Read,Write,Glob,Grep"'
+          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git:*),Bash(gh release list:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
           prompt: |
             Run the prepare-release skill with exact version argument: ${{ steps.release-version.outputs.version }}
 
@@ -110,9 +176,47 @@ jobs:
 
             Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
-            Stop after generating the four allowed release files. Leave the changes uncommitted; the next workflow steps own release branch creation and the signed commit.
+            Stop after updating package.json, electron-builder.yml, and (for stable releases) release-history.json. Do not edit the generated product manifest. Leave the changes uncommitted; the next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+
+      - name: Validate prepared release metadata
+        shell: bash
+        env:
+          RELEASE_HEAD: ${{ github.sha }}
+          REQUESTED_VERSION: ${{ steps.release-version.outputs.version }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$RELEASE_HEAD" ]; then
+            echo "Claude must not create a local release commit" >&2
+            exit 1
+          fi
+
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const fs = require('node:fs')
+
+          const allowedFiles = new Set([
+            'package.json',
+            'electron-builder.yml',
+            'resources/cherry-studio/release-history.json'
+          ])
+          const changedFiles = [
+            ...execFileSync('git', ['diff', 'HEAD', '--name-only', '--no-renames', '-z'], { encoding: 'utf8' }).split('\0'),
+            ...execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0')
+          ].filter(Boolean)
+
+          for (const filePath of new Set(changedFiles)) {
+            if (!allowedFiles.has(filePath)) throw new Error(`Unexpected release preparation change: ${filePath}`)
+            if (!fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) {
+              throw new Error(`Release preparation change is not a regular file: ${filePath}`)
+            }
+          }
+          NODE
+
+          node scripts/release/validate-prepared-release.js --target-version "$REQUESTED_VERSION"
+
+      - name: Generate product manifest
+        run: pnpm build:builtin-knowledge
 
       - name: Prepare release commit payload
         id: release-commit
@@ -123,8 +227,9 @@ jobs:
           RELEASE_HEAD: ${{ github.sha }}
           REQUESTED_VERSION: ${{ steps.release-version.outputs.version }}
         run: |
-          if [ "$(git rev-parse HEAD)" != "$RELEASE_HEAD" ]; then
-            echo "Claude must not create a local release commit" >&2
+          CURRENT_MAIN="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$CURRENT_MAIN" != "$RELEASE_HEAD" ]; then
+            echo "main moved from $RELEASE_HEAD to $CURRENT_MAIN while the release was being prepared; rerun Pre Release" >&2
             exit 1
           fi
 

@@ -23,7 +23,8 @@ The release branch is the source of every installer and release asset. `main` re
 | Validate | `release/v<version>` | **CI** | Validates the exact release branch commit |
 | Build | `release/v<version>` | **Release** | Moves the draft tag to the validated commit and uploads artifacts |
 | Hotfix | Merged `main` pull request | **Backport Release Hotfixes** | Opens a backport pull request against the active release branch |
-| Publish | Draft GitHub Release | **Post Release** | Opens a metadata-only `release-sync/v<version>` pull request |
+| Publish | `release/v<version>` | **Release** (`publish`) | Revalidates and publishes the current draft |
+| Synchronize | Published GitHub Release | **Post Release** | Opens a metadata-only `release-sync/v<version>` pull request |
 | Close | `release-sync/v<version>` | **CI** | Validates the metadata pull request before it is merged into `main` |
 
 ## Before Starting
@@ -37,7 +38,7 @@ Confirm all of the following:
 - Repository secrets used by release preparation, package signing, notarization, and publishing are available.
 - You have permission to run workflows and publish GitHub Releases.
 
-Do not create the release branch, release tag, or metadata synchronization pull request by hand during the normal flow. The workflows own those operations.
+Do not create the release branch, release tag, or metadata synchronization pull request by hand during the normal flow. Do not publish from the GitHub Releases page. The workflows own those operations and serialize them with the repository-wide `release-state` concurrency group.
 
 ## 1. Prepare the Release Branch
 
@@ -48,7 +49,7 @@ Do not create the release branch, release tag, or metadata synchronization pull 
    - An exact version such as `2.1.0`, `2.1.0-rc.1`, or `2.1.0-beta.1`.
 4. Run the workflow and wait for it to finish.
 
-The workflow collects release notes, updates the release metadata files, and creates `release/v<version>` from the selected `main` commit. The commit is created through the GitHub API and must be both Verified and DCO-signed off.
+The workflow first verifies that `main` records the latest published version, contains its tag or metadata boundary, and is still at the selected remote head. The requested version must be strictly greater than that baseline. It then collects release notes, updates the release metadata source files, validates that only the intended version, notes, and stable history entry changed, regenerates the product manifest itself, and creates `release/v<version>` through the GitHub API. The commit must be both Verified and DCO-signed off.
 
 Release preparation may change only these files:
 
@@ -82,7 +83,7 @@ Do not start a release build while CI is queued, running, cancelled, or failing.
 The first release-branch CI run happens before a draft GitHub Release exists, so automatic backporting cannot safely select that branch yet. If code must change for this initial CI run to pass:
 
 1. Fix the root cause through a pull request to `main` titled `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>`. The workflow adds the `hotfix` label, but it does not backport yet because there is no matching draft.
-2. After the hotfix merges, create a topic branch from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch.
+2. After the hotfix merges, create a topic branch from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch. Run `PR_BODY="$(gh pr view <number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` on that branch to add its bilingual note to the prepared release metadata.
 3. Push a signed, DCO-signed commit and open a pull request from that topic branch to `release/v<version>`.
 4. Review the release-specific diff, merge it after CI passes, and wait for CI on the new release branch head.
 5. Start the initial **Release** build. Once its draft exists, later merged hotfix pull requests use the automatic backport flow.
@@ -91,10 +92,11 @@ The first release-branch CI run happens before a draft GitHub Release exists, so
 
 1. Open **Actions** → **Release** → **Run workflow**.
 2. Select `release/v<version>` in the branch selector. Never select `main`.
-3. Select a platform:
+3. Select the `build` operation.
+4. Select a platform:
    - `all` for the initial release build.
    - `windows`, `mac`, or `linux` to retry or refresh one platform.
-4. Run the workflow and wait for every selected build job to finish.
+5. Run the workflow and wait for every selected build job to finish.
 
 Before building, the workflow verifies that:
 
@@ -123,9 +125,19 @@ All hotfix development still starts from `main`:
 3. Use one of these exact title forms; a scope, when present, must be lowercase alphanumeric kebab-case, the colon must be followed by one space, and the description must not be empty:
    - `hotfix: <description>`
    - `hotfix(<kebab-case-scope>): <description>`
-4. Wait for review and CI, then merge the pull request into `main`.
+4. In the pull request's `release-note` fence, provide exactly one component-tagged English line and one Chinese line with these markers. Do not add bullet prefixes:
 
-The **Backport Release Hotfixes** workflow synchronizes the `hotfix` label from the title. After merge, it finds the single draft semantic-version release with a matching release branch, creates a `backport/v<version>/pr-<source-number>` branch with a GitHub-verified, DCO-signed commit, and opens a pull request against `release/v<version>`. It never writes the hotfix commit directly to the release branch.
+   ```text
+   <!--LANG:en-->
+   [Component] English description.
+   <!--LANG:zh-CN-->
+   [组件] 中文说明。
+   <!--LANG:END-->
+   ```
+
+5. Wait for review and CI, then merge the pull request into `main`.
+
+The **Backport Release Hotfixes** workflow synchronizes the `hotfix` label from the title and validates this bilingual note contract. After merge, it locks release state, finds the single draft semantic-version release with a matching release branch, captures and checks out its exact head, applies the source PR result, appends both note lines to `electron-builder.yml` and stable release history, and creates a `backport/v<version>/pr-<source-number>` branch with a GitHub-verified, DCO-signed commit. It then revalidates that the release is still a draft and the release branch has not moved before opening a pull request against `release/v<version>`. It never writes the hotfix commit directly to the release branch.
 
 Track the source pull request by its labels:
 
@@ -162,13 +174,14 @@ If the workflow reports multiple active release branches, leave only the intende
 
 ## 5. Publish the Release
 
-Publish only after the latest release branch commit has passed CI and the draft contains every required artifact.
+Publish only after the latest release branch commit has passed CI and an `all`-platform build for that exact commit has completed successfully.
 
-1. Open the draft under **Releases**.
-2. Confirm the tag, target commit, notes, and artifacts one final time.
-3. Select **Publish release**.
+1. Open the draft under **Releases** and confirm the tag, target commit, notes, and artifacts one final time. Do not select **Publish release** on this page.
+2. Open **Actions** → **Release** → **Run workflow**.
+3. Select the matching `release/v<version>` branch and the `publish` operation.
+4. Run the workflow.
 
-Publication makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
+The workflow shares the same release-state lock as preparation, builds, backport creation, and Post Release. Immediately before publishing, it requires the draft, tag, branch, and selected SHA to agree, rejects any open pull request targeting the release branch, requires a successful exact-head `all` build, and confirms that artifacts exist. Publication then makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
 Publishing triggers **Post Release** automatically.
 
@@ -218,6 +231,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 - Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.
 - Never merge all of `main` into an active release branch.
 - Never publish a draft until the exact release commit passes CI and all required artifacts are present.
+- Publish only with the **Release** workflow's `publish` operation; never publish directly from the Releases page.
 - Never move a published release tag.
 - Never merge the complete release branch back into `main`.
 - Keep the metadata synchronization pull request title and body boundary marker unchanged, squash-merge it, and finish it before preparing the next release.

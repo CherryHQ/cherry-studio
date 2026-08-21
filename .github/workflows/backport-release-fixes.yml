@@ -7,10 +7,6 @@ on:
       - "release/v*"
     types: [opened, edited, reopened, closed]
 
-concurrency:
-  group: backport-release-fixes
-  cancel-in-progress: false
-
 permissions:
   contents: read
   issues: write
@@ -28,11 +24,17 @@ jobs:
       github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
+      - name: Check out workflow scripts
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
       - name: Synchronize hotfix label
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           REPO: ${{ github.repository }}
         run: |
@@ -44,6 +46,7 @@ jobs:
             if [ "$HAS_LABEL" != "true" ]; then
               gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
             fi
+            node scripts/release/hotfix-release-notes.js --check
           elif [ "$HAS_LABEL" = "true" ]; then
             gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "hotfix"
           fi
@@ -56,6 +59,10 @@ jobs:
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.title, 'hotfix')
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-state
+      cancel-in-progress: false
+      queue: max
     steps:
       - name: Resolve active release branch
         id: release-ref
@@ -130,12 +137,12 @@ jobs:
           echo "head-sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
           echo "retry-pr-number=$RETRY_PR_NUMBER" >> "$GITHUB_OUTPUT"
 
-      - name: Check out release branch
+      - name: Check out exact release head
         if: steps.release-ref.outputs.eligible == 'true'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ steps.release-ref.outputs.branch }}
+          ref: ${{ steps.release-ref.outputs.head-sha }}
           token: ${{ secrets.TOKEN_GITHUB_WRITE }}
 
       - name: Apply fix without committing
@@ -148,48 +155,32 @@ jobs:
           PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          RELEASE_HEAD: ${{ steps.release-ref.outputs.head-sha }}
         run: |
           git fetch origin "refs/heads/main:refs/remotes/origin/main"
-
-          if ! git merge-base --is-ancestor "$MERGE_SHA" origin/main; then
-            echo "Merged commit $MERGE_SHA is not on origin/main" >&2
+          if [ "$(git rev-parse HEAD)" != "$RELEASE_HEAD" ]; then
+            echo "Checked-out release tree does not match the captured release head" >&2
             exit 1
           fi
 
-          read -ra MERGE_PARENTS <<< "$(git show -s --format=%P "$MERGE_SHA")"
-          if [ "${#MERGE_PARENTS[@]}" -eq 0 ] || [ "${#MERGE_PARENTS[@]}" -gt 2 ]; then
-            echo "Unsupported merged commit parent count for $MERGE_SHA: ${#MERGE_PARENTS[@]}" >&2
+          git show "$RELEASE_HEAD:scripts/release/hotfix-release-notes.js" > "$RUNNER_TEMP/hotfix-release-notes.cjs"
+          node scripts/release/backport-patch.js
+
+      - name: Add hotfix to release notes
+        id: prepare-changes
+        if: steps.release-ref.outputs.eligible == 'true'
+        shell: bash
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          if [ "$(node -p "require('./package.json').version")" != "${TAG#v}" ]; then
+            echo "The hotfix changed the prepared release version" >&2
             exit 1
           fi
 
-          PATCH_BASE="${MERGE_PARENTS[0]}"
-          if [ "${#MERGE_PARENTS[@]}" -eq 1 ] && [ "$PR_COMMIT_COUNT" -gt 1 ]; then
-            CURRENT_SHA="$MERGE_SHA"
-            for ((INDEX = 1; INDEX < PR_COMMIT_COUNT; INDEX++)); do
-              PARENT_SHA="$(git rev-parse "$CURRENT_SHA^1")"
-              ASSOCIATED_PULL_REQUESTS="$(gh api "repos/$REPO/commits/$PARENT_SHA/pulls")"
-              if ! jq -e --argjson number "$PR_NUMBER" 'any(.[]; .number == $number)' <<< "$ASSOCIATED_PULL_REQUESTS" >/dev/null; then
-                break
-              fi
-
-              CURRENT_SHA="$PARENT_SHA"
-              PATCH_BASE="$(git rev-parse "$CURRENT_SHA^1")"
-            done
-          fi
-
-          PATCH_FILE="$RUNNER_TEMP/hotfix.patch"
-          git diff --binary --full-index "$PATCH_BASE" "$MERGE_SHA" -- > "$PATCH_FILE"
-
-          if [ ! -s "$PATCH_FILE" ] || git apply --reverse --check "$PATCH_FILE" 2>/dev/null; then
-            echo "has-changes=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if ! git apply --3way --index "$PATCH_FILE" || [ -n "$(git diff --name-only --diff-filter=U)" ]; then
-            git reset --hard HEAD
-            echo "The merged hotfix result conflicts with the active release branch." > "$RUNNER_TEMP/backport-failure-message"
-            exit 1
-          fi
+          node "$RUNNER_TEMP/hotfix-release-notes.cjs"
+          git add electron-builder.yml resources/cherry-studio/release-history.json
 
           if git diff --cached --quiet; then
             echo "has-changes=false" >> "$GITHUB_OUTPUT"
@@ -197,8 +188,29 @@ jobs:
             echo "has-changes=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Revalidate active release head
+        if: steps.release-ref.outputs.eligible == 'true' && steps.prepare-changes.outputs.has-changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ steps.release-ref.outputs.branch }}
+          RELEASE_HEAD: ${{ steps.release-ref.outputs.head-sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          RELEASE="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100" | jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty')"
+          CURRENT_HEAD="$(gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha')"
+          if [ -z "$RELEASE" ] || [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
+            echo "Release $TAG is no longer a draft" >&2
+            exit 1
+          fi
+          if [ "$CURRENT_HEAD" != "$RELEASE_HEAD" ]; then
+            echo "$RELEASE_BRANCH moved from $RELEASE_HEAD to $CURRENT_HEAD while preparing the backport" >&2
+            exit 1
+          fi
+
       - name: Reset backport branch to release head
-        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'true'
+        if: steps.release-ref.outputs.eligible == 'true' && steps.prepare-changes.outputs.has-changes == 'true'
         shell: bash
         env:
           BACKPORT_BRANCH: ${{ steps.release-ref.outputs.backport-branch }}
@@ -213,7 +225,7 @@ jobs:
           fi
 
       - name: Create signed backport commit payload
-        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'true'
+        if: steps.release-ref.outputs.eligible == 'true' && steps.prepare-changes.outputs.has-changes == 'true'
         shell: bash
         env:
           BRANCH: ${{ steps.release-ref.outputs.backport-branch }}
@@ -305,7 +317,7 @@ jobs:
 
       - name: Commit backport to topic branch
         id: commit
-        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'true'
+        if: steps.release-ref.outputs.eligible == 'true' && steps.prepare-changes.outputs.has-changes == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
@@ -326,19 +338,27 @@ jobs:
 
       - name: Create backport pull request
         id: backport-pr
-        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'true'
+        if: steps.release-ref.outputs.eligible == 'true' && steps.prepare-changes.outputs.has-changes == 'true'
         shell: bash
         env:
           BACKPORT_BRANCH: ${{ steps.release-ref.outputs.backport-branch }}
           COMMIT_URL: ${{ steps.commit.outputs.url }}
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           RELEASE_BRANCH: ${{ steps.release-ref.outputs.branch }}
+          RELEASE_HEAD: ${{ steps.release-ref.outputs.head-sha }}
           RETRY_PR_NUMBER: ${{ steps.release-ref.outputs.retry-pr-number }}
           REPO: ${{ github.repository }}
           SOURCE_PR: ${{ github.event.pull_request.number }}
           SOURCE_URL: ${{ github.event.pull_request.html_url }}
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
+          RELEASE="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100" | jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty')"
+          CURRENT_HEAD="$(gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha')"
+          if [ -z "$RELEASE" ] || [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ] || [ "$CURRENT_HEAD" != "$RELEASE_HEAD" ]; then
+            echo "Release state changed before the backport pull request could be created" >&2
+            exit 1
+          fi
+
           TITLE="fix(release): backport #$SOURCE_PR to $TAG"
           BODY="$(printf '%s\n' \
             '> ### Branch strategy' \
@@ -353,7 +373,7 @@ jobs:
             '' \
             'After this PR:' \
             '' \
-            "The source pull request change set is applied to `$RELEASE_BRANCH` for $TAG." \
+            "The source pull request change set and its bilingual hotfix note are applied to `$RELEASE_BRANCH` for $TAG." \
             '' \
             'Fixes # N/A' \
             '' \
@@ -414,7 +434,7 @@ jobs:
           echo "url=$BACKPORT_PR_URL" >> "$GITHUB_OUTPUT"
 
       - name: Mark backport pull request open
-        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'true'
+        if: steps.release-ref.outputs.eligible == 'true' && steps.prepare-changes.outputs.has-changes == 'true'
         shell: bash
         env:
           BACKPORT_PR_URL: ${{ steps.backport-pr.outputs.url }}
@@ -438,7 +458,7 @@ jobs:
           gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Created backport pull request for \`release/$TAG\`: $BACKPORT_PR_URL"
 
       - name: Mark already-present backport complete
-        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'false'
+        if: steps.release-ref.outputs.eligible == 'true' && steps.prepare-changes.outputs.has-changes == 'false'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}

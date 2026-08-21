@@ -20,6 +20,14 @@ description: Create or update GitHub pull requests using the repository-required
    - For official repo(CherryHQ/cherry-studio) as `origin`: default base is `main` from `origin`, but allow the user to explicitly indicate a base branch.
    - `main` is the active development line, including hotfix PRs. Do not target an old maintenance branch unless the user explicitly requests it.
    - Only classify a PR as a release hotfix when the user explicitly says it must be included in the active draft release. Use the title `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` with a lowercase alphanumeric kebab-case scope, exactly one space after the colon, and a non-empty description. The `hotfix` label is synchronized automatically from this exact title grammar, and merging the PR opens a separate backport PR against the active release branch.
+   - A release hotfix must provide one user-facing release-note line in each language so automation can update the active draft and stable release history. Put this exact structure inside the template's existing `release-note` fence; do not include bullet prefixes:
+     ```text
+     <!--LANG:en-->
+     [Component] English description.
+     <!--LANG:zh-CN-->
+     [组件] 中文说明。
+     <!--LANG:END-->
+     ```
    - For fork repo as `origin`: check available remotes with `git remote -v`, default base may be `upstream/main` or another remote. Always assume that user wants to merge head to CherryHQ/cherry-studio/main, unless the user explicitly indicates a base branch.
    - Ask the user to confirm the base branch if it's not the default.
 5. Create a temp file and write the PR body using a single Bash heredoc
@@ -55,6 +63,7 @@ description: Create or update GitHub pull requests using the repository-required
 - Keep content concise and specific to the current change set.
 - PR title and body must be written in English.
 - Never use a `hotfix` title or label for an ordinary bug fix. It opts the PR into an automatic backport PR after merge when one matching draft release is active.
+- Never create a release hotfix with `NONE` or a single-language release note. The hotfix-label check rejects it, and the backport workflow fails closed instead of publishing a fix without release notes.
 - Never default a `release/v<version>` head to `main`; a release branch is not a pull request source branch.
 - Never create the PR before showing the full final body to the user, unless they explicitly waive the preview or confirmation.
 - Never rely on command permission prompts as PR body preview.

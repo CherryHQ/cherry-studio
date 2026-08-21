@@ -31,7 +31,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    ```
    Stop before editing files if any check fails. This prevents a standalone run from creating a release branch from an arbitrary or stale checkout.
 2. Read the current version from `package.json`. Post Release keeps this synchronized with the last published release.
-3. Before editing, verify that no draft semantic-version GitHub Release has a matching `release/v<version>` branch. Use `gh release list --json isDraft,tagName` to enumerate drafts and `git ls-remote --heads origin refs/heads/release/<tag>` to check their branches. Stop if a match exists; only one prepared or draft release may be active at a time.
+3. Before editing, verify that no draft semantic-version GitHub Release has a matching `release/v<version>` branch. Use `gh release list --limit 1000 --json isDraft,tagName` so `gh` paginates beyond its default result limit, then use `git ls-remote --heads origin refs/heads/release/<tag>` to check every draft's branch. Stop if a match exists; only one prepared or draft release may be active at a time.
 4. Resolve the baseline tag as `v{current-version}` and verify that it exists:
    ```bash
    git rev-parse --verify refs/tags/v{current-version}
@@ -44,6 +44,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 5. Compute the new version based on the argument:
    - `patch` / `minor` / `major`: bump from the current version.
    - `x.y.z` or `x.y.z-pre.N`: use as-is after validating it is valid semver.
+   - In both cases, require the result to be strictly greater than the current version according to semver precedence. Reject equal versions and downgrades.
 
 ### Step 2: Collect Commits
 
@@ -148,7 +149,7 @@ Release notes are for **end users**, not developers. Exclude anything users don'
 1. **`package.json`**: Update the `"version"` field to the new version.
 2. **`electron-builder.yml`**: Replace the content under `releaseInfo.releaseNotes: |` with the generated notes. Preserve the 4-space YAML indentation for the block scalar content.
 3. **`resources/cherry-studio/release-history.json`**: For a stable `x.y.z` release, add the version and its exact generated bilingual notes at the start of the array. Replace an existing entry for the same version instead of creating a duplicate. Leave this file unchanged for prereleases.
-4. **Built-in knowledge**: Run `pnpm build:builtin-knowledge` after updating the version. This refreshes `resources/builtin-agents/cherry-assistant/product-manifest.json` with the new package version. Never edit the generated manifest by hand.
+4. **Built-in knowledge**: For an interactive local run, run `pnpm build:builtin-knowledge` after updating the version. This refreshes `resources/builtin-agents/cherry-assistant/product-manifest.json` with the new package version. Never edit the generated manifest by hand. In GitHub Actions, do not run the generator: the workflow first validates the three source-file changes, then runs the trusted generator itself.
 
 ### Step 5: Present for Review
 
@@ -172,7 +173,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
    git log -1 --format=%B | grep -q '^Signed-off-by: '
    git push -u origin release/v{version}
    ```
-2. In GitHub Actions, stop after updating the four allowed files and leave them uncommitted. The `prepare-release.yml` workflow owns branch creation and uses GitHub's API to create and verify the signed, DCO-compliant commit. Never run `git commit` or `git push` from the Claude step.
+2. In GitHub Actions, stop after updating the three source files (`package.json`, `electron-builder.yml`, and stable release history) and leave them uncommitted. The `prepare-release.yml` workflow validates their contents, generates the product manifest, owns branch creation, and uses GitHub's API to create and verify the signed, DCO-compliant commit. Never run `git commit` or `git push` from the Claude step.
 3. Report the release branch and next steps. Do not create a PR yet: the release must be built and published from this branch first.
 
 ## CI Trigger Chain
@@ -180,7 +181,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 - Wait for the **CI** push run on the new `release/v{version}` commit to succeed, then run **`release.yml`** manually with that release branch selected. It validates the branch name against `package.json`, builds the exact branch commit on macOS, Windows, and Linux, and creates or updates a draft GitHub Release.
 - While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for each merged `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR from `main` against the matching release branch. It manages the `hotfix` and backport-status labels and reports failures on the source PR; never merge `main` into the release branch.
 - Review the backport PR, wait for its CI, and merge it. After the resulting release-branch push passes CI, run **`release.yml`** again from the release branch to rebuild the draft release.
-- Publishing the draft GitHub Release triggers **`post-release.yml`**, which verifies that the tag still matches the release branch, applies only the release metadata delta to the latest `main`, and creates a `release-sync/v{version}` metadata-only PR.
+- Publish only through the **`release.yml`** `publish` operation on the release branch. It shares the release-state lock with preparation, builds, and backports; verifies the exact successful all-platform build; then publishes the still-current draft. Publication triggers **`post-release.yml`**, which verifies that the tag still matches the release branch, applies only the release metadata delta to the latest `main`, and creates a `release-sync/v{version}` metadata-only PR.
 - The metadata PR synchronizes only `package.json`, `electron-builder.yml`, release history, and the generated product manifest. It triggers **`ci.yml`**; merge it only after CI passes.
 - Keep the metadata PR title exactly `chore(release): sync v{version} metadata` and squash-merge it without changing that subject except for GitHub's optional PR-number suffix. Its body must retain `release-metadata-boundary: v{version}` so the next release can find the boundary reliably.
 
