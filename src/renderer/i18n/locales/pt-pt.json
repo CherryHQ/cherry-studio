@@ -3490,6 +3490,12 @@
         "title": "Ocultar"
       }
     },
+    "split": {
+      "already_open": "Já apresentada no outro painel",
+      "choose": "Escolha uma miniaplicação para mostrar ao lado",
+      "close": "Fechar visualização dividida",
+      "open": "Visualização dividida"
+    },
     "title": "Pequena aplicação",
     "unpin_failed": "Falha ao desafixar o miniaplicação",
     "update_partial_failure": "{{failed}} de {{total}} atualizações falharam"
@@ -3601,6 +3607,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Ir para as definições de modelos",
     "provider_settings": "Ir para as configurações do fornecedor"
   },
   "notes": {
@@ -4520,6 +4527,10 @@
         "custom": "Função personalizada",
         "delete_confirm": "Tem a certeza de que pretende eliminar esta função personalizada?",
         "drag_hint": "Arraste para reordenar, mova para cima para ativar a função ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Utilizado por Explicar, Resumir, Melhorar e por ações personalizadas que usam o modelo predefinido.",
+          "translate_description": "Utilizado para gerar traduções. A deteção automática do idioma também pode utilizar o modelo rápido."
+        },
         "reset": {
           "button": "Redefinir",
           "confirm": "Tem a certeza de que pretende redefinir para as funções padrão? As funções personalizadas não serão eliminadas.",
@@ -6207,8 +6218,9 @@
       "provider_key_confirm_title": "Adicionar chave API para {{provider}}",
       "provider_name": "Nome do Fornecedor",
       "quick_assistant_default_tag": "Padrão",
-      "quick_assistant_model": "Modelo do Assistente Rápido",
+      "quick_assistant_response_settings": "Definições de resposta",
       "quick_assistant_selection": "Selecionar Assistente",
+      "quick_assistant_usage_method": "Método de utilização",
       "quick_model": {
         "description": "Modelo utilizado para executar tarefas simples, como nomeação de tópicos, extração de palavras-chave de busca, entre outras.",
         "label": "Modelo rápido",

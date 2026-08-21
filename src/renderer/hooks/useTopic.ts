@@ -30,7 +30,7 @@ import { useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
-import { ErrorCode } from '@shared/data/api/errors'
+import { ErrorCode, isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
@@ -570,10 +570,15 @@ export function useActiveTopic({
     isLoading: isActiveTopicQueryLoading,
     error
   } = useTopicById(passive || !activeTopicId ? undefined : activeTopicId)
+  // NOT_FOUND is authoritative even if SWR still exposes cached data or a matching optimistic
+  // topic. Otherwise cross-window deletion can strand HomePage on a stale active topic.
+  const isNotFound = isDataApiNotFoundError(error)
   const queryTopic = useMemo<RendererTopic | undefined>(
     () =>
-      activeTopicId && apiActiveTopic?.id === activeTopicId ? mapApiTopicToRendererTopic(apiActiveTopic) : undefined,
-    [activeTopicId, apiActiveTopic]
+      !isNotFound && activeTopicId && apiActiveTopic?.id === activeTopicId
+        ? mapApiTopicToRendererTopic(apiActiveTopic)
+        : undefined,
+    [activeTopicId, apiActiveTopic, isNotFound]
   )
   // Holds the last Topic object passed to setActiveTopic, used as fallback while the
   // by-id query for the newly-selected topic is still resolving.
@@ -592,11 +597,12 @@ export function useActiveTopic({
 
   const activeTopic = useMemo<RendererTopic | undefined>(() => {
     if (passive) return undefined
+    if (isNotFound) return undefined
     if (!activeTopicId) return pendingTopic
     if (queryTopic) return queryTopic
     if (pendingTopic?.id === activeTopicId) return pendingTopic
     return undefined
-  }, [activeTopicId, passive, pendingTopic, queryTopic])
+  }, [activeTopicId, isNotFound, passive, pendingTopic, queryTopic])
 
   // Where the active topic resolved from. 'query' = persisted (fetched by id);
   // 'pending' = optimistic / temporary topic not yet persisted. Mirrors
