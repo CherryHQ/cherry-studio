@@ -11,8 +11,8 @@ import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import * as z from 'zod'
 
 import { redactCacheKey } from './mcpRedact'
-import { buildMcpToolWireId } from './mcpToolId'
 import { OAuthPendingAuthError } from './McpRuntimeService'
+import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
