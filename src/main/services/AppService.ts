@@ -1,5 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 import fs from 'fs'
@@ -7,34 +9,75 @@ import path from 'path'
 
 const logger = loggerService.withContext('AppService')
 
-export class AppService {
+@Injectable('AppService')
+@ServicePhase(Phase.WhenReady)
+export class AppService extends BaseService {
+  private acceptingPreferenceChanges = false
+  private desiredLaunchOnBoot = false
+  private appliedLaunchOnBoot: boolean | undefined
+  private readonly launchOnBootReconciler: LatestReconciler = createLatestReconciler<{
+    desired: boolean
+    applied: boolean | undefined
+  }>({
+    name: 'appLaunchOnBoot',
+    getSnapshot: () => ({ desired: this.desiredLaunchOnBoot, applied: this.appliedLaunchOnBoot }),
+    isSettled: ({ desired, applied }) => desired === applied,
+    apply: async ({ desired }) => {
+      await this.setAppLaunchOnBoot(desired)
+      this.appliedLaunchOnBoot = desired
+    },
+    onError: (error) => logger.error('Failed to reconcile launch on boot:', error as Error)
+  })
+
+  protected async onInit(): Promise<void> {
+    // Force a fresh OS sync after a stop→restart in case the setting changed while stopped.
+    this.acceptingPreferenceChanges = true
+    this.appliedLaunchOnBoot = undefined
+    const preferenceService = application.get('PreferenceService')
+    this.registerDisposable(
+      preferenceService.subscribeChange('app.launch_on_boot', (isLaunchOnBoot) => {
+        if (!this.acceptingPreferenceChanges) return
+        this.desiredLaunchOnBoot = isLaunchOnBoot
+        this.launchOnBootReconciler.request()
+      })
+    )
+    this.desiredLaunchOnBoot = preferenceService.get('app.launch_on_boot')
+    this.launchOnBootReconciler.request()
+    await this.launchOnBootReconciler.flush()
+  }
+
+  protected async onStop(): Promise<void> {
+    this.acceptingPreferenceChanges = false
+    await this.launchOnBootReconciler.flush()
+  }
+
   public async setAppLaunchOnBoot(isLaunchOnBoot: boolean): Promise<void> {
     // Set login item settings for windows and mac
     // linux is not supported because it requires more file operations
     if (isWin || isMac) {
       app.setLoginItemSettings({ openAtLogin: isLaunchOnBoot })
     } else if (isLinux) {
-      try {
-        const autostartDir = application.getPath('sys.appdata.autostart')
-        const desktopFile = path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
+      const autostartDir = application.getPath('sys.appdata.autostart')
+      const desktopFile = path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
 
-        if (isLaunchOnBoot) {
-          // Ensure autostart directory exists
-          try {
-            await fs.promises.access(autostartDir)
-          } catch {
-            await fs.promises.mkdir(autostartDir, { recursive: true })
-          }
+      if (isLaunchOnBoot) {
+        // Ensure autostart directory exists
+        try {
+          await fs.promises.access(autostartDir)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          await fs.promises.mkdir(autostartDir, { recursive: true })
+        }
 
-          // Get executable path
-          let executablePath = application.getPath('app.exe_file')
-          if (process.env.APPIMAGE) {
-            // For AppImage packaged apps, use APPIMAGE environment variable
-            executablePath = process.env.APPIMAGE
-          }
+        // Get executable path
+        let executablePath = application.getPath('app.exe_file')
+        if (process.env.APPIMAGE) {
+          // For AppImage packaged apps, use APPIMAGE environment variable
+          executablePath = process.env.APPIMAGE
+        }
 
-          // Create desktop file content
-          const desktopContent = `[Desktop Entry]
+        // Create desktop file content
+        const desktopContent = `[Desktop Entry]
   Type=Application
   Name=Cherry Studio
   Comment=A powerful AI assistant for producer.
@@ -46,24 +89,20 @@ export class AppService {
   X-GNOME-Autostart-enabled=true
   Hidden=false`
 
-          // Write desktop file
-          await fs.promises.writeFile(desktopFile, desktopContent)
-          logger.info('Created autostart desktop file for Linux')
-        } else {
-          // Remove desktop file
-          try {
-            await fs.promises.access(desktopFile)
-            await fs.promises.unlink(desktopFile)
-            logger.info('Removed autostart desktop file for Linux')
-          } catch {
-            // File doesn't exist, no need to remove
-          }
+        // Write desktop file
+        await fs.promises.writeFile(desktopFile, desktopContent)
+        logger.info('Created autostart desktop file for Linux')
+      } else {
+        // Remove desktop file
+        try {
+          await fs.promises.access(desktopFile)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+          throw error
         }
-      } catch (error) {
-        logger.error('Failed to set launch on boot for Linux:', error as Error)
+        await fs.promises.unlink(desktopFile)
+        logger.info('Removed autostart desktop file for Linux')
       }
     }
   }
 }
-
-export const appService = new AppService()

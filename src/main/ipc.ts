@@ -12,7 +12,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, dialog } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
-import { appService } from './services/AppService'
 import { copilotService } from './services/CopilotService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
@@ -49,11 +48,6 @@ export async function registerIpc() {
       window.webContents.session.setSpellCheckerLanguages(languages)
     })
     void application.get('PreferenceService').set('app.spell_check.languages', languages)
-  })
-
-  // launch on boot
-  handleGuarded(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
-    await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
   // // theme
