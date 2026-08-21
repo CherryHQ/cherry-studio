@@ -10,6 +10,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { NotificationSource } from '@renderer/types/notification'
+import { isMac } from '@renderer/utils/platform'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +23,10 @@ const NotificationSettings: FC = () => {
     backup: 'app.notification.backup.enabled',
     knowledge: 'app.notification.knowledge.enabled',
     update: 'app.notification.update.enabled'
+  })
+  const [conversationIslandSettings, setConversationIslandSettings] = useMultiplePreferences({
+    enabled: 'feature.conversation_island.enabled',
+    showTitle: 'feature.conversation_island.show_title'
   })
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
@@ -72,6 +77,32 @@ const NotificationSettings: FC = () => {
             onCheckedChange={(v) => handleNotificationChange('update', v)}
           />
         </SettingRow>
+        {isMac && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.notification.conversation_island.enabled')}</SettingRowTitle>
+              <Switch
+                aria-label={t('settings.notification.conversation_island.enabled')}
+                checked={conversationIslandSettings.enabled}
+                onCheckedChange={(enabled) => void setConversationIslandSettings({ enabled })}
+              />
+            </SettingRow>
+            {conversationIslandSettings.enabled && (
+              <>
+                <SettingDivider />
+                <SettingRow>
+                  <SettingRowTitle>{t('settings.notification.conversation_island.show_title')}</SettingRowTitle>
+                  <Switch
+                    aria-label={t('settings.notification.conversation_island.show_title')}
+                    checked={conversationIslandSettings.showTitle}
+                    onCheckedChange={(showTitle) => void setConversationIslandSettings({ showTitle })}
+                  />
+                </SettingRow>
+              </>
+            )}
+          </>
+        )}
       </SettingGroup>
     </SettingsContentColumn>
   )
