@@ -2743,6 +2743,7 @@
         "context_compress_enabled": "Αυτόματη συμπίεση",
         "context_compress_model": "Μοντέλο συμπίεσης",
         "context_compress_model_follow": "Προεπιλογή",
+        "context_compress_threshold": "Όριο ενεργοποίησης συμπίεσης",
         "context_count": "Καταμέτρηση πλαισίου",
         "context_count_follow_global": "Χρήση καθολικής ρύθμισης ({{count}})",
         "context_count_unlimited": "Απεριόριστο",
@@ -2760,6 +2761,9 @@
         "field": {
           "context_compress_enabled": {
             "hint": "Αυτόματη σύνοψη παλαιότερων στροφών όταν πλησιάζει το παράθυρο περιβάλλοντος"
+          },
+          "context_compress_threshold": {
+            "hint": "Συμπιέζει μόλις η συνομιλία ξεπεράσει αυτό το ποσοστό του παραθύρου συμφραζομένων του μοντέλου"
           },
           "context_count": {
             "hint": "Αριθμός πρόσφατων μηνυμάτων που διατηρούνται ως συμφραζόμενα"

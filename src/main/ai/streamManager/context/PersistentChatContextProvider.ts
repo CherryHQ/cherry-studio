@@ -13,8 +13,7 @@ import { loggerService } from '@logger'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
-  CONTEXT_COMPACT_TRIGGER_RATIO
+  CONTEXT_COMPACT_KEEP_BUDGET_RATIO
 } from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
@@ -974,7 +973,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Selects the media cost tables only; text stays on tokenx, matching the
     // in-loop hook so the two triggers cannot disagree on the same history.
     const dialect = resolveRowDialect(models[0])
-    if (this.estimateContext(effective, dialect) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+    const trigger = Math.floor((inputRoom * contextSettings.compress.thresholdPercent) / 100)
+    if (this.estimateContext(effective, dialect) <= trigger) {
       return serve(effective)
     }
 

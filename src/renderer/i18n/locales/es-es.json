@@ -2743,6 +2743,7 @@
         "context_compress_enabled": "Compresión automática",
         "context_compress_model": "Modelo de compresión",
         "context_compress_model_follow": "Predeterminado",
+        "context_compress_threshold": "Umbral de activación de compresión",
         "context_count": "Recuento de contexto",
         "context_count_follow_global": "Seguir configuración global ({{count}})",
         "context_count_unlimited": "Sin límite",
@@ -2760,6 +2761,9 @@
         "field": {
           "context_compress_enabled": {
             "hint": "Resumir automáticamente los turnos anteriores al acercarse a la ventana de contexto"
+          },
+          "context_compress_threshold": {
+            "hint": "Comprime cuando la conversación supera este porcentaje de la ventana de contexto del modelo"
           },
           "context_count": {
             "hint": "Número de mensajes recientes conservados como contexto"

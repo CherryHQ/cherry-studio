@@ -209,7 +209,12 @@ function fakeMsgWithContextTokens(
 
 function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }) {
   mockResolveRequestContextSettings.mockResolvedValue({
-    contextSettings: { enabled: true, truncateThreshold: 0.9, maxMessages: null, compress: { enabled: true } },
+    contextSettings: {
+      enabled: true,
+      truncateThreshold: 0.9,
+      maxMessages: null,
+      compress: { enabled: true, thresholdPercent: 80 }
+    },
     compressionModel
   })
 }
@@ -1049,7 +1054,7 @@ function inLoopScope(contextWindow: number) {
     model: { id: 'openai::gpt-4o', contextWindow },
     // Read only to pick the per-dialect media cost table (`resolveModelTokenDialect`).
     provider: { id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} },
-    contextSettings: { enabled: true, compress: { enabled: true } },
+    contextSettings: { enabled: true, compress: { enabled: true, thresholdPercent: 80 } },
     compressionModel: { id: 'compression-model' }
   } as any
 }

@@ -2743,6 +2743,7 @@
         "context_compress_enabled": "自動圧縮",
         "context_compress_model": "圧縮モデル",
         "context_compress_model_follow": "デフォルト",
+        "context_compress_threshold": "圧縮のしきい値",
         "context_count": "コンテキストカウント",
         "context_count_follow_global": "グローバル設定に従う（{{count}}）",
         "context_count_unlimited": "無制限",
@@ -2760,6 +2761,9 @@
         "field": {
           "context_compress_enabled": {
             "hint": "コンテキストウィンドウに近づくと、古いターンを自動的に要約する"
+          },
+          "context_compress_threshold": {
+            "hint": "会話がモデルのコンテキストウィンドウのこの割合を超えたら圧縮します"
           },
           "context_count": {
             "hint": "コンテキストとして保持される最近のメッセージ数"

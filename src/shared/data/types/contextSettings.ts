@@ -19,7 +19,9 @@ export const ContextSettingsCompressOverrideSchema = z.object({
   enabled: z.boolean(),
   // min(1): '' would read as an explicit pick and silently kill compression
   // (resolveCompressionModel('') → null) — clearing must be expressed as null.
-  modelId: z.string().min(1).nullable().optional()
+  modelId: z.string().min(1).nullable().optional(),
+  /** Compact once the prompt passes this percent of the model context window. */
+  thresholdPercent: z.number().int().min(10).max(100).optional()
 })
 export type ContextSettingsCompressOverride = z.infer<typeof ContextSettingsCompressOverrideSchema>
 
@@ -47,7 +49,8 @@ export const EffectiveContextSettingsSchema = z.object({
   maxMessages: z.number().int().min(1).nullable(),
   compress: z.object({
     enabled: z.boolean(),
-    modelId: z.string().nullable()
+    modelId: z.string().nullable(),
+    thresholdPercent: z.number().int().min(10).max(100)
   })
 })
 export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSchema>
@@ -76,6 +79,7 @@ export const DEFAULT_CONTEXT_SETTINGS: EffectiveContextSettings = {
   maxMessages: null,
   compress: {
     enabled: true,
-    modelId: null
+    modelId: null,
+    thresholdPercent: 80
   }
 }

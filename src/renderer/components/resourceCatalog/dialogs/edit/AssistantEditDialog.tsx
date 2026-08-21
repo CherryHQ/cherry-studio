@@ -35,7 +35,7 @@ import {
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
-import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
+import { DEFAULT_CONTEXT_SETTINGS, MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
@@ -93,6 +93,7 @@ type AssistantEditFormValues = {
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
   contextMaxMessages: number | null
+  contextCompressThresholdPercent: number
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
@@ -104,6 +105,8 @@ type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
+// Mirrors ContextSettingsCompressOverrideSchema.thresholdPercent's floor.
+const CONTEXT_COMPRESS_MIN_PERCENT = 10
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.mcp' || value === 'tools.knowledge'
@@ -133,6 +136,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
     contextMaxMessages: form.contextMaxMessages,
+    contextCompressThresholdPercent: form.contextCompressThresholdPercent,
     contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     mcpServerIds: [...form.mcpServerIds]
@@ -172,6 +176,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
     contextMaxMessages: values.contextMaxMessages,
+    contextCompressThresholdPercent: values.contextCompressThresholdPercent,
     contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
     mcpServerIds: values.mcpServerIds
@@ -982,6 +987,43 @@ function ContextManagementFields({
               </FormItem>
             )}
           />
+
+          {values.contextCompressEnabled ? (
+            <FormField
+              control={form.control}
+              name="contextCompressThresholdPercent"
+              render={({ field }) => (
+                <FormItem>
+                  <FieldLabelWithHelp
+                    label={t('library.config.basic.context_compress_threshold')}
+                    help={t('library.config.basic.field.context_compress_threshold.hint')}
+                  />
+                  <FormControl>
+                    <EditableNumber
+                      block
+                      min={CONTEXT_COMPRESS_MIN_PERCENT}
+                      max={100}
+                      step={5}
+                      precision={0}
+                      suffix="%"
+                      align="start"
+                      changeOnBlur
+                      className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                      value={field.value}
+                      onChange={(value) =>
+                        field.onChange(
+                          typeof value === 'number' && value >= CONTEXT_COMPRESS_MIN_PERCENT
+                            ? value
+                            : DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent
+                        )
+                      }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
 
           <FormField
             control={form.control}

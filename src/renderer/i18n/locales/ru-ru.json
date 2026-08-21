@@ -2743,6 +2743,7 @@
         "context_compress_enabled": "Автосжатие",
         "context_compress_model": "Модель сжатия",
         "context_compress_model_follow": "По умолчанию",
+        "context_compress_threshold": "Порог запуска сжатия",
         "context_count": "Количество контекста",
         "context_count_follow_global": "Следовать глобальной настройке ({{count}})",
         "context_count_unlimited": "Без ограничения",
@@ -2760,6 +2761,9 @@
         "field": {
           "context_compress_enabled": {
             "hint": "Автоматически суммировать старые сообщения при приближении к лимиту контекстного окна"
+          },
+          "context_compress_threshold": {
+            "hint": "Сжимает, когда диалог превышает этот процент контекстного окна модели"
           },
           "context_count": {
             "hint": "Количество последних сообщений, сохраняемых в качестве контекста"

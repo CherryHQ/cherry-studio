@@ -2743,6 +2743,7 @@
         "context_compress_enabled": "Tự động nén",
         "context_compress_model": "Mô hình nén",
         "context_compress_model_follow": "Mặc định",
+        "context_compress_threshold": "Ngưỡng kích hoạt nén",
         "context_count": "Số lượng ngữ cảnh",
         "context_count_follow_global": "Theo cài đặt chung ({{count}})",
         "context_count_unlimited": "Không giới hạn",
@@ -2760,6 +2761,9 @@
         "field": {
           "context_compress_enabled": {
             "hint": "Tóm tắt tự động các lượt trò chuyện cũ khi gần đến giới hạn ngữ cảnh"
+          },
+          "context_compress_threshold": {
+            "hint": "Nén khi cuộc trò chuyện vượt quá tỷ lệ phần trăm này của cửa sổ ngữ cảnh của mô hình"
           },
           "context_count": {
             "hint": "Số lượng tin nhắn gần đây được giữ lại làm ngữ cảnh"

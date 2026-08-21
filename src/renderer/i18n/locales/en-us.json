@@ -2743,6 +2743,7 @@
         "context_compress_enabled": "Auto-compress",
         "context_compress_model": "Compression model",
         "context_compress_model_follow": "Follow current model",
+        "context_compress_threshold": "Compression trigger threshold",
         "context_count": "Recent messages kept",
         "context_count_follow_global": "Follow global ({{count}})",
         "context_count_unlimited": "Unlimited",
@@ -2760,6 +2761,9 @@
         "field": {
           "context_compress_enabled": {
             "hint": "Summarize older turns automatically when nearing the context window"
+          },
+          "context_compress_threshold": {
+            "hint": "Compress once the conversation passes this percentage of the model context window"
           },
           "context_count": {
             "hint": "Send only the most recent messages; earlier ones are excluded from context. Leave empty to follow the global setting"

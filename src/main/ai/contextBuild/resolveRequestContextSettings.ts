@@ -1,5 +1,6 @@
 import { application } from '@application'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 
 import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
@@ -15,7 +16,11 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
     maxMessages: prefs.get('chat.context_settings.max_messages'),
     compress: {
       enabled: prefs.get('chat.context_settings.compress.enabled'),
-      modelId: prefs.get('chat.context_settings.compress.model_id')
+      modelId: prefs.get('chat.context_settings.compress.model_id'),
+      // ponytail: no global pref for the trigger yet — the assistant override is
+      // the only surface that exposes it; add a `chat.context_settings.*` key
+      // (data-classify generate) when a global control is asked for.
+      thresholdPercent: DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent
     }
   }
 }
