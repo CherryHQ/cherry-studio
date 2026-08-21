@@ -149,3 +149,46 @@ describe('Link', () => {
     expect(screen.getAllByTestId('favicon')).toHaveLength(1)
   })
 })
+
+describe('Link file-path opener', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.findCitationInChildren.mockReturnValue(undefined)
+  })
+
+  it('routes a schemeless file-path link to the opener without navigating', () => {
+    const openFilePath = vi.fn()
+    const { container } = render(
+      <Link href="./DESIGN.md" openFilePath={openFilePath}>
+        Design
+      </Link>
+    )
+
+    // Not a web link: no Hyperlink wrapper, no new-window target.
+    expect(screen.queryByTestId('hyperlink')).toBeNull()
+    const anchor = container.querySelector('a') as HTMLAnchorElement
+    expect(anchor.getAttribute('target')).toBeNull()
+
+    fireEvent.click(anchor)
+    expect(openFilePath).toHaveBeenCalledWith('./DESIGN.md')
+  })
+
+  it('does not intercept web links even when an opener is provided', () => {
+    const openFilePath = vi.fn()
+    render(
+      <Link href="https://domain.com/path" openFilePath={openFilePath}>
+        Open
+      </Link>
+    )
+
+    expect(screen.getByTestId('hyperlink')).toBeInTheDocument()
+    expect(openFilePath).not.toHaveBeenCalled()
+  })
+
+  it('treats a file-path href as a normal link when no opener is provided', () => {
+    render(<Link href="docs/guide.md">Guide</Link>)
+
+    // No opener → the existing Hyperlink behavior is preserved (no regression).
+    expect(screen.getByTestId('hyperlink')).toBeInTheDocument()
+  })
+})

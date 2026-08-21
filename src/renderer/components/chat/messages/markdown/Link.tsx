@@ -1,6 +1,7 @@
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import type { Citation } from '@renderer/types/message'
+import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
@@ -13,6 +14,8 @@ import Hyperlink from './Hyperlink'
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   node?: Omit<Node, 'type'>
   citationRegistry?: ReadonlyMap<number, Citation>
+  /** When set, schemeless hrefs that look like workspace files route here instead of navigating. */
+  openFilePath?: (path: string) => void | Promise<void>
 }
 
 function getWebHostname(href?: string): string {
@@ -59,6 +62,28 @@ const Link: React.FC<LinkProps> = (props) => {
     return <NavigateToolInline input={{ path, query }} />
   }
 
+  // File-path links (`[SKILL.md](.agents/skills/gh-create-pr/SKILL.md)`, `[Design](./DESIGN.md)`,
+  // `[README](README.md)`): a workspace file, not a web page. Keep the link's own text but route the
+  // click to the host opener (which resolves the path against the workspace and routes dir vs file),
+  // only when the host actually provides one — otherwise fall through to normal link handling.
+  const openFilePath = props.openFilePath
+  const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
+  if (fileLinkPath && openFilePath) {
+    return (
+      <a
+        {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
+        href={props.href}
+        className={cn('text-primary', !props.className && 'hover:underline', props.className)}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          void Promise.resolve(openFilePath(fileLinkPath)).catch(() => {})
+        }}>
+        {props.children}
+      </a>
+    )
+  }
+
   // 包含<sup>标签表示是一个引用链接。
   // Matched on the hast node, not the rendered children: `components.sup` maps the tag to
   // CitationSup, so the child's `type` is that component rather than the string 'sup', and an
@@ -89,7 +114,7 @@ const Link: React.FC<LinkProps> = (props) => {
     return (
       <CitationTooltip citation={citationData}>
         <a
-          {...omit(props, ['node', 'citationRegistry'])}
+          {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
           href={props.href || undefined}
           target="_blank"
           rel="noreferrer"
@@ -104,7 +129,7 @@ const Link: React.FC<LinkProps> = (props) => {
   return (
     <Hyperlink href={props.href || ''}>
       <a
-        {...omit(props, ['node', 'citationRegistry'])}
+        {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
         target="_blank"
         rel="noreferrer"
         className={linkClassName}

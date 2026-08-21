@@ -16,12 +16,14 @@ interface ClickableFilePathProps {
   path: string
   displayName?: string
   interactive?: boolean
+  onOpen?: (path: string) => void
 }
 
 export const ClickableFilePath = memo(function ClickableFilePath({
   path,
   displayName,
-  interactive = true
+  interactive = true,
+  onOpen
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
@@ -37,12 +39,13 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
   const openPath = interactive ? actions?.openPath : undefined
   const notifyError = actions?.notifyError
-  const canOpen = Boolean(openArtifactFile || openPath)
+  const canOpenWithActions = Boolean(openArtifactFile || openPath)
+  const canOpen = Boolean(onOpen || canOpenWithActions)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
   const { isLoading, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
-    enabled: canOpen && hasAbsoluteTargetPath && actionsMenuOpen
+    enabled: canOpenWithActions && hasAbsoluteTargetPath && actionsMenuOpen
   })
-  const hasMoreActions = canOpen && hasAbsoluteTargetPath
+  const hasMoreActions = canOpenWithActions && hasAbsoluteTargetPath
 
   const handleOpenTarget = useCallback(
     (target: ExternalOpenTarget) => {
@@ -57,10 +60,11 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     async (e: React.MouseEvent | React.KeyboardEvent) => {
       if (!canOpen) return
       e.stopPropagation()
+      if (onOpen) {
+        onOpen(targetPath)
+        return
+      }
       try {
-        // Agent surfaces own the file-vs-directory decision so every entry
-        // point routes consistently. Surfaces without an in-app files pane
-        // keep opening paths through the system default handler.
         if (openArtifactFile) {
           await openArtifactFile(targetPath)
         } else {
@@ -70,7 +74,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
         notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
       }
     },
-    [canOpen, notifyError, openArtifactFile, openPath, t, targetPath]
+    [canOpen, onOpen, notifyError, openArtifactFile, openPath, t, targetPath]
   )
 
   const handleKeyDown = useCallback(

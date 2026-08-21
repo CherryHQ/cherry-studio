@@ -8,6 +8,8 @@ interface ChatMarkdownRenderContextValue {
   citationRegistry: ReadonlyMap<number, Citation>
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   isStreaming: boolean
+  /** When set, schemeless markdown links that resolve to workspace files route here. */
+  openFilePath?: (path: string) => void | Promise<void>
 }
 
 interface ChatMarkdownRenderProviderProps extends ChatMarkdownRenderContextValue {
@@ -21,11 +23,12 @@ export function ChatMarkdownRenderProvider({
   children,
   citationRegistry,
   inlineHtmlPreviewMode,
-  isStreaming
+  isStreaming,
+  openFilePath
 }: ChatMarkdownRenderProviderProps) {
   const value = useMemo(
-    () => ({ blockId, citationRegistry, inlineHtmlPreviewMode, isStreaming }),
-    [blockId, citationRegistry, inlineHtmlPreviewMode, isStreaming]
+    () => ({ blockId, citationRegistry, inlineHtmlPreviewMode, isStreaming, openFilePath }),
+    [blockId, citationRegistry, inlineHtmlPreviewMode, isStreaming, openFilePath]
   )
 
   return <ChatMarkdownRenderContext value={value}>{children}</ChatMarkdownRenderContext>
