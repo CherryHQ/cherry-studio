@@ -4,6 +4,7 @@ import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
+import { motion, useReducedMotion, type Variants } from 'motion/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,6 +16,18 @@ export type UsageHeatmapMetric = 'tokens' | 'cost'
 const CELL_SIZE = 12
 const CELL_GAP = 3
 const MIN_HEATMAP_DAYS = 365
+const heatmapCellVariants: Variants = {
+  hidden: { opacity: 0, scale: 0.7 },
+  visible: (cellIndex: number) => ({
+    opacity: 1,
+    scale: 1,
+    transition: {
+      delay: (Math.floor(cellIndex / 7) * 8 + (cellIndex % 7) * 12) / 1000,
+      duration: 0.52,
+      ease: [0.22, 1, 0.36, 1]
+    }
+  })
+}
 
 function startOfLocalWeek(date: Date, firstDayOfWeek: number): Date {
   const day = startOfLocalDay(date)
@@ -150,6 +163,9 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
   const { t, i18n } = useTranslation()
   const [metric, setMetric] = usePersistCache('settings.usage.heatmap_metric')
   const { ref: heatmapRef, width: heatmapWidth } = useElementWidth()
+  const reduceMotion = useReducedMotion()
+  const animationKey = `${range?.from ?? 'all'}-${range?.to ?? 'now'}-${isLoading ? 'loading' : 'ready'}`
+  const shouldAnimate = !reduceMotion && !isLoading
 
   const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
   const days = useMemo(() => buildHeatmapDays(buckets, range, firstDayOfWeek), [buckets, firstDayOfWeek, range])
@@ -236,62 +252,78 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
         <div className="flex w-max min-w-full justify-end" style={{ gap: CELL_GAP }}>
           {weeks.map((week, weekIndex) => (
             <div
-              key={week[0]?.key ?? weekIndex}
+              key={`${animationKey}-${week[0]?.key ?? weekIndex}`}
               className="grid shrink-0"
               style={{
                 width: CELL_SIZE,
                 gap: CELL_GAP,
-                gridTemplateRows: `16px repeat(7, ${CELL_SIZE}px)`
+                gridTemplateRows: '16px auto'
               }}>
               <div className="h-4 overflow-visible whitespace-nowrap pr-3 text-[10px] text-foreground-tertiary leading-4">
                 {monthLabels[weekIndex]}
               </div>
 
-              {isLoading
-                ? week.map((day) => (
-                    <Skeleton key={day.key} className="rounded-[3px]" style={{ height: CELL_SIZE, width: CELL_SIZE }} />
-                  ))
-                : week.map((day) => {
-                    if (day.isOutsideRange) {
-                      return (
-                        <div
-                          key={day.key}
-                          aria-hidden
-                          className="rounded-[3px] bg-muted/30"
-                          style={{ height: CELL_SIZE, width: CELL_SIZE }}
-                        />
+              <div className="grid" style={{ gap: CELL_GAP, gridTemplateRows: `repeat(7, ${CELL_SIZE}px)` }}>
+                {isLoading
+                  ? week.map((day) => (
+                      <Skeleton
+                        key={day.key}
+                        className="rounded-[3px]"
+                        style={{ height: CELL_SIZE, width: CELL_SIZE }}
+                      />
+                    ))
+                  : week.map((day, dayIndex) => {
+                      const cellIndex = weekIndex * 7 + dayIndex
+
+                      if (day.isOutsideRange) {
+                        return (
+                          <motion.div
+                            key={day.key}
+                            aria-hidden
+                            className="rounded-[3px] bg-muted/30"
+                            style={{ height: CELL_SIZE, width: CELL_SIZE }}
+                            custom={cellIndex}
+                            variants={heatmapCellVariants}
+                            initial={shouldAnimate ? 'hidden' : false}
+                            animate="visible"
+                          />
+                        )
+                      }
+
+                      const bucket = bucketMap.get(day.key)
+                      const value = getBucketValue(bucket, metric)
+                      const intensity = getIntensity(value, thresholds)
+                      const tooltipValue =
+                        metric === 'cost'
+                          ? t('settings.usage.tooltip.cost', { value: formatCost(value, costCurrency) })
+                          : t('settings.usage.tooltip.tokens', { value: formatCompactNumber(value) })
+                      const tooltipContent = (
+                        <div className="flex flex-col gap-1">
+                          <span>{dateFormatter.format(day.date)}</span>
+                          <span>{tooltipValue}</span>
+                          <span>{t('settings.usage.tooltip.requests', { count: bucket?.requestCount ?? 0 })}</span>
+                        </div>
                       )
-                    }
 
-                    const bucket = bucketMap.get(day.key)
-                    const value = getBucketValue(bucket, metric)
-                    const intensity = getIntensity(value, thresholds)
-                    const tooltipValue =
-                      metric === 'cost'
-                        ? t('settings.usage.tooltip.cost', { value: formatCost(value, costCurrency) })
-                        : t('settings.usage.tooltip.tokens', { value: formatCompactNumber(value) })
-                    const tooltipContent = (
-                      <div className="flex flex-col gap-1">
-                        <span>{dateFormatter.format(day.date)}</span>
-                        <span>{tooltipValue}</span>
-                        <span>{t('settings.usage.tooltip.requests', { count: bucket?.requestCount ?? 0 })}</span>
-                      </div>
-                    )
-
-                    return (
-                      <NormalTooltip key={day.key} content={tooltipContent} side="top" sideOffset={4}>
-                        <div
-                          role="img"
-                          aria-label={`${dateFormatter.format(day.date)} · ${tooltipValue} · ${t(
-                            'settings.usage.tooltip.requests',
-                            { count: bucket?.requestCount ?? 0 }
-                          )}`}
-                          className={`cursor-help rounded-[3px] ${intensityClassNames[intensity]}`}
-                          style={{ height: CELL_SIZE, width: CELL_SIZE }}
-                        />
-                      </NormalTooltip>
-                    )
-                  })}
+                      return (
+                        <NormalTooltip key={day.key} content={tooltipContent} side="top" sideOffset={4}>
+                          <motion.div
+                            role="img"
+                            aria-label={`${dateFormatter.format(day.date)} · ${tooltipValue} · ${t(
+                              'settings.usage.tooltip.requests',
+                              { count: bucket?.requestCount ?? 0 }
+                            )}`}
+                            className={`cursor-help rounded-[3px] ${intensityClassNames[intensity]}`}
+                            style={{ height: CELL_SIZE, width: CELL_SIZE }}
+                            custom={cellIndex}
+                            variants={heatmapCellVariants}
+                            initial={shouldAnimate ? 'hidden' : false}
+                            animate="visible"
+                          />
+                        </NormalTooltip>
+                      )
+                    })}
+              </div>
             </div>
           ))}
         </div>
