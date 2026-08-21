@@ -31,14 +31,22 @@ class WeChatAdapter extends ChannelAdapter {
   }
 
   protected override async performConnect(signal: AbortSignal): Promise<void> {
+    const previousBot = this.bot
+    if (previousBot) {
+      previousBot.stop()
+      if (this.bot === previousBot) this.bot = null
+    }
+    signal.throwIfAborted()
     const bot = new WeixinBot({
       tokenPath: this.tokenPath,
       onError: (error) => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.error('WeChat bot error', {
           error: error instanceof Error ? error.message : String(error)
         })
       },
       onQrUrl: (url) => {
+        if (!this.isConnectRunActive(signal)) return
         this.emit('qr', url)
         this.sendQrToRenderer(url, 'pending')
       }
@@ -61,14 +69,14 @@ class WeChatAdapter extends ChannelAdapter {
 
     this.sendQrToRenderer('', 'confirmed', credentials.userId)
     this.registerMessageHandler(bot)
-    this.markConnected()
+    this.markConnected(signal)
     this.log.info('WeChat bot logged in and polling started', { userId: credentials.userId })
 
     // Start long-polling (fire-and-forget)
     bot.run().catch((err) => {
-      if (!signal.aborted) {
+      if (this.isConnectRunActive(signal)) {
         const msg = err instanceof Error ? err.message : String(err)
-        this.markDisconnected(msg)
+        this.markDisconnected(msg, signal)
         this.log.error(`Polling stopped: ${msg}`)
       }
     })

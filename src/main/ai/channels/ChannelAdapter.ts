@@ -134,7 +134,8 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Mark the adapter as disconnected when the underlying connection drops unexpectedly.
    * Subclasses should call this from error handlers (e.g. WebSocket close, polling failure).
    */
-  protected markDisconnected(error?: string): void {
+  protected markDisconnected(error?: string, signal?: AbortSignal): void {
+    if (signal && !this.isConnectRunActive(signal)) return
     this._connected = false
     this.emitStatusChange(false, error)
   }
@@ -143,7 +144,8 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Mark the adapter as connected after a successful reconnection.
    * Subclasses with auto-reconnect logic should call this when the connection is re-established.
    */
-  protected markConnected(): void {
+  protected markConnected(signal?: AbortSignal): void {
+    if (signal && !this.isConnectRunActive(signal)) return
     this._connected = true
     this.emitStatusChange(true)
   }
@@ -167,16 +169,19 @@ export abstract class ChannelAdapter extends EventEmitter {
    * markConnected() / markDisconnected() themselves.
    */
   async connect(): Promise<void> {
+    this.connectAbort?.abort(new DOMException('Connect superseded', 'AbortError'))
     this.connectAbort = new AbortController()
     const signal = this.connectAbort.signal
 
     const ready = await this.checkReady()
+    signal.throwIfAborted()
     if (ready) {
       await this.performConnect(signal)
+      signal.throwIfAborted()
     } else {
       this.performConnect(signal).catch((err) => {
-        if (!signal.aborted) {
-          this.markDisconnected(err instanceof Error ? err.message : String(err))
+        if (this.isConnectRunActive(signal)) {
+          this.markDisconnected(err instanceof Error ? err.message : String(err), signal)
         }
       })
     }
@@ -214,6 +219,10 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Tear down the connection. Release resources, stop polling, close sockets.
    */
   protected abstract performDisconnect(): Promise<void>
+
+  protected isConnectRunActive(signal: AbortSignal): boolean {
+    return this.connectAbort?.signal === signal && !signal.aborted
+  }
 
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
   abstract sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void>

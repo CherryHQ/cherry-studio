@@ -1,6 +1,7 @@
 /** History adapter contract for one accepted Conversation turn. */
 
 import type { Span } from '@opentelemetry/api'
+import type { CompactionSink } from '@shared/ai/compaction'
 import type { ConversationRef } from '@shared/ai/conversation'
 import type { ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -135,7 +136,7 @@ export interface CommittedDispatchReservation {
 
 export interface CommittedDispatch {
   readonly reservation: CommittedDispatchReservation
-  prepareExecutionContext(signal: AbortSignal): Promise<ConversationExecutionContext>
+  prepareExecutionContext(signal: AbortSignal, compactionSink?: CompactionSink): Promise<ConversationExecutionContext>
 }
 
 export interface DispatchContext {

@@ -176,6 +176,13 @@ class FeishuAdapter extends ChannelAdapter {
       return
     }
 
+    const previousChannel = this.channel
+    if (previousChannel) {
+      await this.disconnectChannel(previousChannel)
+      signal.throwIfAborted()
+      if (this.channel === previousChannel) this.channel = null
+    }
+
     const sdkLogger: Lark.Logger = {
       error: (...args) => this.log.error('Feishu SDK error', { detail: args.map(String).join(' ') }),
       warn: (...args) => this.log.warn('Feishu SDK warning', { detail: args.map(String).join(' ') }),
@@ -212,7 +219,9 @@ class FeishuAdapter extends ChannelAdapter {
 
     channel.on({
       message: (message) => {
+        if (!this.isConnectRunActive(signal)) return
         void this.handleMessage(message).catch((error) => {
+          if (!this.isConnectRunActive(signal)) return
           this.log.error('Failed to handle Feishu message', {
             chatId: message.chatId,
             messageId: message.messageId,
@@ -221,16 +230,20 @@ class FeishuAdapter extends ChannelAdapter {
         })
       },
       reconnecting: () => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.warn('Feishu WebSocket reconnecting')
       },
       reconnected: () => {
-        this.markConnected()
+        if (!this.isConnectRunActive(signal)) return
+        this.markConnected(signal)
         this.log.info('Feishu WebSocket reconnected')
       },
       reject: (event) => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.debug('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
       },
       error: (error) => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.error('Feishu channel error', { error: error.message, code: error.code })
       }
     })
@@ -249,7 +262,7 @@ class FeishuAdapter extends ChannelAdapter {
       return
     }
 
-    this.markConnected()
+    this.markConnected(signal)
     this.log.info('Feishu bot connected (WebSocket)')
   }
 
@@ -259,13 +272,13 @@ class FeishuAdapter extends ChannelAdapter {
 
     registrationBegin(this.domain)
       .then(({ deviceCode, verificationUri, interval, expiresIn }) => {
-        if (signal.aborted) return
+        if (!this.isConnectRunActive(signal)) return
         this.emit('qr', verificationUri)
         this.sendQrToRenderer(verificationUri, 'pending')
         return registrationPoll(this.domain, deviceCode, { interval, expiresIn, signal })
       })
       .then((result) => {
-        if (!result || signal.aborted) return
+        if (!result || !this.isConnectRunActive(signal)) return
         this.appId = result.appId
         this.appSecret = result.appSecret
         this.emit('credentials', { appId: result.appId, appSecret: result.appSecret })
@@ -273,7 +286,7 @@ class FeishuAdapter extends ChannelAdapter {
         this.log.info('Feishu app registration completed')
       })
       .catch((error) => {
-        if (signal.aborted) return
+        if (!this.isConnectRunActive(signal)) return
         const errorMessage = error instanceof Error ? error.message : String(error)
         this.sendQrToRenderer('', /expired|timed out/i.test(errorMessage) ? 'expired' : 'error')
         this.log.warn(`Registration failed: ${errorMessage}`)

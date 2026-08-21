@@ -39,6 +39,7 @@ import {
 } from '@shared/ai/agentSessionSlashCommands'
 import {
   type AgentConversationRef,
+  type ConversationActivityId,
   ConversationActivityKind,
   ConversationKind,
   ConversationOpenTrigger,
@@ -264,6 +265,8 @@ type AgentConnectionEntry = {
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
+  compactionActivityId?: ConversationActivityId
+  backgroundActivityId?: ConversationActivityId
 }
 
 /** Releases the exact connection-side stream resource after Conversation commits its terminal. */
@@ -432,9 +435,11 @@ export class AgentConnectionManager extends BaseService {
         break
       }
       case AgentConnectionResourceEventType.ReleaseBackgroundWaiter:
+        this.closeBackgroundActivity(entry)
         this.releaseBackgroundWorkWaiter(entry, effect.connection)
         break
       case AgentConnectionResourceEventType.CompactionInterrupted:
+        this.closeCompactionActivity(entry)
         application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.conversation.id), {
           status: 'idle'
         })
@@ -840,6 +845,9 @@ export class AgentConnectionManager extends BaseService {
     const entry = this.entries.get(sessionId)
     if (!entry) return Promise.resolve()
     const fallbackConnection = this.currentConnection(entry)
+    const pendingConnectionStart = this.connectionStarts.get(sessionId)?.promise
+    const connectionLoop = entry.connectionLoop
+    this.entries.delete(sessionId)
     let closing: Promise<void>
     try {
       closing = this.closeEntry(entry)
@@ -847,10 +855,7 @@ export class AgentConnectionManager extends BaseService {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
       closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
     }
-    if (this.entries.get(sessionId) === entry) {
-      this.entries.delete(sessionId)
-    }
-    return closing
+    return Promise.allSettled([closing, pendingConnectionStart, connectionLoop]).then(() => undefined)
   }
 
   /**
@@ -1146,9 +1151,9 @@ export class AgentConnectionManager extends BaseService {
       })
   }
 
-  private abortResources(sessionId: string, reason: string): void {
+  private abortResources(sessionId: string, reason: string): Promise<void> {
     const entry = this.entries.get(sessionId)
-    if (!entry) return
+    if (!entry) return Promise.resolve()
     const generation = entry.resources.generation
     const turn =
       this.liveTurn(entry) ??
@@ -1156,13 +1161,14 @@ export class AgentConnectionManager extends BaseService {
         ? (generation.continuationTurn ?? generation.sourceTurn)
         : undefined)
     if (turn && !turn.abortController.signal.aborted) turn.abortController.abort(reason)
-    void this.closeSession(sessionId)
+    return this.closeSession(sessionId)
   }
 
   protected async onStop(): Promise<void> {
     this.disposeWarmLeases()
+    const closings: Promise<void>[] = []
     for (const entry of [...this.entries.values()]) {
-      this.abortResources(entry.conversation.id, 'agent-session-runtime-stop')
+      closings.push(this.abortResources(entry.conversation.id, 'agent-session-runtime-stop'))
       application
         .get('ConversationRuntimeService')
         .abort({ kind: ConversationKind.Agent, id: entry.conversation.id }, 'agent-session-runtime-stop')
@@ -1172,6 +1178,7 @@ export class AgentConnectionManager extends BaseService {
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
+    await Promise.allSettled(closings)
     await this.closeAll()
   }
 
@@ -1377,7 +1384,7 @@ export class AgentConnectionManager extends BaseService {
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
-      void this.closeRuntimeConnection(connection, entry.conversation.id)
+      await this.closeRuntimeConnection(connection, entry.conversation.id)
       return false
     }
 
@@ -1387,7 +1394,7 @@ export class AgentConnectionManager extends BaseService {
       connection
     })
     if (this.currentConnection(entry) !== connection) {
-      void this.closeRuntimeConnection(connection, entry.conversation.id)
+      await this.closeRuntimeConnection(connection, entry.conversation.id)
       return false
     }
     entry.usageCapture = connection.usageCapture
@@ -1561,9 +1568,9 @@ export class AgentConnectionManager extends BaseService {
       occupancy: AgentConnectionOccupancyKind.Compaction,
       active: true
     })
-    application
+    entry.compactionActivityId ??= application
       .get('ConversationRuntimeService')
-      .setAgentActivity(entry.conversation.id, ConversationActivityKind.Compaction, true)
+      .openAgentActivity(entry.conversation.id, ConversationActivityKind.Compaction)
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.conversation.id), {
       status: 'compacting',
       startedAt: new Date().toISOString(),
@@ -1617,9 +1624,7 @@ export class AgentConnectionManager extends BaseService {
       occupancy: AgentConnectionOccupancyKind.Compaction,
       active: false
     })
-    application
-      .get('ConversationRuntimeService')
-      .setAgentActivity(entry.conversation.id, ConversationActivityKind.Compaction, false)
+    this.closeCompactionActivity(entry)
 
     const turn = this.currentTurn(entry)
     if (anchor && turn?.controller && this.isTurnLive(entry, turn)) {
@@ -1666,9 +1671,7 @@ export class AgentConnectionManager extends BaseService {
       occupancy: AgentConnectionOccupancyKind.Compaction,
       active: false
     })
-    application
-      .get('ConversationRuntimeService')
-      .setAgentActivity(entry.conversation.id, ConversationActivityKind.Compaction, false)
+    this.closeCompactionActivity(entry)
     // The failure is surfaced to the user through the turn error (handleRuntimeError) and logged here;
     // the compaction cache state only needs to leave the compacting status.
     logger.warn('Agent session compaction failed', { sessionId: entry.conversation.id, error })
@@ -1779,14 +1782,17 @@ export class AgentConnectionManager extends BaseService {
       occupancy: AgentConnectionOccupancyKind.Background,
       active
     })
-    application
-      .get('ConversationRuntimeService')
-      .setAgentActivity(
-        entry.conversation.id,
-        ConversationActivityKind.Background,
-        active,
-        turn && turn.headless !== true ? ConversationResponderKind.Interactive : ConversationResponderKind.Headless
-      )
+    if (active) {
+      entry.backgroundActivityId ??= application
+        .get('ConversationRuntimeService')
+        .openAgentActivity(
+          entry.conversation.id,
+          ConversationActivityKind.Background,
+          turn && turn.headless !== true ? ConversationResponderKind.Interactive : ConversationResponderKind.Headless
+        )
+    } else {
+      this.closeBackgroundActivity(entry)
+    }
     if (active) {
       this.clearIdleTimer(entry)
     } else {
@@ -2496,8 +2502,13 @@ export class AgentConnectionManager extends BaseService {
     application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.conversation.id))
     application.get('CacheService').deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.conversation.id))
 
-    const connection = this.closeConnection(entry, false)
-    this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.Reset })
+    const connection = this.currentConnection(entry)
+    const reset = transitionAgentConnectionResource(entry.resources, {
+      type: AgentConnectionResourceEventType.Reset
+    })
+    entry.resources = reset.state
+    for (const effect of reset.effects) this.executeResourceEffect(entry, effect)
+    entry.connectionLoop = undefined
     this.connectionStarts.delete(entry.conversation.id)
 
     return Promise.all([backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.conversation.id)]).then(
@@ -2541,6 +2552,18 @@ export class AgentConnectionManager extends BaseService {
       logger.warn('Agent runtime connection close failed', { sessionId, error })
       return Promise.resolve()
     }
+  }
+
+  private closeCompactionActivity(entry: AgentConnectionEntry): void {
+    if (!entry.compactionActivityId) return
+    application.get('ConversationRuntimeService').closeAgentActivity(entry.conversation.id, entry.compactionActivityId)
+    entry.compactionActivityId = undefined
+  }
+
+  private closeBackgroundActivity(entry: AgentConnectionEntry): void {
+    if (!entry.backgroundActivityId) return
+    application.get('ConversationRuntimeService').closeAgentActivity(entry.conversation.id, entry.backgroundActivityId)
+    entry.backgroundActivityId = undefined
   }
 }
 

@@ -1,9 +1,11 @@
+import type { CompactionSink } from '@shared/ai/compaction'
 import {
   ConversationInteractionResumeMode,
   ConversationKind,
   ConversationOutcomeKind,
   toConversationEffectId,
   toConversationExecutionId,
+  toConversationInteractionId,
   toConversationTurnId
 } from '@shared/ai/conversation'
 import type { UIMessageChunk } from 'ai'
@@ -163,6 +165,173 @@ describe('AiExecutionManager', () => {
     await Promise.all(manager.inFlightRuns())
 
     expect(sink.interactionOpened).toHaveBeenCalledWith(expect.objectContaining({ id: 'approval-1', executionId }))
+  })
+
+  it('routes turn-start compaction through the exact execution observer', async () => {
+    const controlled = controlledStream()
+    const chunks: ConversationExecutionChunk[] = []
+    const sink: ConversationExecutionSink = {
+      firstChunk: vi.fn(),
+      interactionOpened: vi.fn(),
+      terminal: vi.fn(),
+      startFailed: vi.fn()
+    }
+    const manager = new AiExecutionManager(async () => controlled.stream)
+    manager.register({
+      conversation: ref,
+      turnId,
+      executionId,
+      outputNodeId: 'assistant-1',
+      modelId: 'provider::model',
+      request: async (_signal, compactionSink) => {
+        compactionSink('anchor-1', {
+          status: 'compacting',
+          phase: 'turn-start',
+          startedAt: new Date().toISOString()
+        })
+        return { chatId: 'topic-1', trigger: 'submit-message', uniqueModelId: 'provider::model', messages: [] }
+      },
+      observers: [{ id: 'observer-1', onChunk: (chunk) => chunks.push(chunk), isAlive: () => true }],
+      interactionResumeMode: ConversationInteractionResumeMode.NewRun
+    })
+    manager.start(
+      {
+        type: ConversationEffectType.StartExecution,
+        conversation: ref,
+        turnId,
+        executionId,
+        effectId: toConversationEffectId('start-compaction')
+      },
+      sink
+    )
+
+    await vi.waitFor(() => expect(chunks).toHaveLength(1))
+    expect(chunks[0]).toMatchObject({
+      conversation: ref,
+      turnId,
+      executionId,
+      outputNodeId: 'assistant-1',
+      chunk: { type: 'data-compaction-anchor', id: 'anchor-1' }
+    })
+    controlled.controller.close()
+    await Promise.all(manager.inFlightRuns())
+  })
+
+  it('drops preparation callbacks after the exact execution resource is released', async () => {
+    let releasePreparation!: () => void
+    let compactionSink!: CompactionSink
+    const preparation = new Promise<void>((resolve) => {
+      releasePreparation = resolve
+    })
+    const observer = vi.fn()
+    const openStream = vi.fn(async () => controlledStream().stream)
+    const manager = new AiExecutionManager(openStream)
+    manager.register({
+      conversation: ref,
+      turnId,
+      executionId,
+      outputNodeId: 'assistant-1',
+      modelId: 'provider::model',
+      request: async (_signal, sink) => {
+        compactionSink = sink
+        await preparation
+        return { chatId: 'topic-1', trigger: 'submit-message', uniqueModelId: 'provider::model', messages: [] }
+      },
+      observers: [{ id: 'observer-1', onChunk: observer, isAlive: () => true }],
+      interactionResumeMode: ConversationInteractionResumeMode.NewRun
+    })
+    manager.start(
+      {
+        type: ConversationEffectType.StartExecution,
+        conversation: ref,
+        turnId,
+        executionId,
+        effectId: toConversationEffectId('start-stale')
+      },
+      { firstChunk: vi.fn(), interactionOpened: vi.fn(), terminal: vi.fn(), startFailed: vi.fn() }
+    )
+    await vi.waitFor(() => expect(compactionSink).toBeTypeOf('function'))
+
+    manager.release(ref, turnId, executionId)
+    compactionSink('late-anchor', {
+      status: 'done',
+      phase: 'turn-start',
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString()
+    })
+    releasePreparation()
+    await Promise.all(manager.inFlightRuns())
+
+    expect(observer).not.toHaveBeenCalled()
+    expect(openStream).not.toHaveBeenCalled()
+  })
+
+  it('uses the approval idle window until exact resume restores the ordinary timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const controlled = controlledStream()
+      let requestSignal: AbortSignal | undefined
+      const sink: ConversationExecutionSink = {
+        firstChunk: vi.fn(),
+        interactionOpened: vi.fn(),
+        terminal: vi.fn(),
+        startFailed: vi.fn()
+      }
+      const manager = new AiExecutionManager(async (request) => {
+        requestSignal = (request.requestOptions as { signal?: AbortSignal } | undefined)?.signal
+        return controlled.stream
+      })
+      manager.register({
+        conversation: ref,
+        turnId,
+        executionId,
+        outputNodeId: 'assistant-1',
+        modelId: 'provider::model',
+        request: {
+          chatId: 'topic-1',
+          trigger: 'submit-message',
+          uniqueModelId: 'provider::model',
+          messages: [],
+          requestOptions: { timeout: 10_000 }
+        },
+        observers: [],
+        interactionResumeMode: ConversationInteractionResumeMode.InPlace
+      })
+      manager.start(
+        {
+          type: ConversationEffectType.StartExecution,
+          conversation: ref,
+          turnId,
+          executionId,
+          effectId: toConversationEffectId('start-approval-timeout')
+        },
+        sink
+      )
+      await vi.waitFor(() => expect(requestSignal).toBeDefined())
+      controlled.controller.enqueue({
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tool-1'
+      } as UIMessageChunk)
+      await vi.waitFor(() => expect(sink.interactionOpened).toHaveBeenCalledOnce())
+
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(requestSignal?.aborted).toBe(false)
+
+      manager.resume({
+        type: ConversationEffectType.ResumeExecution,
+        conversation: ref,
+        turnId,
+        executionId,
+        interactionId: toConversationInteractionId('approval-1'),
+        effectId: toConversationEffectId('resume-approval')
+      })
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(requestSignal?.aborted).toBe(true)
+      await Promise.all(manager.inFlightRuns())
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('registers the observer with a semantic compact replay and exact high-water', async () => {

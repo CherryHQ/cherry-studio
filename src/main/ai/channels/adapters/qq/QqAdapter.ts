@@ -103,7 +103,7 @@ class QqAdapter extends ChannelAdapter {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private rapidDisconnects = 0
   private connectedAt = 0
-  private isConnecting = false
+  private connectingSignal?: AbortSignal
   private shouldStop = false
 
   private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
@@ -135,13 +135,13 @@ class QqAdapter extends ChannelAdapter {
     return !!(this.appId && this.clientSecret)
   }
 
-  protected override async performConnect(_signal: AbortSignal): Promise<void> {
+  protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.appId || !this.clientSecret) {
       throw new Error('QQ Bot AppID and ClientSecret are required')
     }
 
     this.shouldStop = false
-    await this.startGateway()
+    await this.startGateway(signal)
 
     this.log.info('QQ bot started')
   }
@@ -214,25 +214,29 @@ class QqAdapter extends ChannelAdapter {
     return data.url
   }
 
-  private async startGateway(): Promise<void> {
-    if (this.isConnecting || this.shouldStop) return
-    this.isConnecting = true
+  private async startGateway(signal: AbortSignal): Promise<void> {
+    if (this.connectingSignal === signal || this.shouldStop || !this.isConnectRunActive(signal)) return
+    this.connectingSignal = signal
 
     try {
       this.cleanup()
 
       const gatewayUrl = await this.getGatewayUrl()
+      signal.throwIfAborted()
       this.log.info('Connecting to QQ gateway', { url: gatewayUrl })
 
       const ws = new WebSocket(gatewayUrl)
       this.ws = ws
 
       ws.on('open', () => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.info('QQ WebSocket connected')
       })
 
       ws.on('message', (data: Buffer) => {
-        this.handleWsMessage(data).catch((err) => {
+        if (!this.isConnectRunActive(signal)) return
+        this.handleWsMessage(data, signal).catch((err) => {
+          if (!this.isConnectRunActive(signal)) return
           this.log.error('Error handling WS message', {
             error: err instanceof Error ? err.message : String(err)
           })
@@ -240,16 +244,18 @@ class QqAdapter extends ChannelAdapter {
       })
 
       ws.on('close', (code, reason) => {
-        this.markDisconnected(`WebSocket closed: ${code}`)
+        if (!this.isConnectRunActive(signal)) return
+        this.markDisconnected(`WebSocket closed: ${code}`, signal)
         this.log.warn(`WebSocket closed (code=${code}, reason=${reason.toString()})`)
         this.log.info('QQ WebSocket closed', {
           code,
           reason: reason.toString()
         })
-        this.scheduleReconnect()
+        this.scheduleReconnect(signal)
       })
 
       ws.on('error', (err) => {
+        if (!this.isConnectRunActive(signal)) return
         this.log.error('QQ WebSocket error', {
           error: err.message
         })
@@ -258,13 +264,14 @@ class QqAdapter extends ChannelAdapter {
       this.log.error('Failed to start QQ gateway', {
         error: error instanceof Error ? error.message : String(error)
       })
-      this.scheduleReconnect()
+      if (this.isConnectRunActive(signal)) this.scheduleReconnect(signal)
     } finally {
-      this.isConnecting = false
+      if (this.connectingSignal === signal) this.connectingSignal = undefined
     }
   }
 
-  private async handleWsMessage(data: Buffer): Promise<void> {
+  private async handleWsMessage(data: Buffer, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     let payload: { op: number; d?: unknown; s?: number; t?: string }
     try {
       payload = JSON.parse(data.toString())
@@ -279,11 +286,11 @@ class QqAdapter extends ChannelAdapter {
 
     switch (payload.op) {
       case OP_HELLO:
-        await this.handleHello(payload.d as { heartbeat_interval: number })
+        await this.handleHello(payload.d as { heartbeat_interval: number }, signal)
         break
       case OP_DISPATCH:
         if (payload.t) {
-          await this.handleDispatch(payload.t, payload.d)
+          await this.handleDispatch(payload.t, payload.d, signal)
         }
         break
       case OP_HEARTBEAT_ACK:
@@ -291,33 +298,34 @@ class QqAdapter extends ChannelAdapter {
         break
       case OP_RECONNECT:
         this.log.info('QQ gateway requested reconnect')
-        this.scheduleReconnect()
+        this.scheduleReconnect(signal)
         break
       case OP_INVALID_SESSION:
         this.log.warn('QQ invalid session')
         this.sessionId = null
         this.lastSeq = null
-        this.scheduleReconnect()
+        this.scheduleReconnect(signal)
         break
     }
   }
 
-  private async handleHello(data: { heartbeat_interval: number }): Promise<void> {
+  private async handleHello(data: { heartbeat_interval: number }, signal: AbortSignal): Promise<void> {
     // Start heartbeat
     this.heartbeatInterval = setInterval(() => {
-      this.sendHeartbeat()
+      if (this.isConnectRunActive(signal)) this.sendHeartbeat()
     }, data.heartbeat_interval)
 
     // Identify or resume
     if (this.sessionId && this.lastSeq !== null) {
-      await this.sendResume()
+      await this.sendResume(signal)
     } else {
-      await this.sendIdentify()
+      await this.sendIdentify(signal)
     }
   }
 
-  private async sendIdentify(): Promise<void> {
+  private async sendIdentify(signal: AbortSignal): Promise<void> {
     const token = await this.getAccessToken()
+    signal.throwIfAborted()
     const intents = INTENTS.PUBLIC_GUILD_MESSAGES | INTENTS.DIRECT_MESSAGE | INTENTS.GROUP_AND_C2C
 
     this.send({
@@ -330,8 +338,9 @@ class QqAdapter extends ChannelAdapter {
     })
   }
 
-  private async sendResume(): Promise<void> {
+  private async sendResume(signal: AbortSignal): Promise<void> {
     const token = await this.getAccessToken()
+    signal.throwIfAborted()
 
     this.send({
       op: OP_RESUME,
@@ -356,7 +365,8 @@ class QqAdapter extends ChannelAdapter {
     }
   }
 
-  private async handleDispatch(eventType: string, data: unknown): Promise<void> {
+  private async handleDispatch(eventType: string, data: unknown, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     switch (eventType) {
       case 'READY': {
         const readyData = data as { session_id: string; user: { id: string; username: string } }
@@ -364,7 +374,7 @@ class QqAdapter extends ChannelAdapter {
         this.reconnectAttempts = 0
         this.rapidDisconnects = 0
         this.connectedAt = Date.now()
-        this.markConnected()
+        this.markConnected(signal)
         this.log.info(`QQ bot ready (user: ${readyData.user.username})`)
         this.log.info('QQ bot ready', {
           sessionId: this.sessionId,
@@ -374,7 +384,7 @@ class QqAdapter extends ChannelAdapter {
       }
       case 'RESUMED':
         this.connectedAt = Date.now()
-        this.markConnected()
+        this.markConnected(signal)
         this.log.info('QQ session resumed')
         break
       case 'C2C_MESSAGE_CREATE':
@@ -739,8 +749,8 @@ class QqAdapter extends ChannelAdapter {
     this.tokenCache = null
   }
 
-  private scheduleReconnect(): void {
-    if (this.shouldStop) return
+  private scheduleReconnect(signal: AbortSignal): void {
+    if (this.shouldStop || !this.isConnectRunActive(signal)) return
 
     // Detect rapid disconnects: if the connection lasted less than the threshold, it's unstable
     const connectionDuration = this.connectedAt > 0 ? Date.now() - this.connectedAt : 0
@@ -762,7 +772,7 @@ class QqAdapter extends ChannelAdapter {
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.markDisconnected('Max reconnect attempts reached')
+      this.markDisconnected('Max reconnect attempts reached', signal)
       this.log.error('Max reconnect attempts reached, giving up')
       return
     }
@@ -778,8 +788,9 @@ class QqAdapter extends ChannelAdapter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
-      if (!this.shouldStop) {
-        this.startGateway().catch((err) => {
+      if (!this.shouldStop && this.isConnectRunActive(signal)) {
+        this.startGateway(signal).catch((err) => {
+          if (!this.isConnectRunActive(signal)) return
           this.log.error('Reconnect failed', {
             error: err instanceof Error ? err.message : String(err)
           })

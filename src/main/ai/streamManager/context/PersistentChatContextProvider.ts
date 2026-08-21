@@ -44,7 +44,7 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
-import { isToolUIPart, type ModelMessage, type UIMessage, type UIMessageChunk } from 'ai'
+import { isToolUIPart, type ModelMessage, type UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
@@ -86,21 +86,6 @@ import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerCon
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
-
-/**
- * Adapt a turn subscriber into a {@link CompactionSink}.
- *
- * Turn-start compaction is a full summarize round-trip that runs BEFORE the
- * model stream opens, so without this the UI sits on an idle placeholder for
- * however long the summarizer takes. The subscriber is already live here (it is
- * the committed turn subscriber, so the anchor part can stream ahead of
- * the assistant's own content. Both writes share one id, so the `done` event
- * replaces the spinner rather than appending a second anchor.
- */
-function toCompactionSink(subscriber: StreamListener): CompactionSink {
-  return (anchorId, data) =>
-    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
-}
 
 /** Media cost table for the turn. Unreachable provider row → the openai table. */
 function resolveRowDialect(model: Model | undefined): TokenDialect {
@@ -555,14 +540,14 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
       }
       return {
         reservation: committedReservation,
-        prepareExecutionContext: async (signal) => {
+        prepareExecutionContext: async (signal, compactionSink) => {
           const { messages: history, retainedContext } = await this.resolveCompactedHistory(
             userMessage.id,
             req.conversation.id,
             models,
             assistantId,
             contextSettingsOverride,
-            toCompactionSink(subscriber),
+            compactionSink,
             [],
             signal
           )
@@ -677,14 +662,14 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
           reservedMessages,
           siblingsGroupId: target.siblingsGroupId || undefined
         },
-        prepareExecutionContext: async (signal) => {
+        prepareExecutionContext: async (signal, compactionSink) => {
           const { messages: history, retainedContext } = await this.resolveCompactedHistory(
             parent.id,
             req.conversation.id,
             [model],
             assistantId,
             contextSettingsOverride,
-            toCompactionSink(subscriber),
+            compactionSink,
             [],
             signal
           )
@@ -802,14 +787,14 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
           persistencePorts,
           cleanupPorts
         },
-        prepareExecutionContext: async (signal) => {
+        prepareExecutionContext: async (signal, compactionSink) => {
           const { messages: storedHistory, retainedContext } = await this.resolveCompactedHistory(
             anchor.id,
             req.conversation.id,
             [model],
             assistantId,
             contextSettingsOverride,
-            toCompactionSink(subscriber),
+            compactionSink,
             [],
             signal
           )
@@ -929,14 +914,14 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
           cleanupPorts,
           reservedMessages
         },
-        prepareExecutionContext: async (signal) => {
+        prepareExecutionContext: async (signal, compactionSink) => {
           const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
             req.userMessageId,
             req.conversation.id,
             [model],
             assistantId,
             contextSettingsOverride,
-            toCompactionSink(subscriber),
+            compactionSink,
             [],
             signal
           )

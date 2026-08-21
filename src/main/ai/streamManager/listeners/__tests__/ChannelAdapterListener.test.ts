@@ -207,20 +207,22 @@ describe('ChannelAdapterListener', () => {
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
-  // C1: this listener outlives an Agent step roll (A1 → A2). Everything per-execution must rebind.
-  it('rebinds per execution so a later step does not inherit the prior accumulator', async () => {
+  // C1: the template outlives an Agent step roll (A1 → A2), but each execution owns a listener.
+  it('creates isolated listeners so a later step does not inherit the prior accumulator', async () => {
     const adapter = makeAdapter()
-    const listener = new ChannelAdapterListener(immediateDeliveryOwner, 'ch-1', 'chat-1')
+    const template = new ChannelAdapterListener(immediateDeliveryOwner, 'ch-1', 'chat-1')
+    const first = template.createForExecution(toConversationExecutionId('execution-1'))
+    const second = template.createForExecution(toConversationExecutionId('execution-2'))
 
-    listener.onChunk(delta('first answer'), identity('execution-1'))
-    listener.onDone({
+    first.onChunk(delta('first answer'), identity('execution-1'))
+    await first.onDone({
       status: ConversationOutcomeKind.Success,
       executionId: toConversationExecutionId('execution-1')
     })
     await Promise.resolve()
 
-    listener.onChunk(delta('second answer'), identity('execution-2'))
-    listener.onDone({
+    second.onChunk(delta('second answer'), identity('execution-2'))
+    await second.onDone({
       status: ConversationOutcomeKind.Success,
       executionId: toConversationExecutionId('execution-2')
     })
@@ -230,6 +232,27 @@ describe('ChannelAdapterListener', () => {
     expect(adapter.sendMessage).toHaveBeenCalledTimes(2)
     // ...and it carries only its own text.
     expect(vi.mocked(adapter.sendMessage).mock.calls[1][1]).toBe('second answer')
+  })
+
+  it('drops callbacks from another execution instead of dynamically rebinding', async () => {
+    const adapter = makeAdapter()
+    const template = new ChannelAdapterListener(immediateDeliveryOwner, 'ch-1', 'chat-1')
+    const second = template.createForExecution(toConversationExecutionId('execution-2'))
+
+    second.onChunk(delta('late first answer'), identity('execution-1'))
+    await second.onDone({
+      status: ConversationOutcomeKind.Success,
+      executionId: toConversationExecutionId('execution-1')
+    })
+    second.onChunk(delta('second answer'), identity('execution-2'))
+    await second.onDone({
+      status: ConversationOutcomeKind.Success,
+      executionId: toConversationExecutionId('execution-2')
+    })
+    await Promise.resolve()
+
+    expect(adapter.sendMessage).toHaveBeenCalledOnce()
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'second answer', undefined)
   })
 
   it('submits a hung terminal delivery only once', async () => {

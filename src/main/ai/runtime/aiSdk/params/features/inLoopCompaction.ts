@@ -234,11 +234,13 @@ export const inLoopCompactionFeature: RequestFeature = {
           compacted = await compactModelMessages(candidate, model, {
             keepRecentTurns,
             maxOutputTokens,
+            abortSignal: scope.requestContext.abortSignal,
             maxInputTokens: Math.max(
               COMPACTION_MIN_INPUT_BUDGET,
               Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
             )
           })
+          scope.requestContext.abortSignal?.throwIfAborted()
         } catch (error) {
           // `compactModelMessages` propagates provider errors. Letting one out of
           // `prepareStep` kills the whole chat turn, so a compressor that is
@@ -246,7 +248,15 @@ export const inLoopCompactionFeature: RequestFeature = {
           // it — the opposite of what a context-management aid should do (the
           // turn-start path already degrades to un-compacted history here).
           // A user abort is different: that IS the turn ending, so it propagates.
-          if (isAbortError(error)) throw error
+          if (isAbortError(error)) {
+            scope.compactionSink?.(anchorId, {
+              status: 'skipped',
+              phase: 'in-loop',
+              startedAt,
+              completedAt: new Date().toISOString()
+            })
+            throw error
+          }
           compactionDisabled = true
           logger.warn('in-loop compaction failed; continuing without it for this request', {
             error: error instanceof Error ? error.message : String(error)

@@ -56,16 +56,23 @@ class TelegramAdapter extends ChannelAdapter {
     return !!this.botToken
   }
 
-  protected override async performConnect(_signal: AbortSignal): Promise<void> {
+  protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.botToken) {
       throw new Error('Telegram bot token is required')
     }
     this.shouldStop = false
     this.reconnectAttempts = 0
-    await this.startBot()
+    await this.startBot(signal)
   }
 
-  private async startBot(): Promise<void> {
+  private async startBot(signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted()
+    const previousBot = this.bot
+    if (previousBot) {
+      await previousBot.stop()
+      signal.throwIfAborted()
+      if (this.bot === previousBot) this.bot = null
+    }
     const bot = new Bot(this.botToken)
     this.bot = bot
 
@@ -81,6 +88,7 @@ class TelegramAdapter extends ChannelAdapter {
 
     // Command handlers
     bot.command('new', (ctx) => {
+      if (!this.isConnectRunActive(signal)) return
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
@@ -90,6 +98,7 @@ class TelegramAdapter extends ChannelAdapter {
     })
 
     bot.command('compact', (ctx) => {
+      if (!this.isConnectRunActive(signal)) return
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
@@ -99,6 +108,7 @@ class TelegramAdapter extends ChannelAdapter {
     })
 
     bot.command('help', (ctx) => {
+      if (!this.isConnectRunActive(signal)) return
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
@@ -108,6 +118,7 @@ class TelegramAdapter extends ChannelAdapter {
     })
 
     bot.command('whoami', (ctx) => {
+      if (!this.isConnectRunActive(signal)) return
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
@@ -118,6 +129,7 @@ class TelegramAdapter extends ChannelAdapter {
 
     // Text message handler
     bot.on('message:text', (ctx) => {
+      if (!this.isConnectRunActive(signal)) return
       this.emit('message', {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
@@ -128,12 +140,14 @@ class TelegramAdapter extends ChannelAdapter {
 
     // Photo message handler — download the largest resolution and emit with caption
     bot.on('message:photo', async (ctx) => {
+      if (!this.isConnectRunActive(signal)) return
       const photos = ctx.message.photo
       if (!photos || photos.length === 0) return
 
       // Last element is the highest resolution
       const largest = photos[photos.length - 1]
       const images = await this.downloadTelegramFile(largest.file_id)
+      if (!this.isConnectRunActive(signal)) return
       const text = ctx.message.caption?.trim() ?? ''
 
       if (!text && images.length === 0) return
@@ -149,6 +163,7 @@ class TelegramAdapter extends ChannelAdapter {
 
     // Document/file handler — download and emit as file attachment
     bot.on('message:document', async (ctx) => {
+      if (!this.isConnectRunActive(signal)) return
       const doc = ctx.message.document
       if (!doc) return
 
@@ -159,6 +174,7 @@ class TelegramAdapter extends ChannelAdapter {
       }
 
       const files = await this.downloadTelegramDocument(doc.file_id, doc.file_name ?? 'document', doc.mime_type)
+      if (!this.isConnectRunActive(signal)) return
       const text = ctx.message.caption?.trim() ?? ''
 
       if (!text && files.length === 0) return
@@ -179,9 +195,11 @@ class TelegramAdapter extends ChannelAdapter {
       { command: 'help', description: 'Show help information' },
       { command: 'whoami', description: 'Show the current chat ID' }
     ])
+    signal.throwIfAborted()
 
     // Error handler — err is a BotError wrapping the original cause in err.error
     bot.catch((err) => {
+      if (!this.isConnectRunActive(signal)) return
       const cause = err.error
       const msg = cause instanceof Error ? cause.message : String(cause)
       this.log.error(`Bot error: ${msg}`)
@@ -190,14 +208,15 @@ class TelegramAdapter extends ChannelAdapter {
     // Start long polling (fire-and-forget). `bot.start()` only resolves when the bot stops;
     // a fatal polling error (e.g. 409 Conflict) rejects here — schedule a backoff reconnect.
     bot.start().catch((err) => {
+      if (!this.isConnectRunActive(signal)) return
       const msg = err instanceof Error ? err.message : String(err)
       this.clearStabilityTimer()
-      this.markDisconnected(msg)
+      this.markDisconnected(msg, signal)
       this.log.error(`Polling stopped: ${msg}`)
-      this.scheduleReconnect()
+      this.scheduleReconnect(signal)
     })
 
-    this.markConnected()
+    this.markConnected(signal)
     this.log.info('Telegram bot polling started')
 
     // Reset the reconnect budget once this connection has stayed up for the stability window.
@@ -205,7 +224,7 @@ class TelegramAdapter extends ChannelAdapter {
     this.clearStabilityTimer()
     this.stabilityTimer = setTimeout(() => {
       this.stabilityTimer = null
-      if (!this.shouldStop && this.bot === bot) this.reconnectAttempts = 0
+      if (!this.shouldStop && this.bot === bot && this.isConnectRunActive(signal)) this.reconnectAttempts = 0
     }, this.stabilityResetMs)
   }
 
@@ -216,8 +235,8 @@ class TelegramAdapter extends ChannelAdapter {
     }
   }
 
-  private scheduleReconnect(): void {
-    if (this.shouldStop || this.reconnectTimer) return
+  private scheduleReconnect(signal: AbortSignal): void {
+    if (this.shouldStop || this.reconnectTimer || !this.isConnectRunActive(signal)) return
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.log.error('Telegram max reconnect attempts reached, giving up')
@@ -230,12 +249,13 @@ class TelegramAdapter extends ChannelAdapter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
-      if (this.shouldStop) return
-      this.startBot().catch((err) => {
+      if (this.shouldStop || !this.isConnectRunActive(signal)) return
+      this.startBot(signal).catch((err) => {
+        if (!this.isConnectRunActive(signal)) return
         const msg = err instanceof Error ? err.message : String(err)
-        this.markDisconnected(msg)
+        this.markDisconnected(msg, signal)
         this.log.error(`Telegram reconnect failed: ${msg}`)
-        this.scheduleReconnect()
+        this.scheduleReconnect(signal)
       })
     }, delay)
   }

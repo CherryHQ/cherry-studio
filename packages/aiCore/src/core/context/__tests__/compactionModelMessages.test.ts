@@ -13,13 +13,17 @@ import { fromModelMessages } from '../modelMessageAdapter'
 
 /** Minimal V3 model whose summarization call returns a fixed string. A V3 model
  *  is a valid `LanguageModel`, so it exercises the widened model param too. */
-function createSummarizerModel(summaryText = 'SUMMARY'): LanguageModelV3 {
+function createSummarizerModel(
+  summaryText = 'SUMMARY',
+  onGenerate?: (signal: AbortSignal | undefined) => void
+): LanguageModelV3 {
   return {
     specificationVersion: 'v3',
     provider: 'test',
     modelId: 'test-model',
     supportedUrls: {},
-    async doGenerate(): Promise<LanguageModelV3GenerateResult> {
+    async doGenerate(options): Promise<LanguageModelV3GenerateResult> {
+      onGenerate?.(options.abortSignal)
       const content: LanguageModelV3Content[] = [{ type: 'text', text: summaryText }]
       const finishReason: LanguageModelV3FinishReason = { unified: 'stop', raw: undefined }
       return {
@@ -125,5 +129,18 @@ describe('compactModelMessages', () => {
       keepRecentTurns: 1
     })
     expect(result).toBe(messages)
+  })
+
+  it('passes the owning abort signal to the summarizer model', async () => {
+    const controller = new AbortController()
+    let receivedSignal: AbortSignal | undefined
+    await compactModelMessages(
+      plainTurns(4),
+      createSummarizerModel('summary', (signal) => {
+        receivedSignal = signal
+      }),
+      { keepRecentTurns: 1, abortSignal: controller.signal }
+    )
+    expect(receivedSignal).toBe(controller.signal)
   })
 })

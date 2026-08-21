@@ -1,5 +1,6 @@
 import { BaseService } from '@main/core/lifecycle'
 import {
+  ConversationActivityKind,
   ConversationAttachStatus,
   ConversationExecutionAttachState,
   ConversationExecutionPhase,
@@ -142,6 +143,19 @@ describe('ConversationRuntimeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
+  })
+
+  it('closes the exact Agent activity instance without clearing a newer generation', () => {
+    const service = new ConversationRuntimeService({ providers: [] })
+    const first = service.openAgentActivity('session-1', ConversationActivityKind.Compaction)
+    const second = service.openAgentActivity('session-1', ConversationActivityKind.Compaction)
+    const agentRef = { kind: ConversationKind.Agent, id: 'session-1' } as const
+
+    expect(service.inspect(agentRef).activities.size).toBe(2)
+    service.closeAgentActivity('session-1', first)
+
+    expect(service.inspect(agentRef).activities.has(first)).toBe(false)
+    expect(service.inspect(agentRef).activities.has(second)).toBe(true)
   })
 
   it('acknowledges the durable skeleton before asynchronous execution preparation finishes', async () => {

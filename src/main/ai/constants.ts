@@ -1,5 +1,8 @@
 export const DEFAULT_TIMEOUT = 30 * 1000 * 60
 
+/** Bounded idle window while a provider stream waits for a human tool decision. */
+export const APPROVAL_IDLE_TIMEOUT = 24 * 60 * 60 * 1000
+
 export const DEFAULT_MAX_TOKENS = 8192
 
 /**

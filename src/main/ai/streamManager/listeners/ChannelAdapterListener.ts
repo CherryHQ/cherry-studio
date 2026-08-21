@@ -28,25 +28,6 @@ export class ChannelAdapterListener implements StreamListener {
   private readonly deliveryListenerId = ++nextDeliveryListenerId
   private accumulatedText = ''
   private terminalDeliveryQueued = false
-  /** Attempt the accumulator and one-shot flag currently belong to; undefined = unbound. */
-  private boundExecutionId: ConversationExecutionId | undefined
-
-  /**
-   * C1: accumulator, one-shot flag and delivery id are per attempt, but this listener outlives an
-   * Agent continuation (A1 → A2). Rebinding on a new attempt is what stops A1's text from being
-   * delivered as A2's answer — and, more damagingly, stops A1's spent one-shot flag from
-   * suppressing A2's delivery entirely.
-   */
-  private bindTo(executionId: ConversationExecutionId | undefined): void {
-    if (executionId === undefined || executionId === this.boundExecutionId) return
-    // Adopting an identity for text already accumulated unscoped is not a turn change: chunks may
-    // arrive without an attempt id and only the terminal names it. Reset only on a real switch.
-    const isNewExecution = this.boundExecutionId !== undefined
-    this.boundExecutionId = executionId
-    if (!isNewExecution) return
-    this.accumulatedText = ''
-    this.terminalDeliveryQueued = false
-  }
 
   constructor(
     private readonly deliveryOwner: ChannelDeliveryOwner,
@@ -59,10 +40,26 @@ export class ChannelAdapterListener implements StreamListener {
      */
     private readonly suppressErrorMessage = false,
     /** Response context for the inbound message, including thread placement where supported. */
-    private readonly responseOptions?: SendMessageOptions
+    private readonly responseOptions?: SendMessageOptions,
+    private readonly executionId?: ConversationExecutionId
   ) {
     const responseKey = this.responseOptions?.replyToMessageId ?? 'unthreaded'
-    this.id = `channel:${channelId}:${this.platformChatId}:${responseKey}`
+    this.id = `channel:${channelId}:${this.platformChatId}:${responseKey}:${executionId ?? 'template'}`
+  }
+
+  createForExecution(executionId: ConversationExecutionId): StreamListener {
+    return new ChannelAdapterListener(
+      this.deliveryOwner,
+      this.channelId,
+      this.platformChatId,
+      this.suppressErrorMessage,
+      this.responseOptions,
+      executionId
+    )
+  }
+
+  private owns(executionId: ConversationExecutionId | undefined): boolean {
+    return this.executionId === undefined || executionId === this.executionId
   }
 
   private updateStream(text: string, executionId: ConversationExecutionId | undefined): void {
@@ -97,7 +94,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   onChunk(chunk: UIMessageChunk, identity?: ConversationStreamIdentity): void {
-    this.bindTo(identity?.executionId)
+    if (!this.owns(identity?.executionId)) return
     if (chunk.type === 'text-delta' && chunk.delta) {
       this.accumulatedText += chunk.delta
       // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
@@ -109,7 +106,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   onDone(result: StreamDoneResult): void {
-    this.bindTo(result.executionId)
+    if (!this.owns(result.executionId)) return
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
     if (!text) {
       logger.warn('ChannelAdapterListener.onDone with empty text', {
@@ -126,7 +123,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   onPaused(result: StreamPausedResult): void {
-    this.bindTo(result.executionId)
+    if (!this.owns(result.executionId)) return
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
     if (!text) return
 
@@ -137,7 +134,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   onError(result: StreamErrorResult): void {
-    this.bindTo(result.executionId)
+    if (!this.owns(result.executionId)) return
     if (this.suppressErrorMessage) return
     this.enqueueDelivery(
       ChannelDeliveryEvent.Error,

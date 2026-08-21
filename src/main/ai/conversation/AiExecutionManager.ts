@@ -1,10 +1,11 @@
 import { application } from '@application'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { APPROVAL_IDLE_TIMEOUT, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
+import type { IdleTimeoutHandle } from '@main/utils/IdleTimeoutController'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { CompactionAnchorData, CompactionSink } from '@shared/ai/compaction'
 import {
   type ConversationExecutionId,
   ConversationInteractionKind,
@@ -58,7 +59,9 @@ export interface ConversationExecutionDescriptor {
   readonly executionId: ConversationExecutionId
   readonly outputNodeId: string
   readonly modelId: UniqueModelId
-  readonly request: AiStreamRequest | ((signal: AbortSignal) => Promise<AiStreamRequest>)
+  readonly request:
+    | AiStreamRequest
+    | ((signal: AbortSignal, compactionSink: CompactionSink) => Promise<AiStreamRequest>)
   readonly observers: readonly ConversationExecutionObserver[]
   readonly runtimeTimingSeed?: MessageRuntimeTiming
   readonly rootSpan?: Span
@@ -100,6 +103,7 @@ interface ConversationExecutionResource {
   result?: ConversationExecutionResult
   compactionAnchors?: Array<{ id: string; data: CompactionAnchorData }>
   deferredOutputs?: Map<string, unknown>
+  idleTimeout?: IdleTimeoutHandle
 }
 
 export type ConversationStreamOpener = (request: AiStreamRequest) => Promise<ReadableStream<UIMessageChunk>>
@@ -210,6 +214,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
 
   resume(effect: ResumeConversationExecutionEffect): void {
     const resource = this.resources.get(this.key(effect.conversation, effect.turnId, effect.executionId))
+    resource?.idleTimeout?.reset()
     resource?.descriptor.resume?.(effect)
   }
 
@@ -282,6 +287,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
   release(conversation: ConversationRef, turnId: ConversationTurnId, executionId: ConversationExecutionId): void {
     const key = this.key(conversation, turnId, executionId)
     this.descriptors.delete(key)
+    this.resources.get(key)?.abortController.abort('execution released')
     this.resources.delete(key)
   }
 
@@ -319,30 +325,41 @@ export class AiExecutionManager implements ConversationExecutionPort {
     const { descriptor, abortController } = resource
     const signal = abortController.signal
     try {
-      const request = typeof descriptor.request === 'function' ? await descriptor.request(signal) : descriptor.request
+      const compactionSink: CompactionSink = (anchorId, data) => {
+        this.onChunk(key, resource, { type: 'data-compaction-anchor', id: anchorId, data })
+        if (!this.isCurrentResource(key, resource)) return
+        const anchors = (resource.compactionAnchors ??= [])
+        const index = anchors.findIndex((anchor) => anchor.id === anchorId)
+        if (index >= 0) anchors[index] = { id: anchorId, data }
+        else anchors.push({ id: anchorId, data })
+      }
+      const request =
+        typeof descriptor.request === 'function' ? await descriptor.request(signal, compactionSink) : descriptor.request
+      signal.throwIfAborted()
+      if (!this.isCurrentResource(key, resource)) return
       const streamRequest = {
         ...request,
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: resource.runtimeTiming.sink,
-        compactionSink: (anchorId: string, data: CompactionAnchorData) => {
-          this.onChunk(resource, { type: 'data-compaction-anchor', id: anchorId, data })
-          const anchors = (resource.compactionAnchors ??= [])
-          const index = anchors.findIndex((anchor) => anchor.id === anchorId)
-          if (index >= 0) anchors[index] = { id: anchorId, data }
-          else anchors.push({ id: anchorId, data })
-        }
+        compactionSink
       } as AiStreamRequest
       const rawStream = await this.openStream(streamRequest)
+      if (!this.isCurrentResource(key, resource)) {
+        await rawStream.cancel(signal.reason).catch(() => {})
+        return
+      }
       const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
-      const { stream: idleStream } = withIdleTimeout(rawStream, abortController, timeoutMs)
+      const { stream: idleStream, idle } = withIdleTimeout(rawStream, abortController, timeoutMs)
+      resource.idleTimeout = idle
       const stream = withReasoningTimingMetadata(idleStream)
       const lastIncoming = request.messages?.at(-1)
       const accumulatorSeed: CherryUIMessage | undefined =
         lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
       const result = await pipeStreamLoop(stream, signal, {
-        onChunk: (chunk) => this.onChunk(resource, chunk),
+        onChunk: (chunk) => this.onChunk(key, resource, chunk),
         accumulatorSeed
       })
+      if (!this.isCurrentResource(key, resource)) return
       let outcome: ConversationOutcome
       if (signal.aborted) {
         outcome = { kind: ConversationOutcomeKind.Paused, reason: String(signal.reason ?? 'aborted') }
@@ -395,12 +412,14 @@ export class AiExecutionManager implements ConversationExecutionPort {
     }
   }
 
-  private onChunk(resource: ConversationExecutionResource, chunk: UIMessageChunk): void {
+  private onChunk(key: string, resource: ConversationExecutionResource, chunk: UIMessageChunk): void {
+    if (!this.isCurrentResource(key, resource)) return
     if (!resource.firstChunkPublished) {
       resource.firstChunkPublished = true
       resource.sink.firstChunk()
     }
     if (chunk.type === 'tool-approval-request') {
+      resource.idleTimeout?.reset(APPROVAL_IDLE_TIMEOUT)
       resource.sink.interactionOpened({
         id: toConversationInteractionId(chunk.approvalId),
         executionId: resource.descriptor.executionId,
@@ -431,6 +450,10 @@ export class AiExecutionManager implements ConversationExecutionPort {
       else observer.onChunk(payload)
     }
     for (const id of dead) resource.observers.delete(id)
+  }
+
+  private isCurrentResource(key: string, resource: ConversationExecutionResource): boolean {
+    return this.resources.get(key)?.runId === resource.runId
   }
 
   private key(ref: ConversationRef, turnId: ConversationTurnId, executionId: ConversationExecutionId): string {

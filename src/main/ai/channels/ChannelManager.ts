@@ -393,6 +393,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
     const key = `${agentId}:${row.id}`
     try {
       const adapter = factory(row, agentId)
+      const ownsConnection = (): boolean => this.adapters.get(key) === adapter
 
       // Seed notifyChatIds from DB-persisted activeChatIds (when allowed_chat_ids is empty)
       const hasAllowedIds = adapter.notifyChatIds.length > 0
@@ -417,6 +418,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
       }
 
       adapter.on('message', (msg) => {
+        if (!ownsConnection()) return
         // Write-quiesce intake gate — also skips trackChatId's `activeChatIds` DB write. The
         // handler's own gate is defense in depth; this one stops the config write too.
         if (channelMessageHandler.isWriteQuiesced) {
@@ -425,6 +427,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
         }
         trackChatId(msg.chatId)
         channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
+          if (!ownsConnection()) return
           logger.error('Unhandled error in message handler', {
             agentId,
             channelId: row.id,
@@ -440,12 +443,14 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
       })
 
       adapter.on('command', (cmd) => {
+        if (!ownsConnection()) return
         if (channelMessageHandler.isWriteQuiesced) {
           logger.warn('Channel command dropped: intake is write-quiesced', { agentId, channelId: row.id })
           return
         }
         trackChatId(cmd.chatId)
         channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
+          if (!ownsConnection()) return
           logger.error('Unhandled error in command handler', {
             agentId,
             channelId: row.id,
@@ -462,6 +467,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
 
       // Forward QR events to any pending waiters
       adapter.on('qr', (url) => {
+        if (!ownsConnection()) return
         const waiterKey = `${agentId}:${row.id}`
         const waiter = this.qrWaiters.get(waiterKey)
         if (waiter) {
@@ -474,7 +480,9 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
       // When an adapter obtains credentials via QR registration, persist them
       // to the channel config and re-sync so a new adapter connects with creds.
       adapter.on('credentials', (creds) => {
+        if (!ownsConnection()) return
         this.saveCredentialsAndReconnect(agentId, row.id, creds).catch((err) => {
+          if (!ownsConnection()) return
           logger.error('Failed to save credentials and reconnect', {
             agentId,
             channelId: row.id,
@@ -485,6 +493,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
 
       // Forward log & status events to renderer via IPC
       adapter.on('log', (entry) => {
+        if (!ownsConnection()) return
         this.channelLogs.append(entry.channelId, entry)
         this.sendToRenderer('channel.log', entry)
       })
@@ -492,7 +501,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
       adapter.on('statusChange', (status) => {
         // A stale adapter may finish after sync installed its replacement; it has no authority to
         // publish status or reopen delivery for the new connection.
-        if (this.adapters.get(key) !== adapter) return
+        if (!ownsConnection()) return
         if (status.connected) {
           const epoch = ++this.nextConnectionEpoch
           this.connectionEpochs.set(row.id, { adapter, epoch })
@@ -513,9 +522,14 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
       const connect = async () => {
         try {
           await adapter.connect()
+          if (!ownsConnection()) {
+            await adapter.disconnect()
+            return
+          }
           logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
         } catch (error) {
-          if (this.adapters.get(key) === adapter) this.adapters.delete(key)
+          if (!ownsConnection()) return
+          this.adapters.delete(key)
           logger.error('Failed to connect channel adapter', {
             agentId,
             channelId: row.id,

@@ -16,6 +16,7 @@ import { agentSessionMessageService } from '@main/data/services/AgentSessionMess
 import { messageService } from '@main/data/services/MessageService'
 import {
   ConversationActiveNodeMove,
+  type ConversationActivityId,
   ConversationActivityKind,
   ConversationAdmissionReason,
   ConversationAttachStatus,
@@ -193,6 +194,7 @@ interface ExecutionProjection {
   readonly outputNodeId: string
   readonly persistencePorts: readonly StreamPersistencePort[]
   readonly seedFromEmpty: boolean
+  readonly listeners: Map<string, StreamListener>
 }
 
 interface TurnProjection {
@@ -507,16 +509,19 @@ export class ConversationRuntimeService extends BaseService {
     })
   }
 
-  setAgentActivity(
+  openAgentActivity(
     sessionId: string,
     kind: ConversationActivityKind,
-    active: boolean,
     responder?: ConversationResponderKind
-  ): void {
+  ): ConversationActivityId {
     const ref: ConversationRef = { kind: ConversationKind.Agent, id: sessionId }
-    const id = toConversationActivityId(`agent:${sessionId}:${kind}`)
-    if (active) this.runtime.openActivity(ref, { id, kind, ...(responder ? { responder } : {}) })
-    else this.runtime.closeActivity(ref, id)
+    const id = toConversationActivityId(crypto.randomUUID())
+    this.runtime.openActivity(ref, { id, kind, ...(responder ? { responder } : {}) })
+    return id
+  }
+
+  closeAgentActivity(sessionId: string, activityId: ConversationActivityId): void {
+    this.runtime.closeActivity({ kind: ConversationKind.Agent, id: sessionId }, activityId)
   }
 
   getAgentInteractionState(sessionId: string): AgentConversationInteractionState {
@@ -622,12 +627,16 @@ export class ConversationRuntimeService extends BaseService {
   }
 
   attach(sender: Electron.WebContents, ref: ConversationRef): AiStreamAttachResponse {
-    const listener = new WebContentsListener(sender, ref)
+    const listener: StreamListener = new WebContentsListener(sender, ref)
     const turn = this.latestTurn(ref)
     if (!turn) return { status: ConversationAttachStatus.NotFound }
     const resources = this.executionManager.attachSnapshot(ref, turn.id, this.observerForListener(ref, listener))
     if (resources.length === 0) return { status: ConversationAttachStatus.NotFound }
     turn.listeners.set(listener.id, listener)
+    for (const execution of turn.executions.values()) {
+      const bound = listener.createForExecution?.(execution.id) ?? listener
+      execution.listeners.set(bound.id, bound)
+    }
     const state = this.runtime.inspect(ref)
     const aggregateTurn =
       (state.phase === ConversationPhase.Running || state.phase === ConversationPhase.Stopping) &&
@@ -1087,16 +1096,22 @@ export class ConversationRuntimeService extends BaseService {
       throw new Error('Interaction continuation changed its committed output identity')
     }
 
-    for (const listener of committed.reservation.listeners) turn.listeners.set(listener.id, listener)
+    const executionListeners = new Map(current.listeners)
+    for (const listener of committed.reservation.listeners) {
+      turn.listeners.set(listener.id, listener)
+      const bound = listener.createForExecution?.(executionId) ?? listener
+      executionListeners.set(bound.id, bound)
+    }
     const projection: ExecutionProjection = {
       ...current,
       modelId: model.modelId,
       persistencePorts: committed.reservation.persistencePorts,
-      seedFromEmpty: model.seedFromEmpty === true
+      seedFromEmpty: model.seedFromEmpty === true,
+      listeners: executionListeners
     }
     turn.executions.set(executionId, projection)
     this.executionManager.release(ref, turnId, executionId)
-    const observers = [...turn.listeners.values()].map((listener) =>
+    const observers = [...executionListeners.values()].map((listener) =>
       this.observerForExecution(executionId, projection, listener)
     )
     observers.push(this.controlObserver(ref, executionId, projection))
@@ -1106,8 +1121,8 @@ export class ConversationRuntimeService extends BaseService {
       executionId,
       outputNodeId: projection.outputNodeId,
       modelId: projection.modelId,
-      request: async (signal) => {
-        const prepared = await committed.prepareExecutionContext(signal)
+      request: async (signal, compactionSink) => {
+        const prepared = await committed.prepareExecutionContext(signal, compactionSink)
         assertExecutionContextConversation(ref, prepared)
         const preparedModel = prepared.models[0]
         if (
@@ -1166,8 +1181,11 @@ export class ConversationRuntimeService extends BaseService {
     const listeners = new Map(inheritedListeners)
     for (const listener of [...committed.reservation.listeners, ...extraListeners]) listeners.set(listener.id, listener)
     let preparation: Promise<ConversationExecutionContext> | undefined
-    const prepare = (signal: AbortSignal): Promise<ConversationExecutionContext> =>
-      (preparation ??= committed.prepareExecutionContext(signal))
+    const prepare = (
+      signal: AbortSignal,
+      compactionSink: Parameters<CommittedDispatch['prepareExecutionContext']>[1]
+    ): Promise<ConversationExecutionContext> =>
+      (preparation ??= committed.prepareExecutionContext(signal, compactionSink))
     return committed.reservation.models.map((model, index) => {
       const identity = identities[index]
       if (!identity) throw new Error('Reserved execution identity is missing')
@@ -1180,9 +1198,10 @@ export class ConversationRuntimeService extends BaseService {
         modelId: model.modelId,
         outputNodeId: model.outputNodeId,
         persistencePorts: committed.reservation.persistencePorts,
-        seedFromEmpty: model.seedFromEmpty === true
+        seedFromEmpty: model.seedFromEmpty === true,
+        listeners: this.bindExecutionListeners(listeners, executionId)
       }
-      const observers = [...listeners.values()].map((listener) =>
+      const observers = [...projection.listeners.values()].map((listener) =>
         this.observerForExecution(executionId, projection, listener)
       )
       observers.push(this.controlObserver(ref, executionId, projection))
@@ -1192,8 +1211,8 @@ export class ConversationRuntimeService extends BaseService {
         executionId,
         outputNodeId: projection.outputNodeId,
         modelId: model.modelId,
-        request: async (signal) => {
-          const prepared = await prepare(signal)
+        request: async (signal, compactionSink) => {
+          const prepared = await prepare(signal, compactionSink)
           assertExecutionContextConversation(ref, prepared)
           const preparedModel = prepared.models[index]
           if (
@@ -1436,7 +1455,7 @@ export class ConversationRuntimeService extends BaseService {
       runtimeTiming: result?.runtimeTiming,
       turnTerminal
     }
-    for (const listener of turn.listeners.values()) {
+    for (const listener of projection.listeners.values()) {
       if (
         effect.audience === ConversationTerminalAudience.InternalOnly &&
         listener.audience === StreamListenerAudience.ExternalDelivery
@@ -1579,7 +1598,23 @@ export class ConversationRuntimeService extends BaseService {
     const turn = this.latestTurn(ref)
     if (!turn) return
     turn.listeners.set(listener.id, listener)
-    this.executionManager.observe(ref, turn.id, this.observerForListener(ref, listener))
+    for (const projection of turn.executions.values()) {
+      const bound = listener.createForExecution?.(projection.id) ?? listener
+      projection.listeners.set(bound.id, bound)
+      this.executionManager.observe(ref, turn.id, this.observerForExecution(projection.id, projection, bound))
+    }
+  }
+
+  private bindExecutionListeners(
+    listeners: ReadonlyMap<string, StreamListener>,
+    executionId: ConversationExecutionId
+  ): Map<string, StreamListener> {
+    const bound = new Map<string, StreamListener>()
+    for (const listener of listeners.values()) {
+      const executionListener = listener.createForExecution?.(executionId) ?? listener
+      bound.set(executionListener.id, executionListener)
+    }
+    return bound
   }
 
   private observerForListener(ref: ConversationRef, listener: StreamListener): ConversationExecutionObserver {

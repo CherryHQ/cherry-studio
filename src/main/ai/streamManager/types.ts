@@ -62,6 +62,8 @@ export enum StreamListenerAudience {
 export interface StreamListener {
   readonly id: string
   readonly audience?: StreamListenerAudience
+  /** Create isolated per-execution state when one listener template spans multiple Agent steps. */
+  createForExecution?(executionId: ConversationExecutionId): StreamListener
   onChunk(chunk: UIMessageChunk, identity?: ConversationStreamIdentity): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>

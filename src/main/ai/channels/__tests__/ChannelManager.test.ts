@@ -417,7 +417,11 @@ describe('ChannelManager', () => {
     const adapterB = createdAdapters[1]
     adapterB.onTextUpdate = vi.fn().mockResolvedValue(undefined)
 
+    adapterA.emit('message', { chatId: 'stale', userId: 'user', userName: 'stale', text: 'late' })
+    adapterA.emit('statusChange', { channelId: 'ch-1', connected: false })
+
     expect(oldSignal?.aborted).toBe(true)
+    expect(channelMessageHandler.handleIncoming).not.toHaveBeenCalled()
     expect(channelManager.updateLive({ channelId: 'ch-1', chatId: 'chat-1', text: 'second' })).toBe(true)
     expect(adapterA.onTextUpdate).toHaveBeenCalledOnce()
     expect(adapterB.onTextUpdate).toHaveBeenCalledWith(
