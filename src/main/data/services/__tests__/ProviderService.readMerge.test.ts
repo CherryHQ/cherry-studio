@@ -67,18 +67,20 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
 
-  it('makes retired providers and their preset-derived copies unavailable to runtime reads', async () => {
+  it('makes retired providers and their preset-derived copies unavailable to runtime reads and mutations', async () => {
     await dbh.db.insert(userProviderTable).values([
       {
         providerId: 'github',
-        presetProviderId: null,
+        presetProviderId: 'github',
         name: 'GitHub Models',
+        apiKeys: [{ id: 'github-key', key: 'secret', isEnabled: true }],
         orderKey: 'a0'
       },
       {
         providerId: 'github-copy',
         presetProviderId: 'github',
         name: 'GitHub Models Copy',
+        apiKeys: [{ id: 'github-copy-key', key: 'copy-secret', isEnabled: true }],
         orderKey: 'a1'
       },
       {
@@ -96,6 +98,30 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(() => providerService.getByProviderId('github-copy')).toThrowError(
       expect.objectContaining({ code: ErrorCode.NOT_FOUND })
     )
+
+    for (const { providerId, keyId } of [
+      { providerId: 'github', keyId: 'github-key' },
+      { providerId: 'github-copy', keyId: 'github-copy-key' }
+    ]) {
+      const operations = [
+        () => providerService.update(providerId, { name: 'Still retired' }),
+        () => providerService.resolveApiKey(providerId),
+        () => providerService.getApiKeys(providerId),
+        () => providerService.getAuthConfig(providerId),
+        () => providerService.addApiKey(providerId, 'new-secret'),
+        () =>
+          providerService.replaceApiKeys(providerId, [
+            { id: 'replacement-key', key: 'replacement-secret', isEnabled: true }
+          ]),
+        () => providerService.updateApiKey(providerId, keyId, { label: 'updated' }),
+        () => providerService.deleteApiKey(providerId, keyId),
+        () => providerService.delete(providerId)
+      ]
+
+      for (const operation of operations) {
+        expect(operation).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+      }
+    }
   })
 
   it('surfaces a registry-added endpoint type absent from the persisted row', async () => {
