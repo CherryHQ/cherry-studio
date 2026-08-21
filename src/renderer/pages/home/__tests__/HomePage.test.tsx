@@ -288,10 +288,15 @@ vi.mock('@renderer/hooks/useTopic', async () => {
         },
         [commitActiveTopicId]
       )
-      const setActiveTopicValue = React.useCallback((topic: Topic) => {
-        homeMocks.activeTopicOverride = topic
-        setActiveTopic(topic)
-      }, [])
+      const passive = options.passive
+      const setActiveTopicValue = React.useCallback(
+        (topic: Topic) => {
+          homeMocks.activeTopicOverride = topic
+          setActiveTopic(topic)
+          if (!passive) commitActiveTopicId(topic.id)
+        },
+        [commitActiveTopicId, passive]
+      )
       homeMocks.activeTopicOptions = {
         passive: options.passive,
         activeTopicId: options.activeTopicId,
@@ -1790,6 +1795,28 @@ describe('HomePage', () => {
     await user.click(screen.getByRole('button', { name: 'Select topic next' }))
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-next')
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+  })
+
+  it('drops a pending message locate when the route swaps the topic underneath', async () => {
+    const { rerender } = render(<HomePage />)
+
+    const topicMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
+    })
+    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target'))
+
+    homeMocks.routeSearch = { topicId: 'topic-b' }
+    homeMocks.activeTopicOverride = { ...historyTopic, id: 'topic-b', name: 'Topic B' }
+    rerender(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-b'))
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
