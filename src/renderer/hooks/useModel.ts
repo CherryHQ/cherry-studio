@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange } from '@data/hooks/useDataChange'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type {
@@ -81,6 +82,7 @@ export function useModels(
         ? { swrOptions: options.swrOptions }
         : undefined
   )
+  useDataChange('/models', () => void refetch())
 
   const models = data ?? EMPTY_MODELS
 
@@ -240,6 +242,7 @@ export function useModelById(uniqueModelId: UniqueModelId | null | undefined) {
     enabled: !!modelKey,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange('/models/:uniqueModelId*', () => void refetch())
 
   return {
     model: data,

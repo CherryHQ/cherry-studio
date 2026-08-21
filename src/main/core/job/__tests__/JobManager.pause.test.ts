@@ -1367,6 +1367,66 @@ describe('JobManager pause / drainInFlight', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('does not rewrite a spent once schedule whose nextRun is already null', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const [spent] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'pause.spent-idempotent',
+          trigger: { kind: 'once', at: now - 60_000 },
+          jobInputTemplate: { message: 'already-cleared' },
+          enabled: true,
+          lastRun: now - 60_000,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['pause.spent-idempotent', makeCountingHandler({ count: 0 })]],
+        fakeDate: true,
+        keepFakeTimers: true
+      })
+
+      expect(jobScheduleService.getById(spent.id)?.updatedAt).toBe(new Date(spent.updatedAt).toISOString())
+
+      vi.useRealTimers()
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it.each([
+      { label: 'interval', trigger: { kind: 'interval', ms: 1000 } },
+      { label: 'cron', trigger: { kind: 'cron', expr: '* * * * * *' } }
+    ] as const)('refreshes persisted nextRun for an armed $label schedule on release', async ({ label, trigger }) => {
+      const type = `pause.next-run.${label}`
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [[type, makeCountingHandler({ count: 0 })]],
+        fakeDate: true,
+        keepFakeTimers: true
+      })
+      const { id } = jobManager.registerJobSchedule({
+        type,
+        trigger,
+        jobInputTemplate: { message: label },
+        catchUpPolicy: { kind: 'skip-missed' }
+      } as never)
+      const initialNextRun = jobScheduleService.getById(id)?.nextRun
+      expect(initialNextRun).not.toBeNull()
+
+      const hold = jobManager.pause(`test: ${label} nextRun`)
+      await vi.advanceTimersByTimeAsync(2500)
+      expect(jobScheduleService.getById(id)?.nextRun).toBe(initialNextRun)
+      expect(Date.parse(initialNextRun ?? '')).toBeLessThanOrEqual(Date.now())
+
+      hold.dispose()
+      expect(Date.parse(jobScheduleService.getById(id)?.nextRun ?? '')).toBeGreaterThan(Date.now())
+
+      vi.useRealTimers()
+      await teardownManager(scheduler, jobManager)
+    })
+
     it('preserves a limit-cron quota across the pause window (croner-level pause)', async () => {
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({

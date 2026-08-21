@@ -1,3 +1,10 @@
+---
+description: Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition
+sources:
+  - src/main/ai/tools/adapters/aiSdk
+  - src/main/ai/tools/adapters/claudeCode/agentTools.ts
+---
+
 # Tool Registry
 
 ## Model
@@ -15,11 +22,12 @@ interface ToolEntry {
 ```
 
 `registry` (`src/main/ai/tools/adapters/aiSdk/registry.ts`) is a
-process-wide singleton. Tool files register at module-import time; the
-registry is read at request time by `buildAgentParams`. The Claude Code
-runtime has a *separate* tool system — `tools/adapters/claudeCode/agentTools.ts`
-builds its descriptors from MCP servers and built-in descriptors directly;
-it does not consume this aiSdk `ToolRegistry`.
+process-wide singleton. `AiService.onInit()` calls the single
+`registerBuiltinTools()` entry point; request preparation later reads the
+registry through `buildAgentParams`. Agent-session runtimes build their own
+runtime-native tool surfaces. For example,
+`tools/adapters/claudeCode/agentTools.ts` combines Claude descriptors with MCP
+tools and does not consume this AI SDK `ToolRegistry`.
 
 Tests construct their own `new ToolRegistry()` to avoid singleton pollution.
 
@@ -44,21 +52,21 @@ its separate runtime naming contract.
 
 ## Built-in tools
 
-`src/main/ai/tools/adapters/aiSdk/builtin/` registers **four** entries:
+`src/main/ai/tools/adapters/aiSdk/builtin/` currently registers **eleven**
+entries:
 
-- `web_search` (`WebSearchTool.ts` → `createWebSearchToolEntry`) — namespace
-  `web`. Talks to the configured web-search provider via the
-  renderer-shared search service.
-- `web_fetch` (`WebFetchTool.ts` → `createWebFetchToolEntry`) — namespace
-  `web`. Fetches a URL's content.
-- `kb_search` (`KnowledgeSearchTool.ts`) — semantic search over the active
-  knowledge base.
-- `kb_list` (`KnowledgeListTool.ts`) — enumerate available knowledge bases /
-  documents.
+| Namespace | Tools | Current gate |
+|---|---|---|
+| `web` | `web_search`, `web_fetch` | Selected client-side web routes |
+| `kb` | `kb_list`, `kb_search`, `kb_read`, `kb_manage` | At least one in-scope knowledge base |
+| `file` | `read_file` | First-party conversation attachments exist |
+| `fs` | `fs_read` | Persisted/offloaded tool output can be read back |
+| `mcp_resource` | `mcp_resource_list`, `mcp_resource_read` | An in-scope MCP resource server exists |
+| `image` | `generate_image` | Assistant opt-in plus a configured painting model |
 
 Registration happens in `builtin/registerBuiltinTools.ts` (`registerBuiltinTools`). Each
-tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
-`enableWebSearch`).
+tool's `applies` predicate gates it on the current request scope; the gate is
+not limited to assistant settings.
 
 ## MCP tools
 

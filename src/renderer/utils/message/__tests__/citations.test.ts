@@ -306,7 +306,7 @@ describe('withToolCitationTags', () => {
     // resolver's #2 and kzz-1 to its #3, but they render as 1 and 2.
     expect(content).toContain('1</sup>](https://b.com/y)')
     // Web citations link out; the URL-less KB citation must stay a bare <sup> so rehype-harden
-    // does not rewrite an empty-href anchor into "<span>… [blocked]</span>".
+    // does not unwrap an empty-href anchor into a "<span>", losing the tooltip.
     expect(content).toContain('2</sup>')
     expect(content).not.toContain('2</sup>]()')
     expect(cited.map((c) => c.number)).toEqual([1, 2])
@@ -346,6 +346,30 @@ describe('withToolCitationTags', () => {
 
     expect(content).toContain('1</sup>](https://a.com/x)')
     expect(content).toContain('2</sup>](https://b.com/y)')
+  })
+
+  it.each([
+    ['comma list', 'Fact. [cite:abc-1, abc-2]'],
+    ['padded ids', 'Fact. [cite: abc-1][cite: abc-2 ]'],
+    ['padded comma list', 'Fact. [cite: abc-1, abc-2]'],
+    ['repeated cite prefix', 'Fact. [cite: abc-1, cite: abc-2]'],
+    ['semicolon separator', 'Fact. [cite:abc-1; abc-2]']
+  ])('resolves the near-miss marker form models write instead of chaining: %s', (_label, input) => {
+    const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
+    const { content, cited } = withToolCitationTags(input, mc)
+
+    expect(content).toContain('1</sup>](https://a.com/x)')
+    expect(content).toContain('2</sup>](https://b.com/y)')
+    expect(content).not.toContain('[cite:')
+    expect(cited.map((c) => c.number)).toEqual([1, 2])
+  })
+
+  it('leaves a bracket holding no id alone', () => {
+    const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
+    const { content } = withToolCitationTags('Fact. [cite:] and [cite: ]', mc)
+
+    expect(content).toContain('[cite:]')
+    expect(content).toContain('[cite: ]')
   })
 
   it('leaves unknown ids literal', () => {
@@ -491,7 +515,7 @@ describe('stripCitationMarkers', () => {
   })
 
   it('preserves canonical markers in inline and fenced code', () => {
-    const input = '`[cite:abc-1]`\n```txt\n[cite:def-2]\n```\nOutside [cite:abc-1]'
-    expect(stripCitationMarkers(input)).toBe('`[cite:abc-1]`\n```txt\n[cite:def-2]\n```\nOutside')
+    const input = '`[cite:abc-1]`\n```txt\n[cite:def-2, def-3]\n```\nOutside [cite:abc-1, abc-2]'
+    expect(stripCitationMarkers(input)).toBe('`[cite:abc-1]`\n```txt\n[cite:def-2, def-3]\n```\nOutside')
   })
 })

@@ -104,6 +104,13 @@ describe('useConfigMetadata.filterProviders', () => {
 
     expect(filtered).toEqual([apiKeyProvider])
   })
+
+  it('filters providers with the requested CLI tool instead of the active one', () => {
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+
+    expect(result.current.filterProvidersForTool(CodeCli.CLAUDE_CODE, [apiKeyProvider])).toEqual([apiKeyProvider])
+    expect(result.current.filterProvidersForTool(CodeCli.OPENAI_CODEX, [apiKeyProvider])).toEqual([])
+  })
 })
 
 describe('useConfigMetadata.makeModelFilter (gateway)', () => {

@@ -574,10 +574,9 @@ export class JobManager extends BaseService {
    * Register a handler for a JobRegistry type. Must be called from the owning
    * service's `onInit` so the handler is in place before JobManager's startup
    * recovery runs (~60 s after `onAllReady` fires, owned by `runStartupRecoveryFlow`).
-   * Registering from a business service's `onAllReady` is unsafe — that hook
-   * fires in parallel with JobManager's `onAllReady`, and by the time the
-   * deferred recovery wakes up, existing non-terminal jobs for an unregistered
-   * type get treated as orphans and cancelled.
+   * Do not defer registration to `onAllReady`: those hooks may start async work
+   * without the lifecycle manager awaiting completion, while startup recovery
+   * later treats non-terminal jobs for an unregistered type as orphans.
    *
    * @param type - JobRegistry key (compile-time validated via declaration merging)
    * @param handler - Handler implementation; `recovery` is required
@@ -835,6 +834,23 @@ export class JobManager extends BaseService {
       if (this.scheduleDisposables.has(id)) scheduler.resume(`schedule:${id}`)
     }
     this.pausedCronScheduleIds.clear()
+
+    // 4. Persist SchedulerService's post-pause calendar for armed recurring schedules;
+    //    intervals advanced while gated and resumed crons skipped missed fires.
+    for (const id of this.scheduleDisposables.keys()) {
+      try {
+        const snapshot = jobScheduleService.getById(id)
+        if (!snapshot?.enabled || snapshot.trigger.kind === 'once') continue
+        const nextRun = scheduler.getNextRun(`schedule:${id}`)?.getTime() ?? null
+        const persistedNextRun = snapshot.nextRun === null ? null : Date.parse(snapshot.nextRun)
+        if (nextRun !== persistedNextRun) jobScheduleService.setNextRun(id, nextRun)
+      } catch (err) {
+        logger.warn('Failed to persist nextRun after pause release', {
+          scheduleId: id,
+          err: (err as Error).message
+        })
+      }
+    }
   }
 
   // ---------------- enqueue / cancel / list / get ----------------
@@ -1376,8 +1392,8 @@ export class JobManager extends BaseService {
    * fire calendar). For cron triggers calls croner's `.trigger()` (the armed
    * callback handles `markFired`). For interval / once triggers or when the
    * SchedulerService entry is missing (e.g. not yet re-armed after restart),
-   * enqueues directly using `jobInputTemplate` and writes `markFired`
-   * synchronously to keep `lastRun` consistent with the cron path.
+   * enqueues directly using `jobInputTemplate` and writes only `lastRun` so
+   * the extra manual fire does not move the automatic calendar.
    *
    * Exception to the "natural fire calendar" clause: manually firing an
    * overdue never-fired `once` schedule writes `lastRun >= trigger.at`, which
@@ -1405,9 +1421,14 @@ export class JobManager extends BaseService {
       scheduleId: schedule.id
     })
     try {
-      jobScheduleService.markFired(schedule.id, Date.now(), null)
+      const firedAt = Date.now()
+      if (schedule.trigger.kind === 'once' && firedAt >= schedule.trigger.at) {
+        jobScheduleService.markFired(schedule.id, firedAt, null)
+      } else {
+        jobScheduleService.setLastRun(schedule.id, firedAt)
+      }
     } catch (err) {
-      logger.warn('markFired failed after manual trigger — lastRun may be stale', {
+      logger.warn('Failed to persist manual schedule fire — schedule state may be stale', {
         scheduleId: schedule.id,
         err: (err as Error).message
       })
@@ -1541,8 +1562,9 @@ export class JobManager extends BaseService {
     if (!updated) return null
 
     const needsRearm = patch.trigger !== undefined || patch.enabled !== undefined
-    if (needsRearm) this.syncJobScheduleTimerById(id)
-    return updated
+    if (!needsRearm) return updated
+    this.syncJobScheduleTimerById(id)
+    return jobScheduleService.getById(id)
   }
 
   /**
@@ -2072,6 +2094,16 @@ export class JobManager extends BaseService {
       schedule.lastRun !== null &&
       Date.parse(schedule.lastRun) >= schedule.trigger.at
     ) {
+      if (schedule.nextRun !== null) {
+        try {
+          jobScheduleService.setNextRun(schedule.id, null)
+        } catch (err) {
+          logger.warn('Failed to clear nextRun for spent once schedule', {
+            scheduleId: schedule.id,
+            err: (err as Error).message
+          })
+        }
+      }
       logger.debug('Skipping spent once schedule', { scheduleId: schedule.id })
       return
     }
@@ -2130,6 +2162,16 @@ export class JobManager extends BaseService {
       }
     })
     this.scheduleDisposables.set(schedule.id, disp)
+    try {
+      const nextRun = scheduler.getNextRun(scheduleKey)?.getTime() ?? null
+      const persistedNextRun = schedule.nextRun === null ? null : Date.parse(schedule.nextRun)
+      if (nextRun !== persistedNextRun) jobScheduleService.setNextRun(schedule.id, nextRun)
+    } catch (err) {
+      logger.warn('Failed to persist nextRun after arming schedule', {
+        scheduleId: schedule.id,
+        err: (err as Error).message
+      })
+    }
     // Crons registered (or re-armed) while autonomy is suspended (pause hold
     // or post-release barrier) are paused at the croner layer in the same
     // synchronous section — a timer callback cannot interleave, so there is

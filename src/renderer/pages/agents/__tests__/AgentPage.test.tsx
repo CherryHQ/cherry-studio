@@ -8,6 +8,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -574,12 +575,11 @@ vi.mock('../AgentSidePanel', () => ({
           type="button"
           onClick={() =>
             onCreateSession?.({
-              agentId: 'agent-a',
-              workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-              excludeReuseSessionId: 'session-empty-system-a'
+              agentId: null,
+              workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' }
             })
           }>
-          Replace deleted panel session
+          Create workspace session without agent
         </button>
         {onManageAgents && (
           <button type="button" onClick={() => void onManageAgents()}>
@@ -1303,24 +1303,14 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
   })
 
-  it('creates an empty session on modern first entry only when there are no sessions', async () => {
+  it('keeps modern first entry empty when there are no sessions', () => {
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.routeSearch = {}
     agentPageMocks.classicLayoutSessions = []
-    agentPageMocks.dataApiPost.mockResolvedValue({
-      ...agentPageMocks.persistedSession,
-      id: 'session-new',
-      agentId: 'agent-a'
-    })
-
     render(<AgentPage />)
 
-    await waitFor(() =>
-      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
-        '/agent-sessions',
-        expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-a' }) })
-      )
-    )
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
   })
 
   it('selects the latest remaining session after deleting the active agent in classic layout', async () => {
@@ -1389,9 +1379,7 @@ describe('AgentPage', () => {
     })
   })
 
-  it('clears the active session when the fallback create fails after deleting the active agent', async () => {
-    // The deleted agent's last session is the active one; if the replacement create rejects, the active
-    // session id must be cleared rather than left pointing at a session of the just-deleted agent.
+  it('clears the active session without creating a fallback after deleting the final agent session', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = { sessionId: 'session-a' }
     agentPageMocks.agents = [
@@ -1400,19 +1388,17 @@ describe('AgentPage', () => {
     ]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
-    // Only agent-a has a session, so deleting agent-a leaves no neighbour and forces a fallback create.
     agentPageMocks.classicLayoutSessions = [
       { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a', updatedAt: '2026-01-02T00:00:00.000Z' }
     ]
-    agentPageMocks.dataApiPost.mockRejectedValue(new Error('create failed'))
 
     render(<AgentPage />)
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-a'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active agent' }))
 
-    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     expect(agentPageMocks.navigate).toHaveBeenCalledWith({
       to: '/app/agents',
       search: {},
@@ -1465,9 +1451,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     await waitFor(() => expect(agentPageMocks.setLastUsedSessionId).toHaveBeenCalledWith(null))
-    // Recovery re-enters the bare route exactly once and does not loop. (Downstream
-    // first-entry auto-create may navigate again to bind a fresh session — that is a
-    // separate, bounded step, not a repeat of the NOT_FOUND recovery.)
+    // Recovery re-enters the bare route exactly once and does not loop.
     const recoveryNavigations = agentPageMocks.navigate.mock.calls.filter(
       (call) => call[0]?.search && Object.keys(call[0].search).length === 0
     )
@@ -1563,8 +1547,6 @@ describe('AgentPage', () => {
 
   it('reuses the agent latest empty session instead of creating another one from the classic-layout agent create dialog', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    // A route-bound session keeps the first-entry effect on its wait branch, so the dialog click
-    // reaches the reuse path instead of racing the bare-entry auto-create.
     agentPageMocks.routeSearch = { sessionId: 'session-existing' }
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -1601,8 +1583,6 @@ describe('AgentPage', () => {
 
   it('reuses the latest empty system session and deletes duplicate empty system sessions from the classic-layout agent create dialog', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    // A route-bound session keeps the first-entry effect on its wait branch, so the dialog click
-    // reaches the reuse path instead of racing the bare-entry auto-create.
     agentPageMocks.routeSearch = { sessionId: 'session-existing' }
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -1654,8 +1634,6 @@ describe('AgentPage', () => {
 
   it('reuses the latest empty session when an older candidate has an invalid timestamp', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    // A route-bound session keeps the first-entry effect on its wait branch, so the dialog click
-    // reaches the reuse path instead of racing the bare-entry auto-create.
     agentPageMocks.routeSearch = { sessionId: 'session-existing' }
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -1724,35 +1702,6 @@ describe('AgentPage', () => {
         topicId: 'agent-session:session-empty-latest'
       })
     )
-  })
-
-  it('excludes the just-deleted session from reuse so the post-delete replacement creates a fresh one', async () => {
-    // Regression: after deleting the last session of an agent, the stale candidate list still holds
-    // the deleted empty (untouched) session — reused without a DB re-check. Without the exclusion the
-    // fallback would reactivate the deleted id instead of creating a replacement.
-    agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
-    agentPageMocks.classicLayoutSessions = [
-      {
-        id: 'session-empty-system-a',
-        agentId: 'agent-a',
-        name: '',
-        isNameManuallyEdited: false,
-        createdAt: '2026-01-03T03:00:00.000Z',
-        updatedAt: '2026-01-03T03:00:00.000Z',
-        workspace: { type: 'system' }
-      }
-    ]
-
-    render(<AgentPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Replace deleted panel session' }))
-
-    await waitFor(() =>
-      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
-        body: { agentId: 'agent-a', name: '', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
-      })
-    )
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
   })
 
   it('reuses the latest empty system session and deletes duplicate empty system sessions from the composer button', async () => {
@@ -1989,11 +1938,10 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-blank-touched-11'))
-    expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith(
-      'agent-a',
-      { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' },
-      undefined
-    )
+    expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith('agent-a', {
+      type: AGENT_WORKSPACE_TYPE.USER,
+      workspaceId: 'workspace-a'
+    })
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     const messageProbeCalls = agentPageMocks.dataApiGet.mock.calls.filter(
       ([path]) => typeof path === 'string' && path.startsWith('/agent-sessions/') && path.endsWith('/messages')
@@ -2087,8 +2035,6 @@ describe('AgentPage', () => {
 
   it('creates a new session when the agent latest session is not empty from the classic-layout agent create dialog', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    // A route-bound session keeps the first-entry effect on its wait branch, so the dialog click
-    // reaches the reuse path instead of racing the bare-entry auto-create.
     agentPageMocks.routeSearch = { sessionId: 'session-existing' }
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -2166,6 +2112,27 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
+  })
+
+  it('cancels a pending message locate when the user selects another session', async () => {
+    const user = userEvent.setup()
+    render(<AgentPage />)
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
+    })
+    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open'))
+
+    await user.click(screen.getByRole('button', { name: 'Select session next' }))
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-next')
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
   it('waits for file-navigation confirmation before applying a global-search session jump', async () => {
@@ -2406,6 +2373,39 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('false')
   })
 
+  it('preserves the requested workspace until a missing agent is selected', async () => {
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.agents = []
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-workspace-agent',
+      agentId: 'agent-b',
+      name: '',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    })
+
+    const { rerender } = render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create workspace session without agent' }))
+    expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('true')
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+
+    agentPageMocks.agents = [{ id: 'agent-b', model: 'model-b', name: 'Agent B' }]
+    rerender(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select missing agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-b',
+          name: '',
+          workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' }
+        }
+      })
+    )
+  })
+
   it('keeps the new tab session identity while the previous session remains visible', async () => {
     agentPageMocks.routeSearch = { sessionId: 'session-1' }
     activeSessionMocks.session = {
@@ -2453,7 +2453,7 @@ describe('AgentPage', () => {
     )
   })
 
-  it('creates a first-launch empty session with the remembered agent and workspace', async () => {
+  it('does not create a first-launch session from remembered agent and workspace state', () => {
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -2461,33 +2461,14 @@ describe('AgentPage', () => {
     ]
     agentPageMocks.lastUsedAgentId = 'agent-b'
     agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
-    agentPageMocks.dataApiPost.mockResolvedValue({
-      ...agentPageMocks.persistedSession,
-      id: 'session-remembered',
-      agentId: 'agent-b',
-      name: '',
-      workspaceId: 'workspace-remembered',
-      workspace: { ...agentPageMocks.workspaceNext, id: 'workspace-remembered' }
-    })
-
     render(<AgentPage />)
 
-    await waitFor(() =>
-      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
-        body: {
-          agentId: 'agent-b',
-          name: '',
-          workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-remembered' }
-        }
-      })
-    )
-    expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-workspaces/workspace-remembered')
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-remembered'))
-    expect(screen.getByTestId('active-session')).toHaveTextContent('session-remembered')
-    expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-remembered')
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+    expect(agentPageMocks.dataApiGet).not.toHaveBeenCalledWith('/agent-workspaces/workspace-remembered')
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
   })
 
-  it('reuses a first-launch empty session from the shared session source', async () => {
+  it('does not activate a source placeholder from a bare page entry', () => {
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -2508,9 +2489,38 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-first-launch'))
-    expect(screen.getByTestId('active-session')).toHaveTextContent('session-empty-first-launch')
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('creates for the sidebar agentId when the pinned agent has no session yet', async () => {
+    agentPageMocks.routeSearch = { agentId: 'agent-a' }
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.classicLayoutSessions = []
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-pinned-agent',
+      agentId: 'agent-a',
+      name: '',
+      workspaceId: '',
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    })
+
+    render(<AgentPage />)
+
+    // The composer create path carries no agent id, so without the route fallback it
+    // would resolve to the visible session's agent (none here) and stall.
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
+        '/agent-sessions',
+        expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-a' }) })
+      )
+    )
   })
 
   it('records the visible agent reported by the chat body', async () => {

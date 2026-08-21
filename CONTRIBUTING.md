@@ -26,7 +26,7 @@ Please make sure you have read the [Code of Conduct](CODE_OF_CONDUCT.md) and the
 
 ## Setting Up Your Development Environment
 
-Please refer to the [Developer Guide](docs/guides/development.md) for instructions on setting up your local development environment, including prerequisites, installation steps, and available commands.
+Please refer to the [Developer Guide](docs/contrib/development.md) for instructions on setting up your local development environment, including prerequisites, installation steps, and available commands.
 
 For a comprehensive overview of the project architecture, tech stack, conventions, and available commands, see [`CLAUDE.md`](CLAUDE.md).
 
@@ -36,7 +36,7 @@ To help you get familiar with the codebase, we recommend tackling issues tagged 
 
 ### Testing
 
-Features without tests are considered non-existent. To ensure code is truly effective, relevant processes should be covered by unit tests and functional tests. Therefore, when considering contributions, please also consider testability. All tests can be run locally without dependency on CI. Please refer to the "Testing" section in the [Developer Guide](docs/guides/development.md).
+Features without tests are considered non-existent. To ensure code is truly effective, relevant processes should be covered by unit tests and functional tests. Therefore, when considering contributions, please also consider testability. All tests can be run locally without dependency on CI. Please refer to the "Testing" section in the [Developer Guide](docs/contrib/development.md).
 
 ### Automated Testing for Pull Requests
 
@@ -64,7 +64,7 @@ Maintainers are here to help you implement your use case within a reasonable tim
 
 ### Participating in the Test Plan
 
-The Test Plan aims to provide users with a more stable application experience and faster iteration speed. For details, please refer to the [Test Plan](docs/guides/test-plan.md).
+The Test Plan aims to provide users with a more stable application experience and faster iteration speed. For details, please refer to the [Test Plan](docs/contrib/test-plan.md).
 
 ### Other Suggestions
 
@@ -74,11 +74,9 @@ The Test Plan aims to provide users with a more stable application experience an
 
 Please review the following critical information before submitting your Pull Request:
 
-### Branch Strategy 🚨
+### Branch Strategy
 
 `main` is the default branch for active development — submit features, refactors, optimizations, and fixes here.
-
-*   **`main` branch**: New feature development, refactoring, optimizations, and fixes go here.
 
 
 ## Contact Us

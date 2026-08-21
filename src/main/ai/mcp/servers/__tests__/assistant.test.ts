@@ -48,12 +48,15 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.providerGetById }
 }))
 
-import AssistantServer, {
-  type AssistantToolName,
-  isAllowedAssistantNavigationPath,
-  isBlockedSourceFile,
-  SUPPORT_ASSISTANT_TOOL_NAMES
-} from '../assistant'
+import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import type { AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+
+import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
+
+const SUPPORT_ASSISTANT_TOOL_NAMES = resolveAgentCapabilities({
+  configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
+}).hostTools?.tools
 
 const temporaryDirectories: string[] = []
 
