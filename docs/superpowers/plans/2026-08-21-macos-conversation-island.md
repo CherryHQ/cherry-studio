@@ -359,7 +359,7 @@ pnpm exec vitest run --silent --project renderer src/renderer/pages/settings/Not
 
 ```bash
 cd v2-refactor-temp/tools/data-classify && npm run generate
-cd ../../../..
+cd ../../..
 git diff -- src/shared/data/preference/preferenceSchemas.ts src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts
 ```
 
