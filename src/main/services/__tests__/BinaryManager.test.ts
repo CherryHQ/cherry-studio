@@ -694,7 +694,7 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
       ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
-        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+        if (candidate === mockApplicationPath('feature.binary.data', 'shims', 'rust')) throw new Error('ENOENT')
       })
       ;(mockFsp.readdir as any).mockImplementation(async () => ['cargo', 'rustc'])
 
@@ -702,7 +702,11 @@ describe('BinaryManager', () => {
         rust: {
           name: 'rust',
           definition: { name: 'rust', tool: 'core:rust' },
-          availability: { source: 'mise', path: '/mock/feature.binary.data/shims/cargo', version: '1.98.0' },
+          availability: {
+            source: 'mise',
+            path: mockApplicationPath('feature.binary.data', 'shims', 'cargo'),
+            version: '1.98.0'
+          },
           application: { status: 'applied', version: '1.98.0' }
         }
       })
@@ -732,9 +736,12 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
       ;(mockFsp.access as any).mockImplementation(async (candidate: string, mode: number) => {
-        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+        if (candidate === mockApplicationPath('feature.binary.data', 'shims', 'rust')) throw new Error('ENOENT')
         // The shim file exists, but carries no execute bit.
-        if (candidate === '/mock/feature.binary.data/shims/cargo' && mode === mockFs.constants.X_OK) {
+        if (
+          candidate === mockApplicationPath('feature.binary.data', 'shims', 'cargo') &&
+          mode === mockFs.constants.X_OK
+        ) {
           throw new Error('EACCES')
         }
       })
@@ -772,7 +779,7 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
       ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
-        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+        if (candidate === mockApplicationPath('feature.binary.data', 'shims', 'rust')) throw new Error('ENOENT')
       })
       ;(mockFsp.readdir as any).mockImplementation(async () => [])
 
@@ -2057,7 +2064,7 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
       ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
-        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+        if (candidate === mockApplicationPath('feature.binary.data', 'shims', 'rust')) throw new Error('ENOENT')
       })
       ;(mockFsp.readdir as any).mockImplementation(async () => ['cargo', 'rustc'])
 
@@ -2096,7 +2103,7 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
       ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
-        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+        if (candidate === mockApplicationPath('feature.binary.data', 'shims', 'rust')) throw new Error('ENOENT')
       })
       ;(mockFsp.readdir as any).mockImplementation(async () => ['cargo'])
 
@@ -2712,7 +2719,7 @@ describe('BinaryManager', () => {
 
       expect(env['MISE_RUSTUP_HOME']).toBe(execution['MISE_RUSTUP_HOME'])
       expect(env['MISE_CARGO_HOME']).toBe(execution['MISE_CARGO_HOME'])
-      expect(execution['MISE_CARGO_HOME']).toBe('/mock/feature.binary.data.isolated.cargo')
+      expect(execution['MISE_CARGO_HOME']).toBe(mockApplicationPath('feature.binary.data.isolated.cargo'))
     })
 
     it('passes through whitelisted variables but not the ambient auth token', async () => {
@@ -3542,7 +3549,10 @@ describe('BinaryManager', () => {
         { name: 'cargo', isFile: () => true, isSymbolicLink: () => false }
       ])
       ;(mockFsp.access as any).mockImplementation(async (candidate: string, mode: number) => {
-        if (candidate === '/mock/feature.binary.data/shims/cargo' && mode === mockFs.constants.X_OK) {
+        if (
+          candidate === mockApplicationPath('feature.binary.data', 'shims', 'cargo') &&
+          mode === mockFs.constants.X_OK
+        ) {
           throw new Error('EACCES')
         }
       })
