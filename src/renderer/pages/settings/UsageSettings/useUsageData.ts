@@ -132,10 +132,10 @@ export function useUsageData({
     previousOverviewTotals: previousOverviewStatsResult.data?.totals ?? EMPTY_STATS_METRICS,
     exploreTotals: exploreStatsResult.data?.totals ?? EMPTY_STATS_METRICS,
     exploreOther: exploreStatsResult.data?.other ?? EMPTY_STATS_METRICS,
-    timelineLoading: timelineQueryResult.isLoading,
-    overviewLoading: overviewStatsResult.isLoading,
-    exploreStatsLoading: exploreStatsResult.isLoading,
-    exploreTimelineLoading: exploreTimelineResult.isLoading
+    timelineLoading: timelineQueryResult.isLoading && timelineQueryResult.data === undefined,
+    overviewLoading: overviewStatsResult.isLoading && overviewStatsResult.data === undefined,
+    exploreStatsLoading: exploreStatsResult.isLoading && exploreStatsResult.data === undefined,
+    exploreTimelineLoading: exploreTimelineResult.isLoading && exploreTimelineResult.data === undefined
   }
 }
 

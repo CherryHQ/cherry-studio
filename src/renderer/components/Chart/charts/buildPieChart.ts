@@ -21,8 +21,8 @@ function buildSeries(data: PieChartDatum[], hasLegend: boolean, hasTimeline: boo
     emphasis: { scale: true, scaleSize: 6 },
     itemStyle: {
       borderColor: theme.background,
-      borderRadius: 4,
-      borderWidth: 2
+      borderRadius: 2,
+      borderWidth: 1
     },
     data
   }
