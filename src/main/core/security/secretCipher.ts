@@ -258,6 +258,7 @@ class SecretCipher {
         const envelope = this.decryptValue(auth.credentialsEnvelope)
         if (!envelope.failed) {
           try {
+            // oxlint-disable-next-line no-unused-vars
             const { credentialsEnvelope: _dropped, ...rest } = auth
             return { ...rest, credentials: JSON.parse(envelope.value) as Record<string, unknown> }
           } catch (error) {
@@ -268,6 +269,7 @@ class SecretCipher {
           }
         }
         this.notifyDecryptFailure({ providerId, kind: 'auth-config', label: 'GCP credentials' })
+        // oxlint-disable-next-line no-unused-vars
         const { credentialsEnvelope: _dropped, ...rest } = auth
         return { ...rest, decryptFailed: true }
       }

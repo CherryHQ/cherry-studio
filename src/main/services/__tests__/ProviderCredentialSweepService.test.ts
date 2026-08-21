@@ -1,8 +1,9 @@
 import '@data/services/ProviderRegistryService'
 
-import { userProviderTable } from '@data/db/schemas/userProvider'
+import { type UserProviderRow, userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { ProviderCredentialSweepService } from '@main/services/ProviderCredentialSweepService'
+import type { ApiKeyEntry, AuthConfig } from '@shared/data/types/provider'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -32,9 +33,20 @@ describe('ProviderCredentialSweepService', () => {
   const dbh = setupTestDatabase()
   const service = new ProviderCredentialSweepService()
 
-  async function rawRow(providerId: string) {
+  /** Narrow a stored authConfig to one variant so variant fields type-check. */
+  function expectVariant<T extends AuthConfig['type']>(auth: AuthConfig | null, type: T) {
+    if (auth?.type !== type) {
+      throw new Error(`expected ${type} authConfig, got ${String(auth?.type ?? auth)}`)
+    }
+    return auth as Extract<AuthConfig, { type: T }>
+  }
+
+  async function rawRow(providerId: string): Promise<UserProviderRow & { apiKeys: ApiKeyEntry[] }> {
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId))
-    return row
+    if (!row || row.apiKeys === null) {
+      throw new Error(`expected seeded row (with apiKeys array) for ${providerId}`)
+    }
+    return { ...row, apiKeys: row.apiKeys }
   }
 
   it('converts plaintext apiKeys and authConfig rows to envelopes in one sweep', async () => {
@@ -52,8 +64,9 @@ describe('ProviderCredentialSweepService', () => {
     const row = await rawRow('legacy')
     expect(row.apiKeys[0].key).toMatch(/^v1:ss:/)
     expect(row.apiKeys[0].key).not.toContain('sk-legacy')
-    expect(row.authConfig?.accessToken).toMatch(/^v1:ss:/)
-    expect(row.authConfig?.clientId).toBe('cid')
+    const storedAuth = expectVariant(row.authConfig, 'oauth')
+    expect(storedAuth.accessToken).toMatch(/^v1:ss:/)
+    expect(storedAuth.clientId).toBe('cid')
 
     // Reads through the boundary still restore the plaintext values.
     expect(providerService.getApiKeys('legacy')[0].key).toBe('sk-legacy')

@@ -1,9 +1,10 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
 
-import { userProviderTable } from '@data/db/schemas/userProvider'
+import { type UserProviderRow, userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { secretCipher } from '@main/core/security/secretCipher'
+import type { ApiKeyEntry, AuthConfig } from '@shared/data/types/provider'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -33,9 +34,20 @@ vi.mock('electron', () => ({
 describe('ProviderService credential read/write boundary (S7)', () => {
   const dbh = setupTestDatabase()
 
-  async function rawRow(providerId: string) {
+  /** Narrow a stored authConfig to one variant so variant fields type-check. */
+  function expectVariant<T extends AuthConfig['type']>(auth: AuthConfig | null, type: T) {
+    if (auth?.type !== type) {
+      throw new Error(`expected ${type} authConfig, got ${String(auth?.type ?? auth)}`)
+    }
+    return auth as Extract<AuthConfig, { type: T }>
+  }
+
+  async function rawRow(providerId: string): Promise<UserProviderRow & { apiKeys: ApiKeyEntry[] }> {
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId))
-    return row
+    if (!row || row.apiKeys === null) {
+      throw new Error(`expected seeded row (with apiKeys array) for ${providerId}`)
+    }
+    return { ...row, apiKeys: row.apiKeys }
   }
 
   async function seedProvider(providerId: string) {
@@ -132,8 +144,9 @@ describe('ProviderService credential read/write boundary (S7)', () => {
 
     const row = await rawRow('oauth-demo')
     expect(row.authConfig).toMatchObject({ type: 'oauth', clientId: 'client-plain' })
-    expect(row.authConfig?.accessToken).toMatch(/^v1:ss:/)
-    expect(row.authConfig?.refreshToken).not.toContain('rt-secret')
+    const storedAuth = expectVariant(row.authConfig, 'oauth')
+    expect(storedAuth.accessToken).toMatch(/^v1:ss:/)
+    expect(storedAuth.refreshToken).not.toContain('rt-secret')
 
     expect(providerService.getAuthConfig('oauth-demo')).toEqual({
       type: 'oauth',
@@ -152,8 +165,9 @@ describe('ProviderService credential read/write boundary (S7)', () => {
     })
 
     const row = await rawRow('vertex')
-    expect(row.authConfig?.credentials).toBeUndefined()
-    expect(row.authConfig?.credentialsEnvelope).toMatch(/^v1:ss:/)
+    const storedAuth = expectVariant(row.authConfig, 'iam-gcp')
+    expect(storedAuth.credentials).toBeUndefined()
+    expect(storedAuth.credentialsEnvelope).toMatch(/^v1:ss:/)
 
     expect(providerService.getAuthConfig('vertex')).toEqual({
       type: 'iam-gcp',

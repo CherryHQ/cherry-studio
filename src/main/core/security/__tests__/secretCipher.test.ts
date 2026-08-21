@@ -41,7 +41,7 @@ function expectVariant<T extends AuthConfig['type']>(auth: AuthConfig | null, ty
   if (auth?.type !== type) {
     throw new Error(`expected ${type} authConfig, got ${String(auth?.type ?? auth)}`)
   }
-  return auth
+  return auth as Extract<AuthConfig, { type: T }>
 }
 
 beforeEach(() => {
