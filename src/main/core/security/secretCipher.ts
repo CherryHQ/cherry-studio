@@ -44,12 +44,22 @@ export function isEnvelopeValue(value: string): boolean {
   return typeof value === 'string' && value.startsWith(ENVELOPE_PREFIX)
 }
 
-/** Classify a stored credential value by envelope method (boot diagnostics). */
+/**
+ * Classify a stored credential value by envelope method (boot diagnostics).
+ * Unknown `v1:*:` values and corrupt non-strings read as what they effectively
+ * are on this version — not a decryptable envelope.
+ */
 export function envelopeMethodOf(value: string | undefined | null): 'ss' | 'aes' | 'unknown' | 'plain' {
-  if (!value) return 'plain'
+  if (!value || typeof value !== 'string') return 'plain'
   if (value.startsWith(`${ENVELOPE_PREFIX}${METHOD_SAFE_STORAGE}:`)) return 'ss'
   if (value.startsWith(`${ENVELOPE_PREFIX}${METHOD_AES}:`)) return 'aes'
   return isEnvelopeValue(value) ? 'unknown' : 'plain'
+}
+
+/** Whether a stored value is an envelope THIS version can decrypt. */
+function isKnownEnvelope(value: string): boolean {
+  const method = envelopeMethodOf(value)
+  return method === 'ss' || method === 'aes'
 }
 
 export interface DecryptResult {
@@ -169,16 +179,17 @@ class SecretCipher {
 
   encryptApiKeys(entries: ApiKeyEntry[]): ApiKeyEntry[] {
     return entries.map((entry) => {
-      // Skip only empty values and envelopes carried through from the stored
-      // row; a caller-supplied decryptFailed flag must never disable encryption.
-      if (!entry.key || isEnvelopeValue(entry.key)) return entry
+      // Skip only empty values and envelopes this version can still decrypt;
+      // a caller-supplied decryptFailed flag must never disable encryption.
+      // Plaintext that merely starts with `v1:` still gets wrapped.
+      if (!entry.key || isKnownEnvelope(entry.key)) return entry
       return { ...entry, key: this.encryptValue(entry.key), decryptFailed: undefined }
     })
   }
 
   /** Whether any stored key value is still legacy plaintext (sweep detection). */
   needsEncryptionApiKeys(entries: ApiKeyEntry[]): boolean {
-    return entries.some((entry) => entry.key !== '' && !isEnvelopeValue(entry.key))
+    return entries.some((entry) => !!entry.key && !isKnownEnvelope(entry.key))
   }
 
   /** Whether any secret field of `auth` is still legacy plaintext (sweep detection). */
@@ -186,9 +197,9 @@ class SecretCipher {
     if (!auth) return false
     switch (auth.type) {
       case 'oauth':
-        return [auth.accessToken, auth.refreshToken].some((value) => !!value && !isEnvelopeValue(value))
+        return [auth.accessToken, auth.refreshToken].some((value) => !!value && !isKnownEnvelope(value))
       case 'iam-aws':
-        return [auth.accessKeyId, auth.secretAccessKey].some((value) => !!value && !isEnvelopeValue(value))
+        return [auth.accessKeyId, auth.secretAccessKey].some((value) => !!value && !isKnownEnvelope(value))
       case 'iam-gcp':
         return auth.credentials !== undefined
       default:

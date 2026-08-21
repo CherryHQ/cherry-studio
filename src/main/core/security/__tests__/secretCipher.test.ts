@@ -316,6 +316,15 @@ describe('secretCipher encryptApiKeys hardening', () => {
     expect(stored[0].decryptFailed).toBeUndefined()
   })
 
+  it('encrypts a plaintext key that merely starts with the v1: prefix', () => {
+    // A real user key like `v1:custom-gateway-token` must not be mistaken for
+    // an envelope: it is stored wrapped and still decrypts back to itself.
+    const stored = secretCipher.encryptApiKeys([{ id: 'k1', key: 'v1:custom-gateway-token', isEnabled: true }])
+    expect(stored[0].key).toMatch(/^v1:ss:/)
+    expect(stored[0].key).not.toBe('v1:custom-gateway-token')
+    expect(secretCipher.decryptValue(stored[0].key)).toEqual({ value: 'v1:custom-gateway-token', failed: false })
+  })
+
   it('passes stored envelopes through unchanged (idempotent re-encrypt)', () => {
     const envelope = secretCipher.encryptValue('sk-real')
     const stored = secretCipher.encryptApiKeys([{ id: 'k1', key: envelope, isEnabled: true }])
