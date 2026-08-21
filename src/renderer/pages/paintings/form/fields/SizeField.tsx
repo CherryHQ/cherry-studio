@@ -1,4 +1,4 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import { InputNumber, RowFlex } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
@@ -19,31 +19,25 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
   return (
     <div className="flex flex-col gap-2">
       <RowFlex className="items-center gap-2">
-        <Input
+        <InputNumber
           aria-label={t('paintings.generate.width')}
           placeholder={t('paintings.generate.width')}
-          type="number"
-          value={widthValue === undefined || widthValue === null ? '' : String(widthValue)}
-          onChange={(event) => {
-            const value = event.target.value === '' ? '' : Number(event.target.value)
-            onChange({ [widthKey]: value })
-          }}
+          value={widthValue === undefined || widthValue === null ? null : Number(widthValue)}
+          onChange={(value) => onChange({ [widthKey]: value === null ? '' : value })}
           min={validation.minWidth}
           max={validation.maxWidth}
+          step={1}
           className="flex-1"
         />
         <span className="text-muted-foreground text-xs">x</span>
-        <Input
+        <InputNumber
           aria-label={t('paintings.generate.height')}
           placeholder={t('paintings.generate.height')}
-          type="number"
-          value={heightValue === undefined || heightValue === null ? '' : String(heightValue)}
-          onChange={(event) => {
-            const value = event.target.value === '' ? '' : Number(event.target.value)
-            onChange({ [heightKey]: value })
-          }}
+          value={heightValue === undefined || heightValue === null ? null : Number(heightValue)}
+          onChange={(value) => onChange({ [heightKey]: value === null ? '' : value })}
           min={validation.minHeight}
           max={validation.maxHeight}
+          step={1}
           className="flex-1"
         />
         <span className="text-muted-foreground text-xs">px</span>

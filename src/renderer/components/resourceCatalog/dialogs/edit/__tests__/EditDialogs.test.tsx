@@ -1343,7 +1343,7 @@ describe('edit dialogs', () => {
     selectTab('Model')
 
     expect(await screen.findByRole('textbox', { name: 'Parameter value: stop' })).toHaveValue('END')
-    expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue(0)
+    expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue('0')
   })
 
   it('names the context override for what it does and states what is inherited while off', async () => {
