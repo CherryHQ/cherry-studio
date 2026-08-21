@@ -74,7 +74,7 @@ describe('withReasoningModelBodyRewrite', () => {
   })
 
   it('rewrites only the body of matching reasoning-model requests', async () => {
-    const baseFetch = vi.fn(async (..._args: Parameters<typeof fetch>) => responseBody())
+    const baseFetch = vi.fn<typeof fetch>(async () => responseBody())
     const wrapped = withReasoningModelBodyRewrite(baseFetch)
     const headers = { 'content-type': 'application/json' }
     await wrapped('https://example.com/v1/chat/completions', {
