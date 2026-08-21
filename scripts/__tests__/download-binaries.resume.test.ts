@@ -161,6 +161,24 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
     expect(execFileSync).not.toHaveBeenCalled()
   })
 
+  it('clears its own staging on a cache hit, so packaging cannot wedge forever', () => {
+    const dir = makeTmpDir()
+    // Run 1 dies mid-download and keeps its partial on purpose.
+    stubCurl((dest) => {
+      fs.writeFileSync(dest, 'half of the payload')
+      throw curlFailure(18)
+    })
+    expect(() => downloadTool(tool, 'test-arch', dir)).toThrow()
+    // Run 2 committed the binary but died before clearing staging.
+    fs.writeFileSync(path.join(dir, 'faketool'), PAYLOAD)
+
+    downloadTool(tool, 'test-arch', dir)
+
+    // Left behind, verifyBundledBinaries rejects the bundle on every later run
+    // and the cache hit means no run ever gets far enough to clean it up.
+    expect(fs.readdirSync(dir).filter((e) => e.startsWith('.staging-'))).toEqual([])
+  })
+
   it('leaves no staging or retired debris behind on success', () => {
     const dir = makeTmpDir()
     stubCurl((dest) => fs.writeFileSync(dest, PAYLOAD))

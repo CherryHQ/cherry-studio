@@ -168,6 +168,14 @@ function sweepUnreferencedVersions(cacheRoot, maxAgeMs) {
   return reclaimed
 }
 
+function rmdirIfEmpty(dir) {
+  try {
+    if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir)
+  } catch {
+    // vanished, or a concurrent run's download landed in it between the two calls
+  }
+}
+
 function hasReferencedFile(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const target = path.join(dir, entry.name)
@@ -552,6 +560,10 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
 
   if (isUpToDate(binaryPaths, versionPath, tool.version)) {
     for (const binaryPath of binaryPaths) chmodExec(binaryPath)
+    // A partial download of a version already installed has nothing left to
+    // resume, and a cache hit is the one path that would otherwise never clear
+    // it — leaving verifyBundledBinaries to reject the bundle on every run.
+    discardStaging(outputDir, tool.name)
     console.log(`[${tool.name}] ${tool.version} already installed`)
     return
   }
@@ -589,13 +601,14 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
   }
 
   // Only on success: an interrupted run keeps its partial file to resume from.
-  fs.rmSync(staging, { recursive: true, force: true })
-  try {
-    fs.rmdirSync(path.dirname(staging))
-  } catch {
-    // another tool of this run still has an unfinished download parked there
-  }
+  discardStaging(outputDir, tool.name)
   console.log(`[${tool.name}] Installed ${pkg.binaries.join(', ')} ${tool.version}`)
+}
+
+/** Drop this checkout's staging for one tool, and the parent once it is empty. */
+function discardStaging(outputDir, toolName) {
+  fs.rmSync(path.join(outputDir, STAGING_DIR, toolName), { recursive: true, force: true })
+  rmdirIfEmpty(path.join(outputDir, STAGING_DIR))
 }
 
 /**
