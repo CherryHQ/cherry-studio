@@ -7,6 +7,6 @@ export const conversationIslandHandlers: IpcHandlersFor<typeof conversationIslan
   'conversation_island.set_expanded': async ({ expanded }, { senderId }) => {
     if (!senderId || application.get('WindowManager').getWindowType(senderId) !== WindowType.ConversationIsland) return
 
-    application.get('ConversationIslandService').setExpanded(expanded)
+    application.getOptional('ConversationIslandService')?.setExpanded(expanded)
   }
 }

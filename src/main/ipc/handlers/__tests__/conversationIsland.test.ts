@@ -1,8 +1,11 @@
 import { WindowType } from '@main/core/window/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+const { appGetMock, appGetOptionalMock } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  appGetOptionalMock: vi.fn()
+}))
+vi.mock('@application', () => ({ application: { get: appGetMock, getOptional: appGetOptionalMock } }))
 
 import { ipcHandlers } from '../ipcHandlers'
 
@@ -19,10 +22,15 @@ const handler = () =>
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
-    if (name === 'ConversationIslandService') return conversationIslandService
     if (name === 'WindowManager') return windowManager
+    if (name === 'ConversationIslandService') {
+      throw new Error("[ServiceContainer] Service 'ConversationIslandService' is conditional")
+    }
     throw new Error(`Unexpected application.get(${name})`)
   })
+  appGetOptionalMock.mockImplementation((name: string) =>
+    name === 'ConversationIslandService' ? conversationIslandService : undefined
+  )
 })
 
 describe('conversationIslandHandlers', () => {
@@ -30,10 +38,19 @@ describe('conversationIslandHandlers', () => {
     windowManager.getWindowType.mockReturnValue(WindowType.ConversationIsland)
 
     expect(handler()).toBeTypeOf('function')
-    await handler()({ expanded: true }, { senderId: 'island-1' })
+    await expect(handler()({ expanded: true }, { senderId: 'island-1' })).resolves.toBeUndefined()
 
     expect(windowManager.getWindowType).toHaveBeenCalledWith('island-1')
     expect(conversationIslandService.setExpanded).toHaveBeenCalledWith(true)
+  })
+
+  it('silently ignores a valid request when the conditional service is unavailable', async () => {
+    windowManager.getWindowType.mockReturnValue(WindowType.ConversationIsland)
+    appGetOptionalMock.mockReturnValue(undefined)
+
+    await expect(handler()({ expanded: true }, { senderId: 'island-1' })).resolves.toBeUndefined()
+
+    expect(conversationIslandService.setExpanded).not.toHaveBeenCalled()
   })
 
   it('silently ignores a sender with another window type', async () => {
