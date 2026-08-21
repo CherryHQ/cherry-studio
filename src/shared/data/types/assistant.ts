@@ -92,8 +92,10 @@ export const AssistantSettingsSchema = z.object({
    *  and the resolver's `??` chain treats null/undefined alike. */
   contextSettings: ContextSettingsOverrideSchema.nullable().optional(),
   /** Per-model reasoning effort preferences.
-   *  Key is the model id (UniqueModelId format), value is the reasoning effort option. */
-  reasoning_effort_by_model: z.record(z.string(), z.string()).default({})
+   *  Key is the model id (UniqueModelId format), value is the reasoning effort option.
+   *  Optional: absent means "no per-model preference recorded yet" and falls back to the
+   *  shared `reasoning_effort` value. */
+  reasoning_effort_by_model: z.record(z.string(), z.string()).optional()
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
