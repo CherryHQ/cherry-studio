@@ -55,7 +55,9 @@ Canonicalization is lexical and byte-faithful:
   form;
 - it does not Unicode-normalize or resolve symlinks at storage time;
 - `AbsoluteFilePath` accepts UNC shape, but `canonicalizeFilePath` rejects UNC because UNC is not a
-  supported persistent dedup key.
+  supported persistent dedup key; both the backslash (`\\server\share`) and forward-slash
+  (`//server/share`) spellings are rejected, so neither can be silently rewritten into an unrelated
+  single-root path.
 
 #### Duplicate-Entry Detection on Insert
 
