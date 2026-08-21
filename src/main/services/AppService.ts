@@ -11,7 +11,15 @@ export class AppService {
   public async setAppLaunchOnBoot(isLaunchOnBoot: boolean): Promise<void> {
     // Set login item settings for windows and mac
     // linux is not supported because it requires more file operations
-    if (isWin || isMac) {
+    if (isWin) {
+      // Portable builds extract the payload to a temp dir that dies with the
+      // next cleanup or release; register the stable launcher instead of the
+      // default (process.execPath of the temp payload).
+      app.setLoginItemSettings({
+        openAtLogin: isLaunchOnBoot,
+        ...(process.env.PORTABLE_EXECUTABLE_FILE ? { path: process.env.PORTABLE_EXECUTABLE_FILE } : {})
+      })
+    } else if (isMac) {
       app.setLoginItemSettings({ openAtLogin: isLaunchOnBoot })
     } else if (isLinux) {
       try {
