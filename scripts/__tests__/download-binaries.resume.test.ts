@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // — a later spy would not reach the binding it already captured.
 const require = createRequire(import.meta.url)
 const execFileSync = vi.spyOn(require('child_process'), 'execFileSync')
+const cjsFs = require('fs') as typeof fs
 const { download, downloadTool } = require('../download-binaries')
 
 let tmpDirs: string[] = []
@@ -76,7 +77,7 @@ describe('download – resume and fallback', () => {
   })
 })
 
-describe('downloadTool – publishing to a hard-linked cache', () => {
+describe('downloadTool – packaging over a bundle of hard links', () => {
   const PAYLOAD = 'new binary payload'
   const tool = {
     name: 'faketool',
@@ -92,37 +93,161 @@ describe('downloadTool – publishing to a hard-linked cache', () => {
     }
   }
 
-  it('does not let a version bump reach a worktree whose binary is still old', () => {
-    const cache = makeTmpDir()
-    const worktree = makeTmpDir()
-    // The state materialize() leaves behind: cache and worktree share inodes.
-    fs.writeFileSync(path.join(cache, 'faketool'), 'old binary payload')
-    fs.writeFileSync(path.join(cache, '.fake-version'), '1.0.0')
-    fs.linkSync(path.join(cache, 'faketool'), path.join(worktree, 'faketool'))
-    fs.linkSync(path.join(cache, '.fake-version'), path.join(worktree, '.fake-version'))
+  function stubCurlWriting(content: string) {
     execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
-      fs.writeFileSync(args[args.indexOf('-o') + 1], PAYLOAD)
+      fs.writeFileSync(args[args.indexOf('-o') + 1], content)
+      return ''
+    }) as never)
+  }
+
+  it('does not write through the links a previous dev run left in the bundle', () => {
+    const cache = makeTmpDir()
+    const bundle = makeTmpDir()
+    // What `pnpm dev` leaves behind: the bundle is hard links into the cache.
+    fs.writeFileSync(path.join(cache, 'faketool'), 'cached 1.0.0 build')
+    fs.linkSync(path.join(cache, 'faketool'), path.join(bundle, 'faketool'))
+    fs.writeFileSync(path.join(bundle, '.fake-version'), '1.0.0')
+    stubCurlWriting(PAYLOAD)
+
+    downloadTool(tool, 'test-arch', bundle, { versionFile: '.fake-version' })
+
+    expect(fs.readFileSync(path.join(bundle, 'faketool'), 'utf8')).toBe(PAYLOAD)
+    expect(fs.readFileSync(path.join(bundle, '.fake-version'), 'utf8')).toBe('2.0.0')
+    // The shared cache is another worktree's data — packaging must not touch it.
+    expect(fs.readFileSync(path.join(cache, 'faketool'), 'utf8')).toBe('cached 1.0.0 build')
+  })
+
+  it('keeps the partial file when a run fails, and resumes onto it next time', () => {
+    const dir = makeTmpDir()
+    execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
+      fs.writeFileSync(args[args.indexOf('-o') + 1], 'half of the payload')
+      throw curlFailure(18)
+    }) as never)
+
+    expect(() => downloadTool(tool, 'test-arch', dir)).toThrow()
+
+    const partials: string[] = []
+    const walk = (d: string) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const full = path.join(d, e.name)
+        if (e.isDirectory()) walk(full)
+        else if (e.name.endsWith('.part')) partials.push(full)
+      }
+    }
+    walk(dir)
+    // Cleanup must not be in a finally: the bytes are what the next -C - resumes.
+    expect(partials).toHaveLength(1)
+    expect(fs.readFileSync(partials[0], 'utf8')).toBe('half of the payload')
+
+    // The retry has to reuse that exact path, or the resume is pointless.
+    let resumedOnto = ''
+    execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
+      resumedOnto = args[args.indexOf('-o') + 1]
+      fs.writeFileSync(resumedOnto, PAYLOAD)
       return ''
     }) as never)
 
-    downloadTool(tool, 'test-arch', cache)
+    downloadTool(tool, 'test-arch', dir)
 
-    expect(fs.readFileSync(path.join(cache, '.fake-version'), 'utf8')).toBe('2.0.0')
-    // The worktree still holds the old binary, so it must still read as 1.0.0 —
-    // an in-place marker write would pierce the link and label old bytes new.
-    expect(fs.readFileSync(path.join(worktree, 'faketool'), 'utf8')).toBe('old binary payload')
-    expect(fs.readFileSync(path.join(worktree, '.fake-version'), 'utf8')).toBe('1.0.0')
+    expect(resumedOnto).toBe(partials[0])
+    expect(fs.readFileSync(path.join(dir, 'faketool'), 'utf8')).toBe(PAYLOAD)
   })
 
   it('leaves no staging or retired debris behind on success', () => {
-    const cache = makeTmpDir()
+    const dir = makeTmpDir()
+    stubCurlWriting(PAYLOAD)
+
+    downloadTool(tool, 'test-arch', dir)
+
+    expect(fs.readdirSync(dir).filter((e) => e.startsWith('.staging-') || e.startsWith('.retired-'))).toEqual([])
+  })
+
+  it('deletes a corrupt download so a bad resume cannot wedge every future run', () => {
+    const dir = makeTmpDir()
+    stubCurlWriting('corrupted bytes')
+
+    expect(() => downloadTool(tool, 'test-arch', dir)).toThrow(/SHA256 mismatch/)
+
+    // Left in place, curl -C - would append to the bad bytes forever and every
+    // run in every worktree would fail with no way out but deleting the cache.
+    const survivors: string[] = []
+    const walk = (d: string) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const full = path.join(d, e.name)
+        if (e.isDirectory()) walk(full)
+        else survivors.push(full)
+      }
+    }
+    walk(dir)
+    expect(survivors).toEqual([])
+  })
+})
+
+describe('downloadTool – zip-tree commit (MinGit)', () => {
+  const FIXTURE_ZIP = path.join(__dirname, 'fixtures', 'mingit-tree.zip')
+  const tool = {
+    name: 'mingit',
+    version: '2.54.0',
+    versionFile: '.mingit-version',
+    packages: {
+      'test-arch': {
+        url: 'https://example.invalid/MinGit.zip',
+        archive: 'zip-tree',
+        dir: 'git',
+        binaries: ['git/cmd/git.txt'],
+        sha256: '398b94a38eba838dce6af215c4410d1c14a854f284484962e2852f9aa6c8755a'
+      }
+    }
+  }
+
+  function stubCurlDeliveringFixture() {
     execFileSync.mockImplementationOnce(((_cmd: string, args: string[]) => {
-      fs.writeFileSync(args[args.indexOf('-o') + 1], PAYLOAD)
+      fs.copyFileSync(FIXTURE_ZIP, args[args.indexOf('-o') + 1])
       return ''
     }) as never)
+  }
 
-    downloadTool(tool, 'test-arch', cache)
+  /** A bundle holding an older MinGit, as a packaging run would find it. */
+  function seedPreviousTree(dir: string, files: Record<string, string>) {
+    for (const [rel, content] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(dir, 'git', rel)), { recursive: true })
+      fs.writeFileSync(path.join(dir, 'git', rel), content)
+    }
+    fs.writeFileSync(path.join(dir, '.mingit-version'), '2.50.0', 'utf8')
+  }
 
-    expect(fs.readdirSync(cache).filter((e) => e.startsWith('.staging-') || e.startsWith('.retired-'))).toEqual([])
+  it('replaces the previous tree instead of merging into it', () => {
+    const dir = makeTmpDir()
+    seedPreviousTree(dir, { 'cmd/git.txt': 'old launcher', 'cmd/dropped.txt': 'from an older release' })
+    stubCurlDeliveringFixture()
+
+    downloadTool(tool, 'test-arch', dir, { versionFile: '.mingit-version' })
+
+    expect(fs.readFileSync(path.join(dir, 'git', 'cmd', 'git.txt'), 'utf8')).toBe('fake git launcher\n')
+    // Without the retire step the rename fails on the non-empty directory and
+    // the old tree survives — labelled with the new version.
+    expect(fs.existsSync(path.join(dir, 'git', 'cmd', 'dropped.txt'))).toBe(false)
+    expect(fs.readdirSync(dir).filter((e) => e.startsWith('.retired-'))).toEqual([])
+  })
+
+  it('restores the previous tree when the commit fails, rather than leaving none', () => {
+    const dir = makeTmpDir()
+    seedPreviousTree(dir, { 'cmd/git.txt': 'previous working tree' })
+    stubCurlDeliveringFixture()
+    const realRename = cjsFs.renameSync
+    const rename = vi.spyOn(cjsFs, 'renameSync').mockImplementation(((from: string, to: string) => {
+      // Fail only the publish — the way Windows reports a tree held open — and
+      // let the rollback rename through, which is what the test is about.
+      if (from.includes('.staging-')) throw Object.assign(new Error('busy'), { code: 'EPERM' })
+      return realRename(from, to)
+    }) as never)
+
+    try {
+      expect(() => downloadTool(tool, 'test-arch', dir, { versionFile: '.mingit-version' })).toThrow(/busy/)
+    } finally {
+      rename.mockRestore()
+    }
+
+    expect(fs.readFileSync(path.join(dir, 'git', 'cmd', 'git.txt'), 'utf8')).toBe('previous working tree')
   })
 })
