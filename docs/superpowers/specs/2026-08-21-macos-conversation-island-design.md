@@ -41,13 +41,15 @@ This is a medium-sized, macOS-specific feature. The expected production implemen
 
 ### Cindy lessons
 
-Cindy keeps product arbitration in TypeScript and sends a compact priority snapshot to a native AppKit/SwiftUI helper. The useful pattern is the single, main-owned priority answer. Its persistent helper process, JSON-lines protocol, hover tracking, session list, streaming preview, sounds, mascot, restart state, and per-display layout preferences are intentionally excluded.
+Cindy keeps product arbitration in TypeScript and sends a compact priority snapshot to a native AppKit/SwiftUI helper. The useful patterns are the single, main-owned priority answer and its treatment of the physical notch as an explicit occluded layout region. On a hardware-notch display, Cindy places leading content and trailing content in separate side wings with a center spacer equal to the measured notch width. Its black surface visually joins those wings to the hardware. Its persistent helper process, JSON-lines protocol, hover tracking, session list, streaming preview, sounds, mascot, restart state, and per-display layout preferences are intentionally excluded.
 
 Relevant Cindy sources:
 
 - <https://github.com/makecindy/cindy/blob/main/apps/desktop/src/main/agent-island/state.ts>
 - <https://github.com/makecindy/cindy/blob/main/apps/desktop/src/main/agent-island/MacAgentIslandNativeHost.ts>
 - <https://github.com/makecindy/cindy/blob/main/apps/desktop/src/shared/agentIsland.ts>
+- <https://github.com/makecindy/cindy/blob/336d2bf9353eb48ac8263e57624fd55fc7f546fb/apps/desktop/native/agent-island/macos-agent-island-helper.swift#L2434-L2455>
+- <https://github.com/makecindy/cindy/blob/336d2bf9353eb48ac8263e57624fd55fc7f546fb/apps/desktop/native/agent-island/macos-agent-island-helper.swift#L2548-L2615>
 
 The small `electron-dynamic-island` project was also considered. Its Electron-only approach is closer to Cherry Studio, but its model-based notch approximation and limited multi-display handling do not satisfy this design's geometry requirements. Cherry Studio can implement the small required surface directly without adding a dependency.
 
@@ -66,16 +68,27 @@ The group is hidden on Windows and Linux. The keys still use Preference rather t
 
 ### Compact layout
 
-The window contains one single-line pill:
+The window contains one single-line surface. Its layout depends on whether the AppKit probe recognized a physical notch.
+
+Capsule fallback:
 
 ```text
 [state indicator] [state text] · [optional title] [+N]
 ```
 
+Hardware-notch presentation:
+
+```text
+[state indicator] [state text] [physical notch: no content] [optional title] [+N]
+```
+
 - Title is enabled by default after the user opts into the feature.
 - The title is the stored topic or Agent Session name. Message content is never a fallback.
 - An empty or unavailable name uses the existing localized “new conversation” or “new agent task” fallback.
-- The renderer uses a fixed compact width without a title and a fixed larger width with a title. Long titles use one-line ellipsis.
+- The renderer keeps the existing fixed compact width. Long titles use one-line ellipsis.
+- The hardware-notch presentation is an opaque black top-connected surface with no border, backdrop blur, or theme-dependent background. The capsule fallback keeps its existing theme-aware popover styling and full rounding.
+- The hardware-notch presentation uses a three-column grid: a leading wing for the state, a center spacer equal to the measured physical notch width, and a trailing wing for the optional title and `+N`. Both wings clip overflow. Text truncates before entering the center spacer; the state indicator and `+N` have higher layout priority than text.
+- If title display is disabled, the trailing wing contains only `+N` when present. No replacement content is added to the center spacer.
 - `+N` counts all other eligible activities. It is absent when the Primary Activity is the only eligible activity.
 - The entire visible pill is clickable and opens the Primary Activity.
 - There is no hover expansion, context menu, drag behavior, or invisible hit area beyond the pill.
@@ -131,7 +144,7 @@ The script returns strict JSON containing only required `NSScreen` fields:
 
 The result is size-limited, parsed and validated before use. A short timeout terminates the child process. No user data enters the script or arguments, and the probe does not require Accessibility or Automation permission.
 
-The service maps `NSScreenNumber` to Electron display IDs. It derives the notch center and gap from the auxiliary areas, then positions the Electron window using the target display's Electron bounds. Missing APIs, malformed output, command-resolution failure, timeout, ID mismatch, or implausible geometry all select the top-capsule fallback.
+The service maps `NSScreenNumber` to Electron display IDs. It derives the notch center and gap width from the auxiliary areas, then positions the Electron window using the target display's Electron bounds. A recognized-notch placement carries that validated gap width forward as the physical occlusion width; the renderer does not infer it from the window size. Missing APIs, malformed output, command-resolution failure, timeout, ID mismatch, or implausible geometry all select the top-capsule fallback and carry no occlusion width.
 
 Probe results are cached and refreshed only on:
 
@@ -154,7 +167,7 @@ Add `WindowType.ConversationIsland` as a manual singleton with no retention conf
 - reapply always-on-top after every show;
 - exact window bounds equal the pill hit area.
 
-On a recognized notched display, the pill joins the top edge around the physical notch. On other displays, it is a rounded capsule centered eight pixels below the top edge.
+On a recognized notched display, the black surface joins the top edge around the physical notch while all meaningful content remains in the two visible side wings. On other displays, it is a theme-aware rounded capsule centered eight pixels below the top edge.
 
 The window is created on the first eligible activity, reused while any activity remains eligible, and destroyed when the activity set becomes empty after terminal lifetimes. Disabling the feature immediately closes the window and clears display listeners and timers. The lightweight `NotificationService` activity listener remains so enabling during a live response can present the current activity.
 
@@ -219,7 +232,8 @@ A declaration-only snapshot type belongs in `src/shared/types/conversationIsland
 - optional bounded title;
 - a localized navigation title that is retained when the visible-title preference is off, so the existing navigation route can still name a newly opened tab without querying renderer state;
 - secondary activity count;
-- notched/fallback presentation variant.
+- notched/fallback presentation variant;
+- the validated physical notch width for the notched variant only.
 
 Initial and subsequent snapshots use `WindowManager` init data and `pushInitData()`. The existing `window.reused` IpcApi event updates `useWindowInitData` in place. Clicking uses the existing navigation request. No new IpcApi schema, handler, preload method, or event bus is needed.
 
@@ -227,6 +241,7 @@ Initial and subsequent snapshots use `WindowManager` init data and `pushInitData
 
 - Conversation state production never depends on the island. Every island failure is logged and swallowed at the feature boundary.
 - Geometry failure selects the top capsule; it does not hide the feature.
+- Missing or invalid physical notch width cannot select the three-column notch layout.
 - Title lookup failure uses a localized generic title.
 - Window creation or renderer failure hides the island until a later state change; there is no restart loop.
 - Disabling the setting synchronously prevents further presentation work and releases the window.
@@ -278,11 +293,11 @@ Expected hand-written production footprint: roughly 14–18 files and 700–1,10
 Each test below protects a distinct regression:
 
 - Pure reducer tests: incorrect priority, tie-breaking, `+N`, terminal expiry, immediate abort removal, or accidental terminal queuing.
-- Geometry parser tests: malformed JXA output accepted as geometry, invalid notch gaps, missing display IDs, or fallback not selected.
+- Geometry parser tests: malformed JXA output accepted as geometry, invalid notch gaps, missing display IDs, fallback not selected, or recognized notch width not carried into the placement.
 - Notification service tests: both Assistant and namespaced Agent Cache keys produce the same normalized activity contract, while existing completion/approval delivery and foreground/background gates remain unchanged.
 - Island service tests: feature-off window creation, title queries while hidden, duplicate windows, missed runtime preference changes, leaked timers/listeners, and failure propagation into status handling.
 - Window registry invariant test: wrong lifecycle, preload, focus, Dock, fullscreen, sandbox, or always-on-top configuration.
-- Renderer component test: visible state/title/count contract and click invoking the existing navigation route.
+- Renderer component test: visible state/title/count contract, physical-notch center spacer and black treatment, unchanged capsule treatment, and click invoking the existing navigation route.
 - Notification settings test: macOS-only visibility and both Preference writes.
 
 Do not add snapshots, render-without-crashing cases, class-name assertions for ordinary styling, or duplicate tests of the existing navigation service.
@@ -315,6 +330,10 @@ It can reduce renderer overhead and gives native shape/hover control, but requir
 ### Permanent hidden Electron window
 
 It reduces first-show latency but keeps renderer memory resident whenever the preference is enabled. The approved design accepts a small cold-show delay after idle periods and destroys the window when activity ends.
+
+### Content row below the physical notch
+
+It provides more uninterrupted title width, but increases the black surface height and visual weight. The approved compact surface instead uses the existing height and places content in the two visible side wings, truncating low-priority text when necessary.
 
 ### Renderer-owned status reporting
 
