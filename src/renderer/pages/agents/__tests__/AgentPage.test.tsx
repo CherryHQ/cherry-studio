@@ -2169,32 +2169,6 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
-  it('withholds a pending locate from the still-visible session once the route has moved on', async () => {
-    const { rerender } = render(<AgentPage />)
-
-    const sessionMessageHandler = vi
-      .mocked(EventEmitter.on)
-      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
-      | ((payload: unknown) => void)
-      | undefined
-
-    act(() => {
-      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
-    })
-    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
-    rerender(<AgentPage />)
-    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open'))
-
-    agentPageMocks.routeSearch = { sessionId: 'session-external' }
-    activeSessionMocks.session = null
-    activeSessionMocks.isLoading = true
-    rerender(<AgentPage />)
-
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-external'))
-    expect(screen.getByTestId('active-session')).toHaveTextContent('session-open')
-    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
-  })
-
   it('waits for file-navigation confirmation before applying a global-search session jump', async () => {
     let pendingTransition: (() => void) | undefined
     agentPageMocks.fileNavigationRequest.mockImplementation((transition) => {

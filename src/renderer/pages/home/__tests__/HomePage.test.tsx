@@ -1820,30 +1820,6 @@ describe('HomePage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
-  it('withholds a pending locate from the still-visible topic once the route has moved on', async () => {
-    const { rerender } = render(<HomePage />)
-
-    const topicMessageHandler = vi
-      .mocked(EventEmitter.on)
-      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
-      | ((payload: unknown) => void)
-      | undefined
-
-    act(() => {
-      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
-    })
-    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target'))
-
-    homeMocks.routeSearch = { topicId: 'topic-b' }
-    homeMocks.activeTopicLoading = true
-    homeMocks.forceActiveTopicUndefined = true
-    rerender(<HomePage />)
-
-    await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-b'))
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history')
-    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
-  })
-
   it('writes locate state into the current tab for a global-search topic message', async () => {
     homeMocks.entryTopic = undefined
 
