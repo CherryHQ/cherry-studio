@@ -1,4 +1,4 @@
-import { InputNumber } from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText, InputNumber } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
 
@@ -51,6 +51,20 @@ export const Signed: Story = {
         <InputNumber className="w-40" step={0.1} value={value} onChange={setValue} />
         <span className="text-muted-foreground text-sm">Value: {value ?? 'null'}</span>
       </div>
+    )
+  }
+}
+
+export const InGroup: Story = {
+  render: function InGroupExample() {
+    const [value, setValue] = useState<number | null>(30)
+    return (
+      <InputGroup className="w-40">
+        <InputGroupInputNumber min={0} step={5} value={value} onChange={setValue} />
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>minutes</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
     )
   }
 }
