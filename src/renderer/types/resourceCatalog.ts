@@ -2,6 +2,7 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentType, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Prompt } from '@shared/data/types/prompt'
 
@@ -31,12 +32,12 @@ export type AgentDetail = AgentEntity & {
   tools?: Tool[]
 }
 
-interface ResourceItemBase<TType extends ResourceType, TRaw> {
+interface ResourceItemBase<TType extends ResourceType, TRaw, TAvatar = string> {
   id: string
   type: TType
   name: string
   description: string
-  avatar: string
+  avatar: TAvatar
   model?: string
   createdAt: string
   updatedAt: string
@@ -44,8 +45,8 @@ interface ResourceItemBase<TType extends ResourceType, TRaw> {
 }
 
 export type ResourceItem =
-  | (ResourceItemBase<'assistant', Assistant> & { groupId?: string; groupName?: string })
-  | (ResourceItemBase<'agent', AgentDetail> & { groupId?: never; groupName?: never })
+  | (ResourceItemBase<'assistant', Assistant, AvatarValue> & { groupId?: string; groupName?: string })
+  | (ResourceItemBase<'agent', AgentDetail, AvatarValue> & { groupId?: never; groupName?: never })
   | (ResourceItemBase<'skill', InstalledSkill> & { groupId?: never; groupName?: never })
   | (ResourceItemBase<'prompt', Prompt> & { groupId?: never; groupName?: never })
 

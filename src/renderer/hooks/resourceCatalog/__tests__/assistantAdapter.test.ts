@@ -30,7 +30,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     orderKey: 'a0',
     name: '原助手',
     prompt: 'prompt',
-    emoji: '💬',
+    avatar: { kind: 'emoji', emoji: '💬' },
     description: 'desc',
     settings: {
       temperature: 1,
@@ -87,7 +87,7 @@ describe('useAssistantMutations', () => {
       body: {
         name: '原助手 (副本)',
         prompt: 'prompt',
-        emoji: '💬',
+        avatar: { kind: 'emoji', emoji: '💬' },
         description: 'desc',
         modelId: 'openai::gpt-4o',
         settings: source.settings,
@@ -110,14 +110,19 @@ describe('useAssistantMutations', () => {
     const { result } = renderHook(() => useImportAssistantMutation())
 
     await act(async () => {
-      await result.current.importAssistant({ name: 'Imported', prompt: 'prompt', groupName: 'work' })
+      await result.current.importAssistant({
+        name: 'Imported',
+        prompt: 'prompt',
+        avatar: { kind: 'emoji', emoji: '🤖' },
+        groupName: 'work'
+      })
     })
 
     expect(useMutationMock).toHaveBeenCalledWith('POST', '/assistants:import', {
       refresh: ['/assistants', '/groups']
     })
     expect(importTriggerMock).toHaveBeenCalledWith({
-      body: { name: 'Imported', prompt: 'prompt', groupName: 'work' }
+      body: { name: 'Imported', prompt: 'prompt', avatar: { kind: 'emoji', emoji: '🤖' }, groupName: 'work' }
     })
   })
 })

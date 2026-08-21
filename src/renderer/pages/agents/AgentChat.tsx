@@ -32,7 +32,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -607,10 +606,7 @@ const AgentChatSessionCenter = ({
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
-          <ConversationGreeting
-            avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-            title={homeWelcomeText ?? ''}
-          />
+          <ConversationGreeting avatar={activeAgent?.avatar} title={homeWelcomeText ?? ''} />
         </div>
       )}
       <AgentChatMain
@@ -683,7 +679,7 @@ function AgentChatLayout({
       traceId={sessionSnapshot?.traceId ?? undefined}
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
-      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      agentAvatar={activeAgent?.avatar}
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell

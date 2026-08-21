@@ -10,11 +10,13 @@ describe('ImportAssistantSchema', () => {
       ImportAssistantSchema.parse({
         name: 'Imported assistant',
         prompt: 'legacy prompt',
+        avatar: { kind: 'emoji', emoji: '🤖' },
         groupName: `  ${longName}  `
       })
     ).toEqual({
       name: 'Imported assistant',
       prompt: 'legacy prompt',
+      avatar: { kind: 'emoji', emoji: '🤖' },
       groupName: longName
     })
   })
@@ -24,6 +26,7 @@ describe('ImportAssistantSchema', () => {
       ImportAssistantSchema.safeParse({
         name: 'Imported assistant',
         prompt: 'legacy prompt',
+        avatar: { kind: 'emoji', emoji: '🤖' },
         groupId: '11111111-1111-4111-8111-111111111111'
       }).success
     ).toBe(false)

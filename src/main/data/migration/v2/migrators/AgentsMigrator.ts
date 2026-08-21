@@ -1324,7 +1324,7 @@ function readSessionAuthors(db: DbType, sessionIds: string[]): Map<string, Sessi
       sessionId: agentSessionTable.id,
       agentId: agentTable.id,
       name: agentTable.name,
-      configuration: agentTable.configuration
+      avatarEmoji: agentTable.avatarEmoji
     })
     .from(agentSessionTable)
     .innerJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
@@ -1332,13 +1332,10 @@ function readSessionAuthors(db: DbType, sessionIds: string[]): Map<string, Sessi
     .all()
 
   return new Map(
-    rows.map((row): [string, SessionAuthor] => {
-      const avatar = row.configuration?.avatar
-      return [
-        row.sessionId,
-        { id: row.agentId, name: row.name, emoji: typeof avatar === 'string' && avatar ? avatar : undefined }
-      ]
-    })
+    rows.map((row): [string, SessionAuthor] => [
+      row.sessionId,
+      { id: row.agentId, name: row.name, avatar: { kind: 'emoji', emoji: row.avatarEmoji! } }
+    ])
   )
 }
 

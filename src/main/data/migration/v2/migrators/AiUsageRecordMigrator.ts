@@ -154,7 +154,7 @@ function toLegacyAggregate(source: AiUsageRecordSourceRow): LegacyAggregateInput
           type: source.messageKind === 'chat' ? 'assistant' : 'agent',
           id: snapshot.id,
           name: snapshot.name,
-          icon: snapshot.emoji ?? null
+          icon: snapshot.avatar.kind === 'emoji' ? snapshot.avatar.emoji : snapshot.avatar.src
         }
       : null,
     usage: {

@@ -23,6 +23,7 @@ import { loggerService } from '@logger'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
@@ -39,7 +40,7 @@ import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -206,11 +207,14 @@ function AssistantEditDialogContent({
   initialTab
 }: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
+  const { setAssistantAvatar } = useAvatarMutations()
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
+  const [avatarImageData, setAvatarImageData] = useState<Uint8Array | null>(null)
+  const [avatarImageHidden, setAvatarImageHidden] = useState(false)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -256,6 +260,8 @@ function AssistantEditDialogContent({
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
+    setAvatarImageData(null)
+    setAvatarImageHidden(false)
     setCreateGroupDialogOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
     // A fresh open is a fresh editing session — a stale failure from a prior
@@ -264,6 +270,29 @@ function AssistantEditDialogContent({
     // coincidentally-identical edit as if it were a repeated close.
     failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, resource])
+
+  const handleAvatarImageDataChange = useCallback(
+    async (data: Uint8Array | null) => {
+      if (!data) {
+        setAvatarImageData(null)
+        setAvatarImageHidden(true)
+        return
+      }
+      await setAssistantAvatar(resource.id, { kind: 'image', data })
+      setAvatarImageData(data)
+      setAvatarImageHidden(false)
+    },
+    [resource.id, setAssistantAvatar]
+  )
+
+  const handleAvatarEmojiChange = useCallback(
+    async (emoji: string) => {
+      await setAssistantAvatar(resource.id, { kind: 'emoji', emoji })
+      setAvatarImageData(null)
+      setAvatarImageHidden(true)
+    },
+    [resource.id, setAssistantAvatar]
+  )
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
@@ -366,6 +395,10 @@ function AssistantEditDialogContent({
             groupsError={groupsError}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
+            avatarImageSrc={resource.avatar.kind === 'image' && !avatarImageHidden ? resource.avatar.src : undefined}
+            avatarImageData={avatarImageData}
+            onAvatarImageDataChange={handleAvatarImageDataChange}
+            onAvatarEmojiChange={handleAvatarEmojiChange}
             onCreateGroup={() => setCreateGroupDialogOpen(true)}
             onSettingsNavigate={closeBeforeAction}
           />
@@ -422,6 +455,10 @@ function AssistantBasicFields({
   groupsError,
   emojiPickerOpen,
   setEmojiPickerOpen,
+  avatarImageSrc,
+  avatarImageData,
+  onAvatarImageDataChange,
+  onAvatarEmojiChange,
   onCreateGroup,
   onSettingsNavigate
 }: {
@@ -435,6 +472,10 @@ function AssistantBasicFields({
   groupsError: ReturnType<typeof useGroups>['error']
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  avatarImageSrc?: string
+  avatarImageData: Uint8Array | null
+  onAvatarImageDataChange: (data: Uint8Array | null) => void | Promise<void>
+  onAvatarEmojiChange: (emoji: string) => void | Promise<void>
   onCreateGroup: () => void
   onSettingsNavigate?: (navigate: () => void) => void
 }) {
@@ -456,10 +497,13 @@ function AssistantBasicFields({
         form={form}
         emojiPickerOpen={emojiPickerOpen}
         setEmojiPickerOpen={setEmojiPickerOpen}
-        fallback="💬"
         portalContainer={portalContainer}
         size="sm"
         layout="row"
+        imageSrc={avatarImageSrc}
+        imageData={avatarImageData}
+        onImageDataChange={onAvatarImageDataChange}
+        onEmojiChange={onAvatarEmojiChange}
       />
       <TextInputField
         form={form}

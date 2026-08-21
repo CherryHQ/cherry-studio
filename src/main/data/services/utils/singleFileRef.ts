@@ -23,18 +23,6 @@
  * owner's slot (services/README "Own your table"), and adding a slot type
  * requires no change to this file. Same rationale as `orderKey.ts`.
  *
- * **Two naming layers, deliberately.** `getSingleFileRefId` /
- * `clearSingleFileRefTx` / `insertSingleFileRefTx` are the table-agnostic
- * mechanism. {@link reconcileLogoSlotTx} with {@link LogoBindInput} /
- * {@link LogoColumns} sits one level above and is logo-specific, because every
- * single-file slot that exists today IS a logo slot (`provider_logo`,
- * `mini_app_logo`; the user avatar deliberately has no slot table). The
- * mechanism is named for the category so a future non-logo slot reuses it
- * unchanged; the reconcile layer is named for what it actually resolves — the
- * owner row's `logo_key` column. Do NOT genericize the reconcile layer until a
- * second kind of slot exists: `{ logoKey }` maps to a real column name, and
- * renaming it to `{ key }` only adds impedance at both call sites.
- *
  * The file bytes are stored beforehand (the caller passes an opaque `fileId`);
  * this layer never touches the filesystem. Superseded files are preserved per
  * the file layer's policy (file-manager-architecture §7.1) — no `permanentDelete`
@@ -69,25 +57,12 @@ export interface SingleFileRefTable extends SQLiteTable {
 }
 
 /**
- * Service-internal logo bind input consumed by {@link reconcileLogoSlotTx}. The
- * `file` variant is supplied only by the main-side set-logo orchestrator (after
- * it mints the `file_entry`), never by the renderer — so this type stays in the
- * main layer, not `@shared`. The renderer-facing counterpart is `CreateLogoSchema`.
- */
-export type LogoBindInput = { kind: 'key'; key: string } | { kind: 'file'; fileId: FileEntryId } | { kind: 'default' }
-
-/** The owner-row column value a logo reconcile resolves to. */
-export interface LogoColumns {
-  logoKey: string | null
-}
-
-/**
  * The uploaded file's `file_entry` id held by `sourceId`'s slot in `table` — or
  * null when the slot holds a preset key / nothing. This is the read side of the
  * single source of truth: one indexed lookup on the unique `(sourceId)` index,
  * cheap at the low logo read frequency.
  */
-export function getSingleFileRefId(table: SingleFileRefTable, sourceId: string): FileEntryId | null {
+export function getSingleFileRef(table: SingleFileRefTable, sourceId: string): FileEntryId | null {
   const db: TxLike = application.get('DbService').getDb()
   const [row] = db
     .select({ fileEntryId: table.fileEntryId })
@@ -99,7 +74,7 @@ export function getSingleFileRefId(table: SingleFileRefTable, sourceId: string):
 }
 
 /** Remove the single-file ref row owned by `sourceId` in `table`, inside `tx`. */
-export function clearSingleFileRefTx(tx: TxLike, table: SingleFileRefTable, sourceId: string): void {
+export function clearSingleFileRef(tx: TxLike, table: SingleFileRefTable, sourceId: string): void {
   tx.delete(table).where(eq(table.sourceId, sourceId)).run()
 }
 
@@ -109,7 +84,7 @@ export function clearSingleFileRefTx(tx: TxLike, table: SingleFileRefTable, sour
  * {@link reconcileLogoSlotTx}; the migrator inserts into an empty slot. These
  * slot tables are roleless (one implicit purpose per table).
  */
-export function insertSingleFileRefTx(
+export function insertSingleFileRef(
   tx: TxLike,
   table: SingleFileRefTable,
   sourceId: string,
@@ -120,35 +95,7 @@ export function insertSingleFileRefTx(
 }
 
 /** Point `sourceId`'s slot at `fileId`, clearing any existing row first, inside `tx`. */
-function setSingleFileRefTx(tx: TxLike, table: SingleFileRefTable, sourceId: string, fileId: FileEntryId): void {
-  clearSingleFileRefTx(tx, table, sourceId)
-  insertSingleFileRefTx(tx, table, sourceId, fileId)
-}
-
-/**
- * Reconcile `sourceId`'s logo slot in `table` inside `tx`: replace the slot's
- * ref (the single source of truth for an uploaded file) and return the
- * `logoKey` to persist on the owner row. Returns `null` when `input` is
- * `undefined` (update no-op — leave the column untouched).
- *
- * - `{ kind: 'file', fileId }` → uploaded file: point the slot's ref at it,
- *   `logoKey = null` (the file id lives only in the ref row).
- * - `{ kind: 'key', key }` → preset/url ref: drop the slot's ref, `logoKey = key`.
- * - `{ kind: 'default' }` → drop the slot's ref, `logoKey = null`.
- */
-export function reconcileLogoSlotTx(
-  tx: TxLike,
-  table: SingleFileRefTable,
-  sourceId: string,
-  input: LogoBindInput | undefined
-): LogoColumns | null {
-  if (input === undefined) return null
-
-  if (input.kind === 'file') {
-    setSingleFileRefTx(tx, table, sourceId, input.fileId)
-    return { logoKey: null }
-  }
-
-  clearSingleFileRefTx(tx, table, sourceId)
-  return { logoKey: input.kind === 'key' ? input.key : null }
+export function setSingleFileRef(tx: TxLike, table: SingleFileRefTable, sourceId: string, fileId: FileEntryId): void {
+  clearSingleFileRef(tx, table, sourceId)
+  insertSingleFileRef(tx, table, sourceId, fileId)
 }

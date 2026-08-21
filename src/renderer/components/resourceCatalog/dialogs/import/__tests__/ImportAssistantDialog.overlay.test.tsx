@@ -82,8 +82,8 @@ describe('ImportAssistantDialog', () => {
     fireEvent.change(await screen.findByPlaceholderText('library.import_dialog.clipboard.placeholder'), {
       target: {
         value: JSON.stringify([
-          { name: 'First', prompt: 'first prompt', group: [' work '] },
-          { name: 'Second', prompt: 'second prompt', group: ['work'] }
+          { name: 'First', emoji: '1️⃣', prompt: 'first prompt', group: [' work '] },
+          { name: 'Second', emoji: '2️⃣', prompt: 'second prompt', group: ['work'] }
         ])
       }
     })

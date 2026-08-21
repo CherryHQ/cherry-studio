@@ -9,7 +9,7 @@ import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail, ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
-import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
+import { getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
@@ -101,7 +101,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         id: agent.id,
         name: agent.name,
         description: getAgentDescriptionForDisplay(agent, t),
-        emoji: getAgentAvatarFromConfiguration(agent.configuration)
+        avatar: agent.avatar
       })),
       ...(additionalItems ?? [])
     ],
@@ -173,7 +173,7 @@ export function AgentSelector(props: AgentSelectorProps) {
             id: created.id,
             name: created.name,
             description: getAgentDescriptionForDisplay(created, t),
-            emoji: getAgentAvatarFromConfiguration(created.configuration)
+            avatar: created.avatar
           })
         } else {
           props.onChange(created.id)

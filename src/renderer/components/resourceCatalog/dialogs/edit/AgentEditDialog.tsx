@@ -16,6 +16,7 @@ import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -247,11 +248,14 @@ function AgentEditDialogContent({
   initialTab
 }: EditDialogBaseProps & { resource: AgentDetail }) {
   const { t } = useTranslation()
+  const { setAgentAvatar } = useAvatarMutations()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
+  const [avatarImageData, setAvatarImageData] = useState<Uint8Array | null>(null)
+  const [avatarImageHidden, setAvatarImageHidden] = useState(false)
   const [formBaseline, setFormBaseline] = useState<AgentFormState>(() => buildInitialAgentFormState(resource))
   const formBaselineRef = useRef(formBaseline)
   const failedSaveKeyRef = useRef<string | null>(null)
@@ -334,11 +338,36 @@ function AgentEditDialogContent({
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
+    setAvatarImageData(null)
+    setAvatarImageHidden(false)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
     failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, replaceFormBaseline, resource])
+
+  const handleAvatarImageDataChange = useCallback(
+    async (data: Uint8Array | null) => {
+      if (!data) {
+        setAvatarImageData(null)
+        setAvatarImageHidden(true)
+        return
+      }
+      await setAgentAvatar(resource.id, { kind: 'image', data })
+      setAvatarImageData(data)
+      setAvatarImageHidden(false)
+    },
+    [resource.id, setAgentAvatar]
+  )
+
+  const handleAvatarEmojiChange = useCallback(
+    async (emoji: string) => {
+      await setAgentAvatar(resource.id, { kind: 'emoji', emoji })
+      setAvatarImageData(null)
+      setAvatarImageHidden(true)
+    },
+    [resource.id, setAgentAvatar]
+  )
 
   // Cached skill rows may render during revalidation, but the editable skill
   // baseline must come from the authoritative projection so later toggles diff
@@ -508,6 +537,10 @@ function AgentEditDialogContent({
             patchAgentForm={patchAgentForm}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
+            avatarImageSrc={resource.avatar.kind === 'image' && !avatarImageHidden ? resource.avatar.src : undefined}
+            avatarImageData={avatarImageData}
+            onAvatarImageDataChange={handleAvatarImageDataChange}
+            onAvatarEmojiChange={handleAvatarEmojiChange}
             onSettingsNavigate={closeBeforeAction}
             caps={caps}
             agentType={resource.type}
@@ -551,6 +584,10 @@ function AgentBasicFields({
   patchAgentForm,
   emojiPickerOpen,
   setEmojiPickerOpen,
+  avatarImageSrc,
+  avatarImageData,
+  onAvatarImageDataChange,
+  onAvatarEmojiChange,
   onSettingsNavigate,
   caps,
   agentType
@@ -563,6 +600,10 @@ function AgentBasicFields({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  avatarImageSrc?: string
+  avatarImageData: Uint8Array | null
+  onAvatarImageDataChange: (data: Uint8Array | null) => void | Promise<void>
+  onAvatarEmojiChange: (emoji: string) => void | Promise<void>
   onSettingsNavigate?: (navigate: () => void) => void
   caps: AgentRuntimeCapabilities
   agentType: AgentType
@@ -576,10 +617,13 @@ function AgentBasicFields({
         form={form}
         emojiPickerOpen={emojiPickerOpen}
         setEmojiPickerOpen={setEmojiPickerOpen}
-        fallback="🤖"
         portalContainer={portalContainer}
         size="sm"
         layout="row"
+        imageSrc={avatarImageSrc}
+        imageData={avatarImageData}
+        onImageDataChange={onAvatarImageDataChange}
+        onEmojiChange={onAvatarEmojiChange}
       />
       <TextInputField
         form={form}

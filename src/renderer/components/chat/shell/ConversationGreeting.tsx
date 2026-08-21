@@ -1,11 +1,9 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
-import EmojiIcon from '@renderer/components/EmojiIcon'
-import { isEmoji } from '@renderer/utils/naming'
+import type { AvatarValue } from '@shared/data/types/avatar'
 
 export interface ConversationGreetingProps {
-  /** Assistant / agent avatar — an emoji glyph or an image URL. */
-  avatar?: string
+  avatar?: AvatarValue
   title: string
 }
 
@@ -25,15 +23,7 @@ export function ConversationGreeting({ avatar, title }: ConversationGreetingProp
       data-testid="conversation-greeting"
       className="flex h-full w-full flex-col items-center justify-center gap-4 px-6 text-center"
       style={{ paddingBottom: inset?.contentBottomPadding ?? 0 }}>
-      {avatar &&
-        (isEmoji(avatar) ? (
-          <EmojiIcon emoji={avatar} className="mr-0" size={48} fontSize={28} />
-        ) : (
-          <Avatar className="size-12">
-            <AvatarImage className="size-full object-cover" src={avatar} />
-            <AvatarFallback className="text-2xl">🤖</AvatarFallback>
-          </Avatar>
-        ))}
+      {avatar && <AvatarIcon avatar={avatar} className="mr-0" size={48} fontSize={28} />}
       <h2 className="m-0 font-medium text-foreground text-lg">{title}</h2>
     </div>
   )

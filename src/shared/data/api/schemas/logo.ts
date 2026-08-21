@@ -3,7 +3,7 @@ import * as z from 'zod'
 import { LogoKeySchema } from './logoKey'
 
 /**
- * Renderer-facing entity-logo create schema (provider / mini-app).
+ * Renderer-facing Provider/MiniApp logo create schema.
  *
  * Only a preset key is expressible here. A custom *uploaded* logo is NOT part of
  * a DataApi DTO; uploads (and all logo *edits*) go through the dedicated IpcApi

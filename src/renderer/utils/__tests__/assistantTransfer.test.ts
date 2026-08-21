@@ -8,7 +8,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     id: 'ast-1',
     name: '写作助手',
     prompt: 'You are helpful',
-    emoji: '✍️',
+    avatar: { kind: 'emoji', emoji: '✍️' },
     description: '擅长写作润色',
     settings: {
       temperature: 1,
@@ -68,7 +68,7 @@ describe('assistantTransfer', () => {
 
     expect(draft.dto).toMatchObject({
       name: '旧助手',
-      emoji: '🤖',
+      avatar: { kind: 'emoji', emoji: '🤖' },
       prompt: 'legacy prompt',
       description: 'legacy desc'
     })
@@ -78,16 +78,16 @@ describe('assistantTransfer', () => {
     expect(draft.groupName).toBe('写作')
   })
 
-  it('uses the default emoji when a legacy import contains an empty emoji', () => {
-    const [draft] = parseAssistantImportContent(
-      JSON.stringify({
-        name: '无图标助手',
-        emoji: '',
-        prompt: 'legacy prompt'
-      })
-    )
-
-    expect(draft.dto.emoji).toBe('🤖')
+  it('rejects a legacy import with an empty emoji', () => {
+    expect(() =>
+      parseAssistantImportContent(
+        JSON.stringify({
+          name: '无图标助手',
+          emoji: '',
+          prompt: 'legacy prompt'
+        })
+      )
+    ).toThrowError(AssistantTransferError)
   })
 
   it('ignores v2-only fields from imported content and still uses legacy defaults', () => {
@@ -95,6 +95,7 @@ describe('assistantTransfer', () => {
       JSON.stringify({
         name: '新助手',
         prompt: 'still required',
+        emoji: '🤖',
         settings: { temperature: 0.6, enableTemperature: true },
         modelId: 'custom::model',
         mcpServerIds: ['mcp-1'],

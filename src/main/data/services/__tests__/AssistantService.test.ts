@@ -115,7 +115,7 @@ describe('AssistantDataService', () => {
   }
 
   // Raw-insert helper that fills the NOT-NULL columns the DB has no DEFAULT for
-  // (emoji / settings / orderKey). Tests that exercise read-path semantics on
+  // (avatar / settings / orderKey). Tests that exercise read-path semantics on
   // hand-crafted rows go through this helper so they don't need to repeat
   // boilerplate every call site. `orderKey` defaults to 'a0' since most tests
   // don't care about ordering; tests that assert ordering should pass explicit keys.
@@ -125,7 +125,7 @@ describe('AssistantDataService', () => {
     const orderKeys = generateOrderKeySequence(rows.length)
     await dbh.db.insert(assistantTable).values(
       rows.map((v, index) => ({
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         name: 'test',
         orderKey: orderKeys[index],
@@ -551,10 +551,10 @@ describe('AssistantDataService', () => {
     it("should apply '🌟' as the default emoji when omitted", async () => {
       const created = assistantDataService.create({ name: 'test-assistant' })
 
-      expect(created.emoji).toBe('🌟')
+      expect(created.avatar).toEqual({ kind: 'emoji', emoji: '🌟' })
 
       const [row] = await dbh.db.select().from(assistantTable)
-      expect(row.emoji).toBe('🌟')
+      expect(row.avatarEmoji).toBe('🌟')
     })
 
     it('should apply DB DEFAULT empty strings to prompt and description when omitted', async () => {
@@ -568,13 +568,13 @@ describe('AssistantDataService', () => {
       expect(row.description).toBe('')
     })
 
-    it('should preserve client-supplied emoji over the service default', async () => {
-      const created = assistantDataService.create({ name: 'test-assistant', emoji: '🤖' })
+    it('should preserve a client-supplied emoji avatar over the service default', async () => {
+      const created = assistantDataService.create({ name: 'test-assistant', avatar: { kind: 'emoji', emoji: '🤖' } })
 
-      expect(created.emoji).toBe('🤖')
+      expect(created.avatar).toEqual({ kind: 'emoji', emoji: '🤖' })
 
       const [row] = await dbh.db.select().from(assistantTable)
-      expect(row.emoji).toBe('🤖')
+      expect(row.avatarEmoji).toBe('🤖')
     })
 
     it('should sync junction rows when relation ids are provided', async () => {
@@ -748,6 +748,7 @@ describe('AssistantDataService', () => {
       const result = assistantDataService.createFromImport({
         name: 'Imported assistant',
         prompt: 'legacy prompt',
+        avatar: { kind: 'emoji', emoji: '🤖' },
         groupName
       })
 
@@ -763,11 +764,13 @@ describe('AssistantDataService', () => {
       const first = assistantDataService.createFromImport({
         name: 'First import',
         prompt: 'first prompt',
+        avatar: { kind: 'emoji', emoji: '1️⃣' },
         groupName: 'work'
       })
       const second = assistantDataService.createFromImport({
         name: 'Second import',
         prompt: 'second prompt',
+        avatar: { kind: 'emoji', emoji: '2️⃣' },
         groupName: 'work'
       })
 
@@ -1350,21 +1353,21 @@ describe('AssistantDataService', () => {
           id: 'ast-search-old',
           name: 'Needle Old',
           description: 'old assistant',
-          emoji: 'A',
+          avatarEmoji: 'A',
           updatedAt: 100
         },
         {
           id: 'ast-search-new',
           name: 'Needle New',
           description: 'new assistant',
-          emoji: 'B',
+          avatarEmoji: 'B',
           updatedAt: 200
         },
         {
           id: 'ast-search-miss',
           name: 'Other',
           description: 'not included',
-          emoji: 'C',
+          avatarEmoji: 'C',
           updatedAt: 300
         }
       ])
@@ -1377,7 +1380,7 @@ describe('AssistantDataService', () => {
           id: 'ast-search-new',
           title: 'Needle New',
           subtitle: 'new assistant',
-          emoji: 'B',
+          avatar: { kind: 'emoji', emoji: 'B' },
           updatedAt: '1970-01-01T00:00:00.200Z',
           target: { assistantId: 'ast-search-new' }
         },
@@ -1386,7 +1389,7 @@ describe('AssistantDataService', () => {
           id: 'ast-search-old',
           title: 'Needle Old',
           subtitle: 'old assistant',
-          emoji: 'A',
+          avatar: { kind: 'emoji', emoji: 'A' },
           updatedAt: '1970-01-01T00:00:00.100Z',
           target: { assistantId: 'ast-search-old' }
         }

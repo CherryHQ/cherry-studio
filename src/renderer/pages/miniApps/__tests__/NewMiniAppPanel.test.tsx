@@ -91,7 +91,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 // This suite mocks react-i18next without initReactI18next, so the shared setup's
-// real i18n init is skipped — stub the resolver `checkEntityImageSize` reaches.
+// real i18n init is skipped — stub the resolver `checkIconImageSize` reaches.
 vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: string) => key }
 }))
@@ -99,7 +99,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 // Canvas isn't available in jsdom; stub the renderer normalize step to fixed bytes.
 vi.mock('@renderer/utils/image', async (importOriginal) => ({
   ...(await importOriginal<typeof ImageUtils>()),
-  prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
+  prepareIconImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -288,7 +288,7 @@ describe('NewMiniAppPanel', () => {
       expect(mocks.updateCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
         'mini_app.set_logo',
-        expect.objectContaining({ appId: 'custom-app', image: expect.objectContaining({ kind: 'image' }) })
+        expect.objectContaining({ appId: 'custom-app', logo: expect.objectContaining({ kind: 'image' }) })
       )
       expect(mocks.refreshCustomMiniApp).toHaveBeenCalledWith('custom-app')
     })
@@ -329,7 +329,7 @@ describe('NewMiniAppPanel', () => {
       expect(mocks.createCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
         'mini_app.set_logo',
-        expect.objectContaining({ appId: 'generated-id', image: expect.objectContaining({ kind: 'image' }) })
+        expect.objectContaining({ appId: 'generated-id', logo: expect.objectContaining({ kind: 'image' }) })
       )
       expect(mocks.refreshCustomMiniApp).toHaveBeenCalledWith('generated-id')
     })

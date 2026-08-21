@@ -1,4 +1,5 @@
 import { Badge, Button, Switch } from '@cherrystudio/ui'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -104,6 +105,8 @@ export function ResourceCard({
             )}>
             {showTypeIcon ? (
               <TypeIcon size={20} aria-hidden className={isSettings ? 'text-foreground-tertiary' : undefined} />
+            ) : r.type === 'assistant' || r.type === 'agent' ? (
+              <AvatarIcon avatar={r.avatar} size={40} fontSize={20} className="mr-0 rounded-lg" />
             ) : (
               r.avatar
             )}

@@ -1,11 +1,12 @@
 import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
@@ -26,7 +27,7 @@ const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
 export interface ChatConversationControlsProps {
   assistantId: string | null
   assistantName: string
-  assistantEmoji?: string
+  assistantAvatar?: AvatarValue
   model?: Model
   modelPending?: boolean
   providers: Provider[]
@@ -51,7 +52,7 @@ export interface ChatConversationControlsProps {
 export function ChatConversationControls({
   assistantId,
   assistantName,
-  assistantEmoji,
+  assistantAvatar,
   model,
   modelPending,
   providers,
@@ -73,7 +74,9 @@ export function ChatConversationControls({
   onMentionedModelSelectorRestore
 }: ChatConversationControlsProps) {
   const { t } = useTranslation()
-  const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
+  const assistantIcon =
+    assistantAvatar ??
+    (getLeadingEmoji(assistantName) ? { kind: 'emoji' as const, emoji: getLeadingEmoji(assistantName) } : undefined)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
@@ -116,7 +119,11 @@ export function ChatConversationControls({
       disabled={assistantTriggerAction === 'edit' && !assistantId}
       aria-label={assistantTriggerAction === 'edit' ? `${t('assistants.edit.title')}: ${assistantName}` : undefined}
       onClick={assistantTriggerAction === 'edit' ? handleAssistantEdit : undefined}>
-      {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null}
+      {assistantIcon ? (
+        <AvatarIcon avatar={assistantIcon} size={20} />
+      ) : iconOnly ? (
+        <Bot size={16} aria-hidden />
+      ) : null}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
       {assistantTriggerAction === 'edit' ? null : (
         <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />

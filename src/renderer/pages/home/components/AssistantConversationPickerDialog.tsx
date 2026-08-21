@@ -1,5 +1,6 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import {
   getResourceCreateDefaultAvatar,
@@ -13,7 +14,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import { isNonChatModel } from '@shared/utils/model'
-import { Bot, Check, Filter, Plus } from 'lucide-react'
+import { Check, Filter, Plus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -65,13 +66,7 @@ export function AssistantConversationPickerDialog({
       assistants.map((assistant) => ({
         id: `assistant:${assistant.id}`,
         name: assistant.name,
-        icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
-        ) : (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-            <Bot size={14} />
-          </span>
-        ),
+        icon: <AvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />,
         searchText: assistant.description,
         selection: { type: 'assistant' as const, assistantId: assistant.id }
       })),

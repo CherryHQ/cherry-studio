@@ -31,11 +31,23 @@ function createContext(overrides: Partial<SidebarVariantContext> = {}): SidebarV
 }
 
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
-  return { id: 'assistant-1', name: 'Alpha', emoji: '🍒', modelId: 'openai::gpt-5', ...overrides } as Assistant
+  return {
+    id: 'assistant-1',
+    name: 'Alpha',
+    avatar: { kind: 'emoji', emoji: '🍒' },
+    modelId: 'openai::gpt-5',
+    ...overrides
+  } as Assistant
 }
 
-function createAgent(configuration?: Record<string, unknown>): AgentEntity {
-  return { id: 'agent-1', name: 'Agent', configuration } as unknown as AgentEntity
+function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
+  return {
+    id: 'agent-1',
+    name: 'Agent',
+    avatar: { kind: 'emoji', emoji: '🤖' },
+    configuration: {},
+    ...overrides
+  } as AgentEntity
 }
 
 const assistantFavorite: SidebarFavoriteItem = { type: 'assistant', id: 'assistant-1' }
@@ -98,28 +110,36 @@ describe('sidebarVariants icons', () => {
     expect(screen.getByTestId('icon')).toHaveTextContent('🍒')
   })
 
-  it('renders the rail placeholder icon when the assistant has no emoji', () => {
+  it('renders an assistant image avatar', () => {
     const ctx = createContext({
-      installedAssistants: new Map([['assistant-1', createAssistant({ emoji: '' })]])
+      installedAssistants: new Map([
+        [
+          'assistant-1',
+          createAssistant({
+            avatar: {
+              kind: 'image',
+              fileId: '11111111-1111-4111-8111-111111111111',
+              src: 'file:///avatar.webp'
+            }
+          })
+        ]
+      ])
     })
 
     const entry = resolveSidebarEntry(assistantFavorite, ctx)
     const { container } = render(<div data-testid="icon">{entry?.renderIcon(18, 'lg')}</div>)
 
-    // Rendering an empty emoji would leave EmojiIcon showing only its blurred '⭐️'
-    // placeholder; the shared renderer draws the same bot placeholder as the rail.
-    expect(screen.getByTestId('icon')).not.toHaveTextContent('⭐️')
-    expect(container.querySelector('svg')).not.toBeNull()
+    expect(container.querySelector('img')).toHaveAttribute('src', 'file:///avatar.webp')
   })
 
-  it('keeps a renderable glyph for an agent with no configured avatar', () => {
+  it('renders the configured agent avatar', () => {
     const ctx = createContext({
-      installedAgents: new Map([['agent-1', createAgent()]])
+      installedAgents: new Map([['agent-1', createAgent({ avatar: { kind: 'emoji', emoji: '🦞' } })]])
     })
 
     const entry = resolveSidebarEntry(agentFavorite, ctx)
     render(<div data-testid="icon">{entry?.renderIcon(18, 'lg')}</div>)
 
-    expect(screen.getByTestId('icon')).not.toHaveTextContent('⭐️')
+    expect(screen.getByTestId('icon')).toHaveTextContent('🦞')
   })
 })

@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { type AgentConfiguration, sanitizeAgentConfiguration } from '@shared/data/api/schemas/agents'
+import { type AvatarInput, AvatarInputSchema } from '@shared/data/types/avatar'
 import fs from 'fs'
 import path from 'path'
 
@@ -26,6 +27,7 @@ const PLUGIN_TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
 // drift-prone second source of truth.
 export interface BuiltinAgentDefinition {
   name?: string
+  avatar?: string
   instructions?: string
   configuration?: Record<string, unknown>
   skills?: string[]
@@ -33,6 +35,7 @@ export interface BuiltinAgentDefinition {
 
 export interface BuiltinAgentDefaults {
   name: string
+  avatar: AvatarInput
   configuration: AgentConfiguration
 }
 
@@ -91,6 +94,7 @@ export function loadBuiltinAgentDefinition(
     }
     return {
       name: resolveLocalizedField(agentConfig.name, language),
+      avatar: resolveLocalizedField(agentConfig.avatar, language),
       instructions: resolveLocalizedField(agentConfig.instructions, language),
       configuration: agentConfig.configuration,
       skills: agentConfig.skills
@@ -117,9 +121,14 @@ export function loadBuiltinAgentDefaults(builtinRole: BuiltinAgentRole, language
       `Builtin Agent package configuration is invalid for ${builtinRole}: ${invalidKeys.join(', ') || '<root>'}`
     )
   }
+  const avatar = AvatarInputSchema.safeParse({ kind: 'emoji', emoji: definition.avatar })
+  if (!avatar.success) {
+    throw new Error(`Builtin Agent package avatar is invalid for ${builtinRole}`)
+  }
 
   return {
     name: definition.name?.trim() || 'Built-in Agent',
+    avatar: avatar.data,
     configuration: { ...configuration, builtin_role: builtinRole }
   }
 }

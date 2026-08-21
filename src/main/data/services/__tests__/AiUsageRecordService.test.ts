@@ -110,7 +110,7 @@ describe('AiUsageRecordService', () => {
         id: 'assistant-1',
         name: 'Assistant',
         prompt: '',
-        emoji: '🍒',
+        avatarEmoji: '🍒',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: generateOrderKeyBetween(null, null)
       })

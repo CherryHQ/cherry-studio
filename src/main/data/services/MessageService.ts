@@ -26,7 +26,7 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import type { chatMessageRoles } from '@shared/data/types/file'
+import type { chatMessageRoles } from '@shared/data/types/fileRef'
 import {
   type BranchMessage,
   type BranchMessagesResponse,

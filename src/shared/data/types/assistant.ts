@@ -8,6 +8,7 @@
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
+import { AvatarValueSchema } from './avatar'
 import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
 import { ReasoningSummarySchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from './model'
@@ -137,8 +138,8 @@ export const AssistantSchema = z.strictObject({
   name: z.string().min(1),
   /** System prompt text or prompt template ID reference */
   prompt: z.string(),
-  /** Emoji icon for UI display */
-  emoji: z.emoji(),
+  /** Exactly one active avatar representation. */
+  avatar: AvatarValueSchema,
   /** Long-form description */
   description: z.string(),
   /** Inference settings — model params + context toggles */

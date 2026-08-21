@@ -20,7 +20,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
+import { checkIconImageSize, prepareIconImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -72,7 +72,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   }
 
   const handleUploadAvatar = async (file: File) => {
-    const sizeError = checkEntityImageSize(file)
+    const sizeError = checkIconImageSize(file)
     if (sizeError) {
       toast.error(sizeError)
       return
@@ -82,7 +82,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       // handler creates the file_entry and stores a `file:<id>` ref in the Preference
       // (the avatar has no file_ref table). A processing failure throws a localized
       // retry message.
-      const data = await prepareEntityImageBytes(file)
+      const data = await prepareIconImageBytes(file)
       await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')

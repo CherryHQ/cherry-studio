@@ -32,7 +32,7 @@ describe('AiUsageRecordMigrator', () => {
         id: 'assistant-1',
         name: 'Current Assistant Name',
         prompt: '',
-        emoji: '❌',
+        avatarEmoji: '❌',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a0'
       })
@@ -98,7 +98,7 @@ describe('AiUsageRecordMigrator', () => {
             messageSnapshot: {
               id: 'historical-assistant',
               name: 'Historical Assistant',
-              emoji: '🍒',
+              avatar: { kind: 'emoji', emoji: '🍒' },
               model: { id: 'historical-model', name: 'Historical Model', provider: 'historical-provider' }
             },
             stats: {

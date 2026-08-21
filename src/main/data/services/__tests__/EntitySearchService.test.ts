@@ -51,7 +51,7 @@ describe('EntitySearchService', () => {
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Needle Assistant',
       prompt: '',
-      emoji: '🌟',
+      avatarEmoji: '🌟',
       description: 'Assistant result',
       modelId: null,
       settings: DEFAULT_ASSISTANT_SETTINGS,
@@ -64,7 +64,8 @@ describe('EntitySearchService', () => {
       description: 'Agent result',
       instructions: 'Help',
       model: null,
-      configuration: { avatar: '🧠' },
+      avatarEmoji: '🧠',
+      configuration: {},
       orderKey: 'a0'
     })
     await dbh.db.insert(agentWorkspaceTable).values({
@@ -123,7 +124,7 @@ describe('EntitySearchService', () => {
           type: 'assistant',
           id: '11111111-1111-4111-8111-111111111111',
           title: 'Needle Assistant',
-          emoji: '🌟',
+          avatar: { kind: 'emoji', emoji: '🌟' },
           target: { assistantId: '11111111-1111-4111-8111-111111111111' }
         })
       ],
@@ -132,7 +133,7 @@ describe('EntitySearchService', () => {
           type: 'agent',
           id: '22222222-2222-4222-8222-222222222222',
           title: 'Needle Agent',
-          emoji: '🧠',
+          avatar: { kind: 'emoji', emoji: '🧠' },
           target: { agentId: '22222222-2222-4222-8222-222222222222' }
         })
       ],
@@ -240,7 +241,7 @@ describe('EntitySearchService', () => {
       id: '77777777-7777-4777-8777-777777777777',
       name: 'Needle Fresh Assistant',
       prompt: '',
-      emoji: '✨',
+      avatarEmoji: '✨',
       description: 'Fresh assistant result',
       modelId: null,
       settings: DEFAULT_ASSISTANT_SETTINGS,
@@ -266,7 +267,7 @@ describe('EntitySearchService', () => {
       id: '77777777-7777-4777-8777-777777777777',
       name: 'Needle Fresh Assistant',
       prompt: '',
-      emoji: '✨',
+      avatarEmoji: '✨',
       description: 'Fresh assistant result',
       modelId: null,
       settings: DEFAULT_ASSISTANT_SETTINGS,

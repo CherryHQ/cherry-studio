@@ -66,7 +66,7 @@ function Harness({
 
   return (
     <Form {...form}>
-      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" runtimeSelectable={runtimeSelectable} />
+      <BasicInfoStep form={form} portalContainer={null} runtimeSelectable={runtimeSelectable} />
       <output data-testid="permission-mode">{form.watch('permissionMode')}</output>
     </Form>
   )

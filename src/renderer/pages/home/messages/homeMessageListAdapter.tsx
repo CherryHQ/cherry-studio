@@ -903,7 +903,7 @@ export function useHomeMessageListProviderValue({
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
-      assistantProfile: assistant ? { name: assistant.name, avatar: assistant.emoji } : undefined,
+      assistantProfile: assistant ? { name: assistant.name, avatarValue: assistant.avatar } : undefined,
       imageExportFileName: topic.name
     }),
     [assistant, headerCapabilities.userProfile, topic.name]

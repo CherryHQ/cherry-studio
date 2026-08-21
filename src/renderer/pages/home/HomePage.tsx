@@ -350,7 +350,7 @@ const HomePage: FC = () => {
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
   useTabSelfVisuals({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
-    emoji: visibleAssistant?.emoji,
+    avatar: visibleAssistant?.avatar,
     appId: 'assistants',
     preserveVisuals: preserveTabVisuals
   })

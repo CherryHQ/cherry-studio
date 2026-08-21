@@ -19,7 +19,7 @@ describe('resource create DTO mapping', () => {
   it('maps every assistant-specific field', () => {
     expect(buildCreateAssistantDto(values)).toEqual({
       name: 'Researcher',
-      emoji: '🤖',
+      avatar: { kind: 'emoji', emoji: '🤖' },
       modelId: 'provider::model',
       description: 'Investigates a topic',
       prompt: 'Use cited sources',
@@ -38,10 +38,8 @@ describe('resource create DTO mapping', () => {
       instructions: 'Use cited sources',
       knowledgeBaseIds: ['kb-1'],
       skillIds: ['skill-1'],
-      configuration: {
-        avatar: '🤖',
-        permission_mode: 'auto'
-      }
+      configuration: { permission_mode: 'auto' },
+      avatar: { kind: 'emoji', emoji: '🤖' }
     })
   })
 
@@ -54,7 +52,8 @@ describe('resource create DTO mapping', () => {
       instructions: 'Use cited sources',
       knowledgeBaseIds: ['kb-1'],
       skillIds: ['skill-1'],
-      configuration: { avatar: '🤖', permission_mode: 'acceptEdits' }
+      configuration: { permission_mode: 'acceptEdits' },
+      avatar: { kind: 'emoji', emoji: '🤖' }
     })
   })
 

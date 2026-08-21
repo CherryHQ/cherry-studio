@@ -24,8 +24,8 @@ describe('ensureBuiltinAgent command', () => {
     mocks.preferenceGet.mockReturnValue('anthropic::claude-sonnet-4-5')
     mocks.loadDefaults.mockReturnValue({
       name: 'Cherry Support',
+      avatar: { kind: 'emoji', emoji: '🧰' },
       configuration: {
-        avatar: '🧰',
         permission_mode: 'default',
         bootstrap_completed: true,
         builtin_role: 'support',
@@ -42,11 +42,11 @@ describe('ensureBuiltinAgent command', () => {
     expect(mocks.preferenceGet).toHaveBeenCalledWith('chat.default_model_id')
     expect(mocks.ensure).toHaveBeenCalledWith({
       name: 'Cherry Support',
+      avatar: { kind: 'emoji', emoji: '🧰' },
       builtinRole: 'support',
       preferredModelId: 'anthropic::claude-sonnet-4-5',
       type: 'claude-code',
       configuration: {
-        avatar: '🧰',
         permission_mode: 'default',
         bootstrap_completed: true,
         builtin_role: 'support',

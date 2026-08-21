@@ -54,7 +54,7 @@ describe('DefaultAssistantSeeder', () => {
     expect(assistant?.id).toMatch(UUID_V4_PATTERN)
     expect(assistant).toMatchObject({
       name: 'Cherry Assistant',
-      emoji: DEFAULT_ASSISTANT_EMOJI,
+      avatarEmoji: DEFAULT_ASSISTANT_EMOJI,
       prompt: DEFAULT_ASSISTANT_PROMPT,
       modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
       settings: DEFAULT_ASSISTANT_SETTINGS
@@ -134,7 +134,7 @@ describe('DefaultAssistantSeeder', () => {
     await dbh.db.insert(assistantTable).values({
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Existing Assistant',
-      emoji: '🌟',
+      avatarEmoji: '🌟',
       settings: DEFAULT_ASSISTANT_SETTINGS,
       orderKey: generateOrderKeyBetween(null, null)
     })

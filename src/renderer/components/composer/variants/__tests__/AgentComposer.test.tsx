@@ -204,6 +204,7 @@ const createControlledAgent = (): NonNullable<ControlledComposerProps['resolvedA
   ({
     id: 'agent-1',
     name: 'Agent',
+    avatar: { kind: 'emoji', emoji: '🤖' },
     type: 'claude-code',
     model: 'anthropic::claude-sonnet-4-5',
     modelName: 'Claude Sonnet 4.5',

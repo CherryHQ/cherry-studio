@@ -202,7 +202,7 @@ export function AssistantResourceList({
         const icon = renderAssistantEntityIcon(
           assistantIconType,
           {
-            emoji: assistant.emoji,
+            avatar: assistant.avatar,
             modelId: assistant.modelId,
             modelName: assistant.modelName
           },

@@ -729,7 +729,7 @@ describe('ChatComposer', () => {
     mocks.assistant = {
       id: 'assistant-1',
       name: 'Assistant 1',
-      emoji: 'A',
+      avatar: { kind: 'emoji', emoji: 'A' },
       modelId: model.id,
       settings: { enableWebSearch: true },
       knowledgeBaseIds: []

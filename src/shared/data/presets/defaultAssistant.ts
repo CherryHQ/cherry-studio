@@ -12,7 +12,7 @@ export function getDefaultAssistantNameForLocale(locale?: string | null): string
 
 export const DEFAULT_ASSISTANT_SEED = {
   name: DEFAULT_ASSISTANT_NAME,
-  emoji: DEFAULT_ASSISTANT_EMOJI,
+  avatarEmoji: DEFAULT_ASSISTANT_EMOJI,
   prompt: DEFAULT_ASSISTANT_PROMPT,
   description: '',
   modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,

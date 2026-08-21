@@ -237,8 +237,8 @@ describe('Cherry Assistant guide', () => {
     expect(generated).toEqual(
       expect.objectContaining({
         name: { 'en-US': 'Cherry Support', 'zh-CN': '产品反馈' },
+        avatar: '🧰',
         configuration: expect.objectContaining({
-          avatar: '🧰',
           permission_mode: 'acceptEdits',
           bootstrap_completed: true,
           builtin_role: 'support'

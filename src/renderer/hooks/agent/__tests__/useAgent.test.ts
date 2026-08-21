@@ -74,7 +74,8 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      configuration: { avatar: '🤖', reasoning_effort: 'high' },
+      avatar: { kind: 'emoji', emoji: '🤖' },
+      configuration: { plugin_state: 'preserved', reasoning_effort: 'high' },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -83,7 +84,7 @@ describe('useAgent', () => {
     const { result } = renderHook(() => useAgent('agent-1'))
 
     // Known field preserved; optional fields not explicitly set remain undefined
-    expect(result.current.agent?.configuration?.avatar).toBe('🤖')
+    expect(result.current.agent?.configuration?.plugin_state).toBe('preserved')
     expect(result.current.agent?.configuration?.reasoning_effort).toBe('high')
     expect(result.current.agent?.configuration?.permission_mode).toBeUndefined()
   })
@@ -290,7 +291,8 @@ describe('useUpdateAgent', () => {
         name: 'Updated',
         model: 'claude-3',
         type: 'claude-code',
-        configuration: { avatar: '🤖' },
+        avatar: { kind: 'emoji', emoji: '🤖' },
+        configuration: {},
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z'
       }
@@ -344,7 +346,8 @@ describe('useUpdateAgent', () => {
         name: 'A',
         model: 'anthropic::new-model',
         type: 'claude-code',
-        configuration: { avatar: '🤖', reasoning_effort: 'default' },
+        avatar: { kind: 'emoji', emoji: '🤖' },
+        configuration: { reasoning_effort: 'default' },
         createdAt: '',
         updatedAt: ''
       })
@@ -375,7 +378,8 @@ describe('useUpdateAgent', () => {
         name: 'A',
         model: 'anthropic::new-model',
         type: 'claude-code',
-        configuration: { avatar: '🤖', reasoning_effort: 'default' },
+        avatar: { kind: 'emoji', emoji: '🤖' },
+        configuration: { reasoning_effort: 'default' },
         createdAt: '',
         updatedAt: ''
       })

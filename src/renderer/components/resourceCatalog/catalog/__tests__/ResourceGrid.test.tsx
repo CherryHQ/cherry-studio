@@ -401,7 +401,7 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
     type: 'assistant',
     name: 'Assistant',
     description: '',
-    avatar: 'A',
+    avatar: { kind: 'emoji', emoji: 'A' },
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     raw: {} as Extract<ResourceItem, { type: 'assistant' }>['raw'],
@@ -415,7 +415,7 @@ function createAgentResource(): ResourceItem {
     type: 'agent',
     name: 'Agent',
     description: '',
-    avatar: 'A',
+    avatar: { kind: 'emoji', emoji: 'A' },
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']

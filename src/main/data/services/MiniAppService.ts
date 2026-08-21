@@ -23,14 +23,10 @@ import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
+import { type LogoBindInput, reconcileLogoSlotTx } from './utils/logoRef'
 import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
-import {
-  clearSingleFileRefTx,
-  getSingleFileRefId,
-  type LogoBindInput,
-  reconcileLogoSlotTx
-} from './utils/singleFileRef'
+import { clearSingleFileRef, getSingleFileRef } from './utils/singleFileRef'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
@@ -72,7 +68,7 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
   // slot → no lookup. A present id is never dangling (the ref row's
   // `file_entry_id` FK is `on delete cascade`), so letting `getUrl` throw
   // surfaces a real invariant break instead of swallowing it.
-  const logoFileId = getSingleFileRefId(miniAppLogoFileRefTable, clean.appId)
+  const logoFileId = getSingleFileRef(miniAppLogoFileRefTable, clean.appId)
   const app: MiniApp = {
     appId: brandId(clean.appId),
     presetMiniAppId,
@@ -313,7 +309,7 @@ export class MiniAppService {
           // DB-only: drop the logo slot's ref (the file is preserved per the
           // file layer's policy), then delete the row. The FK cascade would also
           // clear it on row delete; the explicit clear keeps the intent local.
-          clearSingleFileRefTx(tx, miniAppLogoFileRefTable, appId)
+          clearSingleFileRef(tx, miniAppLogoFileRefTable, appId)
           tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId)).run()
         }),
       defaultHandlersFor('MiniApp', appId)

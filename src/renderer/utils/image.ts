@@ -103,27 +103,27 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
   })
 }
 
-/** Target square dimension for a normalized entity image (mirrors main-side sharp). */
-const ENTITY_IMAGE_DIMENSION = 128
-/** Max original entity-image upload accepted in the renderer (avatar / logo). */
-export const MAX_ENTITY_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
+/** Target square dimension for a normalized icon image (mirrors main-side sharp). */
+const ICON_IMAGE_DIMENSION = 128
+/** Max original icon-image upload accepted in the renderer (avatar / logo). */
+export const MAX_ICON_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 /** Localized "too large" message if the file exceeds the cap, else null. */
-export function checkEntityImageSize(file: File): string | null {
-  return file.size > MAX_ENTITY_IMAGE_UPLOAD_BYTES
+export function checkIconImageSize(file: File): string | null {
+  return file.size > MAX_ICON_IMAGE_UPLOAD_BYTES
     ? i18n.t('message.error.avatar_image_too_large', { limit: '10MB' })
     : null
 }
 
 /**
- * Normalize an entity image (avatar / logo) to a 128×128 cover-cropped WebP in the
+ * Normalize an icon image (avatar / logo) to a 128×128 cover-cropped WebP in the
  * renderer via the native canvas — the same shape main-side sharp produces (short
  * edge scaled to 128, centered square crop), so the two paths agree. Output is a few
  * KB, so this (not the raw upload) is what crosses IPC. Throws on any decode/encode
  * failure — the caller surfaces it so the user can retry; the raw bytes are never
  * sent to main, which could not decode them either.
  */
-export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
+export async function prepareIconImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
   try {
     const bitmap = await createImageBitmap(file)
     try {
@@ -132,11 +132,11 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
       const sx = (bitmap.width - side) / 2
       const sy = (bitmap.height - side) / 2
       const canvas = document.createElement('canvas')
-      canvas.width = ENTITY_IMAGE_DIMENSION
-      canvas.height = ENTITY_IMAGE_DIMENSION
+      canvas.width = ICON_IMAGE_DIMENSION
+      canvas.height = ICON_IMAGE_DIMENSION
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('no 2d context')
-      ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION)
+      ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, ICON_IMAGE_DIMENSION, ICON_IMAGE_DIMENSION)
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp'))
       if (!blob) throw new Error('toBlob returned null')
       return new Uint8Array(await blob.arrayBuffer())
@@ -144,7 +144,7 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
       bitmap.close()
     }
   } catch (error) {
-    logger.error('Failed to process entity image', error as Error)
+    logger.error('Failed to process icon image', error as Error)
     throw new Error(i18n.t('message.error.image_process_failed'))
   }
 }

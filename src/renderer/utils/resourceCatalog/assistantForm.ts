@@ -70,7 +70,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
   const ctx = settings.contextSettings
   return {
     name: assistant.name,
-    emoji: assistant.emoji,
+    emoji: assistant.avatar.kind === 'emoji' ? assistant.avatar.emoji : '',
     description: assistant.description,
     modelId: assistant.modelId,
     prompt: assistant.prompt ?? '',
@@ -179,7 +179,6 @@ export function diffAssistantUpdate(
   }
 
   const nameChanged = baseline.name !== form.name
-  const emojiChanged = baseline.emoji !== form.emoji
   const descriptionChanged = baseline.description !== form.description
   const modelIdChanged = baseline.modelId !== form.modelId
   const promptChanged = baseline.prompt !== form.prompt
@@ -191,7 +190,6 @@ export function diffAssistantUpdate(
 
   if (
     !nameChanged &&
-    !emojiChanged &&
     !descriptionChanged &&
     !modelIdChanged &&
     !promptChanged &&
@@ -205,7 +203,6 @@ export function diffAssistantUpdate(
 
   const dto: UpdateAssistantDto = {
     ...(nameChanged ? { name: form.name.trim() || assistant.name } : {}),
-    ...(emojiChanged ? { emoji: form.emoji } : {}),
     ...(descriptionChanged ? { description: form.description } : {}),
     ...(modelIdChanged ? { modelId: form.modelId } : {}),
     ...(promptChanged ? { prompt: form.prompt } : {}),

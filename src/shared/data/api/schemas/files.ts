@@ -50,13 +50,9 @@
  */
 
 import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/types'
-import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
-import {
-  ContentHashSchema,
-  FileEntryIdSchema,
-  FileEntryOriginSchema,
-  FileRefSourceTypeSchema
-} from '@shared/data/types/file'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import { ContentHashSchema, FileEntryIdSchema, FileEntryOriginSchema } from '@shared/data/types/file'
+import { type FileRef, FileRefSourceTypeSchema } from '@shared/data/types/fileRef'
 import * as z from 'zod'
 
 /**
@@ -127,7 +123,7 @@ export type RefCountsQueryParams = z.input<typeof RefCountsQuerySchema>
 export type RefCountsQuery = z.output<typeof RefCountsQuerySchema>
 
 export const RefsBySourceQuerySchema = z.strictObject({
-  sourceType: FileRefSourceTypeSchema,
+  sourceType: FileRefSourceTypeSchema.exclude(['temp_session']),
   sourceId: z.string().min(1)
 })
 export type RefsBySourceQueryParams = z.input<typeof RefsBySourceQuerySchema>

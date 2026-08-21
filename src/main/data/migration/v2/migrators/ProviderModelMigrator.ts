@@ -31,7 +31,7 @@ import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/dat
 import { isRetiredProvider } from '@main/data/retiredProviders'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { providerLogoRef } from '@shared/data/types/file'
+import { providerLogoRef } from '@shared/data/types/fileRef'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { EndpointDialect } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
@@ -48,13 +48,13 @@ import {
 import v1ProviderModelBaselineJson from './mappings/v1-provider-model-baseline.json'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 import {
-  type EntityImageRef,
-  insertPreparedImageEntryTx,
-  insertPreparedImageRefTx,
-  prepareBase64ImageFileEntry,
-  type PreparedEntityImageFile,
-  unlinkPreparedImages
-} from './utils/logoMigration'
+  type IconImageRef,
+  insertPreparedIconEntryTx,
+  insertPreparedIconRefTx,
+  prepareBase64IconFileEntry,
+  type PreparedIconImageFile,
+  unlinkPreparedIcons
+} from './utils/iconImageMigration'
 import { recoverV1ProviderLogoIconKey } from './utils/providerLogoCompat'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
@@ -541,7 +541,7 @@ export class ProviderModelMigrator extends BaseMigrator {
     let processedProviders = 0
     let processedModels = 0
 
-    const providerLogoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
+    const providerLogoFiles: PreparedIconImageFile<IconImageRef>[] = []
     try {
       const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
       for (const provider of this.providers) {
@@ -560,7 +560,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         // for built-in providers, initials for custom ones).
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
-          ? await prepareBase64ImageFileEntry(
+          ? await prepareBase64IconFileEntry(
               ctx.paths.filesDataDir,
               providerLogoSlot(provider.id),
               logo,
@@ -584,7 +584,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         // needs them); the ref rows themselves go in after the owner rows exist
         // (their `source_id` FK needs the provider), below.
         for (const logoFile of providerLogoFiles) {
-          insertPreparedImageEntryTx(tx, logoFile)
+          insertPreparedIconEntryTx(tx, logoFile)
         }
 
         const [lastProvider] = tx
@@ -636,7 +636,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         // Owner rows now exist — insert the logo ref rows (their `source_id` FK
         // references `user_provider.provider_id`).
         for (const logoFile of providerLogoFiles) {
-          insertPreparedImageRefTx(tx, logoFile)
+          insertPreparedIconRefTx(tx, logoFile)
         }
 
         const pinRows = assignOrderKeysInSequence(
@@ -667,7 +667,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       }
     } catch (error) {
       // Unlink any logo WebP written before the tx failed — no orphans on retry.
-      await unlinkPreparedImages(providerLogoFiles)
+      await unlinkPreparedIcons(providerLogoFiles)
       const phaseError = createPhaseError(
         `Provider/model execution failed after ${processedProviders} provider(s)`,
         error

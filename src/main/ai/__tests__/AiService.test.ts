@@ -596,12 +596,12 @@ describe('AiService', () => {
       mockAssistantGetById.mockReturnValue({
         id: 'assistant-1',
         name: 'Image Assistant',
-        emoji: '🎨'
+        avatar: { kind: 'emoji', emoji: '🎨' }
       })
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' },
-        assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
+        assistant: { id: 'assistant-1', name: 'Image Assistant', avatar: { kind: 'emoji', emoji: '🎨' } }
       } as never)
       mockGenerateImage.mockResolvedValue({
         images: [
@@ -662,7 +662,7 @@ describe('AiService', () => {
           providerId: 'test-provider',
           name: 'Test Embedding Model'
         },
-        assistant: { id: 'assistant-1', name: 'Embedding Assistant', emoji: '📚' }
+        assistant: { id: 'assistant-1', name: 'Embedding Assistant', avatar: { kind: 'emoji', emoji: '📚' } }
       } as never)
       mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
     }
@@ -1786,7 +1786,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     mockAssistantGetById.mockReturnValue({
       id: 'assistant-1',
       name: 'Image Assistant',
-      emoji: '🎨'
+      avatar: { kind: 'emoji', emoji: '🎨' }
     })
     return vi
       .spyOn(service as never, 'buildAgentParamsFor')

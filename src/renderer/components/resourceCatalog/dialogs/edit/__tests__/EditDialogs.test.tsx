@@ -222,6 +222,7 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => vi.fn(),
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],
@@ -457,7 +458,7 @@ const ASSISTANT: Assistant = {
   id: 'assistant-1',
   name: 'Alpha Assistant',
   prompt: 'Original prompt',
-  emoji: '💬',
+  avatar: { kind: 'emoji', emoji: '💬' },
   description: 'Original assistant description',
   settings: {
     temperature: 1,
@@ -489,6 +490,7 @@ const AGENT: AgentDetail = {
   id: 'agent-1',
   type: 'claude-code',
   name: 'Alpha Agent',
+  avatar: { kind: 'emoji', emoji: '🤖' },
   description: 'Original agent description',
   instructions: 'Original instructions',
   model: 'provider::old-model',
@@ -1607,7 +1609,7 @@ describe('edit dialogs', () => {
     const dialog = screen.getByRole('dialog')
     fireEvent.click(screen.getByLabelText('Pick avatar'))
 
-    expect(dialog).toContainElement(screen.getByRole('button', { name: 'Choose emoji' }))
+    expect(dialog).toContainElement(screen.getByRole('button', { name: 'settings.general.emoji_picker' }))
   })
 
   it('keeps edited values while switching tabs before save', async () => {

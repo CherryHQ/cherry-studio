@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type {
   TopicActionContext,
@@ -28,7 +29,6 @@ import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
-import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot } from 'lucide-react'
 import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
@@ -166,7 +166,9 @@ const AssistantHistoryRecords = ({
       assistants.map((assistant) => ({
         id: assistant.id,
         label: assistant.name || t('common.unnamed'),
-        icon: assistant.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={14} />
+        icon: renderAssistantEntityIcon('emoji', {
+          avatar: assistant.avatar
+        }) ?? <Bot size={14} />
       })),
     [assistants, t]
   )
@@ -390,13 +392,14 @@ const AssistantHistoryRecords = ({
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {
         const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
+        if (!assistant) return <Bot size={14} />
         return (
           renderAssistantEntityIcon(
             assistantIconType,
             {
-              emoji: assistant?.emoji ?? DEFAULT_ASSISTANT_EMOJI,
-              modelId: assistant?.modelId ?? defaultModelId,
-              modelName: assistant?.modelName
+              avatar: assistant.avatar,
+              modelId: assistant.modelId ?? defaultModelId,
+              modelName: assistant.modelName
             },
             defaultModelId
           ) ?? <Bot size={14} />
@@ -463,8 +466,8 @@ const AssistantHistoryRecords = ({
             selectedId ? (
               source?.icon ? (
                 source.icon
-              ) : assistant?.emoji ? (
-                <span aria-hidden>{assistant.emoji}</span>
+              ) : assistant ? (
+                <AvatarIcon avatar={assistant.avatar} size={16} fontSize={12} className="mr-0" />
               ) : (
                 <Bot size={14} />
               )

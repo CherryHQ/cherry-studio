@@ -85,10 +85,15 @@ const assistantResource = {
   type: 'assistant',
   name: 'Assistant to duplicate',
   description: '',
-  avatar: 'A',
+  avatar: { kind: 'emoji', emoji: 'A' },
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
-  raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', groupId: null }
+  raw: {
+    id: 'assistant-to-duplicate',
+    name: 'Assistant to duplicate',
+    avatar: { kind: 'emoji', emoji: 'A' },
+    groupId: null
+  }
 } as unknown as ResourceItem
 
 describe('useResourceCatalogController', () => {
@@ -127,8 +132,8 @@ describe('useResourceCatalogController', () => {
     })
 
     expect(controllerMocks.createAssistant).toHaveBeenCalledWith({
+      avatar: { kind: 'emoji', emoji: createValues.avatar },
       description: createValues.description,
-      emoji: createValues.avatar,
       knowledgeBaseIds: createValues.knowledgeBaseIds,
       modelId: createValues.modelId,
       name: createValues.name,
@@ -150,10 +155,8 @@ describe('useResourceCatalogController', () => {
     })
 
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
-      configuration: {
-        avatar: createValues.avatar,
-        permission_mode: 'auto'
-      },
+      avatar: { kind: 'emoji', emoji: createValues.avatar },
+      configuration: { permission_mode: 'auto' },
       description: createValues.description,
       instructions: createValues.prompt,
       knowledgeBaseIds: createValues.knowledgeBaseIds,

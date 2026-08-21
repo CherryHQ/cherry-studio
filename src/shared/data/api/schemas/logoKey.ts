@@ -9,7 +9,7 @@ import * as z from 'zod'
  * boundary, not this write contract.
  *
  * A no-dependency leaf (zod only) so the DataApi (`logo.ts`) and IPC
- * (`entityImage.ts`) schema graphs share one definition without either
+ * (`logo.ts`) schema graphs share one definition without either
  * depending on the other's module.
  */
 export const LogoKeySchema = z

@@ -133,7 +133,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       ...(data?.items ?? []).map((assistant) => ({
         id: assistant.id,
         name: assistant.name,
-        emoji: assistant.emoji,
+        avatar: assistant.avatar,
         description: assistant.description,
         groupId: assistant.groupId ?? undefined,
         groupName: assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined
@@ -216,7 +216,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
           props.onChange({
             id: created.id,
             name: created.name,
-            emoji: created.emoji,
+            avatar: created.avatar,
             description: created.description
           })
         } else {

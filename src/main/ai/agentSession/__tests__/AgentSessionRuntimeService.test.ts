@@ -503,14 +503,14 @@ describe('AgentSessionRuntimeService', () => {
     const messageSnapshot = {
       id: 'agent-1',
       name: 'Original Agent',
-      emoji: '🧠',
+      avatar: { kind: 'emoji' as const, emoji: '🧠' },
       model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
     }
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, messageSnapshot })
 
     messageSnapshot.name = 'Renamed Agent'
-    messageSnapshot.emoji = '🆕'
+    messageSnapshot.avatar = { kind: 'emoji', emoji: '🆕' }
     mocks.getAgent.mockReturnValue(undefined)
 
     expect(service.getActiveUsageContext('session-1')).toEqual({
@@ -565,7 +565,7 @@ describe('AgentSessionRuntimeService', () => {
       messageSnapshot: {
         id: 'agent-1',
         name: 'Original Agent',
-        emoji: '🧠',
+        avatar: { kind: 'emoji', emoji: '🧠' },
         model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
       }
     })
@@ -4419,7 +4419,7 @@ describe('AgentSessionRuntimeService', () => {
         messageSnapshot: {
           id: 'agent-1',
           name: 'Original Agent',
-          emoji: '🧠',
+          avatar: { kind: 'emoji', emoji: '🧠' },
           model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
         }
       })
@@ -4437,7 +4437,7 @@ describe('AgentSessionRuntimeService', () => {
       const continuationSnapshot = {
         id: 'agent-1',
         name: 'Renamed Before Steer',
-        emoji: '🧭',
+        avatar: { kind: 'emoji' as const, emoji: '🧭' },
         model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
       }
       service.enqueueUserMessage('session-1', steerMessage, { messageSnapshot: continuationSnapshot })

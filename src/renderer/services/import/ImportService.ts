@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import type { Assistant } from '@shared/data/types/assistant'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
@@ -117,7 +118,7 @@ class ImportService {
         name: i18n.t(importerKey, {
           defaultValue: `${importer.name} Import`
         }),
-        emoji: importer.emoji
+        avatar: { kind: 'emoji', emoji: importer.emoji }
       }
       const assistant = await dataApiService.post('/assistants', { body: dto })
       onProgress?.(10)
@@ -164,7 +165,7 @@ class ImportService {
     message: ImportMessageNode,
     parentId: string | null,
     siblingsGroupId: number | undefined,
-    assistant: { id: string; name: string; emoji: string }
+    assistant: Pick<Assistant, 'id' | 'name' | 'avatar'>
   ): CreateMessageDto {
     const dto: CreateMessageDto = {
       parentId,
@@ -179,7 +180,7 @@ class ImportService {
       dto.messageSnapshot = {
         id: assistant.id,
         name: assistant.name,
-        emoji: assistant.emoji,
+        avatar: assistant.avatar,
         model: {
           id: message.model.id,
           name: message.model.name,
@@ -198,7 +199,7 @@ class ImportService {
    */
   private async persistImport(
     result: ImportResult,
-    assistant: { id: string; name: string; emoji: string },
+    assistant: Pick<Assistant, 'id' | 'name' | 'avatar'>,
     onProgress?: ImportProgressCallback
   ): Promise<number> {
     const { conversations } = result

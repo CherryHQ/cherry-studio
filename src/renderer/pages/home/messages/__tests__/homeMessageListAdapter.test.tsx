@@ -280,7 +280,7 @@ function MessageListAdapterHarness({
 }) {
   const value = useHomeMessageListProviderValue({
     topic,
-    assistant: { id: 'assistant-1', name: 'Assistant', emoji: '🤖' } as any,
+    assistant: { id: 'assistant-1', name: 'Assistant', avatar: { kind: 'emoji', emoji: '🤖' } } as any,
     messages,
     partsByMessageId,
     streamingLayers,
@@ -337,7 +337,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
 
-    expect(value?.meta.assistantProfile).toEqual({ name: 'Assistant', avatar: '🤖' })
+    expect(value?.meta.assistantProfile).toEqual({
+      name: 'Assistant',
+      avatarValue: { kind: 'emoji', emoji: '🤖' }
+    })
   })
 
   it('exposes the language load status and retries through the shared refetch', () => {

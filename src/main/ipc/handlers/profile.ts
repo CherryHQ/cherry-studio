@@ -1,6 +1,6 @@
 import { application } from '@application'
-import { withCreatedImageEntry } from '@main/services/entityImageBinding'
-import { tagStoredFileRef } from '@shared/data/types/file'
+import { withUploadedIconEntry } from '@main/services/uploadedIcon'
+import { tagStoredFileRef } from '@shared/data/types/fileRef'
 import type { profileRequestSchemas } from '@shared/ipc/schemas/profile'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -30,7 +30,7 @@ export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
     if (input.kind === 'image') {
       // `manual`: the avatar id lives only in this Preference (no ref table), so
       // the cleanup anti-join would reclaim it if it were auto-managed.
-      await withCreatedImageEntry(input.data, 'manual', async (fileId) => {
+      await withUploadedIconEntry(input.data, 'manual', async (fileId) => {
         await preferences.set('app.user.avatar', tagStoredFileRef(fileId))
       })
       return

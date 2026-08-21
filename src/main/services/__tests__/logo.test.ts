@@ -18,9 +18,9 @@ const {
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/ProviderService', () => ({ providerService: { update: providerUpdateMock } }))
 vi.mock('@data/services/MiniAppService', () => ({ miniAppService: { update: miniAppUpdateMock } }))
-vi.mock('@main/utils/image', () => ({ transcodeToEntityWebp: transcodeMock }))
+vi.mock('@main/utils/image', () => ({ transcodeToIconWebp: transcodeMock }))
 
-import { setMiniAppLogo, setProviderLogo } from '../entityLogo'
+import { setMiniAppLogo, setProviderLogo } from '../logo'
 
 const FILE_ID = '019606a0-0000-7000-8000-000000000003'
 const WEBP = Buffer.from([7, 7])

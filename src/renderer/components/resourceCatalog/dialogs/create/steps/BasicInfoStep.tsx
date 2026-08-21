@@ -36,7 +36,6 @@ type ModelFieldProps = {
 type BasicInfoStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
-  fallbackAvatar: string
   modelFilter?: (model: Model) => boolean
   /** Agent create flows expose a runtime selector that drives the model filter (D8). */
   runtimeSelectable?: boolean
@@ -137,7 +136,6 @@ function AgentRuntimeModelFields({
 export function BasicInfoStep({
   form,
   portalContainer,
-  fallbackAvatar,
   modelFilter,
   runtimeSelectable = false,
   onSettingsNavigate
@@ -157,7 +155,6 @@ export function BasicInfoStep({
           form={form}
           emojiPickerOpen={emojiPickerOpen}
           setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback={fallbackAvatar}
           portalContainer={portalContainer}
           size="sm"
         />

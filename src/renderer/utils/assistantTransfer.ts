@@ -44,9 +44,10 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
 
   const name = readString(record.name)
   const prompt = readString(record.prompt)
+  const emoji = readString(record.emoji)
 
   // Match the legacy import popup: both fields must exist and be truthy.
-  if (!name || !prompt) {
+  if (!name || !prompt || !emoji) {
     throw new AssistantTransferError('invalid_format')
   }
 
@@ -58,7 +59,7 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
     dto: {
       name,
       prompt,
-      emoji: readString(record.emoji) || '🤖',
+      avatar: { kind: 'emoji', emoji },
       description: readString(record.description),
       settings: DEFAULT_ASSISTANT_SETTINGS
     },
@@ -67,9 +68,12 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
 }
 
 function buildExportRecord(assistant: Assistant, groupName?: string): AssistantExportRecord {
+  if (assistant.avatar.kind !== 'emoji') {
+    throw new AssistantTransferError('invalid_format')
+  }
   return {
     name: assistant.name,
-    emoji: assistant.emoji,
+    emoji: assistant.avatar.emoji,
     group: groupName ? [groupName] : [],
     prompt: assistant.prompt,
     description: assistant.description,

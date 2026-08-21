@@ -1,27 +1,74 @@
-import { Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Avatar, AvatarImage, Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { EmojiPicker } from '@renderer/components/EmojiPicker'
 import { ChevronDown } from 'lucide-react'
-import { type ComponentProps, type ComponentPropsWithoutRef, type FC, type ReactNode } from 'react'
+import {
+  type ComponentProps,
+  type ComponentPropsWithoutRef,
+  type FC,
+  type ReactNode,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+
+function imageDataUrl(data: Uint8Array | null | undefined): string | undefined {
+  if (!data) return undefined
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < data.length; offset += chunkSize) {
+    binary += String.fromCharCode(...data.subarray(offset, offset + chunkSize))
+  }
+  return `data:image/webp;base64,${btoa(binary)}`
+}
 
 export const EmojiAvatarPicker: FC<{
   value: string
-  fallback: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  onChange: (emoji: string) => void
+  onChange: (emoji: string) => void | Promise<void>
   ariaLabel: string
   disabled?: boolean
   portalContainer: HTMLElement | null
   size?: 'sm' | 'md'
-}> = ({ value, fallback, open, onOpenChange, onChange, ariaLabel, disabled, portalContainer, size = 'md' }) => {
+  imageSrc?: string
+  imageData?: Uint8Array | null
+  onImageSelect?: (file: File) => void
+  uploading?: boolean
+  uploadLabel?: string
+  emojiLabel?: string
+}> = ({
+  value,
+  open,
+  onOpenChange,
+  onChange,
+  ariaLabel,
+  disabled,
+  portalContainer,
+  size = 'md',
+  imageSrc,
+  imageData,
+  onImageSelect,
+  uploading = false,
+  uploadLabel = 'Upload image',
+  emojiLabel = 'Choose emoji'
+}) => {
   // 'md' matches the h-8 Input the avatar sits beside in the edit dialogs.
   const avatarSize = size === 'sm' ? 36 : 32
   const fontSize = size === 'sm' ? 18 : 16
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [view, setView] = useState<'menu' | 'emoji'>('menu')
+  const stagedImageSrc = useMemo(() => imageDataUrl(imageData), [imageData])
+  const displayedImageSrc = stagedImageSrc ?? imageSrc
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    onOpenChange(nextOpen)
+    if (!nextOpen) setView('menu')
+  }
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -33,18 +80,52 @@ export const EmojiAvatarPicker: FC<{
             size === 'sm' ? 'size-9' : 'size-8'
           )}>
           {/* Match the adjacent Input's rounded-lg + hairline border. */}
-          <EmojiAvatar size={avatarSize} fontSize={fontSize} className="rounded-lg border border-border">
-            {value || fallback}
-          </EmojiAvatar>
+          {displayedImageSrc ? (
+            <Avatar
+              className={cn('rounded-lg border border-border', size === 'sm' ? 'size-9' : 'size-8')}
+              style={{ width: avatarSize, height: avatarSize }}>
+              <AvatarImage src={displayedImageSrc} className="object-cover" />
+            </Avatar>
+          ) : (
+            <EmojiAvatar size={avatarSize} fontSize={fontSize} className="rounded-lg border border-border">
+              {value}
+            </EmojiAvatar>
+          )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent portalContainer={portalContainer} className="w-auto p-0">
-        <EmojiPicker
-          onEmojiClick={(emoji) => {
-            onChange(emoji)
-            onOpenChange(false)
-          }}
-        />
+      <PopoverContent portalContainer={portalContainer} className="w-auto p-2">
+        {view === 'emoji' || !onImageSelect ? (
+          <EmojiPicker
+            onEmojiClick={(emoji) => {
+              void Promise.resolve(onChange(emoji)).then(() => handleOpenChange(false))
+            }}
+          />
+        ) : (
+          <div className="flex w-40 flex-col gap-1">
+            <input
+              ref={fileInputRef}
+              className="hidden"
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (file) onImageSelect(file)
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              loading={uploading}
+              className="w-full justify-center"
+              onClick={() => fileInputRef.current?.click()}>
+              {uploadLabel}
+            </Button>
+            <Button type="button" variant="ghost" className="w-full justify-center" onClick={() => setView('emoji')}>
+              {emojiLabel}
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

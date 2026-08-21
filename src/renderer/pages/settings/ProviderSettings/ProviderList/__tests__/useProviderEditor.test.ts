@@ -36,7 +36,7 @@ vi.mock('@renderer/ipc', () => ({
 // Canvas isn't available in jsdom; stub the renderer normalize step to fixed bytes.
 vi.mock('@renderer/utils/image', async (importOriginal) => ({
   ...(await importOriginal<typeof ImageUtils>()),
-  prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
+  prepareIconImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
 }))
 
 const createProviderMock = vi.fn()
@@ -193,7 +193,7 @@ describe('useProviderEditor', () => {
       expect(createProviderMock.mock.calls[0][0]).not.toHaveProperty('logo')
       expect(ipcRequestMock).toHaveBeenCalledWith(
         'provider.set_logo',
-        expect.objectContaining({ providerId: 'new-provider-id', image: expect.objectContaining({ kind: 'image' }) })
+        expect.objectContaining({ providerId: 'new-provider-id', logo: expect.objectContaining({ kind: 'image' }) })
       )
       expect(invalidateMock).toHaveBeenCalledWith([
         '/providers',
@@ -310,7 +310,7 @@ describe('useProviderEditor', () => {
       })
       expect(ipcRequestMock).toHaveBeenCalledWith('provider.set_logo', {
         providerId: 'openai',
-        image: { kind: 'key', key: 'icon:openai' }
+        logo: { kind: 'key', key: 'icon:openai' }
       })
       expect(invalidateMock).toHaveBeenCalledWith(['/providers', '/providers/openai', '/providers/openai/*'])
     })
@@ -331,7 +331,7 @@ describe('useProviderEditor', () => {
       expect(updateProviderByIdMock.mock.calls[0][1]).not.toHaveProperty('logo')
       expect(ipcRequestMock).toHaveBeenCalledWith('provider.set_logo', {
         providerId: 'openai',
-        image: { kind: 'default' }
+        logo: { kind: 'default' }
       })
     })
 

@@ -25,12 +25,14 @@ import {
 
 const TEMPLATE_AGENT_JSON = JSON.stringify({
   name: { 'en-US': 'Cherry Assistant', 'zh-CN': 'Cherry Assistant CN' },
+  avatar: '🍒',
   instructions: { 'en-US': 'English instructions', 'zh-CN': 'Chinese instructions' },
   configuration: { permission_mode: 'default' },
   skills: ['cherry-assistant-guide']
 })
 const SUPPORT_AGENT_JSON = JSON.stringify({
   name: { 'en-US': 'Cherry Support', 'zh-CN': 'Cherry Support CN' },
+  avatar: '🧰',
   instructions: { 'en-US': 'Support instructions', 'zh-CN': 'Chinese support instructions' },
   configuration: { permission_mode: 'acceptEdits' },
   skills: ['cherry-assistant-guide', 'faq-collector', 'cherry-studio-feedback', 'issue-reporter']
@@ -122,6 +124,7 @@ describe('BuiltinAgentProvisioner', () => {
   it('builds creation defaults from the bundled Agent definition', () => {
     expect(loadBuiltinAgentDefaults('assistant')).toEqual({
       name: 'Cherry Assistant',
+      avatar: { kind: 'emoji', emoji: '🍒' },
       configuration: { permission_mode: 'default', builtin_role: 'assistant' }
     })
   })
@@ -146,6 +149,7 @@ describe('BuiltinAgentProvisioner', () => {
     expect(fs.readFileSync(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf-8')).toBe('TEMPLATE_FACT')
     expect(result).toEqual({
       name: 'Cherry Assistant',
+      avatar: '🍒',
       instructions: 'English instructions',
       configuration: { permission_mode: 'default' },
       skills: ['cherry-assistant-guide']

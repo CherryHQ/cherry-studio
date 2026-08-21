@@ -503,7 +503,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       type: 'agent',
       id: agent.id,
       name: agent.name ?? null,
-      icon: agent.configuration?.avatar ?? null
+      icon: agent.avatar.kind === 'emoji' ? agent.avatar.emoji : agent.avatar.src
     }
   )
   const resumeSessionId =

@@ -73,6 +73,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => vi.fn(),
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: [], total: 0 }],
@@ -206,6 +207,7 @@ const AGENTS_RESPONSE = {
       id: ALPHA_AGENT_ID,
       type: 'claude-code',
       name: 'Alpha Agent',
+      avatar: { kind: 'emoji', emoji: '🤖' },
       description: 'First test agent',
       instructions: 'Original alpha instructions',
       model: 'provider::old-model',
@@ -214,7 +216,6 @@ const AGENTS_RESPONSE = {
       mcps: [],
       allowedTools: [],
       configuration: {
-        avatar: '🤖',
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -227,6 +228,7 @@ const AGENTS_RESPONSE = {
       id: BETA_AGENT_ID,
       type: 'claude-code',
       name: 'Beta Agent',
+      avatar: { kind: 'emoji', emoji: '🤖' },
       description: 'Second test agent',
       instructions: 'Original beta instructions',
       model: 'provider::old-model',
@@ -235,7 +237,6 @@ const AGENTS_RESPONSE = {
       mcps: [],
       allowedTools: [],
       configuration: {
-        avatar: '🤖',
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -371,16 +372,13 @@ describe('AgentSelector', () => {
     expect(screen.getByRole('button', { name: 'Create agent' })).toBeInTheDocument()
   })
 
-  it('falls back to the default agent avatar for blank stored avatars', () => {
+  it('renders the persisted agent avatar', () => {
     useQueryMock.mockReturnValue({
       data: {
         items: [
           {
             ...AGENTS_RESPONSE.items[0],
-            configuration: {
-              ...AGENTS_RESPONSE.items[0].configuration,
-              avatar: '   '
-            }
+            avatar: { kind: 'emoji', emoji: '🦞' }
           }
         ],
         total: 1,
@@ -396,7 +394,7 @@ describe('AgentSelector', () => {
     renderSelector()
     openPopover()
 
-    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toHaveTextContent('🤖')
+    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toHaveTextContent('🦞')
   })
 
   it('fires onChange with the selected agent id', () => {
@@ -426,7 +424,7 @@ describe('AgentSelector', () => {
       id: ALPHA_AGENT_ID,
       name: 'Alpha Agent',
       description: 'First test agent',
-      emoji: '🤖'
+      avatar: { kind: 'emoji', emoji: '🤖' }
     })
   })
 
@@ -503,10 +501,8 @@ describe('AgentSelector', () => {
         instructions: '',
         knowledgeBaseIds: [],
         skillIds: [],
-        configuration: {
-          avatar: '🤖',
-          permission_mode: 'default'
-        }
+        configuration: { permission_mode: 'default' },
+        avatar: { kind: 'emoji', emoji: '🤖' }
       })
     )
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
