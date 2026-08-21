@@ -170,6 +170,23 @@ describe('InputNumber', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('discards the edit on Escape and commits the restored value', async () => {
+    const user = userEvent.setup()
+    const onBlur = vi.fn()
+    render(<InputNumber aria-label="amount" value={7} onBlur={onBlur} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.type(input, '89')
+    expect(input).toHaveValue('789')
+
+    await user.keyboard('{Escape}')
+    expect(input).toHaveValue('7')
+
+    await user.tab()
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(7)
+  })
+
   it('warns and settles on min when the range is empty', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const user = userEvent.setup()

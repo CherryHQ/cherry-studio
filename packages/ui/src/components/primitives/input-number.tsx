@@ -118,6 +118,10 @@ function InputNumber({
     if (event.key === 'Enter') {
       event.currentTarget.blur()
     }
+    // Discards the edit. Focus stays, so the restored value is what later commits.
+    if (event.key === 'Escape') {
+      setDraft(format(value))
+    }
     onKeyDown?.(event)
   }
 
