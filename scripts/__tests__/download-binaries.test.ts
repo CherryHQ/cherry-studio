@@ -288,7 +288,7 @@ describe('sweepUnreferencedVersions – reclaiming the shared cache', () => {
     const dir = seedCache(cache, stale, { uv: 'abandoned build' })
     age(dir, 2 * AGE)
 
-    expect(sweepUnreferencedVersions(cache, PLATFORM, AGE)).toBe(1)
+    expect(sweepUnreferencedVersions(cache, AGE)).toBe(1)
     expect(fs.existsSync(dir)).toBe(false)
   })
 
@@ -301,8 +301,24 @@ describe('sweepUnreferencedVersions – reclaiming the shared cache', () => {
     age(dir, 2 * AGE)
 
     // The hard link from the bundle is the reference count.
-    expect(sweepUnreferencedVersions(cache, PLATFORM, AGE)).toBe(0)
+    expect(sweepUnreferencedVersions(cache, AGE)).toBe(0)
     expect(fs.readFileSync(path.join(dir, 'uv'), 'utf8')).toBe('live build')
+  })
+
+  it('reclaims a platform this machine never builds', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const foreign = path.join(cache, 'darwin-arm64', 'mise', '2026.7.14')
+    fs.mkdirSync(foreign, { recursive: true })
+    fs.writeFileSync(path.join(foreign, 'mise'), 'a build for another platform')
+    const local = seedCache(cache, fakeTool('mise', '2026.7.14'), { mise: 'this machine' })
+    ;[foreign, local].forEach((dir) => {
+      const when = new Date(Date.now() - 2 * AGE)
+      fs.utimesSync(dir, when, when)
+    })
+
+    expect(sweepUnreferencedVersions(cache, AGE)).toBe(2)
+    // The whole platform tree goes, not just the versions inside it.
+    expect(fs.existsSync(path.join(cache, 'darwin-arm64'))).toBe(false)
   })
 
   it('keeps a recently used version even with no links, for copy-based bundles', () => {
@@ -310,7 +326,7 @@ describe('sweepUnreferencedVersions – reclaiming the shared cache', () => {
     const recent = fakeTool('uv', '0.11.16')
     const dir = seedCache(cache, recent, { uv: 'just downloaded' })
 
-    expect(sweepUnreferencedVersions(cache, PLATFORM, AGE)).toBe(0)
+    expect(sweepUnreferencedVersions(cache, AGE)).toBe(0)
     expect(fs.existsSync(dir)).toBe(true)
   })
 })

@@ -142,22 +142,28 @@ function cachedVersionDir(cacheRoot, platformKey, tool) {
  * worktree references it. The age check covers filesystems without hard links,
  * where a copied bundle leaves nlink at 1 and the count proves nothing.
  */
-function sweepUnreferencedVersions(cacheRoot, platformKey, maxAgeMs) {
-  const platformDir = path.join(cacheRoot, platformKey)
+function sweepUnreferencedVersions(cacheRoot, maxAgeMs) {
   const cutoff = Date.now() - maxAgeMs
   let reclaimed = 0
-  for (const toolName of fs.readdirSync(platformDir)) {
-    if (toolName.startsWith(STAGING_PREFIX) || toolName.startsWith(RETIRED_PREFIX)) continue
-    const toolDir = path.join(platformDir, toolName)
-    if (!fs.statSync(toolDir).isDirectory()) continue
-    for (const version of fs.readdirSync(toolDir)) {
-      const versionDir = path.join(toolDir, version)
-      if (fs.statSync(versionDir).mtimeMs > cutoff) continue
-      if (hasReferencedFile(versionDir)) continue
-      fs.rmSync(versionDir, { recursive: true, force: true })
-      reclaimed += 1
+  // Every platform, not just this run's: a tree built for another platform would
+  // otherwise sit here forever with nothing to visit it.
+  for (const platformKey of fs.readdirSync(cacheRoot)) {
+    const platformDir = path.join(cacheRoot, platformKey)
+    if (!fs.statSync(platformDir).isDirectory()) continue
+    for (const toolName of fs.readdirSync(platformDir)) {
+      if (toolName.startsWith(STAGING_PREFIX) || toolName.startsWith(RETIRED_PREFIX)) continue
+      const toolDir = path.join(platformDir, toolName)
+      if (!fs.statSync(toolDir).isDirectory()) continue
+      for (const version of fs.readdirSync(toolDir)) {
+        const versionDir = path.join(toolDir, version)
+        if (fs.statSync(versionDir).mtimeMs > cutoff) continue
+        if (hasReferencedFile(versionDir)) continue
+        fs.rmSync(versionDir, { recursive: true, force: true })
+        reclaimed += 1
+      }
+      if (fs.readdirSync(toolDir).length === 0) fs.rmdirSync(toolDir)
     }
-    if (fs.readdirSync(toolDir).length === 0) fs.rmdirSync(toolDir)
+    if (fs.readdirSync(platformDir).length === 0) fs.rmdirSync(platformDir)
   }
   return reclaimed
 }
@@ -662,7 +668,7 @@ function main() {
   }
 
   const stats = materialize(TOOLS, platformKey, cacheRoot, bundleDir)
-  const reclaimed = sweepUnreferencedVersions(cacheRoot, platformKey, UNREFERENCED_CACHE_TTL_MS)
+  const reclaimed = sweepUnreferencedVersions(cacheRoot, UNREFERENCED_CACHE_TTL_MS)
 
   const how =
     stats.copied > 0 ? `${stats.linked} linked, ${stats.copied} copied (hard links unavailable)` : 'hard-linked'

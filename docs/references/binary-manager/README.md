@@ -143,7 +143,7 @@ A dev run instead downloads into a cache shared by every worktree of the checkou
 
 Downloads stage under `.staging-<checkout-id>/` and are renamed into place only after their checksum passes, which keeps concurrent worktrees off each other's files and lets an interrupted transfer resume on the next run. Cache-internal entries (`.staging-*`, `.retired-*`) are never mirrored into a worktree, and `verifyBundledBinaries` refuses to package a bundle containing any.
 
-The cache reclaims itself: a version whose files are hard-linked into some worktree has a link count above one, so anything left at one link and untouched for two weeks is deleted at the end of a run. Deleting `<git-common-dir>/cherry-binaries/` by hand is always safe — the next run re-downloads. Note `git clean` does not reach inside `.git/`.
+The cache reclaims itself: a version whose files are hard-linked into some worktree has a link count above one, so anything left at one link and untouched for two weeks is deleted at the end of a run. The sweep covers every platform in the cache, not only the one being built, since running the script for another platform leaves a tree nothing else would visit. Deleting `<git-common-dir>/cherry-binaries/` by hand is always safe — the next run re-downloads what it needs, and `git clean` does not reach inside `.git/`.
 
 ## Consuming a tool
 
