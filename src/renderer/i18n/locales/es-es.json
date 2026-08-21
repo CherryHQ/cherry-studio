@@ -1019,6 +1019,9 @@
       "mcp_prompts": {
         "description": "Inserta un prompt publicado por un servidor MCP",
         "empty": "No hay prompts MCP disponibles",
+        "fill_arguments": "Completar argumentos del prompt",
+        "fill_arguments_description": "Proporcione los valores de este prompt antes de insertarlo",
+        "insert": "Insertar",
         "insert_failed": "Error al insertar el prompt",
         "title": "Prompts MCP"
       },

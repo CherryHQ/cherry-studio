@@ -1019,6 +1019,9 @@
       "mcp_prompts": {
         "description": "Insert a prompt published by an MCP server",
         "empty": "No MCP prompts available",
+        "fill_arguments": "Fill prompt arguments",
+        "fill_arguments_description": "Provide values for this prompt before inserting it",
+        "insert": "Insert",
         "insert_failed": "Failed to insert the prompt",
         "title": "MCP Prompts"
       },

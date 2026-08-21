@@ -1019,6 +1019,9 @@
       "mcp_prompts": {
         "description": "MCP サーバーが公開するプロンプトを挿入",
         "empty": "利用可能な MCP プロンプトがありません",
+        "fill_arguments": "プロンプトの引数を入力",
+        "fill_arguments_description": "挿入する前に、このプロンプトの引数を入力してください",
+        "insert": "挿入",
         "insert_failed": "プロンプトの挿入に失敗しました",
         "title": "MCP プロンプト"
       },

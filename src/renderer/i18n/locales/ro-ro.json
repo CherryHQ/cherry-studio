@@ -1019,6 +1019,9 @@
       "mcp_prompts": {
         "description": "Inserați un prompt publicat de un server MCP",
         "empty": "Niciun prompt MCP disponibil",
+        "fill_arguments": "Completați argumentele promptului",
+        "fill_arguments_description": "Completați valorile acestui prompt înainte de a-l insera",
+        "insert": "Inserează",
         "insert_failed": "Nu s-a putut insera promptul",
         "title": "Prompturi MCP"
       },

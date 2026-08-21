@@ -1019,6 +1019,9 @@
       "mcp_prompts": {
         "description": "Einen von einem MCP-Server bereitgestellten Prompt einfügen",
         "empty": "Keine MCP-Prompts verfügbar",
+        "fill_arguments": "Prompt-Argumente ausfüllen",
+        "fill_arguments_description": "Geben Sie die Argumente ein, bevor der Prompt eingefügt wird",
+        "insert": "Einfügen",
         "insert_failed": "Prompt konnte nicht eingefügt werden",
         "title": "MCP-Prompts"
       },
