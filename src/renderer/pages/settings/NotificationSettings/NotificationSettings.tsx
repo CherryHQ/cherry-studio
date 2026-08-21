@@ -1,5 +1,5 @@
 import { InfoTooltip, Switch } from '@cherrystudio/ui'
-import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,
@@ -24,10 +24,7 @@ const NotificationSettings: FC = () => {
     knowledge: 'app.notification.knowledge.enabled',
     update: 'app.notification.update.enabled'
   })
-  const [conversationIslandSettings, setConversationIslandSettings] = useMultiplePreferences({
-    enabled: 'feature.conversation_island.enabled',
-    showTitle: 'feature.conversation_island.show_title'
-  })
+  const [conversationIslandEnabled, setConversationIslandEnabled] = usePreference('feature.conversation_island.enabled')
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
     void setNotificationSettings({ [type]: value })
@@ -84,23 +81,10 @@ const NotificationSettings: FC = () => {
               <SettingRowTitle>{t('settings.notification.conversation_island.enabled')}</SettingRowTitle>
               <Switch
                 aria-label={t('settings.notification.conversation_island.enabled')}
-                checked={conversationIslandSettings.enabled}
-                onCheckedChange={(enabled) => void setConversationIslandSettings({ enabled })}
+                checked={conversationIslandEnabled}
+                onCheckedChange={(enabled) => void setConversationIslandEnabled(enabled)}
               />
             </SettingRow>
-            {conversationIslandSettings.enabled && (
-              <>
-                <SettingDivider />
-                <SettingRow>
-                  <SettingRowTitle>{t('settings.notification.conversation_island.show_title')}</SettingRowTitle>
-                  <Switch
-                    aria-label={t('settings.notification.conversation_island.show_title')}
-                    checked={conversationIslandSettings.showTitle}
-                    onCheckedChange={(showTitle) => void setConversationIslandSettings({ showTitle })}
-                  />
-                </SettingRow>
-              </>
-            )}
           </>
         )}
       </SettingGroup>

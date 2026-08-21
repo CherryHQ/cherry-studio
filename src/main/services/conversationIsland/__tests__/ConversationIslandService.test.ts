@@ -218,7 +218,6 @@ describe('ConversationIslandService', () => {
     mocks.preferenceListeners.clear()
     mocks.preferences.clear()
     mocks.preferences.set('feature.conversation_island.enabled', false)
-    mocks.preferences.set('feature.conversation_island.show_title', true)
     mocks.preferences.set('app.language', 'en-US')
     mocks.resolveName.mockImplementation(() => mocks.name)
     mocks.screenListeners.clear()
@@ -288,17 +287,6 @@ describe('ConversationIslandService', () => {
     expect(services.windowManager.open).toHaveBeenCalledOnce()
   })
 
-  it('does not resolve business titles when title display is disabled', () => {
-    changePreference('feature.conversation_island.show_title', false)
-    changePreference('feature.conversation_island.enabled', true)
-
-    emitActivity('pending', 100)
-
-    const snapshot = (services.windowManager.open.mock.calls[0][1] as { initData: unknown }).initData
-    expect(mocks.resolveName).not.toHaveBeenCalled()
-    expect(snapshot).toMatchObject({ title: undefined, navigationTitle: 'New Chat', state: 'pending' })
-  })
-
   it('creates one singleton and pushes later state with a cached title', () => {
     changePreference('feature.conversation_island.enabled', true)
 
@@ -310,7 +298,6 @@ describe('ConversationIslandService', () => {
     expect(mocks.resolveName).toHaveBeenCalledOnce()
     expect(services.windowManager.pushInitData.mock.calls[0][1]).toMatchObject({
       title: 'Research notes',
-      navigationTitle: 'Research notes',
       state: 'streaming'
     })
   })
@@ -343,7 +330,7 @@ describe('ConversationIslandService', () => {
 
     expect(mocks.resolveName).toHaveBeenCalledTimes(2)
     expect(services.windowManager.open.mock.lastCall?.[1]).toMatchObject({
-      initData: { title: 'Renamed conversation', navigationTitle: 'Renamed conversation' }
+      initData: { title: 'Renamed conversation' }
     })
   })
 
@@ -367,22 +354,24 @@ describe('ConversationIslandService', () => {
     expect(services.windowManager.close).toHaveBeenCalledTimes(3)
   })
 
-  it('recomputes title and localized text when preferences or language change', () => {
-    changePreference('feature.conversation_island.show_title', false)
+  it('always resolves the title and refreshes localized title and status on language change', () => {
     changePreference('feature.conversation_island.enabled', true)
     emitActivity('streaming', 100)
-    expect(mocks.resolveName).not.toHaveBeenCalled()
-
-    changePreference('feature.conversation_island.show_title', true)
     expect(mocks.resolveName).toHaveBeenCalledOnce()
+    expect(services.windowManager.open.mock.lastCall?.[1]).toMatchObject({
+      initData: {
+        title: 'Research notes',
+        statusText: 'conversation_island.status.assistant.streaming'
+      }
+    })
 
-    mocks.name = 'Notes translated'
+    mocks.name = ''
     mocks.i18nSuffix = '-fr'
     changePreference('app.language', 'fr-FR')
 
     expect(mocks.resolveName).toHaveBeenCalledTimes(2)
     expect(services.windowManager.pushInitData.mock.lastCall?.[1]).toMatchObject({
-      navigationTitle: 'Notes translated',
+      title: 'New Chat-fr',
       statusText: 'conversation_island.status.assistant.streaming-fr'
     })
   })

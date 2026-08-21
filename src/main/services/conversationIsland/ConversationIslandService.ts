@@ -73,7 +73,6 @@ export class ConversationIslandService extends BaseService {
   private readonly titleCache = new Map<string, { turnId?: string; title: string }>()
   private geometries = new Map<number, MacScreenGeometry>()
   private enabled = false
-  private showTitle = true
   private windowId: string | null = null
   private expiryTimer: ReturnType<typeof setTimeout> | null = null
   private probeController: AbortController | null = null
@@ -100,15 +99,8 @@ export class ConversationIslandService extends BaseService {
     )
 
     const preferences = application.get('PreferenceService')
-    this.showTitle = preferences.get('feature.conversation_island.show_title')
     this.registerDisposable(
       preferences.subscribeChange('feature.conversation_island.enabled', (enabled) => this.setEnabled(enabled))
-    )
-    this.registerDisposable(
-      preferences.subscribeChange('feature.conversation_island.show_title', (showTitle) => {
-        this.showTitle = showTitle
-        this.refreshPresentation()
-      })
     )
     this.registerDisposable(
       preferences.subscribeChange('app.language', () => {
@@ -280,14 +272,11 @@ export class ConversationIslandService extends BaseService {
     placement: ConversationIslandPlacement
   ): ConversationIslandSnapshot {
     const fallback = activity.target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
-    let title: string | undefined
-    if (this.showTitle) {
-      const cached = this.titleCache.get(activity.topicId)
-      title = cached && cached.turnId === activity.turnId ? cached.title : undefined
-      if (title === undefined) {
-        title = application.get('NotificationService').resolveConversationName(activity.target)
-        this.titleCache.set(activity.topicId, { turnId: activity.turnId, title })
-      }
+    const cached = this.titleCache.get(activity.topicId)
+    let title = cached && cached.turnId === activity.turnId ? cached.title : undefined
+    if (title === undefined) {
+      title = application.get('NotificationService').resolveConversationName(activity.target) || fallback
+      this.titleCache.set(activity.topicId, { turnId: activity.turnId, title })
     }
 
     return {
@@ -296,7 +285,6 @@ export class ConversationIslandService extends BaseService {
       state: snapshotState(activity.status),
       statusText: statusText(activity),
       title,
-      navigationTitle: title ?? fallback,
       secondaryCount,
       presentation: placement.presentation,
       notchWidth: placement.notchWidth

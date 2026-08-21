@@ -35,7 +35,7 @@ export default function ConversationIsland() {
     void ipcApi
       .request('navigation.focus_or_open_conversation', {
         target: snapshot.target,
-        title: snapshot.navigationTitle
+        title: snapshot.title
       })
       .catch((error) => logger.error('Failed to open conversation from Conversation Island', error))
   }
@@ -61,7 +61,7 @@ export default function ConversationIsland() {
           <span
             data-testid="notch-trailing"
             className="flex min-w-0 items-center justify-end gap-2 overflow-hidden pr-3">
-            {snapshot.title ? <span className="min-w-0 truncate text-white/60">{snapshot.title}</span> : null}
+            <span className="min-w-0 truncate text-white/60">{snapshot.title}</span>
             {snapshot.secondaryCount > 0 ? (
               <span className="shrink-0 rounded-full bg-white/10 px-1.5 text-white/70">+{snapshot.secondaryCount}</span>
             ) : null}
@@ -71,16 +71,10 @@ export default function ConversationIsland() {
         <>
           {stateIndicator}
           <span className="shrink-0 font-medium">{snapshot.statusText}</span>
-          {snapshot.title ? (
-            <>
-              <span className="shrink-0 text-muted-foreground" aria-hidden="true">
-                ·
-              </span>
-              <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{snapshot.title}</span>
-            </>
-          ) : (
-            <span className="min-w-0 flex-1" />
-          )}
+          <span className="shrink-0 text-muted-foreground" aria-hidden="true">
+            ·
+          </span>
+          <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{snapshot.title}</span>
           {snapshot.secondaryCount > 0 ? (
             <span className="shrink-0 rounded-full bg-accent px-1.5 text-muted-foreground">
               +{snapshot.secondaryCount}

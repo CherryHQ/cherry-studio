@@ -22,24 +22,20 @@ vi.mock('react-i18next', () => ({
 }))
 
 const enabledSwitch = () => screen.getByRole('switch', { name: 'settings.notification.conversation_island.enabled' })
-const titleSwitch = () => screen.getByRole('switch', { name: 'settings.notification.conversation_island.show_title' })
 
 describe('NotificationSettings Conversation Island preferences', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'feature.conversation_island.enabled': false,
-      'feature.conversation_island.show_title': true
-    })
+    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_island.enabled', false)
     platform.isMac = true
   })
 
-  it('shows the macOS-only switch and reveals the title option only when enabled', async () => {
+  it('persists the macOS-only switch without revealing another option', async () => {
     const user = userEvent.setup()
     const view = render(<NotificationSettings />)
 
     expect(enabledSwitch()).not.toBeChecked()
-    expect(screen.queryByRole('switch', { name: 'settings.notification.conversation_island.show_title' })).toBeNull()
+    expect(screen.getAllByRole('switch')).toHaveLength(5)
 
     await user.click(enabledSwitch())
     await waitFor(() =>
@@ -47,19 +43,8 @@ describe('NotificationSettings Conversation Island preferences', () => {
     )
     view.rerender(<NotificationSettings />)
 
-    expect(titleSwitch()).toBeChecked()
-  })
-
-  it('persists the title visibility option', async () => {
-    const user = userEvent.setup()
-    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_island.enabled', true)
-    render(<NotificationSettings />)
-
-    await user.click(titleSwitch())
-
-    await waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('feature.conversation_island.show_title')).toBe(false)
-    )
+    expect(enabledSwitch()).toBeChecked()
+    expect(screen.getAllByRole('switch')).toHaveLength(5)
   })
 
   it('does not expose Conversation Island settings off macOS', () => {
@@ -67,6 +52,6 @@ describe('NotificationSettings Conversation Island preferences', () => {
     render(<NotificationSettings />)
 
     expect(screen.queryByRole('switch', { name: 'settings.notification.conversation_island.enabled' })).toBeNull()
-    expect(screen.queryByRole('switch', { name: 'settings.notification.conversation_island.show_title' })).toBeNull()
+    expect(screen.getAllByRole('switch')).toHaveLength(4)
   })
 })

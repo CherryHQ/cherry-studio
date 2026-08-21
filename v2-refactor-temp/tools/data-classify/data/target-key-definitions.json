@@ -83,13 +83,6 @@
       "description": "Whether the macOS Conversation Island presents transient conversation activity"
     },
     {
-      "targetKey": "feature.conversation_island.show_title",
-      "type": "boolean",
-      "defaultValue": true,
-      "status": "classified",
-      "description": "Whether the macOS Conversation Island displays the conversation title"
-    },
-    {
       "targetKey": "feature.local_model.hardware_acceleration.enabled",
       "type": "boolean",
       "defaultValue": false,

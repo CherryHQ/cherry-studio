@@ -6246,8 +6246,7 @@
       "assistant": "對話完成通知",
       "backup": "備份訊息",
       "conversation_island": {
-        "enabled": "顯示對話動態島",
-        "show_title": "顯示對話標題"
+        "enabled": "顯示對話動態島"
       },
       "knowledge_embed": "知識庫訊息",
       "title": "通知",

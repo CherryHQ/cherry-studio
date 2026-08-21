@@ -28,7 +28,7 @@ const snapshot = (overrides: Partial<ConversationIslandSnapshot> = {}): Conversa
   target: { conversationType: 'assistant', conversationId: 'topic-1' },
   state: 'streaming',
   statusText: 'Responding',
-  navigationTitle: 'New Chat',
+  title: 'New Chat',
   secondaryCount: 0,
   presentation: 'capsule',
   ...overrides
@@ -47,12 +47,12 @@ describe('ConversationIsland', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('renders status text and gates the title and secondary count from the snapshot', () => {
+  it('renders status text and the required title while gating the secondary count', () => {
     mocks.initData = snapshot()
     const view = render(<ConversationIsland />)
 
     expect(screen.getByText('Responding')).toBeVisible()
-    expect(screen.queryByText('Research notes')).toBeNull()
+    expect(screen.getByText('New Chat')).toBeVisible()
     expect(screen.queryByText('+2')).toBeNull()
 
     mocks.initData = snapshot({ title: 'Research notes', secondaryCount: 2 })
@@ -94,6 +94,7 @@ describe('ConversationIsland', () => {
     view.rerender(<ConversationIsland />)
 
     expect(screen.queryByText('Research notes')).toBeNull()
+    expect(within(screen.getByTestId('notch-trailing')).getByText('New Chat')).toBeVisible()
     expect(within(screen.getByTestId('notch-trailing')).getByText('+2')).toBeVisible()
   })
 
@@ -121,7 +122,7 @@ describe('ConversationIsland', () => {
 
   it('opens the primary conversation when the pill is clicked', async () => {
     const user = userEvent.setup()
-    mocks.initData = snapshot({ navigationTitle: 'Research notes' })
+    mocks.initData = snapshot({ title: 'Research notes' })
     render(<ConversationIsland />)
 
     await user.click(screen.getByRole('button'))

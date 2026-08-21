@@ -7,8 +7,7 @@ export interface ConversationIslandSnapshot {
   target: ConversationNavigationTarget
   state: ConversationIslandStateKind
   statusText: string
-  title?: string
-  navigationTitle: string
+  title: string
   secondaryCount: number
   presentation: 'notch' | 'capsule'
   notchWidth?: number
