@@ -1008,9 +1008,9 @@ describe('listModels — ovmsFetcher config endpoint', () => {
     expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
   })
 
-  // A servable that is registered in config.json but failed to load must not be offered
-  // as a usable model.
-  it('lists only servables reporting an AVAILABLE version', async () => {
+  // All models registered in OVMS config are listed regardless of their server-side
+  // loading state, so users see every downloaded model in the model manager.
+  it('lists all configured servables regardless of loading state', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] },
@@ -1023,7 +1023,11 @@ describe('listModels — ovmsFetcher config endpoint', () => {
 
     const models = await listModels(makeOvmsProvider('http://localhost:8000/v3/'))
 
-    expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
+    expect(models.map((m) => m.apiModelId)).toEqual([
+      'Qwen3-4B-int4-ov',
+      'FLUX.1-schnell-int4-ov',
+      'bge-base-en-v1.5-fp16-ov'
+    ])
   })
 })
 

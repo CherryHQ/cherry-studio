@@ -7073,9 +7073,8 @@
       "explore": {
         "analysis": "Analiză",
         "chart": "Grafic",
-        "clearDate": "Eliminați filtrul de dată",
-        "drilldownTitle": "Detaliere {{date}}",
         "entries": "Cereri",
+        "granularity": "Granularitate",
         "groupBy": "Grupați după",
         "loadMore": "Încarcă mai mult",
         "loading": "Se încarcă...",
@@ -7085,7 +7084,6 @@
         "noEntries": "Nicio intrare",
         "noEntriesDescription": "Încearcă un interval mai larg sau un alt furnizor.",
         "rollup": "Agregare",
-        "selectedDate": "Data selectată: {{date}}",
         "shareLabel": "Distribuie",
         "title": "Explorează",
         "top": "Vârf",
@@ -7099,7 +7097,6 @@
         "source": "Asistent / Agent"
       },
       "heatmap": {
-        "ariaDate": "Utilizare în data de {{date}}",
         "title": "Activitate zilnică"
       },
       "metric": {

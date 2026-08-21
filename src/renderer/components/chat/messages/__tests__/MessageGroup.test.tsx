@@ -1,3 +1,4 @@
+import { TabIdContext } from '@renderer/hooks/tab'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -7,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
-import type { MessageListItem } from '../types'
+import type { MessageGroupRuntime, MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
   editMessage: vi.fn(),
@@ -350,6 +351,59 @@ describe('MessageGroup', () => {
     rerender(<MessageGroup messages={messages} partsByMessageId={{ 'msg-1': updatedParts }} />)
 
     expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'updated')
+  })
+
+  it('keeps duplicate conversation tabs scoped to their own message element', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const groupRuntimes: MessageGroupRuntime[] = []
+    let firstRegisteredElement: HTMLElement | null = null
+    let secondRegisteredElement: HTMLElement | null = null
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      updateMessageUiState: vi.fn(),
+      bindMessageGroupRuntime: (_messageIds: string[], runtime: MessageGroupRuntime) => {
+        groupRuntimes.push(runtime)
+        return vi.fn()
+      }
+    })
+
+    const { container } = render(
+      <>
+        <TabIdContext value="tab-a">
+          <MessageGroup
+            messages={messages}
+            registerMessageElement={(_messageId, element) => {
+              firstRegisteredElement = element
+            }}
+          />
+        </TabIdContext>
+        <TabIdContext value="tab-b">
+          <MessageGroup
+            messages={messages}
+            registerMessageElement={(_messageId, element) => {
+              secondRegisteredElement = element
+            }}
+          />
+        </TabIdContext>
+      </>
+    )
+
+    const messageElements = container.querySelectorAll<HTMLElement>(
+      '[data-ui~="chat.message"][data-message-id="msg-1"]'
+    )
+    expect(messageElements).toHaveLength(2)
+    expect(messageElements[0].id).not.toBe(messageElements[1].id)
+    expect(firstRegisteredElement).toBe(messageElements[0])
+    expect(secondRegisteredElement).toBe(messageElements[1])
+    expect(groupRuntimes).toHaveLength(2)
+
+    act(() => groupRuntimes.at(1)!.locateMessage('msg-1'))
+
+    expect(mocks.scrollIntoView).toHaveBeenCalledWith(messageElements[1], {
+      behavior: 'smooth',
+      block: 'start',
+      container: 'nearest'
+    })
   })
 
   it('shows the snapshot model identity for a single assistant reply', () => {

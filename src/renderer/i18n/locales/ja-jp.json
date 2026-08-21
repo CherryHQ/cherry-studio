@@ -7073,9 +7073,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "チャート",
-        "clearDate": "日付フィルターをクリア",
-        "drilldownTitle": "{{date}} ドリルダウン",
         "entries": "リクエスト",
+        "granularity": "粒度",
         "groupBy": "グループ化",
         "loadMore": "もっと読み込む",
         "loading": "読み込み中...",
@@ -7085,7 +7084,6 @@
         "noEntries": "エントリがありません",
         "noEntriesDescription": "より広いウィンドウまたは別のプロバイダーをお試しください。",
         "rollup": "ロールアップ",
-        "selectedDate": "選択された日付: {{date}}",
         "shareLabel": "共有",
         "title": "探索する",
         "top": "トップ",
@@ -7099,7 +7097,6 @@
         "source": "アシスタント / エージェント"
       },
       "heatmap": {
-        "ariaDate": "{{date}}の使用状況",
         "title": "日常活動"
       },
       "metric": {

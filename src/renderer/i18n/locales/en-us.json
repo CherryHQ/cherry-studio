@@ -7073,9 +7073,8 @@
       "explore": {
         "analysis": "Analysis",
         "chart": "Chart",
-        "clearDate": "Clear date filter",
-        "drilldownTitle": "{{date}} drilldown",
         "entries": "Requests",
+        "granularity": "Granularity",
         "groupBy": "Group by",
         "loadMore": "Load more",
         "loading": "Loading...",
@@ -7085,7 +7084,6 @@
         "noEntries": "No entries",
         "noEntriesDescription": "Try a broader window or a different provider.",
         "rollup": "Rollup",
-        "selectedDate": "Selected date: {{date}}",
         "shareLabel": "Share",
         "title": "Explore",
         "top": "Top",
@@ -7099,7 +7097,6 @@
         "source": "Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Usage on {{date}}",
         "title": "Daily activity"
       },
       "metric": {
