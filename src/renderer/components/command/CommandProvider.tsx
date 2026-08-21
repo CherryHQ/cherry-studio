@@ -131,28 +131,8 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   }, [contextSnapshot, execute, hasHandler, shortcutPreferences])
 
   useEffect(() => {
-    // isComposing stays true forever when compositionend is lost. Treat a
-    // composition with no activity for this long as stuck and resume shortcuts.
-    const COMPOSITION_IDLE_MS = 2_000
-    let compositionIdleTimer: ReturnType<typeof setTimeout> | undefined
-    let compositionStuck = false
-
-    // Re-armed on every composition event, so an ongoing composition never trips it.
-    const onCompositionActivity = () => {
-      compositionStuck = false
-      clearTimeout(compositionIdleTimer)
-      compositionIdleTimer = setTimeout(() => {
-        compositionStuck = true
-      }, COMPOSITION_IDLE_MS)
-    }
-
-    const onCompositionEnd = () => {
-      compositionStuck = false
-      clearTimeout(compositionIdleTimer)
-    }
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing && !compositionStuck) {
+      if (event.isComposing) {
         return
       }
 
@@ -183,16 +163,9 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       state.execute(command)
     }
 
-    window.addEventListener('compositionstart', onCompositionActivity)
-    window.addEventListener('compositionupdate', onCompositionActivity)
-    window.addEventListener('compositionend', onCompositionEnd)
     window.addEventListener('keydown', handleKeyDown)
     return () => {
-      window.removeEventListener('compositionstart', onCompositionActivity)
-      window.removeEventListener('compositionupdate', onCompositionActivity)
-      window.removeEventListener('compositionend', onCompositionEnd)
       window.removeEventListener('keydown', handleKeyDown)
-      clearTimeout(compositionIdleTimer)
     }
   }, [])
 
