@@ -2690,6 +2690,7 @@ describe('BinaryManager', () => {
       expect(env['NPM_CONFIG_REGISTRY']).toBe('https://registry.example')
       expect(env['PIP_INDEX_URL']).toBe('https://pypi.example/simple')
       expect(env['MISE_PIPX_REGISTRY_URL']).toBe('https://pypi.example/simple/{}/')
+      expect(env['UV_DEFAULT_INDEX']).toBe('https://pypi.example/simple')
       expect(env['GITHUB_TOKEN']).toBe('ghp_settings')
       expect(JSON.parse(env['MISE_URL_REPLACEMENTS'])['https://github.com']).toBe(
         'https://ghfast.top/https://github.com'
@@ -2709,6 +2710,7 @@ describe('BinaryManager', () => {
 
         expect(env['PIP_INDEX_URL']).toBe('https://pypi.ambient/simple')
         expect(env['MISE_PIPX_REGISTRY_URL']).toBe('https://pypi.ambient/simple/{}/')
+        expect(env['UV_DEFAULT_INDEX']).toBe('https://pypi.ambient/simple')
       } finally {
         process.env = original
       }
@@ -3125,7 +3127,10 @@ describe('BinaryManager', () => {
       stubMise([TSINGHUA, TENCENT, OFFICIAL, pipIndexUrl, undefined as any])
 
       await expect(installBabeldoc(service)).rejects.toThrow()
-      expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')).toHaveLength(1)
+      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
+      expect(useCalls).toHaveLength(1)
+      // A chosen index must displace pypi.org inside uv, not merely sit beside it.
+      expect(useCalls[0][2].env['UV_DEFAULT_INDEX']).toBe(pipIndexUrl || undefined)
     })
 
     it('leaves npm-backend installs on their single runtime-scoped attempt', async () => {
@@ -3182,7 +3187,7 @@ describe('BinaryManager', () => {
       const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
       expect(useCalls).toHaveLength(1)
       expect(useCalls[0][2].env['PIP_INDEX_URL']).toBe(CUSTOM)
-      expect(useCalls[0][2].env['UV_DEFAULT_INDEX']).toBeUndefined()
+      expect(useCalls[0][2].env['UV_DEFAULT_INDEX']).toBe(CUSTOM)
     })
 
     it('runs every attempt of one install against the same env, even if settings change mid-retry', async () => {
