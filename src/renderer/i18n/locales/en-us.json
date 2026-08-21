@@ -451,7 +451,20 @@
       "fast": "Fast",
       "faster": "Faster",
       "label": "Speed",
+      "service_tier": {
+        "auto": "Auto",
+        "fast": "Fast",
+        "flex": "Flex",
+        "label": "Service tier",
+        "standard": "Standard"
+      },
       "smarter": "Smarter",
+      "summary": {
+        "auto": "Auto",
+        "concise": "Concise",
+        "detailed": "Detailed",
+        "label": "Thinking summary"
+      },
       "title": "Response settings"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "Insert a prompt published by an MCP server",
         "empty": "No MCP prompts available",
+        "fill_arguments": "Fill prompt arguments",
+        "fill_arguments_description": "Provide values for this prompt before inserting it",
+        "insert": "Insert",
         "insert_failed": "Failed to insert the prompt",
         "title": "MCP Prompts"
       },
@@ -6329,10 +6345,6 @@
             "token_threshold": "Cache Token Threshold",
             "token_threshold_help": "Messages exceeding this token count will be cached. Set to 0 to disable caching."
           },
-          "array_content": {
-            "help": "Does the provider support the content field of the message being of array type?",
-            "label": "Supports array format message content"
-          },
           "developer_role": {
             "help": "Does the provider support messages with role: \"developer\"?",
             "label": "Support Developer Message"
@@ -6342,17 +6354,13 @@
             "label": "Support enable_thinking"
           },
           "label": "API Settings",
-          "service_tier": {
-            "help": "Whether the provider supports configuring the service_tier parameter. When enabled, this parameter can be adjusted in the service tier settings on the chat page. (OpenAI models only)",
-            "label": "Supports service_tier"
+          "reasoning_summary": {
+            "help": "Send reasoning.summary to this Responses endpoint. Enable only when the server accepts this OpenAI parameter.",
+            "label": "Support reasoning summary"
           },
           "stream_options": {
             "help": "Does the provider support the stream_options parameter?",
             "label": "Support stream_options"
-          },
-          "verbosity": {
-            "help": "Whether the provider supports the verbosity parameter",
-            "label": "Support verbosity"
           }
         },
         "url": {
@@ -7073,9 +7081,8 @@
       "explore": {
         "analysis": "Analysis",
         "chart": "Chart",
-        "clearDate": "Clear date filter",
-        "drilldownTitle": "{{date}} drilldown",
         "entries": "Requests",
+        "granularity": "Granularity",
         "groupBy": "Group by",
         "loadMore": "Load more",
         "loading": "Loading...",
@@ -7085,7 +7092,6 @@
         "noEntries": "No entries",
         "noEntriesDescription": "Try a broader window or a different provider.",
         "rollup": "Rollup",
-        "selectedDate": "Selected date: {{date}}",
         "shareLabel": "Share",
         "title": "Explore",
         "top": "Top",
@@ -7099,7 +7105,6 @@
         "source": "Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Usage on {{date}}",
         "title": "Daily activity"
       },
       "metric": {

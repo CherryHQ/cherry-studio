@@ -40,6 +40,7 @@ import {
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -51,10 +52,15 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
-import { finishTopicRenaming, getTopicMessages, startTopicRenaming, useTopicMutations } from '@renderer/hooks/useTopic'
+import {
+  cancelTopicRenaming,
+  finishTopicRenaming,
+  getTopicMessages,
+  startTopicRenaming,
+  useTopicMutations
+} from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -264,6 +270,7 @@ export function Topics({
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
+  const clearTopicMessages = useClearTopicMessages()
   const isRightPanel = presentation === 'right-panel'
   const tabs = useOptionalTabsContext()
   const conversationNav = useConversationNavigation('assistants')
@@ -681,9 +688,7 @@ export function Topics({
     []
   )
 
-  const handleClearMessages = useCallback((topic: Topic) => {
-    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [])
+  const handleClearMessages = useCallback((topic: Topic) => clearTopicMessages(topic.id), [clearTopicMessages])
 
   const handleAutoRename = useCallback(
     async (topic: Topic) => {
@@ -691,18 +696,30 @@ export function Topics({
       if (messages.length < 2) return
 
       startTopicRenaming(topic.id)
+      let didPersistRename = false
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
-          void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          try {
+            await updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+            didPersistRename = true
+          } catch (err) {
+            logger.error('Failed to save automatically renamed topic', { topicId: topic.id, err })
+            const message = err instanceof Error ? err.message : t('common.save_failed')
+            toast.error(message)
+          }
         } else if (summaryError) {
           toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
       } finally {
-        finishTopicRenaming(topic.id)
+        if (didPersistRename) {
+          finishTopicRenaming(topic.id)
+        } else {
+          cancelTopicRenaming(topic.id)
+        }
       }
     },
-    [t, updateTopic, finishTopicRenaming]
+    [t, updateTopic]
   )
 
   const topicGroupBy = useMemo(

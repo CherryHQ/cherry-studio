@@ -220,10 +220,20 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           const part: TextUIPart = { type: 'text', text: block.text }
           parts.push(part)
         } else if (block.type === 'thinking') {
-          const part: ReasoningUIPart = { type: 'reasoning', text: block.thinking }
+          // Preserve the signature (even '') — @ai-sdk/anthropic drops reasoning
+          // parts without one, so thinking blocks would never replay upstream (#18150).
+          const part: ReasoningUIPart = {
+            type: 'reasoning',
+            text: block.thinking,
+            providerMetadata: { anthropic: { signature: block.signature } }
+          }
           parts.push(part)
         } else if (block.type === 'redacted_thinking') {
-          const part: ReasoningUIPart = { type: 'reasoning', text: block.data }
+          const part: ReasoningUIPart = {
+            type: 'reasoning',
+            text: '',
+            providerMetadata: { anthropic: { redactedData: block.data } }
+          }
           parts.push(part)
         } else if (block.type === 'image') {
           const part = imageBlockToFilePart(block.source)
