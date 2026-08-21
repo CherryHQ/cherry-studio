@@ -39,6 +39,11 @@ const KEYFILE_NAME = 'secret.key'
 
 export type SecretBackend = 'safe-storage' | 'aes-keyfile' | 'unavailable'
 
+/** Whether a stored value is an encrypted envelope (vs legacy plaintext). */
+export function isEnvelopeValue(value: string): boolean {
+  return value.startsWith(ENVELOPE_PREFIX)
+}
+
 export interface DecryptResult {
   value: string
   failed: boolean
@@ -159,6 +164,26 @@ class SecretCipher {
     return entries.map((entry) =>
       entry.decryptFailed || !entry.key ? entry : { ...entry, key: this.encryptValue(entry.key) }
     )
+  }
+
+  /** Whether any stored key value is still legacy plaintext (sweep detection). */
+  needsEncryptionApiKeys(entries: ApiKeyEntry[]): boolean {
+    return entries.some((entry) => entry.key !== '' && !isEnvelopeValue(entry.key))
+  }
+
+  /** Whether any secret field of `auth` is still legacy plaintext (sweep detection). */
+  needsEncryptionAuthConfig(auth: AuthConfig | null | undefined): boolean {
+    if (!auth) return false
+    switch (auth.type) {
+      case 'oauth':
+        return [auth.accessToken, auth.refreshToken].some((value) => !!value && !isEnvelopeValue(value))
+      case 'iam-aws':
+        return [auth.accessKeyId, auth.secretAccessKey].some((value) => !!value && !isEnvelopeValue(value))
+      case 'iam-gcp':
+        return auth.credentials !== undefined
+      default:
+        return false
+    }
   }
 
   decryptApiKeys(providerId: string, entries: ApiKeyEntry[]): ApiKeyEntry[] {

@@ -49,6 +49,7 @@ import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
+import { ProviderCredentialSweepService } from '@main/services/ProviderCredentialSweepService'
 import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryUpdaterService'
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
@@ -150,6 +151,7 @@ export const services = {
   ApiGatewayService,
   AppUpdaterService,
   AutoBackupService,
+  ProviderCredentialSweepService,
   ProviderRegistryUpdaterService,
   SchedulerService,
   JobManager
