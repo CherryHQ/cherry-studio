@@ -59,7 +59,8 @@ When contributing to Cherry Studio, please follow these guidelines:
    - Used for final preparation work before version release
    - Only accepts bug fixes and documentation updates
    - Build and tag releases from this branch, never from `main`
-   - Merged `hotfix:` PRs are automatically labeled and backported while one matching draft release is active
+   - Merged `hotfix:` PRs are automatically labeled and get a backport PR against the matching active release branch
+   - Merge the backport PR only after its CI passes, then rebuild the draft release from the updated release branch
    - Resolve any automatically reported backport conflicts without merging all of `main` into the release branch
    - Publishing the GitHub Release opens a metadata-only sync PR from the release tag to the latest `main`
    - Keep the metadata PR title unchanged; its squash commit marks the next release-note collection boundary

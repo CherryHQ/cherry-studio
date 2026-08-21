@@ -22,7 +22,7 @@ The release branch is the source of every installer and release asset. `main` re
 | Prepare | `main` | **Pre Release** | Creates `release/v<version>` with a signed release metadata commit |
 | Validate | `release/v<version>` | **CI** | Validates the exact release branch commit |
 | Build | `release/v<version>` | **Release** | Moves the draft tag to the validated commit and uploads artifacts |
-| Hotfix | Merged `main` pull request | **Backport Release Hotfixes** | Applies an eligible hotfix to the active release branch |
+| Hotfix | Merged `main` pull request | **Backport Release Hotfixes** | Opens a backport pull request against the active release branch |
 | Publish | Draft GitHub Release | **Post Release** | Opens a metadata-only `release-sync/v<version>` pull request |
 | Close | `release-sync/v<version>` | **CI** | Validates the metadata pull request before it is merged into `main` |
 
@@ -115,23 +115,26 @@ All hotfix development still starts from `main`:
    - `hotfix(<kebab-case-scope>): <description>`
 4. Wait for review and CI, then merge the pull request into `main`.
 
-The **Backport Release Hotfixes** workflow synchronizes the `hotfix` label from the title. After merge, it finds the single draft semantic-version release with a matching release branch and applies the pull request's complete change set to that branch in a GitHub-verified, DCO-signed commit.
+The **Backport Release Hotfixes** workflow synchronizes the `hotfix` label from the title. After merge, it finds the single draft semantic-version release with a matching release branch, creates a `backport/v<version>/pr-<source-number>` branch with a GitHub-verified, DCO-signed commit, and opens a pull request against `release/v<version>`. It never writes the hotfix commit directly to the release branch.
 
 Track the source pull request by its labels:
 
 | Label | Meaning | Operator action |
 | --- | --- | --- |
-| `backport/v<version>` | Backport is in progress | Wait for the workflow |
-| `backported/v<version>` | Backport completed or was already present | Wait for release branch CI, then rebuild the draft |
-| `backport-conflict/v<version>` | Automatic application failed | Resolve the hotfix manually against the release branch |
+| `backport/v<version>` | A backport pull request is open or being prepared | Review the backport pull request and wait for CI |
+| `backported/v<version>` | The backport pull request was merged, or the fix was already present | Wait for release branch CI, then rebuild the draft |
+| `backport-conflict/v<version>` | Automatic application failed, or the backport pull request closed without merging | Resolve or reopen the backport pull request |
 
-After a successful backport:
+After the backport pull request is created:
 
-1. Open the release branch and identify its new head commit.
-2. Wait for **CI** on that exact commit to succeed.
-3. Run **Release** again from `release/v<version>`.
-4. Select `all` unless only one platform artifact needs to be refreshed.
-5. Recheck the updated draft release before publishing.
+1. Confirm its base is `release/v<version>` and its source link points to the intended merged hotfix PR.
+2. Review the release-specific diff and wait for the backport pull request's **CI** checks to pass.
+3. Merge the backport pull request. The source hotfix PR changes from `backport/v<version>` to `backported/v<version>` only after this merge.
+4. Wait for **CI** on the resulting release branch head to succeed.
+5. Run **Release** again from `release/v<version>`.
+6. Select `all` unless only one platform artifact needs to be refreshed, then recheck the updated draft release.
+
+Closing an automatic backport pull request without merging changes the source hotfix PR to `backport-conflict/v<version>`. Reopening it restores the pending `backport/v<version>` state.
 
 ### Resolving a Backport Conflict
 
@@ -192,6 +195,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 | Release is already published | Published releases cannot be rebuilt | Prepare a new version |
 | Multiple active release branches | Backport target is ambiguous | Resolve the extra draft release state, then rerun the backport workflow |
 | `backport-conflict/v<version>` | Automatic patch application failed | Follow the manual conflict procedure above |
+| Backport pull request closed without merging | The hotfix has not reached the release branch | Reopen the pull request or complete a manual backport |
 | Published tag and release branch differ | Release state changed after the build | Stop and reconcile the refs before retrying **Post Release** |
 | Commit is not Verified or lacks DCO | Token identity or signing failed | Fix the workflow/token configuration; never bypass the check |
 
@@ -199,6 +203,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 
 - Build and publish from `release/v<version>`, never from `main`.
 - Merge every hotfix into `main` before backporting it to the release branch.
+- Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.
 - Never merge all of `main` into an active release branch.
 - Never publish a draft until the exact release commit passes CI and all required artifacts are present.
 - Never move a published release tag.

@@ -176,8 +176,8 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 ## CI Trigger Chain
 
 - Run **`release.yml`** manually with `release/v{version}` selected as the workflow branch. It validates the branch name against `package.json`, builds the exact branch commit on macOS, Windows, and Linux, and creates or updates a draft GitHub Release.
-- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** automatically backports merged `hotfix:` and `hotfix(scope):` PRs from `main` to its matching release branch. It manages the `hotfix` and backport-status labels and reports conflicts on the source PR; never merge `main` into the release branch.
-- After an automatic backport passes CI, run **`release.yml`** again from the release branch to rebuild the draft release.
+- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for each merged `hotfix:` or `hotfix(scope):` PR from `main` against the matching release branch. It manages the `hotfix` and backport-status labels and reports conflicts on the source PR; never merge `main` into the release branch.
+- Review the backport PR, wait for its CI, and merge it. After the resulting release-branch push passes CI, run **`release.yml`** again from the release branch to rebuild the draft release.
 - Publishing the draft GitHub Release triggers **`post-release.yml`**, which verifies that the tag still matches the release branch and creates a `release-sync/v{version}` metadata-only PR from the latest `main`.
 - The metadata PR synchronizes only `package.json`, `electron-builder.yml`, release history, and the generated product manifest. It triggers **`ci.yml`**; merge it only after CI passes.
 
