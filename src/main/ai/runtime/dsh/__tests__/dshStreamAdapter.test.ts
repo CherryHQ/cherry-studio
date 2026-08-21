@@ -186,6 +186,63 @@ describe('DshStreamAdapter', () => {
     }
   })
 
+  it('suppresses autonomous turn even when first content arrives after grace expires', () => {
+    // Regression: the old per-event check would let a turn through if its first chunk arrived
+    // after 500ms. The latched decision at turn/start prevents this.
+    vi.useFakeTimers()
+    try {
+      const { adapter, onAutonomousTurnState } = makeAdapter()
+      // Host-prompted turn
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+      adapter.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'completed' } }))
+
+      // Autonomous turn starts within grace period (100ms) — suppressed
+      vi.advanceTimersByTime(100)
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+
+      // First content arrives after grace expires (600ms total)
+      vi.advanceTimersByTime(500)
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'block-start', index: 0, blockType: 'text' }))
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'text-delta', index: 0, text: 'delayed content' }))
+
+      // Still suppressed — decision was latched at turn/start
+      expect(onAutonomousTurnState).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('suppresses an entire autonomous stream that crosses the grace boundary', () => {
+    // Regression: without latching, early chunks pushed before `started` are dropped by
+    // AgentSessionRuntimeService, and the turn opens mid-stream with truncated content.
+    vi.useFakeTimers()
+    try {
+      const { adapter, chunks, onAutonomousTurnState } = makeAdapter()
+      // Host-prompted turn
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+      adapter.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'completed' } }))
+
+      // Autonomous turn starts within grace period
+      vi.advanceTimersByTime(100)
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+
+      // Content arrives — all suppressed, no chunks emitted
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'block-start', index: 0, blockType: 'text' }))
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'text-delta', index: 0, text: 'early chunk' }))
+
+      // Stream continues past grace boundary — still suppressed
+      vi.advanceTimersByTime(500)
+      adapter.handleEvent(chunkEnvelope(2, 1, { type: 'text-delta', index: 0, text: ' late chunk' }))
+
+      expect(onAutonomousTurnState).not.toHaveBeenCalled()
+      expect(chunks).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('swallows a content-less turn instead of fabricating an empty one', () => {
     // A stale goal round rejected at pre-step: turn/start → turn/end {blocked}, zero content.
     const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()

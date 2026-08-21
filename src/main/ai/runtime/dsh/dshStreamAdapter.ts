@@ -134,6 +134,8 @@ export class DshStreamAdapter {
   private turnActive = false
   /** The current turn was opened by runtime content (a goal round), not a host prompt. */
   private autonomousTurn = false
+  /** The current autonomous turn should be suppressed (latched at `turn/start` within the grace window). */
+  private autonomousTurnSuppressed = false
   /** Timestamp of the last host-prompted turn's `turn/end`; drives the post-turn grace period. */
   private hostTurnEndedAt?: number
 
@@ -144,6 +146,7 @@ export class DshStreamAdapter {
     this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
+    this.autonomousTurnSuppressed = false
     this.hostTurnEndedAt = undefined
   }
 
@@ -151,6 +154,7 @@ export class DshStreamAdapter {
   abortTurn(): void {
     this.turnActive = false
     this.autonomousTurn = false
+    this.autonomousTurnSuppressed = false
   }
 
   /**
@@ -160,22 +164,27 @@ export class DshStreamAdapter {
    */
   ensureToolCall(callId: string, toolName: string, input: Record<string, unknown>): void {
     if (this.startedTools.has(callId)) return
-    this.ensureTurnOpen()
+    if (this.ensureTurnOpen()) return
     this.handleToolCall({ callId: callId as CallId, name: toolName, arguments: JSON.stringify(input) })
   }
 
-  /** Content with no host-opened turn = the runtime started its own (goal-round) turn. */
-  private ensureTurnOpen(): void {
-    if (this.turnActive) return
-    // Suppress autonomous turns that fire within the grace period after a host turn ended.
-    // The DSH goal-round-driver starts a new round almost immediately after `turn/end`; this
-    // prevents a spurious "Processing" bubble from appearing before the user replies.
-    if (this.hostTurnEndedAt !== undefined && Date.now() - this.hostTurnEndedAt < POST_HOST_TURN_GRACE_MS) {
-      return
-    }
+  /**
+   * Content with no host-opened turn = the runtime started its own (goal-round) turn.
+   * Returns `true` when content should be suppressed (autonomous turn within grace period).
+   */
+  private ensureTurnOpen(): boolean {
+    if (this.turnActive) return false
+    // Suppress autonomous turns latched at `turn/start` within the grace period after a host turn
+    // ended. The DSH goal-round-driver starts a new round almost immediately after `turn/end`;
+    // this prevents a spurious "Processing" bubble from appearing before the user replies.
+    // Both the lifecycle event and content processing are suppressed: without `started`, the
+    // downstream service never opens a receive-only stream, so content chunks would be dropped
+    // anyway — better to not enqueue them at all.
+    if (this.autonomousTurnSuppressed) return true
     this.sink.onAutonomousTurnState('started')
     this.turnActive = true
     this.autonomousTurn = true
+    return false
   }
 
   handleEvent(event: SessionEvent): void {
@@ -187,24 +196,29 @@ export class DshStreamAdapter {
         // synthetic call here; an ordinary autonomous turn is still inactive and clears normally.
         if (!this.turnActive) this.startedTools.clear()
         this.resetStepTiming()
+        // Latch the suppression decision at turn boundary: if this autonomous turn starts
+        // within the grace window after a host turn ended, suppress it for the entire turn.
+        if (!this.turnActive && this.hostTurnEndedAt !== undefined) {
+          this.autonomousTurnSuppressed = Date.now() - this.hostTurnEndedAt < POST_HOST_TURN_GRACE_MS
+        }
         return
       case 'step/start':
         this.startProviderAttempt(event.data, true)
         return
       case 'assistant/chunk':
-        this.ensureTurnOpen()
+        if (this.ensureTurnOpen()) return
         this.handleAssistantChunk(event.data, event.seq)
         return
       case 'tool/call':
-        this.ensureTurnOpen()
+        if (this.ensureTurnOpen()) return
         this.handleToolCall(event.data)
         return
       case 'tool/result':
-        this.ensureTurnOpen()
+        if (this.ensureTurnOpen()) return
         this.handleToolResult(event.data)
         return
       case 'assistant/message':
-        this.ensureTurnOpen()
+        if (this.ensureTurnOpen()) return
         this.handleAssistantMessage(event.data, event.seq)
         return
       case 'turn/end': {
