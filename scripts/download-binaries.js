@@ -4,13 +4,68 @@
  * Called from before-pack.js (and the dev script) to bundle binaries into resources/binaries/.
  *
  * Usage:
- *   node scripts/download-binaries.js [platform] [arch]
+ *   node scripts/download-binaries.js [platform] [arch] [--packaging]
  *   e.g. node scripts/download-binaries.js darwin arm64
+ *
+ * Without --packaging (dev), downloads go to a cache shared by every git worktree
+ * of this repository and are hard-linked into resources/binaries/, so a second
+ * worktree costs links instead of a fresh download. before-pack.js passes
+ * --packaging to download straight into resources/ for the bundle.
  */
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
+
+const BINARIES_ROOT = path.join(__dirname, '..', 'resources', 'binaries')
+
+/**
+ * Cache root shared by all worktrees: `<git-common-dir>/cherry-binaries`.
+ * The common dir is the one .git that every worktree points back to — a
+ * worktree's own gitdir is private to it and would defeat the sharing.
+ * Returns null outside a git checkout (e.g. a source tarball), where the
+ * caller falls back to downloading into resources/ directly.
+ */
+function resolveSharedCacheRoot() {
+  try {
+    const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd: path.join(__dirname, '..'),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim()
+    if (!commonDir) return null
+    return path.join(path.resolve(path.join(__dirname, '..'), commonDir), 'cherry-binaries')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Mirror `srcDir` into `destDir` as hard links, so both paths share one inode
+ * and the copy costs no extra disk. Falls back to a real copy when linking is
+ * unavailable (different volume, filesystem without hard links).
+ */
+function materialize(srcDir, destDir) {
+  fs.mkdirSync(destDir, { recursive: true })
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const src = path.join(srcDir, entry.name)
+    const dest = path.join(destDir, entry.name)
+    if (entry.isDirectory()) {
+      materialize(src, dest)
+      continue
+    }
+    const srcStat = fs.statSync(src)
+    const destStat = fs.statSync(dest, { throwIfNoEntry: false })
+    // ino is 0 on filesystems that do not report one; never treat that as a match.
+    if (destStat && srcStat.ino !== 0 && destStat.ino === srcStat.ino) continue
+    if (destStat) fs.rmSync(dest)
+    try {
+      fs.linkSync(src, dest)
+    } catch {
+      fs.copyFileSync(src, dest)
+    }
+  }
+}
 
 // ── Tool definitions ─────────────────────────────────────────────────
 // Each tool declares: version, per-platform packages, and how to build
@@ -384,13 +439,18 @@ function downloadTool(tool, platformKey, outputDir) {
 // ── Main ─────────────────────────────────────────────────────────────
 
 function main() {
-  const platform = process.argv[2] || process.platform
-  const arch = process.argv[3] || process.arch
+  const argv = process.argv.slice(2)
+  const positional = argv.filter((arg) => !arg.startsWith('--'))
+  const packaging = argv.includes('--packaging')
+  const platform = positional[0] || process.platform
+  const arch = positional[1] || process.arch
   const platformKey = `${platform}-${arch}`
 
   console.log(`Downloading binaries for ${platformKey}...`)
 
-  const outputDir = path.join(__dirname, '..', 'resources', 'binaries', platformKey)
+  const bundleDir = path.join(BINARIES_ROOT, platformKey)
+  const cacheRoot = packaging ? null : resolveSharedCacheRoot()
+  const outputDir = cacheRoot ? path.join(cacheRoot, platformKey) : bundleDir
   fs.mkdirSync(outputDir, { recursive: true })
 
   for (const tool of TOOLS) {
@@ -404,7 +464,12 @@ function main() {
     }
   }
 
-  console.log(`All binaries downloaded to ${outputDir}`)
+  if (cacheRoot) {
+    materialize(outputDir, bundleDir)
+    console.log(`All binaries hard-linked from ${outputDir} into ${bundleDir}`)
+  } else {
+    console.log(`All binaries downloaded to ${outputDir}`)
+  }
 }
 
 /**
@@ -416,7 +481,7 @@ function main() {
  */
 function verifyBundledBinaries(platform, arch, options = {}) {
   // `tools` / `resourcesDir` injectable for tests; production callers pass none.
-  const { tools = TOOLS, resourcesDir = path.join(__dirname, '..', 'resources', 'binaries') } = options
+  const { tools = TOOLS, resourcesDir = BINARIES_ROOT } = options
   const platformKey = `${platform}-${arch}`
   const outputDir = path.join(resourcesDir, platformKey)
   const missing = []
@@ -441,7 +506,7 @@ function verifyBundledBinaries(platform, arch, options = {}) {
   console.log(`Verified all bundled binaries exist for ${platformKey}`)
 }
 
-module.exports = { extract, verifyBundledBinaries, TOOLS }
+module.exports = { extract, materialize, resolveSharedCacheRoot, verifyBundledBinaries, TOOLS }
 
 // Only auto-download when run directly (node scripts/download-binaries.js ...).
 // before-pack.js requires this module for verifyBundledBinaries without

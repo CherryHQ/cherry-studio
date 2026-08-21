@@ -11,7 +11,7 @@ import * as path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
-import { extract, TOOLS, verifyBundledBinaries } from '../download-binaries'
+import { extract, materialize, TOOLS, verifyBundledBinaries } from '../download-binaries'
 
 const FIXTURE_ZIP = path.join(__dirname, 'fixtures', 'mingit-tree.zip')
 
@@ -135,5 +135,56 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
       strip: 'mise/bin'
     })
     expect(() => verifyBundledBinaries('win32', arch, { tools: [mise], resourcesDir })).toThrow(/mise-shim\.exe/)
+  })
+})
+
+describe('materialize – shared-cache mirroring', () => {
+  it('mirrors files as hard links so the worktree copy costs no disk', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    fs.writeFileSync(path.join(cache, 'rg'), 'binary payload')
+
+    materialize(cache, bundle)
+
+    const src = fs.statSync(path.join(cache, 'rg'))
+    const dest = fs.statSync(path.join(bundle, 'rg'))
+    expect(dest.ino).toBe(src.ino)
+    expect(dest.nlink).toBe(2)
+  })
+
+  it('recurses into subdirectories (the MinGit zip-tree layout)', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    fs.mkdirSync(path.join(cache, 'git', 'cmd'), { recursive: true })
+    fs.writeFileSync(path.join(cache, 'git', 'cmd', 'git.exe'), 'launcher')
+
+    materialize(cache, bundle)
+
+    expect(fs.readFileSync(path.join(bundle, 'git', 'cmd', 'git.exe'), 'utf8')).toBe('launcher')
+  })
+
+  it('replaces a stale file left by an earlier version', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    fs.writeFileSync(path.join(cache, 'uv'), 'new version')
+    fs.writeFileSync(path.join(bundle, 'uv'), 'old version')
+
+    materialize(cache, bundle)
+
+    expect(fs.readFileSync(path.join(bundle, 'uv'), 'utf8')).toBe('new version')
+    expect(fs.statSync(path.join(bundle, 'uv')).ino).toBe(fs.statSync(path.join(cache, 'uv')).ino)
+  })
+
+  it('is idempotent — a second run leaves the same inode in place', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    fs.writeFileSync(path.join(cache, 'bun'), 'payload')
+
+    materialize(cache, bundle)
+    const first = fs.statSync(path.join(bundle, 'bun')).ino
+    materialize(cache, bundle)
+
+    expect(fs.statSync(path.join(bundle, 'bun')).ino).toBe(first)
+    expect(fs.statSync(path.join(bundle, 'bun')).nlink).toBe(2)
   })
 })
