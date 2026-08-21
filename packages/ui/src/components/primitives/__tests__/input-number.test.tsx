@@ -146,6 +146,30 @@ describe('InputNumber', () => {
     expect(input.className).toContain('aria-invalid:border-destructive')
   })
 
+  it('keeps exponent notation instead of splicing its digits together', async () => {
+    const user = userEvent.setup()
+    const onBlur = vi.fn()
+    render(<InputNumber aria-label="amount" value={null} onBlur={onBlur} />)
+
+    await user.type(screen.getByLabelText('amount'), '1e-6')
+    await user.tab()
+
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(1e-6)
+  })
+
+  it('rejects a pasted value it cannot parse rather than filtering it', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<InputNumber aria-label="amount" value={12} onChange={onChange} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.paste('3 000')
+
+    expect(input).toHaveValue('12')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('warns and settles on min when the range is empty', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const user = userEvent.setup()
