@@ -9,10 +9,11 @@ const mocks = vi.hoisted(() => ({
 const wizardValues = {
   avatar: '🤖',
   name: 'New',
+  agentType: 'claude-code' as const,
   modelId: 'p::m',
   description: 'desc',
   prompt: 'Agent instructions',
-  knowledgeBaseIds: [],
+  knowledgeBaseIds: ['kb-1'],
   skillIds: ['skill-a', 'skill-b']
 }
 
@@ -33,15 +34,9 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useMutation: () => ({ trigger: mocks.createAgent, isLoading: false })
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAgentMutations: () => ({ createAgent: mocks.createAgent, isCreatingAgent: false })
 }))
-
-vi.mock('@renderer/hooks/useAvatarMutations', () => ({
-  useAvatarMutations: () => ({ setAgentAvatar: vi.fn() })
-}))
-
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))
 
 import { AgentCreateDialog } from '../AgentCreateDialog'
 
@@ -65,18 +60,17 @@ describe('AgentCreateDialog', () => {
 
     await waitFor(() =>
       expect(mocks.createAgent).toHaveBeenCalledWith({
-        body: {
-          type: 'claude-code',
-          name: 'New',
-          model: 'p::m',
-          planModel: 'p::m',
-          smallModel: 'p::m',
-          description: 'desc',
-          instructions: 'Agent instructions',
-          skillIds: ['skill-a', 'skill-b'],
-          configuration: { permission_mode: 'bypassPermissions' },
-          avatar: { kind: 'emoji', emoji: '🤖' }
-        }
+        type: 'claude-code',
+        name: 'New',
+        model: 'p::m',
+        planModel: 'p::m',
+        smallModel: 'p::m',
+        description: 'desc',
+        instructions: 'Agent instructions',
+        knowledgeBaseIds: ['kb-1'],
+        skillIds: ['skill-a', 'skill-b'],
+        configuration: { permission_mode: 'default' },
+        avatar: { kind: 'emoji', emoji: '🤖' }
       })
     )
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'))

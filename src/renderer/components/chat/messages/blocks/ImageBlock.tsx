@@ -16,12 +16,15 @@ const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = fal
     return null
   }
 
+  const previewItems = images.map((src, index) => ({ id: `${index}:${src}`, src }))
+
   return (
-    <div>
-      {images.map((src, index) => (
+    <div className={isSingle ? undefined : 'flex max-w-full flex-wrap gap-2.5'}>
+      {previewItems.map((item) => (
         <ImageViewer
-          src={src}
-          key={`image-${index}`}
+          src={item.src}
+          key={item.id}
+          preview={{ items: previewItems }}
           style={
             isSingle
               ? { maxWidth: 500, maxHeight: 'min(500px, 50vh)', padding: 0, borderRadius: 8 }

@@ -36,13 +36,21 @@ export const EntitySearchQuerySchema = z.strictObject({
 export type EntitySearchQueryParams = z.input<typeof EntitySearchQuerySchema>
 export type EntitySearchQuery = z.output<typeof EntitySearchQuerySchema>
 
-export type EntitySearchItem = {
+type EntitySearchItemBase = {
   id: string
   title: string
   subtitle?: string
-  avatar?: AvatarValue
+  lastActivityAt?: string
   updatedAt?: string
-} & EntitySearchTarget
+}
+
+type EntitySearchItemForTarget<T extends EntitySearchTarget> = T extends {
+  type: 'assistant' | 'agent'
+}
+  ? EntitySearchItemBase & T & { avatar: AvatarValue }
+  : EntitySearchItemBase & T & { avatar?: never }
+
+export type EntitySearchItem = EntitySearchItemForTarget<EntitySearchTarget>
 
 export type EntitySearchGroup = {
   [T in EntitySearchType]: {

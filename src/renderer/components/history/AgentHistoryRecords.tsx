@@ -4,9 +4,11 @@ import type { SessionActionContext } from '@renderer/components/chat/actions/ses
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
+import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { toast } from '@renderer/services/toast'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -42,18 +44,19 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const {
     sessions,
     pinIdBySessionId,
-    isLoading: isSessionsLoading,
+    isLoadingAll: isSessionsLoading,
     deleteSession,
     deleteSessions,
     togglePin
-  } = useSessions(undefined, { loadAll: true, pageSize: 50 })
+  } = useAgentSessionsSource()
   const { agents } = useAgents()
   const { updateSession } = useUpdateSession()
+  const { items: optimisticSessions, rename: renameSessionOptimistically } = useOptimisticResourceName(sessions)
 
   const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
   const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
-    [isSessionPinned, sessions]
+    () => optimisticSessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
+    [isSessionPinned, optimisticSessions]
   )
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
@@ -128,19 +131,18 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
 
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
-      const session = sessions.find((candidate) => candidate.id === id)
+      const session = sessionItems.find((candidate) => candidate.id === id)
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
-      const updatedSession = await updateSession(
-        { id, name: trimmedName, isNameManuallyEdited: true },
-        { showSuccessToast: false }
+      const renamed = await renameSessionOptimistically(session, trimmedName, async () =>
+        Boolean(await updateSession({ id, name: trimmedName, isNameManuallyEdited: true }, { showSuccessToast: false }))
       )
-      if (updatedSession) {
+      if (renamed) {
         toast.success(t('common.saved'))
       }
     },
-    [sessions, t, updateSession]
+    [renameSessionOptimistically, sessionItems, t, updateSession]
   )
 
   const handleToggleSessionPin = useCallback((sessionId: string) => togglePin(sessionId), [togglePin])
@@ -187,9 +189,9 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const rowDescriptor = useMemo(
     () => ({
       getName: (session: SessionListItem) => session.name || t('common.unnamed'),
-      getUpdatedAt: (session: SessionListItem) => session.updatedAt,
+      getUpdatedAt: (session: SessionListItem) => session.lastActivityAt,
       getSourceLabel: (session: SessionListItem) =>
-        (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? t('common.unknown'),
+        (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? unknownAgentLabel,
       renderAvatar: (session: SessionListItem) => {
         const agent = session.agentId ? agentById.get(session.agentId) : undefined
         return agent ? (
@@ -217,7 +219,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           row
         )
     }),
-    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t]
+    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t, unknownAgentLabel]
   )
 
   const descriptor: HistoryRecordDescriptor<SessionListItem> = {

@@ -18,17 +18,19 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * the old avatar intact) and `permanentDelete`-compensated if the preference
  * write fails, so a failed set never leaks an orphan file.
  *
- * The create→bind→compensate is orchestrated inline here (not via the logo
- * orchestration) on purpose: the avatar's owner is a single
+ * The create→bind→compensate is orchestrated inline here (not via `entityLogo`
+ * like provider / mini-app logos) on purpose: the avatar's owner is a single
  * Preference, not a DataApi row + `file_ref` slot, so there is no shared bind
- * shape to factor out — it just composes the `withUploadedIconEntry` primitive.
+ * shape to factor out — it just composes the `withCreatedImageEntry` primitive.
  */
 export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
   'profile.set_avatar': async (input) => {
     const preferences = application.get('PreferenceService')
 
     if (input.kind === 'image') {
-      await withUploadedIconEntry(input.data, async (fileId) => {
+      // `manual`: the avatar id lives only in this Preference (no ref table), so
+      // the cleanup anti-join would reclaim it if it were auto-managed.
+      await withUploadedIconEntry(input.data, 'manual', async (fileId) => {
         await preferences.set('app.user.avatar', tagStoredFileRef(fileId))
       })
       return

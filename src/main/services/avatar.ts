@@ -8,12 +8,16 @@ import { withUploadedIconEntry } from './uploadedIcon'
 
 export function setAssistantAvatar(assistantId: string, avatar: SetAvatarIntent): Promise<Assistant> | Assistant {
   return avatar.kind === 'image'
-    ? withUploadedIconEntry(avatar.data, (fileId) => assistantDataService.setAvatarImage(assistantId, fileId))
+    ? withUploadedIconEntry(avatar.data, 'delete_when_unreferenced', (fileId) =>
+        assistantDataService.setAvatarImage(assistantId, fileId)
+      )
     : assistantDataService.setAvatarEmoji(assistantId, avatar.emoji)
 }
 
 export function setAgentAvatar(agentId: string, avatar: SetAvatarIntent): Promise<AgentEntity> | AgentEntity {
   return avatar.kind === 'image'
-    ? withUploadedIconEntry(avatar.data, (fileId) => agentService.setAvatarImage(agentId, fileId))
+    ? withUploadedIconEntry(avatar.data, 'delete_when_unreferenced', (fileId) =>
+        agentService.setAvatarImage(agentId, fileId)
+      )
     : agentService.setAvatarEmoji(agentId, avatar.emoji)
 }

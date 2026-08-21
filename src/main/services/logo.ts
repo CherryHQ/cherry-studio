@@ -13,7 +13,7 @@ async function bindLogoIntent(
 ): Promise<void> {
   if (intent.kind === 'key') return bind({ kind: 'key', key: intent.key })
   if (intent.kind === 'default') return bind({ kind: 'default' })
-  await withUploadedIconEntry(intent.data, (fileId) => bind({ kind: 'file', fileId }))
+  await withUploadedIconEntry(intent.data, 'delete_when_unreferenced', (fileId) => bind({ kind: 'file', fileId }))
 }
 
 export function setProviderLogo(providerId: string, intent: SetLogoIntent): Promise<void> {

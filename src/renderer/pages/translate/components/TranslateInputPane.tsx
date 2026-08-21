@@ -70,6 +70,7 @@ const TranslateInputPane = ({
 
   return (
     <div
+      data-ui="translate.input"
       className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -86,7 +87,7 @@ const TranslateInputPane = ({
             disabled={disabled}
             spellCheck={false}
             placeholder={t('translate.input.placeholder')}
-            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 pr-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-foreground-muted"
+            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 pr-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground"
           />
         </Scrollbar>
         <IconButton
@@ -104,7 +105,7 @@ const TranslateInputPane = ({
           onClick={onSelectFile}
           disabled={disabled || selecting}
           aria-label={t('translate.files.upload')}
-          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-border-muted border-dashed px-4 py-4 text-foreground-muted transition-colors hover:border-border-hover hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60">
+          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-border-subtle border-dashed px-4 py-4 text-muted-foreground transition-colors hover:border-border-strong hover:bg-muted/30 hover:text-foreground focus-visible:border-border-strong focus-visible:bg-muted/30 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60">
           <span className="text-sm">{t('translate.files.upload')}</span>
           <span className="flex items-center gap-6">
             {uploadIcons.map((icon) => (
@@ -118,7 +119,7 @@ const TranslateInputPane = ({
           <button
             type="button"
             onClick={handleClear}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-foreground-muted text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none">
             <X size={14} className="lucide-custom" />
             <span>{t('common.clear')}</span>
           </button>
@@ -126,7 +127,7 @@ const TranslateInputPane = ({
       )}
       {isDragging && (
         <div className="fade-in-0 pointer-events-none absolute inset-0 z-10 flex animate-in items-center justify-center bg-background p-3 duration-150">
-          <div className="flex h-full w-full items-center justify-center rounded-md border border-border-muted border-dashed">
+          <div className="flex h-full w-full items-center justify-center rounded-md border border-border-subtle border-dashed">
             {/* Drawn as a single path so the translucent foreground token paints
                 evenly: lucide's Plus uses two crossing paths, which composites
                 the alpha twice and darkens the center. */}
@@ -138,7 +139,7 @@ const TranslateInputPane = ({
               stroke="currentColor"
               strokeWidth={2}
               strokeLinecap="round"
-              className="text-foreground-secondary"
+              className="text-muted-foreground"
               aria-hidden="true">
               <path d="M5 12h14M12 5v14" />
             </svg>
@@ -149,7 +150,7 @@ const TranslateInputPane = ({
       {ocrProcessing && (
         <div className="fade-in-0 absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150">
           <div className="flex flex-col items-center gap-3">
-            <div role="status" aria-live="polite" className="flex items-center gap-2 text-foreground-muted text-sm">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 text-foreground-tertiary text-sm">
               <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
               <span>{t('ocr.processing')}</span>
             </div>

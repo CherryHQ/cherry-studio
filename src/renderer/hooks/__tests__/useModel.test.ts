@@ -1,6 +1,6 @@
 import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
 import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
-import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
@@ -48,7 +48,7 @@ describe('useModels', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('should return empty array when data is undefined', () => {
+  it('should return a stable empty array when data is undefined', () => {
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: true,
@@ -58,24 +58,11 @@ describe('useModels', () => {
       mutate: vi.fn()
     }))
 
-    const { result } = renderHook(() => useModels())
+    const { result, rerender } = renderHook(() => useModels())
+    const firstModels = result.current.models
 
     expect(result.current.models).toEqual([])
     expect(result.current.isLoading).toBe(true)
-  })
-
-  it('should keep the empty fallback array reference stable across rerenders', () => {
-    mockUseQuery.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result, rerender } = renderHook(() => useModels())
-    const firstModels = result.current.models
 
     rerender()
 
@@ -144,6 +131,23 @@ describe('useModels', () => {
 
     expect(result.current.refetch).toBe(mockRefetch)
   })
+
+  it('revalidates mounted model lists after registry metadata changes', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockUseQuery.mockReturnValue({
+      data: mockModelList,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch,
+      mutate: vi.fn()
+    })
+    renderHook(() => useModels())
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/models', kind: 'projection' }])
+
+    expect(refetch).toHaveBeenCalledOnce()
+  })
 })
 
 describe('useModelById', () => {
@@ -167,6 +171,23 @@ describe('useModelById', () => {
       enabled: false,
       swrOptions: { keepPreviousData: false }
     })
+  })
+
+  it('revalidates a mounted model after registry enrichment changes', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockUseQuery.mockReturnValue({
+      data: mockModel1,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch,
+      mutate: vi.fn()
+    })
+    renderHook(() => useModelById('openai::gpt-4o'))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/models/:uniqueModelId*' }])
+
+    expect(refetch).toHaveBeenCalledOnce()
   })
 })
 
@@ -591,6 +612,21 @@ describe('useDefaultModel', () => {
     }))
   })
 
+  it('keeps every model entity query inactive when its owner is closed', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openai::dall-e-3')
+
+    renderHook(() => useDefaultModel({ enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledTimes(4)
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
+  })
+
   it('persists the picked painting model id to feature.paintings.default_model_id', async () => {
     const { result } = renderHook(() => useDefaultModel())
 
@@ -636,5 +672,18 @@ describe('useDefaultModel', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.model_id')).toBe('openai::gpt-4o')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.model_id')).toBe('openai::gpt-4o')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.paintings.default_model_id')).toBeNull()
+  })
+
+  it('force-cascades setDefaultModel over existing quick and translate models', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'cherryai::quick')
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'cherryai::translate')
+    const { result } = renderHook(() => useDefaultModel())
+
+    await act(async () => {
+      await result.current.setDefaultModel({ id: 'openai::gpt-4o' }, { forceCascade: true })
+    })
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.model_id')).toBe('openai::gpt-4o')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.model_id')).toBe('openai::gpt-4o')
   })
 })

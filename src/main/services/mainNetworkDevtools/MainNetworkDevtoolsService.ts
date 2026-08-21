@@ -7,8 +7,10 @@ import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
+import { isSensitiveKey, REDACTED, redactUrlParams } from '@shared/utils/redaction'
 import { net } from 'electron'
-import WebSocket, { WebSocketServer } from 'ws'
+import type WebSocket from 'ws'
+import type { WebSocketServer } from 'ws'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 
@@ -18,27 +20,6 @@ const MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT = 38997
 
 const MAX_EVENTS = 1000
 const MAX_BODY_CHARS = 128 * 1024
-const REDACTED = '[redacted]'
-const SENSITIVE_HEADER_NAMES = new Set([
-  'authorization',
-  'cookie',
-  'proxy-authorization',
-  'set-cookie',
-  'x-api-key',
-  'x-api-token'
-])
-const SENSITIVE_QUERY_NAMES = new Set([
-  'access_token',
-  'api_key',
-  'apikey',
-  'auth',
-  'authorization',
-  'code',
-  'key',
-  'password',
-  'secret',
-  'token'
-])
 
 type RequestLike = (...args: unknown[]) => ClientRequest
 
@@ -86,23 +67,12 @@ interface RequestDescription {
   requestContentType?: string
 }
 
+// OAuth `code` is redacted across this request view (query/body/form) but stays out of the
+// global stem list — app-wide it would mask source code in unrelated JSON payloads.
+const OAUTH_QUERY_EXTRAS = ['code']
+
 export function redactUrl(rawUrl: string): string {
-  try {
-    const url = new URL(rawUrl)
-
-    if (url.username) url.username = REDACTED
-    if (url.password) url.password = REDACTED
-
-    for (const [key] of [...url.searchParams]) {
-      if (isSensitiveName(key, SENSITIVE_QUERY_NAMES)) {
-        url.searchParams.set(key, REDACTED)
-      }
-    }
-
-    return url.toString()
-  } catch {
-    return rawUrl
-  }
+  return redactUrlParams(rawUrl, OAUTH_QUERY_EXTRAS)
 }
 
 export function redactHeaders(
@@ -533,6 +503,7 @@ export class MainNetworkDevtoolsService extends BaseService {
   }
 
   private async startWebSocketServer(port = MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT): Promise<number> {
+    const { WebSocketServer } = await import('ws')
     const server = new WebSocketServer({ host: '127.0.0.1', port })
 
     server.on('error', (error) => {
@@ -595,7 +566,7 @@ export class MainNetworkDevtoolsService extends BaseService {
 
     const payload = JSON.stringify(message)
     for (const client of this.clients) {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === 1) {
         client.send(payload)
       }
     }
@@ -828,7 +799,7 @@ function redactBodyText(text: string, contentType?: string): string {
   if (isUrlEncodedContentType(contentType)) {
     const params = new URLSearchParams(text)
     for (const [key] of [...params]) {
-      if (isSensitiveName(key, SENSITIVE_QUERY_NAMES)) params.set(key, REDACTED)
+      if (isSensitiveName(key, OAUTH_QUERY_EXTRAS)) params.set(key, REDACTED)
     }
     return params.toString()
   }
@@ -842,7 +813,7 @@ function redactJsonValue(value: unknown): unknown {
 
   const result: Record<string, unknown> = {}
   for (const [key, item] of Object.entries(value)) {
-    result[key] = isSensitiveName(key, SENSITIVE_QUERY_NAMES) ? REDACTED : redactJsonValue(item)
+    result[key] = isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : redactJsonValue(item)
   }
   return result
 }
@@ -850,7 +821,7 @@ function redactJsonValue(value: unknown): unknown {
 function formDataToRecord(formData: FormData): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [key, value] of formData.entries()) {
-    result[key] = isSensitiveName(key, SENSITIVE_QUERY_NAMES) ? REDACTED : describeFormDataValue(value)
+    result[key] = isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : describeFormDataValue(value)
   }
   return result
 }
@@ -908,19 +879,12 @@ function getHttpStatusPatch(
 }
 
 function isSensitiveHeaderName(name: string): boolean {
-  const normalized = name.toLowerCase()
-  return SENSITIVE_HEADER_NAMES.has(normalized) || isSensitiveName(normalized, undefined)
+  return isSensitiveKey(name)
 }
 
-function isSensitiveName(name: string, exactNames: Set<string> | undefined): boolean {
+function isSensitiveName(name: string, extraNames: readonly string[] | undefined): boolean {
   const normalized = name.toLowerCase()
-  return (
-    exactNames?.has(normalized) === true ||
-    normalized.includes('api-key') ||
-    normalized.includes('apikey') ||
-    normalized.includes('secret') ||
-    normalized.includes('token')
-  )
+  return isSensitiveKey(normalized) || (extraNames?.includes(normalized) ?? false)
 }
 
 function getErrorMessage(error: unknown): string {

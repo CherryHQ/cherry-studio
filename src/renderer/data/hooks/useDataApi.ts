@@ -7,6 +7,7 @@
  * - {@link useMutation} - Perform POST/PUT/PATCH/DELETE operations
  * - {@link useInfiniteQuery} - Cursor-based infinite scrolling
  * - {@link usePaginatedQuery} - Offset-based pagination with navigation
+ * - {@link useDataChange} - Subscribe to DataApi data change notifications
  * - {@link useInvalidateCache} - Manual cache invalidation
  * - {@link useReadCache} - Non-reactive cache peek (single sanctioned home for `unstable_serialize`)
  * - {@link useWriteCache} - Write to a cache key without revalidating (optimistic overlay)
@@ -58,6 +59,8 @@ import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infi
 import useSWRInfinite from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
+
+export { useDataChange } from './useDataChange'
 
 const logger = loggerService.withContext('useDataApi')
 

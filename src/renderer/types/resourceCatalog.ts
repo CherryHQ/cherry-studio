@@ -1,6 +1,6 @@
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import type { InstalledSkill } from '@shared/data/types/agent'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { AgentType, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { AvatarValue } from '@shared/data/types/avatar'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -8,10 +8,16 @@ import type { Prompt } from '@shared/data/types/prompt'
 
 export type ResourceType = 'agent' | 'assistant' | 'skill' | 'prompt'
 
+export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { kind: 'agent'; id: string }) & {
+  /** Leaf tab id to open the dialog on (e.g. `tools.mcp`, `tools.skills`). */
+  initialTab?: string
+}
+
 /** Validated values shared by every Assistant / Agent creation entry point. */
 export type ResourceCreateValues = {
+  agentType: AgentType
+  permissionMode: AgentPermissionMode
   avatar: string
-  avatarImageData?: Uint8Array
   name: string
   modelId: UniqueModelId
   description: string
@@ -26,7 +32,7 @@ export type AgentDetail = AgentEntity & {
   tools?: Tool[]
 }
 
-interface ResourceItemBase<TType extends ResourceType, TRaw, TAvatar> {
+interface ResourceItemBase<TType extends ResourceType, TRaw, TAvatar = string> {
   id: string
   type: TType
   name: string
@@ -39,15 +45,14 @@ interface ResourceItemBase<TType extends ResourceType, TRaw, TAvatar> {
 }
 
 export type ResourceItem =
-  | (ResourceItemBase<'assistant', Assistant, AvatarValue> & { tag?: string })
-  | (ResourceItemBase<'agent', AgentDetail, AvatarValue> & { tag?: never })
-  | (ResourceItemBase<'skill', InstalledSkill, string> & { tag?: never })
-  | (ResourceItemBase<'prompt', Prompt, string> & { tag?: never })
+  | (ResourceItemBase<'assistant', Assistant, AvatarValue> & { groupId?: string; groupName?: string })
+  | (ResourceItemBase<'agent', AgentDetail, AvatarValue> & { groupId?: never; groupName?: never })
+  | (ResourceItemBase<'skill', InstalledSkill> & { groupId?: never; groupName?: never })
+  | (ResourceItemBase<'prompt', Prompt> & { groupId?: never; groupName?: never })
 
-export interface TagItem {
+export interface GroupItem {
   id: string
   name: string
-  color: string
   count: number
 }
 

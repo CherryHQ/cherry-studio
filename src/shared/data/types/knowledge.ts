@@ -1,6 +1,7 @@
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { PosixRelativeFilePathSchema, resolvePosixRelativeSegments, sanitizeFilename } from '@shared/utils/file'
 import * as z from 'zod'
 
-import { AbsolutePathSchema } from './file'
 import { GroupIdSchema } from './group'
 
 /**
@@ -14,6 +15,44 @@ import { GroupIdSchema } from './group'
 // ============================================================================
 // Constants and Field Schemas
 // ============================================================================
+
+/**
+ * A path to a material under a knowledge base's `raw/` directory.
+ *
+ * POSIX, not the union brand: material paths are `/`-separated by construction
+ * (main spells them that way before storing) and are read back with `path.join`,
+ * which accepts `/` on Windows too. So a `\` in a stored value is part of a
+ * filename — a file legitimately named `a\b.txt` on Linux — and must survive
+ * round-tripping rather than being re-read as a directory boundary.
+ *
+ * `PosixRelativeFilePathSchema` carries the shape rules (non-empty, not anchored
+ * to a root, every segment legal on a POSIX filesystem). Layered on top are the
+ * two rules that depend on `raw/` being the base, which the shape layer has no
+ * way to know about:
+ *
+ * - **Stays inside it.** `../x` is a perfectly good relative path; as a material
+ *   path it is a traversal out of the knowledge base.
+ * - **Points below it, never at it.** `.` and `a/..` denote `raw/` itself, which
+ *   would make the base its own material — `deleteKnowledgeItemFiles` would then
+ *   remove the entire `raw/` tree instead of one item's file.
+ *
+ * The remaining knowledge rule — the reserved `CHERRY_META_DIR` prefix — stays
+ * imperative in `assertSafeKnowledgeRelativePath` (`main/features/knowledge/
+ * pathStorage.ts`), which guards the filesystem boundary and so also covers
+ * paths derived after this schema has run.
+ *
+ * Not checked here: whether the value could be restored onto Windows. A Linux
+ * user's `a\b.txt` or `CON.txt` is storable but has no Windows spelling — that
+ * is a migration-time conflict (`WindowsRelativeFilePathSchema` is the check),
+ * not a reason to refuse the row.
+ */
+export const KnowledgeRelativePathSchema = PosixRelativeFilePathSchema.refine((value) => {
+  // `PosixRelativeFilePath` permits `../x` — a relative path that points outside
+  // its base. Containment is the base owner's rule, so the material root asserts
+  // it here: `null` is a climb-out, `[]` is the root itself.
+  const segments = resolvePosixRelativeSegments(value)
+  return segments !== null && segments.length > 0
+}, 'must stay inside the knowledge base material root and point below it')
 
 export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'directory'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
@@ -74,7 +113,7 @@ export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
 // user_model, so the base needs a new embedding model on restore.
 // `missing_vector_store`: the embedding model resolved, but the per-base legacy vector store
 // was missing/empty/locked so its dimensions could not be determined. The base (name, model,
-// config, idle items) is kept as a restorable `failed` row instead of being dropped, so the
+// config, unindexed items) is kept as a restorable `failed` row instead of being dropped, so the
 // user can re-index it — a transient lock is recoverable by re-running rather than a data loss.
 export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model', 'missing_vector_store'] as const
 export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
@@ -87,7 +126,7 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode =
  * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
  *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
  * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
- *   was parked at `failed` instead of silently resumed (see KnowledgeService.recoverInterruptedItems).
+ *   was parked at `failed` instead of silently resumed (see KnowledgeIngestionService.recoverInterruptedItems).
  * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
  * code → i18n switch in `error.ts` stays exhaustive-checkable and the code ↔ translator-key
  * triple is tied together. Codes are localized by the UI; any other value is a free-form message.
@@ -144,7 +183,14 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   updatedAt: z.iso.datetime()
 })
 
-export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value, ctx) => {
+/**
+ * Cross-field invariants for a knowledge base row, shared by the read-side entity
+ * schema and the pre-write candidate schema so a rule is defined exactly once.
+ */
+function refineKnowledgeBaseInvariants(
+  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'createdAt' | 'updatedAt'>,
+  ctx: z.RefinementCtx
+): void {
   if (value.status === 'completed') {
     if (value.error !== null) {
       ctx.addIssue({
@@ -180,8 +226,29 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
       message: 'Chunk overlap must be smaller than chunk size'
     })
   }
-})
+
+  if (value.chunkStrategy === 'delimiter' && !value.chunkSeparator) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkSeparator'],
+      message: 'Separator is required when chunk strategy is delimiter'
+    })
+  }
+}
+
+export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine(refineKnowledgeBaseInvariants)
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
+
+/**
+ * The full row about to be inserted/updated, validated against the same
+ * invariants as the read-side schema before it ever reaches the DB CHECK
+ * constraints — `id`/`createdAt`/`updatedAt` don't exist yet at write time.
+ */
+export const KnowledgeBaseWriteSchema = KnowledgeBaseEntitySchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+}).superRefine(refineKnowledgeBaseInvariants)
 
 /**
  * A knowledge base that has finished setup and is ready for runtime operations
@@ -235,26 +302,12 @@ const KnowledgeItemSharedSchema = z.strictObject({
  * File item data.
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  // relativePath / indexedRelativePath are always produced by main-side helpers
-  // (copyFileIntoKnowledgeBaseAt, toKnowledgeRelativePath, ...), never raw caller
-  // input. The base-relative, POSIX-normalized, no-traversal invariant is
-  // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
-  // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a
-  // refined path schema here would duplicate that check — and cannot use
-  // node:path since this module also runs in the renderer.
-  relativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .describe('Knowledge-base-relative, POSIX-normalized path for the copied source file.'),
-  indexedRelativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe(
-      'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
-    )
+  relativePath: KnowledgeRelativePathSchema.describe(
+    'Knowledge-base-relative, POSIX-normalized path for the copied source file.'
+  ),
+  indexedRelativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
+  )
 })
 export type FileItemData = z.infer<typeof FileItemDataSchema>
 
@@ -264,14 +317,10 @@ export type FileItemData = z.infer<typeof FileItemDataSchema>
 export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
   url: z.string().trim().min(1).describe('URL to read and index.'),
   // Written lazily by main on first index/refresh, never by raw caller input
-  // (add omits it). Same base-relative, POSIX-normalized, no-traversal invariant
-  // as FileItemData.relativePath, enforced at the filesystem boundary.
-  relativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe('Knowledge-base-relative path for the captured URL snapshot markdown, written on first index.')
+  // (add omits it).
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative path for the captured URL snapshot markdown, written on first index.'
+  )
 })
 
 /**
@@ -280,14 +329,10 @@ export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
 export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
   content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.'),
   // Written lazily by main on first index, never by raw caller input (add omits
-  // it). Same base-relative, POSIX-normalized, no-traversal invariant as
-  // FileItemData.relativePath, enforced at the filesystem boundary.
-  relativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe('Knowledge-base-relative path for the captured note snapshot markdown, written on first index.')
+  // it).
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative path for the captured note snapshot markdown, written on first index.'
+  )
 })
 
 /**
@@ -298,15 +343,9 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
   // Written lazily by main on first expansion (add omits it): the deduped, base-relative
   // `raw/` directory prefix the container's files live under (e.g. `docs` or `docs_2`).
-  // Same POSIX-normalized, no-traversal invariant as FileItemData.relativePath.
-  relativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe(
-      'Knowledge-base-relative `raw/` directory prefix the expanded files are stored under, written on first expansion.'
-    )
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative `raw/` directory prefix the expanded files are stored under, written on first expansion.'
+  )
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
@@ -582,16 +621,16 @@ export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend
 }).superRefine(refineRuntimeConfig)
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
-export const RestoreKnowledgeBaseSchema = z.strictObject({
-  sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
-  name: z.string().trim().min(1),
-  // Dimensions must be the resolved embedding vector size for embeddingModelId.
-  // Automatic callers should fill this from AI Core dimension detection; manual
-  // callers are responsible for confirming the value matches the selected model.
-  // Restore validates shape only and does not probe the model again server-side.
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1)
-})
+export const RestoreKnowledgeBaseSchema = z
+  .strictObject({
+    sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
+    name: z.string().trim().min(1),
+    // A vector restore supplies the resolved model and vector size; a BM25-only
+    // restore supplies null for both. The renderer probes dimensions when needed.
+    dimensions: z.number().int().positive().nullable(),
+    embeddingModelId: z.string().trim().min(1).nullable()
+  })
+  .superRefine(refineRuntimeConfig)
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
 // Restore is a partial operation: root items whose source is genuinely gone are skipped rather
@@ -637,11 +676,11 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
 const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  path: AbsolutePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.'),
+  path: AbsoluteFilePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.'),
   // Restore-only: absolute path to an already-produced processor artifact (e.g. MinerU
   // Markdown) in the source base. When present, Knowledge copies it in alongside the
   // source file and indexes from it directly, skipping the file processor.
-  indexedPath: AbsolutePathSchema.optional().describe(
+  indexedPath: AbsoluteFilePathSchema.optional().describe(
     'Absolute path to an already-processed artifact to copy in and index from, skipping the file processor.'
   )
 })
@@ -652,7 +691,7 @@ const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
   // When present, Knowledge copies it in and pins the item to it so the first index
   // reads the snapshot offline instead of re-fetching the (possibly changed or dead)
   // live page. Omitted by a normal add, which captures lazily on first index.
-  snapshotPath: AbsolutePathSchema.optional().describe(
+  snapshotPath: AbsoluteFilePathSchema.optional().describe(
     'Absolute path to a captured URL snapshot markdown to copy in, skipping the live re-fetch.'
   )
 })
@@ -769,12 +808,54 @@ export function getKnowledgeNoteFirstLine(content: string): string {
   )
 }
 
+const SNAPSHOT_TITLE_MAX = 80
+
+/**
+ * File stem a captured note snapshot is stored under, derived from the note's title, falling back to
+ * `note` when sanitizing leaves nothing usable.
+ *
+ * Lives here rather than beside the capture code because the same slug is the note's identity: an
+ * add-input has no snapshot yet, so detection has to predict the name an already-indexed note was
+ * stored under (`Q4: plan` → `Q4_ plan`) or a re-add of an ordinary title would never be detected.
+ * For the same reason the title is reduced to its first line *before* sanitizing — a `source` can
+ * legitimately be the whole note body (the v1 migrator's fallback), and newlines are control
+ * characters, so sanitizing it whole would fold the body into the name as `Title__- item`.
+ */
+export function deriveNoteSnapshotSlug(source: string): string {
+  // Trim after truncating: `sanitizeFilename` only strips *trailing* whitespace, and it turns a tab
+  // landing on the cut into an `_` first, so an 80-char cut would otherwise keep a stray separator.
+  const sanitized = sanitizeFilename(getKnowledgeNoteFirstLine(source).slice(0, SNAPSHOT_TITLE_MAX).trim())
+  if (sanitized && sanitized !== 'untitled') {
+    return sanitized
+  }
+  return 'note'
+}
+
+/**
+ * A note's name, shared by its display title and its conflict key so the two cannot name different
+ * items. Falls back in the order the name actually becomes available: the deduped `raw/` snapshot
+ * name once indexed (`Alpha_2.md` → `Alpha_2`), else the user-supplied title, else the first content
+ * line for notes carrying no title at all.
+ *
+ * The title is read one line at a time because it is not always one: the v1 migrator falls back to
+ * the whole note body when a legacy note has no `sourceUrl` (see `KnowledgeMappings`), and rendering
+ * an entire note as its own row title is worse than the first line it used to show.
+ *
+ * Keying detection off the body's first line instead would split the two axes apart: notes the user
+ * gave distinct titles could not coexist if their bodies opened with the same line, and `replace`
+ * would purge an existing note the conflict dialog had named after a title the user never typed.
+ */
+function getKnowledgeNoteName(data: KnowledgeItemTitleSource['data']): string {
+  const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+  return snapshotName || getKnowledgeNoteFirstLine(data.source || '') || getKnowledgeNoteFirstLine(data.content || '')
+}
+
 /**
  * User-facing display name for a knowledge item or add-input. Prefers the
  * `relativePath` — the deduped name stored under `raw/` (e.g. `测试_2.pdf`) — so
  * that same-name items kept side by side ("保留全部") stay distinguishable:
  * - file: relativePath basename (always set at add-time) else source basename
- * - note: captured snapshot name (set on first index) else first content line
+ * - note: see {@link getKnowledgeNoteName}
  * - url: captured snapshot name (set on first index) else the raw url
  * - directory: deduped `raw/` directory prefix (set on first expansion, e.g. `docs_2`)
  *   else the original folder's source basename
@@ -786,10 +867,8 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
       return getKnowledgePathBasename(data.relativePath || data.source || '')
     case 'directory':
       return getKnowledgePathBasename(data.relativePath || data.source || '')
-    case 'note': {
-      const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
-      return snapshotName || getKnowledgeNoteFirstLine(data.content || '')
-    }
+    case 'note':
+      return getKnowledgeNoteName(data)
     case 'url': {
       const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
       return snapshotName || data.url || data.source || ''
@@ -804,10 +883,12 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
  * relativePath yet, so it keys off the source basename and detection still fires;
  * an existing item keys off its deduped relativePath, so `replace` targets only
  * the one colliding copy (relativePath `test.md`) instead of every item sharing a
- * source basename (`test.md`, `test_2.md`, `test_3.md`). url/note stay separate
- * from the display title: url keys off the raw `data.url` (exact, no normalization)
- * and note off its first line, because their deduped name is a post-index snapshot
- * name absent at add-time — keying off it would miss real duplicate urls/notes.
+ * source basename (`test.md`, `test_2.md`, `test_3.md`). note keys off the same
+ * {@link getKnowledgeNoteName} the display title uses, normalized through
+ * {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input matches the slug an
+ * already-indexed note is stored under. url stays separate from its display title: it keys off the
+ * raw `data.url` (exact, no normalization) because its deduped name is a post-index snapshot name
+ * absent at add-time — keying off that would miss real duplicate urls.
  */
 export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
   const data = item.data
@@ -815,8 +896,13 @@ export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): str
     case 'file':
     case 'directory':
       return getKnowledgePathBasename(data.relativePath || data.source || '')
-    case 'note':
-      return getKnowledgeNoteFirstLine(data.content || '')
+    case 'note': {
+      const name = getKnowledgeNoteName(data)
+      // An unnamed note has no real name to collide on — keep the empty key so detection skips it.
+      if (!name) return ''
+      // A stored snapshot name is already a slug; only a raw title still needs normalizing.
+      return data.relativePath ? name : deriveNoteSnapshotSlug(name)
+    }
     case 'url':
       return (data.url || '').trim()
   }

@@ -5,6 +5,10 @@
  * deliberately does NOT — the `app.user.avatar` preference is its only
  * persisted copy.
  *
+ * That split is exactly why `cleanupPolicy` is a required argument here rather
+ * than inherited from the DB default — see the note on
+ * {@link prepareBase64IconFileEntry}.
+ *
  * v1 stored these as base64 data URLs (provider logos in Dexie under
  * `image://provider-<id>`, custom mini-app logos in `custom-minapps.json`, the
  * avatar under `image://avatar`). v2 keeps them on disk as normalized WebP
@@ -21,15 +25,16 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
+import { type SingleFileRefSourceType, singleFileRefTablesBySourceType } from '@data/db/schemas/fileRelations'
 import type { DbType } from '@data/db/types'
-import { insertSingleFileRef, type SingleFileRefSourceType } from '@data/services/utils/singleFileRef'
+import { insertSingleFileRef } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { transcodeToIconWebp } from '@main/utils/image'
-import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { v7 as uuidv7 } from 'uuid'
 
-const logger = loggerService.withContext('IconImageMigration')
+const logger = loggerService.withContext('ImageMigration')
 
 const BASE64_DATA_URL_RE = /^data:([^;,]+);base64,(.+)$/
 
@@ -52,15 +57,30 @@ type InsertFileEntryRow = typeof fileEntryTable.$inferInsert
 
 export interface PreparedIconImageFile<R extends IconImageDescriptor = IconImageDescriptor> {
   id: FileEntryId
-  physicalPath: FilePath
+  physicalPath: AbsoluteFilePath
   fileEntry: InsertFileEntryRow
   ref: R
 }
 
+/**
+ * `cleanupPolicy` is required, with no default, for the same reason every live
+ * creation surface requires it (file-entry-cleanup.md §4.1): retention hinges on
+ * how the id is held, which only the caller knows. Migrated images must land on
+ * the *same* policy their live counterparts get from `bindLogoImage` /
+ * `withCreatedImageEntry` — a ref-backed provider / mini-app logo is
+ * `delete_when_unreferenced` (reclaimed when its owner row, and thus the logo
+ * ref, is gone or the slot is replaced), while the avatar is `manual` because it
+ * has no ref table at all and the anti-join would otherwise reclaim it on sight.
+ *
+ * Letting this fall through to the DB default (`'manual'`) is the failure this
+ * parameter exists to prevent: the logo would survive its owner forever, with the
+ * WebP on disk, and no runtime path would ever make it a cleanup candidate again.
+ */
 export async function prepareBase64IconFileEntry<R extends IconImageDescriptor>(
   filesDataDir: string,
   ref: R,
-  value: string
+  value: string,
+  cleanupPolicy: CleanupPolicy
 ): Promise<PreparedIconImageFile<R> | null> {
   const match = BASE64_DATA_URL_RE.exec(value)
   // Not a data URL (plain url / icon ref / emoji) — caller keeps it as-is.
@@ -79,7 +99,7 @@ export async function prepareBase64IconFileEntry<R extends IconImageDescriptor>(
   }
 
   const id = uuidv7()
-  const physicalPath = path.join(filesDataDir, `${id}.webp`) as FilePath
+  const physicalPath = AbsoluteFilePathSchema.parse(path.join(filesDataDir, `${id}.webp`))
   try {
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, webp)
@@ -94,6 +114,7 @@ export async function prepareBase64IconFileEntry<R extends IconImageDescriptor>(
         name: ref.role,
         ext: 'webp',
         size: webp.length,
+        cleanupPolicy,
         externalPath: null,
         deletedAt: null,
         createdAt: now,
@@ -130,7 +151,7 @@ export function insertPreparedIconEntryTx(tx: Pick<DbType, 'insert'>, image: Pre
  * needs the file first, and its `source_id` FK needs the owner first.
  */
 export function insertPreparedIconRefTx(tx: Pick<DbType, 'insert'>, image: PreparedIconImageFile<IconImageRef>): void {
-  insertSingleFileRef(tx, { sourceType: image.ref.sourceType, sourceId: image.ref.sourceId }, image.id)
+  insertSingleFileRef(tx, singleFileRefTablesBySourceType[image.ref.sourceType], image.ref.sourceId, image.id)
 }
 
 /**

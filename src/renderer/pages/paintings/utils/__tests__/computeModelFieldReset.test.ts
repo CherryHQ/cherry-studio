@@ -1,4 +1,4 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
+import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { computeModelFieldReset } from '../computeModelFieldReset'
@@ -19,6 +19,10 @@ function mockSupportPerModel(byModelId: Record<string, ImageGenerationSupport | 
   })
 }
 
+const generateSupport = (supports: ImageModeDef['supports']): ImageGenerationSupport => ({
+  modes: { generate: { supports } }
+})
+
 describe('computeModelFieldReset', () => {
   beforeEach(() => {
     prefetchMock.mockReset()
@@ -26,17 +30,11 @@ describe('computeModelFieldReset', () => {
 
   it('populates the new model defaults on first model selection (oldModelId undefined)', async () => {
     mockSupportPerModel({
-      'qwen-image': {
-        modes: {
-          generate: {
-            supports: {
-              size: { type: 'enum', options: ['1664x928', '1328x1328'], default: '1328x1328', render: 'chips' },
-              numImages: { type: 'range', min: 1, max: 4, default: 1 },
-              promptExtend: { type: 'switch', default: true }
-            }
-          }
-        }
-      }
+      'qwen-image': generateSupport({
+        size: { type: 'enum', options: ['1664x928', '1328x1328'], default: '1328x1328', render: 'chips' },
+        numImages: { type: 'range', min: 1, max: 4, default: 1 },
+        promptExtend: { type: 'switch', default: true }
+      })
     })
     const patch = await computeModelFieldReset({
       providerId: 'dashscope',
@@ -64,17 +62,11 @@ describe('computeModelFieldReset', () => {
 
   it('populates new model defaults even when the OLD model is unknown (custom-id painting)', async () => {
     mockSupportPerModel({
-      'gpt-image-1': {
-        modes: {
-          generate: {
-            supports: {
-              size: { type: 'enum', options: ['1024x1024'], default: '1024x1024', render: 'chips' },
-              numImages: { type: 'range', min: 1, max: 10, default: 1 },
-              quality: { type: 'enum', options: ['auto'] }
-            }
-          }
-        }
-      }
+      'gpt-image-1': generateSupport({
+        size: { type: 'enum', options: ['1024x1024'], default: '1024x1024', render: 'chips' },
+        numImages: { type: 'range', min: 1, max: 10, default: 1 },
+        quality: { type: 'enum', options: ['auto'] }
+      })
     })
     const patch = await computeModelFieldReset({
       providerId: 'aihubmix',
@@ -91,33 +83,21 @@ describe('computeModelFieldReset', () => {
 
   it('V_3 → gpt-image-1: clears V_*-only keys, populates new model defaults for missing', async () => {
     mockSupportPerModel({
-      V_3: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: { type: 'enum', options: ['1:1', '16:9'] },
-              numImages: { type: 'range', min: 1, max: 8 },
-              negativePrompt: { type: 'text', multiline: true },
-              seed: { type: 'text' },
-              magicPromptOption: { type: 'switch' },
-              styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] },
-              renderingSpeed: { type: 'enum', options: ['DEFAULT', 'TURBO'] }
-            }
-          }
-        }
-      },
-      'gpt-image-1': {
-        modes: {
-          generate: {
-            supports: {
-              size: { type: 'enum', options: ['1024x1024', '1536x1024'], default: '1024x1024', render: 'chips' },
-              numImages: { type: 'range', min: 1, max: 10 },
-              quality: { type: 'enum', options: ['auto', 'high'] },
-              background: { type: 'enum', options: ['auto', 'opaque'] }
-            }
-          }
-        }
-      }
+      V_3: generateSupport({
+        aspectRatio: { type: 'enum', options: ['1:1', '16:9'] },
+        numImages: { type: 'range', min: 1, max: 8 },
+        negativePrompt: { type: 'text', multiline: true },
+        seed: { type: 'text' },
+        magicPromptOption: { type: 'switch' },
+        styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] },
+        renderingSpeed: { type: 'enum', options: ['DEFAULT', 'TURBO'] }
+      }),
+      'gpt-image-1': generateSupport({
+        size: { type: 'enum', options: ['1024x1024', '1536x1024'], default: '1024x1024', render: 'chips' },
+        numImages: { type: 'range', min: 1, max: 10 },
+        quality: { type: 'enum', options: ['auto', 'high'] },
+        background: { type: 'enum', options: ['auto', 'opaque'] }
+      })
     })
 
     const patch = await computeModelFieldReset({
@@ -147,26 +127,14 @@ describe('computeModelFieldReset', () => {
 
   it('keeps a shared field with a valid current value (no default override)', async () => {
     mockSupportPerModel({
-      'gpt-image-1': {
-        modes: {
-          generate: {
-            supports: {
-              size: { type: 'enum', options: ['1024x1024', '1536x1024'], default: '1024x1024', render: 'chips' },
-              numImages: { type: 'range', min: 1, max: 10 }
-            }
-          }
-        }
-      },
-      'dall-e-3': {
-        modes: {
-          generate: {
-            supports: {
-              size: { type: 'enum', options: ['1024x1024', '1792x1024'], default: '1024x1024', render: 'chips' },
-              numImages: { type: 'range', min: 1, max: 1 }
-            }
-          }
-        }
-      }
+      'gpt-image-1': generateSupport({
+        size: { type: 'enum', options: ['1024x1024', '1536x1024'], default: '1024x1024', render: 'chips' },
+        numImages: { type: 'range', min: 1, max: 10 }
+      }),
+      'dall-e-3': generateSupport({
+        size: { type: 'enum', options: ['1024x1024', '1792x1024'], default: '1024x1024', render: 'chips' },
+        numImages: { type: 'range', min: 1, max: 1 }
+      })
     })
 
     const patch = await computeModelFieldReset({
@@ -182,29 +150,17 @@ describe('computeModelFieldReset', () => {
 
   it('resets a stale shared enum value to the new model default', async () => {
     mockSupportPerModel({
-      'jimeng-txt2img-v3.1': {
-        modes: {
-          generate: {
-            supports: {
-              size: { type: 'enum', options: ['1328x1328', '2048x2048'], default: '1328x1328', render: 'chips' }
-            }
-          }
+      'jimeng-txt2img-v3.1': generateSupport({
+        size: { type: 'enum', options: ['1328x1328', '2048x2048'], default: '1328x1328', render: 'chips' }
+      }),
+      'seedream-5.0-lite': generateSupport({
+        size: {
+          type: 'enum',
+          options: ['2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
+          default: '2048x2048',
+          render: 'chips'
         }
-      },
-      'seedream-5.0-lite': {
-        modes: {
-          generate: {
-            supports: {
-              size: {
-                type: 'enum',
-                options: ['2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-                default: '2048x2048',
-                render: 'chips'
-              }
-            }
-          }
-        }
-      }
+      })
     })
 
     const patch = await computeModelFieldReset({
@@ -220,12 +176,12 @@ describe('computeModelFieldReset', () => {
 
   it('resets an out-of-range slider value carried from the previous model', async () => {
     mockSupportPerModel({
-      'Qwen/Qwen-Image': {
-        modes: { generate: { supports: { numInferenceSteps: { type: 'range', min: 1, max: 100, default: 30 } } } }
-      },
-      'Z-Image-Turbo': {
-        modes: { generate: { supports: { numInferenceSteps: { type: 'range', min: 1, max: 30, default: 20 } } } }
-      }
+      'Qwen/Qwen-Image': generateSupport({
+        numInferenceSteps: { type: 'range', min: 1, max: 100, default: 30 }
+      }),
+      'Z-Image-Turbo': generateSupport({
+        numInferenceSteps: { type: 'range', min: 1, max: 30, default: 20 }
+      })
     })
 
     const patch = await computeModelFieldReset({
@@ -242,12 +198,12 @@ describe('computeModelFieldReset', () => {
 
   it('keeps an in-range slider value carried from the previous model', async () => {
     mockSupportPerModel({
-      'Qwen/Qwen-Image': {
-        modes: { generate: { supports: { numInferenceSteps: { type: 'range', min: 1, max: 100, default: 30 } } } }
-      },
-      'Z-Image-Turbo': {
-        modes: { generate: { supports: { numInferenceSteps: { type: 'range', min: 1, max: 30, default: 20 } } } }
-      }
+      'Qwen/Qwen-Image': generateSupport({
+        numInferenceSteps: { type: 'range', min: 1, max: 100, default: 30 }
+      }),
+      'Z-Image-Turbo': generateSupport({
+        numInferenceSteps: { type: 'range', min: 1, max: 30, default: 20 }
+      })
     })
 
     const patch = await computeModelFieldReset({
@@ -264,12 +220,8 @@ describe('computeModelFieldReset', () => {
 
   it('resets a stale default-less enum value to undefined', async () => {
     mockSupportPerModel({
-      modelA: {
-        modes: { generate: { supports: { style: { type: 'enum', options: ['vivid', 'natural'] } } } }
-      },
-      modelB: {
-        modes: { generate: { supports: { style: { type: 'enum', options: ['<auto>', '<photography>'] } } } }
-      }
+      modelA: generateSupport({ style: { type: 'enum', options: ['vivid', 'natural'] } }),
+      modelB: generateSupport({ style: { type: 'enum', options: ['<auto>', '<photography>'] } })
     })
 
     const patch = await computeModelFieldReset({

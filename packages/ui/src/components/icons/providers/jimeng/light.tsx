@@ -8,77 +8,77 @@ const JimengLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
       <mask
         id={`${iconId}-jimenglight__a`}
-        width={79}
-        height={76}
-        x={20}
-        y={19}
+        width={63}
+        height={60}
+        x={29}
+        y={27}
         maskUnits="userSpaceOnUse"
         style={{
           maskType: 'luminance'
         }}>
         <path
           fill="#fff"
-          d="M35.8391 23.4779C48.4213 41.1546 68.7135 50.8652 88.8955 47.1111C90.322 46.8456 91.8737 46.3707 93.4871 45.75C96.5513 44.5685 100.563 49.3714 98.2377 51.6896C96.835 53.1002 95.3923 54.4706 93.9115 55.7989C84.6488 64.0152 74.5771 71.2713 63.8508 77.456C53.064 83.6918 41.6692 88.811 29.8434 92.7341C28.2225 93.2725 26.3342 93.824 24.3039 94.3699C21.135 95.2243 18.9868 89.3539 21.5425 87.2936C22.8998 86.2 24.0982 85.0857 25.0498 83.9733C38.391 68.3718 39.5726 46.2885 30.322 26.6636C29.8613 25.6714 29.4256 24.6677 29.0152 23.6536C27.7327 20.5146 31.483 18.2001 33.6835 20.7764C34.4395 21.6457 35.1587 22.5482 35.8391 23.4779Z"
+          d="M41.34 30.0472C51.4044 44.1867 67.6361 51.9541 83.7796 48.9513C84.9206 48.7389 86.1618 48.359 87.4524 47.8625C89.9034 46.9174 93.1124 50.7593 91.2524 52.6136C90.1303 53.7419 88.9763 54.8381 87.7918 55.9006C80.3827 62.4728 72.3263 68.2769 63.7464 73.224C55.1181 78.212 46.0035 82.3068 36.5441 85.4449C35.2475 85.8756 33.7371 86.3167 32.113 86.7534C29.5782 87.4368 27.8599 82.7411 29.9042 81.0931C30.9899 80.2183 31.9485 79.327 32.7097 78.4372C43.3812 65.9576 44.3264 48.2933 36.9269 32.5954C36.5584 31.8017 36.2099 30.9989 35.8816 30.1877C34.8557 27.6768 37.8556 25.8255 39.6157 27.8862C40.2205 28.5816 40.7957 29.3035 41.34 30.0472Z"
         />
       </mask>
       <g mask={`url(#${iconId}-jimenglight__a)`}>
         <path
           fill={`url(#${iconId}-jimenglight__b)`}
-          d="M27.9521 14.9415L63.7543 82.3207L115.106 50.108L79.3035 -17.2729L27.9521 14.9415Z"
+          d="M35.0311 23.2189L63.6691 77.1152L104.745 51.3485L76.1069 -2.54922L35.0311 23.2189Z"
         />
         <path
           fill={`url(#${iconId}-jimenglight__c)`}
-          d="M27.9519 14.9417L63.7541 82.3208L12.4028 114.535L-23.3994 47.1561L27.9519 14.9417Z"
+          d="M35.031 23.2191L63.669 77.1153L22.5933 102.883L-6.04468 48.9872L35.031 23.2191Z"
         />
         <path
           fill={`url(#${iconId}-jimenglight__d)`}
-          d="M99.558 149.702L63.7559 82.3225L115.107 50.1062L150.909 117.487L99.558 149.702Z"
+          d="M92.3083 131.013L63.6704 77.1167L104.746 51.347L133.384 105.245L92.3083 131.013Z"
         />
         <path
           fill={`url(#${iconId}-jimenglight__e)`}
-          d="M99.5559 149.702L63.7537 82.3225L12.4023 114.535L48.2045 181.916L99.5559 149.702Z"
+          d="M92.3067 131.013L63.6687 77.1167L22.5929 102.883L51.2309 156.781L92.3067 131.013Z"
         />
       </g>
       <mask
         id={`${iconId}-jimenglight__f`}
-        width={43}
-        height={35}
-        x={44}
-        y={66}
+        width={35}
+        height={28}
+        x={48}
+        y={64}
         maskUnits="userSpaceOnUse"
         style={{
           maskType: 'luminance'
         }}>
         <path
           fill="#fff"
-          d="M86.9774 66.0725C78.6541 76.3327 76.8911 87.3725 78.4596 96.8306L78.5475 97.4008C78.9644 100.235 75.6216 101.981 73.3576 100.224L73.0248 99.9677C65.4288 94.1852 56.4679 89.8347 44.542 91.2032C51.7604 89.0887 59.1433 85.9535 66.3523 81.7918C74.27 77.2207 81.2135 71.8513 86.9774 66.0725Z"
+          d="M82.2453 64.1184C75.5875 72.3255 74.1773 81.1562 75.4319 88.7217L75.5022 89.1778C75.8357 91.4448 73.1618 92.8415 71.3509 91.436L71.0847 91.231C65.0087 86.6056 57.8409 83.1257 48.3014 84.2203C54.0754 82.529 59.9809 80.0211 65.7474 76.6922C72.0807 73.0358 77.6348 68.7408 82.2453 64.1184Z"
         />
       </mask>
       <g mask={`url(#${iconId}-jimenglight__f)`}>
         <path
           fill={`url(#${iconId}-jimenglight__g)`}
-          d="M27.5605 15.5419L76.4459 100.215L128.181 70.3445L79.2952 -14.3281L27.5605 15.5419Z"
+          d="M34.718 23.6992L73.8212 91.4288L115.204 67.5356L76.1004 -0.193665L34.718 23.6992Z"
         />
         <path
           fill={`url(#${iconId}-jimenglight__h)`}
-          d="M27.5615 15.5417L76.4469 100.214L24.7104 130.084L-24.1787 45.4118L27.5615 15.5417Z"
+          d="M34.7188 23.6991L73.822 91.428L32.4382 115.321L-6.66797 47.592L34.7188 23.6991Z"
         />
         <path
           fill={`url(#${iconId}-jimenglight__i)`}
-          d="M125.334 184.889L76.4453 100.216L128.184 70.3445L177.071 155.017L125.334 184.889Z"
+          d="M112.927 159.159L73.8207 91.4297L115.206 67.5356L154.311 135.265L112.927 159.159Z"
         />
         <path
           fill={`url(#${iconId}-jimenglight__j)`}
-          d="M125.336 184.889L76.4466 100.216L24.7139 130.083L73.5993 214.757L125.336 184.889Z"
+          d="M112.928 159.159L73.8218 91.4297L32.441 115.32L71.5443 183.05L112.928 159.159Z"
         />
       </g>
       <defs>
         <linearGradient
           id={`${iconId}-jimenglight__b`}
-          x1={63.754}
-          x2={71.128}
-          y1={82.321}
-          y2={25.022}
+          x1={63.669}
+          x2={69.567}
+          y1={77.115}
+          y2={31.282}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#27B2F0" />
           <stop offset={0.203} stopColor="#26DFFB" />
@@ -89,10 +89,10 @@ const JimengLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         </linearGradient>
         <linearGradient
           id={`${iconId}-jimenglight__c`}
-          x1={63.754}
-          x2={13.646}
-          y1={82.321}
-          y2={62.513}
+          x1={63.669}
+          x2={23.588}
+          y1={77.115}
+          y2={61.271}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#27B2F0" />
           <stop offset={0.203} stopColor="#26DFFB" />
@@ -103,10 +103,10 @@ const JimengLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         </linearGradient>
         <linearGradient
           id={`${iconId}-jimenglight__d`}
-          x1={63.756}
-          x2={113.862}
-          y1={82.321}
-          y2={102.131}
+          x1={63.67}
+          x2={103.75}
+          y1={77.115}
+          y2={92.961}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#27B2F0" />
           <stop offset={0.203} stopColor="#26DFFB" />
@@ -117,10 +117,10 @@ const JimengLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         </linearGradient>
         <linearGradient
           id={`${iconId}-jimenglight__e`}
-          x1={63.754}
-          x2={56.38}
-          y1={82.321}
-          y2={139.619}
+          x1={63.669}
+          x2={57.77}
+          y1={77.115}
+          y2={122.948}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#27B2F0" />
           <stop offset={0.203} stopColor="#26DFFB" />
@@ -131,40 +131,40 @@ const JimengLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         </linearGradient>
         <linearGradient
           id={`${iconId}-jimenglight__g`}
-          x1={76.446}
-          x2={75.414}
-          y1={100.215}
-          y2={82.158}
+          x1={73.821}
+          x2={72.996}
+          y1={91.429}
+          y2={76.985}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#1C6FFF" />
           <stop offset={1} stopColor="#24B5EF" />
         </linearGradient>
         <linearGradient
           id={`${iconId}-jimenglight__h`}
-          x1={76.447}
-          x2={61.324}
-          y1={100.214}
-          y2={90.293}
+          x1={73.822}
+          x2={61.725}
+          y1={91.428}
+          y2={83.492}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#1C6FFF" />
           <stop offset={1} stopColor="#24B5EF" />
         </linearGradient>
         <linearGradient
           id={`${iconId}-jimenglight__i`}
-          x1={76.447}
-          x2={91.57}
-          y1={100.215}
-          y2={110.138}
+          x1={73.822}
+          x2={85.919}
+          y1={91.429}
+          y2={99.366}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#1C6FFF" />
           <stop offset={1} stopColor="#24B5EF" />
         </linearGradient>
         <linearGradient
           id={`${iconId}-jimenglight__j`}
-          x1={76.448}
-          x2={77.481}
-          y1={100.214}
-          y2={118.273}
+          x1={73.823}
+          x2={74.649}
+          y1={91.428}
+          y2={105.873}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#1C6FFF" />
           <stop offset={1} stopColor="#24B5EF" />

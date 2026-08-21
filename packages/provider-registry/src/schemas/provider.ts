@@ -5,35 +5,90 @@
 
 import * as z from 'zod'
 
-import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
-import { ENDPOINT_TYPE, type EndpointType, GEMINI_THINKING_LEVEL, objectValues, REASONING_EFFORT } from './enums'
-import { CommonReasoningFieldsSchema } from './model'
+import { VENDOR_PATTERNS, type VendorKey } from '../patterns/vendor-patterns'
+import { MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
+import { ENDPOINT_TYPE, type EndpointType, objectValues, SERVER_TOOL, SERVER_TOOL_MODEL_SCOPE } from './enums'
+import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// API Features
+// Endpoint dialect
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** API feature flags controlling request construction at the SDK level */
-export const ApiFeaturesSchema = z.object({
-  // --- Request format flags ---
+/**
+ * Provider-owned transport used to request faster processing.
+ *
+ * Model availability remains a provider-model concern; this only describes
+ * how the provider carries an enabled Fast request. `openai-priority` means the
+ * `serviceTier` provider option on the OpenAI namespace — the tier *value* is
+ * vendor-specific and travels in `fastMode.serviceTier` (OpenAI's `priority`,
+ * Ark's `fast`), so a new vendor never has to expand this enum: enum expansion
+ * is a breaking wire change, an optional field is not.
+ */
+export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code'])
 
-  /** Whether the provider supports array-formatted content in messages */
-  arrayContent: z.boolean().default(true),
-  /** Whether the provider supports stream_options for usage data */
-  streamOptions: z.boolean().default(true),
+export const ServiceTierSelectionSchema = z.enum(['standard', 'auto', 'fast', 'flex'])
 
-  // --- Provider-specific parameter flags ---
+export const ServiceTierOptionsSchema = z
+  .array(ServiceTierSelectionSchema)
+  .min(1)
+  .refine((options) => new Set(options).size === options.length, {
+    message: 'service tier options must be unique'
+  })
+  .refine((options) => options.includes('standard'), {
+    message: 'service tier options must include standard'
+  })
 
-  /** Whether the provider supports the 'developer' role (OpenAI-specific) */
-  developerRole: z.boolean().default(false),
-  /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
-  serviceTier: z.boolean().default(false),
-  /** Whether the provider supports verbosity settings (OpenAI-specific) */
-  verbosity: z.boolean().default(false)
+export const ServiceTierDeliverySchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('provider-option'), key: z.string().min(1) }),
+  z.object({ type: z.literal('request-body'), key: z.string().min(1) })
+])
+
+export const ServiceTierRequestControlSchema = z
+  .object({
+    default: ServiceTierSelectionSchema,
+    options: ServiceTierOptionsSchema,
+    wire: z.object({
+      delivery: ServiceTierDeliverySchema,
+      values: z.partialRecord(ServiceTierSelectionSchema, z.string().min(1))
+    })
+  })
+  .superRefine((control, context) => {
+    if (!control.options.includes(control.default)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'service tier default must be one of its options',
+        path: ['default']
+      })
+    }
+    for (const option of control.options) {
+      if (!control.wire.values[option]) {
+        context.addIssue({
+          code: 'custom',
+          message: `service tier option '${option}' must have a wire value`,
+          path: ['wire', 'values', option]
+        })
+      }
+    }
+  })
+
+/** A provider-native tool plus the scope of models on which the host serves it. */
+export const ServerToolConfigSchema = z.object({
+  id: z.enum(objectValues(SERVER_TOOL)),
+  modelScope: z.enum(objectValues(SERVER_TOOL_MODEL_SCOPE)).default(SERVER_TOOL_MODEL_SCOPE.MODEL_DEPENDENT),
+  /** Endpoint protocols on which the host serves the tool. Absent ⇒ all configured endpoints. */
+  endpointTypes: z.array(EndpointTypeSchema).optional(),
+  /**
+   * Vendor families the host actually serves the tool for, when narrower than
+   * the tool's model eligibility (e.g. Vertex url-context is Gemini-only: the
+   * vertex-anthropic SDK exposes no webFetch tool). Absent ⇒ no narrowing.
+   */
+  vendors: z.array(z.enum(Object.keys(VENDOR_PATTERNS) as [VendorKey, ...VendorKey[]])).optional()
 })
+
+export type ServerToolConfig = z.infer<typeof ServerToolConfigSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Reasoning Format
@@ -43,128 +98,29 @@ export const ApiFeaturesSchema = z.object({
 // (effort levels, token limits) are in model.ts ReasoningSupportSchema.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
-
-/** Provider reasoning format — discriminated union by format type */
-export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
+const reasoningFormat = <T extends string>(type: T) =>
   z.object({
-    type: z.literal('openai-chat'),
-    params: z
-      .object({
-        reasoningEffort: ReasoningEffortSchema.optional()
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('openai-responses'),
-    params: z
-      .object({
-        reasoning: z.object({
-          effort: ReasoningEffortSchema.optional(),
-          summary: z.enum(['auto', 'concise', 'detailed']).optional()
-        })
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('anthropic'),
-    params: z
-      .object({
-        type: z.union([z.literal('enabled'), z.literal('disabled'), z.literal('adaptive')]),
-        budgetTokens: z.number().optional(),
-        effort: ReasoningEffortSchema.optional()
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('gemini'),
-    params: z
-      .union([
-        z
-          .object({
-            thinkingConfig: z.object({
-              includeThoughts: z.boolean().optional(),
-              thinkingBudget: z.number().optional()
-            })
-          })
-          .optional(),
-        z
-          .object({
-            thinkingLevel: z.enum(objectValues(GEMINI_THINKING_LEVEL)).optional()
-          })
-          .optional()
-      ])
-      .optional()
-  }),
-  z.object({
-    type: z.literal('openrouter'),
-    params: z
-      .object({
-        reasoning: z
-          .object({
-            effort: z
-              .union([
-                z.literal('none'),
-                z.literal('minimal'),
-                z.literal('low'),
-                z.literal('medium'),
-                z.literal('high')
-              ])
-              .optional(),
-            maxTokens: z.number().optional(),
-            exclude: z.boolean().optional()
-          })
-          .refine(
-            (v) => v.effort == null || v.maxTokens == null,
-            'Only one of effort or maxTokens can be specified, not both'
-          )
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('enable-thinking'),
-    params: z
-      .object({
-        enableThinking: z.boolean(),
-        thinkingBudget: z.number().optional()
-      })
-      .optional(),
-    ...CommonReasoningFieldsSchema
-  }),
-  z.object({
-    type: z.literal('thinking-type'),
-    params: z
-      .object({
-        thinking: z.object({
-          type: z.union([z.literal('enabled'), z.literal('disabled'), z.literal('auto')])
-        })
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('dashscope'),
-    params: z
-      .object({
-        enableThinking: z.boolean(),
-        incrementalOutput: z.boolean().optional()
-      })
-      .optional()
-  }),
-  // TODO: API layer must convert camelCase → snake_case (chat_template_kwargs, enable_thinking, thinking_budget)
-  // when building the actual request payload for vLLM/SGLang/nvidia endpoints
-  z.object({
-    type: z.literal('self-hosted'),
-    params: z
-      .object({
-        chatTemplateKwargs: z.object({
-          enableThinking: z.boolean().optional(),
-          thinking: z.boolean().optional(),
-          thinkingBudget: z.number().optional()
-        })
-      })
-      .optional()
+    type: z.literal(type),
+    /** Endpoint-wide wire behavior, interpreted only in Main. */
+    wire: ReasoningWireProfileSchema.optional()
   })
+
+/** Provider reasoning format — discriminated union by format type. */
+export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
+  reasoningFormat('openai-chat'),
+  reasoningFormat('openai-responses'),
+  reasoningFormat('anthropic'),
+  reasoningFormat('gemini'),
+  reasoningFormat('ollama'),
+  reasoningFormat('none')
 ])
+
+/** The discriminator values of {@link ProviderReasoningFormatSchema} — the ONE
+ *  source of the format-type list (shared re-derives its zod enum from this). */
+export type ReasoningFormatType = z.infer<typeof ProviderReasoningFormatSchema>['type']
+export const REASONING_FORMAT_TYPES = ProviderReasoningFormatSchema.options.map(
+  (option) => option.shape.type.value
+) as [ReasoningFormatType, ...ReasoningFormatType[]]
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Config
@@ -179,6 +135,20 @@ export const ProviderWebsiteSchema = z.object({
   })
 })
 
+/**
+ * How a host deviates from one endpoint's dialect. These are properties of the
+ * protocol, not of the vendor: a provider serving both chat-completions and
+ * Responses may answer differently for each.
+ */
+export const EndpointDialectSchema = z.object({
+  /** Accepts chat-completions `stream_options` for usage data. Absent ⇒ true. */
+  streamOptions: z.boolean().optional(),
+  /** Accepts messages with `role: "developer"`. Absent ⇒ false. */
+  developerRole: z.boolean().optional(),
+  /** Accepts OpenAI Responses `reasoning.summary`. Absent ⇒ use the registry wire. */
+  reasoningSummary: z.boolean().optional()
+})
+
 /** Per-endpoint-type configuration in registry */
 export const RegistryEndpointConfigSchema = z.object({
   /** Base URL for this endpoint type's API */
@@ -190,6 +160,8 @@ export const RegistryEndpointConfigSchema = z.object({
       default: z.url().optional(),
       /** Embedding models listing endpoint (if separate from default) */
       embedding: z.url().optional(),
+      /** Image models listing endpoint (if separate from default) */
+      image: z.url().optional(),
       /** Reranker models listing endpoint (if separate from default) */
       reranker: z.url().optional()
     })
@@ -201,7 +173,15 @@ export const RegistryEndpointConfigSchema = z.object({
    * registered in `appProviderIds`. Resolvers should prefer this over
    * heuristic id/baseUrl inference when present.
    */
-  adapterFamily: z.string().optional()
+  adapterFamily: z.string().optional(),
+  /** Dialect deviations of this host's implementation of the endpoint. */
+  dialect: EndpointDialectSchema.optional(),
+  /** User-selectable request controls supported by this endpoint. */
+  requestControls: z
+    .object({
+      serviceTier: ServiceTierRequestControlSchema.optional()
+    })
+    .optional()
 })
 
 export const ProviderConfigSchema = z
@@ -255,8 +235,18 @@ export const ProviderConfigSchema = z
      * local provider still needs its baseUrl input. Defaults false.
      */
     authOptional: z.boolean().default(false),
-    /** API feature flags controlling request construction */
-    apiFeatures: ApiFeaturesSchema.optional(),
+    /** Provider-native (server-executed) built-in tools served by this host. */
+    serverTools: z.array(ServerToolConfigSchema).default([]),
+    /** Whether usage responses carry the actual billed amount. */
+    reportsActualCost: z.boolean().default(false),
+    /**
+     * Registry-owned currency for provider-reported costs whose wire payload
+     * carries an amount but no currency. Absent means the amount stays
+     * unpriced; consumers must not infer a default currency.
+     */
+    reportedCostCurrency: ZodCurrencySchema,
+    /** Provider-owned Fast request transport. Effective support is declared per provider-model pair. */
+    fastMode: z.object({ transport: FastModeTransportSchema, serviceTier: z.string().optional() }).optional(),
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })
@@ -278,8 +268,12 @@ export const ProviderListSchema = z.object({
 })
 
 export { ENDPOINT_TYPE } from './enums'
-export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
 export type ProviderReasoningFormat = z.infer<typeof ProviderReasoningFormatSchema>
+export type EndpointDialect = z.infer<typeof EndpointDialectSchema>
+export type ServiceTierSelection = z.infer<typeof ServiceTierSelectionSchema>
+export type ServiceTierOptions = z.infer<typeof ServiceTierOptionsSchema>
+export type ServiceTierDelivery = z.infer<typeof ServiceTierDeliverySchema>
+export type ServiceTierRequestControl = z.infer<typeof ServiceTierRequestControlSchema>
 export type RegistryEndpointConfig = z.infer<typeof RegistryEndpointConfigSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>

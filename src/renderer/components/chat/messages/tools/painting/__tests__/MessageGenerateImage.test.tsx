@@ -1,4 +1,5 @@
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type * as SharedFileUtils from '@shared/utils/file'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +8,10 @@ const { getPhysicalPath } = vi.hoisted(() => ({ getPhysicalPath: vi.fn() }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
-vi.mock('@shared/utils/file', () => ({
+// Partial mock: only `toSafeFileUrl` is stubbed. Replacing the whole barrel
+// breaks any module that pulls a different export from it at import time.
+vi.mock('@shared/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedFileUtils>()),
   toSafeFileUrl: (path: string) => `file://${path}`
 }))
 vi.mock('@renderer/components/Spinner', () => ({
@@ -64,7 +68,7 @@ describe('MessageGenerateImageToolTitle', () => {
     expect(getPhysicalPath).toHaveBeenCalledWith({ id: 'f1' })
   })
 
-  it('lays multiple generated images out as a grid of separate tiles', async () => {
+  it('groups multiple generated images into one preview sequence', async () => {
     getPhysicalPath.mockImplementation(({ id }: { id: string }) => Promise.resolve(`/data/${id}.png`))
     render(
       <MessageGenerateImageToolTitle
@@ -76,9 +80,10 @@ describe('MessageGenerateImageToolTitle', () => {
         })}
       />
     )
-    await waitFor(() => expect(screen.getAllByTestId('image-block')).toHaveLength(2))
-    const tiles = screen.getAllByTestId('image-block').map((el) => el.textContent)
-    expect(tiles).toEqual(['file:///data/f1.png', 'file:///data/f2.png'])
+    await waitFor(() =>
+      expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png|file:///data/f2.png')
+    )
+    expect(screen.getAllByTestId('image-block')).toHaveLength(1)
   })
 
   it('renders agent MCP image blocks without resolving FileEntry paths', () => {

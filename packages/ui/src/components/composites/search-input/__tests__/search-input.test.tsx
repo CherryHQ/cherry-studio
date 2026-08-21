@@ -63,6 +63,12 @@ describe('SearchInput', () => {
     expect(screen.getByRole('button', { name: '清除' })).toBeInTheDocument()
   })
 
+  it('renders the clear action as a square icon button', () => {
+    render(<SearchInput value="cherry" onChange={() => {}} onClear={() => {}} clearLabel="清除" />)
+
+    expect(screen.getByRole('button', { name: '清除' })).toHaveClass('size-6', 'min-h-0')
+  })
+
   it('defaults to the h-9 field height', () => {
     const { container } = render(<SearchInput value="" onChange={() => {}} />)
 

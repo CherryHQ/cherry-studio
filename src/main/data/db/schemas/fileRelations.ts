@@ -1,25 +1,34 @@
 import type { tempSessionSourceType } from '@shared/data/types/fileRef'
 import {
   agentAvatarRef,
+  agentSessionMessageRoles,
+  agentSessionMessageSourceType,
   assistantAvatarRef,
   chatMessageRoles,
   chatMessageSourceType,
   type FileRefSourceType,
+  jobRoles,
+  jobSourceType,
   miniAppLogoRef,
   paintingRoles,
   paintingSourceType,
-  providerLogoRef
+  providerLogoRef,
+  translateHistoryRoles,
+  translateHistorySourceType
 } from '@shared/data/types/fileRef'
-import { sql, type SQLWrapper } from 'drizzle-orm'
+import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
+import { agentSessionMessageTable } from './agentSessionMessage'
 import { assistantTable } from './assistant'
 import { fileEntryTable } from './file'
+import { jobTable } from './job'
 import { messageTable } from './message'
 import { miniAppTable } from './miniApp'
 import { paintingTable } from './painting'
+import { translateHistoryTable } from './translateHistory'
 import { userProviderTable } from './userProvider'
 
 function sqlStringList(values: readonly string[]) {
@@ -60,6 +69,28 @@ export const chatMessageFileRefTable = sqliteTable(
   ]
 )
 
+/** Agent-session message attachments; both owner and file deletion cascade the ref. */
+export const agentSessionMessageFileRefTable = sqliteTable(
+  'agent_session_message_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => agentSessionMessageTable.id, { onDelete: 'cascade' }),
+    role: text().notNull().$type<(typeof agentSessionMessageRoles)[number]>(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    index('asmfr_entry_id_idx').on(t.fileEntryId),
+    index('asmfr_source_id_idx').on(t.sourceId),
+    uniqueIndex('asmfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
+    check('asmfr_role_check', roleCheck(t.role, agentSessionMessageRoles))
+  ]
+)
+
 /**
  * Painting file references.
  *
@@ -88,15 +119,80 @@ export const paintingFileRefTable = sqliteTable(
 )
 
 /**
- * Roleless single-file refs (provider/mini-app logos and assistant/agent avatars).
+ * Job file references.
+ *
+ * Links a FileEntry to a `job` row so the generic job system's persisted
+ * inputs are visible to the cleanup anti-join (file-entry-cleanup.md §5.1).
+ * Today only the async image-generation job holds refs here (its input images
+ * / mask). Deleting the job row (terminal-row pruning) cascades the ref, so
+ * the inputs become reclaimable exactly when the job record is gone; deleting
+ * the file entry cascades too.
+ */
+export const jobFileRefTable = sqliteTable(
+  'job_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => jobTable.id, { onDelete: 'cascade' }),
+    role: text().notNull().$type<(typeof jobRoles)[number]>(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    index('jfr_entry_id_idx').on(t.fileEntryId),
+    index('jfr_source_id_idx').on(t.sourceId),
+    uniqueIndex('jfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
+    check('jfr_role_check', roleCheck(t.role, jobRoles))
+  ]
+)
+
+/**
+ * Translate history file references.
+ *
+ * Links a FileEntry to a `translate_history` row whose `kind` is `'file'`. The
+ * current PDF producer writes one `role='target'` row for the generated internal
+ * `delete_when_unreferenced` entry and, best effort, one `role='source'` row for
+ * the user's external original (the path is referenced, never copied or deleted).
+ * Deleting the history row — individually or via "clear all" — cascades its refs,
+ * which is what makes the generated file reclaimable by the cleanup pass.
+ *
+ * Each history has exactly one target and at most one source. If multi-output
+ * translation is introduced, the role and presentation model must expand with it.
+ */
+export const translateHistoryFileRefTable = sqliteTable(
+  'translate_history_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => translateHistoryTable.id, { onDelete: 'cascade' }),
+    role: text().notNull().$type<(typeof translateHistoryRoles)[number]>(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    index('thfr_entry_id_idx').on(t.fileEntryId),
+    index('thfr_source_id_idx').on(t.sourceId),
+    uniqueIndex('thfr_unique_idx').on(t.sourceId, t.role),
+    check('thfr_role_check', roleCheck(t.role, translateHistoryRoles))
+  ]
+)
+
+/**
+ * Single-file entity-image refs (provider logo, mini-app logo).
  *
  * These model a single-file slot and are the **single source of truth** for an
- * owner's uploaded icon image. Logo owner rows keep their non-file choice;
- * assistant/agent rows set `avatarEmoji` to null while an image ref exists.
- * Writes go through the
- * `singleFileRef` helpers (`reconcileLogoSlotTx` / `clearSingleFileRef`);
- * reads look the file id back up via `getSingleFileRef` (one indexed lookup on the unique `(sourceId)`
- * index). `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
+ * owner's uploaded logo — the owner row keeps only `logo_key` (preset / URL
+ * refs), never a duplicate `logo_file_id`. Writes go through the
+ * `singleFileRef` helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`),
+ * each owner passing its own table; reads look the file id back up via
+ * `getSingleFileRefId` (one indexed lookup on the unique `(sourceId)` index).
+ * `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
  * `fileEntryId` a FK to the file (`onDelete: 'cascade'`), matching the
  * collection ref tables (`chat_message`, `painting`): dropping a provider /
  * mini-app or its file drops the ref row, so orphan-counting stays exact.
@@ -106,9 +202,7 @@ export const paintingFileRefTable = sqliteTable(
  * existing owner, and the migrators sequence the inserts explicitly. There is
  * **no `role` column**: the slot's role is a constant ('logo') read by nothing,
  * so the unique `(sourceId)` index alone enforces at most one file per slot.
- * Avatar row mappers require exactly one of `avatarEmoji` or a file ref; they do
- * not choose a fallback when storage is inconsistent. The user avatar deliberately
- * has no slot table — it is persisted only in the
+ * (The user avatar deliberately has no slot table — it is persisted only in the
  * `app.user.avatar` preference.)
  */
 export const providerLogoFileRefTable = sqliteTable(
@@ -168,34 +262,81 @@ export const agentAvatarFileRefTable = sqliteTable(
       .references(() => agentTable.id, { onDelete: 'cascade' }),
     ...createUpdateTimestamps
   },
-  (t) => [index('aavfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('aavfr_source_id_idx').on(t.sourceId)]
+  (t) => [index('agafr_entry_id_idx').on(t.fileEntryId), uniqueIndex('agafr_source_id_idx').on(t.sourceId)]
 )
-export const persistentFileRefTablesBySourceType = {
-  [chatMessageSourceType]: chatMessageFileRefTable,
-  [paintingSourceType]: paintingFileRefTable,
+/** The roleless single-file (logo) slot source types. */
+export type SingleFileRefSourceType =
+  | typeof providerLogoRef.sourceType
+  | typeof miniAppLogoRef.sourceType
+  | typeof assistantAvatarRef.sourceType
+  | typeof agentAvatarRef.sourceType
+
+/**
+ * Single-file slot tables by source type — the `sourceType → table` bridge for
+ * callers that carry a source type they cannot resolve statically (the v1
+ * migrator). Service write paths pass their own table directly instead, which
+ * is what keeps a service from reaching another owner's slot.
+ */
+export const singleFileRefTablesBySourceType = {
   [providerLogoRef.sourceType]: providerLogoFileRefTable,
   [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable,
   [assistantAvatarRef.sourceType]: assistantAvatarFileRefTable,
   [agentAvatarRef.sourceType]: agentAvatarFileRefTable
 } as const satisfies Record<
-  PersistentFileRefSourceType,
-  | typeof chatMessageFileRefTable
-  | typeof paintingFileRefTable
+  SingleFileRefSourceType,
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
   | typeof assistantAvatarFileRefTable
   | typeof agentAvatarFileRefTable
 >
 
+/**
+ * Every persistent source type has an association table. Intentionally has NO
+ * runtime consumer — the `satisfies` below is a compile-time completeness
+ * assertion: adding a source type without its table fails typecheck right here.
+ */
+export const persistentFileRefTablesBySourceType = {
+  [chatMessageSourceType]: chatMessageFileRefTable,
+  [agentSessionMessageSourceType]: agentSessionMessageFileRefTable,
+  [paintingSourceType]: paintingFileRefTable,
+  [jobSourceType]: jobFileRefTable,
+  [translateHistorySourceType]: translateHistoryFileRefTable,
+  ...singleFileRefTablesBySourceType
+} as const satisfies Record<
+  PersistentFileRefSourceType,
+  | typeof chatMessageFileRefTable
+  | typeof agentSessionMessageFileRefTable
+  | typeof paintingFileRefTable
+  | typeof jobFileRefTable
+  | typeof translateHistoryFileRefTable
+  | typeof providerLogoFileRefTable
+  | typeof miniAppLogoFileRefTable
+  | typeof assistantAvatarFileRefTable
+  | typeof agentAvatarFileRefTable
+>
+
+/**
+ * NOT EXISTS conditions for "no persistent ref points at this file_entry",
+ * generated from the registry so a new ref table cannot be silently omitted
+ * from unreferenced/cleanup discovery (file-entry-cleanup.md §5.1).
+ */
+export function persistentRefAbsenceConditions(): SQL[] {
+  return Object.values(persistentFileRefTablesBySourceType).map(
+    (table) => sql`NOT EXISTS (SELECT 1 FROM ${table} WHERE ${table.fileEntryId} = ${fileEntryTable.id})`
+  )
+}
+
 export type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
 export type InsertChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferInsert
+export type AgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferSelect
+export type InsertAgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferInsert
 export type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
 export type InsertPaintingFileRefRow = typeof paintingFileRefTable.$inferInsert
+export type JobFileRefRow = typeof jobFileRefTable.$inferSelect
+export type InsertJobFileRefRow = typeof jobFileRefTable.$inferInsert
+export type TranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferSelect
+export type InsertTranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferInsert
 export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelect
 export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
 export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect
 export type InsertMiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferInsert
-export type AssistantAvatarFileRefRow = typeof assistantAvatarFileRefTable.$inferSelect
-export type InsertAssistantAvatarFileRefRow = typeof assistantAvatarFileRefTable.$inferInsert
-export type AgentAvatarFileRefRow = typeof agentAvatarFileRefTable.$inferSelect
-export type InsertAgentAvatarFileRefRow = typeof agentAvatarFileRefTable.$inferInsert

@@ -6,25 +6,36 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
-### `singleFileRef.ts` / `fileEntryUrl.ts` — shared single-file mechanisms
+### `activityTime.ts` — conversation activity semantics
 
-`singleFileRef.ts` owns the FK-backed, roleless file-reference slot operations
-shared by provider/mini-app logos and assistant/agent avatars. `fileEntryUrl.ts`
-resolves a referenced FileEntry to a renderer-ready URL. The DB helper never
-touches the filesystem; the resolver never writes.
+Shared by Topic and Agent Session message persistence. It identifies
+conversation-bearing roles and real assistant completion transitions so both
+domains apply the same activity semantics. `topic.lastActivityAt` and
+`agent_session.lastActivityAt` are monotonic high-water marks: once an activity
+happens, later deletion or metadata maintenance does not erase that history.
+The following operations advance the high-water mark:
 
-### `logoRef.ts` — logo binding policy
+| Operation | Changes `lastActivityAt` |
+| --- | --- |
+| Create a Topic or Agent Session | Yes; initialized from container `createdAt` |
+| Create or fill a user message | Yes |
+| Create an assistant placeholder | Yes |
+| Complete, pause, or fail a pending assistant response | Yes |
+| Persist a tool-approval decision | Yes |
+| Complete a later continuation segment on the same assistant row | Yes |
+| Delete a content message | No |
+| Duplicate a Topic | Yes; initialized from the new Topic creation |
+| Persist a temporary Topic | Preserves the temporary Topic's activity time |
+| Rename, pin, reorder, navigate, edit metadata, or update message projections | No |
+| Boot-time `pending → error` crash reconciliation | No |
+| Create/update a system or virtual-root row | No |
 
-`reconcileLogoSlotTx` owns provider/mini-app key, file, and default switching.
-It composes the generic single-file slot operations without leaking logo policy
-into `singleFileRef.ts`.
-
-### `avatar.ts` — strict avatar row mapping
-
-`resolveAvatarValue` converts the mutually exclusive owner-column emoji and
-resolved image reference into the shared `AvatarValue` discriminated union.
-It throws when both sources or neither source exist, so persistence drift is
-never hidden behind a renderer fallback.
+For an existing-v2 schema upgrade, the SQLite migration initializes each
+container directly from user creation times and the best available assistant
+completion proxy `max(createdAt, updatedAt)`; pending assistant rows contribute
+their creation time. The v1 ChatMigrator and AgentsMigrator derive the same
+container-level value while importing. Empty containers fall back to their own
+`createdAt` in both paths.
 
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
@@ -190,14 +201,60 @@ regex revalidation, bounded offset scanning, and next-cursor assembly.
   in `@shared/data/types/message`; this generic utility does not know message
   roles.
 
+### `singleFileRef.ts` — single-file (logo) slot mechanics
+
+Backs the provider / mini-app logo slots. A *single-file slot* is an association table where one owner row holds at most one file: the ref row is the single source of truth for that owner's uploaded file, and the owner row keeps only a preset key.
+
+**Exports:**
+
+- `getSingleFileRefId(table, sourceId)` — the uploaded file's `file_entry` id for a slot, or `null`. One indexed lookup on the unique `(sourceId)` index.
+- `clearSingleFileRefTx(tx, table, sourceId)` — drop the slot's ref row.
+- `insertSingleFileRefTx(tx, table, sourceId, fileId)` — insert a ref row **without** clearing first (the migrator's empty-slot path).
+- `reconcileLogoSlotTx(tx, table, sourceId, input)` — replace the slot's ref per a `LogoBindInput` and return the `logoKey` to persist on the owner row; `null` when `input` is `undefined` (update no-op).
+- `LogoBindInput` / `LogoColumns` / `SingleFileRefTable` — the bind-input union, the resolved owner column, and the structural table constraint.
+
+**Design boundaries:**
+
+- **The table is a parameter, never a `switch`**: each owner service passes its own table, so a service has no way to reach another owner's slot (services/README "Own your table"), and adding a slot type needs no change here. Same rationale as `orderKey.ts`.
+- **DB-only**: never touches the filesystem. The caller stores the bytes first and passes an opaque `fileId`; superseded files are preserved per the file layer's policy.
+- **Structural table constraint**: `SingleFileRefTable` requires only `fileEntryId` + `sourceId` columns plus a unique index on `(sourceId)` — no assumption about the owning domain.
+- **"Single-file" is a precondition, not a label**: it names the category (opposed to the roled collection ref tables `chat_message_file_ref` / `painting_file_ref`, where one owner holds many rows), and the write path relies on it — it clears before inserting, so passing a table that permits several rows per `sourceId` would delete rows the caller never meant to touch.
+- **Two naming layers, deliberately**: the `SingleFileRef*` helpers are the table-agnostic mechanism; `reconcileLogoSlotTx` / `LogoBindInput` / `LogoColumns` sit above it and are logo-specific, because every single-file slot that exists today is a logo slot. Do not genericize the reconcile layer until a second kind of slot exists — `logoKey` maps to a real column name.
+- **`sourceType → table` resolution belongs to the caller**: callers holding a source type instead of a table (the v1 migrator) resolve it via `singleFileRefTablesBySourceType` in `db/schemas/fileRelations.ts`; this module never sees a source type.
+### `registryDataPaths.ts` — provider-registry file path resolution
+
+Resolves provider-registry paths for the v2 runtime. Remote snapshots may override `models.json` and `provider-models.json`; `providers.json` always resolves to the bundle so unsigned branch data cannot change credential-bearing routing. The one-shot v1-to-v2 migrator deliberately bypasses this resolver and stays pinned to bundled data.
+
+**Exports:**
+
+- `OVERRIDE_MANIFEST` — completion marker written last by `providerRegistrySnapshot.ts`.
+- `readActiveOverrideManifest()` — returns a complete, compatible snapshot manifest or `null`.
+- `resolveRegistryPaths()` — builds the mixed-trust `RegistryPaths`: bundled providers plus atomic model metadata.
+
+**Design boundaries:**
+
+- **Stateless, read-only**: this utility only inspects paths and the manifest; snapshot persistence belongs to the updater domain.
+- **Atomic model metadata**: both remote-safe files require a compatible completion manifest. Missing either file falls back to bundled model metadata.
+- **Explicit compatibility range**: `minAppVersion <= appVersion <= sourceAppVersion`, matching schema version, and a valid revision are required on every activation.
+- **Bundled routing**: provider endpoints, model-list URLs, adapter families, and authentication behavior never come from the unsigned branch.
+
+**Example:**
+
+```ts
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
+
+const loader = new RegistryLoader(resolveRegistryPaths())
+```
+
 ## Criteria for Adding a New Utility
 
 Before adding a new utility to this directory, confirm:
 
-1. **Has at least two real consumers** (history: `stripNulls` qualified because `MiniAppService` had made a copy-paste duplicate)
-2. **Do not extract simple single-field operations**: operations like `value ?? undefined` are already well-covered by TypeScript itself — do not wrap them
-3. **Does not duplicate an existing third-party library** (e.g. lodash) — unless we have specific boundary constraints
-4. **Add a new entry to the "File Index" above** documenting responsibility, signature, boundaries, and an example
+1. **Is domain-neutral** — the file must not name a specific business table, entity, or source type. The test: *when a new consumer adopts it, does this file have to change?* A generic mechanism is closed to that change (`orderKey.ts` and `singleFileRef.ts` take the table as a parameter); logic that grows a branch per consumer is shared **domain** logic and belongs with its owners, not here. Consumer count alone does not qualify a utility — two consumers of the same domain logic is still domain logic.
+2. **Has at least two real consumers** (history: `stripNulls` qualified because `MiniAppService` had made a copy-paste duplicate)
+3. **Do not extract simple single-field operations**: operations like `value ?? undefined` are already well-covered by TypeScript itself — do not wrap them
+4. **Does not duplicate an existing third-party library** (e.g. lodash) — unless we have specific boundary constraints
+5. **Add a new entry to the "File Index" above** documenting responsibility, signature, boundaries, and an example
 
 ## Rejected Alternatives
 

@@ -1,7 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
+import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,7 +33,7 @@ export interface ApiGatewayProviderBundle {
  */
 export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const { t } = useTranslation()
-  const { apiGatewayConfig, apiGatewayRunning, startApiGateway, setApiGatewayEnabled } = useApiGateway()
+  const { apiGatewayConfig, apiGatewayRunning, startApiGateway } = useApiGateway()
   const host = apiGatewayConfig.host || DEFAULT_GATEWAY_HOST
   const port = apiGatewayConfig.port || DEFAULT_GATEWAY_PORT
   const apiKey = apiGatewayConfig.apiKey
@@ -51,15 +51,13 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
       if (!started) {
         throw new Error('API gateway failed to start')
       }
-    } else if (!apiGatewayConfig.enabled) {
-      setApiGatewayEnabled(true)
     }
     const key = await preferenceService.get('feature.api_gateway.api_key')
     if (!key) {
       throw new Error('API gateway did not provide a key')
     }
     return key
-  }, [apiGatewayRunning, apiGatewayConfig.enabled, startApiGateway, setApiGatewayEnabled])
+  }, [apiGatewayRunning, startApiGateway])
 
   return useMemo(() => {
     const baseUrl = `http://${host}:${port}`
@@ -74,7 +72,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
       },
       apiKeys: [{ id: 'gateway', isEnabled: true }],
       authType: 'api-key',
-      apiFeatures: DEFAULT_API_FEATURES,
+      reportsActualCost: false,
       settings: DEFAULT_PROVIDER_SETTINGS,
       isEnabled: true
     }

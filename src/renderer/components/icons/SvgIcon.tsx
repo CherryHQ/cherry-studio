@@ -472,6 +472,188 @@ export const CursorIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
+// Windows Terminal icon by Microsoft, licensed under CC BY-ND 4.0.
+// Source: https://github.com/microsoft/terminal/blob/main/res/terminal/Terminal.svg
+// License: https://github.com/microsoft/terminal/blob/main/res/LICENSE
+// Embedded as JSX with per-render SVG IDs; the artwork geometry and colors are unchanged.
+export const WindowsTerminalIcon = (props: SVGProps<SVGSVGElement>) => {
+  const uid = useId()
+  const maskId = `windows-terminal-mask0-${uid}`
+  const filter0Id = `windows-terminal-filter0-dd-${uid}`
+  const filter1Id = `windows-terminal-filter1-dd-${uid}`
+  const filter2Id = `windows-terminal-filter2-dd-${uid}`
+  const gradient0Id = `windows-terminal-paint0-linear-${uid}`
+  const gradient1Id = `windows-terminal-paint1-linear-${uid}`
+  const gradient2Id = `windows-terminal-paint2-linear-${uid}`
+  const gradient3Id = `windows-terminal-paint3-linear-${uid}`
+  const gradient4Id = `windows-terminal-paint4-linear-${uid}`
+  const gradient5Id = `windows-terminal-paint5-linear-${uid}`
+
+  return (
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M0 13H16V6H2C0.9 6 0 6.9 0 8V13Z" fill="#CCCCCC" />
+      <path d="M32 6H16V13H32V6Z" fill="#999999" />
+      <path d="M48 13H32V6H46C47.1 6 48 6.9 48 8V13Z" fill="#666666" />
+      <path d="M46 42H2C0.9 42 0 41.1 0 40V12H48V40C48 41.1 47.1 42 46 42Z" fill={`url(#${gradient0Id})`} />
+      <g filter={`url(#${filter0Id})`}>
+        <path
+          d="M15.2 24.3L6.39999 33.1C5.89999 33.6 5.89999 34.3 6.39999 34.7L8.19999 36.5C8.69999 37 9.4 37 9.8 36.5L18.6 27.7C19.1 27.2 19.1 26.5 18.6 26.1L16.8 24.3C16.4 23.9 15.6 23.9 15.2 24.3Z"
+          fill={`url(#${gradient1Id})`}
+        />
+        <mask id={maskId} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="6" y="24" width="13" height="13">
+          <path
+            d="M15.2 24.3L6.39999 33.1C5.89999 33.6 5.89999 34.3 6.39999 34.7L8.19999 36.5C8.69999 37 9.4 37 9.8 36.5L18.6 27.7C19.1 27.2 19.1 26.5 18.6 26.1L16.8 24.3C16.4 23.9 15.6 23.9 15.2 24.3Z"
+            fill={`url(#${gradient2Id})`}
+          />
+        </mask>
+        <g mask={`url(#${maskId})`}>
+          <g filter={`url(#${filter1Id})`}>
+            <path
+              d="M9.8 17.3L18.6 26.1C19.1 26.6 19.1 27.3 18.6 27.7L16.8 29.5C16.3 30 15.6 30 15.2 29.5L6.39999 20.7C5.89999 20.2 5.89999 19.5 6.39999 19.1L8.19999 17.3C8.59999 16.9 9.4 16.9 9.8 17.3Z"
+              fill={`url(#${gradient3Id})`}
+            />
+          </g>
+        </g>
+        <path
+          d="M9.8 17.3L18.6 26.1C19.1 26.6 19.1 27.3 18.6 27.7L16.8 29.5C16.3 30 15.6 30 15.2 29.5L6.39999 20.7C5.89999 20.2 5.89999 19.5 6.39999 19.1L8.19999 17.3C8.59999 16.9 9.4 16.9 9.8 17.3Z"
+          fill={`url(#${gradient4Id})`}
+        />
+      </g>
+      <g filter={`url(#${filter2Id})`}>
+        <path
+          d="M40 32H24C23.4 32 23 32.4 23 33V36C23 36.6 23.4 37 24 37H40C40.6 37 41 36.6 41 36V33C41 32.4 40.6 32 40 32Z"
+          fill={`url(#${gradient5Id})`}
+        />
+      </g>
+      <defs>
+        <filter
+          id={filter0Id}
+          x="3.02499"
+          y="15"
+          width="18.95"
+          height="25.875"
+          filterUnits="userSpaceOnUse"
+          colorInterpolationFilters="sRGB">
+          <feFlood floodOpacity="0" result="BackgroundImageFix" />
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+          <feOffset dy="0.5" />
+          <feGaussianBlur stdDeviation="0.5" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0" />
+          <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow" />
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+          <feOffset dy="1" />
+          <feGaussianBlur stdDeviation="1.5" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.2 0" />
+          <feBlend mode="normal" in2="effect1_dropShadow" result="effect2_dropShadow" />
+          <feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow" result="shape" />
+        </filter>
+        <filter
+          id={filter1Id}
+          x="3.02499"
+          y="15"
+          width="18.95"
+          height="18.875"
+          filterUnits="userSpaceOnUse"
+          colorInterpolationFilters="sRGB">
+          <feFlood floodOpacity="0" result="BackgroundImageFix" />
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+          <feOffset dy="0.5" />
+          <feGaussianBlur stdDeviation="0.5" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0" />
+          <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow" />
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+          <feOffset dy="1" />
+          <feGaussianBlur stdDeviation="1.5" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.2 0" />
+          <feBlend mode="normal" in2="effect1_dropShadow" result="effect2_dropShadow" />
+          <feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow" result="shape" />
+        </filter>
+        <filter
+          id={filter2Id}
+          x="20"
+          y="30"
+          width="24"
+          height="11"
+          filterUnits="userSpaceOnUse"
+          colorInterpolationFilters="sRGB">
+          <feFlood floodOpacity="0" result="BackgroundImageFix" />
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+          <feOffset dy="0.5" />
+          <feGaussianBlur stdDeviation="0.5" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0" />
+          <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow" />
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+          <feOffset dy="1" />
+          <feGaussianBlur stdDeviation="1.5" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.2 0" />
+          <feBlend mode="normal" in2="effect1_dropShadow" result="effect2_dropShadow" />
+          <feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow" result="shape" />
+        </filter>
+        <linearGradient
+          id={gradient0Id}
+          x1="36.4462"
+          y1="47.8257"
+          x2="11.8217"
+          y2="5.1748"
+          gradientUnits="userSpaceOnUse">
+          <stop stopColor="#333333" />
+          <stop offset="1" stopColor="#4D4D4D" />
+        </linearGradient>
+        <linearGradient
+          id={gradient1Id}
+          x1="14.5276"
+          y1="33.9959"
+          x2="10.4841"
+          y2="26.9924"
+          gradientUnits="userSpaceOnUse">
+          <stop stopColor="#999999" />
+          <stop offset="1" stopColor="#B3B3B3" />
+        </linearGradient>
+        <linearGradient
+          id={gradient2Id}
+          x1="14.5276"
+          y1="33.9959"
+          x2="10.4841"
+          y2="26.9924"
+          gradientUnits="userSpaceOnUse">
+          <stop stopColor="#999999" />
+          <stop offset="1" stopColor="#B3B3B3" />
+        </linearGradient>
+        <linearGradient
+          id={gradient3Id}
+          x1="16.2747"
+          y1="30.0336"
+          x2="8.73699"
+          y2="16.9781"
+          gradientUnits="userSpaceOnUse">
+          <stop stopColor="#CCCCCC" />
+          <stop offset="1" stopColor="#E6E6E6" />
+        </linearGradient>
+        <linearGradient
+          id={gradient4Id}
+          x1="16.2747"
+          y1="30.0336"
+          x2="8.73699"
+          y2="16.9781"
+          gradientUnits="userSpaceOnUse">
+          <stop stopColor="#CCCCCC" />
+          <stop offset="1" stopColor="#E6E6E6" />
+        </linearGradient>
+        <linearGradient
+          id={gradient5Id}
+          x1="35.1496"
+          y1="39.9553"
+          x2="28.8504"
+          y2="29.0447"
+          gradientUnits="userSpaceOnUse">
+          <stop stopColor="#CCCCCC" />
+          <stop offset="1" stopColor="#E6E6E6" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
 // https://zed.dev/brand
 export const ZedIcon = (props: SVGProps<SVGSVGElement>) => {
   return (
@@ -492,7 +674,7 @@ export const JoplinIcon = (props: SVGProps<SVGSVGElement>) => (
     viewBox="0 0 24 24"
     width="16"
     height="16"
-    fill="var(--color-icon)"
+    fill="var(--muted-foreground)"
     xmlns="http://www.w3.org/2000/svg"
     {...props}>
     <path d="M20.97 0h-8.9a.15.15 0 00-.16.15v2.83c0 .1.08.17.18.17h1.22c.49 0 .89.38.93.86V17.4l-.01.36-.05.29-.04.13a2.06 2.06 0 01-.38.7l-.02.03a2.08 2.08 0 01-.37.34c-.5.35-1.17.5-1.92.43a4.66 4.66 0 01-2.67-1.22 3.96 3.96 0 01-1.34-2.42c-.1-.78.14-1.47.65-1.93l.07-.05c.37-.31.84-.5 1.39-.55a.09.09 0 00.01 0l.3-.01.35.01h.02a4.39 4.39 0 011.5.44c.15.08.17 0 .18-.06V9.63a.26.26 0 00-.2-.26 7.5 7.5 0 00-6.76 1.61 6.37 6.37 0 00-2.03 5.5 8.18 8.18 0 002.71 5.08A9.35 9.35 0 0011.81 24c1.88 0 3.62-.64 4.9-1.81a6.32 6.32 0 002.06-4.3l.01-10.86V4.08a.95.95 0 01.95-.93h1.22a.17.17 0 00.17-.17V.15a.15.15 0 00-.15-.15z" />

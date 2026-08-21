@@ -20,6 +20,7 @@ import type {
   Modality,
   ModelCapability,
   ReasoningEffort,
+  ServerTool,
   SupportSpec
 } from '@cherrystudio/provider-registry'
 import {
@@ -32,7 +33,9 @@ import {
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
-  REASONING_EFFORT
+  REASONING_EFFORT,
+  ReasoningControlSchema,
+  SERVER_TOOL
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
@@ -46,7 +49,8 @@ export {
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
-  REASONING_EFFORT
+  REASONING_EFFORT,
+  SERVER_TOOL
 }
 
 // Re-export types for consumers
@@ -60,6 +64,7 @@ export type {
   Modality,
   ModelCapability,
   ReasoningEffort,
+  ServerTool,
   SupportSpec
 }
 
@@ -84,10 +89,24 @@ export const ThinkingTokenLimitsSchema = z
 /** Reasoning effort levels */
 const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
+/** Verbosity of the reasoning summary an endpoint returns (OpenAI `reasoning.summary`). */
+export const ReasoningSummarySchema = z.enum(['auto', 'concise', 'detailed'])
+export type ReasoningSummary = z.infer<typeof ReasoningSummarySchema>
+
+export const ServiceTierSelectionSchema = z.enum(['standard', 'auto', 'fast', 'flex'])
+export type ServiceTierSelection = z.infer<typeof ServiceTierSelectionSchema>
+
 /** Common reasoning fields shared across all reasoning type variants */
 const CommonReasoningFieldsSchema = {
+  /** Source declaration of the model's reasoning knobs (effort/budget/toggle). */
+  controls: z.array(ReasoningControlSchema).optional(),
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  /** Endpoint-projected choices exposed to the renderer. */
+  selectableEfforts: z.array(ReasoningEffortSchema).optional(),
+  /** Endpoint-projected: present only where the wire carries a summary verbosity knob. */
+  summaryOptions: z.array(ReasoningSummarySchema).optional(),
+  /** What the API does when no reasoning param is sent. */
+  defaultEffort: ReasoningEffortSchema.optional(),
   interleaved: z.boolean().optional()
 }
 
@@ -204,36 +223,31 @@ export const UI_CAPABILITY_TAGS = [
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.REASONING,
   MODEL_CAPABILITY.FUNCTION_CALL,
-  MODEL_CAPABILITY.WEB_SEARCH,
   MODEL_CAPABILITY.RERANK
 ] as const
+
+/** Provider-native tools surfaced alongside model capability tags. */
+export const UI_SERVER_TOOL_TAGS = [SERVER_TOOL.WEB_SEARCH] as const
 
 /** A capability that is shown as a UI tag */
 export type ModelCapabilityTag = (typeof UI_CAPABILITY_TAGS)[number]
 
 /** All UI-visible model tags: capability-derived + business tags */
-export type ModelTag = ModelCapabilityTag | 'free'
+export type ModelTag = ModelCapabilityTag | (typeof UI_SERVER_TOOL_TAGS)[number] | 'free'
 
 /** All possible ModelTag values (for iteration) */
-export const ALL_MODEL_TAGS: readonly ModelTag[] = [...UI_CAPABILITY_TAGS, 'free'] as const
+export const ALL_MODEL_TAGS: readonly ModelTag[] = [...UI_CAPABILITY_TAGS, ...UI_SERVER_TOOL_TAGS, 'free'] as const
 
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 
-/** DB form: supportedEfforts is optional */
+/** Persistable intrinsic reasoning metadata. Provider wire details are excluded. */
 export const ReasoningConfigSchema = z.object({
-  /** Reasoning type: must match a known reasoning variant */
-  type: z.string().regex(/^[a-z][a-z0-9-]*$/, {
-    message: 'Reasoning type must be lowercase alphanumeric with hyphens'
-  }),
   ...CommonReasoningFieldsSchema
 })
 export type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>
 
-/** Runtime form: extends DB form — supportedEfforts required, adds defaultEffort */
-export const RuntimeReasoningSchema = ReasoningConfigSchema.required({ supportedEfforts: true }).extend({
-  /** Default effort level */
-  defaultEffort: z.enum(objectValues(REASONING_EFFORT)).optional()
-})
+/** Runtime form: renderer choices are always materialized, even when empty. */
+export const RuntimeReasoningSchema = ReasoningConfigSchema.required({ selectableEfforts: true })
 
 export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
 
@@ -276,23 +290,68 @@ export type RuntimeParameterSupport = z.infer<typeof RuntimeParameterSupportSche
 export const PricingTierSchema = PricePerTokenSchema
 export type PricingTier = z.infer<typeof PricingTierSchema>
 
-export const RuntimeModelPricingSchema = z.object({
+export const InputTokenPricingTierSchema = z.object({
+  minInputTokens: z.number().int().positive().refine(Number.isSafeInteger),
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
   cacheRead: PricePerTokenSchema.optional(),
-  cacheWrite: PricePerTokenSchema.optional(),
-  perImage: z
-    .object({
-      price: z.number(),
-      unit: z.enum(['image', 'pixel']).optional()
-    })
-    .optional(),
-  perMinute: z
-    .object({
-      price: z.number()
-    })
-    .optional()
+  cacheWrite: PricePerTokenSchema.optional()
 })
+export type InputTokenPricingTier = z.infer<typeof InputTokenPricingTierSchema>
+
+export const RuntimeModelPricingSchema = z
+  .object({
+    input: PricePerTokenSchema,
+    output: PricePerTokenSchema,
+    cacheRead: PricePerTokenSchema.optional(),
+    cacheWrite: PricePerTokenSchema.optional(),
+    inputTokenTiers: z.array(InputTokenPricingTierSchema).optional(),
+    perImage: z
+      .object({
+        price: z.number(),
+        unit: z.enum(['image', 'pixel']).optional()
+      })
+      .optional(),
+    perMinute: z
+      .object({
+        price: z.number()
+      })
+      .optional()
+  })
+  .superRefine((pricing, ctx) => {
+    for (let index = 1; index < (pricing.inputTokenTiers?.length ?? 0); index++) {
+      const previous = pricing.inputTokenTiers![index - 1]
+      const current = pricing.inputTokenTiers![index]
+      if (current.minInputTokens <= previous.minInputTokens) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['inputTokenTiers', index, 'minInputTokens'],
+          message: 'minInputTokens must be strictly increasing'
+        })
+      }
+    }
+
+    if (!pricing.inputTokenTiers?.length) return
+
+    const rates = [
+      { rate: pricing.input, path: ['input'] },
+      { rate: pricing.output, path: ['output'] },
+      ...(pricing.cacheRead ? [{ rate: pricing.cacheRead, path: ['cacheRead'] }] : []),
+      ...(pricing.cacheWrite ? [{ rate: pricing.cacheWrite, path: ['cacheWrite'] }] : []),
+      ...(pricing.inputTokenTiers ?? []).flatMap((tier, index) => [
+        { rate: tier.input, path: ['inputTokenTiers', index, 'input'] },
+        { rate: tier.output, path: ['inputTokenTiers', index, 'output'] },
+        ...(tier.cacheRead ? [{ rate: tier.cacheRead, path: ['inputTokenTiers', index, 'cacheRead'] }] : []),
+        ...(tier.cacheWrite ? [{ rate: tier.cacheWrite, path: ['inputTokenTiers', index, 'cacheWrite'] }] : [])
+      ])
+    ]
+    const currency = pricing.input.currency ?? CURRENCY.USD
+    for (const { rate, path } of rates) {
+      if ((rate.currency ?? CURRENCY.USD) !== currency) {
+        ctx.addIssue({ code: 'custom', path: [...path, 'currency'], message: 'pricing currencies must match' })
+      }
+    }
+  })
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
 export const ModelSchema = z.object({
@@ -338,6 +397,23 @@ export const ModelSchema = z.object({
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
   reasoning: RuntimeReasoningSchema.optional(),
+  /** Whether this exact provider-model pair supports the provider's Fast transport. */
+  supportsFastMode: z.boolean().optional(),
+  /** Endpoint-projected request controls safe to expose to the renderer. */
+  requestControls: z
+    .object({
+      serviceTier: z
+        .object({
+          default: ServiceTierSelectionSchema,
+          options: z.array(ServiceTierSelectionSchema).min(1)
+        })
+        .refine((control) => control.options.includes(control.default), {
+          message: 'service tier default must be one of its options',
+          path: ['default']
+        })
+        .optional()
+    })
+    .optional(),
   /** Parameter support */
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 

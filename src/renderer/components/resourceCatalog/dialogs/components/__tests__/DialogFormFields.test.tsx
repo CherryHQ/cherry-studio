@@ -6,28 +6,19 @@ import { type ComponentPropsWithoutRef, createElement, type ReactNode } from 're
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', () => ({
-  Avatar: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
-    <span data-testid="avatar" {...props}>
-      {children}
-    </span>
-  ),
-  AvatarImage: ({ src }: { src: string }) => <img src={src} alt="" />,
   Button: ({
     children,
-    loading,
     variant,
     size,
     ...props
   }: {
     children?: ReactNode
-    loading?: boolean
     variant?: string
     size?: string
     [key: string]: unknown
   }) => {
     void variant
     void size
-    void loading
     return (
       <button type="button" {...props}>
         {children}
@@ -63,7 +54,7 @@ vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: () => <div data-testid="emoji-picker" />
 }))
 
-import { DialogModelTrigger, EmojiAvatarPicker } from '../DialogFormFields'
+import { DialogModelTrigger } from '../DialogFormFields'
 
 afterEach(() => {
   cleanup()
@@ -80,67 +71,11 @@ describe('DialogModelTrigger', () => {
 
     const trigger = screen.getByRole('button', { name: 'Model' })
 
-    expect(trigger).toHaveClass('h-8', 'rounded-lg', 'gap-2', 'bg-muted/50', 'hover:bg-muted', 'text-sm')
     expect(screen.queryByTestId('model-trigger-placeholder')).not.toBeInTheDocument()
     expect(screen.queryByTestId('model-avatar')).not.toBeInTheDocument()
 
     fireEvent.click(trigger)
 
     expect(onClick).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('EmojiAvatarPicker', () => {
-  it('uses the shared popover surface without overriding its visual tokens', () => {
-    render(
-      <EmojiAvatarPicker
-        value="🙂"
-        open
-        onOpenChange={vi.fn()}
-        onChange={vi.fn()}
-        ariaLabel="Avatar"
-        portalContainer={document.body}
-      />
-    )
-
-    const popoverContent = screen.getByTestId('popover-content')
-
-    expect(popoverContent).toHaveClass('w-auto', 'p-2')
-    expect(popoverContent).not.toHaveClass(
-      'border',
-      'border-border',
-      'bg-popover',
-      'text-popover-foreground',
-      'shadow-lg'
-    )
-  })
-
-  it('offers image upload and renders the selected image source', () => {
-    const onImageSelect = vi.fn()
-    const { container } = render(
-      <EmojiAvatarPicker
-        value="🙂"
-        open
-        onOpenChange={vi.fn()}
-        onChange={vi.fn()}
-        onImageSelect={onImageSelect}
-        imageSrc="file:///avatar.webp"
-        uploadLabel="Upload image"
-        emojiLabel="Choose emoji"
-        ariaLabel="Avatar"
-        portalContainer={document.body}
-      />
-    )
-
-    expect(container.querySelector('img')).toHaveAttribute('src', 'file:///avatar.webp')
-    expect(screen.getByRole('button', { name: 'Upload image' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Choose emoji' })).toBeInTheDocument()
-
-    const file = new File(['image'], 'avatar.png', { type: 'image/png' })
-    const input = container.querySelector('input[type="file"]')
-    expect(input).not.toBeNull()
-    fireEvent.change(input!, { target: { files: [file] } })
-
-    expect(onImageSelect).toHaveBeenCalledWith(file)
   })
 })

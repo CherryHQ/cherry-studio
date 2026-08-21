@@ -2,7 +2,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile } from '@main/utils/file'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { redactUrlToOrigin } from '@shared/utils/redaction'
 import { net } from 'electron'
 
 import { readMarkdownFromResponseZip } from './resultPersistence'
@@ -28,9 +29,9 @@ class MarkdownResultStore {
   async persistResultToPath(options: {
     jobId: string
     result: MarkdownPersistencePayload
-    path: FilePath
+    path: AbsoluteFilePath
     signal?: AbortSignal
-  }): Promise<FilePath> {
+  }): Promise<AbsoluteFilePath> {
     try {
       const data = await this.resolveMarkdownBytes(options)
       await atomicWriteFile(options.path, data)
@@ -99,20 +100,11 @@ function getMarkdownPersistenceLogContext(options: {
   }
 
   if (options.result.kind === 'remote-zip-url') {
-    context.downloadUrl = redactUrlQuery(options.result.downloadUrl)
+    context.downloadUrl = redactUrlToOrigin(options.result.downloadUrl)
     context.configuredApiHost = options.result.configuredApiHost
   }
 
   return context
-}
-
-function redactUrlQuery(url: string): string {
-  try {
-    const parsedUrl = new URL(url)
-    return `${parsedUrl.origin}${parsedUrl.pathname}`
-  } catch {
-    return '[invalid-url]'
-  }
 }
 
 function getSafeMarkdownPersistenceErrorForLog(error: unknown): Error {

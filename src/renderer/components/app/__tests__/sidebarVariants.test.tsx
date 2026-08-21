@@ -1,0 +1,145 @@
+import type { Assistant } from '@renderer/types/assistant'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import type { MiniApp } from '@shared/data/types/miniApp'
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+
+import { resolveSidebarEntry, type SidebarVariantContext } from '../sidebarVariants'
+
+function createContext(overrides: Partial<SidebarVariantContext> = {}): SidebarVariantContext {
+  return {
+    t: (key: string) => key,
+    defaultPaintingProvider: 'aihubmix',
+    installedMiniApps: new Map<string, MiniApp>(),
+    installedAgents: new Map<string, AgentEntity>(),
+    installedAssistants: new Map<string, Assistant>(),
+    assistantIconType: 'emoji',
+    agentIconType: 'emoji',
+    defaultModelId: null,
+    isRequiredApp: () => false,
+    openApp: vi.fn(),
+    openMiniApp: vi.fn(),
+    openAgent: vi.fn(),
+    openAssistant: vi.fn(),
+    removeApp: vi.fn(),
+    removeMiniApp: vi.fn(),
+    removeAgent: vi.fn(),
+    removeAssistant: vi.fn(),
+    ...overrides
+  }
+}
+
+function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
+  return {
+    id: 'assistant-1',
+    name: 'Alpha',
+    avatar: { kind: 'emoji', emoji: '🍒' },
+    modelId: 'openai::gpt-5',
+    ...overrides
+  } as Assistant
+}
+
+function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
+  return {
+    id: 'agent-1',
+    name: 'Agent',
+    avatar: { kind: 'emoji', emoji: '🤖' },
+    configuration: {},
+    ...overrides
+  } as AgentEntity
+}
+
+const assistantFavorite: SidebarFavoriteItem = { type: 'assistant', id: 'assistant-1' }
+const agentFavorite: SidebarFavoriteItem = { type: 'agent', id: 'agent-1' }
+
+describe('sidebarVariants icons', () => {
+  it('renders the assistant own emoji', () => {
+    const ctx = createContext({
+      installedAssistants: new Map([['assistant-1', createAssistant()]])
+    })
+
+    const entry = resolveSidebarEntry(assistantFavorite, ctx)
+    render(<div data-testid="icon">{entry?.renderIcon(18, 'lg')}</div>)
+
+    expect(screen.getByTestId('icon')).toHaveTextContent('🍒')
+  })
+
+  it.each([
+    ['lg', '24'],
+    ['md', '18']
+  ] as const)('sizes a pinned entity icon like a mini app logo (%s)', (iconSize, expected) => {
+    const ctx = createContext({
+      installedAssistants: new Map([['assistant-1', createAssistant()]])
+    })
+
+    const entry = resolveSidebarEntry(assistantFavorite, ctx)
+    const { container } = render(<div>{entry?.renderIcon(18, iconSize)}</div>)
+
+    // Filled discs read a size smaller than line glyphs at the same box, so entity
+    // rows follow the mini app scale rather than the lucide `size` the apps use.
+    const icon = container.querySelector('svg, div[style]')
+    expect(icon?.getAttribute('width') ?? (icon as HTMLElement)?.style.width).toMatch(new RegExp(`^${expected}(px)?$`))
+  })
+
+  it('renders the model avatar when the icon type preference is model', () => {
+    const ctx = createContext({
+      assistantIconType: 'model',
+      installedAssistants: new Map([['assistant-1', createAssistant()]])
+    })
+
+    const entry = resolveSidebarEntry(assistantFavorite, ctx)
+    render(<div data-testid="icon">{entry?.renderIcon(18, 'lg')}</div>)
+
+    // A pinned row must mirror the rail: with icon_type=model the rail shows the model
+    // avatar, so showing the (often placeholder) emoji here would not match it.
+    expect(screen.getByTestId('icon')).not.toHaveTextContent('🍒')
+  })
+
+  it('still renders a glyph when the icon type preference is none', () => {
+    const ctx = createContext({
+      assistantIconType: 'none',
+      installedAssistants: new Map([['assistant-1', createAssistant()]])
+    })
+
+    const entry = resolveSidebarEntry(assistantFavorite, ctx)
+    render(<div data-testid="icon">{entry?.renderIcon(18, 'lg')}</div>)
+
+    // The rail can drop the icon entirely; a sidebar row cannot — it is the only thing
+    // identifying the row.
+    expect(screen.getByTestId('icon')).toHaveTextContent('🍒')
+  })
+
+  it('renders an assistant image avatar', () => {
+    const ctx = createContext({
+      installedAssistants: new Map([
+        [
+          'assistant-1',
+          createAssistant({
+            avatar: {
+              kind: 'image',
+              fileId: '11111111-1111-4111-8111-111111111111',
+              src: 'file:///avatar.webp'
+            }
+          })
+        ]
+      ])
+    })
+
+    const entry = resolveSidebarEntry(assistantFavorite, ctx)
+    const { container } = render(<div data-testid="icon">{entry?.renderIcon(18, 'lg')}</div>)
+
+    expect(container.querySelector('img')).toHaveAttribute('src', 'file:///avatar.webp')
+  })
+
+  it('renders the configured agent avatar', () => {
+    const ctx = createContext({
+      installedAgents: new Map([['agent-1', createAgent({ avatar: { kind: 'emoji', emoji: '🦞' } })]])
+    })
+
+    const entry = resolveSidebarEntry(agentFavorite, ctx)
+    render(<div data-testid="icon">{entry?.renderIcon(18, 'lg')}</div>)
+
+    expect(screen.getByTestId('icon')).toHaveTextContent('🦞')
+  })
+})

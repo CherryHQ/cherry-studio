@@ -20,6 +20,7 @@
 
 import { loggerService } from '@logger'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { markV1CustomCss } from '@shared/utils/customCssMigration'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -27,6 +28,7 @@ import {
   migrateWebSearchProviders,
   normalizeWebSearchDefaultProvider
 } from '../transformers/PreferenceTransformers'
+import { contextCountToMaxMessages } from './AssistantMappings'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
 import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
@@ -88,6 +90,15 @@ function transformSidebarFavorites(): TransformResult {
   }
 }
 
+function transformV1CustomCss(sources: Record<string, unknown>): TransformResult {
+  const customCss = sources.customCss
+  if (typeof customCss !== 'string') return {}
+
+  return {
+    'ui.custom_css': markV1CustomCss(customCss)
+  }
+}
+
 // ============================================================================
 // Complex Mappings Configuration
 // ============================================================================
@@ -103,7 +114,31 @@ function transformSidebarFavorites(): TransformResult {
  *
  * Remember to also define the target keys in target-key-definitions.json!
  */
+/**
+ * v1's default assistant carried the context policy every NEW assistant was
+ * cloned from. Migrating it only onto the migrated assistant rows would lose it
+ * for assistants created afterwards, which would silently start unlimited.
+ * Uses the same conversion as the per-assistant migration so both agree.
+ */
+function transformDefaultAssistantContextCount(sources: Record<string, unknown>): TransformResult {
+  const maxMessages = contextCountToMaxMessages(sources.contextCount)
+  // The global layer has no "inherit": unusable input and v1's unlimited both
+  // leave the generated default, which is already `null`.
+  return maxMessages == null ? {} : { 'chat.context_settings.max_messages': maxMessages }
+}
+
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // v1 default-assistant context policy → global context-message limit
+  {
+    id: 'default_assistant_context_count_migrate',
+    description: "Carry v1's default-assistant contextCount into the global recent-messages limit",
+    sources: {
+      contextCount: { source: 'redux', category: 'assistants', key: 'defaultAssistant.settings.contextCount' }
+    },
+    targetKeys: ['chat.context_settings.max_messages'],
+    transform: transformDefaultAssistantContextCount
+  },
+
   // WebSearch default provider normalization
   {
     id: 'websearch_default_provider_migrate',
@@ -137,6 +172,22 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: flattenCompressionConfig
   },
 
+  {
+    id: 'onboarding_completed_migrate',
+    description: 'Convert legacy localStorage onboarding-completed into the v2 provider setup status',
+    sources: {
+      completed: { source: 'localStorage', key: 'onboarding-completed' }
+    },
+    targetKeys: ['app.onboarding.provider_setup.status'],
+    transform: (sources) => {
+      if (sources.completed === undefined || sources.completed === null) return {}
+      return {
+        'app.onboarding.provider_setup.status':
+          sources.completed === true || sources.completed === 'true' ? 'completed' : 'pending'
+      }
+    }
+  },
+
   // CodeCLI: no migration — feature.code_cli.configs is a fresh v2 key (v1 codeTools is throwaway).
 
   // Shortcut preferences (legacy array → per-key PreferenceShortcutType)
@@ -162,6 +213,16 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformSidebarFavorites
   },
 
+  {
+    id: 'custom_css_v1_marker',
+    description: 'Preserve legacy custom CSS behind a versioned marker until the user reviews it for v2',
+    sources: {
+      customCss: { source: 'redux', category: 'settings', key: 'customCss' }
+    },
+    targetKeys: ['ui.custom_css'],
+    transform: transformV1CustomCss
+  },
+
   // File processing overrides merging
   {
     id: 'file_processing_overrides_merge',
@@ -180,16 +241,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     description: 'Convert legacy LLM Model objects (provider + id) into UniqueModelId format (provider::modelId)',
     sources: {
       defaultModel: { source: 'redux', category: 'llm', key: 'defaultModel' },
-      topicNamingModel: { source: 'redux', category: 'llm', key: 'topicNamingModel' },
       quickModel: { source: 'redux', category: 'llm', key: 'quickModel' },
       translateModel: { source: 'redux', category: 'llm', key: 'translateModel' }
     },
-    targetKeys: [
-      'chat.default_model_id',
-      'topic.naming.model_id',
-      'feature.quick_assistant.model_id',
-      'feature.translate.model_id'
-    ],
+    targetKeys: ['chat.default_model_id', 'feature.quick_assistant.model_id', 'feature.translate.model_id'],
     transform: transformLlmModelIds
   },
 

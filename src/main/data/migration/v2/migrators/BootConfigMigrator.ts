@@ -8,7 +8,7 @@
 
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
-import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
+import { bootConfigSchema, DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 
@@ -90,6 +90,15 @@ export class BootConfigMigrator extends BaseMigrator {
               this.skippedCount++
               continue
             }
+          }
+
+          // v1 data is an untrusted external source — skip values that fail
+          // the boot config schema instead of failing the whole migration in
+          // execute() over one corrupt setting.
+          if (!bootConfigSchema.shape[item.targetKey].safeParse(valueToMigrate).success) {
+            this.skippedCount++
+            warnings.push(`Skipped ${item.originalKey}: v1 value fails boot config schema validation`)
+            continue
           }
 
           this.preparedItems.push({

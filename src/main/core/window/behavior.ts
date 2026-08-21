@@ -47,8 +47,9 @@ export function applyWindowBehavior(
   // ── Initial alwaysOnTop with level/relativeLevel ─────────────────────
   // Electron's `new BrowserWindow({ alwaysOnTop: true })` enables the flag but
   // cannot accept a level. We enhance it here once so the level takes effect
-  // before any show happens. The macReapplyAlwaysOnTop quirk (if set) will
-  // keep re-applying on subsequent show/showInactive to survive macOS demotion.
+  // before any show happens. The reapplyAlwaysOnTop quirk (if set) will keep
+  // re-applying on subsequent show/showInactive to survive macOS level demotion
+  // and Windows topmost z-order churn.
   if (windowOptions.alwaysOnTop === true && behavior.alwaysOnTop) {
     const { level, relativeLevel } = behavior.alwaysOnTop
     if (level !== undefined && relativeLevel !== undefined) {

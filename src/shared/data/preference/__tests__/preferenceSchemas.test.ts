@@ -4,6 +4,10 @@ import type { PreferenceSchemas } from '../preferenceSchemas'
 import { DefaultPreferences } from '../preferenceSchemas'
 
 describe('DefaultPreferences', () => {
+  it('leaves the client ID empty until runtime generates a UUID', () => {
+    expect(DefaultPreferences.default['app.user.id']).toBe('')
+  })
+
   it('uses flat file processing default keys', () => {
     const markdownConversionDefault: PreferenceSchemas['default']['feature.file_processing.default_document_to_markdown'] =
       null
@@ -46,6 +50,28 @@ describe('DefaultPreferences', () => {
     ]
 
     expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
+  })
+
+  it('pins permission mode on the agent composer toolbar for new users', () => {
+    const agentPinnedToolsDefault: PreferenceSchemas['default']['agent.input.toolbar.pinned_tools'] = [
+      'composer:new-session',
+      'skills',
+      'permission-mode'
+    ]
+
+    expect(DefaultPreferences.default['agent.input.toolbar.pinned_tools']).toEqual(agentPinnedToolsDefault)
+  })
+
+  it('defaults transparent windows on for new users', () => {
+    const windowStyleDefault: PreferenceSchemas['default']['ui.window_style'] = 'transparent'
+
+    expect(DefaultPreferences.default['ui.window_style']).toBe(windowStyleDefault)
+  })
+
+  it('defaults message navigation to the anchor rail for new users', () => {
+    const messageNavigationDefault: PreferenceSchemas['default']['chat.message.navigation_mode'] = 'anchor'
+
+    expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
   })
 
   it('does not keep legacy classic/modern layout preferences', () => {

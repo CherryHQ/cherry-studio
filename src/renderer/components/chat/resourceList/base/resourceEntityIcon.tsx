@@ -29,30 +29,46 @@ function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null 
   }
 }
 
+const RESOURCE_ICON_SIZE = 24
+
+function renderAvatarIcon(avatar: AvatarValue, size: number) {
+  return <AvatarIcon avatar={avatar} size={size} fontSize={Math.round(size * 0.58)} className="mr-0" />
+}
+
+/**
+ * @param size - Rendered icon size; the sidebar renders smaller rows than the rails.
+ */
 export function renderAssistantEntityIcon(
   iconType: AssistantIconType,
   assistant: { avatar: AvatarValue; modelId?: string | null; modelName?: string | null },
-  fallbackModelId?: string | null
+  fallbackModelId?: string | null,
+  size: number = RESOURCE_ICON_SIZE
 ) {
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
+  if (iconType === 'model' && modelAvatarModel) {
+    return <ModelAvatar model={modelAvatarModel} size={size} className="border border-border-subtle" />
+  }
 
-  return <AvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />
+  return renderAvatarIcon(assistant.avatar, size)
 }
 
+/**
+ * @param size - Rendered icon size; the sidebar renders smaller rows than the rails.
+ */
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
   agent: { avatar: AvatarValue; model?: string | null; modelName?: string | null } | undefined,
-  fallbackModelId?: string | null
+  fallbackModelId?: string | null,
+  size: number = RESOURCE_ICON_SIZE
 ) {
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
+  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />
 
-  return agent ? <AvatarIcon avatar={agent.avatar} size={24} fontSize={14} className="mr-0" /> : undefined
+  return agent ? renderAvatarIcon(agent.avatar, size) : undefined
 }
 
 export function buildResolvedIconTypeActions(

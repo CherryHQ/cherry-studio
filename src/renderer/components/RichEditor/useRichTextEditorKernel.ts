@@ -6,6 +6,7 @@ export interface UseRichTextEditorKernelOptions {
   extensions: EditorOptions['extensions']
   content?: EditorOptions['content']
   editable?: boolean
+  immediatelyRender?: boolean
   placeholder?: string
   enableSpellCheck?: boolean
   shouldRerenderOnTransaction?: boolean
@@ -20,6 +21,7 @@ export function useRichTextEditorKernel({
   extensions,
   content = '',
   editable = true,
+  immediatelyRender,
   enableSpellCheck = false,
   shouldRerenderOnTransaction = false,
   editorProps,
@@ -59,19 +61,32 @@ export function useRichTextEditorKernel({
       extensions,
       content,
       editable,
+      immediatelyRender,
       editorProps: mergedEditorProps,
       onUpdate,
       onBlur,
       onCreate
     }),
-    [content, editable, extensions, mergedEditorProps, onBlur, onCreate, onUpdate, shouldRerenderOnTransaction]
+    [
+      content,
+      editable,
+      extensions,
+      immediatelyRender,
+      mergedEditorProps,
+      onBlur,
+      onCreate,
+      onUpdate,
+      shouldRerenderOnTransaction
+    ]
   )
 
   const editor = useEditor(options)
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
-    editor.setEditable(editable)
+    // Suppress the update event: an editability toggle is not a content change, and the
+    // default `emitUpdate = true` would replay the current document text through onUpdate.
+    editor.setEditable(editable, false)
   }, [editor, editable])
 
   return editor

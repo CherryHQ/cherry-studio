@@ -1,6 +1,6 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { act, renderHook } from '@testing-library/react'
+import { act, render, renderHook } from '@testing-library/react'
+import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,14 +17,15 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
+  invalidateMessages: vi.fn(),
   toastWarning: vi.fn()
 }))
 
-// respondToolApproval now goes through ipcApi.request('ai.respond_tool_approval', …).
+// respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
@@ -56,13 +57,42 @@ vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => 
   useToolApprovalComposerOverrides: () => []
 }))
 
+vi.mock('@renderer/services/messageUiStateCache', () => ({
+  invalidateCachedMessageUiStates: mocks.invalidateMessages
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
 
-const session = { id: 'session-1' } as AgentSessionEntity
+// <Activity> harness: tab switches hide/show the session UI without unmounting
+// it, so hooks keep their state but effects are destroyed and re-created.
+let latestRuntime: ReturnType<typeof useAgentChatRuntimeState> | null = null
+
+function currentRuntime() {
+  if (!latestRuntime) throw new Error('RuntimeStateHost has not rendered yet')
+  return latestRuntime
+}
+
+function RuntimeStateHost({ sessionId }: { sessionId: string }) {
+  latestRuntime = useAgentChatRuntimeState({
+    sessionId,
+    sessionMessagesEnabled: true,
+    reservedMessages: []
+  })
+  return null
+}
+
+function ActivityHarness({ sessionId, mode }: { sessionId: string; mode: 'visible' | 'hidden' }) {
+  return (
+    <Activity mode={mode}>
+      <RuntimeStateHost sessionId={sessionId} />
+    </Activity>
+  )
+}
+
 const assistantMessage = {
   id: 'assistant-1',
   role: 'assistant',
@@ -119,6 +149,8 @@ describe('useAgentChatRuntimeState', () => {
     mocks.seedReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
     mocks.chatStop.mockResolvedValue(undefined)
+    mocks.sendTurn.mockReset()
+    mocks.sendTurn.mockResolvedValue(true)
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
       isLoading: false,
@@ -165,10 +197,28 @@ describe('useAgentChatRuntimeState', () => {
     })
   })
 
+  it('reports a blocked stream open as not sent', async () => {
+    mocks.sendTurn.mockResolvedValueOnce(false)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    let sent: boolean | undefined
+    await act(async () => {
+      sent = await result.current.sendMessage({ text: 'keep this draft' })
+    })
+
+    expect(sent).toBe(false)
+  })
+
   it('does not wire per-overlay finish refresh for agent sessions', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -179,10 +229,27 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
 
+  it('invalidates disclosure state after deleting a session message', async () => {
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.deleteMessage('assistant-1')
+    })
+
+    expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('assistant-1')
+    expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
+  })
+
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
     renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -210,7 +277,7 @@ describe('useAgentChatRuntimeState', () => {
           ...assistantMessage,
           metadata: {
             ...assistantMessage.metadata,
-            thoughtsTokens: 256
+            totalTokens: 256
           }
         } as CherryUIMessage
       ],
@@ -220,13 +287,13 @@ describe('useAgentChatRuntimeState', () => {
 
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
     )
 
-    expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
+    expect(result.current.uiMessages[0]?.metadata?.totalTokens).toBe(256)
   })
 
   it('keeps the history contract and composer callback stable across stream snapshots', () => {
@@ -238,7 +305,7 @@ describe('useAgentChatRuntimeState', () => {
     })
     const { result, rerender } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -263,7 +330,7 @@ describe('useAgentChatRuntimeState', () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -283,7 +350,7 @@ describe('useAgentChatRuntimeState', () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -294,5 +361,30 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('preserves optimistic AskUserQuestion inputs across an <Activity> hide/show and clears them on session change', async () => {
+    latestRuntime = null
+    const part = makeAskUserQuestionPart()
+    const view = render(<ActivityHarness mode="visible" sessionId="session-1" />)
+
+    await act(async () => {
+      await currentRuntime().respondToolApproval(makeAskUserQuestionApproval(part))
+    })
+    expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({
+      'call-ask': askUserQuestionUpdatedInput
+    })
+
+    // Same session hidden→visible: effects re-run with an unchanged topic id,
+    // and the submitted input must survive the tab switch.
+    view.rerender(<ActivityHarness mode="hidden" sessionId="session-1" />)
+    view.rerender(<ActivityHarness mode="visible" sessionId="session-1" />)
+    expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({
+      'call-ask': askUserQuestionUpdatedInput
+    })
+
+    // Actual session change: the stale input must be dropped.
+    view.rerender(<ActivityHarness mode="visible" sessionId="session-2" />)
+    expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({})
   })
 })

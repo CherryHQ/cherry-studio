@@ -1,9 +1,11 @@
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import { describe, expect, it } from 'vitest'
 
-import { buildCreateAgentDto, buildCreateAssistantDto } from '../resourceCreate'
+import { buildCreateAgentCommand, buildCreateAssistantDto } from '../resourceCreate'
 
 const values: ResourceCreateValues = {
+  agentType: 'claude-code',
+  permissionMode: 'auto',
   avatar: '🤖',
   name: 'Researcher',
   modelId: 'provider::model',
@@ -26,7 +28,7 @@ describe('resource create DTO mapping', () => {
   })
 
   it('maps every agent-specific field', () => {
-    expect(buildCreateAgentDto(values)).toEqual({
+    expect(buildCreateAgentCommand(values)).toEqual({
       type: 'claude-code',
       name: 'Researcher',
       model: 'provider::model',
@@ -34,11 +36,30 @@ describe('resource create DTO mapping', () => {
       smallModel: 'provider::model',
       description: 'Investigates a topic',
       instructions: 'Use cited sources',
+      knowledgeBaseIds: ['kb-1'],
       skillIds: ['skill-1'],
-      configuration: {
-        permission_mode: 'bypassPermissions'
-      },
+      configuration: { permission_mode: 'auto' },
       avatar: { kind: 'emoji', emoji: '🤖' }
     })
+  })
+
+  it('uses pi runtime defaults and omits unsupported model tiers', () => {
+    expect(buildCreateAgentCommand({ ...values, agentType: 'pi', permissionMode: 'acceptEdits' })).toEqual({
+      type: 'pi',
+      name: 'Researcher',
+      model: 'provider::model',
+      description: 'Investigates a topic',
+      instructions: 'Use cited sources',
+      knowledgeBaseIds: ['kb-1'],
+      skillIds: ['skill-1'],
+      configuration: { permission_mode: 'acceptEdits' },
+      avatar: { kind: 'emoji', emoji: '🤖' }
+    })
+  })
+
+  it('falls back to the runtime default when a stale mode is unsupported', () => {
+    expect(
+      buildCreateAgentCommand({ ...values, agentType: 'pi', permissionMode: 'plan' }).configuration?.permission_mode
+    ).toBe('auto')
   })
 })

@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
   ASSISTANTS_MAX_LIMIT,
   type CreateAssistantDto,
+  type ImportAssistantDto,
   type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -11,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
 /**
- * Server-backed list hook. `search` / `tagIds` are forwarded to
+ * Server-backed list hook. `search` / `groupId` are forwarded to
  * `GET /assistants` query params and evaluated in SQL (see
  * `AssistantService.list`) so no client-side chain-filtering is needed.
  */
@@ -21,7 +22,7 @@ function useAssistantList(query?: ResourceListQuery): ResourceListResult<Assista
     query: {
       limit: query?.limit ?? ASSISTANTS_MAX_LIMIT,
       ...(query?.search ? { search: query.search } : {}),
-      ...(query?.tagIds && query.tagIds.length > 0 ? { tagIds: query.tagIds } : {})
+      ...(query?.groupId ? { groupId: query.groupId } : {})
     }
   })
 
@@ -60,14 +61,12 @@ export function useAssistantMutations() {
 
   /**
    * Duplicate an assistant by re-POSTing its full state (plus a "(副本)" suffix)
-   * in a single request. Tag bindings are carried via `tagIds` in the create DTO
-   * so the backend lands them in the same transaction as the assistant row —
-   * no half-success state, no follow-up tag-bind call.
+   * in a single request. The single group assignment is copied as a regular
+   * assistant column.
    */
   const duplicateAssistant = useCallback(
     async (source: Assistant): Promise<Assistant> => {
       const duplicateName = t('library.duplicate_name', { name: source.name })
-      const tagId = source.tags[0]?.id
 
       return createTrigger({
         body: {
@@ -79,7 +78,7 @@ export function useAssistantMutations() {
           settings: source.settings,
           mcpServerIds: source.mcpServerIds,
           knowledgeBaseIds: source.knowledgeBaseIds,
-          tagIds: tagId ? [tagId] : []
+          groupId: source.groupId
         }
       })
     },
@@ -90,10 +89,25 @@ export function useAssistantMutations() {
 }
 
 /**
+ * Legacy import is a dedicated mutation because the server resolves/creates
+ * the optional group and inserts the assistant in one transaction.
+ */
+export function useImportAssistantMutation() {
+  const { trigger } = useMutation('POST', '/assistants:import', {
+    refresh: ['/assistants', '/groups']
+  })
+
+  const importAssistant = useCallback(
+    (dto: ImportAssistantDto): Promise<Assistant> => trigger({ body: dto }),
+    [trigger]
+  )
+
+  return { importAssistant }
+}
+
+/**
  * Mutation hook scoped to a single assistant id — no read, use alongside list data.
- * PATCH accepts `tagIds` (alongside other fields); the backend diff-syncs the
- * `entity_tag` junction inside the assistant-row transaction so callers never
- * observe the assistant in a desynced state.
+ * PATCH accepts `groupId` alongside the other assistant fields.
  */
 export function useAssistantMutationsById(id: string) {
   const path = `/assistants/${id}` as const

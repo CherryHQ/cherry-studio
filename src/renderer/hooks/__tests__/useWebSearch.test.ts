@@ -1,10 +1,10 @@
-import { toast } from '@renderer/services/toast'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useSyncZhipuWebSearchApiKeys, useWebSearchProviders, useWebSearchSettings } from '../useWebSearch'
+import { useWebSearchProviders, useWebSearchSettings } from '../useWebSearch'
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
@@ -18,7 +18,58 @@ vi.mock('react-i18next', async (importOriginal) => {
 describe('useWebSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', { keys: [] })
     MockUsePreferenceUtils.resetMocks()
+  })
+
+  it('inherits enabled Zhipu model provider API keys when web search keys are empty', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      zhipu: { apiKeys: [] }
+    })
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', {
+      keys: [{ id: 'zhipu-key', key: ' model-provider-key ', isEnabled: true }]
+    })
+
+    const { result } = renderHook(() => useWebSearchProviders())
+
+    expect(result.current.getProvider('zhipu')?.apiKeys).toEqual(['model-provider-key'])
+  })
+
+  it('uses enabled Zhipu model provider API keys instead of stale web search keys', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      zhipu: { apiKeys: ['stale-web-search-key'] }
+    })
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', {
+      keys: [{ id: 'zhipu-key', key: 'current-model-provider-key', isEnabled: true }]
+    })
+
+    const { result } = renderHook(() => useWebSearchProviders())
+
+    expect(result.current.getProvider('zhipu')?.apiKeys).toEqual(['current-model-provider-key'])
+  })
+
+  it('ignores stale Zhipu web search keys when the model provider has no enabled keys', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      zhipu: { apiKeys: ['stale-web-search-key'] }
+    })
+
+    const { result } = renderHook(() => useWebSearchProviders())
+
+    expect(result.current.getProvider('zhipu')?.apiKeys).toEqual([])
+  })
+
+  it('waits for Zhipu model provider API keys even when stale web search keys exist', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      zhipu: { apiKeys: ['stale-web-search-key'] }
+    })
+    MockUseDataApiUtils.mockQueryLoading('/providers/:providerId/api-keys')
+
+    const { result } = renderHook(() => useWebSearchProviders())
+
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.providers).toEqual([])
+    expect(result.current.defaultSearchKeywordsProvider).toBeUndefined()
   })
 
   it('updates one provider API keys while preserving other provider overrides', async () => {
@@ -102,20 +153,6 @@ describe('useWebSearch', () => {
 
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.default_search_keywords_provider')).toBe('tavily')
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.default_fetch_urls_provider')).toBe('fetch')
-  })
-
-  it('shows a Zhipu web search sync failure toast when syncing LLM API keys fails', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
-    MockUsePreferenceUtils.mockPreferenceError('chat.web_search.provider_overrides', new Error('persist failed'))
-    const { result } = renderHook(() => useSyncZhipuWebSearchApiKeys())
-
-    act(() => {
-      result.current('zhipu', 'zhipu-key')
-    })
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.errors.zhipu_sync_failed')
-    })
   })
 
   it('updates web search blacklist domains through settings', async () => {

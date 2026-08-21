@@ -9,7 +9,9 @@ import {
   calculateModelListDerivedState,
   countModelsInGroups,
   groupModels,
-  type ModelGroups
+  type ModelGroups,
+  type ModelListCapabilityCounts,
+  type ModelListCapabilityFilter
 } from './modelListDerivedState'
 
 export interface ModelListGroupItem {
@@ -27,6 +29,9 @@ export interface ProviderModelListHeaderSurface {
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
+  selectedTypeFilter: ModelListCapabilityFilter
+  setSelectedTypeFilter: (filter: ModelListCapabilityFilter) => void
+  typeCounts: ModelListCapabilityCounts
 }
 
 export interface ProviderModelListSectionsSurface {
@@ -88,6 +93,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const [translateModelId] = usePreference('feature.translate.model_id')
   const [searchInputText, setSearchInputText] = useState('')
   const searchText = useDeferredValue(searchInputText)
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<ModelListCapabilityFilter>('all')
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [optimisticDeletedByModelId, setOptimisticDeletedByModelId] = useState<Record<string, true>>({})
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
@@ -111,10 +117,10 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       calculateModelListDerivedState({
         models: optimisticModels,
         searchText,
-        selectedCapabilityFilter: 'all',
+        selectedCapabilityFilter: selectedTypeFilter,
         modelStatuses: []
       }),
-    [optimisticModels, searchText]
+    [optimisticModels, searchText, selectedTypeFilter]
   )
 
   useEffect(() => {
@@ -134,9 +140,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     }
   }, [derivedState.filteredModels, searchText])
 
-  const openEditModelDrawer = useCallback((model: Model) => {
-    setEditingModel(model)
-  }, [])
+  const openEditModelDrawer = useCallback(
+    (model: Model) => {
+      if (!disabled) setEditingModel(model)
+    },
+    [disabled]
+  )
 
   const closeEditModelDrawer = useCallback(() => {
     setEditingModel(null)
@@ -144,6 +153,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
   const onDeleteModel = useCallback(
     async (model: Model) => {
+      if (disabled) return
       if (defaultModelIds.has(model.id)) {
         return
       }
@@ -171,11 +181,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [defaultModelIds, deleteModel]
+    [defaultModelIds, deleteModel, disabled]
   )
 
   const onDeleteModels = useCallback(
     async (modelsToDelete: Model[]) => {
+      if (disabled) return
       const deletableModels = modelsToDelete.filter((model) => !defaultModelIds.has(model.id))
       if (deletableModels.length === 0) {
         return
@@ -226,7 +237,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [defaultModelIds, deleteModels]
+    [defaultModelIds, deleteModels, disabled]
   )
 
   const enabledSections = useMemo(() => toGroupSections(displayState.groups), [displayState.groups])
@@ -237,7 +248,10 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     hasVisibleModels: derivedState.hasVisibleModels,
     hasNoModels: derivedState.hasNoModels,
     searchText: searchInputText,
-    setSearchText: setSearchInputText
+    setSearchText: setSearchInputText,
+    selectedTypeFilter,
+    setSelectedTypeFilter,
+    typeCounts: derivedState.capabilityModelCounts
   }
 
   const sections: ProviderModelListSectionsSurface = {

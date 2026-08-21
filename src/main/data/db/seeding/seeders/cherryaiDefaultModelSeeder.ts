@@ -26,7 +26,6 @@ const logger = loggerService.withContext('CherryAiDefaultModelSeeder')
 const DEFAULT_MODEL_PREFERENCE_SCOPE = 'default' as const
 export const DEFAULT_MODEL_PREFERENCE_KEYS = [
   'chat.default_model_id',
-  'topic.naming.model_id',
   'feature.quick_assistant.model_id',
   'feature.translate.model_id'
 ] as const
@@ -52,7 +51,6 @@ function createCherryAiProviderRow(): CherryAiProviderRow {
     },
     defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     authConfig: null,
-    apiFeatures: null,
     providerSettings: null,
     isEnabled: true
   }
@@ -71,7 +69,6 @@ function createCherryAiDefaultModelRow(): CherryAiDefaultModelRow {
     inputModalities: null,
     outputModalities: null,
     endpointTypes: null,
-    customEndpointUrl: null,
     contextWindow: null,
     maxInputTokens: null,
     maxOutputTokens: null,
@@ -82,8 +79,7 @@ function createCherryAiDefaultModelRow(): CherryAiDefaultModelRow {
     isEnabled: true,
     isHidden: false,
     isDeprecated: false,
-    notes: null,
-    userOverrides: null
+    notes: null
   }
 }
 

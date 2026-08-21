@@ -68,7 +68,7 @@ export const tempSessionFileRefSchema = createRefSchema(tempSessionRefFields)
 // ─── chat_message variant ───
 
 export const chatMessageSourceType = 'chat_message' as const
-export const chatMessageRoles = ['attachment'] as const
+export const chatMessageRoles = ['attachment', 'tool_output'] as const
 export const chatMessageRoleSchema = z.enum(chatMessageRoles)
 export const chatMessageRefFields = {
   sourceType: z.literal(chatMessageSourceType),
@@ -76,6 +76,18 @@ export const chatMessageRefFields = {
   role: chatMessageRoleSchema
 }
 export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
+
+// ─── agent_session_message variant ───
+
+export const agentSessionMessageSourceType = 'agent_session_message' as const
+export const agentSessionMessageRoles = ['attachment'] as const
+export const agentSessionMessageRoleSchema = z.enum(agentSessionMessageRoles)
+export const agentSessionMessageRefFields = {
+  sourceType: z.literal(agentSessionMessageSourceType),
+  sourceId: MessageIdSchema,
+  role: agentSessionMessageRoleSchema
+}
+export const agentSessionMessageFileRefSchema = createRefSchema(agentSessionMessageRefFields)
 
 // ─── painting variant ───
 
@@ -88,6 +100,31 @@ export const paintingRefFields = {
   role: paintingRoleSchema
 }
 export const paintingFileRefSchema = createRefSchema(paintingRefFields)
+
+// ─── job variant ───
+
+export const jobSourceType = 'job' as const
+export const jobRoles = ['input', 'mask'] as const
+export const jobRoleSchema = z.enum(jobRoles)
+export const jobRefFields = {
+  sourceType: z.literal(jobSourceType),
+  sourceId: z.uuid(),
+  role: jobRoleSchema
+}
+export const jobFileRefSchema = createRefSchema(jobRefFields)
+
+// ─── translate_history variant ───
+
+export const translateHistorySourceType = 'translate_history' as const
+export const translateHistoryRoles = ['source', 'target'] as const
+export const translateHistoryRoleSchema = z.enum(translateHistoryRoles)
+export type TranslateHistoryFileRole = z.infer<typeof translateHistoryRoleSchema>
+export const translateHistoryRefFields = {
+  sourceType: z.literal(translateHistorySourceType),
+  sourceId: z.uuid(),
+  role: translateHistoryRoleSchema
+}
+export const translateHistoryFileRefSchema = createRefSchema(translateHistoryRefFields)
 
 // ─── Roleless single-file variants ───
 
@@ -118,7 +155,10 @@ export function tagStoredFileRef(id: string): string {
 export const allSourceTypes = [
   tempSessionSourceType,
   chatMessageSourceType,
+  agentSessionMessageSourceType,
   paintingSourceType,
+  jobSourceType,
+  translateHistorySourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType,
   assistantAvatarRef.sourceType,
@@ -131,7 +171,10 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   chatMessageFileRefSchema,
+  agentSessionMessageFileRefSchema,
   paintingFileRefSchema,
+  jobFileRefSchema,
+  translateHistoryFileRefSchema,
   providerLogoRef.schema,
   miniAppLogoRef.schema,
   assistantAvatarRef.schema,

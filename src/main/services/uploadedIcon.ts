@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { transcodeToIconWebp } from '@main/utils/image'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
 
 const logger = loggerService.withContext('uploadedIcon')
 
@@ -13,11 +13,18 @@ type MaybePromise<T> = T | Promise<T>
  */
 export async function withUploadedIconEntry<T>(
   bytes: Uint8Array,
+  cleanupPolicy: CleanupPolicy,
   bind: (fileId: FileEntryId) => MaybePromise<T>
 ): Promise<T> {
   const fileManager = application.get('FileManager')
   const webp = await transcodeToIconWebp(bytes)
-  const entry = await fileManager.createInternalEntry({ source: 'bytes', data: webp, name: 'image', ext: 'webp' })
+  const entry = await fileManager.createInternalEntry({
+    source: 'bytes',
+    data: webp,
+    name: 'image',
+    ext: 'webp',
+    cleanupPolicy
+  })
   try {
     return await bind(entry.id)
   } catch (error) {

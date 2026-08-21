@@ -4,7 +4,7 @@ import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types
 import { getFileExtension, isSupportedFile, removeFileExtension } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
-import { LONG_TEXT_PASTE_THRESHOLD } from '../composerPaste'
+import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
 
 const logger = loggerService.withContext('pasteHandling')
 
@@ -43,6 +43,8 @@ export const handlePaste = async (
     if (clipboardText) {
       // 1. 文本粘贴
       if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {
+        if (!supportExts.includes(PASTED_TEXT_FILE_EXTENSION)) return false
+
         // 长文本直接转文件，阻止默认粘贴
         event.preventDefault()
 

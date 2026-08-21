@@ -1,15 +1,23 @@
-/** Height of one list item in pixels. */
-export const QUICK_PANEL_ITEM_HEIGHT = 31
+/** Visible height of one QuickPanel row in pixels. */
+export const QUICK_PANEL_ROW_HEIGHT = 34
+
+/** Row height plus the one-pixel bottom gap used by the list. */
+export const QUICK_PANEL_ITEM_HEIGHT = QUICK_PANEL_ROW_HEIGHT + 1
 
 /** Safe gap between the panel top and frame top in pixels. */
 export const QUICK_PANEL_SAFE_MARGIN = 8
 
-/** Body vertical padding plus border, combined with measured footer height for chrome height. */
-export const QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE = 12
-
 /** Default non-list panel chrome height: footer, header, and padding. */
 const READONLY_CHROME_HEIGHT = 50
 const DEFAULT_CHROME_HEIGHT = 98
+
+/** Reads the rendered body padding and border instead of assuming a device-pixel rounding mode. */
+export function getQuickPanelBodyVerticalSpace(style: CSSStyleDeclaration): number {
+  return [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth].reduce(
+    (total, value) => total + (Number.parseFloat(value) || 0),
+    0
+  )
+}
 
 export interface QuickPanelHeightOptions {
   isVisible: boolean

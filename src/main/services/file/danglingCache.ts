@@ -28,7 +28,7 @@ import { loggerService } from '@logger'
 import type { Event } from '@main/core/lifecycle'
 import { Emitter } from '@main/core/lifecycle'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const logger = loggerService.withContext('file/danglingCache')
 
@@ -74,13 +74,13 @@ export interface DanglingCache {
    * for `add` (`'present'`) and `unlink` (`'missing'`); FileManager ops
    * may also call directly to record opportunistic observations.
    */
-  onFsEvent(path: FilePath, state: ObservedPresence, source?: CachedState['source']): void
+  onFsEvent(path: AbsoluteFilePath, state: ObservedPresence, source?: CachedState['source']): void
 
   /** Add an entry to the reverse index. Idempotent. */
-  addEntry(entryId: FileEntryId, externalPath: FilePath): void
+  addEntry(entryId: FileEntryId, externalPath: AbsoluteFilePath): void
 
   /** Remove an entry from the reverse index. Idempotent. */
-  removeEntry(entryId: FileEntryId, externalPath: FilePath): void
+  removeEntry(entryId: FileEntryId, externalPath: AbsoluteFilePath): void
 
   /**
    * Populate the reverse index from non-trashed external entries in the DB.
@@ -125,7 +125,7 @@ export interface DanglingCacheOptions {
    *
    * Default: `defaultStatProbe` (stat-based, error-discriminating).
    */
-  readonly statProbe?: (path: FilePath) => Promise<DanglingState>
+  readonly statProbe?: (path: AbsoluteFilePath) => Promise<DanglingState>
   /** TTL window in ms (default 30 min, per architecture §11.2). */
   readonly ttlMs?: number
   /**
@@ -138,7 +138,7 @@ export interface DanglingCacheOptions {
 
 const DEFAULT_TTL_MS = 30 * 60 * 1000
 
-const defaultStatProbe = async (path: FilePath): Promise<DanglingState> => {
+const defaultStatProbe = async (path: AbsoluteFilePath): Promise<DanglingState> => {
   try {
     await stat(path)
     return 'present'
@@ -152,12 +152,12 @@ const defaultStatProbe = async (path: FilePath): Promise<DanglingState> => {
 
 class DanglingCacheImpl implements DanglingCache {
   private readonly byEntryId = new Map<FileEntryId, CachedState>()
-  private readonly pathToEntryIds = new Map<FilePath, Set<FileEntryId>>()
+  private readonly pathToEntryIds = new Map<AbsoluteFilePath, Set<FileEntryId>>()
   private readonly _emitter = new Emitter<DanglingStateChangedEvent>()
   public readonly onDanglingStateChanged: Event<DanglingStateChangedEvent> = this._emitter.event
 
   private readonly now: () => number
-  private readonly statProbe: (path: FilePath) => Promise<DanglingState>
+  private readonly statProbe: (path: AbsoluteFilePath) => Promise<DanglingState>
   private readonly ttlMs: number
   private fileEntryService: FileEntrySource | undefined
 
@@ -207,7 +207,7 @@ class DanglingCacheImpl implements DanglingCache {
     if (prev !== next) this._emitter.fire({ id, state: next })
   }
 
-  onFsEvent(path: FilePath, state: ObservedPresence, source: CachedState['source'] = 'watcher'): void {
+  onFsEvent(path: AbsoluteFilePath, state: ObservedPresence, source: CachedState['source'] = 'watcher'): void {
     const ids = this.pathToEntryIds.get(path)
     if (!ids || ids.size === 0) return
     for (const id of ids) {
@@ -215,7 +215,7 @@ class DanglingCacheImpl implements DanglingCache {
     }
   }
 
-  addEntry(entryId: FileEntryId, externalPath: FilePath): void {
+  addEntry(entryId: FileEntryId, externalPath: AbsoluteFilePath): void {
     let set = this.pathToEntryIds.get(externalPath)
     if (!set) {
       set = new Set()
@@ -224,7 +224,7 @@ class DanglingCacheImpl implements DanglingCache {
     set.add(entryId)
   }
 
-  removeEntry(entryId: FileEntryId, externalPath: FilePath): void {
+  removeEntry(entryId: FileEntryId, externalPath: AbsoluteFilePath): void {
     const set = this.pathToEntryIds.get(externalPath)
     if (!set) return
     set.delete(entryId)

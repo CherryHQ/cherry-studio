@@ -69,16 +69,17 @@ export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: ()
   const status = entry?.status
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
-  const prevRef = useRef<typeof status>(undefined)
+  const prevRef = useRef<{ status: typeof status; topicId: string } | undefined>(undefined)
   useEffect(() => {
-    const prev = prevRef.current
-    prevRef.current = status
+    const previous = prevRef.current
+    const prev = previous?.topicId === topicId ? previous.status : undefined
+    prevRef.current = { status, topicId }
     if (classifyTurn(prev).isStreamLive && classifyTurn(status).isAwaitingApproval) {
       void refreshRef.current().catch(() => {
         // Caller logs; the invalidation signal must not throw out of the effect.
       })
     }
-  }, [status])
+  }, [status, topicId])
 }
 
 /**
@@ -100,10 +101,11 @@ export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () 
   const status = entry?.status
   const onHandoffRef = useRef(onHandoff)
   onHandoffRef.current = onHandoff
-  const prevRef = useRef<typeof status>(undefined)
+  const prevRef = useRef<{ status: typeof status; topicId: string } | undefined>(undefined)
   useEffect(() => {
-    const prev = prevRef.current
-    prevRef.current = status
+    const previous = prevRef.current
+    const prev = previous?.topicId === topicId ? previous.status : undefined
+    prevRef.current = { status, topicId }
     const next = classifyTurn(status)
     if (classifyTurn(prev).isStreamLive && next.isTerminal && !next.isAwaitingApproval) {
       void (async () => {

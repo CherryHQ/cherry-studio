@@ -16,6 +16,39 @@ function indexes(items: readonly PartEntry[]): number[] {
   return items.map((entry) => entry.index)
 }
 
+const GENERATED_IMAGE_RESULTS: ReadonlyArray<[string, string, unknown]> = [
+  ['Home image output', 'generate_image', [{ id: 'file-1', name: 'sunset.png' }]],
+  [
+    'inline Agent image output',
+    'mcp__cherry-tools__generate_image',
+    {
+      content: [{ type: 'image', data: 'BASE64', mimeType: 'image/png' }],
+      metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+    }
+  ],
+  [
+    'deferred Agent image output',
+    'mcp__cherry-tools__generate_image',
+    {
+      $deferredToolResult: {
+        topicId: 'agent-session:session-1',
+        messageId: 'message-1',
+        toolCallId: 'generate-image'
+      }
+    }
+  ]
+]
+
+function generateImagePart(toolName: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    type: 'dynamic-tool',
+    toolCallId: 'generate-image',
+    toolName,
+    state: 'output-available',
+    ...overrides
+  }
+}
+
 describe('projectLiveMessageParts', () => {
   it('forms one process history through intermediate text and keys it by the first visible entry', () => {
     const layout = projectLiveMessageParts(
@@ -113,7 +146,9 @@ describe('projectLiveMessageParts', () => {
         { type: 'step-start' },
         { type: 'source-url' },
         { type: 'source-document' },
-        { type: 'data-agent-task-event', data: {} }
+        { type: 'data-agent-task-event', data: {} },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } },
+        { type: 'data-clear', data: {} }
       ])
     )
     const emptyReasoning = projectLiveMessageParts(entries([{ type: 'reasoning', text: '', state: 'done' }]))
@@ -193,6 +228,104 @@ describe('projectLiveMessageParts', () => {
       ['part', 3]
     ])
     expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1, 2])
+  })
+
+  it('keeps a channel authentication QR result outside the live process', () => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
+          output: {
+            content: [
+              { type: 'text', text: 'Scan this QR code' },
+              { type: 'image', data: 'BASE64', mimeType: 'image/png' }
+            ],
+            metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
+        }
+      ])
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['process', 0],
+      ['part', 1]
+    ])
+  })
+
+  it.each(GENERATED_IMAGE_RESULTS)('keeps %s outside the live process', (_label, toolName, output) => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        generateImagePart(toolName, { output })
+      ])
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['process', 0],
+      ['part', 1]
+    ])
+  })
+
+  it.each(['generate_image', 'mcp__cherry-tools__generate_image'])(
+    'keeps approval-requested %s calls inside the live process',
+    (toolName) => {
+      const layout = projectLiveMessageParts(
+        entries([
+          { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+          generateImagePart(toolName, {
+            state: 'approval-requested',
+            input: { prompt: 'A cherry tree at sunset' },
+            approval: { id: 'approval-generate-image' }
+          })
+        ])
+      )
+
+      expect(layout.map((item) => [item.kind, item.key])).toEqual([['process', 0]])
+      expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1])
+    }
+  )
+
+  it.each([
+    ['a Home error object', generateImagePart('generate_image', { output: { error: 'Image generation failed' } })],
+    ['an empty Home result', generateImagePart('generate_image', { output: [] })],
+    [
+      'a thrown Home error',
+      generateImagePart('generate_image', {
+        state: 'output-error',
+        errorText: 'Image generation failed'
+      })
+    ],
+    [
+      'a text-only Agent result',
+      generateImagePart('mcp__cherry-tools__generate_image', {
+        output: {
+          content: [{ type: 'text', text: 'Image generation returned no images.' }],
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      })
+    ],
+    [
+      'an errored Agent result',
+      generateImagePart('mcp__cherry-tools__generate_image', {
+        output: {
+          isError: true,
+          content: [{ type: 'text', text: 'Image generation failed' }],
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      })
+    ]
+  ])('keeps %s inside the live process', (_label, imagePart) => {
+    const layout = projectLiveMessageParts(
+      entries([{ type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' }, imagePart])
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([['process', 0]])
+    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1])
   })
 })
 
@@ -417,6 +550,68 @@ describe('projectCompletedMessageParts', () => {
 
     expect(indexes(layout.historyEntries)).toEqual([0, 1, 2, 3])
     expect(layout.resultEntries).toEqual([])
+  })
+
+  it('keeps a channel authentication QR tool outside completed history', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
+          output: {
+            content: [
+              { type: 'text', text: 'Scan this QR code' },
+              { type: 'image', data: 'BASE64', mimeType: 'image/png' }
+            ],
+            metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
+        }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1])
+  })
+
+  it('keeps a deferred channel authentication QR tool outside completed history', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'feishu', auth_mode: 'qr' },
+          output: {
+            $deferredToolResult: {
+              topicId: 'agent-session:session-1',
+              messageId: 'message-1',
+              toolCallId: 'channel-auth'
+            }
+          }
+        }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1])
+  })
+
+  it.each(GENERATED_IMAGE_RESULTS)('keeps %s outside completed history', (_label, toolName, output) => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        generateImagePart(toolName, { output })
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1])
   })
 
   it('preserves an interleaved AskUser boundary inside completed history', () => {

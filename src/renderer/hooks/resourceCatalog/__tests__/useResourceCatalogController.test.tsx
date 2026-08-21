@@ -11,8 +11,16 @@ type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
 const controllerMocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
+  createGroup: vi.fn(),
   duplicateAssistant: vi.fn(),
-  ensureTags: vi.fn(),
+  groups: [] as Array<{
+    id: string
+    entityType: 'assistant'
+    name: string
+    orderKey: string
+    createdAt: string
+    updatedAt: string
+  }>,
   refetch: vi.fn(),
   resourceLibraryOptions: [] as unknown[],
   resourceLibraryState: {
@@ -21,9 +29,7 @@ const controllerMocks = vi.hoisted(() => ({
     isLoading: false,
     resources: [] as ResourceItem[]
   },
-  saveFile: vi.fn(),
-  setAgentAvatar: vi.fn(),
-  setAssistantAvatar: vi.fn()
+  saveFile: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -57,19 +63,14 @@ vi.mock('../agentAdapter', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useEnsureTags: () => ({ ensureTags: controllerMocks.ensureTags }),
-  useTagList: () => ({ tags: [] })
-}))
-
-vi.mock('@renderer/hooks/useAvatarMutations', () => ({
-  useAvatarMutations: () => ({
-    setAgentAvatar: controllerMocks.setAgentAvatar,
-    setAssistantAvatar: controllerMocks.setAssistantAvatar
-  })
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroups: () => ({ groups: controllerMocks.groups }),
+  useGroupMutations: () => ({ createGroup: controllerMocks.createGroup })
 }))
 
 const createValues = {
+  agentType: 'claude-code' as const,
+  permissionMode: 'auto' as const,
   avatar: 'A',
   description: 'A focused helper',
   knowledgeBaseIds: ['kb-1'],
@@ -91,7 +92,7 @@ const assistantResource = {
     id: 'assistant-to-duplicate',
     name: 'Assistant to duplicate',
     avatar: { kind: 'emoji', emoji: 'A' },
-    tags: []
+    groupId: null
   }
 } as unknown as ResourceItem
 
@@ -101,9 +102,8 @@ describe('useResourceCatalogController', () => {
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.refetch.mockResolvedValue(undefined)
-    controllerMocks.setAgentAvatar.mockResolvedValue({ id: 'agent-created' })
-    controllerMocks.setAssistantAvatar.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.resourceLibraryOptions.length = 0
+    controllerMocks.groups.length = 0
     controllerMocks.resourceLibraryState.allResources = []
     controllerMocks.resourceLibraryState.error = undefined
     controllerMocks.resourceLibraryState.isLoading = false
@@ -132,8 +132,8 @@ describe('useResourceCatalogController', () => {
     })
 
     expect(controllerMocks.createAssistant).toHaveBeenCalledWith({
-      description: createValues.description,
       avatar: { kind: 'emoji', emoji: createValues.avatar },
+      description: createValues.description,
       knowledgeBaseIds: createValues.knowledgeBaseIds,
       modelId: createValues.modelId,
       name: createValues.name,
@@ -155,12 +155,11 @@ describe('useResourceCatalogController', () => {
     })
 
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
-      configuration: {
-        permission_mode: 'bypassPermissions'
-      },
       avatar: { kind: 'emoji', emoji: createValues.avatar },
+      configuration: { permission_mode: 'auto' },
       description: createValues.description,
       instructions: createValues.prompt,
+      knowledgeBaseIds: createValues.knowledgeBaseIds,
       model: createValues.modelId,
       name: createValues.name,
       planModel: createValues.modelId,
@@ -170,42 +169,6 @@ describe('useResourceCatalogController', () => {
     })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
     expect(result.current.dialogs.createDialogOpen).toBe(false)
-  })
-
-  it('uploads an assistant avatar after creating its owner row', async () => {
-    const avatarImageData = new Uint8Array([1, 2, 3])
-    const { result } = renderHook(() => useResourceCatalogController('assistant'))
-    act(() => result.current.gridProps.onCreate('assistant'))
-
-    await act(async () => {
-      await result.current.dialogs.handleSubmitCreateResource({ ...createValues, avatarImageData })
-    })
-
-    expect(controllerMocks.setAssistantAvatar).toHaveBeenCalledWith('assistant-created', {
-      kind: 'image',
-      data: avatarImageData
-    })
-    expect(controllerMocks.createAssistant.mock.invocationCallOrder[0]).toBeLessThan(
-      controllerMocks.setAssistantAvatar.mock.invocationCallOrder[0]
-    )
-  })
-
-  it('uploads an agent avatar after creating its owner row', async () => {
-    const avatarImageData = new Uint8Array([4, 5, 6])
-    const { result } = renderHook(() => useResourceCatalogController('agent'))
-    act(() => result.current.gridProps.onCreate('agent'))
-
-    await act(async () => {
-      await result.current.dialogs.handleSubmitCreateResource({ ...createValues, avatarImageData })
-    })
-
-    expect(controllerMocks.setAgentAvatar).toHaveBeenCalledWith('agent-created', {
-      kind: 'image',
-      data: avatarImageData
-    })
-    expect(controllerMocks.createAgent.mock.invocationCallOrder[0]).toBeLessThan(
-      controllerMocks.setAgentAvatar.mock.invocationCallOrder[0]
-    )
   })
 
   it('reports assistant duplicate failures without refetching', async () => {
@@ -218,6 +181,20 @@ describe('useResourceCatalogController', () => {
 
     expect(toast.error).toHaveBeenCalledWith('duplicate failed')
     expect(controllerMocks.refetch).not.toHaveBeenCalled()
+  })
+
+  it('stores only the resource key when opening the edit dialog', () => {
+    controllerMocks.resourceLibraryState.resources = [assistantResource]
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    act(() => {
+      result.current.gridProps.onEdit(assistantResource)
+    })
+
+    expect(result.current.dialogs.editDialogTarget).toEqual({
+      kind: 'assistant',
+      id: 'assistant-to-duplicate'
+    })
   })
 
   it('reports assistant export failures without throwing', async () => {
@@ -233,31 +210,73 @@ describe('useResourceCatalogController', () => {
     })
   })
 
-  it('clears the active tag when the resource type changes', async () => {
+  it('counts non-empty groups and resolves the exported assistant group name', async () => {
+    controllerMocks.groups.push(
+      {
+        id: 'group-work',
+        entityType: 'assistant',
+        name: 'Work',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      },
+      {
+        id: 'group-empty',
+        entityType: 'assistant',
+        name: 'Empty',
+        orderKey: 'a1',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      }
+    )
+    const groupedAssistant = {
+      ...assistantResource,
+      groupId: 'group-work',
+      raw: { ...assistantResource.raw, groupId: 'group-work' }
+    } as ResourceItem
+    controllerMocks.resourceLibraryState.allResources = [
+      groupedAssistant,
+      { ...groupedAssistant, id: 'assistant-2', raw: { ...groupedAssistant.raw, id: 'assistant-2' } } as ResourceItem
+    ]
+
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    expect(result.current.gridProps.groups).toEqual([{ id: 'group-work', name: 'Work', count: 2 }])
+
+    act(() => {
+      result.current.gridProps.onExport(groupedAssistant)
+    })
+
+    await waitFor(() => expect(controllerMocks.saveFile).toHaveBeenCalledOnce())
+    const exportedBytes = controllerMocks.saveFile.mock.calls[0][1] as Uint8Array
+    expect(JSON.parse(new TextDecoder().decode(exportedBytes))).toMatchObject([{ group: ['Work'] }])
+  })
+
+  it('clears the active group when the resource type changes', async () => {
     const { result, rerender } = renderHook(
       ({ resourceType }: { resourceType: ControllerResourceType }) => useResourceCatalogController(resourceType),
       { initialProps: { resourceType: 'assistant' as ControllerResourceType } }
     )
 
     act(() => {
-      result.current.gridProps.onTagFilter('stale-tag')
+      result.current.gridProps.onGroupFilter('11111111-1111-4111-8111-111111111111')
     })
 
     await waitFor(() => {
-      expect(result.current.gridProps.activeTag).toBe('stale-tag')
+      expect(result.current.gridProps.activeGroupId).toBe('11111111-1111-4111-8111-111111111111')
     })
 
     rerender({ resourceType: 'agent' })
 
     await waitFor(() => {
-      expect(result.current.gridProps.activeTag).toBeNull()
+      expect(result.current.gridProps.activeGroupId).toBeNull()
     })
 
     rerender({ resourceType: 'assistant' })
 
     await waitFor(() => {
       expect(controllerMocks.resourceLibraryOptions.at(-1)).toEqual(
-        expect.objectContaining({ activeTag: null, resourceType: 'assistant' })
+        expect.objectContaining({ activeGroupId: null, resourceType: 'assistant' })
       )
     })
   })

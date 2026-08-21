@@ -1,10 +1,11 @@
 import type {
   QuickPanelContextType,
   QuickPanelInputAdapter,
+  QuickPanelListItem,
   QuickPanelOpenOptions,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 
 export type ComposerToolLauncherKind = 'command' | 'panel' | 'dialog' | 'group'
 
@@ -29,15 +30,15 @@ export interface ComposerToolLauncher {
    */
   sources?: readonly ComposerToolLauncherSource[]
   /**
-   * Root panel placement. `'trailing'` renders the launcher after caller-provided
-   * additional items (e.g. agent skills) instead of alongside the other command
-   * items. Defaults to leading (with the other command items).
+   * Root panel placement. `'trailing'` renders the launcher after regular root-panel
+   * launchers and caller-provided additional items. Defaults to leading.
    */
   rootPanelPlacement?: 'trailing'
   order?: number
   label: ReactNode | string
   description?: ReactNode | string
   tooltip?: ReactNode | string
+  tooltipAnchor?: ReactElement
   disabledReason?: ReactNode | string
   searchAliases?: readonly string[]
   icon: ReactNode | string
@@ -53,5 +54,10 @@ export interface ComposerToolLauncher {
    */
   panelSymbol?: string
   submenu?: ComposerToolLauncher[]
+  /**
+   * Actionable rows owned by a custom panel that should participate in root-panel search.
+   * They stay hidden in the unfiltered root list. Read-only/status rows must not be exposed here.
+   */
+  rootSearchItems?: readonly QuickPanelListItem[]
   action?: (options: ComposerToolLauncherActionOptions) => void
 }

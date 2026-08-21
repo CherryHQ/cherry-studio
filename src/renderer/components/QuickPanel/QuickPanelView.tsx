@@ -6,8 +6,8 @@ import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, u
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import {
+  getQuickPanelBodyVerticalSpace,
   getQuickPanelHeights,
-  QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE,
   QUICK_PANEL_ITEM_HEIGHT,
   QUICK_PANEL_SAFE_MARGIN
 } from './heights'
@@ -329,7 +329,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
-      if (ctx.readOnly) return
+      // Read-only panels (e.g. MCP status) stay non-interactive, except for pinned footer actions
+      // like "open config" which are the panel's one intentional affordance.
+      if (ctx.readOnly && !item.fixedToBottom) return
       if (item.disabled) return
       const cleanSearchText = activeSearchQuery
       const parentPanel = getCurrentPanelOptions(activeIndex)
@@ -390,7 +392,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       }
 
       // Keep the panel open in multi-select mode.
-      if (ctx.multiple) return
+      if (ctx.multiple || item.keepOpenOnAction) return
 
       if (ctx.getPanelGeneration() !== panelGenerationBeforeAction) {
         return
@@ -601,20 +603,42 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         e.stopPropagation()
         setIsMouseOver(false)
       }
-      if (
-        ctx.readOnly &&
-        ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter'].includes(e.key)
-      ) {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsMouseOver(false)
-        return true
-      }
-      if (ctx.readOnly && e.key === 'ArrowRight' && assistivePressed) {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsMouseOver(false)
-        return true
+      if (ctx.readOnly) {
+        // Read-only panels are non-interactive except for pinned footer actions (e.g. "Configure
+        // MCP"), which stay keyboard-selectable: ▲▼ moves onto them and Enter/Tab activates the
+        // highlighted one. Everything else is swallowed so the status list stays inert.
+        const footerNavItems = list.map((item) => ({
+          disabled: !(item.fixedToBottom && !!item.action && !item.disabled)
+        }))
+        const hasFooterAction = footerNavItems.some((item) => !item.disabled)
+        if (hasFooterAction && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? -1 : 1
+          setActiveIndex((prev) => moveQuickPanelSelectableIndex(footerNavItems, prev, dir, { wrap: true }))
+          return true
+        }
+        if (hasFooterAction && !e.shiftKey && ['Enter', 'NumpadEnter', 'Tab'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          const activeItem = list?.[activeIndex]
+          if (activeItem?.fixedToBottom && activeItem.action) handleItemAction(activeItem, 'enter')
+          return true
+        }
+        if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          return true
+        }
+        if (e.key === 'ArrowRight' && assistivePressed) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          return true
+        }
       }
 
       switch (e.key) {
@@ -792,13 +816,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       setMeasuredChromeHeight(null)
       return
     }
-    if (!footerRef.current) return
+    if (!footerRef.current || !bodyRef.current) return
 
     const footerElement = footerRef.current
+    const bodyElement = bodyRef.current
     const updateFooterMetrics = () => {
       setFooterWidth(footerElement.clientWidth)
       const nextChromeHeight =
-        footerElement.clientHeight > 0 ? footerElement.clientHeight + QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE : null
+        footerElement.clientHeight > 0
+          ? footerElement.clientHeight + getQuickPanelBodyVerticalSpace(getComputedStyle(bodyElement))
+          : null
       setMeasuredChromeHeight((prev) => (prev === nextChromeHeight ? prev : nextChromeHeight))
     }
 
@@ -807,6 +834,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const resizeObserver = new ResizeObserver(updateFooterMetrics)
     resizeObserver.observe(footerElement)
+    resizeObserver.observe(bodyElement)
 
     return () => resizeObserver.disconnect()
   }, [isPanelPresent, ctx.readOnly])
@@ -893,11 +921,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return (
         <QuickPanelRow
           className={classNames({
-            focused: !ctx.readOnly && itemIndex === activeIndex,
+            // In read-only panels only the pinned footer action can be highlighted (via keyboard).
+            focused: (!ctx.readOnly || item.fixedToBottom) && itemIndex === activeIndex,
             selected: !ctx.readOnly && item.isSelected,
             disabled: item.disabled
           })}
-          active={!ctx.readOnly && itemIndex === activeIndex}
+          active={(!ctx.readOnly || !!item.fixedToBottom) && itemIndex === activeIndex}
           contentClassName="max-w-[60%]"
           dataId={item.id}
           hoverEnabled={isMouseOver}
@@ -918,7 +947,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       style={{ maxHeight: panelMaxHeight }}
       className={classNames(
         '-top-1 -translate-y-full absolute right-2 left-2 flex origin-bottom flex-col justify-end',
-        ctx.isVisible ? 'transition-[max-height] duration-200 ease-in-out' : 'transition-none',
+        ctx.isVisible
+          ? 'transition-[max-height] duration-200 ease-in-out motion-reduce:transition-none'
+          : 'transition-none',
         ctx.isVisible ? 'overflow-visible' : 'overflow-hidden',
         ctx.isVisible && 'visible',
         ctx.isVisible ? 'pointer-events-auto' : 'pointer-events-none'
@@ -926,14 +957,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       data-testid="quick-panel">
       <div
         ref={bodyRef}
+        data-slot="quick-panel-content"
         data-testid="quick-panel-body"
         style={constrainBody ? { height: panelMaxHeight } : undefined}
         className={classNames(
-          'relative isolate transform-gpu rounded-xl border border-border/80 bg-popover py-1.25 text-popover-foreground transition-[translate,scale,opacity,box-shadow] duration-200 ease-out will-change-transform motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:opacity-100 motion-reduce:transition-none [&::-webkit-scrollbar]:w-0.75',
+          'relative isolate transform-gpu overflow-hidden rounded-xl bg-[color-mix(in_srgb,var(--card)_76%,transparent)] py-1.25 text-card-foreground backdrop-blur-2xl transition-[translate,opacity] will-change-[translate,opacity] [border:0.5px_solid_var(--border)] motion-reduce:translate-y-0 motion-reduce:transition-none dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--card)_95%,var(--foreground)_5%)_90%,transparent)] [&::-webkit-scrollbar]:w-0.75',
           constrainBody && 'flex flex-col justify-end',
           ctx.isVisible
-            ? classNames('translate-y-0 scale-100 opacity-100', 'shadow-none')
-            : 'translate-y-3 scale-[0.985] opacity-0 shadow-none'
+            ? 'translate-y-0 opacity-100 shadow-none duration-[140ms,200ms] ease-[cubic-bezier(0.16,1,0.3,1),ease-out]'
+            : 'translate-y-2 opacity-0 shadow-none duration-[80ms,100ms] ease-[cubic-bezier(0.4,0,1,1),ease-out] [transition-delay:0ms,80ms]'
         )}
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
@@ -963,7 +995,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
               </DynamicVirtualList>
             ) : null}
             {fixedBottomItems.length > 0 ? (
-              <div className="absolute right-0 bottom-0 left-0 bg-popover" data-testid="quick-panel-fixed-bottom">
+              <div className="absolute right-0 bottom-0 left-0 bg-transparent" data-testid="quick-panel-fixed-bottom">
                 {fixedBottomItems.map((item, index) => (
                   <div key={item.id ?? index}>{rowRenderer(item, scrollableItems.length + index)}</div>
                 ))}

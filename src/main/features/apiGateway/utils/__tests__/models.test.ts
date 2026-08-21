@@ -3,12 +3,14 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  getProvider: vi.fn(),
   listProviders: vi.fn(),
   listModels: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
+    getByProviderId: mocks.getProvider,
     list: mocks.listProviders
   }
 }))
@@ -25,11 +27,12 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { getModels } from '../models'
+import { getModels, resolveGatewayModelAddress } from '../models'
 
 describe('api gateway model listing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.getProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
     mocks.listProviders.mockReturnValue([
       { id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' },
       { id: 'openai', name: 'OpenAI' }
@@ -63,6 +66,25 @@ describe('api gateway model listing', () => {
     const response = await getModels()
 
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+  })
+
+  it('surfaces the resolved model record for provider-option translation', () => {
+    const resolvedModel = {
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      apiModelId: 'gpt-4o',
+      ownedBy: 'OpenAI',
+      capabilities: [],
+      isEnabled: true
+    }
+    mocks.listModels.mockReturnValue([resolvedModel])
+
+    expect(resolveGatewayModelAddress('openai:gpt-4o')).toMatchObject({
+      providerId: 'openai',
+      apiModelId: 'gpt-4o',
+      uniqueModelId: 'openai::gpt-4o',
+      model: resolvedModel
+    })
   })
 
   // The listing shares isGatewayRoutableModel with the renderer's gateway picker: it must never
