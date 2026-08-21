@@ -6039,6 +6039,10 @@
       },
       "reset_tooltip": "Đặt lại về mặc định",
       "show_app": "Hiển thị {{name}}",
+      "tab_icon": {
+        "description": "Điều chỉnh biểu tượng tab mini app đã ghim và chưa ghim từ 20px đến 30px",
+        "title": "Kích thước biểu tượng tab mini app"
+      },
       "visible": "Mini-app hiển thị"
     },
     "model": "Mô hình Mặc định",

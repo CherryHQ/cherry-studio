@@ -6039,6 +6039,10 @@
       },
       "reset_tooltip": "Redefinir para os valores padrão",
       "show_app": "Mostrar {{name}}",
+      "tab_icon": {
+        "description": "Ajustar entre 20px e 30px os ícones dos separadores de miniaplicações afixados e não afixados",
+        "title": "Tamanho dos ícones dos separadores de miniaplicações"
+      },
       "visible": "Mini Aplicações Visíveis"
     },
     "model": "Modelo padrão",
