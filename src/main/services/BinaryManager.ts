@@ -153,7 +153,7 @@ function toPipxRegistryUrl(indexUrl: string): string {
   return `${indexUrl.replace(/\/+$/, '')}/{}/`
 }
 
-// Retrying an index only means something if every layer moves with it: mise
+// Naming an index only means something if every layer moves with it: mise
 // resolves the version through MISE_PIPX_REGISTRY_URL and hands the download to
 // uv, which it only tells about an *extra* index (UV_INDEX) — so UV_DEFAULT_INDEX
 // is what actually displaces pypi.org, and PIP_INDEX_URL covers a pipx fallback.
@@ -846,12 +846,10 @@ export class BinaryManager extends BaseService {
     const pipIndexUrl =
       parseInstallUrl(installSettings.pipIndexUrl, 'pip index') ?? parseAmbientUrl(env['PIP_INDEX_URL'], 'pip index')
     if (npmRegistry) env['NPM_CONFIG_REGISTRY'] = npmRegistry
-    if (pipIndexUrl) {
-      env['PIP_INDEX_URL'] = pipIndexUrl
-      // mise's pipx backend derives UV_INDEX/PIP_INDEX_URL from this setting,
-      // overriding ambient values before invoking uvx/pipx.
-      env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(pipIndexUrl)
-    }
+    // A chosen index has to become uv's *default*, not just an extra one it may
+    // consult: leaving pypi.org in place lets uv quietly source a version or a
+    // transitive dependency the chosen index does not carry.
+    if (pipIndexUrl) Object.assign(env, pipIndexEnv(pipIndexUrl))
 
     // Opt-in GitHub token: users who hit the 60 req/hr unauthenticated API
     // limit (shared NATs, CI, Codespaces) can set CHERRY_GITHUB_TOKEN to
