@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
+import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
@@ -47,6 +48,26 @@ const MIN_SNAP_TARGET_SIZE = 5
  * nothing about the renderer's health, so it must not tear the session down.
  */
 const ERR_ABORTED = -3
+
+/**
+ * Capture-path timings for one session, in ms from the moment the shortcut landed.
+ *
+ * Only populated under `CS_DIAGNOSTICS`. Exists because the latency this path was
+ * fixed for is invisible from the outside: "the overlay feels slow" cannot tell a
+ * cold renderer apart from a blocked main process, and the two have opposite fixes.
+ */
+interface CaptureTrace {
+  t0: number
+  /** Screen capture and PNG encode, i.e. everything before the first open(). */
+  captureMs: number
+  /** All overlays opened and shown at opacity 0. */
+  openMs: number
+  /** Overlays whose window had to be created; the rest came warm from the pool. */
+  created: number
+  /** Overlays this session opened, i.e. how many readiness reports to expect. */
+  expected: number
+  ready: number
+}
 
 /** One display's frozen capture, kept for the session so region OCR can crop it. */
 interface SessionCapture {
@@ -104,6 +125,12 @@ export class ScreenshotOverlayService extends BaseService {
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
   private renderersReady = new Set<WindowId>()
 
+  /** Timings of the live session. Null unless CS_DIAGNOSTICS is set. */
+  private trace: CaptureTrace | null = null
+
+  /** Overlay windows created since the session started; the rest came from the pool. */
+  private overlaysCreated = 0
+
   /** Token of the newest OCR request. At most one overlay is active, so "keep only
    *  the newest" is global — bucketing by window would let two chains run at once. */
   private latestOcrToken: symbol | null = null
@@ -115,6 +142,10 @@ export class ScreenshotOverlayService extends BaseService {
         // No declarative equivalent in WindowBehavior, and a macOS panel window can
         // still paint traffic lights over a frameless overlay.
         if (isMac) window.setWindowButtonVisibility(false)
+
+        // Counts creations, so a trace can say whether the pool actually served this
+        // session warm. Reset per session in startCapture; pool warmup bumps it too.
+        this.overlaysCreated++
 
         // Attached here rather than after open(): a recycled window never re-enters
         // this callback, so per-session listeners would pile up and still miss reuses.
@@ -191,6 +222,9 @@ export class ScreenshotOverlayService extends BaseService {
       // would let a blocked second attempt freeze the FIRST session's overlays at opacity 0.
       const generation = ++this.sessionGeneration
 
+      const t0 = performance.now()
+      this.overlaysCreated = 0
+
       try {
         // Started before the capture so the enumeration — hundreds of milliseconds of
         // native work — overlaps the PNG encode and the window opening rather than
@@ -198,6 +232,7 @@ export class ScreenshotOverlayService extends BaseService {
         const snapCandidates = collectSnapCandidates()
 
         const captures = await captureAllMonitors()
+        const captureMs = performance.now() - t0
         const windowManager = application.get('WindowManager')
         const mediaProtocol = application.get('MediaProtocolService')
         const displays = screen.getAllDisplays()
@@ -300,6 +335,17 @@ export class ScreenshotOverlayService extends BaseService {
         // Thrown into the catch below rather than returned: the user pressed a shortcut
         // and nothing appeared, which is a failed capture, not a quiet edge case.
         if (this.overlayWindowIds.length === 0) throw new Error('no display produced an overlay')
+
+        if (DIAGNOSTICS_ENABLED) {
+          this.trace = {
+            t0,
+            captureMs,
+            openMs: performance.now() - t0,
+            created: this.overlaysCreated,
+            expected: this.overlayWindowIds.length,
+            ready: 0
+          }
+        }
 
         void this.pushSnapTargets(generation, snapCandidates, snapOverlays, primaryScaleFactor)
 
@@ -449,6 +495,30 @@ export class ScreenshotOverlayService extends BaseService {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return
     this.renderersReady.add(windowId)
     this.pendingReveals.get(windowId)?.reveal()
+    this.traceReady()
+  }
+
+  /**
+   * Report the capture path's timings once every overlay has painted.
+   *
+   * `usable` is the number that matters: the shortcut is pressed at t0 and the user
+   * can act at the last readiness report. `cold` tells whether the pool served this
+   * session — a cold overlay and a blocked main process both look like "slow" from
+   * the outside, and they have opposite fixes.
+   */
+  private traceReady(): void {
+    const trace = this.trace
+    if (!trace) return
+    trace.ready++
+    if (trace.ready < trace.expected) return
+    this.trace = null
+
+    const usable = performance.now() - trace.t0
+    logger.info(
+      `[Diagnostics/screenshot] usable=${usable.toFixed(0)}ms ` +
+        `capture=${trace.captureMs.toFixed(0)}ms open=${(trace.openMs - trace.captureMs).toFixed(0)}ms ` +
+        `paint=${(usable - trace.openMs).toFixed(0)}ms cold=${trace.created}/${trace.expected}`
+    )
   }
 
   /**
@@ -465,10 +535,19 @@ export class ScreenshotOverlayService extends BaseService {
     overlays: { windowId: WindowId; display: Display }[],
     primaryScaleFactor: number
   ): Promise<void> {
+    const startedAt = performance.now()
     const snapCandidates = await candidates
     // The session may have ended while the enumeration ran; a pooled overlay is only
     // hidden, so its renderer would happily apply targets for a capture it no longer shows.
     if (generation !== this.sessionGeneration) return
+
+    if (DIAGNOSTICS_ENABLED) {
+      logger.info(
+        `[Diagnostics/screenshot] snap targets ready ${(performance.now() - startedAt).toFixed(0)}ms ` +
+          `after the overlays opened, ${snapCandidates.length} candidates ` +
+          `(0 means the worker finished before the overlays did)`
+      )
+    }
 
     const ipcApiService = application.get('IpcApiService')
     for (const { windowId, display } of overlays) {
@@ -652,6 +731,7 @@ export class ScreenshotOverlayService extends BaseService {
 
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
+    this.trace = null
 
     // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
     this.latestOcrToken = null

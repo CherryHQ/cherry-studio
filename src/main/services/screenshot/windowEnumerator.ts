@@ -1,6 +1,7 @@
 import { Worker } from 'node:worker_threads'
 
 import { loggerService } from '@logger'
+import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 
 import { nativeCaptureBackendPath } from './nativeCaptureBackend'
 import type { RawWindowInfo } from './types'
@@ -64,14 +65,22 @@ const enumeratorSource = `
 const { parentPort, workerData } = require('node:worker_threads')
 const readWindowInfo = ${readWindowInfo.toString()}
 
+// Wall clock, so the main thread can measure how long this worker took to boot.
+// performance.now() cannot: each thread's origin is its own start.
+const startedAt = Date.now()
+
 try {
+  const t0 = performance.now()
   const { Window } = require(workerData.backendPath)
+  const loadMs = performance.now() - t0
+
+  const t1 = performance.now()
   const windows = []
   for (const w of Window.all()) {
     const info = readWindowInfo(w)
     if (info) windows.push(info)
   }
-  parentPort.postMessage({ ok: true, windows })
+  parentPort.postMessage({ ok: true, windows, startedAt, loadMs, enumMs: performance.now() - t1 })
 } catch (error) {
   parentPort.postMessage({ ok: false, message: String((error && error.message) || error) })
 }
@@ -94,6 +103,8 @@ export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
   }
 
   return new Promise((resolve) => {
+    const t0 = performance.now()
+    const t0Wall = Date.now()
     // Resolves exactly once; `exit` fires after a successful `message` too.
     let settled = false
     const settle = (windows: RawWindowInfo[]) => {
@@ -103,19 +114,41 @@ export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
     }
 
     const worker = new Worker(enumeratorSource, { eval: true, workerData: { backendPath } })
+    const spawnMs = performance.now() - t0
     // A capture session is short-lived and this result is optional; it must never
     // be the reason the app stays alive on quit.
     worker.unref()
 
-    worker.on('message', (message: { ok: true; windows: RawWindowInfo[] } | { ok: false; message: string }) => {
-      if (message.ok) {
-        settle(message.windows)
-      } else {
-        logger.warn('Skipping snap targets: the enumerator worker failed', new Error(message.message))
-        settle([])
+    worker.on(
+      'message',
+      (
+        message:
+          | { ok: true; windows: RawWindowInfo[]; startedAt: number; loadMs: number; enumMs: number }
+          | { ok: false; message: string }
+      ) => {
+        if (message.ok) {
+          if (DIAGNOSTICS_ENABLED) {
+            // Splits the wall clock five ways, so a slow run names its own cause:
+            // `boot` = spawning the thread, `load` = the native binding, `enum` =
+            // the OS queries, `dispatch` = the main thread getting round to the
+            // reply. A large `dispatch` is a scheduling problem, not a native one.
+            const total = performance.now() - t0
+            const bootMs = message.startedAt - t0Wall
+            logger.info(
+              `[Diagnostics/screenshot] enumerator total=${total.toFixed(0)}ms ` +
+                `spawn=${spawnMs.toFixed(0)}ms boot=${bootMs.toFixed(0)}ms ` +
+                `load=${message.loadMs.toFixed(0)}ms enum=${message.enumMs.toFixed(0)}ms ` +
+                `dispatch=${(total - bootMs - message.loadMs - message.enumMs).toFixed(0)}ms`
+            )
+          }
+          settle(message.windows)
+        } else {
+          logger.warn('Skipping snap targets: the enumerator worker failed', new Error(message.message))
+          settle([])
+        }
+        void worker.terminate()
       }
-      void worker.terminate()
-    })
+    )
     worker.on('error', (error) => {
       logger.warn('Skipping snap targets: the enumerator worker errored', error)
       settle([])
