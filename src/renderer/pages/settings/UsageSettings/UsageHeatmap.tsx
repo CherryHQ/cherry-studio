@@ -1,4 +1,4 @@
-import { NormalTooltip, SegmentedControl, Skeleton } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Skeleton } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
@@ -31,7 +31,7 @@ export function buildHeatmapDays(
   buckets: AiUsageRecordTimelineBucket[],
   range: { from?: number; to?: number } | undefined,
   firstDayOfWeek: number
-): { date: Date; key: string; isFuture: boolean; isOutsideRange: boolean }[] {
+): { date: Date; key: string; isOutsideRange: boolean }[] {
   const today = startOfLocalDay(new Date())
   let rangeFirstDay: Date
   let rangeLastDay: Date
@@ -57,7 +57,7 @@ export function buildHeatmapDays(
 
   // Step by calendar date, not by DAY_MS: DST days are 23h/25h long, so millisecond
   // arithmetic would duplicate or skip a local date around a transition.
-  const days: { date: Date; key: string; isFuture: boolean; isOutsideRange: boolean }[] = []
+  const days: { date: Date; key: string; isOutsideRange: boolean }[] = []
   const cursor = new Date(firstWeekDay)
 
   while (cursor.getTime() <= lastWeekDay.getTime()) {
@@ -65,7 +65,6 @@ export function buildHeatmapDays(
     days.push({
       date,
       key: toDateKey(date),
-      isFuture: date.getTime() > today.getTime(),
       isOutsideRange: date.getTime() < rangeFirstDay.getTime() || date.getTime() > rangeLastDay.getTime()
     })
     cursor.setDate(cursor.getDate() + 1)
@@ -133,10 +132,8 @@ function useElementWidth() {
 
 interface UsageHeatmapProps {
   buckets: AiUsageRecordTimelineBucket[]
-  selectedDate?: string
   metric: UsageHeatmapMetric
   onMetricChange: (metric: UsageHeatmapMetric) => void
-  onSelectDate: (date: string) => void
   costCurrency?: string | null
   isLoading?: boolean
   range?: { from?: number; to?: number }
@@ -152,10 +149,8 @@ const intensityClassNames: Record<0 | 1 | 2 | 3 | 4, string> = {
 
 export default function UsageHeatmap({
   buckets,
-  selectedDate,
   metric,
   onMetricChange,
-  onSelectDate,
   costCurrency,
   isLoading,
   range
@@ -218,15 +213,33 @@ export default function UsageHeatmap({
   )
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex min-w-0 flex-col gap-2">
+    <div className="min-w-0 p-3">
+      <div className="flex min-w-0 items-center justify-between gap-3">
         <UsagePanelTitle className="min-w-0">{t('settings.usage.heatmap.title')}</UsagePanelTitle>
-        <div className="-mx-1 max-w-[calc(100%+0.5rem)] overflow-x-auto px-1">
-          <SegmentedControl options={metricOptions} value={metric} onValueChange={onMetricChange} size="sm" />
+        <div role="group" aria-label={t('settings.usage.explore.metric')} className="flex shrink-0 items-center gap-3">
+          {metricOptions.map((option) => {
+            const isActive = metric === option.value
+
+            return (
+              <Button
+                key={option.value}
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-pressed={isActive}
+                onClick={() => onMetricChange(option.value)}
+                className={cn(
+                  'px-1 text-sm hover:bg-transparent',
+                  isActive ? 'font-medium text-foreground' : 'text-foreground-tertiary hover:text-muted-foreground'
+                )}>
+                {option.label}
+              </Button>
+            )
+          })}
         </div>
       </div>
 
-      <div ref={heatmapRef} className="min-w-0 max-w-full overflow-x-auto pb-1">
+      <div ref={heatmapRef} className="mt-2 min-w-0 max-w-full overflow-x-auto">
         <div className="flex w-max min-w-full justify-end" style={{ gap: CELL_GAP }}>
           {weeks.map((week, weekIndex) => (
             <div
@@ -274,22 +287,13 @@ export default function UsageHeatmap({
 
                     return (
                       <NormalTooltip key={day.key} content={tooltipContent} side="top" sideOffset={4}>
-                        <button
-                          type="button"
-                          aria-disabled={day.isFuture}
-                          aria-label={t('settings.usage.heatmap.ariaDate', { date: dateFormatter.format(day.date) })}
-                          onClick={() => {
-                            if (!day.isFuture) {
-                              onSelectDate(day.key)
-                            }
-                          }}
-                          className={cn(
-                            'rounded-[3px] border border-transparent transition-colors',
-                            intensityClassNames[intensity],
-                            day.isFuture && 'cursor-default opacity-30',
-                            !day.isFuture && 'hover:border-primary/70',
-                            selectedDate === day.key && 'border-primary ring-2 ring-primary/30'
-                          )}
+                        <div
+                          role="img"
+                          aria-label={`${dateFormatter.format(day.date)} · ${tooltipValue} · ${t(
+                            'settings.usage.tooltip.requests',
+                            { count: bucket?.requestCount ?? 0 }
+                          )}`}
+                          className={`cursor-help rounded-[3px] ${intensityClassNames[intensity]}`}
                           style={{ height: CELL_SIZE, width: CELL_SIZE }}
                         />
                       </NormalTooltip>

@@ -7073,9 +7073,8 @@
       "explore": {
         "analysis": "Analyse",
         "chart": "Graphique",
-        "clearDate": "Effacer le filtre de date",
-        "drilldownTitle": "{{date}} détail",
         "entries": "Demandes",
+        "granularity": "Granularité",
         "groupBy": "Grouper par",
         "loadMore": "Charger plus",
         "loading": "Chargement...",
@@ -7085,7 +7084,6 @@
         "noEntries": "Aucune entrée",
         "noEntriesDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
         "rollup": "Agrégation",
-        "selectedDate": "Date sélectionnée : {{date}}",
         "shareLabel": "Partager",
         "title": "Explorer",
         "top": "Haut",
@@ -7099,7 +7097,6 @@
         "source": "Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Utilisation le {{date}}",
         "title": "Activité quotidienne"
       },
       "metric": {
