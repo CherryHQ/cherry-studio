@@ -4,16 +4,13 @@
  * derives the auto-compact window and per-request output cap from the model catalog.
  */
 
-import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
-import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import { toAsarUnpackedPath } from '@main/utils/asar'
-import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -27,6 +24,7 @@ import {
   mergeAgentLoopbackProxyBypass,
   stripInheritedCherryProxyMarkers
 } from './agentProxyEnvironment'
+import { claudeCodeBinaryService } from './ClaudeCodeBinaryService'
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
 
@@ -60,8 +58,6 @@ const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
  * agents on small windows start compacting too eagerly to make progress.
  */
 export const AUTO_COMPACT_TRIGGER_PCT = 80
-const require_ = createRequire(import.meta.url)
-
 // Providers bill `input + max_tokens` against the context limit, so history can only occupy
 // `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
 export function resolveAutoCompactWindow(
@@ -104,27 +100,8 @@ export function resolveRequestedOutputTokens(
   return Math.min(declared, MAX_REQUESTED_OUTPUT_TOKENS, inputRoom)
 }
 
-export function resolveClaudeExecutablePath(): string {
-  const sdkRequire = createRequire(require_.resolve('@anthropic-ai/claude-agent-sdk'))
-  const extension = isWin ? '.exe' : ''
-  const nativePackages = isLinux
-    ? [
-        `@anthropic-ai/claude-agent-sdk-linux-${process.arch}-musl`,
-        `@anthropic-ai/claude-agent-sdk-linux-${process.arch}`
-      ]
-    : [`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`]
-
-  for (const packageName of nativePackages) {
-    try {
-      return toAsarUnpackedPath(sdkRequire.resolve(`${packageName}/claude${extension}`))
-    } catch {
-      // Optional native packages are platform-specific; try the next candidate.
-    }
-  }
-
-  throw new Error(
-    `Claude Code native binary not found for ${process.platform}-${process.arch}. Reinstall @anthropic-ai/claude-agent-sdk with optional dependencies.`
-  )
+export async function resolveClaudeExecutablePath(): Promise<string> {
+  return claudeCodeBinaryService.ensureExecutable()
 }
 
 export async function getClaudeCodeLoginShellEnvironment(
@@ -142,9 +119,15 @@ export async function buildEnvironment(
   agent: AgentEntity
 ): Promise<Record<string, string | undefined>> {
   const proxyEnvironment = getProxyEnvironment(process.env)
-  const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
-  const customGitBashPath = isWin ? autoDiscoverGitBash() : null
-  const bunPath = await getBinaryPath('bun')
+  let loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
+  let customGitBashPath = isWin ? autoDiscoverGitBash(loginShellEnv, false) : null
+  if (isWin && !customGitBashPath) {
+    await application.get('BinaryManager').ensureBundledGit()
+    loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
+    customGitBashPath = autoDiscoverGitBash(loginShellEnv)
+  }
+  const bunPath = await application.get('BinaryManager').resolveBinaryPath('bun')
+  if (!bunPath) throw new Error('Verified bun binary is not available')
 
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.

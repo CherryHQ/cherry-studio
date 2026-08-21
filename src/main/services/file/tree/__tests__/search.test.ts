@@ -13,9 +13,7 @@ import { tryTestRipgrepPath } from './ripgrepTestUtils'
 
 const ripgrepAvailable = tryTestRipgrepPath() !== null
 
-// Hoisted mocks for the two `node:fs` surfaces `search.ts` consults:
-//   - `existsSync` drives ripgrep binary discovery
-//   - `promises.stat` and `promises.readdir` drive root-path error branches
+// Hoisted mocks for the filesystem and process surfaces `search.ts` consults.
 // Every other export passes through to the real implementation via the
 // `vi.mock` factory below, so the happy-path tests below keep exercising
 // real fs / real ripgrep without per-test setup.
@@ -23,6 +21,14 @@ const mockExistsSync = vi.hoisted(() => vi.fn())
 const mockPromisesStat = vi.hoisted(() => vi.fn())
 const mockPromisesReaddir = vi.hoisted(() => vi.fn())
 const mockSpawn = vi.hoisted(() => vi.fn())
+const mockResolveBinaryPath = vi.hoisted(() => vi.fn())
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    BinaryManager: { resolveBinaryPath: mockResolveBinaryPath }
+  } as Record<string, unknown>)
+})
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeChildProcess>()
@@ -45,21 +51,6 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
-// Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
-// reads cherry.bin / mise shims — neither is populated under vitest. Point it
-// at the test ripgrep binary so scans spawn a real ripgrep; `existsSync` (mocked
-// above) still governs the "binary not available" branch.
-vi.mock('@main/utils/binaryResolver', async () => {
-  const { tryTestRipgrepPath } = await import('./ripgrepTestUtils')
-  // When ripgrep is unavailable, return a non-existent sentinel path so
-  // `resolveRipgrepBinary`'s existsSync check (not testRipgrepPath) governs
-  // binary availability — keeping the error-path test's assertion correct.
-  const resolvedRgPath = tryTestRipgrepPath() ?? '/nonexistent/rg'
-  return {
-    getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
-  }
-})
-
 vi.mock('@main/utils/binaryEnv', () => ({
   getBinaryExecutionEnv: () => ({})
 }))
@@ -76,6 +67,7 @@ beforeEach(async () => {
   mockPromisesStat.mockReset()
   mockPromisesReaddir.mockReset()
   mockSpawn.mockReset()
+  mockResolveBinaryPath.mockReset().mockResolvedValue(tryTestRipgrepPath() ?? '/nonexistent/rg')
   mockExistsSync.mockImplementation((p: NodeFs.PathLike) => actual.existsSync(p))
   mockPromisesStat.mockImplementation((p: string) => actual.promises.stat(p))
   mockPromisesReaddir.mockImplementation(actual.promises.readdir)
@@ -158,8 +150,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
 
     await listDirectory(tmp as AbsoluteFilePath)
 
-    const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
-    expect(checkedPaths.some((p) => path.basename(p) === (process.platform === 'win32' ? 'rg.exe' : 'rg'))).toBe(true)
+    expect(mockResolveBinaryPath).toHaveBeenCalledWith('rg')
   })
 
   it('lists nested directories and files alongside top-level entries', async () => {
@@ -491,12 +482,7 @@ describe('listDirectory (error paths)', () => {
   })
 
   it('throws "Ripgrep binary not available" when the test ripgrep binary cannot be located', async () => {
-    // Force `resolveRipgrepBinary()` to treat the resolved path as missing:
-    // `existsSync` returns false, so the binary check fails. `stat` keeps its
-    // passthrough so the directory check still succeeds — the throw must come
-    // from the binary-availability branch, not a stat failure masquerading as
-    // a missing binary.
-    mockExistsSync.mockReturnValue(false)
+    mockResolveBinaryPath.mockResolvedValue(null)
 
     await expect(listDirectory(tmp as AbsoluteFilePath)).rejects.toThrow(/Ripgrep binary not available/)
   })

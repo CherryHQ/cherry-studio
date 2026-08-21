@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const binaryMock = vi.hoisted(() => ({
-  isBinaryExists: vi.fn<(name: string) => Promise<boolean>>(),
-  getBinaryPath: vi.fn<(name?: string) => Promise<string>>()
+const binaryManagerMock = vi.hoisted(() => ({
+  resolveBinaryPath: vi.fn<(name: string) => Promise<string | null>>()
 }))
 const commandMock = vi.hoisted(() => ({
   findExecutableInEnv: vi.fn<(name: string) => Promise<string | null>>(),
   findCommandInShellEnv: vi.fn<(name: string, env: Record<string, string>) => Promise<string | null>>()
 }))
 
-vi.mock('@main/utils/binaryResolver', () => binaryMock)
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ BinaryManager: binaryManagerMock } as Record<string, unknown>)
+})
 vi.mock('@main/utils/commandResolver', () => commandMock)
 
 const { resolveLaunchCommand } = await import('../mcpLaunch')
@@ -22,8 +24,7 @@ const resolve = (command: string, args: string[] = [], registryUrl?: string) =>
 describe('resolveLaunchCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    binaryMock.isBinaryExists.mockResolvedValue(false)
-    binaryMock.getBinaryPath.mockImplementation(async (name) => `/bundled/${name}`)
+    binaryManagerMock.resolveBinaryPath.mockResolvedValue(null)
     commandMock.findExecutableInEnv.mockResolvedValue(null)
     commandMock.findCommandInShellEnv.mockResolvedValue(null)
   })
@@ -34,11 +35,11 @@ describe('resolveLaunchCommand', () => {
     const launch = await resolve('npx', ['-y', 'example-mcp'])
 
     expect(launch).toEqual({ command: '/usr/local/bin/npx', args: ['-y', 'example-mcp'], env: {} })
-    expect(binaryMock.isBinaryExists).not.toHaveBeenCalled()
+    expect(binaryManagerMock.resolveBinaryPath).not.toHaveBeenCalled()
   })
 
   it('falls back to bundled bun and rewrites the args for `bun x`', async () => {
-    binaryMock.isBinaryExists.mockResolvedValue(true)
+    binaryManagerMock.resolveBinaryPath.mockResolvedValue('/bundled/bun')
 
     const launch = await resolve('npx', ['-y', 'example-mcp'])
 
@@ -47,7 +48,7 @@ describe('resolveLaunchCommand', () => {
   })
 
   it('prefixes `x -y` by position, including when the package itself is named x or -y', async () => {
-    binaryMock.isBinaryExists.mockResolvedValue(true)
+    binaryManagerMock.resolveBinaryPath.mockResolvedValue('/bundled/bun')
 
     expect((await resolve('npx', ['x'])).args).toEqual(['x', '-y', 'x'])
     expect((await resolve('npx', ['-y'])).args).toEqual(['x', '-y'])
@@ -56,7 +57,7 @@ describe('resolveLaunchCommand', () => {
   })
 
   it('does not mutate the caller’s args', async () => {
-    binaryMock.isBinaryExists.mockResolvedValue(true)
+    binaryManagerMock.resolveBinaryPath.mockResolvedValue('/bundled/bun')
     const args = ['-y', 'example-mcp']
 
     await resolve('npx', args)
@@ -65,11 +66,11 @@ describe('resolveLaunchCommand', () => {
   })
 
   it('throws an actionable error when neither npx nor bundled bun exists', async () => {
-    await expect(resolve('npx', ['example-mcp'])).rejects.toThrow(/npx not found in PATH and bundled bun/)
+    await expect(resolve('npx', ['example-mcp'])).rejects.toThrow(/npx not found in PATH and a verified bun binary/)
   })
 
   it('falls back to the bundled binary of the same name for uv and uvx', async () => {
-    binaryMock.isBinaryExists.mockResolvedValue(true)
+    binaryManagerMock.resolveBinaryPath.mockImplementation(async (name) => `/bundled/${name}`)
 
     expect((await resolve('uvx', ['example'])).command).toBe('/bundled/uvx')
     expect((await resolve('uv', ['run'])).command).toBe('/bundled/uv')

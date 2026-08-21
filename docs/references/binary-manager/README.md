@@ -15,7 +15,7 @@ sources:
 
 ## Scope
 
-BinaryManager is for a single CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on). It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
+BinaryManager is for a CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on), plus the fixed tool payloads Cherry ships for startup use. It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
 
 Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
 
@@ -27,7 +27,13 @@ Only the main process writes `feature.binary.tools`, through `BinaryManager.addC
 
 mise is an availability backend, not a definition store. An executable visible to mise can have no custom definition; conversely, a defined custom tool can be unavailable after external deletion. Custom Add writes the definition first: if that write fails, no backend work starts; if backend application fails afterward, the definition remains and the snapshot carries a retryable failed operation.
 
-Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
+Bundled copies are a separate availability source. At startup the app verifies and streams the Zstd payloads for mise, bun, uv/uvx, and rg into `cherry.bin`; the build-generated checksum manifest is authoritative for each artifact's file set and version. Recovery, cache validation, and publication use a per-destination cross-process lock because multiple profiles can share `CHERRY_HOME`. Only a completely verified artifact is published into BinaryManager's process-local registry. Runtime `.mise-version`, `.bun-version`, `.uv-version`, and `.rg-version` files are ignored.
+
+`resolveBinaryPath(name)` returns only a verified mise shim or a path from that registry, in that order. It never searches the user's system PATH and never returns a bare command name. Registry lookups recheck existence and executable access, but do not hash the file again; a service restart clears and rebuilds the registry with full manifest verification. Snapshots perform their separate system-PATH discovery only after managed and bundled availability has been evaluated.
+
+Windows MinGit is a checksum-verified `tar.zst` tree installed under the versioned `feature.binary.mingit` Toolchain path. Startup prewarms it, while `ensureBundledGit()` provides a deduplicated on-demand retry if startup extraction failed. A cache is reusable only when its marker and complete file inventory (paths, sizes, modes, and hashes) match. The synchronous `getBundledGitPath()` / `getBundledGitDir()` helpers only inspect an already-installed cache; they never extract it.
+
+The Claude Agent SDK binary uses the same atomic artifact materializer but remains owned by `ClaudeCodeBinaryService`: packaged builds install it lazily on first Agent use under the versioned `feature.agents.claude.binary` path. None of these runtime paths download a replacement when verification or extraction fails.
 
 ### Portable definitions and machine-local state
 
@@ -107,7 +113,7 @@ A tool visible through `mise`, the system PATH, or a bundled binary but carrying
 
 The request routes and events are the IpcApi schema in `src/shared/ipc/schemas/binary.ts` — the `binaryRequestSchemas` keys (renderer→main routes) and the `BinaryEventSchemas` type (main→renderer events). Read them there rather than a hand-copied list here, which would drift. Their handlers live in `src/main/ipc/handlers/binary.ts`.
 
-`binary.availability_changed` tells consumers to refresh their snapshots and invalidates displayed latest-version hints. The internal `isBinaryExists()` helper remains for main-process callers that only need Cherry-directory existence; it is not a renderer route.
+`binary.availability_changed` tells consumers to refresh their snapshots and invalidates displayed latest-version hints. `resolveBinaryPath()` is a main-process method and is not a renderer route.
 
 ## Custom registry collision invariant
 
@@ -135,10 +141,10 @@ For a built-in Dependency settings preset, add an entry to `PRESETS_BINARY_TOOLS
 
 For a Code CLI, add its executable/specification to the Code CLI preset source. `getToolSnapshots()` already includes those candidates, so no BinaryManager adapter is needed.
 
-To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
+To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js`. Add its artifact name to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts` only when BinaryManager owns it; executable names and the version come from the generated manifest rather than a second runtime list.
 
 ## Consuming a tool
 
-A service that needs to execute a CLI asks `getToolSnapshots([executableName])` and uses the current availability path. It may execute a `mise`, bundled, or system result; availability alone is sufficient for that decision. If availability is `none` and the executable is a fixed catalog tool, it calls `installByName({ name: executableName })`; main resolves the canonical recipe. An arbitrary user-supplied recipe goes through `addCustomTool(definition)`. Re-read the snapshot after installation before launching.
+A service that intentionally accepts system executables asks `getToolSnapshots([executableName])` and uses the current availability path. A main-process caller that must run only Cherry-verified managed or bundled files uses `resolveBinaryPath(executableName)` and handles `null` explicitly. If snapshot availability is `none` and the executable is a fixed catalog tool, the caller uses `installByName({ name: executableName })`; main resolves the canonical recipe. An arbitrary user-supplied recipe goes through `addCustomTool(definition)`. Re-read the snapshot after installation before launching.
 
-Do not recreate mise commands, custom registry writes, or binary search paths in a consumer. Use BinaryManager for install/remove and `application.getPath()` for main-process paths. `getBinaryPath()` and `isBinaryExists()` are narrower main-only helpers for Cherry search directories, not substitutes for snapshots when a consumer needs system-path availability.
+Do not recreate mise commands, custom registry writes, or binary search paths in a consumer. Use BinaryManager for install/remove and trusted binary resolution, and `application.getPath()` for main-process paths.

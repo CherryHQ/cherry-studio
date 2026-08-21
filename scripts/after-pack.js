@@ -4,13 +4,55 @@ const path = require('path')
 
 const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('./linux-native/compat')
 
+function listAsarPackage(archivePath) {
+  try {
+    const electronBuilderPath = require.resolve('electron-builder')
+    const asarPath = require.resolve('@electron/asar', { paths: [path.dirname(electronBuilderPath)] })
+    return require(asarPath).listPackage(archivePath)
+  } catch (error) {
+    throw new Error(`Unable to inspect packaged app.asar: ${archivePath}`, { cause: error })
+  }
+}
+
+function findDshRuntimeVariants(entries) {
+  const variants = new Set()
+  for (const entry of entries) {
+    const match = entry
+      .replaceAll('\\', '/')
+      .replace(/^\/+/, '')
+      .match(/^node_modules\/@cherrystudio\/dsh-bridge\/dist\/runtime\/([^/]+)\/dsh-runtime\.tar\.zst$/)
+    if (match) variants.add(match[1])
+  }
+  return variants
+}
+
+function assertDshRuntimeArchive(appOutDir, platform, arch) {
+  if (!platform || !arch) return
+  const resourceRoots = [path.join(appOutDir, 'resources'), path.join(appOutDir, 'Contents', 'Resources')]
+  const archives = resourceRoots
+    .map((resourceRoot) => path.join(resourceRoot, 'app.asar'))
+    .filter((archivePath) => fs.existsSync(archivePath))
+  if (archives.length === 0) return
+
+  const variants = new Set(archives.flatMap((archivePath) => [...findDshRuntimeVariants(listAsarPackage(archivePath))]))
+  const expected = `${platform}-${arch}`
+  if (variants.size !== 1 || !variants.has(expected)) {
+    throw new Error(`Packaged DSH runtime archive mismatch: expected ${expected}, found ${[...variants].join(', ')}`)
+  }
+}
+
+exports.findDshRuntimeVariants = findDshRuntimeVariants
+exports.assertDshRuntimeArchive = assertDshRuntimeArchive
+
 exports.default = async function (context) {
-  const platform = context.packager.platform.name
-  if (platform === 'windows') {
+  const platformName = context.packager.platform.name
+  const platform = platformName === 'windows' ? 'win32' : platformName === 'mac' ? 'darwin' : platformName
+  const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
+  assertDshRuntimeArchive(context.appOutDir, platform, arch)
+  if (platformName === 'windows') {
     fs.rmSync(path.join(context.appOutDir, 'LICENSE.electron.txt'), { force: true })
     fs.rmSync(path.join(context.appOutDir, 'LICENSES.chromium.html'), { force: true })
-  } else if (platform === 'linux') {
-    const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
+  } else if (platformName === 'linux') {
     if (!arch) throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
 
     const projectRoot = path.join(__dirname, '..')

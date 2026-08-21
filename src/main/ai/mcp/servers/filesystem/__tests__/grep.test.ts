@@ -1,12 +1,25 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mockResolveBinaryPath = vi.hoisted(() => vi.fn())
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    BinaryManager: { resolveBinaryPath: mockResolveBinaryPath }
+  } as Record<string, unknown>)
+})
 
 import { handleGrepTool } from '../tools/grep'
 import * as types from '../types'
 
 describe('grep MCP arg injection', () => {
   const tempDirs: string[] = []
+
+  beforeEach(() => {
+    mockResolveBinaryPath.mockReset().mockResolvedValue('/verified/rg')
+  })
 
   async function createTempDir(prefix: string) {
     const tempRoot = path.join(process.cwd(), '.context', 'vitest-temp')
@@ -40,5 +53,11 @@ describe('grep MCP arg injection', () => {
     expect(patternIndex).toBe(dashDashIndex + 1)
     // The flag-like pattern is a positional after `--`, not an option ripgrep would parse.
     expect(rgArgs[patternIndex - 1]).toBe('--')
+  })
+
+  it('fails clearly when no verified ripgrep binary is available', async () => {
+    mockResolveBinaryPath.mockResolvedValue(null)
+
+    await expect(types.getRipgrepBinaryPath()).rejects.toThrow('Ripgrep binary not available')
   })
 })

@@ -1,7 +1,9 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -283,7 +285,7 @@ async function resolveGithubCommit(
   refAndPath: string[],
   refNamespace: 'heads' | 'tags' | null
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
   const refs = output.split('\n').flatMap((line) => {
     const [oid, fullName] = line.split('\t').map((part) => part.trim())
@@ -328,7 +330,7 @@ async function materializeGithubTarget(
   descriptorFileName: 'SKILL.md' | 'skill.md',
   tempDir: string
 ): Promise<{ contentDir: string; skillDir: string }> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   const gitDir = path.join(tempDir, 'repo.git')
   const contentDir = path.join(tempDir, 'content')
   const git = (args: string[], options?: { maxOutputBytes?: number }) =>
@@ -429,12 +431,24 @@ async function runGit(gitCommand: string, args: string[], options?: { maxOutputB
   })
 }
 
+async function resolveGitCommand(): Promise<string> {
+  const existing = await findExecutableInEnv('git')
+  if (existing) return existing
+
+  if (isWin) {
+    const bundled = await application.get('BinaryManager').ensureBundledGit()
+    if (bundled) return bundled
+  }
+
+  return 'git'
+}
+
 /**
  * One shallow clone of whatever the remote calls its default branch — which is what a bare
  * `git clone` already checks out, so resolving the branch first only adds a second way to hang.
  */
 async function cloneRepository(repoUrl: string, destDir: string): Promise<void> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   await runGit(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
 }
 

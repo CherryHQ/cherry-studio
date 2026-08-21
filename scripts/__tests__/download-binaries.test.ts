@@ -2,18 +2,36 @@
  * Build-script coverage for the MinGit additions to download-binaries.js:
  * the `zip-tree` extraction mode (real extraction against a committed fixture,
  * no fs mocking — the platform unzip/Expand-Archive branch actually runs) and
- * the `isWindowsOnly` skip rule in verifyBundledBinaries.
+ * the `isWindowsOnly` skip rule in verifyBundledArtifacts.
  */
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { zstdDecompressSync } from 'node:zlib'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
-import { extract, TOOLS, verifyBundledBinaries } from '../download-binaries'
+import {
+  artifactArchiveEntries,
+  bundleFilesArtifact,
+  bundleTreeArtifact,
+  extract,
+  singleFileCompression,
+  TOOLS,
+  verifyBundledArtifacts,
+  writeManifest
+} from '../download-binaries'
 
 const FIXTURE_ZIP = path.join(__dirname, 'fixtures', 'mingit-tree.zip')
+type FilesArtifact = Awaited<ReturnType<typeof bundleFilesArtifact>>
+type TreeArtifact = Awaited<ReturnType<typeof bundleTreeArtifact>>
+type TestManifest = {
+  schemaVersion: number
+  platform: string
+  arch: string
+  artifacts: Record<string, FilesArtifact | TreeArtifact>
+}
 
 let tmpDirs: string[] = []
 function makeTmpDir(prefix: string): string {
@@ -53,53 +71,217 @@ describe('extract – zip-tree mode', () => {
   })
 })
 
-describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
+describe('compressed artifact contract', () => {
   const mise = TOOLS.find((tool) => tool.name === 'mise')!
+  const supportedPlatformKeys = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64']
 
-  /** A resources dir with the given files pre-created under <platformKey>/. */
-  function makeResourcesDir(platformKey: string, files: string[]): string {
+  function makeResourcesDir(platformKey: string): { outputDir: string; resourcesDir: string } {
     const resourcesDir = makeTmpDir('dl-verify-')
-    for (const file of files) {
-      const abs = path.join(resourcesDir, platformKey, file)
-      fs.mkdirSync(path.dirname(abs), { recursive: true })
-      fs.writeFileSync(abs, '', 'utf8')
-    }
-    return resourcesDir
+    const outputDir = path.join(resourcesDir, platformKey)
+    fs.mkdirSync(outputDir, { recursive: true })
+    return { outputDir, resourcesDir }
+  }
+
+  async function addFilesArtifact(
+    outputDir: string,
+    manifest: TestManifest,
+    name: string,
+    version: string,
+    outputs: string[],
+    compression: 'none' | 'zstd' = 'none'
+  ): Promise<FilesArtifact> {
+    const sourceDir = makeTmpDir(`dl-source-${name}-`)
+    const files = outputs.map((output) => {
+      const source = path.join(sourceDir, output)
+      fs.mkdirSync(path.dirname(source), { recursive: true })
+      fs.writeFileSync(source, `${name}:${output}\n`, 'utf8')
+      return { source, output, archive: compression === 'none' ? output : `${output}.zst`, compression }
+    })
+    const artifact = await bundleFilesArtifact({ version, files, outputDir })
+    manifest.artifacts[name] = artifact
+    return artifact
   }
 
   const regularTool = {
     name: 'mise',
-    packages: { 'linux-x64': { binaries: ['mise'] }, 'win32-x64': { binaries: ['mise.exe'] } }
+    version: '1.0.0',
+    packages: {
+      'darwin-x64': { binaries: ['mise'] },
+      'linux-x64': { binaries: ['mise'] },
+      'win32-x64': { binaries: ['mise.exe'] }
+    }
   }
   const windowsOnlyTool = {
     name: 'mingit',
+    version: '1.0.0',
     isWindowsOnly: true,
-    packages: { 'win32-x64': { binaries: ['git/cmd/git.exe'] } }
+    packages: { 'win32-x64': { archive: 'zip-tree', dir: 'git', binaries: ['git/cmd/git.exe'] } }
   }
 
-  it('does not flag an isWindowsOnly tool that has no package on a non-Windows platform', () => {
-    const resourcesDir = makeResourcesDir('linux-x64', ['mise'])
-
-    expect(() =>
-      verifyBundledBinaries('linux', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
-    ).not.toThrow()
+  it('maps file and tree archives to their declared compressed hashes', () => {
+    expect(
+      artifactArchiveEntries({
+        kind: 'files',
+        version: '1.0.0',
+        files: [
+          { archive: 'tool.zst', archiveSha256: 'a'.repeat(64), compression: 'zstd' },
+          { archive: 'helper.zst', archiveSha256: 'b'.repeat(64), compression: 'zstd' }
+        ]
+      })
+    ).toEqual([
+      { archive: 'tool.zst', sha256: 'a'.repeat(64) },
+      { archive: 'helper.zst', sha256: 'b'.repeat(64) }
+    ])
+    expect(
+      artifactArchiveEntries({
+        kind: 'tree',
+        version: '1.0.0',
+        compression: 'zstd',
+        archive: 'tree.tar.zst',
+        archiveSha256: 'c'.repeat(64)
+      })
+    ).toEqual([{ archive: 'tree.tar.zst', sha256: 'c'.repeat(64) }])
   })
 
-  it('still flags a regular tool that has no package for the platform', () => {
-    const resourcesDir = makeResourcesDir('linux-arm64', [])
+  it('uses outer package compression for all single-file payloads', () => {
+    expect(singleFileCompression('darwin')).toBe('none')
+    expect(singleFileCompression('linux')).toBe('none')
+    expect(singleFileCompression('win32')).toBe('none')
+  })
 
-    expect(() => verifyBundledBinaries('linux', 'arm64', { tools: [regularTool], resourcesDir })).toThrow(
+  it('round-trips explicitly compressed file payloads', async () => {
+    const { outputDir } = makeResourcesDir('darwin-x64')
+    const sourceDir = makeTmpDir('dl-large-source-')
+    const source = path.join(sourceDir, 'mise')
+    const payload = Buffer.alloc(1024 * 1024, 0x5a)
+    fs.writeFileSync(source, payload)
+    const artifact = await bundleFilesArtifact({
+      version: '1.0.0',
+      files: [{ source, output: 'mise', archive: 'mise.zst', compression: 'zstd' }],
+      outputDir
+    })
+
+    const archive = path.join(outputDir, artifact.files[0].archive)
+    expect(zstdDecompressSync(fs.readFileSync(archive))).toEqual(payload)
+  })
+
+  it('keeps Windows single-file native payloads raw while verifying both hashes', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('win32-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'win32', arch: 'x64', artifacts: {} }
+    const sourceDir = makeTmpDir('dl-raw-source-')
+    const source = path.join(sourceDir, 'mise.exe')
+    const payload = Buffer.from('windows-native-payload')
+    fs.writeFileSync(source, payload)
+    const artifact = await bundleFilesArtifact({
+      version: '1.0.0',
+      files: [{ source, output: 'mise.exe', archive: 'mise.exe', compression: 'none' }],
+      outputDir
+    })
+    manifest.artifacts.mise = artifact
+    writeManifest(outputDir, manifest)
+
+    expect(fs.readFileSync(path.join(outputDir, 'mise.exe'))).toEqual(payload)
+    expect(artifact.files[0].archiveSha256).toBe(artifact.files[0].sha256)
+    await expect(
+      verifyBundledArtifacts('win32', 'x64', { tools: [regularTool], resourcesDir })
+    ).resolves.toBeUndefined()
+  })
+
+  it('rejects a raw payload changed after manifest generation', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
+    const artifact = await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
+    writeManifest(outputDir, manifest)
+    fs.appendFileSync(path.join(outputDir, artifact.files[0].archive), 'corrupt')
+
+    await expect(verifyBundledArtifacts('darwin', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
+      /checksum mismatch/
+    )
+  })
+
+  it('rejects an artifact whose manifest version is stale', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '0.9.0', ['mise'])
+    writeManifest(outputDir, manifest)
+
+    await expect(verifyBundledArtifacts('darwin', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
+      /missing or stale compressed payload/
+    )
+  })
+
+  it('rejects a stale compressed duplicate beside a raw payload', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
+    writeManifest(outputDir, manifest)
+    fs.writeFileSync(path.join(outputDir, 'mise.zst'), 'stale compressed copy', 'utf8')
+
+    await expect(verifyBundledArtifacts('darwin', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
+      /compressed single-file payload still present/
+    )
+  })
+
+  it('creates a tar.zst tree whose manifest names the required entrypoint', async () => {
+    const { outputDir } = makeResourcesDir('win32-x64')
+    const rootDir = path.join(outputDir, 'git')
+    fs.mkdirSync(path.join(rootDir, 'cmd'), { recursive: true })
+    fs.mkdirSync(path.join(rootDir, 'mingw64', 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(rootDir, 'cmd', 'git.exe'), 'git', 'utf8')
+    fs.writeFileSync(path.join(rootDir, 'mingw64', 'bin', 'runtime.dll'), 'runtime', 'utf8')
+
+    const artifact = await bundleTreeArtifact({
+      version: '1.0.0',
+      rootDir,
+      archive: 'mingit.tar.zst',
+      entrypoints: ['git/cmd/git.exe'],
+      outputDir
+    })
+
+    expect(artifact).toMatchObject({ kind: 'tree', version: '1.0.0', entrypoints: ['git/cmd/git.exe'] })
+    expect(artifact.files.map((file) => file.path)).toEqual(['git/cmd/git.exe', 'git/mingw64/bin/runtime.dll'])
+    expect(artifact.files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'git/cmd/git.exe', size: 3, sha256: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+        expect.objectContaining({
+          path: 'git/mingw64/bin/runtime.dll',
+          size: 7,
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+        })
+      ])
+    )
+    expect(zstdDecompressSync(fs.readFileSync(path.join(outputDir, artifact.archive))).length).toBe(artifact.size)
+  })
+
+  it('does not require a Windows-only artifact on Linux', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'linux', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'], 'none')
+    writeManifest(outputDir, manifest)
+
+    await expect(
+      verifyBundledArtifacts('linux', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
+    ).resolves.toBeUndefined()
+  })
+
+  it('still rejects a regular tool with no package for the platform', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('linux-arm64')
+    writeManifest(outputDir, { schemaVersion: 2, platform: 'linux', arch: 'arm64', artifacts: {} })
+
+    await expect(verifyBundledArtifacts('linux', 'arm64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
       /mise \(no package for linux-arm64\)/
     )
   })
 
-  it('still verifies the isWindowsOnly tool binaries on Windows targets', () => {
-    // Package declared for win32-x64 but git.exe missing on disk → must fail.
-    const resourcesDir = makeResourcesDir('win32-x64', ['mise.exe'])
+  it('still requires the MinGit tree on Windows targets', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('win32-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'win32', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise.exe'], 'none')
+    writeManifest(outputDir, manifest)
 
-    expect(() =>
-      verifyBundledBinaries('win32', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
-    ).toThrow(/git[\\/]cmd[\\/]git\.exe/)
+    await expect(
+      verifyBundledArtifacts('win32', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
+    ).rejects.toThrow(/mingit \(missing or stale compressed payload/)
   })
 
   it.each([
@@ -125,15 +307,25 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
     })
   })
 
-  it.each(['x64', 'arm64'])('requires mise-shim.exe in the Windows %s release resources', (arch) => {
+  it.each(['x64', 'arm64'])('requires mise-shim.exe in the Windows %s release definition', (arch) => {
     const platformKey = `win32-${arch}`
-    const resourcesDir = makeResourcesDir(platformKey, ['mise.exe'])
 
     expect(mise.packages[platformKey]).toMatchObject({
       archive: 'zip',
       binaries: ['mise.exe', 'mise-shim.exe'],
       strip: 'mise/bin'
     })
-    expect(() => verifyBundledBinaries('win32', arch, { tools: [mise], resourcesDir })).toThrow(/mise-shim\.exe/)
+  })
+
+  it.each(supportedPlatformKeys)('defines every required tool for %s', (platformKey) => {
+    for (const tool of TOOLS) {
+      if (tool.isWindowsOnly && !platformKey.startsWith('win32-')) continue
+      expect(tool.packages[platformKey], `${tool.name} missing ${platformKey}`).toMatchObject({
+        archive: expect.any(String),
+        binaries: expect.arrayContaining([expect.any(String)]),
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        url: expect.stringMatching(/^https:\/\//)
+      })
+    }
   })
 })

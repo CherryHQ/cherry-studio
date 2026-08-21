@@ -1,5 +1,5 @@
+import { application } from '@application'
 import type { LoggerService } from '@logger'
-import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
 
 type Runner = {
@@ -13,7 +13,7 @@ type Runner = {
 const uvRunner: Runner = {
   registryEnv: (url) => ({ UV_DEFAULT_INDEX: url, PIP_INDEX_URL: url }),
   notFound: (command) =>
-    `${command} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
+    `${command} not found in PATH and a verified managed binary is not available. This may indicate an installation issue.\n` +
     'Please either:\n' +
     '1. Install uv from https://github.com/astral-sh/uv\n' +
     '2. Run the MCP dependencies installer from Settings\n' +
@@ -28,7 +28,7 @@ const RUNNERS: Record<string, Runner> = {
     transformArgs: (args) => (args.length === 0 ? args : args[0] === '-y' ? ['x', ...args] : ['x', '-y', ...args]),
     registryEnv: (url) => ({ NPM_CONFIG_REGISTRY: url }),
     notFound: () =>
-      'npx not found in PATH and bundled bun is not available. This may indicate an installation issue.\n' +
+      'npx not found in PATH and a verified bun binary is not available. This may indicate an installation issue.\n' +
       'Please either:\n' +
       '1. Install Node.js (which includes npx) from https://nodejs.org\n' +
       '2. Run the MCP dependencies installer from Settings\n' +
@@ -87,11 +87,11 @@ export async function resolveLaunchCommand({
 
   const bundled = runner.bundled ?? command
   logger.debug(`System ${command} not found, checking for bundled ${bundled}`)
-  if (!(await isBinaryExists(bundled))) {
+  const bundledPath = await application.get('BinaryManager').resolveBinaryPath(bundled)
+  if (!bundledPath) {
     throw new Error(runner.notFound(command))
   }
 
-  const bundledPath = await getBinaryPath(bundled)
   logger.info(`Using bundled ${bundled} as fallback (${command} not found in PATH)`, { command: bundledPath })
   return { command: bundledPath, args: runner.transformArgs?.(args) ?? args, env }
 }

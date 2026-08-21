@@ -7,24 +7,39 @@ import { getBundledGitDir, getBundledGitPath } from '../bundledGit'
 // Force the Windows code path regardless of host so both branches run everywhere.
 vi.mock('@main/core/platform', () => ({ isWin: true }))
 vi.mock('fs')
-vi.mock('path')
-// getBundledGit* resolve application.getPath() + toAsarUnpackedPath; mock both so
-// the test controls the candidate path and asserts only the existence check.
+// getBundledGit* resolve the centralized Toolchain path; mock it so the test
+// controls the candidate path and asserts only the existence check.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
-vi.mock('../asar', () => ({ toAsarUnpackedPath: (p: string) => p }))
+vi.mock('../bundledArtifactManifest', () => ({
+  bundledArtifactPlatformKey: (platform: string, arch: string) => `${platform}-${arch}`,
+  readBundledArtifactManifest: () => ({
+    schemaVersion: 2,
+    platform: 'win32',
+    arch: 'x64',
+    artifacts: {
+      mingit: {
+        kind: 'tree',
+        version: '2.54.0',
+        compression: 'zstd',
+        archive: 'mingit.tar.zst',
+        archiveSha256: 'a'.repeat(64),
+        sha256: 'b'.repeat(64),
+        size: 100,
+        entrypoints: ['git/cmd/git.exe']
+      }
+    }
+  })
+}))
 
 describe('bundledGit', () => {
-  const platformKey = `${process.platform}-${process.arch}`
-  const expectedExe = ['/mock/app.root.resources.binaries', platformKey, 'git', 'cmd', 'git.exe'].join('\\')
-  const expectedDir = ['/mock/app.root.resources.binaries', platformKey, 'git', 'cmd'].join('\\')
+  const expectedExe = path.join('/mock/feature.binary.mingit', '2.54.0', 'win32-x64', 'git', 'cmd', 'git.exe')
+  const expectedDir = path.dirname(expectedExe)
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
-    vi.mocked(path.dirname).mockImplementation((p) => p.split('\\').slice(0, -1).join('\\'))
   })
 
   describe('getBundledGitPath', () => {

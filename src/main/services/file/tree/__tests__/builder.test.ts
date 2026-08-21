@@ -8,15 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
 
-// Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
-// reads cherry.bin / mise shims — neither is populated under vitest. Point it
-// at the test ripgrep binary so the underlying directory scan spawns a real ripgrep.
-vi.mock('@main/utils/binaryResolver', async () => {
-  const { tryTestRipgrepPath: tryPath } = await import('./ripgrepTestUtils')
-  const resolvedRgPath = tryPath() ?? '/nonexistent/rg'
-  return {
-    getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
-  }
+const mockResolveBinaryPath = vi.hoisted(() => vi.fn())
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    BinaryManager: { resolveBinaryPath: mockResolveBinaryPath }
+  } as Record<string, unknown>)
 })
 
 vi.mock('@main/utils/binaryEnv', () => ({
@@ -24,6 +22,7 @@ vi.mock('@main/utils/binaryEnv', () => ({
 }))
 
 const ripgrepAvailable = tryTestRipgrepPath() !== null
+mockResolveBinaryPath.mockResolvedValue(tryTestRipgrepPath() ?? '/nonexistent/rg')
 
 const waitForEvent = (
   builder: DirectoryTreeBuilder,

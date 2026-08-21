@@ -12,7 +12,6 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
 import { crossPlatformSpawn, killProcessTree } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import {
@@ -424,8 +423,8 @@ export class PdfTranslationService extends BaseService {
       throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_OUTDATED, 'BabelDOC must be updated')
     }
 
-    const installedPath = await getBinaryPath(BABELDOC_TOOL_NAME)
-    if (!path.isAbsolute(installedPath)) {
+    const installedPath = await binaryManager.resolveBinaryPath(BABELDOC_TOOL_NAME)
+    if (!installedPath || !path.isAbsolute(installedPath)) {
       throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not available')
     }
     try {

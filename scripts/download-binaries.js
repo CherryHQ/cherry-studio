@@ -10,7 +10,15 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { Transform, Writable } = require('stream')
+const { pipeline } = require('stream/promises')
+const { constants, createZstdCompress } = require('zlib')
 const { execFileSync } = require('child_process')
+const tar = require('tar')
+
+const MANIFEST_SCHEMA_VERSION = 2
+const MANIFEST_FILE = 'manifest.json'
+const ZSTD_LEVEL = 10
 
 // ── Tool definitions ─────────────────────────────────────────────────
 // Each tool declares: version, per-platform packages, and how to build
@@ -239,8 +247,8 @@ const TOOLS = [
     // Git for Windows MinGit — non-interactive, multi-file Git distribution.
     // Bundled as a fallback when the user has no system git (see
     // src/main/utils/bundledGit.ts). Windows-only: macOS/Linux use the system git. Unlike
-    // the single-binary tools above it ships its whole tree under <key>/git/,
-    // so it is run in place from resources rather than copied into cherry.bin.
+    // the single-binary tools above, its whole tree is archived and installed into a
+    // versioned Toolchain cache before use.
     name: 'mingit',
     version: MINGIT_VERSION,
     versionFile: '.mingit-version',
@@ -276,6 +284,271 @@ function verifyHash(filePath, expected) {
 
 function chmodExec(filePath) {
   if (process.platform !== 'win32') fs.chmodSync(filePath, 0o755)
+}
+
+function hashingTransform(hash, onChunk) {
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      hash.update(chunk)
+      onChunk?.(chunk.length)
+      callback(null, chunk)
+    }
+  })
+}
+
+async function sha256File(filePath) {
+  const hash = crypto.createHash('sha256')
+  await pipeline(
+    fs.createReadStream(filePath),
+    new Writable({
+      write(chunk, _encoding, callback) {
+        hash.update(chunk)
+        callback()
+      }
+    })
+  )
+  return hash.digest('hex')
+}
+
+function createZstdStream() {
+  return createZstdCompress({
+    params: {
+      [constants.ZSTD_c_compressionLevel]: ZSTD_LEVEL,
+      [constants.ZSTD_c_checksumFlag]: 1,
+      [constants.ZSTD_c_contentSizeFlag]: 1
+    }
+  })
+}
+
+function writeRawArchive(sourcePath, archivePath) {
+  const rawHash = crypto.createHash('sha256')
+  const archiveHash = crypto.createHash('sha256')
+  const stat = fs.statSync(sourcePath)
+
+  if (path.resolve(sourcePath) === path.resolve(archivePath)) {
+    return sha256File(sourcePath).then((hash) => ({ archiveSha256: hash, sha256: hash, size: stat.size }))
+  }
+
+  const tmpPath = `${archivePath}.tmp-${process.pid}`
+  try {
+    const source = fs.createReadStream(sourcePath)
+    const destination = fs.createWriteStream(tmpPath)
+    return pipeline(source, hashingTransform(rawHash), hashingTransform(archiveHash), destination)
+      .then(() => {
+        fs.rmSync(archivePath, { force: true })
+        fs.renameSync(tmpPath, archivePath)
+        return {
+          archiveSha256: archiveHash.digest('hex'),
+          sha256: rawHash.digest('hex'),
+          size: stat.size
+        }
+      })
+      .finally(() => fs.rmSync(tmpPath, { force: true }))
+  } catch (error) {
+    fs.rmSync(tmpPath, { force: true })
+    throw error
+  }
+}
+
+async function writeZstdArchive(source, archivePath) {
+  const tmpPath = `${archivePath}.tmp-${process.pid}`
+  const rawHash = crypto.createHash('sha256')
+  const archiveHash = crypto.createHash('sha256')
+  let rawSize = 0
+  try {
+    await pipeline(
+      source,
+      hashingTransform(rawHash, (size) => {
+        rawSize += size
+      }),
+      createZstdStream(),
+      hashingTransform(archiveHash),
+      fs.createWriteStream(tmpPath)
+    )
+    fs.rmSync(archivePath, { force: true })
+    fs.renameSync(tmpPath, archivePath)
+    return {
+      archiveSha256: archiveHash.digest('hex'),
+      sha256: rawHash.digest('hex'),
+      size: rawSize
+    }
+  } finally {
+    fs.rmSync(tmpPath, { force: true })
+  }
+}
+
+async function bundleFilesArtifact({ version, files, outputDir }) {
+  const bundledFiles = []
+  for (const file of files) {
+    const compression = file.compression || 'zstd'
+    const archive = file.archive || (compression === 'none' ? file.output : `${path.basename(file.output)}.zst`)
+    const archivePath = path.join(outputDir, archive)
+    const metadata =
+      compression === 'none'
+        ? await writeRawArchive(file.source, archivePath)
+        : await writeZstdArchive(fs.createReadStream(file.source), archivePath)
+    bundledFiles.push({
+      output: file.output,
+      archive,
+      compression,
+      ...metadata,
+      mode: file.mode ?? 0o755
+    })
+  }
+  return { kind: 'files', version, files: bundledFiles }
+}
+
+function listTarEntries(rootDir, stripRoot = false) {
+  const parent = stripRoot ? rootDir : path.dirname(rootDir)
+  const entries = []
+
+  function visit(absolutePath) {
+    const relativePath = path.relative(parent, absolutePath).split(path.sep).join('/')
+    entries.push(relativePath)
+    if (!fs.statSync(absolutePath).isDirectory()) return
+    for (const entry of fs.readdirSync(absolutePath).sort()) {
+      visit(path.join(absolutePath, entry))
+    }
+  }
+
+  if (stripRoot) {
+    for (const entry of fs.readdirSync(rootDir).sort()) visit(path.join(rootDir, entry))
+  } else {
+    visit(rootDir)
+  }
+  return entries
+}
+
+async function listTreeFiles(rootDir, stripRoot = false) {
+  const parent = stripRoot ? rootDir : path.dirname(rootDir)
+  const files = []
+
+  async function visit(absolutePath) {
+    const stat = fs.lstatSync(absolutePath)
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(absolutePath).sort()) {
+        await visit(path.join(absolutePath, entry))
+      }
+      return
+    }
+    if (!stat.isFile()) throw new Error(`Unsupported bundled tree entry: ${absolutePath}`)
+    files.push({
+      path: path.relative(parent, absolutePath).split(path.sep).join('/'),
+      sha256: await sha256File(absolutePath),
+      size: stat.size,
+      mode: stat.mode & 0o777
+    })
+  }
+
+  if (stripRoot) {
+    for (const entry of fs.readdirSync(rootDir).sort()) await visit(path.join(rootDir, entry))
+  } else {
+    await visit(rootDir)
+  }
+  return files
+}
+
+async function bundleTreeArtifact({ version, rootDir, archive, entrypoints, outputDir, stripRoot = false }) {
+  const archivePath = path.join(outputDir, archive)
+  const files = await listTreeFiles(rootDir, stripRoot)
+  const source = tar.c(
+    {
+      cwd: stripRoot ? rootDir : path.dirname(rootDir),
+      noDirRecurse: true,
+      noMtime: true,
+      portable: true
+    },
+    listTarEntries(rootDir, stripRoot)
+  )
+  const metadata = await writeZstdArchive(source, archivePath)
+  return { kind: 'tree', version, compression: 'zstd', archive, ...metadata, entrypoints, files }
+}
+
+function emptyManifest(platform, arch) {
+  return { schemaVersion: MANIFEST_SCHEMA_VERSION, platform, arch, artifacts: {} }
+}
+
+function readManifest(outputDir, platform, arch) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(outputDir, MANIFEST_FILE), 'utf8'))
+    if (
+      manifest.schemaVersion === MANIFEST_SCHEMA_VERSION &&
+      manifest.platform === platform &&
+      manifest.arch === arch &&
+      manifest.artifacts &&
+      typeof manifest.artifacts === 'object'
+    ) {
+      return manifest
+    }
+  } catch {
+    // Missing or stale manifests are rebuilt from the pinned tool definitions.
+  }
+  return emptyManifest(platform, arch)
+}
+
+function writeManifest(outputDir, manifest) {
+  const manifestPath = path.join(outputDir, MANIFEST_FILE)
+  const tmpPath = `${manifestPath}.tmp-${process.pid}`
+  try {
+    fs.writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+    fs.rmSync(manifestPath, { force: true })
+    fs.renameSync(tmpPath, manifestPath)
+  } finally {
+    fs.rmSync(tmpPath, { force: true })
+  }
+}
+
+function artifactArchiveEntries(artifact) {
+  if (!artifact) return []
+  return artifact.kind === 'files'
+    ? artifact.files.map((file) => ({ archive: file.archive, sha256: file.archiveSha256 }))
+    : [{ archive: artifact.archive, sha256: artifact.archiveSha256 }]
+}
+
+function singleFileCompression() {
+  // The outer installer/package already compresses single-file native payloads.
+  return 'none'
+}
+
+function removeSupersededArchives(outputDir, previousArtifact, nextArtifact) {
+  const nextArchives = new Set(artifactArchiveEntries(nextArtifact).map(({ archive }) => archive))
+  for (const { archive } of artifactArchiveEntries(previousArtifact)) {
+    if (!nextArchives.has(archive)) fs.rmSync(path.join(outputDir, archive), { force: true })
+  }
+}
+
+function isBundledArtifactCurrent(tool, pkg, artifact, outputDir, platform) {
+  if (!artifact || artifact.version !== tool.version) return false
+  if (pkg.archive === 'zip-tree') {
+    return (
+      artifact.kind === 'tree' &&
+      artifact.compression === 'zstd' &&
+      artifact.entrypoints?.length === pkg.binaries.length &&
+      artifact.entrypoints.every((entrypoint) => pkg.binaries.includes(entrypoint)) &&
+      Array.isArray(artifact.files) &&
+      artifact.files.length > 0 &&
+      artifact.entrypoints.every((entrypoint) => artifact.files.some((file) => file.path === entrypoint)) &&
+      fs.existsSync(path.join(outputDir, artifact.archive))
+    )
+  }
+  if (artifact.kind !== 'files' || artifact.files.length !== pkg.binaries.length) return false
+  return pkg.binaries.every((binary) => {
+    const file = artifact.files.find((candidate) => candidate.output === binary)
+    const expectedCompression = platform ? singleFileCompression(platform) : file?.compression || 'zstd'
+    return file && file.compression === expectedCompression && fs.existsSync(path.join(outputDir, file.archive))
+  })
+}
+
+function removeRawToolFiles(pkg, outputDir) {
+  if (pkg.archive === 'zip-tree') {
+    fs.rmSync(path.join(outputDir, pkg.dir), { recursive: true, force: true })
+  } else {
+    for (const binary of pkg.binaries) fs.rmSync(path.join(outputDir, binary), { force: true })
+  }
+}
+
+function removeIntermediateToolFiles(pkg, outputDir, compression) {
+  if (pkg.archive === 'zip-tree' || compression === 'zstd') removeRawToolFiles(pkg, outputDir)
 }
 
 function isUpToDate(binaryPaths, versionPath, expectedVersion) {
@@ -344,46 +617,88 @@ function extract(archivePath, archive, outputDir, pkg) {
   }
 }
 
-function downloadTool(tool, platformKey, outputDir) {
+async function downloadTool(tool, platformKey, outputDir, previousArtifact) {
   const pkg = tool.packages[platformKey]
   if (!pkg) {
     if (tool.required) {
       throw new Error(`[${tool.name}] No binary for "${platformKey}". Add an entry to packages.`)
     }
     console.log(`[${tool.name}] No binary for "${platformKey}", skipping`)
-    return
+    return null
+  }
+
+  const platform = platformKey.split('-')[0]
+  const compression = pkg.archive === 'zip-tree' ? 'zstd' : singleFileCompression(platform)
+
+  if (isBundledArtifactCurrent(tool, pkg, previousArtifact, outputDir, platform)) {
+    const archivesMatch = await artifactArchivesMatch(previousArtifact, outputDir)
+    if (archivesMatch) {
+      removeIntermediateToolFiles(pkg, outputDir, compression)
+      fs.rmSync(path.join(outputDir, tool.versionFile), { force: true })
+      console.log(`[${tool.name}] ${tool.version} bundled payload already exists`)
+      return previousArtifact
+    }
+    console.warn(`[${tool.name}] Cached compressed payload failed checksum verification; rebuilding`)
   }
 
   const binaryPaths = pkg.binaries.map((binary) => path.join(outputDir, binary))
   const primaryDest = binaryPaths[0]
   const versionPath = path.join(outputDir, tool.versionFile)
 
-  if (isUpToDate(binaryPaths, versionPath, tool.version)) {
+  const rawFilesAreCurrent = isUpToDate(binaryPaths, versionPath, tool.version)
+  if (rawFilesAreCurrent) {
     for (const binaryPath of binaryPaths) chmodExec(binaryPath)
     console.log(`[${tool.name}] ${tool.version} already installed`)
-    return
+    // The raw files are an intermediate cache only. They are compressed below.
   }
 
-  if (pkg.archive === 'none') {
-    download(pkg.url, primaryDest)
-    verifyHash(primaryDest, pkg.sha256)
-  } else {
-    const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
-    const archivePath = path.join(outputDir, `${tool.name}.${ext}`)
-    download(pkg.url, archivePath)
-    verifyHash(archivePath, pkg.sha256)
-    extract(archivePath, pkg.archive, outputDir, pkg)
-    fs.unlinkSync(archivePath)
+  if (!rawFilesAreCurrent) {
+    if (pkg.archive === 'none') {
+      download(pkg.url, primaryDest)
+      verifyHash(primaryDest, pkg.sha256)
+    } else {
+      const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
+      const archivePath = path.join(outputDir, `${tool.name}.${ext}`)
+      download(pkg.url, archivePath)
+      verifyHash(archivePath, pkg.sha256)
+      extract(archivePath, pkg.archive, outputDir, pkg)
+      fs.unlinkSync(archivePath)
+    }
+
+    for (const b of pkg.binaries) chmodExec(path.join(outputDir, b))
+    fs.writeFileSync(versionPath, tool.version, 'utf8')
   }
 
-  for (const b of pkg.binaries) chmodExec(path.join(outputDir, b))
-  fs.writeFileSync(versionPath, tool.version, 'utf8')
-  console.log(`[${tool.name}] Installed ${pkg.binaries.join(', ')} ${tool.version}`)
+  const artifact =
+    pkg.archive === 'zip-tree'
+      ? await bundleTreeArtifact({
+          version: tool.version,
+          rootDir: path.join(outputDir, pkg.dir),
+          archive: `${tool.name}.tar.zst`,
+          entrypoints: pkg.binaries,
+          outputDir
+        })
+      : await bundleFilesArtifact({
+          version: tool.version,
+          files: pkg.binaries.map((binary) => ({
+            source: path.join(outputDir, binary),
+            output: binary,
+            archive: compression === 'none' ? binary : `${binary}.zst`,
+            compression
+          })),
+          outputDir
+        })
+
+  removeIntermediateToolFiles(pkg, outputDir, compression)
+  fs.rmSync(versionPath, { force: true })
+  removeSupersededArchives(outputDir, previousArtifact, artifact)
+  console.log(`[${tool.name}] Bundled ${pkg.binaries.join(', ')} ${tool.version} (${compression})`)
+  return artifact
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
 
-function main() {
+async function main() {
   const platform = process.argv[2] || process.platform
   const arch = process.argv[3] || process.arch
   const platformKey = `${platform}-${arch}`
@@ -392,10 +707,13 @@ function main() {
 
   const outputDir = path.join(__dirname, '..', 'resources', 'binaries', platformKey)
   fs.mkdirSync(outputDir, { recursive: true })
+  const previousManifest = readManifest(outputDir, platform, arch)
+  const manifest = emptyManifest(platform, arch)
 
   for (const tool of TOOLS) {
     try {
-      downloadTool(tool, platformKey, outputDir)
+      const artifact = await downloadTool(tool, platformKey, outputDir, previousManifest.artifacts[tool.name])
+      if (artifact) manifest.artifacts[tool.name] = artifact
     } catch (error) {
       if (tool.required) {
         throw error
@@ -404,6 +722,7 @@ function main() {
     }
   }
 
+  writeManifest(outputDir, manifest)
   console.log(`All binaries downloaded to ${outputDir}`)
 }
 
@@ -414,11 +733,16 @@ function main() {
  * outage during download would otherwise produce a working build with no rg
  * (search breaks) and no error. Call this from before-pack.js after main().
  */
-function verifyBundledBinaries(platform, arch, options = {}) {
+async function verifyBundledArtifacts(platform, arch, options = {}) {
   // `tools` / `resourcesDir` injectable for tests; production callers pass none.
-  const { tools = TOOLS, resourcesDir = path.join(__dirname, '..', 'resources', 'binaries') } = options
+  const {
+    tools = TOOLS,
+    resourcesDir = path.join(__dirname, '..', 'resources', 'binaries'),
+    requiredArtifactNames = []
+  } = options
   const platformKey = `${platform}-${arch}`
   const outputDir = path.join(resourcesDir, platformKey)
+  const manifest = readManifest(outputDir, platform, arch)
   const missing = []
 
   for (const tool of tools) {
@@ -428,9 +752,36 @@ function verifyBundledBinaries(platform, arch, options = {}) {
       if (!tool.isWindowsOnly) missing.push(`${tool.name} (no package for ${platformKey})`)
       continue
     }
-    for (const binary of pkg.binaries) {
-      if (!fs.existsSync(path.join(outputDir, binary))) {
-        missing.push(path.join(platformKey, binary))
+    const artifact = manifest.artifacts[tool.name]
+    if (!isBundledArtifactCurrent(tool, pkg, artifact, outputDir, platform)) {
+      missing.push(`${tool.name} (missing or stale compressed payload for ${platformKey})`)
+      continue
+    }
+    for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
+      const archivePath = path.join(outputDir, archive)
+      if (!sha256 || (await sha256File(archivePath)) !== sha256) {
+        missing.push(`${path.join(platformKey, archive)} (checksum mismatch)`)
+      }
+    }
+    if (pkg.archive === 'zip-tree') {
+      if (fs.existsSync(path.join(outputDir, pkg.dir))) missing.push(`${tool.name} (raw tree still present)`)
+    } else if (pkg.binaries.some((binary) => fs.existsSync(path.join(outputDir, `${binary}.zst`)))) {
+      missing.push(`${tool.name} (compressed single-file payload still present)`)
+    }
+  }
+
+  for (const artifactName of requiredArtifactNames) {
+    const artifact = manifest.artifacts[artifactName]
+    if (
+      !artifact ||
+      artifactArchiveEntries(artifact).some(({ archive }) => !fs.existsSync(path.join(outputDir, archive)))
+    ) {
+      missing.push(`${artifactName} (missing compressed payload for ${platformKey})`)
+      continue
+    }
+    for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
+      if (!sha256 || (await sha256File(path.join(outputDir, archive))) !== sha256) {
+        missing.push(`${path.join(platformKey, archive)} (checksum mismatch)`)
       }
     }
   }
@@ -438,19 +789,36 @@ function verifyBundledBinaries(platform, arch, options = {}) {
   if (missing.length > 0) {
     throw new Error(`Bundled binaries missing after download for ${platformKey}:\n  ${missing.join('\n  ')}`)
   }
-  console.log(`Verified all bundled binaries exist for ${platformKey}`)
+  console.log(`Verified all bundled compressed artifacts for ${platformKey}`)
 }
 
-module.exports = { extract, verifyBundledBinaries, TOOLS }
+async function artifactArchivesMatch(artifact, outputDir) {
+  for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
+    if (!sha256 || (await sha256File(path.join(outputDir, archive))) !== sha256) return false
+  }
+  return true
+}
+
+module.exports = {
+  artifactArchiveEntries,
+  bundleFilesArtifact,
+  bundleTreeArtifact,
+  extract,
+  readManifest,
+  sha256File,
+  verifyBundledArtifacts,
+  writeManifest,
+  singleFileCompression,
+  MANIFEST_SCHEMA_VERSION,
+  TOOLS
+}
 
 // Only auto-download when run directly (node scripts/download-binaries.js ...).
-// before-pack.js requires this module for verifyBundledBinaries without
+// before-pack.js requires this module for verifyBundledArtifacts without
 // triggering a download for the build host's platform.
 if (require.main === module) {
-  try {
-    main()
-  } catch (error) {
+  main().catch((error) => {
     console.error('Failed to download binaries:', error.message)
     process.exit(1)
-  }
+  })
 }
