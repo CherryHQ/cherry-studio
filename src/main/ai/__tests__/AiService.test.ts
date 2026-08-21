@@ -295,6 +295,33 @@ describe('AiService', () => {
     expect(mockApplicationGet).not.toHaveBeenCalled()
   })
 
+  // Regression for https://github.com/CherryHQ/cherry-studio/issues/18883: an
+  // embedding-type model selected as the chat model used to reach
+  // /chat/completions and fail with an opaque provider error (e.g. a bare 403).
+  it('fails fast when a non-chat model is selected for a chat turn', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'xop3qwen0b6embedding' },
+      provider: { id: 'test-provider' },
+      model: {
+        id: 'test-provider::xop3qwen0b6embedding',
+        providerId: 'test-provider',
+        name: 'xop3qwen0b6embedding',
+        capabilities: ['embedding'],
+        endpointTypes: ['openai-embeddings']
+      },
+      assistant: {}
+    } as never)
+
+    await expect(
+      service.streamText({
+        chatId: 'chat-1',
+        trigger: 'submit-message',
+        requestOptions: { signal: new AbortController().signal }
+      } as any)
+    ).rejects.toThrow('is not a chat model')
+  })
+
   it('detects only native attachment shapes that the primary model preserves', () => {
     const primarySupport = { image: true, pdf: true, audio: false, video: true }
     const messages = [

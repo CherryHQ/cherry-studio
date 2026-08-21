@@ -34,7 +34,13 @@ import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
+import {
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isGenerateImageModel,
+  isNonChatModel,
+  isRerankModel
+} from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
@@ -538,6 +544,17 @@ export class AiService extends BaseService {
       nativeFileSupport,
       fileAttachments
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+
+    // An embedding/rerank/media-generation model cannot answer chat turns; sending one
+    // to /chat/completions only surfaces an opaque provider error (e.g. a bare 403).
+    // Fail fast with an actionable message instead.
+    // See https://github.com/CherryHQ/cherry-studio/issues/18883
+    if (isNonChatModel(model)) {
+      throw new Error(
+        `"${model.name}" is not a chat model — embedding/rerank/generation-only models cannot be used for conversations`
+      )
+    }
+
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -666,6 +683,15 @@ export class AiService extends BaseService {
       hookParts,
       nativeFileSupport
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+
+    // Same chat-only contract as streamText: non-chat models fail fast here with an
+    // actionable message instead of an opaque provider error downstream.
+    if (isNonChatModel(model)) {
+      throw new Error(
+        `"${model.name}" is not a chat model — embedding/rerank/generation-only models cannot be used for conversations`
+      )
+    }
+
     const usageContext = createCaptureContext({
       provider,
       model,
