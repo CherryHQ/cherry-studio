@@ -5,7 +5,7 @@ import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import type { TopicStatusSnapshotEntry } from '../../ai/transport'
+import type { TopicCompletionSeenEvent, TopicStatusSnapshotEntry, TopicStatusSnapshotIndex } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -166,6 +166,12 @@ export type UseCacheSchema = {
   'translate.detecting': boolean
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
+  /** Per-workspace translate input; the tab id is the window-level session id. */
+  'translate.session.input.${sessionId}': string
+  /** Per-workspace translate output. */
+  'translate.session.output.${sessionId}': string
+  /** Per-workspace language detection state. */
+  'translate.session.detecting.${sessionId}': boolean
 
   // Painting in-flight generation state, keyed by paintingId. Survives page
   // navigation so the spinner reappears when the user returns mid-run.
@@ -259,6 +265,9 @@ export const DefaultUseCache: UseCacheSchema = {
     isTranslating: false,
     abortKey: null
   },
+  'translate.session.input.${sessionId}': '',
+  'translate.session.output.${sessionId}': '',
+  'translate.session.detecting.${sessionId}': false,
 
   'painting.generation.${paintingId}': null,
 
@@ -294,6 +303,10 @@ export type SharedCacheSchema = {
   'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
+  // Main-owned persistent-conversation statuses used by Sidebar task indicators.
+  'topic.stream.status_index': TopicStatusSnapshotIndex
+  // Renderer acknowledgement event; Main removes the matching completed index entry.
+  'topic.stream.completion_seen': TopicCompletionSeenEvent | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
@@ -343,6 +356,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
+  'topic.stream.status_index': {},
+  'topic.stream.completion_seen': null,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.api_gateway.running': false,
   'feature.binary.latest_versions': {},

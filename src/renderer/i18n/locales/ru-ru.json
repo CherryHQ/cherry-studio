@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "Боковая панель",
+        "tabs": "Вкладки",
+        "title": "Макет навигации"
+      },
       "title": "Внешний вид"
     },
     "assistant": {

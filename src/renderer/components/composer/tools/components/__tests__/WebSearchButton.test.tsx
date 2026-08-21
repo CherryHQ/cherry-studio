@@ -15,7 +15,7 @@ import WebSearchButton from '../WebSearchButton'
 
 const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
-  navigate: vi.fn(),
+  openSettingsTab: vi.fn(),
   assistant: undefined as any,
   model: undefined as Model | undefined,
   provider: undefined as any,
@@ -34,8 +34,8 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => mocks.navigate
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
 }))
 
 vi.mock('@renderer/components/ActionIconButton', () => ({
@@ -210,7 +210,7 @@ describe('WebSearchButton', () => {
     fireEvent.click(button)
 
     const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/websearch' }))
+    await waitFor(() => expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/websearch'))
     confirmOptions.focusOnClose?.()
 
     expect(button).not.toHaveFocus()

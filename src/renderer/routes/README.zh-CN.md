@@ -69,29 +69,32 @@ function SettingsLayout() {
 
 ## 导航 API
 
-本项目有两种导航方式：
+本项目提供布局感知的 Shell 导航，以及 workspace 内部导航：
 
-### 1. Tab 级别导航 - `openTab`
+从 Sidebar 切换到多标签布局时，顶部只展示当前 workspace；其他 Sidebar workspace 继续保留在统一 keep-alive 池中，被选中或切回 Sidebar 时恢复。
 
-打开新 Tab 或切换到已有 Tab，使用 `useTabs` hook：
+### 1. Shell 导航 - `openRoute`
+
+通过 Shell 打开应用 workspace 或专注页。`openTab` 是兼容别名，行为同样会感知当前布局。
 
 ```typescript
 import { useTabs } from '@renderer/hooks/tab'
 
 function MyComponent() {
-  const { openTab, closeTab } = useTabs()
+  const { openRoute, activateWorkspace, openFocusedRoute, closeFocusedRoute, closeTab } = useTabs()
 
-  // 基础用法 - 复用已有 Tab 或新建
-  openTab('/settings')
+  // Sidebar：激活应用唯一 workspace；多标签：复用或新建 Tab
+  openRoute('/app/knowledge')
 
-  // 带标题
-  openTab('/chat/123', { title: 'Chat with Alice' })
+  // 显式激活稳定 workspace，不覆盖其当前内部路由
+  activateWorkspace('app:assistants', '/app/chat')
 
-  // 强制新开 Tab（即使已有相同 URL）
-  openTab('/settings', { forceNew: true })
+  // 设置、文件预览、版本说明使用唯一专注页
+  openFocusedRoute('/settings/general')
+  closeFocusedRoute()
 
-  // 打开 Webview Tab
-  openTab('https://example.com', {
+  // Webview 仍使用普通 Tab
+  openRoute('https://example.com', {
     type: 'webview',
     title: 'Example Site'
   })
@@ -123,9 +126,10 @@ function SettingsPage() {
 
 | 场景 | 使用 | 效果 |
 |-----|------|------|
-| 打开新功能模块 | `openTab('/knowledge')` | 新建 Tab |
+| 打开功能模块 | `openRoute('/app/knowledge')` | 激活 Sidebar workspace 或打开 Tab |
+| 打开设置 / 文件预览 | `openFocusedRoute(...)` | 打开唯一专注页并记录返回来源 |
 | 设置页内切换子页 | `navigate({ to: '/settings/provider' })` | 当前 Tab 内跳转 |
-| 从列表打开详情 | `openTab('/chat/123', { title: '...' })` | 新建 Tab |
+| 应用内切换会话 | `navigate(...)` | 保留应用 workspace 和组件状态 |
 | 返回上一页 | `navigate({ to: '..' })` | 当前 Tab 内返回 |
 
 ### API 参考
@@ -134,10 +138,15 @@ function SettingsPage() {
 
 | 属性/方法 | 类型 | 说明 |
 |----------|------|------|
-| `tabs` | `Tab[]` | 所有 Tab 列表 |
+| `tabs` | `Tab[]` | 所有已挂载 Tab 和后台 Sidebar workspace |
+| `tabBarTabs` | `Tab[]` | 当前展示在顶部标签栏中的 Tab |
 | `activeTabId` | `string` | 当前激活的 Tab ID |
 | `activeTab` | `Tab \| undefined` | 当前激活的 Tab 对象 |
-| `openTab(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | 打开 Tab，返回 Tab ID |
+| `openRoute(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | 感知布局的应用 / 专注页导航 |
+| `openTab(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | `openRoute` 的兼容别名 |
+| `activateWorkspace(key, route, options?)` | `(string, string, OpenTabOptions?) => string` | 激活或创建唯一稳定 workspace |
+| `openFocusedRoute(route, returnId?, options?)` | `(string, string?, OpenTabOptions?) => string` | 打开或复用唯一专注页 |
+| `closeFocusedRoute()` | `() => void` | 关闭专注页并恢复来源 workspace |
 | `closeTab(id)` | `(id: string) => void` | 关闭指定 Tab |
 | `setActiveTab(id)` | `(id: string) => void` | 切换到指定 Tab |
 | `updateTab(id, updates)` | `(id: string, updates: Partial<Tab>) => void` | 更新 Tab 属性 |
@@ -146,7 +155,8 @@ function SettingsPage() {
 
 | 选项 | 类型 | 默认值 | 说明 |
 |-----|------|-------|------|
-| `forceNew` | `boolean` | `false` | 强制新开 Tab |
+| `forceNew` | `boolean` | `false` | 多标签布局中强制新开应用 Tab；Sidebar 仍只保留一个应用 workspace |
+| `workspaceKey` | `string` | 自动推导 | 稳定的应用 workspace 标识，通常根据路由自动推导 |
 | `title` | `string` | URL 路径 | Tab 标题 |
 | `type` | `'route' \| 'webview'` | `'route'` | Tab 类型 |
 | `id` | `string` | 自动生成 | 自定义 Tab ID |

@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "Bară laterală",
+        "tabs": "File",
+        "title": "Aspect de navigare"
+      },
       "title": "Aspect"
     },
     "assistant": {

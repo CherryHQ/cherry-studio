@@ -18,7 +18,6 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { WindowControls } from '../WindowControls'
 import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
@@ -129,7 +128,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'env(titlebar-area-x, 0px)'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -781,7 +780,7 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
+    openTab('/app/launchpad', { title: t('title.launchpad') })
   }
 
   // ─── Close-in-place freeze/thaw ─────────────────────────────────────────────
@@ -1156,10 +1155,10 @@ export const AppShellTabBar = ({
                 </Tooltip>
               </div>
             )}
-            <WindowControls />
+            <ShellTabBarActions showSettings />
           </div>
         ) : (
-          <ShellTabBarActions />
+          <ShellTabBarActions showSettings />
         )}
       </header>
     </>

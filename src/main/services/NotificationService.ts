@@ -13,9 +13,13 @@ import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
   CONVERSATION_NOTIFICATION_ACTION_KEY,
   type ConversationNotification,
-  type Notification
+  type Notification,
+  TRANSLATE_NOTIFICATION_ACTION_KEY,
+  type TranslateNotificationTarget
 } from '@shared/types/notification'
 import { Notification as ElectronNotification } from 'electron'
+
+import { openRouteInMainWindow } from './mainWindowNavigation'
 
 const logger = loggerService.withContext('NotificationService')
 
@@ -28,6 +32,12 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
     typeof candidate.conversationId === 'string' &&
     candidate.conversationId.length > 0
   )
+}
+
+function isTranslateTarget(meta: unknown): meta is TranslateNotificationTarget {
+  if (!meta || typeof meta !== 'object') return false
+  const { sessionId } = meta as TranslateNotificationTarget
+  return sessionId === undefined || (typeof sessionId === 'string' && sessionId.length > 0)
 }
 
 @Injectable('NotificationService')
@@ -58,6 +68,12 @@ export class NotificationService extends BaseService {
           .get('ConversationNavigationService')
           .focusOrOpen(notification.meta, notification.message)
           .catch((error) => logger.error('Failed to open conversation from notification', error as Error))
+        return
+      }
+
+      if (notification.actionKey === TRANSLATE_NOTIFICATION_ACTION_KEY && isTranslateTarget(notification.meta)) {
+        const query = notification.meta.sessionId ? `?sessionId=${encodeURIComponent(notification.meta.sessionId)}` : ''
+        openRouteInMainWindow(`/app/translate${query}`)
         return
       }
 

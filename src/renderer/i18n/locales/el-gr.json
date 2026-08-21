@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "Πλευρική γραμμή",
+        "tabs": "Καρτέλες",
+        "title": "Διάταξη πλοήγησης"
+      },
       "title": "Εμφάνιση"
     },
     "assistant": {

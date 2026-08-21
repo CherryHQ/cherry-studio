@@ -68,6 +68,10 @@ export interface Tab {
   url: string
   title: string
   icon?: string
+  /** Stable application workspace identity used by the sidebar layout. */
+  workspaceKey?: string
+  /** False when a Sidebar workspace stays mounted behind the top-tab layout. */
+  isTabBarVisible?: boolean
   metadata?: Record<string, unknown>
   // LRU 字段
   lastAccessTime?: number // open/switch 时更新

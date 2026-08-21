@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "サイドバー",
+        "tabs": "タブ",
+        "title": "ナビゲーションレイアウト"
+      },
       "title": "外観"
     },
     "assistant": {

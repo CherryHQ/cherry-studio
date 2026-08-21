@@ -14,6 +14,7 @@ const SCAN_PATH = '/tmp/scan.pdf' as AbsoluteFilePath
 const mocks = vi.hoisted(() => ({
   invalidateCache: vi.fn(),
   ipcRequest: vi.fn(),
+  notifyTranslateCompletion: vi.fn(),
   progressHandler: null as null | ((payload: PdfTranslationProgress & { jobId: string }) => void),
   stageHandler: null as
     | null
@@ -30,6 +31,9 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 vi.mock('@renderer/utils/uuid', () => ({ uuid: mocks.uuid }))
+vi.mock('@renderer/services/notification', () => ({
+  notifyTranslateCompletion: mocks.notifyTranslateCompletion
+}))
 vi.mock('@renderer/components/FilePreview', () => ({
   FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="pdf-preview" data-file-path={filePath} />
 }))
@@ -91,6 +95,11 @@ describe('PdfTranslationView', () => {
     expect(screen.getAllByTestId('pdf-preview')[1]).toHaveAttribute('data-file-path', '/tmp/job/paper.zh-CN.mono.pdf')
     expect(onStatusChange).toHaveBeenLastCalledWith({ phase: 'success', running: false })
     expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories')
+    expect(mocks.notifyTranslateCompletion).toHaveBeenCalledWith({
+      sessionId: undefined,
+      title: 'translate.pdf.success',
+      message: 'paper.pdf'
+    })
   })
 
   it('shows stable streamed progress for the active PDF translation job', async () => {
@@ -293,7 +302,7 @@ describe('PdfTranslationView', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
-  it('cancels an active job on unmount and leaves the output that wins the completion race alone', async () => {
+  it('keeps a session-owned job running after its workspace unmounts', async () => {
     let resolveStart!: (result: { fileName: string; outputPath: string }) => void
     const startPromise = new Promise<{ fileName: string; outputPath: string }>((resolve) => {
       resolveStart = resolve
@@ -306,6 +315,7 @@ describe('PdfTranslationView', () => {
     const { unmount } = render(
       <PdfTranslationView
         file={{ name: 'paper.pdf', path: PAPER_PATH }}
+        sessionId="translate-tab-1"
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="available"
@@ -324,15 +334,11 @@ describe('PdfTranslationView', () => {
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('translate.pdf.start', expect.anything()))
 
     unmount()
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('translate.pdf.cancel', {
-      jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2'
-    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('translate.pdf.cancel', expect.anything())
 
     resolveStart({ fileName: 'paper.zh-CN.pdf', outputPath: '/tmp/files/entry-1.pdf' })
-    // A run that finishes after unmount already recorded itself in history and handed its
-    // PDF to FileManager, so there is nothing left for the renderer to clean up.
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
-    expect(mocks.ipcRequest.mock.calls.map(([route]) => route)).toEqual(['translate.pdf.start', 'translate.pdf.cancel'])
+    await waitFor(() => expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories'))
+    expect(mocks.ipcRequest.mock.calls.map(([route]) => route)).toEqual(['translate.pdf.start'])
     expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories')
   })
 

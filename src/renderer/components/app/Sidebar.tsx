@@ -1,3 +1,4 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
@@ -7,19 +8,20 @@ import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useWorkspaceTaskStatuses } from '@renderer/hooks/useWorkspaceTaskStatuses'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
+import { getTabWorkspaceKey } from '@renderer/utils/navigationWorkspace'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
   getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
-  isMessageOnlyConversationUrl,
   REQUIRED_SIDEBAR_FAVORITES,
-  resolveSidebarActiveItem,
-  tabBelongsToApp
+  resolveSidebarActiveItem
 } from '@renderer/utils/sidebar'
+import { Plus } from 'lucide-react'
 import type { Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,7 +56,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     removeAssistant,
     reorderFavorites
   } = useSidebarFavorites()
-  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
+  const { activeTab, activateWorkspace, closeWorkspace, tabs, updateTab } = useTabs()
+  const workspaceTaskStatuses = useWorkspaceTaskStatuses()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const { agents } = useAgents({ enabled: agentFavoriteIds.length > 0 })
   const { assistants } = useAssistantsApi({ enabled: assistantFavoriteIds.length > 0 })
@@ -144,8 +147,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     (favorite: SidebarAppId) => {
       if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       setAppPinned(favorite, false)
+      closeWorkspace(`app:${favorite}`)
     },
-    [setAppPinned]
+    [closeWorkspace, setAppPinned]
+  )
+
+  const handleRemoveMiniAppFavorite = useCallback(
+    (appId: string) => {
+      removeMiniApp(appId)
+      closeWorkspace(`mini-app:${appId}`)
+    },
+    [closeWorkspace, removeMiniApp]
   )
 
   const activeItem = resolveSidebarActiveItem(pathname)
@@ -157,41 +169,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
       if (!app || !path) return
 
-      // Conversation apps: any owned tab is already "there" — its URL carries its own
-      // conversation, and re-entering through the route interceptor would just rebind
-      // it. Message-only viewers are not an app entry, so they navigate like any
-      // foreign tab. Apps without sub-instances keep exact-URL matching.
-      const isActiveTarget =
-        !!activeTab &&
-        (app.conversationRoute
-          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-          : activeTab.url === path)
-      if (isActiveTarget) return
-
-      const title = getDefaultRouteTitle(path)
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon: undefined,
-          metadata: undefined
-        })
-        return
-      }
-
-      openTab(path, { forceNew: true, title })
+      activateWorkspace(`app:${menuId}`, path, { title: getDefaultRouteTitle(path) })
     },
-    [activeTab, defaultPaintingProvider, openTab, updateTab]
+    [activateWorkspace, defaultPaintingProvider]
   )
   const handleOpenLaunchpad = useCallback(() => {
-    openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
-  }, [openTab])
+    activateWorkspace('launchpad', '/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad') })
+  }, [activateWorkspace])
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/general')
   }, [])
@@ -206,84 +190,44 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!app) return
 
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
-      if (activeTab?.url === path) return
-
-      const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
-      if (existingTab) {
-        setActiveTab(existingTab.id)
-        return
-      }
-
       const title = app.nameKey ? t(app.nameKey) : app.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       const icon = app.logoSrc ?? app.logo
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title, icon })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon,
-          metadata: undefined
-        })
-        return
-      }
-
-      openTab(path, {
-        forceNew: true,
-        title,
-        icon
-      })
+      activateWorkspace(`mini-app:${app.appId}`, path, { title, icon })
     },
-    [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
+    [activateWorkspace, openableMiniAppById, t]
   )
 
-  // Pinned entities reuse tabs like mini apps do; the route interceptor turns the
-  // `agentId` / `assistantId` param into that entity's most recent conversation.
-  const handleOpenEntityTab = useCallback(
-    (path: string, title: string) => {
-      if (activeTab?.url === path) return
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon: undefined,
-          metadata: undefined
-        })
-        return
-      }
-
-      openTab(path, { forceNew: true, title })
-    },
-    [activeTab, openTab, updateTab]
-  )
-
-  const handleOpenAgentTab = useCallback(
+  const handleOpenAgent = useCallback(
     (agentId: string) => {
       const agent = installedAgents.get(agentId)
       if (!agent) return
-      handleOpenEntityTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name)
+      activateWorkspace('app:agents', `/app/agents?agentId=${encodeURIComponent(agentId)}`, { title: agent.name })
     },
-    [handleOpenEntityTab, installedAgents]
+    [activateWorkspace, installedAgents]
   )
-  const handleOpenAssistantTab = useCallback(
+
+  const handleOpenAssistant = useCallback(
     (assistantId: string) => {
       const assistant = installedAssistants.get(assistantId)
       if (!assistant) return
-      handleOpenEntityTab(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name)
+      activateWorkspace('app:assistants', `/app/chat?assistantId=${encodeURIComponent(assistantId)}`, {
+        title: assistant.name
+      })
     },
-    [handleOpenEntityTab, installedAssistants]
+    [activateWorkspace, installedAssistants]
   )
+
+  useEffect(() => {
+    for (const tab of tabs) {
+      const workspaceKey = getTabWorkspaceKey(tab)
+      if (!workspaceKey?.startsWith('app:')) continue
+      const status = workspaceTaskStatuses.get(workspaceKey.slice('app:'.length) as SidebarAppId)
+      const preventDormancy = status === 'action-required' || status === 'running'
+      if (tab.metadata?.preventDormancy === preventDormancy) continue
+      updateTab(tab.id, { metadata: { ...tab.metadata, preventDormancy } })
+    }
+  }, [tabs, updateTab, workspaceTaskStatuses])
 
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
   // lives in the variant registry; the container only supplies the runtime context.
@@ -300,10 +244,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
-      openAgent: handleOpenAgentTab,
-      openAssistant: handleOpenAssistantTab,
+      openAgent: handleOpenAgent,
+      openAssistant: handleOpenAssistant,
       removeApp: handleRemoveSidebarFavorite,
-      removeMiniApp,
+      removeMiniApp: handleRemoveMiniAppFavorite,
       removeAgent,
       removeAssistant
     }),
@@ -318,10 +262,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       defaultModelId,
       handleNavigate,
       handleOpenMiniAppTab,
-      handleOpenAgentTab,
-      handleOpenAssistantTab,
+      handleOpenAgent,
+      handleOpenAssistant,
       handleRemoveSidebarFavorite,
-      removeMiniApp,
+      handleRemoveMiniAppFavorite,
       removeAgent,
       removeAssistant
     ]
@@ -335,10 +279,26 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       favorites.flatMap((favorite) => {
         const entry = resolveSidebarEntry(favorite, variantContext)
         if (!entry) return []
+        const taskStatus = favorite.type === 'app' ? workspaceTaskStatuses.get(favorite.id as SidebarAppId) : undefined
+        const status =
+          taskStatus && taskStatus !== 'idle'
+            ? {
+                value: taskStatus,
+                label:
+                  taskStatus === 'action-required'
+                    ? t('agent.toolPermission.pendingBadge')
+                    : taskStatus === 'error'
+                      ? t('message.tools.status.error')
+                      : taskStatus === 'running'
+                        ? t('message.tools.status.running')
+                        : t('message.tools.status.done')
+              }
+            : undefined
 
         return [
           {
             ...entry,
+            status,
             contextMenuItems: [
               ...(entry.contextMenuItems ?? []),
               {
@@ -351,7 +311,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [favorites, handleOpenLaunchpad, t, variantContext]
+    [favorites, handleOpenLaunchpad, t, variantContext, workspaceTaskStatuses]
   )
 
   // A single drag reorders the whole mixed list. arrayMove yields the new entry
@@ -383,6 +343,30 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         onOverlayOpenChange={onOverlayOpenChange}
       />
     ),
+    fixedAction: (fixedActionLayout: SidebarVisibleLayout) =>
+      fixedActionLayout === 'icon' ? (
+        <Tooltip content={t('title.launchpad')} placement="right" delay={600}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t('title.launchpad')}
+            onClick={handleOpenLaunchpad}
+            className="size-9 rounded-full text-muted-foreground hover:bg-accent/60 hover:text-foreground">
+            <Plus size={18} strokeWidth={1.6} />
+          </Button>
+        </Tooltip>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={t('title.launchpad')}
+          onClick={handleOpenLaunchpad}
+          className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground hover:bg-accent/60">
+          <Plus size={16} strokeWidth={1.6} />
+          <span>{t('title.launchpad')}</span>
+        </Button>
+      ),
     onEntriesReorder: handleReorder
   }
 

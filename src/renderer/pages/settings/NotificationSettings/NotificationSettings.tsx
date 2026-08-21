@@ -9,7 +9,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import type { NotificationSource } from '@renderer/types/notification'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,7 +23,7 @@ const NotificationSettings: FC = () => {
     update: 'app.notification.update.enabled'
   })
 
-  const handleNotificationChange = (type: NotificationSource, value: boolean) => {
+  const handleNotificationChange = (type: keyof typeof notificationSettings, value: boolean) => {
     void setNotificationSettings({ [type]: value })
   }
 

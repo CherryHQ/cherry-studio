@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "Barre latérale",
+        "tabs": "Onglets",
+        "title": "Disposition de navigation"
+      },
       "title": "Apparence"
     },
     "assistant": {

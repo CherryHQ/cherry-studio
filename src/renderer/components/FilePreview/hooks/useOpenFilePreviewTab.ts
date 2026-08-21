@@ -8,7 +8,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { useCallback } from 'react'
 
 export function useOpenFilePreviewTab(): (filePath: AbsoluteFilePath, fileName?: string) => string {
-  const { openTab, tabs, updateTab } = useTabs()
+  const { openTab, tabs } = useTabs()
 
   return useCallback(
     (filePath: AbsoluteFilePath, fileName?: string) => {
@@ -17,14 +17,13 @@ export function useOpenFilePreviewTab(): (filePath: AbsoluteFilePath, fileName?:
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === target.url)
 
       if (existingTab) {
-        const tabId = openTab(target.url, { title })
-        updateTab(tabId, {
+        return openTab(target.url, {
+          title,
           metadata: {
             ...existingTab.metadata,
             [FILE_PREVIEW_REFRESH_KEY]: getFilePreviewRefreshKey(existingTab.metadata) + 1
           }
         })
-        return tabId
       }
 
       return openTab(target.url, {
@@ -32,6 +31,6 @@ export function useOpenFilePreviewTab(): (filePath: AbsoluteFilePath, fileName?:
         metadata: { [FILE_PREVIEW_REFRESH_KEY]: 0 }
       })
     },
-    [openTab, tabs, updateTab]
+    [openTab, tabs]
   )
 }

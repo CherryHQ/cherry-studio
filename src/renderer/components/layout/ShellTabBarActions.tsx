@@ -14,7 +14,7 @@ import { HelpMenu } from './HelpMenu'
 
 const logger = loggerService.withContext('ShellTabBarActions')
 
-export function ShellTabBarActions() {
+export function ShellTabBarActions({ showSettings = false }: { showSettings?: boolean }) {
   const { t } = useTranslation()
   const [sidebarWidth] = usePersistCache('ui.sidebar.width')
   const { appUpdateState } = useAppUpdateState()
@@ -58,7 +58,7 @@ export function ShellTabBarActions() {
             </Button>
           </Tooltip>
         )}
-        {isSidebarHidden && (
+        {(showSettings || isSidebarHidden) && (
           <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
             <Button
               type="button"

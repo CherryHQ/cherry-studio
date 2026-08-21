@@ -80,7 +80,11 @@ vi.mock('../ShellTabBarActions', async () => {
   const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
   return {
     ...actual,
-    ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
+    ShellTabBarActions: ({ showSettings }: { showSettings?: boolean }) => (
+      <div data-show-settings={showSettings || undefined} data-testid="shell-tab-actions">
+        <div data-testid="window-controls" />
+      </div>
+    )
   }
 })
 
@@ -215,7 +219,7 @@ describe('AppShellTabBar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
-    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad' })
   })
 
   it('shows the focused tab as a Back control with a visible detach action', async () => {
@@ -233,7 +237,7 @@ describe('AppShellTabBar', () => {
     expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Launchpad' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-actions')).toHaveAttribute('data-show-settings', 'true')
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.move-to-first')).not.toBeInTheDocument()

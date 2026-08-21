@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "Seitenleiste",
+        "tabs": "Tabs",
+        "title": "Navigationslayout"
+      },
       "title": "Erscheinung"
     },
     "assistant": {

@@ -64,6 +64,7 @@ const modelSelectorMock = vi.hoisted(() => vi.fn())
 const languageBarMock = vi.hoisted(() => vi.fn())
 const translateInputPaneMock = vi.hoisted(() => vi.fn())
 const exportContentToNotesMock = vi.hoisted(() => vi.fn())
+const notifyTranslateCompletionMock = vi.hoisted(() => vi.fn())
 const pdfViewMock = vi.hoisted(() => vi.fn())
 const pdfHandleMock = vi.hoisted(() => ({ cancel: vi.fn(), start: vi.fn() }))
 const historyFilesMock = vi.hoisted(() => ({
@@ -72,6 +73,7 @@ const historyFilesMock = vi.hoisted(() => ({
     target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
   } as TranslationFiles
 }))
+const tabMock = vi.hoisted(() => ({ id: null as string | null, isActive: true }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -112,10 +114,19 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
+vi.mock('@renderer/services/notification', () => ({
+  notifyTranslateCompletion: notifyTranslateCompletionMock
+}))
+
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     shikiMarkdownIt: vi.fn().mockResolvedValue('')
   })
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCurrentTabId: () => tabMock.id,
+  useIsActiveTab: () => tabMock.isActive
 }))
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
@@ -443,6 +454,8 @@ describe('TranslatePage', () => {
     MockUseCacheUtils.setCacheValue('translate.input', '')
     MockUseCacheUtils.setCacheValue('translate.output', '')
     MockUseCacheUtils.setCacheValue('translate.detecting', false)
+    tabMock.id = null
+    tabMock.isActive = true
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': null,
       'feature.translate.page.source_language': 'auto',
@@ -555,6 +568,25 @@ describe('TranslatePage', () => {
     expect(inputSection?.parentElement).toHaveClass('grid-cols-2', 'grid-rows-1')
     expect(outputSection).toHaveClass('border-l')
     expect(outputSection).not.toHaveClass('border-t')
+  })
+
+  it('keeps text input isolated by the translation workspace session id', () => {
+    MockUseCacheUtils.setCacheValue('translate.session.input.translate-tab-1', 'First workspace')
+    MockUseCacheUtils.setCacheValue('translate.session.input.translate-tab-2', 'Second workspace')
+    tabMock.id = 'translate-tab-1'
+
+    const firstWorkspace = render(<TranslatePage />)
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('First workspace')
+    firstWorkspace.unmount()
+
+    tabMock.id = 'translate-tab-2'
+    render(<TranslatePage />)
+    const secondInput = screen.getByLabelText('translate.input.placeholder')
+    expect(secondInput).toHaveValue('Second workspace')
+
+    fireEvent.change(secondInput, { target: { value: 'Updated second workspace' } })
+    expect(MockUseCacheUtils.getCacheValue('translate.session.input.translate-tab-1')).toBe('First workspace')
+    expect(MockUseCacheUtils.getCacheValue('translate.session.input.translate-tab-2')).toBe('Updated second workspace')
   })
 
   it('exports the trimmed current translation result to notes using the first translated line as title', async () => {
@@ -1578,7 +1610,11 @@ describe('TranslatePage', () => {
         targetLanguage: 'en-us'
       })
     )
-    expect(toast.success).toHaveBeenCalledWith('translate.complete')
+    expect(notifyTranslateCompletionMock).toHaveBeenCalledWith({
+      sessionId: undefined,
+      title: 'translate.complete',
+      message: 'zh-cn → en-us'
+    })
 
     const autoCopyCallback = translateCoreMock.setTimeoutTimer.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
     expect(autoCopyCallback).toBeTypeOf('function')

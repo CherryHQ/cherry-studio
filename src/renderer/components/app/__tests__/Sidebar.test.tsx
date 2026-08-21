@@ -28,6 +28,8 @@ type FakeMiniApp = {
 }
 
 const mocks = vi.hoisted(() => ({
+  activateWorkspace: vi.fn(),
+  closeWorkspace: vi.fn(),
   emitResourceListReveal: vi.fn(),
   openTab: vi.fn(),
   openSettingsTab: vi.fn(),
@@ -79,6 +81,10 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
   default: () => undefined
 }))
 
+vi.mock('@renderer/hooks/useWorkspaceTaskStatuses', () => ({
+  useWorkspaceTaskStatuses: () => new Map()
+}))
+
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: (options?: { enabled?: boolean }) => {
     mocks.useMiniApps(options)
@@ -117,6 +123,8 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     activeTab: mocks.activeTab,
+    activateWorkspace: mocks.activateWorkspace,
+    closeWorkspace: mocks.closeWorkspace,
     tabs: mocks.tabs,
     openTab: mocks.openTab,
     updateTab: mocks.updateTab,
@@ -206,6 +214,7 @@ vi.mock('../../Sidebar', async () => {
       logo,
       user,
       actions,
+      fixedAction,
       width,
       onResizePreview
     }: {
@@ -217,6 +226,7 @@ vi.mock('../../Sidebar', async () => {
       logo?: ReactNode
       user?: unknown
       actions?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
+      fixedAction?: (layout: 'icon' | 'full') => ReactNode
       width?: number
       onResizePreview?: (width: number | null) => void
       onDismiss?: () => void
@@ -234,6 +244,7 @@ vi.mock('../../Sidebar', async () => {
           className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
           data-testid="floating-sidebar">
           {typeof actions === 'function' ? actions('full') : actions}
+          {fixedAction?.('full')}
           <button type="button" onClick={onDismiss}>
             dismiss
           </button>
@@ -244,6 +255,7 @@ vi.mock('../../Sidebar', async () => {
           <div data-testid="sidebar-logo">{logo}</div>
           <div data-testid="sidebar-footer-user">{user ? 'user' : 'none'}</div>
           <div data-testid="sidebar-footer-actions">{typeof actions === 'function' ? actions('icon') : actions}</div>
+          <div data-testid="sidebar-fixed-action">{fixedAction?.('icon')}</div>
           <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
           <button type="button" data-testid="preview-null" onClick={() => onResizePreview?.(null)} />
           <button type="button" onClick={() => onHoverChange?.(true)}>
@@ -435,6 +447,7 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-app.knowledge'))
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('files')])
+    expect(mocks.closeWorkspace).toHaveBeenCalledWith('app:knowledge')
   })
 
   it('keeps required sidebar favorites protected in the context menu', () => {
@@ -447,7 +460,7 @@ describe('app Sidebar', () => {
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
-  it('opens the launchpad in a new tab from the manage sidebar context menu', async () => {
+  it('activates the stable launchpad workspace from the manage action', async () => {
     const user = userEvent.setup()
     mocks.sidebarFavorites = [appFavorite('knowledge')]
 
@@ -458,10 +471,7 @@ describe('app Sidebar', () => {
 
     await user.click(manageSidebar)
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/launchpad', {
-      forceNew: true,
-      title: 'Launchpad'
-    })
+    expect(mocks.activateWorkspace).toHaveBeenCalledWith('launchpad', '/app/launchpad', { title: 'Launchpad' })
   })
 
   it('renders favorite mini apps directly in the sidebar mini app section', () => {
@@ -500,6 +510,7 @@ describe('app Sidebar', () => {
       appFavorite('mini_app'),
       miniAppFavorite('weather')
     ])
+    expect(mocks.closeWorkspace).toHaveBeenCalledWith('mini-app:calculator')
   })
 
   it('offers the manage sidebar action for mini app favorites', () => {
@@ -588,277 +599,34 @@ describe('app Sidebar', () => {
     expect(screen.queryByTestId('sidebar-mini-app-calculator')).not.toBeInTheDocument()
   })
 
-  it('reuses the active tab from the sidebar mini app section', () => {
-    configureMiniApps(['calculator'])
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat?topicId=t-1',
-      title: 'Topic',
-      icon: 'emoji:🍒',
-      metadata: { keep: true }
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
-      url: '/app/mini-app/calculator',
-      title: 'Calculator',
-      icon: 'calculator-logo',
-      metadata: undefined
-    })
-    expect(mocks.openTab).not.toHaveBeenCalled()
-  })
-
-  it('switches to an existing mini app tab without replacing the active tab', async () => {
+  it('activates a stable mini-app workspace without replacing another app', async () => {
     const user = userEvent.setup()
     configureMiniApps(['calculator'])
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat?topicId=t-1',
-      title: 'Topic'
-    }
-    mocks.tabs = [
-      mocks.activeTab,
-      {
-        id: 'calculator-tab',
-        type: 'route',
-        url: '/app/mini-app/calculator',
-        title: 'Calculator'
-      }
-    ]
 
     render(<Sidebar />)
     await user.click(screen.getByRole('button', { name: 'Calculator' }))
 
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('calculator-tab')
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.openTab).not.toHaveBeenCalled()
-  })
-
-  it('does nothing when the active tab is already on the target mini app route', () => {
-    configureMiniApps(['calculator'])
-    mocks.activeTab = {
-      id: 'calculator-tab',
-      type: 'route',
-      url: '/app/mini-app/calculator',
-      title: 'Calculator'
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))
-
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.openTab).not.toHaveBeenCalled()
-  })
-
-  it('opens a forced mini app tab when the active tab is pinned', () => {
-    configureMiniApps(['calculator'])
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat',
-      title: 'Chat',
-      isPinned: true
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/calculator', {
-      forceNew: true,
+    expect(mocks.activateWorkspace).toHaveBeenCalledWith('mini-app:calculator', '/app/mini-app/calculator', {
       title: 'Calculator',
       icon: 'calculator-logo'
     })
-    expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
-  it('does nothing when the active tab is already on the target route', () => {
+  it('activates a stable built-in app workspace', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'agents',
-      type: 'route',
-      url: '/app/agents',
-      title: 'Work'
-    }
 
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
+    expect(mocks.activateWorkspace).toHaveBeenCalledWith('app:agents', '/app/agents', { title: 'Work' })
   })
 
-  it('reuses the active tab without revealing its resource list', () => {
-    mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat',
-      title: 'Chat'
-    }
-    mocks.tabs = [{ id: 'agents-1', type: 'route', url: '/app/agents?sessionId=s-1', title: 'Session 1' }]
-
+  it('renders the fixed launchpad action outside the sortable entries', () => {
     render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
-    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
-      url: '/app/agents',
-      title: 'Work',
-      icon: undefined,
-      metadata: undefined
-    })
-    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
-    expect(mocks.openTab).not.toHaveBeenCalled()
-  })
+    fireEvent.click(within(screen.getByTestId('sidebar-fixed-action')).getByRole('button', { name: 'title.launchpad' }))
 
-  it('replaces the active tab with the bare route', () => {
-    mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat?topicId=topic-1',
-      title: 'Chat',
-      metadata: { keep: true }
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
-
-    // Which session the tab lands on is the route interceptor's decision — the
-    // sidebar only replaces the tab with the app's bare entry route.
-    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
-      url: '/app/agents',
-      title: 'Work',
-      icon: undefined,
-      metadata: undefined
-    })
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
-    expect(mocks.openTab).not.toHaveBeenCalled()
-  })
-
-  it('stays put when the active tab already holds a conversation of the target app', () => {
-    mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'agents-1',
-      type: 'route',
-      url: '/app/agents?sessionId=session-1',
-      title: 'Session 1'
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
-
-    // Re-entering through the interceptor would rebind the tab to the last-used
-    // conversation — an owned tab is already "there", whatever session it shows.
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.openTab).not.toHaveBeenCalled()
-  })
-
-  it('navigates a message-only viewer of the same app back to the app entry', () => {
-    mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'viewer',
-      type: 'route',
-      url: '/app/agents?sessionId=session-1&view=message',
-      title: 'Session 1'
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('viewer', {
-      url: '/app/agents',
-      title: 'Work',
-      icon: undefined,
-      metadata: undefined
-    })
-  })
-
-  it('clears route-specific metadata when reusing the active tab', () => {
-    mocks.sidebarFavorites = [appFavorite('translate')]
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat?topicId=t-1',
-      title: 'Topic',
-      icon: 'emoji:🍒',
-      metadata: { keep: true }
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-translate'))
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
-      url: '/app/translate',
-      title: 'Translate',
-      icon: undefined,
-      metadata: undefined
-    })
-    expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
-  })
-
-  it('reuses the active tab for single-policy routes too', () => {
-    mocks.sidebarFavorites = [appFavorite('translate')]
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat',
-      title: 'Chat'
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-translate'))
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
-      url: '/app/translate',
-      title: 'Translate',
-      icon: undefined,
-      metadata: undefined
-    })
-    expect(mocks.openTab).not.toHaveBeenCalled()
-  })
-
-  it('opens a forced tab without revealing its resource list when the active tab is pinned', () => {
-    mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'chat',
-      type: 'route',
-      url: '/app/chat',
-      title: 'Chat',
-      isPinned: true
-    }
-    mocks.openTab.mockReturnValue('agents-new')
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
-      forceNew: true,
-      title: 'Work'
-    })
-    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
-  })
-
-  it('opens a forced tab when there is no active tab', () => {
-    mocks.sidebarFavorites = [appFavorite('files')]
-    mocks.activeTab = null
-    mocks.openTab.mockReturnValue('files-new')
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-files'))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/files', { forceNew: true, title: 'Files' })
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
-    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
+    expect(mocks.activateWorkspace).toHaveBeenCalledWith('launchpad', '/app/launchpad', { title: 'Launchpad' })
   })
 
   it('migrates a persisted intermediate sidebar width to icon width and converges', () => {

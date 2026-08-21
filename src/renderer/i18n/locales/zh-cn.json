@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "侧边栏",
+        "tabs": "多标签页",
+        "title": "导航布局"
+      },
       "title": "外观"
     },
     "assistant": {

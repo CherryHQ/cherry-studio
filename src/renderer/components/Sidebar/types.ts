@@ -35,6 +35,10 @@ export interface ResolvedSidebarEntry {
   renderIcon: (size: number, miniAppSize: 'md' | 'lg') => ReactNode
   isActive: (active: SidebarActiveState) => boolean
   onOpen: () => void
+  status?: {
+    value: 'action-required' | 'completed' | 'error' | 'running'
+    label: string
+  }
   contextMenuItems?: readonly CommandContextMenuExtraItem[]
 }
 

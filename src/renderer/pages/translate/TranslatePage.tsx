@@ -9,7 +9,15 @@ import { loggerService } from '@logger'
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
-import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
+import {
+  detectLanguageOrUnknown,
+  markTranslateWorkspaceRuntimeSeen,
+  useDetectLang,
+  useTranslate,
+  useTranslateHistory,
+  useTranslateWorkspaceRuntimeStatus
+} from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -21,6 +29,7 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { exportContentToNotes } from '@renderer/services/ExportService'
+import { notifyTranslateCompletion } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -207,6 +216,9 @@ const OcrJobWatcher: FC<{
 
 const TranslatePage: FC = () => {
   const { t } = useTranslation()
+  const translateSessionId = useCurrentTabId() ?? undefined
+  const isActiveTab = useIsActiveTab()
+  const translateWorkspaceStatus = useTranslateWorkspaceRuntimeStatus()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
@@ -223,20 +235,51 @@ const TranslatePage: FC = () => {
   const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
   const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
 
-  const [translateInput, setTranslateInput] = useCache('translate.input')
-  const [translateOutput, setTranslateOutput] = useCache('translate.output')
-  const [isDetecting, setIsDetecting] = useCache('translate.detecting')
+  const translateInputKey = translateSessionId
+    ? (`translate.session.input.${translateSessionId}` as const)
+    : ('translate.input' as const)
+  const translateOutputKey = translateSessionId
+    ? (`translate.session.output.${translateSessionId}` as const)
+    : ('translate.output' as const)
+  const translateDetectingKey = translateSessionId
+    ? (`translate.session.detecting.${translateSessionId}` as const)
+    : ('translate.detecting' as const)
+  const [translateInput, setTranslateInput] = useCache(translateInputKey)
+  const [translateOutput, setTranslateOutput] = useCache(translateOutputKey)
+  const [isDetecting, setIsDetecting] = useCache(translateDetectingKey)
 
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
+  const translatePageMountedRef = useRef(true)
+  useEffect(() => {
+    translatePageMountedRef.current = true
+    return () => {
+      translatePageMountedRef.current = false
+    }
+  }, [])
+  const handleTranslationResponse = useCallback(
+    (text: string, isComplete: boolean) => {
+      if (translatePageMountedRef.current) {
+        smoothUpdate(text, isComplete)
+      } else {
+        setTranslateOutput(text)
+      }
+    },
+    [setTranslateOutput, smoothUpdate]
+  )
 
   const {
     translate: runTranslate,
     isTranslating,
     cancel
   } = useTranslate({
+    sessionId: translateSessionId,
     loggerContext: 'TranslatePage',
-    onResponse: smoothUpdate
+    onResponse: handleTranslationResponse
   })
+
+  useEffect(() => {
+    if (isActiveTab && !isTranslating) markTranslateWorkspaceRuntimeSeen()
+  }, [isActiveTab, isTranslating, translateWorkspaceStatus])
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
@@ -378,7 +421,11 @@ const TranslatePage: FC = () => {
       if (!translated) {
         return
       }
-      toast.success(t('translate.complete'))
+      notifyTranslateCompletion({
+        sessionId: translateSessionId,
+        title: t('translate.complete'),
+        message: `${actualSourceLanguage} → ${actualTargetLanguage}`
+      })
 
       if (autoCopy) {
         setTimeoutTimer(
@@ -402,7 +449,7 @@ const TranslatePage: FC = () => {
         targetLanguage: actualTargetLanguage
       })
     },
-    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
+    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t, translateSessionId]
   )
 
   const translateTextContent = useCallback(
@@ -1022,6 +1069,7 @@ const TranslatePage: FC = () => {
             <PdfTranslationView
               key={restoredPdf?.key ?? pdfFile.path}
               file={pdfFile}
+              sessionId={translateSessionId}
               restoredOutput={restoredPdf?.output}
               modelId={isSelectedPdfModelRoutable ? selectedModelId : undefined}
               sourceLangCode={sourceLanguage}

@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "Sidebar",
+        "tabs": "Tabs",
+        "title": "Navigation layout"
+      },
       "title": "Appearance"
     },
     "assistant": {

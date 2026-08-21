@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "Thanh bên",
+        "tabs": "Thẻ",
+        "title": "Bố cục điều hướng"
+      },
       "title": "Vẻ ngoài"
     },
     "assistant": {

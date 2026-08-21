@@ -22,6 +22,7 @@ const PREF_BY_SOURCE: Record<NotificationSource, UnifiedPreferenceKeyType> = {
   assistant: 'app.notification.assistant.enabled',
   backup: 'app.notification.backup.enabled',
   knowledge: 'app.notification.knowledge.enabled',
+  translate: 'app.notification.assistant.enabled',
   update: 'app.notification.update.enabled'
 }
 

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   getWindowInfosByType: vi.fn(),
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
+  openRouteInMainWindow: vi.fn(),
   preferenceGet: vi.fn(),
   send: vi.fn(),
   showMainWindow: vi.fn(),
@@ -45,6 +46,7 @@ vi.mock('@main/i18n', () => ({
       'notification.completion.assistant': 'Assistant response complete'
     })[key] ?? key
 }))
+vi.mock('../mainWindowNavigation', () => ({ openRouteInMainWindow: mocks.openRouteInMainWindow }))
 vi.mock('electron', () => ({
   Notification: class {
     private readonly state: (typeof mocks.electronNotifications)[number]
@@ -283,5 +285,23 @@ describe('NotificationService', () => {
     mocks.electronNotifications[0].click?.()
     expect(mocks.showMainWindow).toHaveBeenCalledOnce()
     expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'notification.clicked', notification)
+  })
+
+  it('opens the completed translate session when its system notification is clicked', async () => {
+    await service.sendNotification({
+      id: 'translate-complete',
+      type: 'success',
+      title: 'Translation completed',
+      message: 'document.pdf',
+      timestamp: 1,
+      source: 'translate',
+      actionKey: 'translate.open',
+      meta: { sessionId: 'translate-tab-1' }
+    })
+
+    mocks.electronNotifications[0].click?.()
+
+    expect(mocks.openRouteInMainWindow).toHaveBeenCalledWith('/app/translate?sessionId=translate-tab-1')
+    expect(mocks.broadcastToType).not.toHaveBeenCalled()
   })
 })

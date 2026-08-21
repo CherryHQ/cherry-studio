@@ -3,7 +3,9 @@ import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { LoadingState } from '@renderer/components/chat/primitives'
 import { FilePreview } from '@renderer/components/FilePreview'
+import { setTranslateSessionRuntimeStatus } from '@renderer/hooks/translate'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { notifyTranslateCompletion } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { uuid } from '@renderer/utils/uuid'
@@ -49,6 +51,7 @@ export interface PdfTextFallback {
 
 interface PdfTranslationViewProps {
   file: PdfTranslationFile
+  sessionId?: string
   modelId?: UniqueModelId
   sourceLangCode: TranslateSourceLanguage
   babelDocAvailability: BabelDocAvailability
@@ -174,6 +177,7 @@ const getResultState = ({
 
 const PdfTranslationView = ({
   file,
+  sessionId,
   modelId,
   sourceLangCode,
   babelDocAvailability,
@@ -200,8 +204,9 @@ const PdfTranslationView = ({
     activeJobIdRef.current = null
     setPhase('idle')
     setProgress(null)
+    setTranslateSessionRuntimeStatus(sessionId, 'idle')
     requestCancel(jobId, 'Failed to cancel PDF translation')
-  }, [])
+  }, [sessionId])
 
   const start = useCallback(
     (targetLangCode: TranslateLangCode) => {
@@ -216,6 +221,7 @@ const PdfTranslationView = ({
       setError(null)
       setProgress(null)
       setPhase('preparing')
+      setTranslateSessionRuntimeStatus(sessionId, 'running')
 
       void ipcApi
         .request('translate.pdf.start', {
@@ -235,14 +241,20 @@ const PdfTranslationView = ({
           // entry, it just is not what this pane should show.
           if (activeJobIdRef.current !== jobId) return
           activeJobIdRef.current = null
+          setTranslateSessionRuntimeStatus(sessionId, 'completed')
           setOutput(result)
           setProgress(null)
           setPhase('success')
-          toast.success(t('translate.pdf.success'))
+          notifyTranslateCompletion({
+            sessionId,
+            title: t('translate.pdf.success'),
+            message: file.name
+          })
         })
         .catch((cause) => {
           if (activeJobIdRef.current !== jobId) return
           activeJobIdRef.current = null
+          setTranslateSessionRuntimeStatus(sessionId, 'error')
           const normalized = cause instanceof Error ? cause : new Error(String(cause))
           if (
             normalized instanceof IpcError &&
@@ -256,7 +268,7 @@ const PdfTranslationView = ({
           setPhase('error')
         })
     },
-    [file.path, invalidate, modelId, onBabelDocUnavailable, sourceLangCode, t]
+    [file.name, file.path, invalidate, modelId, onBabelDocUnavailable, sessionId, sourceLangCode, t]
   )
 
   useIpcOn('translate.pdf.stage', ({ jobId, stage }) => {
@@ -287,13 +299,14 @@ const PdfTranslationView = ({
 
   useEffect(
     () => () => {
+      if (sessionId) return
       const activeJobId = activeJobIdRef.current
       activeJobIdRef.current = null
       if (activeJobId) {
         requestCancel(activeJobId, 'Failed to cancel PDF translation on unmount')
       }
     },
-    []
+    [sessionId]
   )
 
   const close = useCallback(() => {

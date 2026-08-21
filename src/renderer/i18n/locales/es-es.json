@@ -4907,6 +4907,11 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "sidebar": "Barra lateral",
+        "tabs": "Pestañas",
+        "title": "Diseño de navegación"
+      },
       "title": "Apariencia"
     },
     "assistant": {
