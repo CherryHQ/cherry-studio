@@ -1105,6 +1105,12 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('renames a topic from the history row context menu dialog without selecting the row', async () => {
+    let resolveRename!: () => void
+    hookMocks.updateTopic.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveRename = resolve
+      })
+    )
     const { onClose, onRecordSelect } = setupAssistantHistory()
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
@@ -1135,6 +1141,15 @@ describe('HistoryRecordsView assistant mode', () => {
         isNameManuallyEdited: true
       })
     )
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveRename()
+    })
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
     expect(toast.success).toHaveBeenCalledWith('Saved')
   })
 
@@ -1166,6 +1181,8 @@ describe('HistoryRecordsView assistant mode', () => {
     )
     expect(toast.error).toHaveBeenCalledWith('Rename failed')
     expect(toast.success).not.toHaveBeenCalled()
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
   })
 
   it('clears automatic topic renaming without a success reveal after a failed history update', async () => {

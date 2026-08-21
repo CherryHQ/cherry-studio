@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import React, { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getQuickPanelHeights, QUICK_PANEL_SAFE_MARGIN } from '../heights'
+import { getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT, QUICK_PANEL_SAFE_MARGIN } from '../heights'
 import { QuickPanelProvider } from '../QuickPanelProvider'
 import { QuickPanelView } from '../QuickPanelView'
 import type {
@@ -958,6 +958,20 @@ describe('QuickPanelView', () => {
     expect(unselectedAction).toHaveBeenCalledTimes(1)
     expect(selectedAction).toHaveBeenCalledTimes(1)
     expect(disabledAction).not.toHaveBeenCalled()
+  })
+
+  it('keeps rendered row height aligned with the virtual-list item contract', async () => {
+    const items: QuickPanelListItem[] = [{ id: 'one', label: 'One action', icon: '1' }]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} items={items} />
+      </QuickPanelProvider>
+    )
+
+    const row = (await screen.findByText('One action')).closest('[data-id="one"]')
+    expect(row).toHaveStyle({ height: '34px' })
+    expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(QUICK_PANEL_ITEM_HEIGHT))
   })
 
   it('selects the active item with Tab', async () => {

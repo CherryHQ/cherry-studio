@@ -369,6 +369,8 @@ vi.mock('react-i18next', () => ({
         if (key === 'assistants.edit.title') return 'Edit Assistant'
         if (key === 'assistants.pin.title') return 'Pin Assistant'
         if (key === 'assistants.unpin.title') return 'Unpin Assistant'
+        if (key === 'launchpad.pin_to_sidebar') return 'Add to sidebar'
+        if (key === 'launchpad.unpin_from_sidebar') return 'Remove from sidebar'
         if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
         if (key === 'assistants.delete.title') return 'Delete Assistant'
         if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
@@ -408,6 +410,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.delete') return 'Delete'
         if (key === 'common.delete_success') return 'Deleted'
         if (key === 'common.delete_failed') return 'Delete failed'
+        if (key === 'common.error') return 'Error'
         if (key === 'common.more') return 'More'
         if (key === 'common.open_in_new_tab') return 'Open in new tab'
         if (key === 'tab.open_in_new_window') return 'Open in New Window'
@@ -1745,10 +1748,13 @@ describe('Topics', () => {
     fireEvent.change(input, { target: { value: 'Renamed topic' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
-    expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
-      name: 'Renamed topic',
-      isNameManuallyEdited: true
-    })
+    expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
+    await vi.waitFor(() =>
+      expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+        name: 'Renamed topic',
+        isNameManuallyEdited: true
+      })
+    )
     expect(toast.success).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -1758,18 +1764,32 @@ describe('Topics', () => {
     expect(toast.success).toHaveBeenCalledWith('Saved')
   })
 
-  it('reports an error when manually renaming a topic fails', async () => {
-    topicDataMocks.updateTopic.mockRejectedValueOnce(new Error('Rename failed'))
+  it('shows a context-menu rename optimistically and restores the persisted name when it fails', async () => {
+    const pendingUpdate = createDeferred<void>()
+    topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
     const { getByText } = renderTopicList()
 
-    fireEvent.doubleClick(getByText('Alpha topic'))
-    const input = screen.getByLabelText('Edit conversation name')
-    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     await act(async () => {
-      fireEvent.keyDown(input, { key: 'Enter' })
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
     })
 
-    expect(toast.error).toHaveBeenCalledWith('Rename failed')
+    const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    await vi.waitFor(() => expect(topicDataMocks.updateTopic).toHaveBeenCalledOnce())
+
+    await act(async () => {
+      pendingUpdate.reject(new Error('rename failed'))
+    })
+
+    expect(await screen.findByText('Alpha topic')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Error: rename failed')
     expect(toast.success).not.toHaveBeenCalled()
   })
 
@@ -3300,6 +3320,47 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Show in groups' }))
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type' as never)).toBe('tags')
+    )
+  })
+
+  it('pins an assistant to the sidebar from the assistant group menu', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
+
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+        { type: 'app', id: 'assistants' },
+        { type: 'assistant', id: 'assistant-1' }
+      ])
+    )
+  })
+
+  it('unpins an already pinned assistant from the assistant group menu', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [
+      { type: 'assistant', id: 'assistant-1' }
+    ])
+
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Remove from sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+        { type: 'app', id: 'assistants' }
+      ])
     )
   })
 
