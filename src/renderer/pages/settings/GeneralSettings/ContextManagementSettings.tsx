@@ -1,4 +1,4 @@
-import { EditableNumber, InfoTooltip, Switch } from '@cherrystudio/ui'
+import { InfoTooltip, InputNumber, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
@@ -70,16 +70,13 @@ export const ContextManagementSettings = () => {
           />
         </div>
         <div className="w-[220px] shrink-0">
-          <EditableNumber
-            block
+          <InputNumber
             min={1}
             step={1}
-            precision={0}
-            align="start"
             changeOnBlur
             aria-label={t('settings.models.context_management.max_messages')}
             placeholder={t('settings.models.context_management.max_messages_unlimited')}
-            className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+            className="h-8 rounded-lg px-2.5"
             value={maxMessages}
             onChange={(value) => void setMaxMessages(value === null ? null : Math.floor(value))}
           />
@@ -112,18 +109,15 @@ export const ContextManagementSettings = () => {
               />
             </div>
             <div className="w-[220px] shrink-0">
-              <EditableNumber
-                block
+              <InputNumber
                 // Floor: this doubles as fs_read's per-call cap, and below it a
                 // single gutter-prefixed line already overflows.
                 min={MIN_TRUNCATE_THRESHOLD}
                 // step=1000 made the 50000 default a stepMismatch.
                 step={1}
-                precision={0}
-                align="start"
                 changeOnBlur
                 aria-label={t('settings.models.context_management.truncate_threshold')}
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg px-2.5"
                 value={truncateThreshold}
                 onChange={(value) => {
                   if (typeof value !== 'number' || !Number.isFinite(value)) return
