@@ -295,14 +295,15 @@ function renderCredentials(snapshot: FileSnapshot, credentialRef: string, creden
     throw new Error(`DeepSeek Harness credential reference ${JSON.stringify(credentialRef)} is invalid`)
   }
   // DSH 0.1.1 nests entries under `version: 1` + `refs:` and rejects unknown
-  // top-level keys; a pre-0.1.1 flat document stays flat until DSH migrates it.
-  if (!document.has('version') && isMap(document.contents) && document.contents.items.length > 0) {
+  // top-level keys, including the one Cherry used to write there. Any other
+  // document stays flat: pre-0.1.1 builds read it, and 0.1.1 migrates it itself.
+  if (document.get('version') === 1) {
+    if (document.getIn(['refs']) == null) document.setIn(['refs'], document.createNode({}))
+    document.delete(credentialRef)
+    document.setIn(['refs', credentialRef], credentialValue)
+  } else {
     document.setIn([credentialRef], credentialValue)
-    return document.toString()
   }
-  document.setIn(['version'], 1)
-  if (document.getIn(['refs']) == null) document.setIn(['refs'], document.createNode({}))
-  document.setIn(['refs', credentialRef], credentialValue)
   return document.toString()
 }
 

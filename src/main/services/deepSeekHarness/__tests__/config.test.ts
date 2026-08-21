@@ -231,22 +231,11 @@ describe('DeepSeek Harness config transaction', () => {
     })
   })
 
-  it('writes the versioned credentials layout DSH 0.1.1 accepts', async () => {
-    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
-
-    await writeDeepSeekHarnessConfig(dir, projection())
-
-    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
-      version: 1,
-      refs: { [identity.credentialRef]: 'sk-sensitive' }
-    })
-  })
-
-  it('updates the managed ref inside an already versioned credentials document', async () => {
+  it('nests the managed credential under refs and drops the top-level key DSH 0.1.1 rejects', async () => {
     const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
     await writeFile(
       path.join(dir, '.credentials.yaml'),
-      `version: 1\nrefs:\n  OTHER_KEY: keep\n  ${identity.credentialRef}: sk-stale\n`,
+      `version: 1\nrefs:\n  OTHER_KEY: keep\n${identity.credentialRef}: sk-stale\n`,
       { mode: 0o600 }
     )
 
@@ -255,6 +244,22 @@ describe('DeepSeek Harness config transaction', () => {
     expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
       version: 1,
       refs: { OTHER_KEY: 'keep', [identity.credentialRef]: 'sk-sensitive' }
+    })
+  })
+
+  it('keeps the flat layout pre-0.1.1 DSH reads, including a credential named version', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      [identity.credentialRef]: 'sk-sensitive'
+    })
+
+    await writeFile(path.join(dir, '.credentials.yaml'), 'version: sk-legacy\n', { mode: 0o600 })
+    await writeDeepSeekHarnessConfig(dir, projection())
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 'sk-legacy',
+      [identity.credentialRef]: 'sk-sensitive'
     })
   })
 
