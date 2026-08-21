@@ -824,6 +824,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
               : isErrorStatus
                 ? record.error
                 : (record.result ?? '-')
+
           return (
             <RowFlex className="items-start gap-1">
               {record.sessionId && (

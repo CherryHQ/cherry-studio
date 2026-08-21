@@ -155,9 +155,6 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
-export const TaskRunDisplayStatusSchema = z.enum(['running', 'completed', 'failed', 'cancelled'])
-export type TaskRunDisplayStatus = z.infer<typeof TaskRunDisplayStatusSchema>
-
 export const TaskRunSummarySchema = z.discriminatedUnion('status', [
   z.strictObject({ status: z.literal('queued') }),
   z.strictObject({ status: z.literal('running') }),
@@ -205,7 +202,7 @@ export const TaskRunLogEntitySchema = z.strictObject({
   startedAt: z.string(),
   durationMs: z.number(),
   /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
-  status: TaskRunDisplayStatusSchema,
+  status: z.enum(['running', 'completed', 'failed', 'cancelled']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })

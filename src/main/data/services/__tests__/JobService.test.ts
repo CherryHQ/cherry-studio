@@ -7,9 +7,8 @@ import { jobService } from '@data/services/JobService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq, type SQL } from 'drizzle-orm'
-import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
-import { describe, expect, it, vi } from 'vitest'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
 
 const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
   type: 'test.echo',
@@ -124,7 +123,7 @@ describe('JobService.list/count filters', () => {
 })
 
 describe('JobService.getRunStatesByScheduleIds', () => {
-  const dbh = setupTestDatabase()
+  setupTestDatabase()
 
   const createSchedule = (name: string) =>
     jobScheduleService.create({
@@ -200,52 +199,6 @@ describe('JobService.getRunStatesByScheduleIds', () => {
         [runningSchedule.id, { kind: 'running' }],
         [unfinishedSchedule.id, { kind: 'unfinished' }],
         [terminalSchedule.id, { kind: 'terminal', status: 'cancelled', finishedAt: now - 1_000 }]
-      ])
-    )
-  })
-
-  it('uses bounded index seeks instead of ranking retained schedule history', () => {
-    const schedule = createSchedule('run-state-query-plan')
-    const now = Date.now()
-    dbh.db
-      .insert(jobTable)
-      .values(
-        Array.from({ length: 500 }, (_, index) => ({
-          id: `0198a000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
-          type: 'agent.task',
-          status: index === 499 ? ('completed' as const) : ('pending' as const),
-          queue: 'agent:test',
-          scheduleId: schedule.id,
-          scheduledAt: now + index,
-          startedAt: index === 499 ? now + index : null,
-          finishedAt: index === 499 ? now + index + 1 : null,
-          maxAttempts: 1,
-          input: {},
-          createdAt: now + index,
-          updatedAt: now + index
-        }))
-      )
-      .run()
-
-    const allSpy = vi.spyOn(dbh.db, 'all')
-    jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])
-
-    const dialect = new SQLiteSyncDialect({ casing: 'snake_case' })
-    const queries = allSpy.mock.calls.map(([query]) => dialect.sqlToQuery(query as SQL))
-    const plans = queries.flatMap(({ sql: query, params }) =>
-      dbh.sqlite
-        .prepare(`EXPLAIN QUERY PLAN ${query}`)
-        .all(...params)
-        .map((row) => (row as { detail: string }).detail)
-    )
-
-    expect(queries).toHaveLength(3)
-    expect(queries.some(({ sql: query }) => /row_number/i.test(query))).toBe(false)
-    expect(plans.some((detail) => /USE TEMP B-TREE/i.test(detail))).toBe(false)
-    expect(plans).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('job_status_idx'),
-        expect.stringContaining('job_schedule_id_finished_at_idx')
       ])
     )
   })

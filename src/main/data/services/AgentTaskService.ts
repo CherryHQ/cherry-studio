@@ -15,19 +15,14 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type {
-  ScheduledTaskEntity,
-  TaskRunDisplayStatus,
-  TaskRunLogEntity,
-  TaskRunSummary
-} from '@shared/data/api/schemas/agents'
+import type { ScheduledTaskEntity, TaskRunLogEntity, TaskRunSummary } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema,
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
-import type { JobScheduleSnapshot, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
@@ -121,10 +116,6 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
   if (!snapshot.enabled) return 'paused'
   if (snapshot.trigger.kind === 'once' && snapshot.nextRun == null && snapshot.lastRun != null) return 'completed'
   return 'active'
-}
-
-function toTaskRunDisplayStatus(status: JobStatus): TaskRunDisplayStatus {
-  return status === 'pending' || status === 'delayed' ? 'running' : status
 }
 
 export class AgentTaskService {
@@ -320,7 +311,8 @@ export class AgentTaskService {
     // jobTable has 6 states; the renderer's run log model only shows running
     // + 3 terminal states. Collapse pending/delayed to 'running' so queued
     // jobs are visible (matches the user's mental model of "task is in flight").
-    const status = toTaskRunDisplayStatus(job.status)
+    const status: TaskRunLogEntity['status'] =
+      job.status === 'pending' || job.status === 'delayed' ? 'running' : job.status
 
     return {
       id: job.id,
