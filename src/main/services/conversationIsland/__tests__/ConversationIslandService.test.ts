@@ -270,6 +270,24 @@ describe('ConversationIslandService', () => {
     expect(mocks.geometryResolve).toHaveBeenCalledWith(externalDisplay, expect.any(Map), 320)
   })
 
+  it('discards terminal activity while disabled or when the feature is disabled', () => {
+    emitActivity('done', 100, 'topic-done')
+    emitActivity('error', 200, 'topic-error')
+
+    expect(vi.getTimerCount()).toBe(0)
+
+    changePreference('feature.conversation_island.enabled', true)
+    expect(services.windowManager.open).not.toHaveBeenCalled()
+
+    emitActivity('done', 300, 'topic-active')
+    expect(services.windowManager.open).toHaveBeenCalledOnce()
+
+    changePreference('feature.conversation_island.enabled', false)
+    changePreference('feature.conversation_island.enabled', true)
+
+    expect(services.windowManager.open).toHaveBeenCalledOnce()
+  })
+
   it('does not resolve business titles when title display is disabled', () => {
     changePreference('feature.conversation_island.show_title', false)
     changePreference('feature.conversation_island.enabled', true)

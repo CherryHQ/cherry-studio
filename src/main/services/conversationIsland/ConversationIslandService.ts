@@ -143,6 +143,7 @@ export class ConversationIslandService extends BaseService {
 
     if (this.enabled) this.refreshPresentation()
     else {
+      if (status === 'done' || status === 'error') this.activities.delete(event.topicId)
       selectPrimaryActivity(this.activities, Date.now())
       this.pruneTitleCache()
     }
@@ -154,6 +155,10 @@ export class ConversationIslandService extends BaseService {
 
     if (!enabled) {
       this.deactivateResources()
+      for (const [topicId, activity] of this.activities) {
+        if (isTerminal(activity.status)) this.activities.delete(topicId)
+      }
+      this.pruneTitleCache()
       return
     }
 
