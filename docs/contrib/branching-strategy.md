@@ -63,6 +63,7 @@ When contributing to Cherry Studio, please follow these guidelines:
    - Resolve any automatically reported backport conflicts without merging all of `main` into the release branch
    - Publishing the GitHub Release opens a metadata-only sync PR from the release tag to the latest `main`
    - Keep the metadata PR title unchanged; its squash commit marks the next release-note collection boundary
+   - Follow the [Release Workflow Operations](./release-workflow.md) runbook to prepare, build, hotfix, publish, and synchronize a release
 
 ## Workflow Diagram
 
