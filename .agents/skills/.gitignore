@@ -4,6 +4,8 @@
 !.gitignore
 !README*.md
 !public-skills.txt
+!agent-notes/
+!agent-notes/**
 !cherry-electron-dev/
 !cherry-electron-dev/**
 !cherry-pr-test/
@@ -12,6 +14,10 @@
 !create-skill/**
 !demand-first-review/
 !demand-first-review/**
+!docs-governance/
+!docs-governance/**
+!find-simplifications/
+!find-simplifications/**
 !gh-create-issue/
 !gh-create-issue/**
 !gh-create-pr/
@@ -20,5 +26,7 @@
 !gh-pr-review/**
 !prepare-release/
 !prepare-release/**
+!translate-docs/
+!translate-docs/**
 !vercel-react-best-practices/
 !vercel-react-best-practices/**

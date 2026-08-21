@@ -14,6 +14,14 @@
 | [Linux Packaging](./contrib/linux-packaging.md) | Linux packaging flow using pinned better-sqlite3 prebuilds, with build commands and prebuild update steps |
 | [Test Plan](./contrib/test-plan.md) | The Test Plan process for beta and rc testing, covering user participation and maintainer PR workflow |
 
+## Documentation Governance
+
+| Document | Description |
+|----------|-------------|
+| [Bilingual Documentation](./i18n/README.md) | Bilingual documentation pairing contract, rollout scope, consistency records, and validation commands |
+| [Documentation Terminology](./i18n/terminology.md) | Generated English and Simplified Chinese terminology used by documentation translation |
+| [Documentation Translation Rules](./i18n/translation-rules.md) | Faithfulness, terminology, structure, and minimal-update rules for English and Simplified Chinese documentation |
+
 ## References
 
 ### AI

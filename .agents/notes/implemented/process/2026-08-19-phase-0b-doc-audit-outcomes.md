@@ -47,3 +47,7 @@ later rollout phases.
 - Existing reference links remain stable through Phase 0b.
 - The 24 legacy prefixed basenames are accepted; the no-redundant-prefix rule
   applies when a document is newly created or renamed.
+
+## Verification
+
+- Regression — `pnpm docs:check`: the closed domain tree, frontmatter sources, links, and generated index remain consistent with the audited corpus.

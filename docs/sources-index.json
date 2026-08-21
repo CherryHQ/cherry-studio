@@ -1,0 +1,437 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "path": "docs/contrib/app-upgrade.md",
+      "sources": ["dev-app-update.yml","electron-builder.yml","resources/cherry-studio/release-history.json","src/main/services/AppUpdaterService.ts"]
+    },
+    {
+      "path": "docs/contrib/feishu-notify.md",
+      "sources": [".github/workflows/github-issue-tracker.yml","scripts/feishu-notify.ts"]
+    },
+    {
+      "path": "docs/contrib/linux-packaging.md",
+      "sources": ["scripts/linux-native"]
+    },
+    {
+      "path": "docs/references/ai/adapter-family.md",
+      "sources": ["packages/provider-registry/data/providers.json","packages/provider-registry/src/registry-utils.ts","src/main/ai/provider/endpoint.ts","src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts"]
+    },
+    {
+      "path": "docs/references/ai/adding-a-runtime.md",
+      "sources": ["src/main/ai/runtime/registerDrivers.ts","src/main/ai/runtime/types.ts","src/shared/ai/agentRuntimeCapabilities.ts"]
+    },
+    {
+      "path": "docs/references/ai/agent-loop.md",
+      "sources": ["src/main/ai/runtime/aiSdk/Agent.ts","src/main/ai/runtime/aiSdk/params/composeHooks.ts"]
+    },
+    {
+      "path": "docs/references/ai/agent-prompt-layers.md",
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agents/bootstrap.ts","src/main/ai/agents/prompt.ts","src/main/ai/runtime","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts"]
+    },
+    {
+      "path": "docs/references/ai/agent-session-runtime.md",
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/dsh","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts"]
+    },
+    {
+      "path": "docs/references/ai/ai-usage-records.md",
+      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts"]
+    },
+    {
+      "path": "docs/references/ai/chat-attachments.md",
+      "sources": ["src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts"]
+    },
+    {
+      "path": "docs/references/ai/core-architecture.md",
+      "sources": ["src/main/ai/AiService.ts","src/main/ai/streamManager","src/main/ipc/handlers/ai.ts","src/renderer/services/aiTransport"]
+    },
+    {
+      "path": "docs/references/ai/execution-overlay.md",
+      "sources": ["src/renderer/hooks/useExecutionOverlay.ts","src/renderer/services/aiTransport/TopicStreamSubscription.ts"]
+    },
+    {
+      "path": "docs/references/ai/image-generation-parameters.md",
+      "sources": ["packages/provider-registry/src/schemas/imageParamCatalog.ts","src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/renderer/pages/paintings"]
+    },
+    {
+      "path": "docs/references/ai/ipc-transport.md",
+      "sources": ["src/renderer/services/aiTransport/IpcChatTransport.ts","src/renderer/services/aiTransport/StreamDispatchService.ts","src/renderer/services/aiTransport/TopicStreamSubscription.ts"]
+    },
+    {
+      "path": "docs/references/ai/model-retry.md",
+      "sources": ["src/main/ai/runtime/aiSdk/retry","src/renderer/pages/settings/ModelSettings/ModelSettings.tsx"]
+    },
+    {
+      "path": "docs/references/ai/observability.md",
+      "sources": ["src/main/ai/observability"]
+    },
+    {
+      "path": "docs/references/ai/params-pipeline.md",
+      "sources": ["src/main/ai/runtime/aiSdk/params/buildAgentParams.ts","src/main/ai/runtime/aiSdk/params/feature.ts","src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts"]
+    },
+    {
+      "path": "docs/references/ai/provider-resolution.md",
+      "sources": ["packages/aiCore/src/core/providers/core/initialization.ts","src/main/ai/provider/config.ts","src/main/ai/provider/endpoint.ts"]
+    },
+    {
+      "path": "docs/references/ai/README.md",
+      "sources": ["src/main/ai","src/renderer/services/aiTransport"]
+    },
+    {
+      "path": "docs/references/ai/stream-manager.md",
+      "sources": ["src/main/ai/streamManager/AiStreamManager.ts","src/main/ai/streamManager/context","src/main/ai/streamManager/pipeStreamLoop.ts"]
+    },
+    {
+      "path": "docs/references/ai/tool-approval.md",
+      "sources": ["src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ipc/handlers/ai.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/hooks/useToolApprovalBridge.ts"]
+    },
+    {
+      "path": "docs/references/ai/tool-registry.md",
+      "sources": ["src/main/ai/tools/adapters/aiSdk","src/main/ai/tools/adapters/claudeCode/agentTools.ts"]
+    },
+    {
+      "path": "docs/references/api-gateway/README.md",
+      "sources": ["src/main/features/apiGateway","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings"]
+    },
+    {
+      "path": "docs/references/architecture/main-process.md",
+      "sources": ["src/main"]
+    },
+    {
+      "path": "docs/references/architecture/naming-conventions.md",
+      "sources": ["packages/ui","src"]
+    },
+    {
+      "path": "docs/references/architecture/README.md",
+      "sources": ["src/main","src/preload","src/renderer","src/shared"]
+    },
+    {
+      "path": "docs/references/architecture/renderer.md",
+      "sources": ["packages/ui","src/renderer"]
+    },
+    {
+      "path": "docs/references/architecture/shared-layer.md",
+      "sources": ["src/shared"]
+    },
+    {
+      "path": "docs/references/binary-manager/README.md",
+      "sources": ["scripts/download-binaries.js","src/main/ipc/handlers/binary.ts","src/main/services/BinaryManager.ts","src/shared/data/presets/binaryTools.ts"]
+    },
+    {
+      "path": "docs/references/chat/composer-rich-clipboard.md",
+      "sources": ["src/renderer/components/chat/messages","src/renderer/components/composer","src/renderer/utils/message/composerClipboard.ts"]
+    },
+    {
+      "path": "docs/references/chat/message-tree.md",
+      "sources": ["src/main/data/db/schemas/message.ts","src/main/data/services/MessageService.ts","src/renderer/components/chat/flow"]
+    },
+    {
+      "path": "docs/references/chat/README.md",
+      "sources": ["src/main/data/services/MessageService.ts","src/renderer/components/chat","src/renderer/components/composer","src/renderer/pages/agents/messages","src/renderer/pages/home/messages"]
+    },
+    {
+      "path": "docs/references/command/command-usage.md",
+      "sources": ["src/main/services/CommandService.ts","src/renderer/components/command","src/renderer/hooks/command","src/shared/utils/command","v2-refactor-temp/tools/data-classify/data/target-key-definitions.json"]
+    },
+    {
+      "path": "docs/references/command/README.md",
+      "sources": ["src/main/services/AppMenuService.ts","src/main/services/CommandService.ts","src/main/services/ShortcutService.ts","src/main/services/nativePopupMenu.ts","src/renderer/components/command","src/renderer/hooks/command","src/renderer/utils/command.ts","src/shared/types/command.ts","src/shared/types/shortcut.ts","src/shared/utils/command","src/shared/utils/shortcut.ts"]
+    },
+    {
+      "path": "docs/references/components/code-block-view.md",
+      "sources": ["src/renderer/components/CodeBlockView","src/renderer/components/chat/messages/markdown"]
+    },
+    {
+      "path": "docs/references/components/code-execution.md",
+      "sources": ["src/renderer/components/CodeBlockView","src/renderer/services/PyodideService.ts","src/renderer/workers/pyodide.worker.ts"]
+    },
+    {
+      "path": "docs/references/components/image-preview.md",
+      "sources": ["src/renderer/components/Preview"]
+    },
+    {
+      "path": "docs/references/components/README.md",
+      "sources": ["scripts/uiContract","src/renderer/components/CodeBlockView","src/renderer/components/Preview"]
+    },
+    {
+      "path": "docs/references/components/ui-semantic-contract.md",
+      "sources": ["packages/ui/docs/variable-catalog.md","scripts/uiContract"]
+    },
+    {
+      "path": "docs/references/data/api-design-guidelines.md",
+      "sources": ["src/main/data/api/handlers","src/main/data/db/sqliteErrors.ts","src/shared/data/api/schemas"]
+    },
+    {
+      "path": "docs/references/data/api-types.md",
+      "sources": ["src/shared/data/api/errors.ts","src/shared/data/api/paths.ts","src/shared/data/api/schemas/apiSchemas.ts","src/shared/data/api/types.ts"]
+    },
+    {
+      "path": "docs/references/data/app-state-overview.md",
+      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/v2/core/MigrationEngine.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
+    },
+    {
+      "path": "docs/references/data/best-practice-default-values-and-nullability.md",
+      "sources": ["src/main/data/db/schemas","src/main/data/services","src/shared/data/api/schemas"]
+    },
+    {
+      "path": "docs/references/data/best-practice-layered-preset-pattern.md",
+      "sources": ["src/main/data/services/MiniAppService.ts","src/main/data/services/ProviderRegistryService.ts","src/main/services/webSearch/utils/config.ts","src/renderer/hooks/useWebSearch.ts","src/shared/data/presets"]
+    },
+    {
+      "path": "docs/references/data/boot-config-overview.md",
+      "sources": ["src/main/data/bootConfig","src/shared/data/bootConfig"]
+    },
+    {
+      "path": "docs/references/data/boot-config-schema-guide.md",
+      "sources": ["src/main/data/bootConfig","src/shared/data/bootConfig/bootConfigSchemas.ts","src/shared/data/bootConfig/bootConfigTypes.ts","v2-refactor-temp/tools/data-classify/data/classification.json","v2-refactor-temp/tools/data-classify/scripts/generate-boot-config.js"]
+    },
+    {
+      "path": "docs/references/data/cache-overview.md",
+      "sources": ["src/main/data/CacheService.ts","src/renderer/data/CacheService.ts","src/renderer/data/hooks/useCache.ts","src/shared/data/cache"]
+    },
+    {
+      "path": "docs/references/data/cache-schema-guide.md",
+      "sources": ["src/shared/data/cache/cacheSchemas.ts","src/shared/data/cache/cacheValueTypes.ts"]
+    },
+    {
+      "path": "docs/references/data/cache-usage.md",
+      "sources": ["src/main/data/CacheService.ts","src/renderer/data/CacheService.ts","src/renderer/data/hooks/useCache.ts"]
+    },
+    {
+      "path": "docs/references/data/data-api-in-main.md",
+      "sources": ["src/main/data/api/core/adapters","src/main/data/api/handlers","src/main/data/services"]
+    },
+    {
+      "path": "docs/references/data/data-api-in-renderer.md",
+      "sources": ["src/renderer/data/DataApiService.ts","src/renderer/data/hooks/useDataApi.ts"]
+    },
+    {
+      "path": "docs/references/data/data-api-overview.md",
+      "sources": ["src/main/data/api","src/renderer/data/DataApiService.ts","src/shared/data/api"]
+    },
+    {
+      "path": "docs/references/data/data-ordering-guide.md",
+      "sources": ["src/main/data/db/schemas/_columnHelpers.ts","src/main/data/services/utils/orderKey.ts","src/renderer/data/hooks/useReorder.ts","src/shared/data/api/schemas/_endpointHelpers.ts"]
+    },
+    {
+      "path": "docs/references/data/data-pagination-guide.md",
+      "sources": ["src/main/data/services/utils/keysetCursor.ts","src/renderer/data/hooks/useDataApi.ts","src/shared/data/api/types.ts"]
+    },
+    {
+      "path": "docs/references/data/database-construction.md",
+      "sources": ["migrations/sqlite-drizzle","src/main/data/db/DbService.ts","src/main/data/db/applyMigrations.ts","src/main/data/db/customSqls.ts"]
+    },
+    {
+      "path": "docs/references/data/database-patterns.md",
+      "sources": ["src/main/data/db/DbService.ts","src/main/data/db/schemas","src/main/data/db/schemas/_columnHelpers.ts"]
+    },
+    {
+      "path": "docs/references/data/database-seeding-guide.md",
+      "sources": ["src/main/data/db/seeding/SeedRunner.ts","src/main/data/db/seeding/seederRegistry.ts","src/main/data/db/types.d.ts"]
+    },
+    {
+      "path": "docs/references/data/preference-overview.md",
+      "sources": ["src/main/data/PreferenceService.ts","src/main/data/db/schemas/preference.ts","src/renderer/data/PreferenceService.ts","src/renderer/data/hooks/usePreference.ts","src/shared/data/preference"]
+    },
+    {
+      "path": "docs/references/data/preference-schema-guide.md",
+      "sources": ["src/shared/data/preference/preferenceTypes.ts","v2-refactor-temp/tools/data-classify/data/classification.json","v2-refactor-temp/tools/data-classify/data/target-key-definitions.json","v2-refactor-temp/tools/data-classify/scripts/generate-preferences.js"]
+    },
+    {
+      "path": "docs/references/data/preference-usage.md",
+      "sources": ["src/main/data/PreferenceService.ts","src/renderer/data/PreferenceService.ts","src/renderer/data/hooks/usePreference.ts"]
+    },
+    {
+      "path": "docs/references/data/README.md",
+      "sources": ["src/main/data","src/renderer/data","src/shared/data"]
+    },
+    {
+      "path": "docs/references/data/v2-migration-guide.md",
+      "sources": ["src/main/data/migration/v2","src/shared/data/migration/v2"]
+    },
+    {
+      "path": "docs/references/diagnostics/README.md",
+      "sources": ["src/main/core/diagnostics.ts"]
+    },
+    {
+      "path": "docs/references/file/architecture.md",
+      "sources": ["src/main/data/api/handlers/files.ts","src/main/ipc/handlers/file.ts","src/main/services/file","src/shared/data/types/file.ts","src/shared/ipc/schemas/file.ts"]
+    },
+    {
+      "path": "docs/references/file/directory-tree.md",
+      "sources": ["src/main/services/file/tree","src/main/services/file/watcher.ts","src/renderer/hooks/useDirectoryTree.ts","src/shared/ipc/schemas/file.ts","src/shared/utils/file/tree.ts"]
+    },
+    {
+      "path": "docs/references/file/file-entry-cleanup.md",
+      "sources": ["src/main/data/db/schemas/file.ts","src/main/data/db/schemas/fileRelations.ts","src/main/data/services/FileEntryService.ts","src/main/data/services/FileRefService.ts","src/main/services/file/internal/entryCleanup.ts"]
+    },
+    {
+      "path": "docs/references/file/file-manager-architecture.md",
+      "sources": ["src/main/data/db/schemas/file.ts","src/main/data/services/FileEntryService.ts","src/main/data/services/FileRefService.ts","src/main/services/file","src/shared/data/types/file.ts"]
+    },
+    {
+      "path": "docs/references/file/fuzzy-search.md",
+      "sources": ["src/main/ipc.ts","src/main/services/file/tree/gitignore.ts","src/main/services/file/tree/search.ts","src/shared/types/file/common.ts"]
+    },
+    {
+      "path": "docs/references/file/README.md",
+      "sources": ["src/main/ipc/handlers/file.ts","src/main/services/file","src/shared/data/types/file.ts"]
+    },
+    {
+      "path": "docs/references/i18n/README.md",
+      "sources": ["scripts/i18n-glossary.json","scripts/i18n-sync.ts","src/main/i18n/locales","src/renderer/i18n"]
+    },
+    {
+      "path": "docs/references/ipc/ipc-migration-guide.md",
+      "sources": ["src/main/ipc/handlers","src/shared/ipc/schemas"]
+    },
+    {
+      "path": "docs/references/ipc/ipc-overview.md",
+      "sources": ["src/main/ipc","src/shared/ipc"]
+    },
+    {
+      "path": "docs/references/ipc/ipc-schema-guide.md",
+      "sources": ["src/shared/ipc/define.ts","src/shared/ipc/schemas"]
+    },
+    {
+      "path": "docs/references/ipc/ipc-usage.md",
+      "sources": ["src/main/ipc/handlers","src/renderer/ipc/useIpcOn.ts","src/shared/ipc/schemas"]
+    },
+    {
+      "path": "docs/references/ipc/README.md",
+      "sources": ["src/main/ipc","src/shared/ipc"]
+    },
+    {
+      "path": "docs/references/job-and-scheduler/concurrency-and-locks.md",
+      "sources": ["src/main/core/job/JobManager.ts","src/main/core/job/runtime/DispatchQueue.ts"]
+    },
+    {
+      "path": "docs/references/job-and-scheduler/handler-authoring.md",
+      "sources": ["src/main/core/job/JobManager.ts","src/main/core/job/jobRegistry.ts"]
+    },
+    {
+      "path": "docs/references/job-and-scheduler/migration-checklist.md",
+      "sources": ["src/main/core/job"]
+    },
+    {
+      "path": "docs/references/job-and-scheduler/overview.md",
+      "sources": ["src/main/core/job","src/main/core/scheduler","src/main/data/db/schemas/job.ts"]
+    },
+    {
+      "path": "docs/references/job-and-scheduler/README.md",
+      "sources": ["src/main/core/job","src/main/core/scheduler"]
+    },
+    {
+      "path": "docs/references/job-and-scheduler/scheduler-usage.md",
+      "sources": ["src/main/core/job/JobManager.ts","src/main/core/lifecycle/BaseService.ts","src/main/core/scheduler/SchedulerService.ts"]
+    },
+    {
+      "path": "docs/references/knowledge/experiment/knowledge-technical-design.md",
+      "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/data/migration/v2/migrators/KnowledgeVectorMigrator.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query"]
+    },
+    {
+      "path": "docs/references/knowledge/knowledge-service.md",
+      "sources": ["src/main/ai/tools/knowledgeLookup.ts","src/main/data/db/schemas/knowledge.ts","src/main/data/services/KnowledgeBaseService.ts","src/main/data/services/KnowledgeItemService.ts","src/main/features/knowledge","src/main/ipc/handlers/knowledge.ts","src/shared/ipc/schemas/knowledge.ts"]
+    },
+    {
+      "path": "docs/references/knowledge/operation-guards.md",
+      "sources": ["src/main/data/services/KnowledgeItemService.ts","src/main/features/knowledge/ingestion","src/main/features/knowledge/tasks"]
+    },
+    {
+      "path": "docs/references/knowledge/README.md",
+      "sources": ["src/main/ai/tools/knowledgeLookup.ts","src/main/data/db/schemas/knowledge.ts","src/main/features/knowledge"]
+    },
+    {
+      "path": "docs/references/knowledge/workflow-architecture.md",
+      "sources": ["src/main/features/knowledge/KnowledgeService.ts","src/main/features/knowledge/ingestion","src/main/features/knowledge/tasks"]
+    },
+    {
+      "path": "docs/references/lan-transfer/README.md",
+      "sources": ["src/main/services/lanTransfer","src/shared/types/lanTransfer.ts"]
+    },
+    {
+      "path": "docs/references/lifecycle/application-overview.md",
+      "sources": ["src/main/core/application","src/main/core/lifecycle"]
+    },
+    {
+      "path": "docs/references/lifecycle/lifecycle-decision-guide.md",
+      "sources": ["src/main/core/application/serviceRegistry.ts","src/main/core/lifecycle"]
+    },
+    {
+      "path": "docs/references/lifecycle/lifecycle-migration-guide.md",
+      "sources": ["src/main/core/application/serviceRegistry.ts","src/main/core/lifecycle"]
+    },
+    {
+      "path": "docs/references/lifecycle/lifecycle-overview.md",
+      "sources": ["src/main/core/lifecycle"]
+    },
+    {
+      "path": "docs/references/lifecycle/lifecycle-usage.md",
+      "sources": ["src/main/core/application","src/main/core/lifecycle"]
+    },
+    {
+      "path": "docs/references/lifecycle/README.md",
+      "sources": ["src/main/core/application","src/main/core/lifecycle"]
+    },
+    {
+      "path": "docs/references/logging/README.md",
+      "sources": ["src/main/core/logger/LoggerService.ts","src/renderer/services/LoggerService.ts"]
+    },
+    {
+      "path": "docs/references/provider-model/provider-registry.md",
+      "sources": ["packages/provider-registry","src/main/data/db/seeding","src/main/data/services/ModelService.ts","src/main/data/services/ProviderRegistryService.ts"]
+    },
+    {
+      "path": "docs/references/provider-model/README.md",
+      "sources": ["packages/provider-registry","src/main/data/services/ProviderRegistryService.ts"]
+    },
+    {
+      "path": "docs/references/security/README.md",
+      "sources": ["src/main/utils/remoteFetch.ts","src/main/utils/remoteUrlSafety.ts"]
+    },
+    {
+      "path": "docs/references/security/remote-fetch.md",
+      "sources": ["src/main/utils/remoteFetch.ts","src/main/utils/remoteUrlSafety.ts"]
+    },
+    {
+      "path": "docs/references/testing/database-testing.md",
+      "sources": ["src/main/data/db","tests/__mocks__","tests/helpers/db"]
+    },
+    {
+      "path": "docs/references/testing/frontend-testing.md",
+      "sources": ["packages/ui","src/renderer","tests/__mocks__","tests/e2e"]
+    },
+    {
+      "path": "docs/references/testing/README.md",
+      "sources": ["packages/ui","src/renderer","tests"]
+    },
+    {
+      "path": "docs/references/window-manager/README.md",
+      "sources": ["src/main/core/window"]
+    },
+    {
+      "path": "docs/references/window-manager/window-manager-api-reference.md",
+      "sources": ["src/main/core/window/WindowManager.ts","src/main/core/window/behavior.ts"]
+    },
+    {
+      "path": "docs/references/window-manager/window-manager-migration-guide.md",
+      "sources": ["src/main/core/window/types.ts","src/main/core/window/windowRegistry.ts"]
+    },
+    {
+      "path": "docs/references/window-manager/window-manager-overview.md",
+      "sources": ["src/main/core/window/WindowManager.ts","src/main/core/window/types.ts"]
+    },
+    {
+      "path": "docs/references/window-manager/window-manager-platform.md",
+      "sources": ["src/main/core/window/behavior.ts","src/main/core/window/quirks.ts","src/main/core/window/windowRegistry.ts"]
+    },
+    {
+      "path": "docs/references/window-manager/window-manager-usage.md",
+      "sources": ["src/main/core/window","src/renderer/hooks/useWindowInitData.ts"]
+    },
+    {
+      "path": "docs/references/window-manager/window-manager-warmup-mechanics.md",
+      "sources": ["src/main/core/window/WindowManager.ts","src/main/core/window/windowRegistry.ts"]
+    }
+  ]
+}
