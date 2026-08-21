@@ -1612,12 +1612,6 @@
     "endpoint_hint": "Endpoint / Clave en Model Service",
     "folder_placeholder": "Seleccionar carpeta de trabajo",
     "format_json": "Formatear",
-    "hermes_dashboard": {
-      "confirm": {
-        "content": "El panel puede cambiar la configuración nativa y las claves API de Hermes. Estos cambios pueden sobrescribir el proveedor y el modelo seleccionados en CodeMate.",
-        "title": "¿Abrir el panel de Hermes?"
-      }
-    },
     "install": "Instalar",
     "install_success": "Instalación exitosa",
     "installing": "Instalando…",

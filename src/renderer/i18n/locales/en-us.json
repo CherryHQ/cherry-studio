@@ -1612,12 +1612,6 @@
     "endpoint_hint": "Endpoint / Key in Model Service",
     "folder_placeholder": "Select working directory",
     "format_json": "Format",
-    "hermes_dashboard": {
-      "confirm": {
-        "content": "The dashboard can change Hermes's native configuration and API keys. These changes may override CodeMate's selected provider and model.",
-        "title": "Open Hermes Dashboard?"
-      }
-    },
     "install": "Install",
     "install_success": "Installation successful",
     "installing": "Installing…",

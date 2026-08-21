@@ -1612,12 +1612,6 @@
     "endpoint_hint": "Punct final / Cheie în Serviciul de Model",
     "folder_placeholder": "Selectează directorul de lucru",
     "format_json": "Formatează",
-    "hermes_dashboard": {
-      "confirm": {
-        "content": "Tabloul de bord poate modifica configurația nativă și cheile API ale Hermes. Aceste modificări pot suprascrie furnizorul și modelul selectate în CodeMate.",
-        "title": "Deschideți tabloul de bord Hermes?"
-      }
-    },
     "install": "Instalează",
     "install_success": "Instalare reușită",
     "installing": "Se instalează…",

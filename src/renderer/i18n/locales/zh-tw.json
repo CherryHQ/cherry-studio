@@ -1612,12 +1612,6 @@
     "endpoint_hint": "端點 / Key 在模型服務",
     "folder_placeholder": "選擇工作目錄",
     "format_json": "格式化",
-    "hermes_dashboard": {
-      "confirm": {
-        "content": "Dashboard 可以修改 Hermes 的原生設定和 API Key，這些修改可能覆蓋 CodeMate 目前選擇的模型服務商和模型。",
-        "title": "開啟 Hermes Dashboard？"
-      }
-    },
     "install": "安裝",
     "install_success": "安裝成功",
     "installing": "安裝中…",

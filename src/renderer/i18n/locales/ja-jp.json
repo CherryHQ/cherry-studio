@@ -1612,12 +1612,6 @@
     "endpoint_hint": "エンドポイント / モデルサービスのキー",
     "folder_placeholder": "作業フォルダーを選択してください",
     "format_json": "形式",
-    "hermes_dashboard": {
-      "confirm": {
-        "content": "Dashboard では Hermes のネイティブ設定と API キーを変更できます。これらの変更により、CodeMate で選択したプロバイダーとモデルが上書きされる場合があります。",
-        "title": "Hermes Dashboard を開きますか？"
-      }
-    },
     "install": "インストール",
     "install_success": "インストール成功",
     "installing": "インストール中…",
