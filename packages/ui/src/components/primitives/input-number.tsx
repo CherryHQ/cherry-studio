@@ -9,12 +9,15 @@ import { Input } from './input'
  *
  * Because it owns that text it must settle it when the caret leaves: on
  * blur/Enter the field normalizes what was typed — clamped into `[min, max]`,
- * truncated when `step` is an integer — and renders the result. **That is not
- * configurable**; a field cannot be left showing `"1."`.
+ * truncated when `step` is an integer — and hands the result to `onBlur`.
+ * **Settling is not configurable**; a field cannot be left showing `"1."`.
  *
- * `onBlur` reports what that normalization produced. It states a fact — "this
- * is the value the field settled on" — and leaves the meaning to the caller:
- * persist it, ignore it, or diff it against something else.
+ * What `onBlur` hands over is a fact — "this is the value the field settled
+ * on" — and the meaning is the caller's: persist it, ignore it, diff it against
+ * something else. But the field renders `value`, never its own result, so the
+ * normalized value reaches the screen only once the caller routes it back.
+ * `onChange` never normalizes, which makes `onBlur` the callback nearly every
+ * caller needs.
  *
  * Both callbacks take the value, not the DOM event: the raw `FocusEvent` would
  * be misleading here anyway, since `event.target.value` at that point is still
@@ -30,11 +33,11 @@ interface InputNumberProps
    * Use it for live coupling: a slider that tracks the field, form state, etc.
    */
   onChange?: (value: number | null) => void
-  /** Fires on blur/Enter with the normalized value — the same one now rendered. */
+  /** Fires on blur/Enter with the normalized value; route it back into `value` to render it. */
   onBlur?: (value: number | null) => void
   /** Also decides whether a minus sign can be typed: omitted or negative allows it. */
   min?: number
-  /** Must be at least `min`: an empty range settles on `min` and warns. */
+  /** Read on commit only, so it does nothing without `onBlur`. An empty range settles on `min` and warns. */
   max?: number
   /** Also decides whether the value is an integer: an integer `step` truncates on commit. */
   step?: number
