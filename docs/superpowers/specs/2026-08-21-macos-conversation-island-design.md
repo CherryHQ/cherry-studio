@@ -199,6 +199,8 @@ When both the feature and title display are enabled, the service asks `Notificat
 
 ### Renderer ownership
 
+The feature preload is a self-contained CommonJS entry. It exposes only the existing generic `ipcApi` request/event bridge and imports no local preload module, because Electron's sandbox cannot load Rollup-generated relative preload chunks. A build assertion verifies that `conversationIsland.js` contains no relative `require()` call.
+
 Add a small `src/renderer/windows/conversationIsland/` entry containing:
 
 - an HTML entry with a strict CSP;
@@ -215,6 +217,7 @@ A declaration-only snapshot type belongs in `src/shared/types/conversationIsland
 - stable Primary Activity identity and navigation target;
 - localized state text and semantic state kind;
 - optional bounded title;
+- a localized navigation title that is retained when the visible-title preference is off, so the existing navigation route can still name a newly opened tab without querying renderer state;
 - secondary activity count;
 - notched/fallback presentation variant.
 
@@ -241,7 +244,7 @@ Initial and subsequent snapshots use `WindowManager` init data and `pushInitData
 ### Enabled but idle
 
 - No BrowserWindow, renderer process, helper process, timer, or polling.
-- Cached display geometry and the same notification activity listener only.
+- Cached display geometry, three passive Electron display-change listeners, and the same notification activity listener only.
 
 ### Active
 
