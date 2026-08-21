@@ -111,6 +111,7 @@ import {
   ConversationExecutionDriverKind,
   ConversationInputProvenance,
   ConversationResponderKind,
+  ConversationRunMode,
   ConversationTerminalAudience,
   isConversationQuiescent
 } from './conversationState'
@@ -300,6 +301,17 @@ export class ConversationRuntimeService extends BaseService {
             this.runtime.failStep(ref, turnId, input.id, serializeError(error))
             logger.warn('Conversation step admission failed', { conversation: conversationRefKey(ref), turnId, error })
           })
+        }),
+      scheduleRuntimeTurn: (ref, input, suspendEffectId) =>
+        queueMicrotask(() => {
+          void this.scheduleAutonomousTurn(ref, input, suspendEffectId).catch((error) => {
+            this.deleteCommittedInput(input.id)
+            this.runtime.failRuntimeTurnCommit(ref, suspendEffectId)
+            logger.warn('Agent autonomous turn commit failed', {
+              conversation: conversationRefKey(ref),
+              error
+            })
+          })
         })
     }
     this.runtime = new ConversationRuntime({ resolve: () => ports }, ids, (ref, command, transition) =>
@@ -484,7 +496,7 @@ export class ConversationRuntimeService extends BaseService {
     this.runtime.rejectRedirectedInput(ref, toConversationInputId(resourceEntry[0]))
   }
 
-  startAgentAutonomous(sessionId: string, headless: boolean): void {
+  startAgentAutonomous(sessionId: string, headless: boolean): boolean {
     const ref: ConversationRef = { kind: ConversationKind.Agent, id: sessionId }
     const inputId = toConversationInputId(crypto.randomUUID())
     const input: ConversationInput = {
@@ -503,10 +515,23 @@ export class ConversationRuntimeService extends BaseService {
       agentAutonomous: true
     })
     this.presentationBindings.set(inputId, { subscriber: nullStreamListener })
-    void this.scheduleCommittedInput(ref, input, true).catch((error) => {
+    if (this.runtime.inspect(ref).phase === ConversationPhase.Idle) {
+      void this.scheduleCommittedInput(ref, input, true).catch((error) => {
+        this.deleteCommittedInput(inputId)
+        logger.warn('Agent autonomous Conversation admission failed', { sessionId, error })
+      })
+      return true
+    }
+    const transition = this.runtime.requestRuntimePreemption(ref, input)
+    if (transition.rejection) {
       this.deleteCommittedInput(inputId)
-      logger.warn('Agent autonomous Conversation admission failed', { sessionId, error })
-    })
+      return false
+    }
+    return true
+  }
+
+  releaseAgentRuntimeOwnership(sessionId: string, suspendEffectId?: ConversationEffectId): void {
+    this.runtime.releaseRuntimeOwnership({ kind: ConversationKind.Agent, id: sessionId }, suspendEffectId)
   }
 
   openAgentActivity(
@@ -1233,7 +1258,23 @@ export class ConversationRuntimeService extends BaseService {
             ? ConversationInteractionResumeMode.NewRun
             : ConversationInteractionResumeMode.InPlace,
         ...(ref.kind === ConversationKind.Agent
-          ? { redirect: (effect) => this.redirectAgentInput(ref, effect.input) }
+          ? {
+              redirect: (effect) => this.redirectAgentInput(ref, effect.input),
+              ...(model.agentRuntimeTurnId
+                ? {
+                    suspend: (effect) =>
+                      application
+                        .get('AgentConnectionManager')
+                        .suspendConversationExecution(ref.id, model.agentRuntimeTurnId!, effect.effectId),
+                    resumeSuspended: () =>
+                      application
+                        .get('AgentConnectionManager')
+                        .resumeConversationExecution(ref.id, model.agentRuntimeTurnId!),
+                    discardRuntimeBuffer: () =>
+                      application.get('AgentConnectionManager').discardAutonomousBuffer(ref.id)
+                  }
+                : {})
+            }
           : {})
       })
       return {
@@ -1254,6 +1295,78 @@ export class ConversationRuntimeService extends BaseService {
 
   private terminalPersistencePort(): ConversationTerminalPersistencePort {
     return { persistTerminal: (effect) => this.persistTerminal(effect) }
+  }
+
+  private scheduleAutonomousTurn(
+    ref: ConversationRef,
+    input: ConversationInput,
+    suspendEffectId: ConversationEffectId
+  ): Promise<void> {
+    return this.actorFor(ref).enqueue(ConversationAdmissionOperationKind.RuntimeContinuation, async (operation) => {
+      operation.assertCurrent()
+      const state = this.runtime.inspect(ref)
+      const resource = this.committedInputs.get(input.id)
+      const presentation = this.presentationBindings.get(input.id)
+      if (!resource || !presentation) throw new Error(`Conversation input resource is missing: ${input.id}`)
+      if (
+        ref.kind !== ConversationKind.Agent ||
+        state.phase !== ConversationPhase.Running ||
+        state.runMode !== ConversationRunMode.Preempting ||
+        state.suspendEffectId !== suspendEffectId
+      ) {
+        throw new Error('Agent autonomous preemption was superseded before history commit')
+      }
+      const intent = application
+        .get('AgentConnectionManager')
+        .describeConversationAutonomous(ref.id, resource.request.headless === true)
+      const turnId = toConversationTurnId(crypto.randomUUID())
+      const executions = this.reserveExecutionIdentities([intent.modelId])
+      const preview: ConversationCommand = {
+        type: ConversationCommandType.RuntimeTurnCommitted,
+        inputId: input.id,
+        suspendEffectId,
+        turnId,
+        anchorNodeId: null,
+        responder: input.responder,
+        executions: this.provisionalExecutionPlans(ref, executions)
+      }
+      this.assertAdmissionPreview(ref, preview)
+      const committed = agentChatContextProvider.commitRuntimeTurn(intent, presentation.subscriber)
+      const plans = this.installCommittedExecutions(
+        ref,
+        turnId,
+        committed,
+        presentation.extraListeners ?? [],
+        new Map(),
+        executions
+      )
+      const reservation = committed.reservation
+      const turn: TurnProjection = {
+        ref,
+        id: turnId,
+        inputId: input.id,
+        listeners: new Map(
+          [...reservation.listeners, ...(presentation.extraListeners ?? [])].map((listener) => [listener.id, listener])
+        ),
+        cleanupPorts: reservation.cleanupPorts,
+        executions: new Map(plans.map(({ projection }) => [projection.id, projection])),
+        reservedMessages: reservation.reservedMessages,
+        activeNodeDecision: { move: ConversationActiveNodeMove.Advance }
+      }
+      this.turns.set(this.turnKey(ref, turnId), turn)
+      const transition = this.runtime.commitRuntimeTurn(
+        ref,
+        input,
+        suspendEffectId,
+        turnId,
+        plans.map(({ plan }) => plan)
+      )
+      if (transition.rejection) {
+        this.releaseTurn(turn)
+        throw new Error(`Committed autonomous turn was rejected: ${transition.rejection}`)
+      }
+      this.deleteCommittedInput(input.id)
+    })
   }
 
   private scheduleCommittedInput(ref: ConversationRef, input: ConversationInput, autonomous: boolean): Promise<void> {
@@ -1578,10 +1691,21 @@ export class ConversationRuntimeService extends BaseService {
     if (transition.rejection) return
     switch (command.type) {
       case ConversationCommandType.TurnCommitted:
+      case ConversationCommandType.RuntimeTurnCommitted:
       case ConversationCommandType.StepCommitted:
       case ConversationCommandType.ExecutionsAdded:
         this.deferredQuiescence.delete(conversationRefKey(ref))
         this.publishConversationStatus(ref, command.turnId, ConversationStatus.Pending)
+        return
+      case ConversationCommandType.PersistenceSucceeded:
+      case ConversationCommandType.RuntimeOwnershipReleased:
+      case ConversationCommandType.RuntimeTurnCommitFailed:
+        if (
+          transition.state.phase === ConversationPhase.Running &&
+          transition.state.runMode === ConversationRunMode.Foreground
+        ) {
+          this.publishConversationStatus(ref, transition.state.turn.id, ConversationStatus.Pending)
+        }
         return
       default:
         return
@@ -1847,6 +1971,11 @@ export class ConversationRuntimeService extends BaseService {
   }
 
   private latestTurn(ref: ConversationRef): TurnProjection | undefined {
+    const state = this.runtime.inspect(ref)
+    if (state.phase === ConversationPhase.Running || state.phase === ConversationPhase.Stopping) {
+      const current = this.turns.get(this.turnKey(ref, state.turn.id))
+      if (current) return current
+    }
     const prefix = `${conversationRefKey(ref)}\0`
     return [...this.turns.entries()].findLast(([key]) => key.startsWith(prefix))?.[1]
   }

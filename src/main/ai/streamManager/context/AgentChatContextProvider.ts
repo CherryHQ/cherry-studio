@@ -268,7 +268,8 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
             modelId: validated.uniqueModelId,
             outputNodeId: assistantMessageId,
             rootSpan: turnTrace.rootSpan,
-            abortController
+            abortController,
+            agentRuntimeTurnId: runtimeTurnId
           }
         ],
         listeners,
@@ -396,7 +397,8 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
             modelId: intent.modelId,
             outputNodeId: assistantMessage.id,
             rootSpan: intent.rootSpan,
-            abortController: intent.abortController
+            abortController: intent.abortController,
+            agentRuntimeTurnId: intent.runtimeTurnId
           }
         ],
         listeners,

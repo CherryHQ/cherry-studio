@@ -1,4 +1,4 @@
-import type { ConversationInteractionKind, ConversationTurnKind } from '@shared/ai/conversation'
+import { type ConversationInteractionKind, ConversationTurnKind } from '@shared/ai/conversation'
 import {
   type ConversationActivityId,
   ConversationActivityKind,
@@ -49,6 +49,22 @@ export enum ConversationExecutionDriverKind {
   Agent = 'agent'
 }
 
+export enum ConversationRunMode {
+  Foreground = 'foreground',
+  Preempting = 'preempting',
+  RuntimePreempted = 'runtime-preempted'
+}
+
+export enum ConversationPreemptionPhase {
+  Suspending = 'suspending',
+  AwaitingRuntimeCommit = 'awaiting-runtime-commit'
+}
+
+export enum ConversationRuntimeOwnership {
+  Active = 'active',
+  Released = 'released'
+}
+
 export enum ConversationCommandType {
   TurnCommitted = 'turn-committed',
   InputCommitted = 'input-committed',
@@ -69,6 +85,12 @@ export enum ConversationCommandType {
   PersistenceAbandoned = 'persistence-abandoned',
   ActivityOpened = 'activity-opened',
   ActivityClosed = 'activity-closed',
+  RuntimePreemptionRequested = 'runtime-preemption-requested',
+  RuntimeSuspensionSucceeded = 'runtime-suspension-succeeded',
+  RuntimeSuspensionFailed = 'runtime-suspension-failed',
+  RuntimeTurnCommitted = 'runtime-turn-committed',
+  RuntimeTurnCommitFailed = 'runtime-turn-commit-failed',
+  RuntimeOwnershipReleased = 'runtime-ownership-released',
   KickInbox = 'kick-inbox',
   Stop = 'stop'
 }
@@ -81,6 +103,10 @@ export enum ConversationEffectType {
   AbortExecution = 'abort-execution',
   PersistTerminal = 'persist-terminal',
   FinalizeTerminalPersistence = 'finalize-terminal-persistence',
+  SuspendExecution = 'suspend-execution',
+  ResumeSuspendedExecution = 'resume-suspended-execution',
+  DiscardRuntimeBuffer = 'discard-runtime-buffer',
+  ScheduleRuntimeTurn = 'schedule-runtime-turn',
   ScheduleNextTurn = 'schedule-next-turn',
   ScheduleNextStep = 'schedule-next-step',
   PublishStatus = 'publish-status',
@@ -243,10 +269,32 @@ interface ConversationStateBase {
   readonly lastTurnId?: ConversationTurnId
 }
 
+type ConversationRunState =
+  | {
+      readonly runMode: ConversationRunMode.Foreground
+      readonly turn: ConversationTurn
+    }
+  | {
+      readonly runMode: ConversationRunMode.Preempting
+      readonly turn: ConversationTurn
+      readonly runtimeInput: ConversationInput
+      readonly preemptionPhase: ConversationPreemptionPhase
+      readonly suspendEffectId: ConversationEffectId
+      readonly runtimeOwnership: ConversationRuntimeOwnership
+    }
+  | {
+      readonly runMode: ConversationRunMode.RuntimePreempted
+      readonly turn: ConversationTurn
+      readonly suspendedTurn: ConversationTurn
+      readonly suspendEffectId: ConversationEffectId
+      readonly runtimeOwnership: ConversationRuntimeOwnership
+      readonly runtimeTerminalDurable: boolean
+    }
+
 export type ConversationState =
   | (ConversationStateBase & { readonly phase: ConversationPhase.Idle })
-  | (ConversationStateBase & { readonly phase: ConversationPhase.Running; readonly turn: ConversationTurn })
-  | (ConversationStateBase & { readonly phase: ConversationPhase.Stopping; readonly turn: ConversationTurn })
+  | (ConversationStateBase & ConversationRunState & { readonly phase: ConversationPhase.Running })
+  | (ConversationStateBase & ConversationRunState & { readonly phase: ConversationPhase.Stopping })
 
 interface ConversationEffectIdentity {
   readonly conversation: ConversationRef
@@ -284,6 +332,21 @@ export type ConversationEffect =
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.FinalizeTerminalPersistence
       readonly executionId: ConversationExecutionId
+    })
+  | (ConversationEffectIdentity & {
+      readonly type: ConversationEffectType.SuspendExecution
+      readonly executionId: ConversationExecutionId
+    })
+  | (ConversationEffectIdentity & {
+      readonly type: ConversationEffectType.ResumeSuspendedExecution
+      readonly executionId: ConversationExecutionId
+      readonly suspendEffectId: ConversationEffectId
+    })
+  | (ConversationEffectIdentity & { readonly type: ConversationEffectType.DiscardRuntimeBuffer })
+  | (ConversationEffectIdentity & {
+      readonly type: ConversationEffectType.ScheduleRuntimeTurn
+      readonly input: ConversationInput
+      readonly suspendEffectId: ConversationEffectId
     })
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ScheduleNextTurn
@@ -447,6 +510,42 @@ export type ConversationCommand =
       readonly turnTerminalEffectId: ConversationEffectId
       readonly quiescenceEffectId: ConversationEffectId
     }
+  | {
+      readonly type: ConversationCommandType.RuntimePreemptionRequested
+      readonly input: ConversationInput
+      readonly suspendEffectId: ConversationEffectId
+    }
+  | {
+      readonly type: ConversationCommandType.RuntimeSuspensionSucceeded
+      readonly suspendEffectId: ConversationEffectId
+      readonly scheduleEffectId: ConversationEffectId
+    }
+  | {
+      readonly type: ConversationCommandType.RuntimeSuspensionFailed
+      readonly suspendEffectId: ConversationEffectId
+      readonly discardEffectId: ConversationEffectId
+    }
+  | {
+      readonly type: ConversationCommandType.RuntimeTurnCommitted
+      readonly inputId: ConversationInputId
+      readonly suspendEffectId: ConversationEffectId
+      readonly turnId: ConversationTurnId
+      readonly anchorNodeId: string | null
+      readonly responder: ConversationResponderKind
+      readonly executions: readonly ConversationExecutionPlan[]
+    }
+  | {
+      readonly type: ConversationCommandType.RuntimeTurnCommitFailed
+      readonly suspendEffectId: ConversationEffectId
+      readonly resumeEffectId: ConversationEffectId
+      readonly discardEffectId: ConversationEffectId
+    }
+  | {
+      readonly type: ConversationCommandType.RuntimeOwnershipReleased
+      readonly suspendEffectId?: ConversationEffectId
+      readonly resumeEffectId: ConversationEffectId
+      readonly quiescenceEffectId: ConversationEffectId
+    }
   | { readonly type: ConversationCommandType.ActivityOpened; readonly activity: ConversationActivity }
   | {
       readonly type: ConversationCommandType.ActivityClosed
@@ -500,6 +599,240 @@ const stateHasTurn = (
 ): state is Extract<ConversationState, { phase: ConversationPhase.Running | ConversationPhase.Stopping }> =>
   state.phase === ConversationPhase.Running || state.phase === ConversationPhase.Stopping
 
+const foregroundStartingExecution = (turn: ConversationTurn): ConversationExecution | undefined =>
+  [...turn.executions.values()].find((execution) => execution.phase === ConversationExecutionPhase.Starting)
+
+const runtimeTurn = (
+  command: Extract<ConversationCommand, { type: ConversationCommandType.RuntimeTurnCommitted }>
+): ConversationTurn | undefined => {
+  if (command.executions.length === 0) return undefined
+  const executions = new Map<ConversationExecutionId, ConversationExecution>()
+  for (const plan of command.executions) {
+    if (executions.has(plan.id)) return undefined
+    executions.set(plan.id, {
+      id: plan.id,
+      outputNodeId: plan.outputNodeId,
+      driver: plan.driver,
+      modelId: plan.modelId,
+      phase: ConversationExecutionPhase.Starting,
+      runEffectId: plan.startEffectId
+    })
+  }
+  return {
+    id: command.turnId,
+    kind: ConversationTurnKind.RuntimeInitiated,
+    anchorNodeId: command.anchorNodeId,
+    responder: command.responder,
+    executions,
+    interactions: new Map()
+  }
+}
+
+const resumeForeground = (
+  state: Extract<ConversationState, { runMode: ConversationRunMode.RuntimePreempted }>,
+  resumeEffectId: ConversationEffectId
+): ConversationTransition => {
+  const execution = foregroundStartingExecution(state.suspendedTurn)
+  if (!execution) return unchanged(state, ConversationCommandRejection.Invalid)
+  return {
+    state: {
+      ref: state.ref,
+      profile: state.profile,
+      phase: state.phase,
+      runMode: ConversationRunMode.Foreground,
+      inbox: state.inbox,
+      activities: state.activities,
+      lastTurnId: state.turn.id,
+      turn: state.suspendedTurn
+    },
+    events: [{ type: ConversationEventType.TurnSettled, turnId: state.turn.id }],
+    effects: [
+      {
+        type: ConversationEffectType.ResumeSuspendedExecution,
+        conversation: state.ref,
+        turnId: state.suspendedTurn.id,
+        executionId: execution.id,
+        effectId: resumeEffectId,
+        suspendEffectId: state.suspendEffectId
+      }
+    ]
+  }
+}
+
+const settleStoppedPreemption = (
+  state: Extract<
+    ConversationState,
+    { phase: ConversationPhase.Stopping; runMode: ConversationRunMode.RuntimePreempted }
+  >,
+  settledTurn: ConversationTurn,
+  execution: Extract<ConversationExecution, { phase: ConversationExecutionPhase.Persisting }>,
+  durability: ConversationTerminalDurability,
+  command: Extract<
+    ConversationCommand,
+    { type: ConversationCommandType.PersistenceSucceeded | ConversationCommandType.PersistenceAbandoned }
+  >
+): ConversationTransition => {
+  const targetIsRuntime = state.turn.id === settledTurn.id
+  const next = {
+    ...state,
+    ...(targetIsRuntime ? { turn: settledTurn, runtimeTerminalDurable: true } : { suspendedTurn: settledTurn })
+  }
+  const bothSettled =
+    allExecutionsSettled(next.turn) &&
+    allExecutionsSettled(next.suspendedTurn) &&
+    next.runtimeOwnership === ConversationRuntimeOwnership.Released
+  const quiescent = bothSettled && !hasQuiescenceBlockingActivity(next)
+  const effects: ConversationEffect[] = [
+    {
+      type: ConversationEffectType.PublishExecutionTerminal,
+      conversation: state.ref,
+      turnId: settledTurn.id,
+      executionId: execution.id,
+      effectId: command.executionTerminalEffectId,
+      outcome: execution.outcome,
+      durability,
+      audience:
+        durability === ConversationTerminalDurability.Durable
+          ? ConversationTerminalAudience.All
+          : ConversationTerminalAudience.InternalOnly
+    },
+    {
+      type: ConversationEffectType.PublishTurnTerminal,
+      conversation: state.ref,
+      turnId: settledTurn.id,
+      effectId: command.turnTerminalEffectId,
+      outcome: settledTurnOutcome(settledTurn),
+      durability: settledTurnDurability(settledTurn),
+      quiescent
+    }
+  ]
+  if (!bothSettled) {
+    return {
+      state: next,
+      events: [
+        {
+          type: ConversationEventType.ExecutionChanged,
+          executionId: execution.id,
+          phase: ConversationExecutionPhase.Settled
+        },
+        { type: ConversationEventType.TurnSettled, turnId: settledTurn.id }
+      ],
+      effects
+    }
+  }
+  const idle: ConversationState = {
+    ref: state.ref,
+    profile: state.profile,
+    phase: ConversationPhase.Idle,
+    inbox: { nextTurn: [], nextStep: [] },
+    activities: state.activities,
+    lastTurnId: settledTurn.id
+  }
+  if (quiescent) {
+    effects.push({
+      type: ConversationEffectType.PublishQuiescence,
+      conversation: state.ref,
+      turnId: settledTurn.id,
+      effectId: command.quiescenceEffectId
+    })
+  }
+  return {
+    state: idle,
+    events: [
+      {
+        type: ConversationEventType.ExecutionChanged,
+        executionId: execution.id,
+        phase: ConversationExecutionPhase.Settled
+      },
+      { type: ConversationEventType.TurnSettled, turnId: settledTurn.id },
+      ...(quiescent ? ([{ type: ConversationEventType.ConversationQuiesced }] as const) : [])
+    ],
+    effects
+  }
+}
+
+const stopTurn = (
+  state: ConversationStateBase,
+  turn: ConversationTurn,
+  reason: string,
+  abortEffectIds: ReadonlyMap<ConversationExecutionId, ConversationEffectId>,
+  persistenceEffectIds: ReadonlyMap<ConversationExecutionId, ConversationEffectId>
+): { turn: ConversationTurn; effects: ConversationEffect[] } | undefined => {
+  const effects: ConversationEffect[] = []
+  const executions = new Map(turn.executions)
+  const interactions = new Map(turn.interactions)
+  for (const execution of turn.executions.values()) {
+    const waitingOnNewRun =
+      execution.phase === ConversationExecutionPhase.WaitingInteraction &&
+      execution.interactionIds.every(
+        (interactionId) => interactions.get(interactionId)?.resumeMode === ConversationInteractionResumeMode.NewRun
+      )
+    if (waitingOnNewRun) {
+      const persistenceEffectId = persistenceEffectIds.get(execution.id)
+      if (!persistenceEffectId) return undefined
+      for (const interactionId of execution.interactionIds) interactions.delete(interactionId)
+      const outcome: ConversationOutcome = { kind: ConversationOutcomeKind.Paused, reason }
+      executions.set(execution.id, {
+        id: execution.id,
+        outputNodeId: execution.outputNodeId,
+        driver: execution.driver,
+        modelId: execution.modelId,
+        phase: ConversationExecutionPhase.Persisting,
+        runEffectId: execution.runEffectId,
+        outcome,
+        persistenceEffectId,
+        continuation: ConversationPersistenceContinuation.Settle
+      })
+      effects.push({
+        type: ConversationEffectType.PersistTerminal,
+        conversation: state.ref,
+        turnId: turn.id,
+        executionId: execution.id,
+        effectId: persistenceEffectId,
+        outcome
+      })
+      continue
+    }
+    if (
+      execution.phase === ConversationExecutionPhase.Starting ||
+      execution.phase === ConversationExecutionPhase.Active ||
+      execution.phase === ConversationExecutionPhase.WaitingInteraction
+    ) {
+      const effectId = abortEffectIds.get(execution.id)
+      if (!effectId) return undefined
+      effects.push({
+        type: ConversationEffectType.AbortExecution,
+        conversation: state.ref,
+        turnId: turn.id,
+        executionId: execution.id,
+        effectId,
+        reason
+      })
+    } else if (execution.phase === ConversationExecutionPhase.Persisting) {
+      if (execution.continuation === ConversationPersistenceContinuation.WaitInteraction) {
+        for (const interactionId of execution.interactionIds) interactions.delete(interactionId)
+        executions.set(execution.id, { ...execution, continuation: ConversationPersistenceContinuation.Settle })
+      }
+      effects.push({
+        type: ConversationEffectType.FinalizeTerminalPersistence,
+        conversation: state.ref,
+        turnId: turn.id,
+        executionId: execution.id,
+        effectId: execution.persistenceEffectId
+      })
+    }
+  }
+  return {
+    turn: {
+      ...turn,
+      executions,
+      interactions,
+      terminalOverride: { kind: ConversationOutcomeKind.Paused, reason }
+    },
+    effects
+  }
+}
+
 const replaceExecution = (
   state: Extract<ConversationState, { phase: ConversationPhase.Running | ConversationPhase.Stopping }>,
   execution: ConversationExecution
@@ -521,6 +854,27 @@ const allExecutionsSettled = (turn: ConversationTurn): boolean =>
   turn.executions.size > 0 &&
   [...turn.executions.values()].every((execution) => execution.phase === ConversationExecutionPhase.Settled)
 
+const settledTurnOutcome = (turn: ConversationTurn): ConversationOutcome => {
+  const outcomes = [...turn.executions.values()].flatMap((execution) =>
+    execution.phase === ConversationExecutionPhase.Settled ? [execution.outcome] : []
+  )
+  return (
+    turn.terminalOverride ??
+    outcomes.find((candidate) => candidate.kind === ConversationOutcomeKind.Error) ??
+    outcomes.find((candidate) => candidate.kind === ConversationOutcomeKind.Paused) ??
+    ({ kind: ConversationOutcomeKind.Success } as const)
+  )
+}
+
+const settledTurnDurability = (turn: ConversationTurn): ConversationTerminalDurability =>
+  [...turn.executions.values()].some(
+    (execution) =>
+      execution.phase === ConversationExecutionPhase.Settled &&
+      execution.durability === ConversationTerminalDurability.DeferredRecovery
+  )
+    ? ConversationTerminalDurability.DeferredRecovery
+    : ConversationTerminalDurability.Durable
+
 const settleTurn = (
   state: Extract<ConversationState, { phase: ConversationPhase.Running | ConversationPhase.Stopping }>,
   turnTerminalEffectId: ConversationEffectId,
@@ -528,21 +882,8 @@ const settleTurn = (
   scheduleEffectId?: ConversationEffectId
 ): ConversationTransition => {
   if (!allExecutionsSettled(state.turn) || state.turn.interactions.size > 0) return unchanged(state)
-  const outcomes = [...state.turn.executions.values()].flatMap((execution) =>
-    execution.phase === ConversationExecutionPhase.Settled ? [execution.outcome] : []
-  )
-  const outcome =
-    state.turn.terminalOverride ??
-    outcomes.find((candidate) => candidate.kind === ConversationOutcomeKind.Error) ??
-    outcomes.find((candidate) => candidate.kind === ConversationOutcomeKind.Paused) ??
-    ({ kind: ConversationOutcomeKind.Success } as const)
-  const durability = [...state.turn.executions.values()].some(
-    (execution) =>
-      execution.phase === ConversationExecutionPhase.Settled &&
-      execution.durability === ConversationTerminalDurability.DeferredRecovery
-  )
-    ? ConversationTerminalDurability.DeferredRecovery
-    : ConversationTerminalDurability.Durable
+  const outcome = settledTurnOutcome(state.turn)
+  const durability = settledTurnDurability(state.turn)
   const nextInput = state.inbox.nextTurn[0]
   const shouldSchedule = nextInput !== undefined && state.phase !== ConversationPhase.Stopping
   const quiescent = !shouldSchedule && !hasQuiescenceBlockingActivity(state)
@@ -624,6 +965,7 @@ export function transitionConversation(state: ConversationState, command: Conver
         state: {
           ...state,
           phase: ConversationPhase.Running,
+          runMode: ConversationRunMode.Foreground,
           inbox: queuedInput ? { ...state.inbox, nextTurn: state.inbox.nextTurn.slice(1) } : state.inbox,
           turn
         },
@@ -660,6 +1002,7 @@ export function transitionConversation(state: ConversationState, command: Conver
       }
       const running = firstRunningExecution(state.turn)
       const canRedirect =
+        state.runMode === ConversationRunMode.Foreground &&
         state.profile.kind === ConversationKind.Agent &&
         command.runtimeCanRedirect === true &&
         command.input.responder === ConversationResponderKind.Interactive &&
@@ -846,13 +1189,16 @@ export function transitionConversation(state: ConversationState, command: Conver
         return unchanged(state, ConversationCommandRejection.Stale)
       }
       const outcome: ConversationOutcome = { kind: ConversationOutcomeKind.Error, error: command.error }
-      const next = replaceExecution(state, {
+      let next = replaceExecution(state, {
         ...execution,
         phase: ConversationExecutionPhase.Persisting,
         outcome,
         persistenceEffectId: command.persistenceEffectId,
         continuation: ConversationPersistenceContinuation.Settle
       })
+      if (next.runMode === ConversationRunMode.RuntimePreempted) {
+        next = { ...next, runtimeOwnership: ConversationRuntimeOwnership.Released }
+      }
       return {
         state: next,
         events: [
@@ -1159,6 +1505,37 @@ export function transitionConversation(state: ConversationState, command: Conver
 
     case ConversationCommandType.PersistenceSucceeded:
     case ConversationCommandType.PersistenceAbandoned: {
+      if (
+        state.phase === ConversationPhase.Stopping &&
+        state.runMode === ConversationRunMode.RuntimePreempted &&
+        state.suspendedTurn.id === command.turnId
+      ) {
+        const suspendedExecution = state.suspendedTurn.executions.get(command.executionId)
+        if (
+          suspendedExecution?.phase !== ConversationExecutionPhase.Persisting ||
+          suspendedExecution.persistenceEffectId !== command.persistenceEffectId
+        ) {
+          return unchanged(state, ConversationCommandRejection.Stale)
+        }
+        const executions = new Map(state.suspendedTurn.executions)
+        executions.set(suspendedExecution.id, {
+          ...suspendedExecution,
+          phase: ConversationExecutionPhase.Settled,
+          durability:
+            command.type === ConversationCommandType.PersistenceSucceeded
+              ? ConversationTerminalDurability.Durable
+              : ConversationTerminalDurability.DeferredRecovery
+        })
+        return settleStoppedPreemption(
+          state,
+          { ...state.suspendedTurn, executions },
+          suspendedExecution,
+          command.type === ConversationCommandType.PersistenceSucceeded
+            ? ConversationTerminalDurability.Durable
+            : ConversationTerminalDurability.DeferredRecovery,
+          command
+        )
+      }
       if (!stateHasTurn(state) || state.turn.id !== command.turnId) {
         return unchanged(state, ConversationCommandRejection.Stale)
       }
@@ -1223,6 +1600,63 @@ export function transitionConversation(state: ConversationState, command: Conver
         command.type === ConversationCommandType.PersistenceSucceeded
           ? ConversationTerminalDurability.Durable
           : ConversationTerminalDurability.DeferredRecovery
+      if (
+        next.runMode === ConversationRunMode.RuntimePreempted &&
+        next.turn.id === command.turnId &&
+        allExecutionsSettled(next.turn)
+      ) {
+        const runtimeSettled = { ...next, runtimeTerminalDurable: true }
+        if (runtimeSettled.phase === ConversationPhase.Stopping) {
+          return settleStoppedPreemption(runtimeSettled, runtimeSettled.turn, execution, durability, command)
+        }
+        const terminalEffects: ConversationEffect[] = [
+          {
+            type: ConversationEffectType.PublishExecutionTerminal,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            executionId: execution.id,
+            effectId: command.executionTerminalEffectId,
+            outcome: execution.outcome,
+            durability,
+            audience:
+              durability === ConversationTerminalDurability.Durable
+                ? ConversationTerminalAudience.All
+                : ConversationTerminalAudience.InternalOnly
+          },
+          {
+            type: ConversationEffectType.PublishTurnTerminal,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            effectId: command.turnTerminalEffectId,
+            outcome: settledTurnOutcome(runtimeSettled.turn),
+            durability: settledTurnDurability(runtimeSettled.turn),
+            quiescent: false
+          }
+        ]
+        if (
+          runtimeSettled.phase === ConversationPhase.Running &&
+          runtimeSettled.runtimeOwnership === ConversationRuntimeOwnership.Released
+        ) {
+          const resumed = resumeForeground(
+            runtimeSettled,
+            command.type === ConversationCommandType.PersistenceSucceeded && command.scheduleEffectId
+              ? command.scheduleEffectId
+              : command.quiescenceEffectId
+          )
+          return { ...resumed, effects: [...terminalEffects, ...resumed.effects] }
+        }
+        return {
+          state: runtimeSettled,
+          events: [
+            {
+              type: ConversationEventType.ExecutionChanged,
+              executionId: execution.id,
+              phase: ConversationExecutionPhase.Settled
+            }
+          ],
+          effects: terminalEffects
+        }
+      }
       const nextStepInput = next.inbox.nextStep[0]
       if (
         command.type === ConversationCommandType.PersistenceSucceeded &&
@@ -1291,6 +1725,17 @@ export function transitionConversation(state: ConversationState, command: Conver
     }
 
     case ConversationCommandType.PersistenceFailed: {
+      if (
+        state.phase === ConversationPhase.Stopping &&
+        state.runMode === ConversationRunMode.RuntimePreempted &&
+        state.suspendedTurn.id === command.turnId
+      ) {
+        const execution = state.suspendedTurn.executions.get(command.executionId)
+        return execution?.phase === ConversationExecutionPhase.Persisting &&
+          execution.persistenceEffectId === command.persistenceEffectId
+          ? unchanged(state)
+          : unchanged(state, ConversationCommandRejection.Stale)
+      }
       if (!stateHasTurn(state) || state.turn.id !== command.turnId) {
         return unchanged(state, ConversationCommandRejection.Stale)
       }
@@ -1335,6 +1780,242 @@ export function transitionConversation(state: ConversationState, command: Conver
       }
     }
 
+    case ConversationCommandType.RuntimePreemptionRequested: {
+      if (
+        state.phase !== ConversationPhase.Running ||
+        state.profile.kind !== ConversationKind.Agent ||
+        state.runMode !== ConversationRunMode.Foreground ||
+        state.turn.interactions.size > 0
+      ) {
+        return unchanged(state, ConversationCommandRejection.Busy)
+      }
+      const execution = foregroundStartingExecution(state.turn)
+      if (!execution || state.turn.executions.size !== 1) {
+        return unchanged(state, ConversationCommandRejection.Busy)
+      }
+      return {
+        state: {
+          ...state,
+          runMode: ConversationRunMode.Preempting,
+          runtimeInput: command.input,
+          preemptionPhase: ConversationPreemptionPhase.Suspending,
+          suspendEffectId: command.suspendEffectId,
+          runtimeOwnership: ConversationRuntimeOwnership.Active
+        },
+        events: [],
+        effects: [
+          {
+            type: ConversationEffectType.SuspendExecution,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            executionId: execution.id,
+            effectId: command.suspendEffectId
+          }
+        ]
+      }
+    }
+
+    case ConversationCommandType.RuntimeSuspensionSucceeded: {
+      if (
+        state.phase !== ConversationPhase.Running ||
+        state.runMode !== ConversationRunMode.Preempting ||
+        state.preemptionPhase !== ConversationPreemptionPhase.Suspending ||
+        state.suspendEffectId !== command.suspendEffectId
+      ) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      return {
+        state: { ...state, preemptionPhase: ConversationPreemptionPhase.AwaitingRuntimeCommit },
+        events: [],
+        effects: [
+          {
+            type: ConversationEffectType.ScheduleRuntimeTurn,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            input: state.runtimeInput,
+            effectId: command.scheduleEffectId,
+            suspendEffectId: command.suspendEffectId
+          }
+        ]
+      }
+    }
+
+    case ConversationCommandType.RuntimeSuspensionFailed: {
+      if (
+        state.phase !== ConversationPhase.Running ||
+        state.runMode !== ConversationRunMode.Preempting ||
+        state.preemptionPhase !== ConversationPreemptionPhase.Suspending ||
+        state.suspendEffectId !== command.suspendEffectId
+      ) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      return {
+        state: {
+          ref: state.ref,
+          profile: state.profile,
+          phase: ConversationPhase.Running,
+          runMode: ConversationRunMode.Foreground,
+          inbox: state.inbox,
+          activities: state.activities,
+          ...(state.lastTurnId ? { lastTurnId: state.lastTurnId } : {}),
+          turn: state.turn
+        },
+        events: [],
+        effects: [
+          {
+            type: ConversationEffectType.DiscardRuntimeBuffer,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            effectId: command.discardEffectId
+          }
+        ]
+      }
+    }
+
+    case ConversationCommandType.RuntimeTurnCommitted: {
+      if (
+        state.phase !== ConversationPhase.Running ||
+        state.runMode !== ConversationRunMode.Preempting ||
+        state.preemptionPhase !== ConversationPreemptionPhase.AwaitingRuntimeCommit ||
+        state.suspendEffectId !== command.suspendEffectId ||
+        state.runtimeInput.id !== command.inputId
+      ) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      const turn = runtimeTurn(command)
+      if (!turn) return unchanged(state, ConversationCommandRejection.Invalid)
+      return {
+        state: {
+          ref: state.ref,
+          profile: state.profile,
+          phase: ConversationPhase.Running,
+          runMode: ConversationRunMode.RuntimePreempted,
+          inbox: state.inbox,
+          activities: state.activities,
+          ...(state.lastTurnId ? { lastTurnId: state.lastTurnId } : {}),
+          turn,
+          suspendedTurn: state.turn,
+          suspendEffectId: state.suspendEffectId,
+          runtimeOwnership: state.runtimeOwnership,
+          runtimeTerminalDurable: false
+        },
+        events: [
+          { type: ConversationEventType.TurnOpened, turnId: turn.id },
+          ...command.executions.map(
+            (execution): ConversationEvent => ({
+              type: ConversationEventType.ExecutionChanged,
+              executionId: execution.id,
+              phase: ConversationExecutionPhase.Starting
+            })
+          )
+        ],
+        effects: command.executions.map(
+          (execution): ConversationEffect => ({
+            type: ConversationEffectType.StartExecution,
+            conversation: state.ref,
+            turnId: turn.id,
+            executionId: execution.id,
+            effectId: execution.startEffectId
+          })
+        )
+      }
+    }
+
+    case ConversationCommandType.RuntimeTurnCommitFailed: {
+      if (
+        state.phase !== ConversationPhase.Running ||
+        state.runMode !== ConversationRunMode.Preempting ||
+        state.preemptionPhase !== ConversationPreemptionPhase.AwaitingRuntimeCommit ||
+        state.suspendEffectId !== command.suspendEffectId
+      ) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      const execution = foregroundStartingExecution(state.turn)
+      if (!execution) return unchanged(state, ConversationCommandRejection.Invalid)
+      return {
+        state: {
+          ref: state.ref,
+          profile: state.profile,
+          phase: ConversationPhase.Running,
+          runMode: ConversationRunMode.Foreground,
+          inbox: state.inbox,
+          activities: state.activities,
+          ...(state.lastTurnId ? { lastTurnId: state.lastTurnId } : {}),
+          turn: state.turn
+        },
+        events: [],
+        effects: [
+          {
+            type: ConversationEffectType.ResumeSuspendedExecution,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            executionId: execution.id,
+            effectId: command.resumeEffectId,
+            suspendEffectId: command.suspendEffectId
+          },
+          {
+            type: ConversationEffectType.DiscardRuntimeBuffer,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            effectId: command.discardEffectId
+          }
+        ]
+      }
+    }
+
+    case ConversationCommandType.RuntimeOwnershipReleased: {
+      if (state.phase !== ConversationPhase.Running && state.phase !== ConversationPhase.Stopping) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      if (state.runMode === ConversationRunMode.Preempting) {
+        if (command.suspendEffectId && command.suspendEffectId !== state.suspendEffectId) {
+          return unchanged(state, ConversationCommandRejection.Stale)
+        }
+        return state.runtimeOwnership === ConversationRuntimeOwnership.Released
+          ? unchanged(state)
+          : { state: { ...state, runtimeOwnership: ConversationRuntimeOwnership.Released }, events: [], effects: [] }
+      }
+      if (state.runMode !== ConversationRunMode.RuntimePreempted) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      if (command.suspendEffectId && command.suspendEffectId !== state.suspendEffectId) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      if (state.runtimeOwnership === ConversationRuntimeOwnership.Released) return unchanged(state)
+      const released = { ...state, runtimeOwnership: ConversationRuntimeOwnership.Released } as const
+      if (
+        released.phase === ConversationPhase.Stopping &&
+        allExecutionsSettled(released.turn) &&
+        allExecutionsSettled(released.suspendedTurn)
+      ) {
+        const quiescent = !hasQuiescenceBlockingActivity(released)
+        return {
+          state: {
+            ref: released.ref,
+            profile: released.profile,
+            phase: ConversationPhase.Idle,
+            inbox: { nextTurn: [], nextStep: [] },
+            activities: released.activities,
+            lastTurnId: released.turn.id
+          },
+          events: [...(quiescent ? ([{ type: ConversationEventType.ConversationQuiesced }] as const) : [])],
+          effects: quiescent
+            ? [
+                {
+                  type: ConversationEffectType.PublishQuiescence,
+                  conversation: released.ref,
+                  turnId: released.turn.id,
+                  effectId: command.quiescenceEffectId
+                }
+              ]
+            : []
+        }
+      }
+      return released.runtimeTerminalDurable && released.phase === ConversationPhase.Running
+        ? resumeForeground(released, command.resumeEffectId)
+        : { state: released, events: [], effects: [] }
+    }
+
     case ConversationCommandType.KickInbox: {
       if (state.phase !== ConversationPhase.Idle) return unchanged(state, ConversationCommandRejection.Busy)
       const input = state.inbox.nextTurn[0]
@@ -1365,88 +2046,84 @@ export function transitionConversation(state: ConversationState, command: Conver
             }
       }
       if (state.phase === ConversationPhase.Stopping) return unchanged(state)
-      const effects: ConversationEffect[] = []
-      const executions = new Map(state.turn.executions)
-      const interactions = new Map(state.turn.interactions)
-      for (const execution of state.turn.executions.values()) {
-        const waitingOnNewRun =
-          execution.phase === ConversationExecutionPhase.WaitingInteraction &&
-          execution.interactionIds.every(
-            (interactionId) => interactions.get(interactionId)?.resumeMode === ConversationInteractionResumeMode.NewRun
-          )
-        if (waitingOnNewRun) {
+      const stoppedCurrent = stopTurn(
+        state,
+        state.turn,
+        command.reason,
+        command.abortEffectIds,
+        command.persistenceEffectIds
+      )
+      if (!stoppedCurrent) return unchanged(state, ConversationCommandRejection.Invalid)
+      if (state.runMode === ConversationRunMode.RuntimePreempted) {
+        const stoppedSuspended = stopTurn(
+          state,
+          state.suspendedTurn,
+          command.reason,
+          command.abortEffectIds,
+          command.persistenceEffectIds
+        )
+        if (!stoppedSuspended) return unchanged(state, ConversationCommandRejection.Invalid)
+        const suspendedExecutions = new Map(stoppedSuspended.turn.executions)
+        const suspendedEffects = [...stoppedSuspended.effects]
+        for (const execution of stoppedSuspended.turn.executions.values()) {
+          if (execution.phase !== ConversationExecutionPhase.Starting) continue
           const persistenceEffectId = command.persistenceEffectIds.get(execution.id)
           if (!persistenceEffectId) return unchanged(state, ConversationCommandRejection.Invalid)
-          for (const interactionId of execution.interactionIds) interactions.delete(interactionId)
           const outcome: ConversationOutcome = { kind: ConversationOutcomeKind.Paused, reason: command.reason }
-          executions.set(execution.id, {
-            id: execution.id,
-            outputNodeId: execution.outputNodeId,
-            driver: execution.driver,
-            modelId: execution.modelId,
+          suspendedExecutions.set(execution.id, {
+            ...execution,
             phase: ConversationExecutionPhase.Persisting,
-            runEffectId: execution.runEffectId,
             outcome,
             persistenceEffectId,
             continuation: ConversationPersistenceContinuation.Settle
           })
-          effects.push({
+          suspendedEffects.push({
             type: ConversationEffectType.PersistTerminal,
             conversation: state.ref,
-            turnId: state.turn.id,
+            turnId: state.suspendedTurn.id,
             executionId: execution.id,
             effectId: persistenceEffectId,
             outcome
           })
-          continue
         }
-        if (
-          execution.phase === ConversationExecutionPhase.Starting ||
-          execution.phase === ConversationExecutionPhase.Active ||
-          execution.phase === ConversationExecutionPhase.WaitingInteraction
-        ) {
-          const effectId = command.abortEffectIds.get(execution.id)
-          if (!effectId) return unchanged(state, ConversationCommandRejection.Invalid)
-          effects.push({
-            type: ConversationEffectType.AbortExecution,
-            conversation: state.ref,
-            turnId: state.turn.id,
-            executionId: execution.id,
-            effectId,
-            reason: command.reason
-          })
-        } else if (execution.phase === ConversationExecutionPhase.Persisting) {
-          if (execution.continuation === ConversationPersistenceContinuation.WaitInteraction) {
-            for (const interactionId of execution.interactionIds) interactions.delete(interactionId)
-            executions.set(execution.id, {
-              ...execution,
-              continuation: ConversationPersistenceContinuation.Settle
-            })
-          }
-          effects.push({
-            type: ConversationEffectType.FinalizeTerminalPersistence,
-            conversation: state.ref,
-            turnId: state.turn.id,
-            executionId: execution.id,
-            effectId: execution.persistenceEffectId
-          })
+        return {
+          state: {
+            ...state,
+            phase: ConversationPhase.Stopping,
+            inbox: { nextTurn: [], nextStep: [] },
+            turn: stoppedCurrent.turn,
+            suspendedTurn: { ...stoppedSuspended.turn, executions: suspendedExecutions }
+          },
+          events: [],
+          effects: [...stoppedCurrent.effects, ...suspendedEffects]
         }
       }
       const stopping: Extract<ConversationState, { phase: ConversationPhase.Stopping }> = {
         ...state,
         phase: ConversationPhase.Stopping,
         inbox: { nextTurn: [], nextStep: [] },
-        turn: {
-          ...state.turn,
-          executions,
-          interactions,
-          terminalOverride: { kind: ConversationOutcomeKind.Paused, reason: command.reason }
-        }
+        turn: stoppedCurrent.turn
       }
       const settled = settleTurn(stopping, command.turnTerminalEffectId, command.quiescenceEffectId)
       return settled.state.phase === ConversationPhase.Idle
-        ? { ...settled, effects: [...effects, ...settled.effects] }
-        : { state: stopping, events: [], effects }
+        ? { ...settled, effects: [...stoppedCurrent.effects, ...settled.effects] }
+        : {
+            state: stopping,
+            events: [],
+            effects: [
+              ...stoppedCurrent.effects,
+              ...(state.runMode === ConversationRunMode.Preempting
+                ? [
+                    {
+                      type: ConversationEffectType.DiscardRuntimeBuffer,
+                      conversation: state.ref,
+                      turnId: state.turn.id,
+                      effectId: command.quiescenceEffectId
+                    } as const
+                  ]
+                : [])
+            ]
+          }
     }
   }
   return assertNever(command)

@@ -122,6 +122,7 @@ export interface CommittedDispatchReservation {
     readonly seedFromEmpty?: boolean
     readonly rootSpan?: Span
     readonly abortController?: AbortController
+    readonly agentRuntimeTurnId?: string
   }>
   readonly listeners: readonly StreamListener[]
   readonly persistencePorts: readonly StreamPersistencePort[]

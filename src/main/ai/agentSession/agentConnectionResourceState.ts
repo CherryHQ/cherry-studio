@@ -3,7 +3,7 @@ import type { UIMessageChunk } from 'ai'
 import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
 
 export enum AgentConnectionResourceEventType {
-  AutonomousTurnAbandoned = 'autonomous-turn-abandoned',
+  AutonomousTurnCleared = 'autonomous-turn-cleared',
   AutonomousTurnCreated = 'autonomous-turn-created',
   AutonomousTurnState = 'autonomous-turn-state',
   BeginTurn = 'begin-turn',
@@ -132,7 +132,6 @@ export type AgentGenerationResourceState<TTurn, TReservation> =
       kind: AgentConnectionResourceKind.AutonomousTurn
       turn?: TTurn
       contextTurn?: TTurn
-      deferredTurn?: TTurn
       ownership: AgentAutonomousResourceOwnership
       buffer: UIMessageChunk[]
       stream: AgentStreamResourcePhase
@@ -158,10 +157,9 @@ export type AgentConnectionResourceEvent<TTurn, TReservation> =
   | {
       type: AgentConnectionResourceEventType.AutonomousTurnState
       state: AgentAutonomousGenerationState
-      deferCurrentTurn?: boolean
       contextTurn?: TTurn
     }
-  | { type: AgentConnectionResourceEventType.AutonomousTurnAbandoned }
+  | { type: AgentConnectionResourceEventType.AutonomousTurnCleared }
   | { type: AgentConnectionResourceEventType.AutonomousTurnCreated; turn: TTurn }
   | { type: AgentConnectionResourceEventType.ContinuationTurnCreated; turn: TTurn }
   | { type: AgentConnectionResourceEventType.TurnStreamOpened; turn: TTurn }
@@ -243,42 +241,6 @@ function connectionTeardownEffects<TTurn, TReservation>(
   ]
 }
 
-function resumeAfterAutonomous<TTurn, TReservation>(
-  state: AgentConnectionResourceState<TTurn, TReservation>,
-  generation: Extract<
-    AgentGenerationResourceState<TTurn, TReservation>,
-    { kind: AgentConnectionResourceKind.AutonomousTurn }
-  >
-): AgentConnectionResourceTransition<TTurn, TReservation> {
-  if (!generation.releaseOutcome || generation.ownership === AgentAutonomousResourceOwnership.Active) {
-    return { state: { ...state, generation }, effects: [] }
-  }
-  if (generation.deferredTurn) {
-    return {
-      state: {
-        ...state,
-        generation: {
-          kind: AgentConnectionResourceKind.Turn,
-          turn: generation.deferredTurn,
-          stream: AgentStreamResourcePhase.Unopened,
-          delivery: AgentConnectionDeliveryPhase.Pending
-        }
-      },
-      effects: []
-    }
-  }
-  return {
-    state: {
-      ...state,
-      generation: {
-        kind: AgentConnectionResourceKind.Idle,
-        ...(generation.turn || generation.contextTurn ? { lastTurn: generation.turn ?? generation.contextTurn } : {})
-      }
-    },
-    effects: []
-  }
-}
-
 export function transitionAgentConnectionResource<TTurn, TReservation>(
   state: AgentConnectionResourceState<TTurn, TReservation>,
   event: AgentConnectionResourceEvent<TTurn, TReservation>
@@ -350,17 +312,12 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
       if (event.state === AgentAutonomousGenerationState.Started) {
         if (state.generation.kind === AgentConnectionResourceKind.AutonomousTurn) return { state, effects: [] }
         if (state.generation.kind === AgentConnectionResourceKind.SteerTransition) return invalid(state, event)
-        const deferredTurn =
-          event.deferCurrentTurn && state.generation.kind === AgentConnectionResourceKind.Turn
-            ? state.generation.turn
-            : undefined
         return {
           state: {
             ...state,
             generation: {
               kind: AgentConnectionResourceKind.AutonomousTurn,
               ...(event.contextTurn ? { contextTurn: event.contextTurn } : {}),
-              ...(deferredTurn ? { deferredTurn } : {}),
               ownership: AgentAutonomousResourceOwnership.Active,
               buffer: [],
               stream: AgentStreamResourcePhase.Unopened
@@ -370,27 +327,25 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
         }
       }
       if (state.generation.kind !== AgentConnectionResourceKind.AutonomousTurn) return { state, effects: [] }
-      return resumeAfterAutonomous(state, {
-        ...state.generation,
-        ownership: AgentAutonomousResourceOwnership.Released
-      })
+      return {
+        state: {
+          ...state,
+          generation: { ...state.generation, ownership: AgentAutonomousResourceOwnership.Released }
+        },
+        effects: []
+      }
     }
-    case AgentConnectionResourceEventType.AutonomousTurnAbandoned: {
+    case AgentConnectionResourceEventType.AutonomousTurnCleared: {
       if (state.generation.kind !== AgentConnectionResourceKind.AutonomousTurn) return invalid(state, event)
       return {
         state: {
           ...state,
-          generation: state.generation.deferredTurn
-            ? {
-                kind: AgentConnectionResourceKind.Turn,
-                turn: state.generation.deferredTurn,
-                stream: AgentStreamResourcePhase.Unopened,
-                delivery: AgentConnectionDeliveryPhase.Pending
-              }
-            : {
-                kind: AgentConnectionResourceKind.Idle,
-                ...(state.generation.contextTurn ? { lastTurn: state.generation.contextTurn } : {})
-              }
+          generation: {
+            kind: AgentConnectionResourceKind.Idle,
+            ...(state.generation.turn || state.generation.contextTurn
+              ? { lastTurn: state.generation.turn ?? state.generation.contextTurn }
+              : {})
+          }
         },
         effects: []
       }
@@ -513,7 +468,7 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
       if (generation.kind === AgentConnectionResourceKind.AutonomousTurn) {
         if (generation.stream === AgentStreamResourcePhase.Unopened) {
           if (generation.driverOutcome) return { state, effects: [] }
-          return resumeAfterAutonomous(state, { ...generation, driverOutcome: event.outcome })
+          return { state: { ...state, generation: { ...generation, driverOutcome: event.outcome } }, effects: [] }
         }
         if (generation.stream === AgentStreamResourcePhase.Open && generation.turn) {
           return {
@@ -645,12 +600,17 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
         }
       }
       if (generation.kind === AgentConnectionResourceKind.AutonomousTurn && generation.turn === event.turn) {
-        const resumed = resumeAfterAutonomous(state, {
-          ...generation,
-          stream: AgentStreamResourcePhase.Released,
-          releaseOutcome: event.status
-        })
-        return resumed
+        return {
+          state: {
+            ...state,
+            generation: {
+              ...generation,
+              stream: AgentStreamResourcePhase.Released,
+              releaseOutcome: event.status
+            }
+          },
+          effects: []
+        }
       }
       if (generation.kind === AgentConnectionResourceKind.Turn && generation.turn === event.turn) {
         return {
@@ -815,8 +775,6 @@ export function isAgentStreamResourceLive<TTurn, TReservation>(
         (generation.stream === AgentStreamResourcePhase.Unopened || generation.stream === AgentStreamResourcePhase.Open)
       )
     case AgentConnectionResourceKind.AutonomousTurn:
-      // A deferred turn is parked, not settled; it will run once the generation releases.
-      if (generation.deferredTurn === turn) return true
       return (
         generation.turn === turn &&
         (generation.stream === AgentStreamResourcePhase.Unopened || generation.stream === AgentStreamResourcePhase.Open)

@@ -58,6 +58,9 @@ describe('ConversationRuntime', () => {
         requestYield: vi.fn(),
         redirect: vi.fn(() => true),
         resume: vi.fn(),
+        suspend: vi.fn(() => false),
+        resumeSuspended: vi.fn(),
+        discardRuntimeBuffer: vi.fn(),
         abort: vi.fn()
       },
       presentation: {
@@ -67,7 +70,8 @@ describe('ConversationRuntime', () => {
         publishQuiescence: vi.fn()
       },
       scheduleNextTurn: vi.fn(),
-      scheduleNextStep: vi.fn()
+      scheduleNextStep: vi.fn(),
+      scheduleRuntimeTurn: vi.fn()
     }
     runtime = new ConversationRuntime({ resolve: () => ports }, ids)
   })

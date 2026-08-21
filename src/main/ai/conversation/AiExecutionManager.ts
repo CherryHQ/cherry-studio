@@ -7,6 +7,7 @@ import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import type { CompactionAnchorData, CompactionSink } from '@shared/ai/compaction'
 import {
+  type ConversationEffectId,
   type ConversationExecutionId,
   ConversationInteractionKind,
   type ConversationInteractionResumeMode,
@@ -30,7 +31,9 @@ import type {
   ConversationExecutionSink,
   RedirectConversationInputEffect,
   ResumeConversationExecutionEffect,
-  StartConversationExecutionEffect
+  ResumeSuspendedConversationExecutionEffect,
+  StartConversationExecutionEffect,
+  SuspendConversationExecutionEffect
 } from './conversationPorts'
 import type { ConversationOutcome } from './conversationState'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
@@ -69,6 +72,9 @@ export interface ConversationExecutionDescriptor {
   readonly maxBufferChunks?: number
   readonly redirect?: (effect: RedirectConversationInputEffect) => boolean
   readonly resume?: (effect: ResumeConversationExecutionEffect) => void
+  readonly suspend?: (effect: SuspendConversationExecutionEffect) => boolean
+  readonly resumeSuspended?: (effect: ResumeSuspendedConversationExecutionEffect) => void
+  readonly discardRuntimeBuffer?: () => void
   readonly interactionResumeMode: ConversationInteractionResumeMode
 }
 
@@ -97,6 +103,7 @@ interface ConversationExecutionResource {
   readonly buffer: ConversationExecutionChunk[]
   readonly runtimeTiming: MessageRuntimeTimingCollector
   readonly runId: number
+  readonly suspendedBy?: ConversationEffectId
   nextChunkSeq: number
   firstChunkPublished: boolean
   yieldRequested: boolean
@@ -180,6 +187,10 @@ export class AiExecutionManager implements ConversationExecutionPort {
       yieldRequested: false
     }
     this.resources.set(key, resource)
+    this.startRun(key, resource)
+  }
+
+  private startRun(key: string, resource: ConversationExecutionResource): void {
     const run = Promise.resolve().then(() => this.run(key, resource))
     this.runs.set(key, run)
     const release = () => {
@@ -218,6 +229,49 @@ export class AiExecutionManager implements ConversationExecutionPort {
     resource?.descriptor.resume?.(effect)
   }
 
+  suspend(effect: SuspendConversationExecutionEffect): boolean {
+    const key = this.key(effect.conversation, effect.turnId, effect.executionId)
+    const resource = this.resources.get(key)
+    if (!resource || resource.firstChunkPublished || resource.result || resource.suspendedBy) return false
+    const suspended: ConversationExecutionResource = {
+      ...resource,
+      runId: ++this.nextRunId,
+      suspendedBy: effect.effectId,
+      idleTimeout: undefined
+    }
+    this.resources.set(key, suspended)
+    if (resource.descriptor.suspend?.(effect) !== true) {
+      this.resources.set(key, resource)
+      return false
+    }
+    return true
+  }
+
+  resumeSuspended(effect: ResumeSuspendedConversationExecutionEffect): void {
+    const key = this.key(effect.conversation, effect.turnId, effect.executionId)
+    const resource = this.resources.get(key)
+    if (!resource || resource.suspendedBy !== effect.suspendEffectId || resource.result) {
+      throw new Error(`Conversation execution is not suspended by ${effect.suspendEffectId}`)
+    }
+    resource.descriptor.resumeSuspended?.(effect)
+    const resumed: ConversationExecutionResource = {
+      ...resource,
+      runId: ++this.nextRunId,
+      suspendedBy: undefined,
+      idleTimeout: undefined
+    }
+    this.resources.set(key, resumed)
+    this.startRun(key, resumed)
+  }
+
+  discardRuntimeBuffer(conversation: ConversationRef): void {
+    for (const resource of this.resources.values()) {
+      if (conversationRefKey(resource.descriptor.conversation) === conversationRefKey(conversation)) {
+        resource.descriptor.discardRuntimeBuffer?.()
+      }
+    }
+  }
+
   abort(effect: AbortConversationExecutionEffect): void {
     const key = this.key(effect.conversation, effect.turnId, effect.executionId)
     const descriptor = this.descriptors.get(key)
@@ -226,7 +280,25 @@ export class AiExecutionManager implements ConversationExecutionPort {
       descriptor.abortController?.abort(effect.reason)
       return
     }
-    this.resources.get(key)?.abortController.abort(effect.reason)
+    const resource = this.resources.get(key)
+    if (!resource) return
+    resource.abortController.abort(effect.reason)
+    if (resource.suspendedBy && !resource.result) {
+      const outcome: ConversationOutcome = { kind: ConversationOutcomeKind.Paused, reason: effect.reason }
+      resource.runtimeTiming.closeOpenToolSpans()
+      resource.runtimeTiming.closeOpenSpans()
+      resource.runtimeTiming.complete()
+      resource.result = {
+        conversation: resource.descriptor.conversation,
+        turnId: resource.descriptor.turnId,
+        executionId: resource.descriptor.executionId,
+        outputNodeId: resource.descriptor.outputNodeId,
+        modelId: resource.descriptor.modelId,
+        outcome,
+        runtimeTiming: resource.runtimeTiming.snapshot()
+      }
+      resource.sink.terminal(outcome)
+    }
   }
 
   attachSnapshot(

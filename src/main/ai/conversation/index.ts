@@ -23,7 +23,9 @@ export type {
   PublishConversationTurnTerminalEffect,
   RedirectConversationInputEffect,
   ResumeConversationExecutionEffect,
-  StartConversationExecutionEffect
+  ResumeSuspendedConversationExecutionEffect,
+  StartConversationExecutionEffect,
+  SuspendConversationExecutionEffect
 } from './conversationPorts'
 export { ConversationTerminalPersistenceResultKind } from './conversationPorts'
 export { ConversationRuntime } from './ConversationRuntime'
@@ -54,7 +56,10 @@ export {
   ConversationEventType,
   ConversationExecutionDriverKind,
   ConversationInputProvenance,
+  ConversationPreemptionPhase,
   ConversationResponderKind,
+  ConversationRunMode,
+  ConversationRuntimeOwnership,
   ConversationTerminalAudience,
   createConversationState,
   isConversationQuiescent,

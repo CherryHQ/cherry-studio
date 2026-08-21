@@ -41,6 +41,7 @@ import {
   type AgentConversationRef,
   type ConversationActivityId,
   ConversationActivityKind,
+  type ConversationEffectId,
   ConversationKind,
   ConversationOpenTrigger,
   ConversationOutcomeKind,
@@ -80,6 +81,8 @@ import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/Too
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   AgentAutonomousGenerationState,
+  AgentAutonomousResourceOwnership,
+  AgentConnectionDeliveryPhase,
   AgentConnectionOccupancyKind,
   type AgentConnectionResourceEffect,
   type AgentConnectionResourceEvent,
@@ -327,6 +330,11 @@ export class AgentConnectionManager extends BaseService {
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; connection start ids reject stale completions. */
   private readonly connectionStarts = new Map<string, { id: string; promise: Promise<boolean> }>()
+  /** Parked stream resources keyed by session. Conversation owns whether and when they resume. */
+  private readonly suspendedConversationTurns = new Map<
+    string,
+    { runtimeTurnId: string; preemptionId: ConversationEffectId; turn: AgentTurnStreamResource }
+  >()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
     string,
@@ -510,6 +518,57 @@ export class AgentConnectionManager extends BaseService {
 
   createExecutionReleaseListener(conversation: AgentConversationRef, turnId: string): StreamListener {
     return new AgentExecutionReleaseListener(this, turnId, conversation)
+  }
+
+  suspendConversationExecution(sessionId: string, runtimeTurnId: string, preemptionId: ConversationEffectId): boolean {
+    const entry = this.entries.get(sessionId)
+    const generation = entry?.resources.generation
+    if (
+      !entry ||
+      generation?.kind !== AgentConnectionResourceKind.Turn ||
+      generation.turn.turnId !== runtimeTurnId ||
+      generation.delivery === AgentConnectionDeliveryPhase.Sent ||
+      !this.isTurnLive(entry, generation.turn) ||
+      this.suspendedConversationTurns.has(sessionId)
+    ) {
+      return false
+    }
+    const turn = generation.turn
+    this.suspendedConversationTurns.set(sessionId, { runtimeTurnId, preemptionId, turn })
+    this.applyResourceEvent(entry, {
+      type: AgentConnectionResourceEventType.AutonomousTurnState,
+      state: AgentAutonomousGenerationState.Started,
+      contextTurn: turn
+    })
+    this.closeTurn(turn)
+    this.clearIdleTimer(entry)
+    return true
+  }
+
+  resumeConversationExecution(sessionId: string, runtimeTurnId: string): void {
+    const entry = this.entries.get(sessionId)
+    const suspended = this.suspendedConversationTurns.get(sessionId)
+    if (
+      !entry ||
+      !suspended ||
+      suspended.runtimeTurnId !== runtimeTurnId ||
+      entry.resources.generation.kind !== AgentConnectionResourceKind.AutonomousTurn
+    ) {
+      throw new Error(`Agent Conversation execution ${runtimeTurnId} is not suspended`)
+    }
+    this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.AutonomousTurnCleared })
+    this.applyResourceEvent(entry, {
+      type: AgentConnectionResourceEventType.BeginTurn,
+      turn: suspended.turn
+    })
+    this.suspendedConversationTurns.delete(sessionId)
+  }
+
+  discardAutonomousBuffer(sessionId: string): void {
+    const entry = this.entries.get(sessionId)
+    if (!entry || entry.resources.generation.kind !== AgentConnectionResourceKind.AutonomousTurn) return
+    if (this.suspendedConversationTurns.has(sessionId)) return
+    this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.AutonomousTurnCleared })
   }
 
   runtimeResumeToken(sessionId: string): string | undefined {
@@ -748,13 +807,13 @@ export class AgentConnectionManager extends BaseService {
             input.signal.addEventListener('abort', onAbort, { once: true })
           }
 
-          controller.enqueue({ type: 'start' })
           // A steer/autonomous transition owns any chunks that arrived before this controller. The
           // state transition atomically transfers that buffer to this exact turn before delivery.
           this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.FlushTransition })
           if (!this.isTurnLive(entry, turn)) return
           const connected = await this.ensureConnection(entry)
           if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
+          controller.enqueue({ type: 'start' })
           await this.sendTurnToConnection(entry, turn)
         } catch (error) {
           controller.error(error)
@@ -836,6 +895,16 @@ export class AgentConnectionManager extends BaseService {
         turn: completedTurn,
         status
       })
+    }
+
+    const generation = entry.resources.generation
+    if (
+      generation.kind === AgentConnectionResourceKind.AutonomousTurn &&
+      generation.ownership === AgentAutonomousResourceOwnership.Released &&
+      generation.releaseOutcome !== undefined &&
+      !this.suspendedConversationTurns.has(sessionId)
+    ) {
+      this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.AutonomousTurnCleared })
     }
 
     this.refreshIdleTimer(entry)
@@ -1528,21 +1597,21 @@ export class AgentConnectionManager extends BaseService {
         const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
         if (turnLive && turn && isAgentTurnSentToConnection(entry.resources, turn)) break
         if (entry.resources.generation.kind === AgentConnectionResourceKind.SteerTransition) break
-        this.applyResourceEvent(entry, {
-          type: AgentConnectionResourceEventType.AutonomousTurnState,
-          state: AgentAutonomousGenerationState.Started,
-          deferCurrentTurn: turnLive,
-          contextTurn: turn
-        })
-        this.clearIdleTimer(entry)
-        if (turnLive && turn) this.closeTurn(turn)
-        application
+        const started = application
           .get('ConversationRuntimeService')
           .startAgentAutonomous(
             entry.conversation.id,
             application.get('ConversationRuntimeService').getAgentInteractionState(entry.conversation.id)
               .userResponse === AgentUserResponseMode.Unavailable
           )
+        if (started && !turnLive) {
+          this.applyResourceEvent(entry, {
+            type: AgentConnectionResourceEventType.AutonomousTurnState,
+            state: AgentAutonomousGenerationState.Started,
+            contextTurn: turn
+          })
+          this.clearIdleTimer(entry)
+        }
         break
       }
       case AgentRuntimeEventType.TurnComplete:
@@ -2050,10 +2119,12 @@ export class AgentConnectionManager extends BaseService {
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
+    const preemptionId = this.suspendedConversationTurns.get(entry.conversation.id)?.preemptionId
     this.applyResourceEvent(entry, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Finished
     })
+    application.get('ConversationRuntimeService').releaseAgentRuntimeOwnership(entry.conversation.id, preemptionId)
     if (!this.isSessionBusy(entry.conversation.id)) {
       this.refreshIdleTimer(entry)
     }
@@ -2167,10 +2238,12 @@ export class AgentConnectionManager extends BaseService {
       active: false
     })
     if (entry.resources.generation.kind === AgentConnectionResourceKind.AutonomousTurn) {
+      const preemptionId = this.suspendedConversationTurns.get(entry.conversation.id)?.preemptionId
       this.applyResourceEvent(entry, {
         type: AgentConnectionResourceEventType.AutonomousTurnState,
         state: AgentAutonomousGenerationState.Finished
       })
+      application.get('ConversationRuntimeService').releaseAgentRuntimeOwnership(entry.conversation.id, preemptionId)
     }
     const cache = application.get('CacheService')
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.conversation.id), [])
@@ -2382,7 +2455,9 @@ export class AgentConnectionManager extends BaseService {
       generation.kind === AgentConnectionResourceKind.AutonomousTurn &&
       !generation.turn
     ) {
-      this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.AutonomousTurnAbandoned })
+      if (!this.suspendedConversationTurns.has(intent.conversation.id)) {
+        this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.AutonomousTurnCleared })
+      }
       return
     }
     if (
@@ -2487,12 +2562,9 @@ export class AgentConnectionManager extends BaseService {
     const backgroundFlowFlush = this.finishBackgroundFlows(entry)
     const currentTurn = this.currentTurn(entry)
     if (currentTurn) this.closeTurn(currentTurn)
-    const deferredTurn =
-      entry.resources.generation.kind === AgentConnectionResourceKind.AutonomousTurn
-        ? entry.resources.generation.deferredTurn
-        : undefined
-    // The machine's `reset` below settles terminality; only the stream resource needs releasing.
-    if (deferredTurn && deferredTurn !== currentTurn) this.closeTurn(deferredTurn)
+    const suspended = this.suspendedConversationTurns.get(entry.conversation.id)
+    if (suspended && suspended.turn !== currentTurn) this.closeTurn(suspended.turn)
+    this.suspendedConversationTurns.delete(entry.conversation.id)
     // Compaction-occupancy interruption is projected by the machine's connection-teardown effect.
     this.clearApiRetry(entry)
     // Context usage deliberately survives: unlike its neighbours here it is not per-CLI-process

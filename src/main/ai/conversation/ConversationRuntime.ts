@@ -31,6 +31,7 @@ import type {
 import {
   ConversationCommandType,
   ConversationEffectType,
+  ConversationRunMode,
   createConversationState,
   isConversationQuiescent,
   transitionConversation
@@ -95,6 +96,50 @@ export class ConversationRuntime {
     })
   }
 
+  requestRuntimePreemption(ref: ConversationRef, input: ConversationInput): ConversationTransition {
+    return this.dispatch(ref, {
+      type: ConversationCommandType.RuntimePreemptionRequested,
+      input,
+      suspendEffectId: this.ids.effect()
+    })
+  }
+
+  commitRuntimeTurn(
+    ref: ConversationRef,
+    input: ConversationInput,
+    suspendEffectId: ConversationEffectId,
+    turnId: ConversationTurnId,
+    executions: readonly ConversationExecutionPlan[]
+  ): ConversationTransition {
+    return this.dispatch(ref, {
+      type: ConversationCommandType.RuntimeTurnCommitted,
+      inputId: input.id,
+      suspendEffectId,
+      turnId,
+      anchorNodeId: null,
+      responder: input.responder,
+      executions
+    })
+  }
+
+  failRuntimeTurnCommit(ref: ConversationRef, suspendEffectId: ConversationEffectId): ConversationTransition {
+    return this.dispatch(ref, {
+      type: ConversationCommandType.RuntimeTurnCommitFailed,
+      suspendEffectId,
+      resumeEffectId: this.ids.effect(),
+      discardEffectId: this.ids.effect()
+    })
+  }
+
+  releaseRuntimeOwnership(ref: ConversationRef, suspendEffectId?: ConversationEffectId): ConversationTransition {
+    return this.dispatch(ref, {
+      type: ConversationCommandType.RuntimeOwnershipReleased,
+      ...(suspendEffectId ? { suspendEffectId } : {}),
+      resumeEffectId: this.ids.effect(),
+      quiescenceEffectId: this.ids.effect()
+    })
+  }
+
   commitStep(
     ref: ConversationRef,
     turnId: ConversationTurnId,
@@ -125,7 +170,11 @@ export class ConversationRuntime {
     const abortEffectIds = new Map<ConversationExecutionId, ConversationEffectId>()
     const persistenceEffectIds = new Map<ConversationExecutionId, ConversationEffectId>()
     if (state.phase === ConversationPhase.Running || state.phase === ConversationPhase.Stopping) {
-      for (const execution of state.turn.executions.values()) {
+      const turns = [
+        state.turn,
+        ...(state.runMode === ConversationRunMode.RuntimePreempted ? [state.suspendedTurn] : [])
+      ]
+      for (const execution of turns.flatMap((turn) => [...turn.executions.values()])) {
         abortEffectIds.set(execution.id, this.ids.effect())
         persistenceEffectIds.set(execution.id, this.ids.effect())
       }
@@ -287,6 +336,61 @@ export class ConversationRuntime {
             resumeEffectId: effect.effectId
           })
         }
+        return
+
+      case ConversationEffectType.SuspendExecution:
+        let suspended = false
+        try {
+          suspended = ports.execution.suspend(effect)
+        } catch {
+          suspended = false
+        }
+        if (suspended) {
+          this.dispatch(effect.conversation, {
+            type: ConversationCommandType.RuntimeSuspensionSucceeded,
+            suspendEffectId: effect.effectId,
+            scheduleEffectId: this.ids.effect()
+          })
+        } else {
+          this.dispatch(effect.conversation, {
+            type: ConversationCommandType.RuntimeSuspensionFailed,
+            suspendEffectId: effect.effectId,
+            discardEffectId: this.ids.effect()
+          })
+        }
+        return
+
+      case ConversationEffectType.ResumeSuspendedExecution:
+        try {
+          ports.execution.resumeSuspended(effect)
+        } catch (error) {
+          const state = this.inspect(effect.conversation)
+          if (
+            state.phase === ConversationPhase.Running &&
+            state.runMode === ConversationRunMode.Foreground &&
+            state.turn.id === effect.turnId
+          ) {
+            const execution = state.turn.executions.get(effect.executionId)
+            if (execution && 'runEffectId' in execution) {
+              this.dispatch(effect.conversation, {
+                type: ConversationCommandType.ExecutionStartFailed,
+                turnId: effect.turnId,
+                executionId: effect.executionId,
+                runEffectId: execution.runEffectId,
+                error: serializeError(error),
+                persistenceEffectId: this.ids.effect()
+              })
+            }
+          }
+        }
+        return
+
+      case ConversationEffectType.DiscardRuntimeBuffer:
+        ports.execution.discardRuntimeBuffer(effect.conversation)
+        return
+
+      case ConversationEffectType.ScheduleRuntimeTurn:
+        ports.scheduleRuntimeTurn(effect.conversation, effect.input, effect.suspendEffectId)
         return
 
       case ConversationEffectType.AbortExecution:

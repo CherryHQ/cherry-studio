@@ -126,14 +126,13 @@ describe('Agent connection resource state', () => {
     ])
   })
 
-  it('parks a user turn until early autonomous terminal and ownership release both settle', () => {
+  it('buffers autonomous output without owning the suspended foreground turn or its resume decision', () => {
     const deferred = { id: 'turn-user' }
     const autonomous = { id: 'turn-autonomous' }
     let state = createAgentConnectionResourceState<Turn, never>(deferred)
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Started,
-      deferCurrentTurn: true,
       contextTurn: deferred
     }).state
     state = transitionAgentConnectionResource(state, {
@@ -152,7 +151,6 @@ describe('Agent connection resource state', () => {
     expect(state.generation).toMatchObject({
       kind: AgentConnectionResourceKind.AutonomousTurn,
       ownership: AgentAutonomousResourceOwnership.Released,
-      deferredTurn: deferred,
       driverOutcome: { status: AgentDriverOutcomeKind.Success }
     })
 
@@ -183,11 +181,11 @@ describe('Agent connection resource state', () => {
       status: AgentDriverOutcomeKind.Success
     })
     expect(released.state.generation).toMatchObject({
-      kind: AgentConnectionResourceKind.Turn,
-      turn: deferred,
-      stream: AgentStreamResourcePhase.Unopened,
-      delivery: AgentConnectionDeliveryPhase.Pending
+      kind: AgentConnectionResourceKind.AutonomousTurn,
+      ownership: AgentAutonomousResourceOwnership.Released,
+      releaseOutcome: AgentDriverOutcomeKind.Success
     })
+    expect('deferredTurn' in released.state.generation).toBe(false)
   })
 
   it('fences stale connection attempts and tears down background and compaction occupancy together', () => {

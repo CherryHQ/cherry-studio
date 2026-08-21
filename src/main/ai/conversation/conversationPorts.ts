@@ -32,6 +32,14 @@ export type AbortConversationExecutionEffect = Extract<
   ConversationEffect,
   { type: ConversationEffectType.AbortExecution }
 >
+export type SuspendConversationExecutionEffect = Extract<
+  ConversationEffect,
+  { type: ConversationEffectType.SuspendExecution }
+>
+export type ResumeSuspendedConversationExecutionEffect = Extract<
+  ConversationEffect,
+  { type: ConversationEffectType.ResumeSuspendedExecution }
+>
 export type PersistConversationTerminalEffect = Extract<
   ConversationEffect,
   { type: ConversationEffectType.PersistTerminal }
@@ -78,6 +86,9 @@ export interface ConversationExecutionPort {
   requestYield(conversation: ConversationRef, turnId: ConversationTurnId): void
   redirect(effect: RedirectConversationInputEffect): boolean
   resume(effect: ResumeConversationExecutionEffect): void
+  suspend(effect: SuspendConversationExecutionEffect): boolean
+  resumeSuspended(effect: ResumeSuspendedConversationExecutionEffect): void
+  discardRuntimeBuffer(conversation: ConversationRef): void
   abort(effect: AbortConversationExecutionEffect): void
 }
 
@@ -94,6 +105,11 @@ export interface ConversationRuntimePortSet {
   readonly presentation: ConversationPresentationPort
   scheduleNextTurn(conversation: ConversationRef, input: ConversationInput): void
   scheduleNextStep(conversation: ConversationRef, turnId: ConversationTurnId, input: ConversationInput): void
+  scheduleRuntimeTurn(
+    conversation: ConversationRef,
+    input: ConversationInput,
+    suspendEffectId: ConversationEffectId
+  ): void
 }
 
 export interface ConversationPortResolver {

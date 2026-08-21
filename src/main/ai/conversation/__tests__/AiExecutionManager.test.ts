@@ -33,6 +33,76 @@ function controlledStream() {
 }
 
 describe('AiExecutionManager', () => {
+  it('fences a suspended Starting run without reporting terminal and resumes the exact resource', async () => {
+    const first = controlledStream()
+    const second = controlledStream()
+    const openStream = vi.fn().mockResolvedValueOnce(first.stream).mockResolvedValueOnce(second.stream)
+    const suspend = vi.fn(() => {
+      first.controller.close()
+      return true
+    })
+    const resumeSuspended = vi.fn()
+    const sink: ConversationExecutionSink = {
+      firstChunk: vi.fn(),
+      interactionOpened: vi.fn(),
+      terminal: vi.fn(),
+      startFailed: vi.fn()
+    }
+    const manager = new AiExecutionManager(openStream)
+    manager.register({
+      conversation: ref,
+      turnId,
+      executionId,
+      outputNodeId: 'assistant-1',
+      modelId: 'provider::model',
+      request: { chatId: 'topic-1', trigger: 'submit-message', uniqueModelId: 'provider::model', messages: [] },
+      observers: [],
+      suspend,
+      resumeSuspended,
+      interactionResumeMode: ConversationInteractionResumeMode.NewRun
+    })
+    manager.start(
+      {
+        type: ConversationEffectType.StartExecution,
+        conversation: ref,
+        turnId,
+        executionId,
+        effectId: toConversationEffectId('start-1')
+      },
+      sink
+    )
+    await vi.waitFor(() => expect(openStream).toHaveBeenCalledOnce())
+
+    expect(
+      manager.suspend({
+        type: ConversationEffectType.SuspendExecution,
+        conversation: ref,
+        turnId,
+        executionId,
+        effectId: toConversationEffectId('suspend-1')
+      })
+    ).toBe(true)
+    await Promise.resolve()
+    expect(sink.terminal).not.toHaveBeenCalled()
+
+    manager.resumeSuspended({
+      type: ConversationEffectType.ResumeSuspendedExecution,
+      conversation: ref,
+      turnId,
+      executionId,
+      effectId: toConversationEffectId('resume-1'),
+      suspendEffectId: toConversationEffectId('suspend-1')
+    })
+    await vi.waitFor(() => expect(openStream).toHaveBeenCalledTimes(2))
+    second.controller.close()
+    await Promise.all(manager.inFlightRuns())
+
+    expect(suspend).toHaveBeenCalledOnce()
+    expect(resumeSuspended).toHaveBeenCalledOnce()
+    expect(sink.terminal).toHaveBeenCalledOnce()
+    expect(sink.terminal).toHaveBeenCalledWith({ kind: ConversationOutcomeKind.Success })
+  })
+
   it('owns chunks and resources while returning only control facts to Conversation', async () => {
     const controlled = controlledStream()
     const chunks: ConversationExecutionChunk[] = []

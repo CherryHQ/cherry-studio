@@ -23,7 +23,10 @@ import {
   ConversationEffectType,
   ConversationExecutionDriverKind,
   ConversationInputProvenance,
+  ConversationPreemptionPhase,
   ConversationResponderKind,
+  ConversationRunMode,
+  ConversationRuntimeOwnership,
   ConversationTerminalAudience,
   createConversationState,
   isConversationQuiescent,
@@ -103,6 +106,238 @@ describe('Conversation state', () => {
     expect(result.effects).toEqual([
       expect.objectContaining({ type: ConversationEffectType.StartExecution, executionId: execution })
     ])
+  })
+
+  it('owns autonomous suspension and restores foreground only after terminal durability and ownership release', () => {
+    const runtimeInput = {
+      ...input('runtime-1'),
+      provenance: ConversationInputProvenance.Runtime
+    }
+    const requested = transitionConversation(open(agent).state, {
+      type: ConversationCommandType.RuntimePreemptionRequested,
+      input: runtimeInput,
+      suspendEffectId: effect('suspend-1')
+    })
+    expect(requested.state).toMatchObject({
+      phase: ConversationPhase.Running,
+      runMode: ConversationRunMode.Preempting,
+      preemptionPhase: ConversationPreemptionPhase.Suspending,
+      runtimeOwnership: ConversationRuntimeOwnership.Active
+    })
+    expect(requested.effects).toEqual([
+      expect.objectContaining({ type: ConversationEffectType.SuspendExecution, executionId: execution })
+    ])
+
+    const suspended = transitionConversation(requested.state, {
+      type: ConversationCommandType.RuntimeSuspensionSucceeded,
+      suspendEffectId: effect('suspend-1'),
+      scheduleEffectId: effect('schedule-runtime')
+    })
+    expect(suspended.effects).toEqual([
+      expect.objectContaining({ type: ConversationEffectType.ScheduleRuntimeTurn, input: runtimeInput })
+    ])
+
+    const runtimeTurnId = toConversationTurnId('runtime-turn')
+    const runtimeExecution = toConversationExecutionId('runtime-execution')
+    let state = transitionConversation(suspended.state, {
+      type: ConversationCommandType.RuntimeTurnCommitted,
+      inputId: runtimeInput.id,
+      suspendEffectId: effect('suspend-1'),
+      turnId: runtimeTurnId,
+      anchorNodeId: null,
+      responder: ConversationResponderKind.Interactive,
+      executions: [
+        {
+          id: runtimeExecution,
+          outputNodeId: 'runtime-assistant',
+          driver: ConversationExecutionDriverKind.Agent,
+          modelId: 'provider::model',
+          startEffectId: effect('runtime-run')
+        }
+      ]
+    }).state
+    expect(state).toMatchObject({
+      runMode: ConversationRunMode.RuntimePreempted,
+      runtimeOwnership: ConversationRuntimeOwnership.Active,
+      runtimeTerminalDurable: false,
+      suspendedTurn: { id: turn }
+    })
+
+    const staleRelease = transitionConversation(state, {
+      type: ConversationCommandType.RuntimeOwnershipReleased,
+      suspendEffectId: effect('old-suspend'),
+      resumeEffectId: effect('stale-resume'),
+      quiescenceEffectId: effect('stale-quiescence')
+    })
+    expect(staleRelease.rejection).toBeDefined()
+    expect(staleRelease.state).toBe(state)
+
+    state = transitionConversation(state, {
+      type: ConversationCommandType.RuntimeOwnershipReleased,
+      suspendEffectId: effect('suspend-1'),
+      resumeEffectId: effect('resume-early'),
+      quiescenceEffectId: effect('quiescence-early')
+    }).state
+    expect(state).toMatchObject({
+      runMode: ConversationRunMode.RuntimePreempted,
+      runtimeOwnership: ConversationRuntimeOwnership.Released
+    })
+
+    state = transitionConversation(state, {
+      type: ConversationCommandType.ExecutionTerminal,
+      turnId: runtimeTurnId,
+      executionId: runtimeExecution,
+      runEffectId: effect('runtime-run'),
+      outcome: { kind: ConversationOutcomeKind.Success },
+      persistenceEffectId: effect('runtime-persist')
+    }).state
+    const durable = transitionConversation(state, {
+      type: ConversationCommandType.PersistenceSucceeded,
+      turnId: runtimeTurnId,
+      executionId: runtimeExecution,
+      persistenceEffectId: effect('runtime-persist'),
+      statusEffectId: effect('runtime-status'),
+      executionTerminalEffectId: effect('runtime-execution-terminal'),
+      turnTerminalEffectId: effect('runtime-turn-terminal'),
+      quiescenceEffectId: effect('runtime-quiescence'),
+      scheduleEffectId: effect('resume-foreground'),
+      scheduleStepEffectId: effect('runtime-step')
+    })
+    expect(durable.state).toMatchObject({
+      phase: ConversationPhase.Running,
+      runMode: ConversationRunMode.Foreground,
+      turn: { id: turn }
+    })
+    expect(durable.effects.map(({ type }) => type)).toEqual([
+      ConversationEffectType.PublishExecutionTerminal,
+      ConversationEffectType.PublishTurnTerminal,
+      ConversationEffectType.ResumeSuspendedExecution
+    ])
+  })
+
+  it('restores foreground and discards buffered autonomous output when skeleton commit fails', () => {
+    const runtimeInput = { ...input('runtime-1'), provenance: ConversationInputProvenance.Runtime }
+    let state = transitionConversation(open(agent).state, {
+      type: ConversationCommandType.RuntimePreemptionRequested,
+      input: runtimeInput,
+      suspendEffectId: effect('suspend-1')
+    }).state
+    state = transitionConversation(state, {
+      type: ConversationCommandType.RuntimeSuspensionSucceeded,
+      suspendEffectId: effect('suspend-1'),
+      scheduleEffectId: effect('schedule-runtime')
+    }).state
+    const failed = transitionConversation(state, {
+      type: ConversationCommandType.RuntimeTurnCommitFailed,
+      suspendEffectId: effect('suspend-1'),
+      resumeEffectId: effect('resume-1'),
+      discardEffectId: effect('discard-1')
+    })
+
+    expect(failed.state).toMatchObject({
+      phase: ConversationPhase.Running,
+      runMode: ConversationRunMode.Foreground,
+      turn: { id: turn }
+    })
+    expect(failed.effects.map(({ type }) => type)).toEqual([
+      ConversationEffectType.ResumeSuspendedExecution,
+      ConversationEffectType.DiscardRuntimeBuffer
+    ])
+  })
+
+  it('stops runtime and suspended foreground exactly once and waits for ownership release', () => {
+    const runtimeInput = { ...input('runtime-stop'), provenance: ConversationInputProvenance.Runtime }
+    let state = transitionConversation(open(agent).state, {
+      type: ConversationCommandType.RuntimePreemptionRequested,
+      input: runtimeInput,
+      suspendEffectId: effect('suspend-stop')
+    }).state
+    state = transitionConversation(state, {
+      type: ConversationCommandType.RuntimeSuspensionSucceeded,
+      suspendEffectId: effect('suspend-stop'),
+      scheduleEffectId: effect('schedule-stop')
+    }).state
+    const runtimeTurnId = toConversationTurnId('runtime-stop-turn')
+    const runtimeExecution = toConversationExecutionId('runtime-stop-execution')
+    state = transitionConversation(state, {
+      type: ConversationCommandType.RuntimeTurnCommitted,
+      inputId: runtimeInput.id,
+      suspendEffectId: effect('suspend-stop'),
+      turnId: runtimeTurnId,
+      anchorNodeId: null,
+      responder: ConversationResponderKind.Interactive,
+      executions: [
+        {
+          id: runtimeExecution,
+          outputNodeId: 'runtime-stop-assistant',
+          driver: ConversationExecutionDriverKind.Agent,
+          modelId: 'provider::model',
+          startEffectId: effect('runtime-stop-run')
+        }
+      ]
+    }).state
+    const stopped = transitionConversation(state, {
+      type: ConversationCommandType.Stop,
+      reason: 'user-stop',
+      abortEffectIds: new Map([
+        [execution, effect('abort-foreground')],
+        [runtimeExecution, effect('abort-runtime')]
+      ]),
+      persistenceEffectIds: new Map([
+        [execution, effect('persist-foreground')],
+        [runtimeExecution, effect('persist-runtime')]
+      ]),
+      turnTerminalEffectId: effect('stop-turn-terminal'),
+      quiescenceEffectId: effect('stop-quiescence')
+    })
+    expect(stopped.state).toMatchObject({
+      phase: ConversationPhase.Stopping,
+      runMode: ConversationRunMode.RuntimePreempted,
+      runtimeOwnership: ConversationRuntimeOwnership.Active
+    })
+    expect(stopped.effects.map(({ type }) => type)).toEqual([
+      ConversationEffectType.AbortExecution,
+      ConversationEffectType.AbortExecution,
+      ConversationEffectType.PersistTerminal
+    ])
+
+    state = transitionConversation(stopped.state, {
+      type: ConversationCommandType.ExecutionTerminal,
+      turnId: runtimeTurnId,
+      executionId: runtimeExecution,
+      runEffectId: effect('runtime-stop-run'),
+      outcome: { kind: ConversationOutcomeKind.Paused, reason: 'user-stop' },
+      persistenceEffectId: effect('persist-runtime')
+    }).state
+    state = transitionConversation(state, {
+      type: ConversationCommandType.PersistenceSucceeded,
+      turnId: runtimeTurnId,
+      executionId: runtimeExecution,
+      persistenceEffectId: effect('persist-runtime'),
+      statusEffectId: effect('status-runtime'),
+      executionTerminalEffectId: effect('terminal-runtime'),
+      turnTerminalEffectId: effect('turn-terminal-runtime'),
+      quiescenceEffectId: effect('quiescence-runtime')
+    }).state
+    state = transitionConversation(state, {
+      type: ConversationCommandType.PersistenceSucceeded,
+      turnId: turn,
+      executionId: execution,
+      persistenceEffectId: effect('persist-foreground'),
+      statusEffectId: effect('status-foreground'),
+      executionTerminalEffectId: effect('terminal-foreground'),
+      turnTerminalEffectId: effect('turn-terminal-foreground'),
+      quiescenceEffectId: effect('quiescence-foreground')
+    }).state
+    expect(state.phase).toBe(ConversationPhase.Stopping)
+
+    const released = transitionConversation(state, {
+      type: ConversationCommandType.RuntimeOwnershipReleased,
+      resumeEffectId: effect('resume-unused'),
+      quiescenceEffectId: effect('quiescence-release')
+    })
+    expect(released.state.phase).toBe(ConversationPhase.Idle)
+    expect(released.effects).toEqual([expect.objectContaining({ type: ConversationEffectType.PublishQuiescence })])
   })
 
   it('queues live Chat inputs in durable FIFO order and requests yield', () => {
