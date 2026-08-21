@@ -1019,6 +1019,9 @@
       "mcp_prompts": {
         "description": "Insérer un prompt publié par un serveur MCP",
         "empty": "Aucun prompt MCP disponible",
+        "fill_arguments": "Renseigner les arguments du prompt",
+        "fill_arguments_description": "Saisissez les arguments de ce prompt avant de l'insérer",
+        "insert": "Insérer",
         "insert_failed": "Impossible d'insérer le prompt",
         "title": "Prompts MCP"
       },
@@ -7073,9 +7076,8 @@
       "explore": {
         "analysis": "Analyse",
         "chart": "Graphique",
-        "clearDate": "Effacer le filtre de date",
-        "drilldownTitle": "{{date}} détail",
         "entries": "Demandes",
+        "granularity": "Granularité",
         "groupBy": "Grouper par",
         "loadMore": "Charger plus",
         "loading": "Chargement...",
@@ -7085,7 +7087,6 @@
         "noEntries": "Aucune entrée",
         "noEntriesDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
         "rollup": "Agrégation",
-        "selectedDate": "Date sélectionnée : {{date}}",
         "shareLabel": "Partager",
         "title": "Explorer",
         "top": "Haut",
@@ -7099,7 +7100,6 @@
         "source": "Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Utilisation le {{date}}",
         "title": "Activité quotidienne"
       },
       "metric": {

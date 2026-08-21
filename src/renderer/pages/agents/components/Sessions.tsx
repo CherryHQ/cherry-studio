@@ -36,6 +36,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
@@ -87,7 +88,7 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { Folder, FolderOpen, MoreHorizontal, Plus } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -96,7 +97,7 @@ import {
   rejectPendingAgentSessionImageActions,
   requestAgentSessionImageAction
 } from '../messages/agentSessionImageActionBus'
-import AgentSessionImageCaptureHost from '../messages/AgentSessionImageCaptureHost'
+const AgentSessionImageCaptureHost = lazy(() => import('../messages/AgentSessionImageCaptureHost'))
 import type { CreateAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import { useOptionalAgentFileNavigation } from './AgentRightPane'
@@ -465,11 +466,12 @@ const Sessions = ({
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
 
   const sessionItemsReconciliationRef = useRef(EMPTY_SESSION_LIST_ITEM_RECONCILIATION)
-  const sessionItems = useMemo(() => {
+  const apiBackedSessionItems = useMemo(() => {
     const reconciliation = reconcileSessionListItems(sessions, pinIdBySessionId, sessionItemsReconciliationRef.current)
     sessionItemsReconciliationRef.current = reconciliation
     return reconciliation.items
   }, [pinIdBySessionId, sessions])
+  const { items: sessionItems, rename: renameSessionOptimistically } = useOptimisticResourceName(apiBackedSessionItems)
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
   const togglePinRef = useRef(togglePin)
@@ -848,11 +850,12 @@ const Sessions = ({
       if (!session || !trimmedName || trimmedName === session.name) return
 
       try {
-        const updatedSession = await updateSession(
-          { id, name: trimmedName, isNameManuallyEdited: true },
-          { showSuccessToast: false }
+        const renamed = await renameSessionOptimistically(session, trimmedName, async () =>
+          Boolean(
+            await updateSession({ id, name: trimmedName, isNameManuallyEdited: true }, { showSuccessToast: false })
+          )
         )
-        if (updatedSession) {
+        if (renamed) {
           toast.success(t('common.saved'))
         }
       } catch (err) {
@@ -860,7 +863,7 @@ const Sessions = ({
         toast.error(t('agent.session.update.error.failed'))
       }
     },
-    [t, updateSession]
+    [renameSessionOptimistically, t, updateSession]
   )
   const handleOpenRenameSessionDialog = useCallback((session: AgentSessionEntity) => {
     setRenamingSessionId(session.id)
@@ -2061,17 +2064,19 @@ const Sessions = ({
           if (!open) setEditDialogTarget(null)
         }}
       />
-      {imageCaptureTargets.map(({ requestId, target: session }) => {
-        const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined
-        return (
-          <AgentSessionImageCaptureHost
-            key={requestId}
-            activeAgent={activeAgent}
-            modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
-            session={session}
-          />
-        )
-      })}
+      <Suspense>
+        {imageCaptureTargets.map(({ requestId, target: session }) => {
+          const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined
+          return (
+            <AgentSessionImageCaptureHost
+              key={requestId}
+              activeAgent={activeAgent}
+              modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
+              session={session}
+            />
+          )
+        })}
+      </Suspense>
     </SessionResourceList>
   )
 }
