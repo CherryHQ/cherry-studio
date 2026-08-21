@@ -13,10 +13,20 @@ import { defineRoute } from '../define'
 export const quickAssistantRequestSchemas = {
   'quick_assistant.hide': defineRoute({ input: z.void(), output: z.void() }),
   'quick_assistant.close': defineRoute({ input: z.void(), output: z.void() }),
-  'quick_assistant.set_pin': defineRoute({ input: z.object({ isPinned: z.boolean() }), output: z.void() })
-}
-
-// Directed (per-window) event: fired on every quick-window 'show', empty payload.
-export type QuickAssistantEventSchemas = {
-  'quick_assistant.shown': void
+  'quick_assistant.set_pin': defineRoute({ input: z.object({ isPinned: z.boolean() }), output: z.void() }),
+  /**
+   * Resize the window to the height its content needs. The renderer owns measurement
+   * (the composer grows with the draft) and the reduced-motion decision; main owns
+   * work-area clamping and the tween. `view` tells main which height to restore when
+   * the user drags the window (only the conversation panel height is remembered).
+   * `quick-panel` is the transient transparent space needed by composer tool menus.
+   */
+  'quick_assistant.set_view': defineRoute({
+    input: z.object({
+      view: z.enum(['bar', 'quick-panel', 'panel']),
+      contentHeight: z.number().int().positive(),
+      animate: z.boolean()
+    }),
+    output: z.void()
+  })
 }

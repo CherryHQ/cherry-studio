@@ -1074,6 +1074,7 @@
         "title": "Ресурсы"
       },
       "restore": "Восстановить",
+      "screenshot": "Снимок экрана",
       "send": "Отправить",
       "send_failed": "Не удалось отправить сообщение",
       "slash_commands": {
@@ -4180,17 +4181,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Буфер обмена пуст"
-    },
-    "feature": {
-      "chat": "Ответить на этот вопрос",
-      "explanation": "Объяснение",
-      "summary": "Содержание",
-      "translate": "Текст перевод"
+    "control_bar": {
+      "open_in_main": "Открыть в главном окне",
+      "save_failed": "Не удалось сохранить этот диалог",
+      "save_topic": "Сохранить как топик",
+      "saved": "Сохранено"
     },
     "footer": {
-      "backspace_clear": "Нажмите Backspace, чтобы очистить",
       "copy_last_message": "Нажмите C для копирования",
       "esc": "Нажмите ESC {{action}}",
       "esc_back": "возвращения",
@@ -4199,8 +4196,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Задайте вопрос {{model}}...",
-        "title": "Что вы хотите сделать с этим текстом?"
+        "empty": "Задайте вопрос {{model}}..."
       }
     },
     "tooltip": {
@@ -6681,7 +6677,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Нажмите на иконку трея для запуска",
       "enable_quick_assistant": "Включить быстрый помощник",
-      "read_clipboard_at_startup": "Чтение буфера обмена при запуске",
       "title": "Быстрый помощник",
       "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска"
     },

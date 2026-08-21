@@ -1074,6 +1074,7 @@
         "title": "Ressources"
       },
       "restore": "Restaurer",
+      "screenshot": "Capture d’écran",
       "send": "Envoyer",
       "send_failed": "Échec de l'envoi du message",
       "slash_commands": {
@@ -4180,17 +4181,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Presse-papiers vide"
-    },
-    "feature": {
-      "chat": "Répondre à cette question",
-      "explanation": "Explication",
-      "summary": "Résumé du contenu",
-      "translate": "Traduction de texte"
+    "control_bar": {
+      "open_in_main": "Ouvrir dans la fenêtre principale",
+      "save_failed": "Impossible d’enregistrer cette conversation",
+      "save_topic": "Enregistrer comme sujet",
+      "saved": "Enregistré"
     },
     "footer": {
-      "backspace_clear": "Appuyez sur Retour arrière pour effacer",
       "copy_last_message": "Appuyez sur C pour copier",
       "esc": "Appuyez sur ESC {{action}}",
       "esc_back": "Revenir en arrière",
@@ -4199,8 +4196,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Demander à {{model}} pour obtenir de l'aide...",
-        "title": "Que souhaitez-vous faire avec le texte ci-dessous"
+        "empty": "Demander à {{model}} pour obtenir de l'aide..."
       }
     },
     "tooltip": {
@@ -6681,7 +6677,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Cliquez sur l'icône dans la barre d'état système pour démarrer",
       "enable_quick_assistant": "Activer l'assistant rapide",
-      "read_clipboard_at_startup": "Lire le presse-papiers au démarrage",
       "title": "Assistant Rapide",
       "use_shortcut_to_show": "Cliquez avec le bouton droit sur l'icône dans la barre d'état système ou utilisez un raccourci clavier pour démarrer"
     },

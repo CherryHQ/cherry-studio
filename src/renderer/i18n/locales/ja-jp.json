@@ -1074,6 +1074,7 @@
         "title": "リソース"
       },
       "restore": "復元",
+      "screenshot": "スクリーンショット",
       "send": "送信",
       "send_failed": "メッセージの送信に失敗しました",
       "slash_commands": {
@@ -4180,17 +4181,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "クリップボードが空です"
-    },
-    "feature": {
-      "chat": "この質問に回答",
-      "explanation": "説明",
-      "summary": "内容要約",
-      "translate": "テキスト翻訳"
+    "control_bar": {
+      "open_in_main": "メインウィンドウで開く",
+      "save_failed": "この会話を保存できませんでした",
+      "save_topic": "トピックとして保存",
+      "saved": "保存済み"
     },
     "footer": {
-      "backspace_clear": "バックスペースを押してクリアします",
       "copy_last_message": "C キーを押してコピー",
       "esc": "ESC キーを押して{{action}}",
       "esc_back": "戻る",
@@ -4199,8 +4196,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "{{model}} に質問してください...",
-        "title": "下のテキストに対して何をしますか？"
+        "empty": "{{model}} に質問してください..."
       }
     },
     "tooltip": {
@@ -6681,7 +6677,6 @@
     "quickAssistant": {
       "click_tray_to_show": "トレイアイコンをクリックして起動",
       "enable_quick_assistant": "クイックアシスタントを有効にする",
-      "read_clipboard_at_startup": "起動時にクリップボードを読み取る",
       "title": "クイックアシスタント",
       "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます"
     },

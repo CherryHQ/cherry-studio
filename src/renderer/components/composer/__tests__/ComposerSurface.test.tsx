@@ -768,6 +768,22 @@ describe('ComposerSurface', () => {
     expect(contextUsage.compareDocumentPosition(sendButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
+  it('does not duplicate below-surface controls while using the compact row', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        compactWhenSingleLine
+        renderBelowControls={() => <span>below controls</span>}
+        renderCompactControls={() => <span>compact controls</span>}
+      />
+    )
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+    expect(screen.getByText('compact controls')).toBeInTheDocument()
+    expect(screen.queryByText('below controls')).not.toBeInTheDocument()
+  })
+
   it('preserves the editor DOM when switching between compact and regular presentations', async () => {
     const { rerender } = render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
 

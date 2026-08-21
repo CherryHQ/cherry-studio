@@ -1277,6 +1277,14 @@ describe('ChatComposer', () => {
     }
   )
 
+  it('keeps assistant and model selection available in the compact home composer', () => {
+    render(<ChatPlacementComposer placement="home" topic={topic} onSend={vi.fn()} compactWhenSingleLine />)
+
+    const compactControls = screen.getByTestId('composer-compact-controls')
+    expect(compactControls).toHaveTextContent('Assistant 1')
+    expect(compactControls).toHaveTextContent('Model A')
+  })
+
   it('does not enable skill marker paste handling', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 

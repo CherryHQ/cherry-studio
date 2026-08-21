@@ -1074,6 +1074,7 @@
         "title": "Resources & Sessions"
       },
       "restore": "Restore",
+      "screenshot": "Screenshot",
       "send": "Send",
       "send_failed": "Failed to send message",
       "slash_commands": {
@@ -4180,17 +4181,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Clipboard is empty"
-    },
-    "feature": {
-      "chat": "Answer this question",
-      "explanation": "Explanation",
-      "summary": "Content summary",
-      "translate": "Text translation"
+    "control_bar": {
+      "open_in_main": "Open in main window",
+      "save_failed": "Could not save this conversation",
+      "save_topic": "Save as topic",
+      "saved": "Saved"
     },
     "footer": {
-      "backspace_clear": "Backspace to clear",
       "copy_last_message": "Press C to copy",
       "esc": "ESC to {{action}}",
       "esc_back": "return",
@@ -4199,8 +4196,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Ask {{model}} for help...",
-        "title": "What do you want to do with this text?"
+        "empty": "Ask {{model}} for help..."
       }
     },
     "tooltip": {
@@ -6681,7 +6677,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
       "enable_quick_assistant": "Enable Quick Assistant",
-      "read_clipboard_at_startup": "Read clipboard at startup",
       "title": "Quick Assistant",
       "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
     },

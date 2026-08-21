@@ -94,6 +94,10 @@ export class ScreenshotOverlayService extends BaseService {
   /** The overlay the user is currently interacting with, at most one per session. */
   private activeOverlayWindowId: WindowId | null = null
 
+  /** The in-app window that started this session, notified once a result is on the
+   *  clipboard. Null for hotkey-started sessions, which have no window to answer to. */
+  private requesterWindowId: WindowId | null = null
+
   /** Pending reveal per overlay, with the fallback timer it races. Cleared together. */
   private pendingReveals = new Map<WindowId, { reveal: () => void; timer: NodeJS.Timeout }>()
 
@@ -169,12 +173,16 @@ export class ScreenshotOverlayService extends BaseService {
    * Returns immediately when a capture is already running or a session is already on
    * screen, when the feature is off, or when screen recording is not granted (guiding
    * the user instead).
+   *
+   * @param requesterWindowId - Window that asked for the capture, so {@link commit} can
+   *   tell it the clipboard holds a result. Omitted for the global hotkey.
    */
-  public async startCapture(): Promise<void> {
+  public async startCapture(requesterWindowId?: WindowId): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
     // `overlayWindowIds` is still empty and a second hotkey press would otherwise pass.
     if (this.capturing || this.overlayWindowIds.length > 0) return
     this.capturing = true
+    this.requesterWindowId = requesterWindowId ?? null
 
     try {
       const preferenceService = application.get('PreferenceService')
@@ -315,6 +323,14 @@ export class ScreenshotOverlayService extends BaseService {
     }
   }
 
+  /**
+   * Whether a capture is being prepared or its overlays are on screen. Windows that
+   * auto-hide on blur consult this so opening the overlay does not dismiss them.
+   */
+  public isSessionActive(): boolean {
+    return this.capturing || this.overlayWindowIds.length > 0
+  }
+
   /** Whether the window belongs to the live session. */
   public isSessionOverlay(windowId: WindowId): boolean {
     return this.overlayWindowIds.includes(windowId)
@@ -430,19 +446,30 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Copy the overlay's result to the clipboard and end the session. */
   public commit(result: ScreenshotResultData): void {
+    let copied = false
     try {
       const image = nativeImage.createFromBuffer(Buffer.from(result.pngBytes))
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
       // writing that wipes the clipboard while the log still claims success.
       if (image.isEmpty()) throw new Error('the result bytes could not be decoded')
       clipboard.writeImage(image)
+      copied = true
       logger.info('Screenshot copied to the clipboard')
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)
     }
 
+    // Read before dismiss(): cleanup() clears the session, this window included.
+    const requesterWindowId = this.requesterWindowId
+
     // Outside the try: the overlays come down whether or not the clipboard took it.
     this.dismiss()
+
+    // After dismiss so the requester takes focus from a screen the overlays have left.
+    if (copied && requesterWindowId) {
+      application.get('IpcApiService').send(requesterWindowId, 'screenshot.captured', undefined)
+      application.get('WindowManager').getWindow(requesterWindowId)?.focus()
+    }
   }
 
   /**
@@ -594,6 +621,7 @@ export class ScreenshotOverlayService extends BaseService {
 
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
+    this.requesterWindowId = null
 
     // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
     this.latestOcrToken = null

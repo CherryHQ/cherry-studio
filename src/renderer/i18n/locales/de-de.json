@@ -1074,6 +1074,7 @@
         "title": "Ressourcen"
       },
       "restore": "Wiederherstellen",
+      "screenshot": "Screenshot",
       "send": "Senden",
       "send_failed": "Nachricht konnte nicht gesendet werden",
       "slash_commands": {
@@ -4180,17 +4181,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Zwischenablage ist leer"
-    },
-    "feature": {
-      "chat": "Diese Frage beantworten",
-      "explanation": "Erklärung",
-      "summary": "Zusammenfassung",
-      "translate": "Textübersetzung"
+    "control_bar": {
+      "open_in_main": "Im Hauptfenster öffnen",
+      "save_failed": "Diese Unterhaltung konnte nicht gespeichert werden",
+      "save_topic": "Als Thema speichern",
+      "saved": "Gespeichert"
     },
     "footer": {
-      "backspace_clear": "Backspace zum Löschen",
       "copy_last_message": "C zum Kopieren",
       "esc": "ESC zum {{action}}",
       "esc_back": "Zurück",
@@ -4199,8 +4196,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "{{model}} um Hilfe fragen...",
-        "title": "Was möchten Sie mit dem folgenden Text tun"
+        "empty": "{{model}} um Hilfe fragen..."
       }
     },
     "tooltip": {
@@ -6681,7 +6677,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Klicken auf Tray-Symbol zum Starten",
       "enable_quick_assistant": "Schnellassistent aktivieren",
-      "read_clipboard_at_startup": "Zwischenablage beim Start lesen",
       "title": "Schnellassistent",
       "use_shortcut_to_show": "Rechtsklick auf Tray-Icon oder Shortcut zum Starten"
     },

@@ -26,7 +26,7 @@ import { ovmsRequestSchemas } from './ovms'
 import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
-import { type QuickAssistantEventSchemas, quickAssistantRequestSchemas } from './quickAssistant'
+import { quickAssistantRequestSchemas } from './quickAssistant'
 import { type ScreenshotEventSchemas, screenshotRequestSchemas } from './screenshot'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { skillRequestSchemas } from './skill'
@@ -105,7 +105,6 @@ export type IpcEventSchemas = AiEventSchemas &
   NavigationEventSchemas &
   NotificationEventSchemas &
   OAuthEventSchemas &
-  QuickAssistantEventSchemas &
   ScreenshotEventSchemas &
   SelectionEventSchemas &
   SystemEventSchemas &

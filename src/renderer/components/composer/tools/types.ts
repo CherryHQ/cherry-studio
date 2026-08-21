@@ -17,6 +17,7 @@ export type ComposerToolScope = TopicType | 'quick-assistant' | 'painting'
 export interface ComposerToolScopeConfig {
   enableQuickPanel?: boolean
   enableDragDrop?: boolean
+  inheritedToolScopes?: readonly ComposerToolScope[]
 }
 
 type ReadableKeys<T> = {

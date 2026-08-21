@@ -15,7 +15,8 @@ const composerToolConfigRegistry: Partial<Record<ComposerToolScope, ComposerTool
   },
   'quick-assistant': {
     enableQuickPanel: true,
-    enableDragDrop: false
+    enableDragDrop: false,
+    inheritedToolScopes: [TopicType.Chat]
   },
   // Image-generation prompt bar: the slash quick panel surfaces only the saved
   // prompts library (the sole root-panel launcher in this scope), plus drag-drop
@@ -29,4 +30,14 @@ const composerToolConfigRegistry: Partial<Record<ComposerToolScope, ComposerTool
 
 export const getComposerToolConfig = (scope: ComposerToolScope): ComposerToolScopeConfig => {
   return composerToolConfigRegistry[scope] ?? composerToolConfigRegistry[DEFAULT_COMPOSER_TOOL_SCOPE]!
+}
+
+export const isComposerToolVisibleInScope = (
+  visibleInScopes: readonly ComposerToolScope[] | undefined,
+  scope: ComposerToolScope
+): boolean => {
+  if (!visibleInScopes) return true
+
+  const inheritedToolScopes = getComposerToolConfig(scope).inheritedToolScopes ?? []
+  return [scope, ...inheritedToolScopes].some((candidate) => visibleInScopes.includes(candidate))
 }

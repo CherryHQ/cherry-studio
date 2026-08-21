@@ -1074,6 +1074,7 @@
         "title": "Recursos"
       },
       "restore": "Restaurar",
+      "screenshot": "Captura de ecrã",
       "send": "Enviar",
       "send_failed": "Falha ao enviar mensagem",
       "slash_commands": {
@@ -4180,17 +4181,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "A área de transferência está vazia"
-    },
-    "feature": {
-      "chat": "Responder a esta pergunta",
-      "explanation": "Explicação",
-      "summary": "Resumo do conteúdo",
-      "translate": "Tradução de texto"
+    "control_bar": {
+      "open_in_main": "Abrir na janela principal",
+      "save_failed": "Não foi possível guardar esta conversa",
+      "save_topic": "Guardar como tópico",
+      "saved": "Guardado"
     },
     "footer": {
-      "backspace_clear": "Prima Backspace para limpar",
       "copy_last_message": "Prima C para copiar",
       "esc": "Prima ESC {{action}}",
       "esc_back": "Voltar",
@@ -4199,8 +4196,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Pergunte a {{model}} para obter ajuda...",
-        "title": "O que pretende fazer com o texto abaixo"
+        "empty": "Pergunte a {{model}} para obter ajuda..."
       }
     },
     "tooltip": {
@@ -6681,7 +6677,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Clique no ícone da bandeja para iniciar",
       "enable_quick_assistant": "Ativar assistente rápido",
-      "read_clipboard_at_startup": "Ler área de transferência ao iniciar",
       "title": "Assistente Rápido",
       "use_shortcut_to_show": "Clique com o botão direito no ícone da bandeja ou use atalhos para iniciar"
     },

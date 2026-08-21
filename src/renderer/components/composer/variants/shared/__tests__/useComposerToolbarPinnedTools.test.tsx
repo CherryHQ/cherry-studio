@@ -1,4 +1,5 @@
 import { toast } from '@renderer/services/toast'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +16,11 @@ vi.mock('@renderer/data/hooks/usePreference', async () => {
 })
 
 import { useComposerToolbarPinnedTools } from '../useComposerToolbarPinnedTools'
+
+// Read from the shipped preference rather than a copy of it: which tools are pinned by
+// default is a product decision that moves, and pinning the literal here only asserts
+// that nobody changed it.
+const CHAT_PINNED_TOOLS_DEFAULT = getDefaultValue('chat.input.toolbar.pinned_tools')
 
 describe('useComposerToolbarPinnedTools', () => {
   beforeEach(() => {
@@ -38,7 +44,6 @@ describe('useComposerToolbarPinnedTools', () => {
 
   it('resets to the preference default and reports whether the list is already default', () => {
     const setPreference = vi.fn().mockResolvedValue(undefined)
-    // getDefaultValue includes the persistent new-conversation action first.
     MockUsePreferenceUtils.mockPreferenceReturn('chat.input.toolbar.pinned_tools', [], setPreference)
 
     const { result } = renderHook(() => useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools'))
@@ -48,18 +53,27 @@ describe('useComposerToolbarPinnedTools', () => {
     act(() => {
       result.current.resetPinnedIds()
     })
-    expect(setPreference).toHaveBeenCalledWith(['composer:new-conversation', 'web-search'])
+    expect(setPreference).toHaveBeenCalledWith(CHAT_PINNED_TOOLS_DEFAULT)
   })
 
   it('reports isDefault when the pinned list equals the default', () => {
-    MockUsePreferenceUtils.mockPreferenceReturn('chat.input.toolbar.pinned_tools', [
-      'composer:new-conversation',
-      'web-search'
-    ])
+    MockUsePreferenceUtils.mockPreferenceReturn('chat.input.toolbar.pinned_tools', [...CHAT_PINNED_TOOLS_DEFAULT])
 
     const { result } = renderHook(() => useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools'))
 
     expect(result.current.isDefault).toBe(true)
+  })
+
+  // Pinned order is the toolbar's render order, so a reordering is a real customization.
+  it('does not report isDefault when the default tools are pinned in another order', () => {
+    MockUsePreferenceUtils.mockPreferenceReturn(
+      'chat.input.toolbar.pinned_tools',
+      [...CHAT_PINNED_TOOLS_DEFAULT].reverse()
+    )
+
+    const { result } = renderHook(() => useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools'))
+
+    expect(result.current.isDefault).toBe(false)
   })
 
   it('surfaces a toast when persisting fails', async () => {

@@ -1074,6 +1074,7 @@
         "title": "檔案與工作階段"
       },
       "restore": "還原",
+      "screenshot": "截圖",
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "slash_commands": {
@@ -4180,17 +4181,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "剪貼簿為空"
-    },
-    "feature": {
-      "chat": "回答此問題",
-      "explanation": "解釋說明",
-      "summary": "內容摘要",
-      "translate": "文字翻譯"
+    "control_bar": {
+      "open_in_main": "在主視窗開啟",
+      "save_failed": "無法儲存此對話",
+      "save_topic": "儲存為對話",
+      "saved": "已儲存"
     },
     "footer": {
-      "backspace_clear": "按 Backspace 清空",
       "copy_last_message": "按 C 鍵複製",
       "esc": "按 ESC {{action}}",
       "esc_back": "返回",
@@ -4199,8 +4196,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "詢問 {{model}} 取得幫助...",
-        "title": "你想對下方文字做什麼"
+        "empty": "詢問 {{model}} 取得幫助..."
       }
     },
     "tooltip": {
@@ -6681,7 +6677,6 @@
     "quickAssistant": {
       "click_tray_to_show": "點選系統匣圖示啟動",
       "enable_quick_assistant": "啟用快速助理",
-      "read_clipboard_at_startup": "啟動時讀取剪貼簿",
       "title": "快速助理",
       "use_shortcut_to_show": "在系統匣圖示上按一下滑鼠右鍵，或使用快捷鍵啟動"
     },

@@ -1074,6 +1074,7 @@
         "title": "Fișiere și sesiuni"
       },
       "restore": "Restaurare",
+      "screenshot": "Captură de ecran",
       "send": "Trimite",
       "send_failed": "Nu s-a putut trimite mesajul",
       "slash_commands": {
@@ -4180,17 +4181,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Clipboardul este gol"
-    },
-    "feature": {
-      "chat": "Răspunde la această întrebare",
-      "explanation": "Explicație",
-      "summary": "Rezumat conținut",
-      "translate": "Traducere text"
+    "control_bar": {
+      "open_in_main": "Deschide în fereastra principală",
+      "save_failed": "Această conversație nu a putut fi salvată",
+      "save_topic": "Salvează ca subiect",
+      "saved": "Salvat"
     },
     "footer": {
-      "backspace_clear": "Backspace pentru a șterge",
       "copy_last_message": "Apasă C pentru a copia",
       "esc": "ESC pentru a {{action}}",
       "esc_back": "reveni",
@@ -4199,8 +4196,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Cere ajutor de la {{model}}...",
-        "title": "Ce vrei să faci cu acest text?"
+        "empty": "Cere ajutor de la {{model}}..."
       }
     },
     "tooltip": {
@@ -6681,7 +6677,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Fă clic pe pictograma din zona de notificare pentru a începe",
       "enable_quick_assistant": "Activează Asistentul rapid",
-      "read_clipboard_at_startup": "Citește clipboardul la pornire",
       "title": "Asistent rapid",
       "use_shortcut_to_show": "Clic dreapta pe pictograma din zona de notificare sau folosește comenzile rapide pentru a începe"
     },
