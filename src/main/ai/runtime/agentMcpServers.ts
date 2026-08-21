@@ -12,7 +12,6 @@ import SkillsServer from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -80,11 +79,9 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsServer(agent.id).mcpServer }
   }
-  if (agent.configuration?.builtin_role !== BUILTIN_AGENT_ROLE.SUPPORT) {
-    // install_mcp_server runs arbitrary local commands — keep it away from the
-    // restricted support role.
+  if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
     servers['mcp-manager'] = {
-      name: 'mcp-manager',
+      name: CHERRY_MCP_SERVER.MCP_MANAGER,
       instance: new McpManagerServer(agent.id).mcpServer
     }
   }
