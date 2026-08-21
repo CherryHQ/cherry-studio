@@ -76,19 +76,35 @@ export function isServiceTier(tier: string | null | undefined): tier is ServiceT
   return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
 }
 
-export const ApiKeyEntrySchema = z.object({
+// Base object kept separate from the refinement: RuntimeApiKeySchema derives
+// via .omit(), which zod v4 does not allow on refined schemas.
+const ApiKeyEntryObjectSchema = z.object({
   /** UUID for referencing this key */
   id: z.string().min(1),
-  /** Actual key value (trimmed; empty values are rejected) */
-  key: z.string().trim().min(1),
+  /**
+   * Actual key value (trimmed; empty values are rejected). Empty is allowed
+   * only on decryptFailed entries (S7 at-rest encryption): the value could
+   * not be decrypted on this machine and must be re-entered.
+   */
+  key: z.string().trim(),
   /** User-friendly label */
   label: z.string().optional(),
   /** Whether this key is enabled */
-  isEnabled: z.boolean()
+  isEnabled: z.boolean(),
+  /** Set by the main process when the stored envelope could not be decrypted. */
+  decryptFailed: z.boolean().optional()
 })
 
+export const ApiKeyEntrySchema = ApiKeyEntryObjectSchema.refine(
+  (entry) => entry.decryptFailed === true || entry.key.length > 0,
+  {
+    message: 'API key cannot be empty',
+    path: ['key']
+  }
+)
+
 export type ApiKeyEntry = z.infer<typeof ApiKeyEntrySchema>
-export const RuntimeApiKeySchema = ApiKeyEntrySchema.omit({ key: true })
+export const RuntimeApiKeySchema = ApiKeyEntryObjectSchema.omit({ key: true })
 export type RuntimeApiKey = z.infer<typeof RuntimeApiKeySchema>
 
 export const AuthTypeSchema = z.enum(['api-key', 'oauth', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure'])
@@ -113,14 +129,18 @@ const AuthConfigOAuth = z.object({
    * provider needs it as a request header (e.g. OpenAI Codex's
    * `chatgpt-account-id`). Not every OAuth provider populates this.
    */
-  accountId: z.string().optional()
+  accountId: z.string().optional(),
+  /** Set by the main process when the stored tokens could not be decrypted. */
+  decryptFailed: z.boolean().optional()
 })
 
 const AuthConfigIamAws = z.object({
   type: z.literal('iam-aws'),
   region: z.string(),
   accessKeyId: z.string().optional(),
-  secretAccessKey: z.string().optional()
+  secretAccessKey: z.string().optional(),
+  /** Set by the main process when the stored credentials could not be decrypted. */
+  decryptFailed: z.boolean().optional()
 })
 
 /**
@@ -138,7 +158,15 @@ const AuthConfigIamGcp = z.object({
   type: z.literal('iam-gcp'),
   project: z.string(),
   location: z.string(),
-  credentials: z.record(z.string(), z.unknown()).optional()
+  credentials: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * At-rest envelope for the GCP credentials JSON (S7). The record itself stays
+   * schema-shaped; when present, `credentials` is ignored at rest and restored
+   * from this envelope at read time.
+   */
+  credentialsEnvelope: z.string().optional(),
+  /** Set by the main process when the stored credentials could not be decrypted. */
+  decryptFailed: z.boolean().optional()
 })
 
 const AuthConfigIamAzure = z.object({

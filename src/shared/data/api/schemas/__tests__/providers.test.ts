@@ -65,3 +65,46 @@ describe('Provider DTO logo validation', () => {
     expect(UpdateProviderSchema.safeParse({ name: 'Renamed' }).success).toBe(true)
   })
 })
+
+describe('ApiKeyEntry decryptFailed accommodation (S7 at-rest encryption)', () => {
+  // The decryptFailed entry is produced main-side when a stored envelope cannot
+  // be decrypted on this machine; an empty key is valid only in that state.
+  it('accepts an empty key only when decryptFailed is true', () => {
+    const decryptFailedEntry = { id: 'k1', key: '', isEnabled: true, decryptFailed: true }
+    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', apiKeys: [decryptFailedEntry] }).success).toBe(
+      true
+    )
+
+    const plainEmptyEntry = { id: 'k1', key: '', isEnabled: true }
+    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', apiKeys: [plainEmptyEntry] }).success).toBe(
+      false
+    )
+  })
+
+  it('still requires a non-empty key on ordinary entries', () => {
+    expect(
+      CreateProviderSchema.safeParse({
+        providerId: 'p',
+        name: 'n',
+        apiKeys: [{ id: 'k1', key: 'sk-real', isEnabled: true }]
+      }).success
+    ).toBe(true)
+    expect(
+      CreateProviderSchema.safeParse({
+        providerId: 'p',
+        name: 'n',
+        apiKeys: [{ id: 'k1', key: '   ', isEnabled: true }]
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts iam-gcp credentialsEnvelope as the at-rest credentials carrier', () => {
+    const authConfig = {
+      type: 'iam-gcp',
+      project: 'p',
+      location: 'global',
+      credentialsEnvelope: 'v1:ss:opaque'
+    }
+    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', authConfig }).success).toBe(true)
+  })
+})
