@@ -1,6 +1,5 @@
 import {
   Button,
-  EditableNumber,
   FormControl,
   FormField,
   FormItem,
@@ -755,14 +754,11 @@ function AssistantAdvancedFields({
             control={form.control}
             name="maxTokens"
             render={({ field }) => (
-              <EditableNumber
-                block
+              <InputNumber
                 min={1}
                 step={1}
-                precision={0}
-                align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
@@ -818,15 +814,12 @@ function AssistantAdvancedFields({
             control={form.control}
             name="maxToolCalls"
             render={({ field }) => (
-              <EditableNumber
-                block
+              <InputNumber
                 min={MIN_TOOL_CALLS}
                 max={MAX_TOOL_CALLS}
                 step={1}
-                precision={0}
-                align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(
@@ -916,19 +909,16 @@ function ContextManagementFields({
             />
             <FormControl>
               {/* Outside the override group: scope is not an overflow policy. */}
-              <EditableNumber
-                block
+              <InputNumber
                 min={1}
                 step={1}
-                precision={0}
-                align="start"
                 changeOnBlur
                 placeholder={
                   globalDefaults.maxMessages === null
                     ? t('library.config.basic.context_count_unlimited')
                     : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
                 }
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
                 onChange={(value) => field.onChange(value === null ? null : Math.floor(value))}
               />
@@ -1003,16 +993,13 @@ function ContextManagementFields({
                   help={t('library.config.basic.field.context_truncate_threshold.hint')}
                 />
                 <FormControl>
-                  <EditableNumber
-                    block
+                  <InputNumber
                     // Same floor and step as the global panel — this doubles as
                     // fs_read's per-call cap. See MIN_TRUNCATE_THRESHOLD.
                     min={MIN_TRUNCATE_THRESHOLD}
                     step={1}
-                    precision={0}
-                    align="start"
                     changeOnBlur
-                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                    className="h-8 rounded-lg px-2.5"
                     value={field.value}
                     onChange={(value) =>
                       field.onChange(

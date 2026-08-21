@@ -91,9 +91,6 @@ export {
 } from './composites/code-editor'
 // DraggableList
 export { DraggableList, useDraggableReorder } from './composites/draggable-list'
-// EditableNumber
-export type { EditableNumberProps } from './composites/editable-number'
-export { default as EditableNumber } from './composites/editable-number'
 export {
   Form,
   FormControl,

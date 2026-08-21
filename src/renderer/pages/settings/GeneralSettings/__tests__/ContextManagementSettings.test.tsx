@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,28 +17,9 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryStudioUi>()),
   Divider: () => <hr />,
-  EditableNumber: ({
-    value,
-    onChange,
-    ...props
-  }: {
-    value: number | null
-    onChange: (value: number | null) => void
-    'aria-label'?: string
-    placeholder?: string
-  }) => (
-    <input
-      aria-label={props['aria-label']}
-      placeholder={props.placeholder}
-      defaultValue={value ?? ''}
-      onBlur={(event) => {
-        const raw = event.currentTarget.value
-        onChange(raw === '' ? null : Number(raw))
-      }}
-    />
-  ),
   Switch: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <input
       type="checkbox"

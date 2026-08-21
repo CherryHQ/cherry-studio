@@ -3,9 +3,9 @@ import {
   CodeEditor,
   Combobox,
   type ComboboxOption,
-  EditableNumber,
   Flex,
   InfoTooltip,
+  InputNumber,
   SegmentedControl,
   Select,
   SelectContent,
@@ -545,7 +545,7 @@ const AppearanceSettings: FC = () => {
                 <SettingRowTitle>{t('chat.settings.code_execution.timeout_minutes.label')}</SettingRowTitle>
                 <InfoTooltip content={t('chat.settings.code_execution.timeout_minutes.tip')} />
               </Flex>
-              <EditableNumber
+              <InputNumber
                 size="small"
                 className="w-20 text-sm"
                 min={1}

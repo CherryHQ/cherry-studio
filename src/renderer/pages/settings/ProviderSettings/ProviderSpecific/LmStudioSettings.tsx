@@ -1,4 +1,4 @@
-import { EditableNumber } from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupText, InputNumber } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
@@ -43,20 +43,20 @@ const LmStudioSettings: FC<Props> = ({ providerId }) => {
   return (
     <div>
       <ProviderSettingsSubtitle className="mb-1">{t('lmstudio.keep_alive_time.title')}</ProviderSettingsSubtitle>
-      <div className="w-full [&>div]:block [&>div]:w-full">
-        <EditableNumber
+      <InputGroup>
+        <InputNumber
           value={keepAliveMinutes}
           min={0}
           step={5}
-          suffix={t('lmstudio.keep_alive_time.placeholder')}
-          align="start"
-          changeOnBlur={false}
           onChange={(v) => setKeepAliveMinutes(Math.floor(Number(v ?? 0)))}
           onBlur={() => {
             void handleBlur()
           }}
         />
-      </div>
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>{t('lmstudio.keep_alive_time.placeholder')}</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
       <ProviderHelpTextRow>
         <ProviderHelpText>{t('lmstudio.keep_alive_time.description')}</ProviderHelpText>
       </ProviderHelpTextRow>

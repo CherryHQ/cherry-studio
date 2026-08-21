@@ -1383,7 +1383,7 @@ describe('edit dialogs', () => {
 
     const input = await screen.findByLabelText('Recent messages kept')
     // No stored override → unlimited, shown as an empty field with a placeholder.
-    expect(input).toHaveValue(null)
+    expect(input).toHaveValue('')
     expect(input).toHaveAttribute('placeholder', 'Unlimited')
     // The limit is one control, not a switch plus a number.
     expect(screen.queryByRole('switch', { name: 'Recent messages kept' })).not.toBeInTheDocument()
@@ -1391,7 +1391,7 @@ describe('edit dialogs', () => {
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: '5' } })
     fireEvent.blur(input)
-    expect(input).toHaveValue(5)
+    expect(input).toHaveValue('5')
   })
 
   it('repairs invalid legacy max tokens when enabling the limit', async () => {
@@ -1444,14 +1444,17 @@ describe('edit dialogs', () => {
 
     fireEvent.click(maxToolCallsSwitch)
     const maxToolCallsInput = await screen.findByDisplayValue('20')
-    expect(maxToolCallsInput).toHaveAttribute('min', '1')
-    expect(maxToolCallsInput).toHaveAttribute('max', '1000')
+
+    fireEvent.focus(maxToolCallsInput)
+    fireEvent.change(maxToolCallsInput, { target: { value: '0' } })
+    fireEvent.blur(maxToolCallsInput)
+    expect(maxToolCallsInput).toHaveValue('1')
 
     fireEvent.focus(maxToolCallsInput)
     fireEvent.change(maxToolCallsInput, { target: { value: '1001' } })
     fireEvent.blur(maxToolCallsInput)
 
-    expect(maxToolCallsInput).toHaveValue(1000)
+    expect(maxToolCallsInput).toHaveValue('1000')
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
