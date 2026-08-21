@@ -8,6 +8,13 @@ import type { OAuthCallbackServerOptions } from './types'
 
 const logger = loggerService.withContext('Mcp:OAuthCallbackServer')
 
+export class OAuthCallbackTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`)
+    this.name = 'OAuthCallbackTimeoutError'
+  }
+}
+
 export class CallBackServer {
   private server: Promise<http.Server>
   private events: EventEmitter
@@ -134,7 +141,7 @@ export class CallBackServer {
       }
       const timer = setTimeout(() => {
         this.events.off('auth-code-received', onCode)
-        reject(new Error(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`))
+        reject(new OAuthCallbackTimeoutError(timeoutMs))
       }, timeoutMs)
       this.events.once('auth-code-received', onCode)
     })

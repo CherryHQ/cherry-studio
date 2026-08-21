@@ -37,7 +37,7 @@ import {
 import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
 import { createTransport, isMcpOAuthEnabled } from './mcpTransport'
-import { CallBackServer } from './oauth/callback'
+import { CallBackServer, OAuthCallbackTimeoutError } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
@@ -121,7 +121,7 @@ const OAUTH_CALLBACK_TIMEOUT_MS = 60_000
 // Fast-path grace window before surfacing pending-auth and letting other servers continue.
 const OAUTH_GRACE_MS = 8_000
 
-export class OAuthPendingAuthError extends Error {
+class OAuthPendingAuthError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'OAuthPendingAuthError'
@@ -239,6 +239,10 @@ export class McpRuntimeService extends BaseService {
   }
 
   public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
+    if (this.stopping || this.isStopped || this.isDestroyed) {
+      return
+    }
+
     // A late writer racing removal (e.g. a connectivity check's error path) must not
     // resurrect the status entry doRemoveServer deleted for a removed server.
     if (this.removedServerIds.has(serverId)) {
@@ -533,9 +537,7 @@ export class McpRuntimeService extends BaseService {
       })
       return client
     } catch (error) {
-      if (error instanceof OAuthPendingAuthError) {
-        this.setServerStatus(server.id, 'pending-auth', error)
-      } else {
+      if (!(error instanceof OAuthPendingAuthError)) {
         this.setServerStatus(server.id, 'error', error)
       }
       getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
@@ -659,7 +661,7 @@ export class McpRuntimeService extends BaseService {
     try {
       authCode = await callbackServer.waitForAuthCode(OAUTH_GRACE_MS)
     } catch (graceError) {
-      if (graceError instanceof Error && graceError.message.startsWith('Timed out waiting for OAuth')) {
+      if (graceError instanceof OAuthCallbackTimeoutError) {
         graceExpired = true
       } else {
         void callbackServer.close()
@@ -671,15 +673,22 @@ export class McpRuntimeService extends BaseService {
     }
 
     if (graceExpired) {
+      if (this.stopping || this.isStopped || this.isDestroyed) {
+        void callbackServer.close()
+        throw new Error('MCP runtime is stopping')
+      }
+
       getServerLogger(server).info(
         `OAuth not completed in grace window (${OAUTH_GRACE_MS / 1000}s) — ` +
           `marking server as pending-auth and listening in background for up to ${OAUTH_CALLBACK_TIMEOUT_MS / 1000}s`
       )
-      this.scheduleBackgroundOAuthCompletion({ server, transport, callbackServer })
-      throw new OAuthPendingAuthError(
+      const pendingError = new OAuthPendingAuthError(
         `OAuth authorization is pending. Complete the browser flow to connect this server automatically, ` +
           `or open MCP settings and re-enable the server to retry.`
       )
+      this.setServerStatus(server.id, 'pending-auth', pendingError)
+      this.scheduleBackgroundOAuthCompletion({ server, transport, callbackServer })
+      throw pendingError
     }
 
     // Code arrived within the grace window — complete the flow inline.
@@ -730,27 +739,30 @@ export class McpRuntimeService extends BaseService {
     callbackServer
       .waitForAuthCode(remaining)
       .then(async (authCode) => {
-        if (!active) return
-        this.pendingOAuthListeners.delete(server.id)
+        if (!active || this.stopping) return
         getServerLogger(server).debug(`Background OAuth listener received auth code — completing auth`)
         try {
           await transport.finishAuth(authCode)
+          if (!active || this.stopping) return
           getServerLogger(server).info(`OAuth token stored; triggering automatic server reconnect`)
           await this.restartServer(server.id)
         } catch (err) {
+          if (!active || this.stopping) return
           getServerLogger(server).error(`Background OAuth completion failed`, err as Error)
           this.setServerStatus(server.id, 'error', err)
         }
       })
       .catch((err) => {
-        if (!active) return
-        this.pendingOAuthListeners.delete(server.id)
+        if (!active || this.stopping) return
         getServerLogger(server).warn(`Background OAuth listener expired without receiving a code`, {
           err: String(err)
         })
       })
       .finally(() => {
-        void callbackServer.close()
+        if (this.pendingOAuthListeners.get(server.id) === cancel) {
+          this.pendingOAuthListeners.delete(server.id)
+        }
+        if (active) void callbackServer.close()
       })
   }
 
@@ -925,6 +937,7 @@ export class McpRuntimeService extends BaseService {
 
   async stopServer(serverId: string) {
     const server = this.getServerById(serverId)
+    this.cancelPendingOAuthListener(serverId)
     getServerLogger(server).debug(`Stopping server`)
     this.emitServerLog(server, {
       timestamp: Date.now(),
