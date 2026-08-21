@@ -21,9 +21,9 @@ disappeared.
 | Layer | Authoritative home | What belongs here | Test |
 |---|---|---|---|
 | Provider fact | `packages/provider-registry/src/providers/*.ts` | Facts that stay true for every user of that host: reported-cost authority, currency, native tools, Fast transport | Would changing the user or API key leave it unchanged? |
-| Endpoint fact | `endpointConfigs[endpointType]` | Protocol implementation details: base URL, adapter family, reasoning wire, model-list URL, dialect deviations | Could two endpoints on the same provider answer differently? |
+| Endpoint fact | `endpointConfigs[endpointType]` | Protocol implementation details: base URL, adapter family, reasoning wire, request-control wire mappings, model-list URL, dialect deviations | Could two endpoints on the same provider answer differently? |
 | Connection override | `user_provider.endpoint_configs` and other provider-row connection fields | User-owned long-lived configuration: custom base URL, auth, timeout, and custom-host dialect overrides | Does the user configure it once for this connection? |
-| Request choice | `assistant.settings.*` | Choices that can change by assistant or conversation: reasoning effort and summary detail | Could the user reasonably choose another value for the next request? |
+| Request choice | `assistant.settings.*` or `agent.configuration.*` | Choices that can change by assistant or Agent: reasoning effort, summary detail, and service tier | Could the user reasonably choose another value for the next request? |
 
 Model capabilities and parameter support remain model or provider-model facts
 in the model registry. They do not move onto the provider row merely because a
@@ -58,14 +58,30 @@ Do not add a parallel `supportsX` boolean. If the wire has no operation, the UI
 must not show the control; if the wire has one, the operation already proves
 support and defines how the value is sent.
 
+Service tier follows the same ownership split. The endpoint registry owns the
+supported canonical choices, default, native-value mapping, and whether the
+value is delivered through provider options or the top-level request body. A
+provider-model override may only replace the choices. Assistant and Agent JSON
+store the user's canonical `standard | auto | fast | flex` selection, and each
+turn freezes that selection before Main translates it at the terminal provider
+adapter. Wire details are never exposed to the renderer or persisted on the
+provider row.
+
+Service tier is separate from the product's existing Fast Mode. Fast Mode is a
+per-turn transport switch for provider-model pairs that declare
+`supportsFastMode`; service tier is an endpoint request control with four
+shared semantic values. A provider must not use both mechanisms for the same
+choice.
+
 ## Examples removed by this rule
 
 - `provider.settings.summaryText` had readers but no writer. Summary support
   now comes from the endpoint wire and the value from assistant settings.
 - `provider.settings.serviceTier` and `provider.settings.verbosity` were
   writable only by the v1 migrator, leaving upgraded users with invisible
-  state. Fast service tiers now use the existing request-time Fast control;
-  verbosity needs a request-control design before it returns.
+  state. Service tier now uses the endpoint-owned request-control contract and
+  Assistant/Agent selection described above; verbosity needs a request-control
+  design before it returns.
 - `apiFeatures.arrayContent` had declarations and an editor but no consumer.
   The SDK already serializes the only valid string-versus-array distinction, so
   the flag was removed.

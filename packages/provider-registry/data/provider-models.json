@@ -16366,7 +16366,12 @@
           "perMillionTokens": 0.6
         }
       },
-      "providerId": "groq"
+      "providerId": "groq",
+      "requestControls": {
+        "serviceTier": {
+          "options": ["standard", "auto", "fast", "flex"]
+        }
+      }
     },
     {
       "apiModelId": "openai/gpt-oss-20b",
@@ -16385,7 +16390,12 @@
           "perMillionTokens": 0.3
         }
       },
-      "providerId": "groq"
+      "providerId": "groq",
+      "requestControls": {
+        "serviceTier": {
+          "options": ["standard", "auto", "fast", "flex"]
+        }
+      }
     },
     {
       "apiModelId": "openai/gpt-oss-safeguard-20b",
@@ -16432,7 +16442,12 @@
           "perMillionTokens": 0.79
         }
       },
-      "providerId": "groq"
+      "providerId": "groq",
+      "requestControls": {
+        "serviceTier": {
+          "options": ["standard", "auto", "fast", "flex"]
+        }
+      }
     },
     {
       "apiModelId": "meta-llama/llama-prompt-guard-2-22m",
@@ -37755,5 +37770,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "7a04528b8462cbc8"
+  "version": "7fda6b4faae4122d"
 }

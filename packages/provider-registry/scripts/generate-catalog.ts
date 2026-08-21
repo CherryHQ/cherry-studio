@@ -530,12 +530,13 @@ function buildProviderModels(
     rows.push(o)
   }
   for (const p of PROVIDERS) {
-    const reasoningTemplates = (p.overrides ?? []).filter(
-      (override) => p.modelsDevProvider && !override.apiModelId && override.reasoningContracts
+    const modelTemplates = (p.overrides ?? []).filter(
+      (override) =>
+        p.modelsDevProvider && !override.apiModelId && (override.reasoningContracts || override.requestControls)
     )
-    const matchedTemplates = new Set<(typeof reasoningTemplates)[number]>()
+    const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
     for (const override of p.overrides ?? []) {
-      if (!reasoningTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
+      if (!modelTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
     }
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
     for (const [apiModelId, m] of Object.entries(src)) {
@@ -544,7 +545,7 @@ function buildProviderModels(
       if (!meta?.pricing) continue // no pricing → runtime resolves to base, no row needed
       const modelId = canonOf(apiModelId)
       if (!modelId) continue
-      const template = reasoningTemplates.find((override) => override.modelId === modelId)
+      const template = modelTemplates.find((override) => override.modelId === modelId)
       if (template) matchedTemplates.add(template)
       const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
       if (!baseIds.has(modelId)) {
@@ -553,7 +554,7 @@ function buildProviderModels(
       }
       addModel(row)
     }
-    for (const template of reasoningTemplates) {
+    for (const template of modelTemplates) {
       if (!matchedTemplates.has(template)) addOverride({ providerId: p.id, ...template })
     }
   }

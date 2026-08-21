@@ -51,35 +51,6 @@ const ProviderWebsiteSchema = z.object({
   })
 })
 
-export type OpenAIServiceTier = 'auto' | 'default' | 'flex' | 'priority' | null | undefined
-export type GroqServiceTier = 'auto' | 'on_demand' | 'flex' | undefined | null
-export type ServiceTier = OpenAIServiceTier | GroqServiceTier
-
-export const OpenAIServiceTiers = {
-  auto: 'auto',
-  default: 'default',
-  flex: 'flex',
-  priority: 'priority'
-} as const
-
-export const GroqServiceTiers = {
-  auto: 'auto',
-  on_demand: 'on_demand',
-  flex: 'flex'
-} as const
-
-export function isOpenAIServiceTier(tier: string | null | undefined): tier is OpenAIServiceTier {
-  return tier === null || tier === undefined || Object.hasOwn(OpenAIServiceTiers, tier)
-}
-
-export function isGroqServiceTier(tier: string | undefined | null): tier is GroqServiceTier {
-  return tier === null || tier === undefined || Object.hasOwn(GroqServiceTiers, tier)
-}
-
-export function isServiceTier(tier: string | null | undefined): tier is ServiceTier {
-  return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
-}
-
 export const ApiKeyEntrySchema = z.object({
   /** UUID for referencing this key */
   id: z.string().min(1),

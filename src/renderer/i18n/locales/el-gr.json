@@ -451,6 +451,14 @@
       "fast": "Γρήγορα",
       "faster": "Πιο γρήγορα",
       "label": "Ταχύτητα",
+      "service_tier": {
+        "auto": "Αυτόματο",
+        "fast": "Γρήγορο",
+        "flex": "Ευέλικτο",
+        "groq_performance_hint": "Enterprise · περιβάλλον < 8K",
+        "label": "Επίπεδο υπηρεσίας",
+        "standard": "Τυπικό"
+      },
       "smarter": "Εξυπνότερος",
       "summary": {
         "auto": "Αυτόματο",

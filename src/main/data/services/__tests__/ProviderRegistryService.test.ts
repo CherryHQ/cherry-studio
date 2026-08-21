@@ -321,6 +321,23 @@ describe('ProviderRegistryService', () => {
       })
     })
 
+    it('projects service tier choices to renderer models without exposing native wire configuration', () => {
+      const model = mergePresetModel({ id: 'gpt-oss-120b', name: 'GPT OSS 120B' }, null, 'groq', undefined, undefined, {
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex'],
+        wire: {
+          delivery: { type: 'provider-option', key: 'serviceTier' },
+          values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
+        }
+      } as any)
+
+      expect(model.requestControls?.serviceTier).toEqual({
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex']
+      })
+      expect(model.requestControls?.serviceTier).not.toHaveProperty('wire')
+    })
+
     it('uses a persisted presetProviderId for lookup and catalog models while keeping runtime identities', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({

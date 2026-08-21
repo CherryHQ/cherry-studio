@@ -451,6 +451,14 @@
       "fast": "Rápido",
       "faster": "Más rápido",
       "label": "Velocidad",
+      "service_tier": {
+        "auto": "Automático",
+        "fast": "Rápido",
+        "flex": "Flexible",
+        "groq_performance_hint": "Empresa · contexto < 8K",
+        "label": "Nivel de servicio",
+        "standard": "Estándar"
+      },
       "smarter": "Más inteligente",
       "summary": {
         "auto": "Automático",

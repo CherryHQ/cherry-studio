@@ -1,13 +1,16 @@
+import type { ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import {
   applyFastModeToProviderOptions,
+  applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
-  mergeCustomProviderParameters
+  mergeCustomProviderParameters,
+  resolveServiceTierWireValue
 } from '../options'
 import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
 
@@ -47,6 +50,43 @@ describe('applyFastModeToProviderOptions', () => {
 
   it('sends no service tier for SDK-carried transports (claude-code)', () => {
     expect(applyFastModeToProviderOptions({ fastMode: { transport: 'claude-code' } }, model, {}, true)).toEqual({})
+  })
+})
+
+describe('service tier provider options', () => {
+  const control = {
+    default: 'standard',
+    options: ['standard', 'auto', 'fast', 'flex'],
+    wire: {
+      delivery: { type: 'provider-option', key: 'serviceTier' },
+      values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
+    }
+  } satisfies ResolvedServiceTierControl
+
+  it('maps the canonical selection while preserving existing provider options', () => {
+    expect(applyServiceTierToProviderOptions({ groq: { parallelToolCalls: true } }, 'groq', control, 'fast')).toEqual({
+      groq: { parallelToolCalls: true, serviceTier: 'performance' }
+    })
+  })
+
+  it('falls back to the endpoint default for an unsupported saved selection', () => {
+    const restricted = { ...control, options: ['standard', 'auto', 'flex'] } satisfies ResolvedServiceTierControl
+    expect(resolveServiceTierWireValue(restricted, 'fast')).toBe('on_demand')
+  })
+
+  it('does not write provider options for request-body delivery', () => {
+    const requestBodyControl = {
+      ...control,
+      wire: { ...control.wire, delivery: { type: 'request-body' as const, key: 'service_tier' } }
+    }
+    expect(
+      applyServiceTierToProviderOptions(
+        { anthropic: { cacheControl: true, service_tier: 'custom' } },
+        'anthropic',
+        requestBodyControl,
+        'flex'
+      )
+    ).toEqual({ anthropic: { cacheControl: true } })
   })
 })
 

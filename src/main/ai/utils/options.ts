@@ -4,8 +4,9 @@ import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
+import type { ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, type ServiceTierSelection } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { type AiSdkParam, isAiSdkParam } from '@shared/types/aiSdk'
 import { isReasoningModel } from '@shared/utils/model'
@@ -43,6 +44,38 @@ export function applyFastModeToProviderOptions(
       serviceTier
     }
   }
+}
+
+export function resolveServiceTierWireValue(
+  control: ResolvedServiceTierControl,
+  selection: ServiceTierSelection | undefined
+): string {
+  const effective = selection && control.options.includes(selection) ? selection : control.default
+  const value = control.wire.values[effective]
+  if (!value) throw new Error(`Missing wire value for service tier '${effective}'`)
+  return value
+}
+
+export function applyServiceTierToProviderOptions<T extends ProviderOptions>(
+  providerOptions: T,
+  providerOptionsKey: string,
+  control: ResolvedServiceTierControl,
+  selection: ServiceTierSelection | undefined
+): T {
+  if (control.wire.delivery.type === 'request-body') {
+    const namespace = providerOptions[providerOptionsKey]
+    if (!namespace || !Object.hasOwn(namespace, control.wire.delivery.key)) return providerOptions
+    const cleanedNamespace = { ...namespace }
+    delete cleanedNamespace[control.wire.delivery.key]
+    return { ...providerOptions, [providerOptionsKey]: cleanedNamespace } as T
+  }
+  return {
+    ...providerOptions,
+    [providerOptionsKey]: {
+      ...providerOptions[providerOptionsKey],
+      [control.wire.delivery.key]: resolveServiceTierWireValue(control, selection)
+    }
+  } as T
 }
 
 function shouldNormalizeOpenAICompatibleReasoning(

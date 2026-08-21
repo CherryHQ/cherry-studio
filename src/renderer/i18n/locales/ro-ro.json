@@ -451,6 +451,14 @@
       "fast": "Rapid",
       "faster": "Mai rapid",
       "label": "Viteză",
+      "service_tier": {
+        "auto": "Automat",
+        "fast": "Rapid",
+        "flex": "Flexibil",
+        "groq_performance_hint": "Enterprise · context < 8K",
+        "label": "Nivel de serviciu",
+        "standard": "Standard"
+      },
       "smarter": "Mai inteligent",
       "summary": {
         "auto": "Automat",

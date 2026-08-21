@@ -451,6 +451,14 @@
       "fast": "Быстро",
       "faster": "Быстрее",
       "label": "Скорость",
+      "service_tier": {
+        "auto": "Авто",
+        "fast": "Быстрый",
+        "flex": "Гибкий",
+        "groq_performance_hint": "Корпоративный · контекст < 8K",
+        "label": "Уровень сервиса",
+        "standard": "Стандартный"
+      },
       "smarter": "Умнее",
       "summary": {
         "auto": "Авто",

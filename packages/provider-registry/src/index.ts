@@ -66,9 +66,21 @@ export type {
   ProviderReasoningFormat,
   ReasoningFormatType,
   RegistryEndpointConfig,
-  ServerToolConfig
+  ServerToolConfig,
+  ServiceTierDelivery,
+  ServiceTierOptions,
+  ServiceTierRequestControl,
+  ServiceTierSelection
 } from './schemas/provider'
-export { FastModeTransportSchema, REASONING_FORMAT_TYPES, ServerToolConfigSchema } from './schemas/provider'
+export {
+  FastModeTransportSchema,
+  REASONING_FORMAT_TYPES,
+  ServerToolConfigSchema,
+  ServiceTierDeliverySchema,
+  ServiceTierOptionsSchema,
+  ServiceTierRequestControlSchema,
+  ServiceTierSelectionSchema
+} from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,

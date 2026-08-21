@@ -10,7 +10,7 @@ import * as z from 'zod'
 
 import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
-import { ReasoningSummarySchema, UniqueModelIdSchema } from './model'
+import { ReasoningSummarySchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from './model'
 
 // ============================================================================
 // Sub-Schemas
@@ -62,6 +62,8 @@ export const AssistantSettingsSchema = z.object({
   reasoning_effort: ReasoningEffortOptionSchema,
   /** Summary verbosity, where the endpoint carries one. Absent = the endpoint's own default. */
   reasoning_summary: ReasoningSummarySchema.optional(),
+  /** Provider request service tier. Endpoint registry owns native wire values. */
+  service_tier: ServiceTierSelectionSchema.optional(),
   // -- Tool use --
   mcpMode: McpModeSchema,
   maxToolCalls: z.number().int().positive(),

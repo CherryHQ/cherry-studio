@@ -451,6 +451,14 @@
       "fast": "快速",
       "faster": "更快",
       "label": "速度",
+      "service_tier": {
+        "auto": "自动",
+        "fast": "快速",
+        "flex": "弹性",
+        "groq_performance_hint": "企业版 · 上下文 < 8K",
+        "label": "服务档位",
+        "standard": "标准"
+      },
       "smarter": "更智能",
       "summary": {
         "auto": "自动",
