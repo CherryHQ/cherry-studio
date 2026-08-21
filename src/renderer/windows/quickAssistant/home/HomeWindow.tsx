@@ -104,10 +104,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const { defaultModel: defaultApiModel } = useDefaultModel()
+  const { quickModel: quickApiModel } = useDefaultModel()
   const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
+  const isAssistantMode = Boolean(quickAssistantId)
   const currentAssistant = chosenAssistant
-  const currentModel = chosenApiModel ?? defaultApiModel
+  const currentModel = isAssistantMode ? chosenApiModel : quickApiModel
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
@@ -304,15 +305,19 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
-        // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
-        void sendMessage({ text: [prompt, requestText].filter(Boolean).join('\n\n') })
+        const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
+        if (!isAssistantMode && currentModel) {
+          void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
+        } else {
+          void sendMessage(message)
+        }
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
         setFlowError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [sendMessage, temporaryTopicId, isTopicReady, requestText]
+    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, temporaryTopicId]
   )
 
   const handlePause = useCallback(() => {

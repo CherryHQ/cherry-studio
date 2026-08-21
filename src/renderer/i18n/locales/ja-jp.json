@@ -451,7 +451,20 @@
       "fast": "速い",
       "faster": "より速く",
       "label": "スピード",
+      "service_tier": {
+        "auto": "自動",
+        "fast": "高速",
+        "flex": "フレックス",
+        "label": "サービス階層",
+        "standard": "標準"
+      },
       "smarter": "スマーター",
+      "summary": {
+        "auto": "自動",
+        "concise": "簡潔",
+        "detailed": "詳細",
+        "label": "思考の要約"
+      },
       "title": "応答設定"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "MCP サーバーが公開するプロンプトを挿入",
         "empty": "利用可能な MCP プロンプトがありません",
+        "fill_arguments": "プロンプトの引数を入力",
+        "fill_arguments_description": "挿入する前に、このプロンプトの引数を入力してください",
+        "insert": "挿入",
         "insert_failed": "プロンプトの挿入に失敗しました",
         "title": "MCP プロンプト"
       },
@@ -6329,10 +6345,6 @@
             "token_threshold": "キャッシュトークン閾値",
             "token_threshold_help": "このトークン数を超えるメッセージはキャッシュされます。キャッシュを無効にするには0を設定してください。"
           },
-          "array_content": {
-            "help": "このプロバイダーは、message の content フィールドが配列型であることをサポートしていますか",
-            "label": "配列形式のメッセージコンテンツをサポート"
-          },
           "developer_role": {
             "help": "このプロバイダーは role: \"developer\" のメッセージをサポートしていますか",
             "label": "Developer Message をサポート"
@@ -6342,17 +6354,13 @@
             "label": "enable_thinking をサポート"
           },
           "label": "API設定",
-          "service_tier": {
-            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
-            "label": "service_tier をサポート"
+          "reasoning_summary": {
+            "help": "この Responses エンドポイントに reasoning.summary を送信します。サーバーがこの OpenAI パラメータを受け付ける場合のみ有効にしてください。",
+            "label": "推論要約をサポート"
           },
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
-          },
-          "verbosity": {
-            "help": "プロバイダーが冗長度パラメータをサポートしているかどうか",
-            "label": "冗長性のサポート"
           }
         },
         "url": {
@@ -7073,9 +7081,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "チャート",
-        "clearDate": "日付フィルターをクリア",
-        "drilldownTitle": "{{date}} ドリルダウン",
         "entries": "リクエスト",
+        "granularity": "粒度",
         "groupBy": "グループ化",
         "loadMore": "もっと読み込む",
         "loading": "読み込み中...",
@@ -7085,7 +7092,6 @@
         "noEntries": "エントリがありません",
         "noEntriesDescription": "より広いウィンドウまたは別のプロバイダーをお試しください。",
         "rollup": "ロールアップ",
-        "selectedDate": "選択された日付: {{date}}",
         "shareLabel": "共有",
         "title": "探索する",
         "top": "トップ",
@@ -7099,7 +7105,6 @@
         "source": "アシスタント / エージェント"
       },
       "heatmap": {
-        "ariaDate": "{{date}}の使用状況",
         "title": "日常活動"
       },
       "metric": {

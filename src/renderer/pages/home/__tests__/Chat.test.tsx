@@ -1,4 +1,5 @@
 import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -20,6 +21,7 @@ const assistantContextMock = vi.hoisted(() => ({
 const providerHookArgs = vi.hoisted(() => [] as unknown[][])
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
 const eventEmitMock = vi.hoisted(() => vi.fn())
+const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 const topic: Topic = {
@@ -132,9 +134,12 @@ vi.mock('@renderer/hooks/tab', () => ({
   useIsActiveTab: () => activeTabMock.current
 }))
 
+vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
+  useClearTopicMessages: () => clearTopicMessagesMock
+}))
+
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'clear-messages',
     FOCUS_CHAT_COMPOSER: 'focus-chat-composer'
   },
   EventEmitter: {
@@ -215,14 +220,27 @@ describe('Chat', () => {
     activeTabMock.current = true
   })
 
-  it('routes the clear-messages command through the existing confirmation flow', () => {
+  it('clears the active topic once the confirmation is accepted', async () => {
     render(<Chat activeTopic={topic} />)
 
-    act(() => {
-      void commandHandlers.get('topic.clear_messages')?.()
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
     })
 
-    expect(eventEmitMock).toHaveBeenCalledWith('clear-messages', topic)
+    expect(popup.confirm).toHaveBeenCalled()
+    expect(clearTopicMessagesMock).toHaveBeenCalledWith(topic.id)
+  })
+
+  it('leaves the topic untouched when the confirmation is dismissed', async () => {
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+
+    render(<Chat activeTopic={topic} />)
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(clearTopicMessagesMock).not.toHaveBeenCalled()
   })
 
   it('does not register the clear-messages command for a background tab', () => {

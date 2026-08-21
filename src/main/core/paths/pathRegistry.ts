@@ -124,6 +124,11 @@ export function buildPathRegistry() {
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
     'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
     'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
+    // mise's rust recipe drives rustup, which keeps its toolchains outside the
+    // mise install dir. Pinning both homes keeps install and execution pointed at
+    // the same copy — the user's real ~/.rustup is never read or written.
+    'feature.binary.data.isolated.rustup': path.join(appUserDataToolchainMise, 'rustup'),
+    'feature.binary.data.isolated.cargo': path.join(appUserDataToolchainMise, 'cargo'),
 
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
