@@ -87,6 +87,7 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useTheme } from '@renderer/hooks/useTheme'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -99,7 +100,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Bot,
+  CalendarCheck2,
   CalendarClock,
+  CalendarFold,
   ChevronDown,
   ChevronRight,
   CircleCheck,
@@ -354,6 +357,39 @@ function getTaskStatusLabel(status: string, t: TFunction) {
     completed: t('agent.tasks.status.completed')
   }
   return labels[status] ?? status
+}
+
+function getTaskScheduleStatusIconPresentation(status: ScheduledTaskEntity['status']) {
+  switch (status) {
+    case 'active':
+      return {
+        Icon: CalendarClock,
+        wrapperClassName: 'bg-info-subtle text-info-subtle-foreground',
+        iconClassName: 'text-info-subtle-foreground'
+      }
+    case 'paused':
+      return {
+        Icon: CalendarFold,
+        wrapperClassName: 'bg-warning-subtle text-warning-subtle-foreground',
+        iconClassName: 'text-warning-subtle-foreground'
+      }
+    case 'completed':
+      return {
+        Icon: CalendarCheck2,
+        wrapperClassName: 'bg-success-subtle text-success-subtle-foreground',
+        iconClassName: 'text-success-subtle-foreground'
+      }
+  }
+}
+
+const TaskScheduleStatusIcon: FC<{ status: ScheduledTaskEntity['status'] }> = ({ status }) => {
+  const { Icon, wrapperClassName, iconClassName } = getTaskScheduleStatusIconPresentation(status)
+
+  return (
+    <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', wrapperClassName)}>
+      <Icon size={20} aria-hidden className={iconClassName} />
+    </div>
+  )
 }
 
 function formatTaskCardTime(value: string) {
@@ -1670,19 +1706,21 @@ const TasksSettings: FC = () => {
                       to="/settings/scheduled-tasks/$taskId"
                       params={{ taskId: task.id }}
                       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                        <CalendarClock size={20} aria-hidden className="text-foreground-tertiary" />
-                      </div>
+                      <TaskScheduleStatusIcon status={task.status} />
                       <ItemContent className="min-w-0">
-                        <ItemTitle className="truncate">{task.name}</ItemTitle>
+                        <ItemTitle className="min-w-0 max-w-full">
+                          <span className="truncate">{task.name}</span>
+                          <Badge variant="secondary" className="shrink-0">
+                            {getTaskStatusLabel(task.status, t)}
+                          </Badge>
+                        </ItemTitle>
                         <ItemDescription className="truncate text-xs leading-4">
                           {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
                           {getTriggerSummary(task.trigger, t)}
                         </ItemDescription>
                       </ItemContent>
-                      <ItemActions className="shrink-0">
+                      <ItemActions className="ml-auto shrink-0">
                         <TaskCardRunStatus task={task} />
-                        <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
                         <ChevronRight size={16} className="text-foreground-tertiary" />
                       </ItemActions>
                     </Link>
