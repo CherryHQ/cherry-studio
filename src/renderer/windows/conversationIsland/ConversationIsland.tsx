@@ -48,7 +48,7 @@ export default function ConversationIsland() {
       data-state={snapshot.state}
       className={
         usesNotchLayout
-          ? 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-t-none rounded-b-xl border border-transparent bg-black px-0 py-0 text-white text-xs shadow-md hover:bg-black hover:text-white focus-visible:bg-black focus-visible:text-white'
+          ? 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black px-0 py-0 text-white text-xs shadow-none hover:bg-black hover:text-white focus-visible:bg-black focus-visible:text-white'
           : 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-full border border-border bg-popover/95 px-3 py-0 text-popover-foreground text-xs shadow-md backdrop-blur-xs hover:bg-accent focus-visible:bg-accent'
       }>
       {usesNotchLayout ? (

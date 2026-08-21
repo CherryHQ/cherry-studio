@@ -356,6 +356,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
+      hasShadow: false,
       roundedCorners: false,
       platformOverrides: {
         mac: {

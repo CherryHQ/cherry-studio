@@ -287,6 +287,7 @@ describe('WINDOW_TYPE_REGISTRY ConversationIsland — transient macOS panel', ()
       maximizable: false,
       fullscreenable: false,
       skipTaskbar: true,
+      hasShadow: false,
       roundedCorners: false,
       platformOverrides: {
         mac: {

@@ -77,8 +77,14 @@ describe('ConversationIsland', () => {
     const trailing = screen.getByTestId('notch-trailing')
 
     // These classes and the measured width are the physical-notch layout contract.
-    expect(button).toHaveClass('bg-black', 'border-transparent')
-    expect(button).not.toHaveClass('backdrop-blur-xs')
+    expect(button).toHaveClass('bg-black', 'rounded-t-none', 'rounded-b-[12px]', 'border-0', 'shadow-none')
+    expect(button).not.toHaveClass(
+      'rounded-none',
+      'rounded-b-xl',
+      'border-transparent',
+      'shadow-md',
+      'backdrop-blur-xs'
+    )
     expect(occlusion).toHaveStyle({ width: '120px' })
     expect(within(leading).getByText('Responding')).toBeVisible()
     expect(within(trailing).getByText('Research notes')).toBeVisible()
