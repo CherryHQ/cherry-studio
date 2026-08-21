@@ -11,7 +11,7 @@ import type { SerializedError } from '@shared/types/error'
 import type {
   ConversationEffect,
   ConversationInput,
-  ConversationInteraction,
+  ConversationInteractionFact,
   ConversationOutcome
 } from './conversationState'
 import type { ConversationEffectType } from './conversationState'
@@ -67,7 +67,7 @@ export interface ConversationTerminalPersistencePort {
 
 export interface ConversationExecutionSink {
   firstChunk(): void
-  interactionOpened(interaction: ConversationInteraction): void
+  interactionOpened(interaction: ConversationInteractionFact): void
   terminal(outcome: ConversationOutcome): void
   startFailed(error: SerializedError): void
 }

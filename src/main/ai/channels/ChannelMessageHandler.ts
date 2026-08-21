@@ -954,7 +954,7 @@ export class ChannelMessageHandler {
       })
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
       // Add durable admission only if channels require guaranteed busy-session delivery.
-      if (started.mode === StartAgentSessionRunMode.NotStarted) {
+      if (started.mode === StartAgentSessionRunMode.Blocked) {
         throw new AgentSessionRunNotStartedError(started.reason)
       }
     } finally {

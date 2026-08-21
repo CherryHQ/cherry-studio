@@ -24,6 +24,7 @@ import {
   ConversationExecutionDriverKind,
   ConversationInputProvenance,
   ConversationResponderKind,
+  ConversationTerminalAudience,
   createConversationState,
   isConversationQuiescent,
   transitionConversation
@@ -44,6 +45,7 @@ const input = (id: string, responder = ConversationResponderKind.Interactive) =>
 function open(ref: ConversationRef = chat) {
   return transitionConversation(createConversationState(ref), {
     type: ConversationCommandType.TurnCommitted,
+    inputId: toConversationInputId('user-1'),
     turnId: turn,
     turnKind: ConversationTurnKind.Submit,
     anchorNodeId: 'user-1',
@@ -117,6 +119,41 @@ describe('Conversation state', () => {
       toConversationInputId('user-2'),
       toConversationInputId('user-3')
     ])
+  })
+
+  it('retains the next-turn input until its exact successor commit consumes it', () => {
+    const queued = transitionConversation(open().state, {
+      type: ConversationCommandType.InputCommitted,
+      input: input('user-2'),
+      yieldEffectId: effect('yield-1')
+    })
+    const settled = persistSuccess(queued.state)
+
+    expect(settled.state.phase).toBe(ConversationPhase.Idle)
+    expect(settled.state.inbox.nextTurn).toEqual([input('user-2')])
+    expect(settled.effects).toContainEqual(
+      expect.objectContaining({ type: ConversationEffectType.ScheduleNextTurn, input: input('user-2') })
+    )
+
+    const successor = transitionConversation(settled.state, {
+      type: ConversationCommandType.TurnCommitted,
+      inputId: toConversationInputId('user-2'),
+      turnId: toConversationTurnId('turn-2'),
+      turnKind: ConversationTurnKind.Submit,
+      anchorNodeId: 'user-2',
+      responder: ConversationResponderKind.Interactive,
+      executions: [
+        {
+          id: toConversationExecutionId('execution-2'),
+          outputNodeId: 'assistant-2',
+          driver: ConversationExecutionDriverKind.Chat,
+          modelId: 'provider::model',
+          startEffectId: effect('run-2')
+        }
+      ]
+    })
+    expect(successor.rejection).toBeUndefined()
+    expect(successor.state.inbox.nextTurn).toEqual([])
   })
 
   it('keeps an accepted Agent redirect as NextStep until its predecessor is durable', () => {
@@ -213,11 +250,70 @@ describe('Conversation state', () => {
       type: ConversationCommandType.InteractionResolved,
       turnId: turn,
       interactionId: toConversationInteractionId('approval-1'),
-      resumeEffectId: effect('run-2')
+      resumeEffectId: effect('run-2'),
+      statusEffectId: effect('resolving-status')
     })
     expect(resumed.effects).toEqual([
       expect.objectContaining({ type: ConversationEffectType.StartExecution, effectId: effect('run-2') })
     ])
+    const registered = transitionConversation(resumed.state, {
+      type: ConversationCommandType.InteractionResumeSucceeded,
+      turnId: turn,
+      interactionId: toConversationInteractionId('approval-1'),
+      resumeEffectId: effect('run-2'),
+      statusEffectId: effect('running-status')
+    })
+    expect(registered.state.phase).toBe(ConversationPhase.Running)
+    if (registered.state.phase !== ConversationPhase.Running) throw new Error('turn did not resume')
+    expect(registered.state.turn.executions.get(execution)?.phase).toBe(ConversationExecutionPhase.Starting)
+  })
+
+  it.each([chat, agent])('queues ordinary input for the next turn while an interaction is waiting', (ref) => {
+    let waiting = transitionConversation(open(ref).state, {
+      type: ConversationCommandType.InteractionOpened,
+      turnId: turn,
+      interaction: {
+        id: toConversationInteractionId('approval-1'),
+        executionId: execution,
+        kind: ConversationInteractionKind.ToolApproval,
+        resumeMode:
+          ref.kind === ConversationKind.Chat
+            ? ConversationInteractionResumeMode.NewRun
+            : ConversationInteractionResumeMode.InPlace
+      },
+      statusEffectId: effect('interaction-status')
+    })
+    if (ref.kind === ConversationKind.Chat) {
+      const checkpoint = transitionConversation(waiting.state, {
+        type: ConversationCommandType.ExecutionTerminal,
+        turnId: turn,
+        executionId: execution,
+        runEffectId: effect('run-1'),
+        outcome: { kind: ConversationOutcomeKind.Success },
+        persistenceEffectId: effect('checkpoint')
+      })
+      waiting = transitionConversation(checkpoint.state, {
+        type: ConversationCommandType.PersistenceSucceeded,
+        turnId: turn,
+        executionId: execution,
+        persistenceEffectId: effect('checkpoint'),
+        statusEffectId: effect('waiting-status'),
+        executionTerminalEffectId: effect('unused-execution-terminal'),
+        turnTerminalEffectId: effect('unused-turn-terminal'),
+        quiescenceEffectId: effect('unused-quiescence')
+      })
+    }
+    const committed = transitionConversation(waiting.state, {
+      type: ConversationCommandType.InputCommitted,
+      input: input('user-2'),
+      runtimeCanRedirect: true,
+      yieldEffectId: effect('yield-1'),
+      redirectEffectId: effect('redirect-1')
+    })
+
+    expect(committed.state.inbox.nextTurn).toEqual([input('user-2')])
+    expect(committed.state.inbox.nextStep).toEqual([])
+    expect(committed.effects).toEqual([])
   })
 
   it('Stop clears future input and aborts a Starting resource by exact identity', () => {
@@ -266,6 +362,35 @@ describe('Conversation state', () => {
       })
     )
     expect(isConversationQuiescent(durable.state)).toBe(true)
+  })
+
+  it('keeps deferred-recovery terminal delivery inside the application', () => {
+    const running = open().state
+    const persisting = transitionConversation(running, {
+      type: ConversationCommandType.ExecutionTerminal,
+      turnId: turn,
+      executionId: execution,
+      runEffectId: effect('run-1'),
+      outcome: { kind: ConversationOutcomeKind.Paused, reason: 'stopped' },
+      persistenceEffectId: effect('persist')
+    }).state
+    const abandoned = transitionConversation(persisting, {
+      type: ConversationCommandType.PersistenceAbandoned,
+      turnId: turn,
+      executionId: execution,
+      persistenceEffectId: effect('persist'),
+      executionTerminalEffectId: effect('execution-terminal'),
+      turnTerminalEffectId: effect('turn-terminal'),
+      quiescenceEffectId: effect('quiescence')
+    })
+
+    expect(abandoned.effects).toContainEqual(
+      expect.objectContaining({
+        type: ConversationEffectType.PublishExecutionTerminal,
+        durability: ConversationTerminalDurability.DeferredRecovery,
+        audience: ConversationTerminalAudience.InternalOnly
+      })
+    )
   })
 
   it('derives domain quiescence from the aggregate activity owner', () => {

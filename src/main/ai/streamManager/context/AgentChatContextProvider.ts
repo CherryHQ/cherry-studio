@@ -446,7 +446,7 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
       kind: ConversationHistoryAdapterKind.Agent,
       request: req,
       context: ctx,
-      executionCount: ctx.hasLiveStream ? 0 : 1,
+      executionModelIds: ctx.hasLiveStream ? [] : [agent.uniqueModelId],
       agent
     }
   }

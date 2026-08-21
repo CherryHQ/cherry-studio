@@ -26,6 +26,7 @@ import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import {
   ConversationAdmissionReason,
+  ConversationContinuationTrigger,
   ConversationKind,
   ConversationOpenTrigger,
   ConversationOutcomeKind,
@@ -248,14 +249,13 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
   commitInteractionDecision(anchorId: string, decision: ApprovalDecision): ConversationInteractionCommitResult {
     const result = messageService.applyToolApprovalDecisions(anchorId, [decision])
     if (!result) return { kind: ConversationInteractionCommitResultKind.Missing }
+    const continuation = result.parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
+      ? ConversationInteractionCommitResultKind.Pending
+      : ConversationInteractionCommitResultKind.Ready
     if (result.appliedApprovalIds.length === 0 && result.alreadySettledApprovalIds.includes(decision.approvalId)) {
-      return { kind: ConversationInteractionCommitResultKind.Duplicate }
+      return { kind: ConversationInteractionCommitResultKind.Duplicate, continuation }
     }
-    return {
-      kind: result.parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
-        ? ConversationInteractionCommitResultKind.Pending
-        : ConversationInteractionCommitResultKind.Ready
-    }
+    return { kind: continuation }
   }
 
   /** Default provider — matches any topic not claimed by a more specific provider. */
@@ -270,13 +270,40 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
   ): Promise<ValidatedDispatch> {
     signal.throwIfAborted()
     assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
-    const executionCount =
-      ctx.hasLiveStream && req.trigger === ConversationOpenTrigger.SubmitMessage
-        ? 0
-        : req.trigger === ConversationOpenTrigger.SubmitMessage
-          ? (req.mentionedModelIds?.length ?? 1)
-          : 1
-    return { kind: ConversationHistoryAdapterKind.PersistentChat, request: req, context: ctx, executionCount }
+    const topic = topicService.getById(req.conversation.id)
+    const selectedModelId = 'mentionedModelIds' in req ? req.mentionedModelIds?.[0] : undefined
+    const { assistantId, defaultModelId } =
+      !topic?.assistantId && selectedModelId
+        ? { assistantId: undefined, defaultModelId: selectedModelId }
+        : resolveAssistantModelId(topic?.assistantId)
+    const inputModelId = selectedModelId ?? defaultModelId
+    let resolvedModels
+    if (ctx.hasLiveStream && req.trigger === ConversationOpenTrigger.SubmitMessage) {
+      resolvedModels = []
+    } else if (req.trigger === ConversationContinuationTrigger.ContinueInteraction) {
+      const anchor = messageService.getById(req.parentAnchorId)
+      const modelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
+      resolvedModels = resolveModels([modelId], modelId)
+    } else if (req.trigger === ConversationContinuationTrigger.ContinueSteer) {
+      const userMessage = messageService.getById(req.userMessageId)
+      const modelId = (userMessage.modelId ?? defaultModelId) as UniqueModelId
+      resolvedModels = resolveModels([modelId], modelId)
+    } else if (req.trigger === ConversationOpenTrigger.RegenerateMessage && req.retryMessageId) {
+      const target = messageService.getById(req.retryMessageId)
+      const modelId = (target.modelId ?? defaultModelId) as UniqueModelId
+      resolvedModels = resolveModels([modelId], modelId)
+    } else {
+      resolvedModels = resolveModels(req.mentionedModelIds, defaultModelId)
+    }
+    return {
+      kind: ConversationHistoryAdapterKind.PersistentChat,
+      request: req,
+      context: ctx,
+      executionModelIds: resolvedModels.map((model) => model.id),
+      resolvedModels,
+      assistantId,
+      inputModelId
+    }
   }
 
   commitDispatch(
@@ -290,30 +317,25 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
     const req = validation.request
     const ctx = context
 
-    // 1. Resolve context
-    const topic = topicService.getById(req.conversation.id)
+    const assistantId = validation.assistantId
     // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
     // sibling position, descendants, and the topic's active branch remain untouched.
     if (req.trigger === 'regenerate-message' && req.retryMessageId) {
-      return this.commitAssistantRetry(subscriber, req, topic?.assistantId ?? undefined)
+      return this.commitAssistantRetry(subscriber, req, assistantId)
     }
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
-      return this.commitContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
+      return this.commitContinueDispatch(subscriber, req, assistantId)
     }
 
     // steer-continuation answers a steer user message persisted while a turn was live — a fresh
     // assistant placeholder under that user row (no new user row), single model.
     if (req.trigger === 'steer-continuation') {
-      return this.commitSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)
+      return this.commitSteerContinuation(subscriber, req, assistantId)
     }
 
-    const selectedModelId = req.mentionedModelIds?.[0]
-    const { assistantId, defaultModelId } =
-      !topic?.assistantId && selectedModelId
-        ? { assistantId: undefined, defaultModelId: selectedModelId }
-        : resolveAssistantModelId(topic?.assistantId)
+    const defaultModelId = validation.inputModelId
     const hasExplicitReservedTarget = req.trigger === 'submit-message' && req.targetMode === 'reserved-branch'
     const reservedBranchId =
       req.trigger === 'submit-message' &&
@@ -374,7 +396,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
-    const models = resolveModels(req.mentionedModelIds, defaultModelId)
+    const models = validation.resolvedModels
     const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {

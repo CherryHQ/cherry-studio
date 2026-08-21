@@ -54,8 +54,14 @@ export interface StreamErrorResult extends StreamTerminalBase {
   error: SerializedError
 }
 
+export enum StreamListenerAudience {
+  Internal = 'internal',
+  ExternalDelivery = 'external-delivery'
+}
+
 export interface StreamListener {
   readonly id: string
+  readonly audience?: StreamListenerAudience
   onChunk(chunk: UIMessageChunk, identity?: ConversationStreamIdentity): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>

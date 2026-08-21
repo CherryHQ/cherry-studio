@@ -8,12 +8,13 @@ import {
 import type { ConversationExecutionId } from '@shared/ai/conversation'
 import type { UIMessageChunk } from 'ai'
 
-import type {
-  ConversationStreamIdentity,
-  StreamDoneResult,
-  StreamErrorResult,
-  StreamListener,
-  StreamPausedResult
+import {
+  type ConversationStreamIdentity,
+  type StreamDoneResult,
+  type StreamErrorResult,
+  type StreamListener,
+  StreamListenerAudience,
+  type StreamPausedResult
 } from '../types'
 
 const logger = loggerService.withContext('ChannelAdapterListener')
@@ -23,6 +24,7 @@ let nextDeliveryListenerId = 0
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
+  readonly audience = StreamListenerAudience.ExternalDelivery
   private readonly deliveryListenerId = ++nextDeliveryListenerId
   private accumulatedText = ''
   private terminalDeliveryQueued = false

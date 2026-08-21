@@ -20,6 +20,7 @@ export interface TemporaryChatBackendOptions {
 
 export class TemporaryChatBackend implements PersistenceBackend {
   readonly kind = 'temp'
+  readonly canPersistEmptyTerminal = true
 
   constructor(private readonly opts: TemporaryChatBackendOptions) {}
 

@@ -1,9 +1,5 @@
 import type { ConversationRef } from '@shared/ai/conversation'
 
-export enum ConversationActorCommandType {
-  Admission = 'admission'
-}
-
 export enum ConversationAdmissionOperationKind {
   Dispatch = 'dispatch',
   Interaction = 'interaction',

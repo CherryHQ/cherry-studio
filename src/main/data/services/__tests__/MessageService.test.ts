@@ -474,6 +474,36 @@ describe('MessageService', () => {
       const pendingIds = messageService.findPendingAssistantMessageIds()
       expect(pendingIds).toEqual(['m-pending'])
     })
+
+    it('reconciles the exact crash-orphaned Chat skeleton with its terminal snapshot', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-crash', activeNodeId: 'm-crash', orderKey: 'b1' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-crash', [
+          {
+            id: 'm-crash',
+            parentId: null,
+            topicId: 'topic-crash',
+            role: 'assistant',
+            data: mainText('partial'),
+            status: 'pending',
+            siblingsGroupId: 1,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
+
+      expect(messageService.findCrashOrphanedAssistantMessages()).toEqual([
+        { id: 'm-crash', topicId: 'topic-crash', data: mainText('partial') }
+      ])
+      messageService.resolveCrashOrphanedMessages([{ id: 'm-crash', data: mainText('terminalized') }])
+
+      expect(messageService.getById('m-crash')).toMatchObject({
+        status: 'error',
+        data: mainText('terminalized')
+      })
+      expect(messageService.findCrashOrphanedAssistantMessages()).toEqual([])
+    })
   })
 
   describe('markMessagesError', () => {

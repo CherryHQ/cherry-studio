@@ -342,7 +342,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         headless: true,
         requireIdle: { expectedAgentId: agentId }
       })
-      if (started.mode === StartAgentSessionRunMode.Started) break
+      if (started.mode !== StartAgentSessionRunMode.Blocked) break
       if (runSignal.aborted) {
         completionActive = false
         const reason = runSignal.reason

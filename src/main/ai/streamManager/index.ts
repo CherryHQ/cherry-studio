@@ -47,3 +47,4 @@ export type {
   StreamPausedResult,
   StreamPersistencePort
 } from './types'
+export { StreamListenerAudience } from './types'

@@ -810,10 +810,7 @@ export class MessageService {
     return rowToMessage(row)
   }
 
-  /**
-   * Ids of assistant rows still in `pending` — used by the boot reconcile of crash-orphaned turns.
-   * Selects only `id` (reconcile just flips them to `error`); backed by `message_status_idx`.
-   */
+  /** Ids of assistant rows still in `pending`; backed by `message_status_idx`. */
   findPendingAssistantMessageIds(): string[] {
     const db = application.get('DbService').getDb()
     const rows = db
@@ -826,10 +823,58 @@ export class MessageService {
     return rows.map((row) => row.id)
   }
 
+  /** Pending Chat assistant rows whose in-memory Conversation owner was lost on restart. */
+  findCrashOrphanedAssistantMessages(): Array<{ id: string; topicId: string; data: MessageData }> {
+    const db = application.get('DbService').getDb()
+    return db
+      .select({ id: messageTable.id, topicId: messageTable.topicId, data: messageTable.data })
+      .from(messageTable)
+      .where(
+        and(eq(messageTable.role, 'assistant'), eq(messageTable.status, 'pending'), isNull(messageTable.deletedAt))
+      )
+      .all()
+  }
+
+  resolveCrashOrphanedMessages(messages: Array<{ id: string; data: MessageData }>): void {
+    if (messages.length === 0) return
+    application.get('DbService').withWriteTx((tx) => {
+      const ids = messages.map(({ id }) => id)
+      const rows = tx
+        .select({ id: messageTable.id, topicId: messageTable.topicId })
+        .from(messageTable)
+        .where(inArray(messageTable.id, ids))
+        .all()
+      const updatedAt = Date.now()
+      for (const message of messages) {
+        tx.update(messageTable)
+          .set({ status: 'error', data: message.data, updatedAt })
+          .where(and(eq(messageTable.id, message.id), eq(messageTable.status, 'pending')))
+          .run()
+      }
+
+      const byTopic = new Map<string, string[]>()
+      for (const row of rows) {
+        const idsForTopic = byTopic.get(row.topicId) ?? []
+        idsForTopic.push(row.id)
+        byTopic.set(row.topicId, idsForTopic)
+      }
+      for (const [topicId, entityIds] of byTopic) {
+        tx.effects.add({
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId },
+          entityIds
+        })
+        tx.effects.add({ endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds })
+      }
+      for (const row of rows) {
+        tx.effects.add({ endpoint: '/messages/:id', routeParams: { id: row.id }, entityIds: [row.id] })
+      }
+    })
+  }
+
   /**
-   * Flip the given rows to `error` in a single write. Paired with
-   * {@link findPendingAssistantMessages} for the boot reconcile of crash-orphaned `pending`
-   * turns.
+   * Flip the given rows to `error` in a single write.
    */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return

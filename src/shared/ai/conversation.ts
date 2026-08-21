@@ -54,7 +54,9 @@ export enum ConversationInteractionKind {
 
 /** Lifecycle for an interaction owned by the active turn. */
 export enum ConversationInteractionPhase {
-  Open = 'open',
+  Observed = 'observed',
+  Available = 'available',
+  Resolving = 'resolving',
   Resolved = 'resolved'
 }
 

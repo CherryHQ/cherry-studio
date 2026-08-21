@@ -87,7 +87,6 @@ interface ConversationExecutionResource {
   readonly buffer: ConversationExecutionChunk[]
   readonly runtimeTiming: MessageRuntimeTimingCollector
   readonly runId: number
-  loopPromise: Promise<void>
   nextChunkSeq: number
   firstChunkPublished: boolean
   yieldRequested: boolean
@@ -102,6 +101,7 @@ export type ConversationStreamOpener = (request: AiStreamRequest) => Promise<Rea
 export class AiExecutionManager implements ConversationExecutionPort {
   private readonly descriptors = new Map<string, ConversationExecutionDescriptor>()
   private readonly resources = new Map<string, ConversationExecutionResource>()
+  private readonly runs = new Map<string, Promise<void>>()
   private nextRunId = 0
 
   constructor(
@@ -130,13 +130,17 @@ export class AiExecutionManager implements ConversationExecutionPort {
       buffer: [],
       runtimeTiming: new MessageRuntimeTimingCollector(descriptor.runtimeTimingSeed),
       runId: ++this.nextRunId,
-      loopPromise: Promise.resolve(),
       nextChunkSeq: 0,
       firstChunkPublished: false,
       yieldRequested: false
     }
     this.resources.set(key, resource)
-    resource.loopPromise = this.run(key, resource)
+    const run = Promise.resolve().then(() => this.run(key, resource))
+    this.runs.set(key, run)
+    const release = () => {
+      if (this.runs.get(key) === run) this.runs.delete(key)
+    }
+    void run.then(release, release)
   }
 
   requestYield(conversation: ConversationRef, turnId: ConversationTurnId): void {
@@ -241,7 +245,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
   }
 
   inFlightRuns(): Promise<void>[] {
-    return [...this.resources.values()].map((resource) => resource.loopPromise)
+    return [...this.runs.values()]
   }
 
   private async run(key: string, resource: ConversationExecutionResource): Promise<void> {

@@ -121,7 +121,7 @@ vi.mock('@shared/data/types/model', async (importOriginal) => {
 
 const { mockStartAgentSessionRun } = vi.hoisted(() => ({ mockStartAgentSessionRun: vi.fn() }))
 vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
-  StartAgentSessionRunMode: { Started: 'started', NotStarted: 'not-started' },
+  StartAgentSessionRunMode: { Started: 'started', Injected: 'injected', Blocked: 'blocked' },
   StartAgentSessionRunRejection: { Busy: 'busy', SessionInvalid: 'session-invalid' },
   startAgentSessionRun: (...args: unknown[]) => mockStartAgentSessionRun(...args)
 }))
@@ -271,7 +271,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
     vi.mocked(agentSessionService.create).mockReturnValue(session as any)
-    mockStartAgentSessionRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' })
+    mockStartAgentSessionRun.mockResolvedValueOnce({ mode: 'blocked', reason: 'busy' })
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',

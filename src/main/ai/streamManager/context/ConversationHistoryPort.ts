@@ -10,7 +10,7 @@ import type {
   MessageRuntimeTiming,
   MessageSnapshot
 } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamRequest } from '../../types'
@@ -57,9 +57,17 @@ export enum ConversationInteractionCommitResultKind {
   Ready = 'ready'
 }
 
-export interface ConversationInteractionCommitResult {
-  readonly kind: ConversationInteractionCommitResultKind
-}
+export type ConversationInteractionCommitResult =
+  | { readonly kind: ConversationInteractionCommitResultKind.Missing }
+  | {
+      readonly kind: ConversationInteractionCommitResultKind.Duplicate
+      readonly continuation:
+        | ConversationInteractionCommitResultKind.Pending
+        | ConversationInteractionCommitResultKind.Ready
+    }
+  | {
+      readonly kind: ConversationInteractionCommitResultKind.Pending | ConversationInteractionCommitResultKind.Ready
+    }
 
 export interface ValidatedAgentDispatch {
   sessionId: string
@@ -83,19 +91,24 @@ export type ValidatedDispatch =
       readonly kind: ConversationHistoryAdapterKind.PersistentChat
       readonly request: MainDispatchRequest
       readonly context: DispatchContext
-      readonly executionCount: number
+      readonly executionModelIds: readonly UniqueModelId[]
+      readonly resolvedModels: Model[]
+      readonly assistantId?: string
+      readonly inputModelId: UniqueModelId
     }
   | {
       readonly kind: ConversationHistoryAdapterKind.TemporaryChat
       readonly request: MainDispatchRequest
       readonly context: DispatchContext
-      readonly executionCount: number
+      readonly executionModelIds: readonly UniqueModelId[]
+      readonly resolvedModels: Model[]
+      readonly assistantId?: string
     }
   | {
       readonly kind: ConversationHistoryAdapterKind.Agent
       readonly request: MainDispatchRequest
       readonly context: DispatchContext
-      readonly executionCount: number
+      readonly executionModelIds: readonly UniqueModelId[]
       readonly agent: ValidatedAgentDispatch
     }
 

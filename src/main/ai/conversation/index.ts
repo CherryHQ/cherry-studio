@@ -55,6 +55,7 @@ export {
   ConversationExecutionDriverKind,
   ConversationInputProvenance,
   ConversationResponderKind,
+  ConversationTerminalAudience,
   createConversationState,
   isConversationQuiescent,
   transitionConversation

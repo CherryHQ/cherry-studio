@@ -99,6 +99,26 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(messageId).toBe('assistant-message-id')
   })
 
+  it.each([ConversationOutcomeKind.Paused, ConversationOutcomeKind.Error] as const)(
+    'settles an empty reserved assistant after %s',
+    async (status) => {
+      const listener = makeListener('openai::gpt-4o')
+
+      if (status === ConversationOutcomeKind.Paused) {
+        await listener.onPaused({ status, modelId: 'openai::gpt-4o' })
+      } else {
+        await listener.onError({
+          status,
+          modelId: 'openai::gpt-4o',
+          error: { name: 'Error', message: 'failed before output', stack: null }
+        })
+      }
+
+      expect(appendAssistantMessageMock).toHaveBeenCalledOnce()
+      expect(appendAssistantMessageMock.mock.calls[0][1]).toMatchObject({ status })
+    }
+  )
+
   it.each([ConversationOutcomeKind.Success, ConversationOutcomeKind.Paused, ConversationOutcomeKind.Error] as const)(
     'never persists retry status parts after %s',
     async (status) => {
@@ -311,18 +331,6 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const listener = makeListener()
 
     await listener.onDone({ finalMessage: undefined, status: ConversationOutcomeKind.Success })
-
-    expect(appendAssistantMessageMock).not.toHaveBeenCalled()
-  })
-
-  it('skips persistence when onPaused arrives without a finalMessage and there is no placeholder row', async () => {
-    const listener = makeListener()
-
-    await listener.onPaused({
-      finalMessage: undefined,
-      status: ConversationOutcomeKind.Paused,
-      timings: { startedAt: 1000, completedAt: 2500.9 }
-    })
 
     expect(appendAssistantMessageMock).not.toHaveBeenCalled()
   })

@@ -32,6 +32,7 @@ import {
   ConversationCommandType,
   ConversationEffectType,
   createConversationState,
+  isConversationQuiescent,
   transitionConversation
 } from './conversationState'
 import { ConversationTerminalPersistenceCoordinator } from './ConversationTerminalPersistenceCoordinator'
@@ -67,6 +68,7 @@ export class ConversationRuntime {
   ): ConversationTransition {
     return this.dispatch(ref, {
       type: ConversationCommandType.TurnCommitted,
+      inputId: input.id,
       turnId: options.turnId ?? this.ids.turn(),
       turnKind: options.turnKind ?? ConversationTurnKind.Submit,
       anchorNodeId: options.anchorNodeId ?? null,
@@ -141,7 +143,8 @@ export class ConversationRuntime {
   resolveInteraction(
     ref: ConversationRef,
     interactionId: ConversationInteractionId,
-    resumeEffectId: ConversationEffectId = this.ids.effect()
+    resumeEffectId: ConversationEffectId = this.ids.effect(),
+    statusEffectId: ConversationEffectId = this.ids.effect()
   ): ConversationTransition {
     const state = this.inspect(ref)
     if (state.phase !== ConversationPhase.Running) {
@@ -149,14 +152,16 @@ export class ConversationRuntime {
         type: ConversationCommandType.InteractionResolved,
         turnId: toConversationTurnId('stale'),
         interactionId,
-        resumeEffectId
+        resumeEffectId,
+        statusEffectId
       })
     }
     return this.dispatch(ref, {
       type: ConversationCommandType.InteractionResolved,
       turnId: state.turn.id,
       interactionId,
-      resumeEffectId
+      resumeEffectId,
+      statusEffectId
     })
   }
 
@@ -189,6 +194,10 @@ export class ConversationRuntime {
     })
   }
 
+  kickInbox(ref: ConversationRef): ConversationTransition {
+    return this.dispatch(ref, { type: ConversationCommandType.KickInbox, scheduleEffectId: this.ids.effect() })
+  }
+
   dispatch(ref: ConversationRef, command: ConversationCommand): ConversationTransition {
     const key = conversationRefKey(ref)
     const previous = this.states.get(key) ?? createConversationState(ref)
@@ -207,6 +216,14 @@ export class ConversationRuntime {
     return this.persistence.inFlightRuns()
   }
 
+  forgetIfQuiescent(ref: ConversationRef, turnId: ConversationTurnId): boolean {
+    const key = conversationRefKey(ref)
+    const state = this.states.get(key)
+    if (!state || state.lastTurnId !== turnId || !isConversationQuiescent(state)) return false
+    this.states.delete(key)
+    return true
+  }
+
   private execute(effect: ConversationEffect): void {
     const ports = this.ports.resolve(effect.conversation)
     switch (effect.type) {
@@ -214,8 +231,26 @@ export class ConversationRuntime {
         const sink = this.executionSink(effect.conversation, effect.turnId, effect.executionId, effect.effectId)
         try {
           ports.execution.start(effect, sink)
+          if (effect.interactionId) {
+            this.dispatch(effect.conversation, {
+              type: ConversationCommandType.InteractionResumeSucceeded,
+              turnId: effect.turnId,
+              interactionId: effect.interactionId,
+              resumeEffectId: effect.effectId,
+              statusEffectId: this.ids.effect()
+            })
+          }
         } catch (error) {
-          sink.startFailed(serializeError(error))
+          if (effect.interactionId) {
+            this.dispatch(effect.conversation, {
+              type: ConversationCommandType.InteractionResumeFailed,
+              turnId: effect.turnId,
+              interactionId: effect.interactionId,
+              resumeEffectId: effect.effectId
+            })
+          } else {
+            sink.startFailed(serializeError(error))
+          }
         }
         return
       }
@@ -235,7 +270,23 @@ export class ConversationRuntime {
         return
 
       case ConversationEffectType.ResumeExecution:
-        ports.execution.resume(effect)
+        try {
+          ports.execution.resume(effect)
+          this.dispatch(effect.conversation, {
+            type: ConversationCommandType.InteractionResumeSucceeded,
+            turnId: effect.turnId,
+            interactionId: effect.interactionId,
+            resumeEffectId: effect.effectId,
+            statusEffectId: this.ids.effect()
+          })
+        } catch {
+          this.dispatch(effect.conversation, {
+            type: ConversationCommandType.InteractionResumeFailed,
+            turnId: effect.turnId,
+            interactionId: effect.interactionId,
+            resumeEffectId: effect.effectId
+          })
+        }
         return
 
       case ConversationEffectType.AbortExecution:

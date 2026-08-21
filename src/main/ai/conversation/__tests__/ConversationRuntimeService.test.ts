@@ -1,10 +1,12 @@
 import { BaseService } from '@main/core/lifecycle'
 import {
+  ConversationExecutionPhase,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
   ConversationOutcomeKind,
-  ConversationPhase
+  ConversationPhase,
+  ConversationStatus
 } from '@shared/ai/conversation'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -14,6 +16,7 @@ import type {
   CommittedDispatch,
   ConversationHistoryPort,
   MainDispatchRequest,
+  StreamCleanupPort,
   StreamListener,
   ValidatedDispatch
 } from '../../streamManager'
@@ -70,7 +73,9 @@ function validation(req: MainDispatchRequest, hasLiveStream: boolean): Validated
     kind: ConversationHistoryAdapterKind.PersistentChat,
     request: req,
     context: { hasLiveStream },
-    executionCount: hasLiveStream ? 0 : 1
+    executionModelIds: hasLiveStream ? [] : [modelId],
+    resolvedModels: [],
+    inputModelId: modelId
   }
 }
 
@@ -80,6 +85,7 @@ function committed(
   options: {
     prepareExecutionContext?: CommittedDispatch['prepareExecutionContext']
     persistence?: StreamListener
+    cleanup?: StreamCleanupPort
   } = {}
 ): CommittedDispatch {
   if (hasLiveStream) {
@@ -103,7 +109,7 @@ function committed(
       models: [{ modelId, outputNodeId: 'assistant-1' }],
       listeners: [subscriber],
       persistencePorts: [persistence],
-      cleanupPorts: [],
+      cleanupPorts: options.cleanup ? [options.cleanup] : [],
       reservedMessages: [
         { id: 'user-1', role: 'user', parts: [] },
         { id: 'assistant-1', role: 'assistant', parts: [] }
@@ -251,6 +257,130 @@ describe('ConversationRuntimeService', () => {
     expect(contexts).toEqual([false, true])
   })
 
+  it('retains a committed successor while paused and dispatches it once after the last hold', async () => {
+    const subscriber = listener()
+    const first = controlledStream()
+    const successor = controlledStream()
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateDispatch: vi.fn(async (req, ctx) => validation(req, ctx.hasLiveStream)),
+      commitDispatch: vi.fn((currentSubscriber, currentValidation) =>
+        committed(currentSubscriber, currentValidation.context.hasLiveStream)
+      )
+    }
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(
+        vi.fn().mockResolvedValueOnce(first.stream).mockResolvedValueOnce(successor.stream)
+      )
+    })
+
+    await service.dispatch(subscriber, request('first'))
+    await service.dispatch(subscriber, request('queued'))
+    const hold = service.pause('backup')
+    first.controller.close()
+
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+    expect(provider.commitDispatch).toHaveBeenCalledTimes(2)
+
+    hold.dispose()
+    await vi.waitFor(() => expect(provider.commitDispatch).toHaveBeenCalledTimes(3))
+    expect(service.inspect(ref).phase).toBe(ConversationPhase.Running)
+
+    successor.controller.close()
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+  })
+
+  it('drains terminal descendants to a fixed point before a paused snapshot may proceed', async () => {
+    let finishCleanup!: () => void
+    const cleanupRun = new Promise<void>((resolve) => {
+      finishCleanup = resolve
+    })
+    const cleanup: StreamCleanupPort = {
+      id: 'cleanup-1',
+      onTopicQuiesced: vi.fn(() => cleanupRun)
+    }
+    const subscriber = listener()
+    const controlled = controlledStream()
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateDispatch: vi.fn(async (req, ctx) => validation(req, ctx.hasLiveStream)),
+      commitDispatch: vi.fn(() => committed(subscriber, false, { cleanup }))
+    }
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(async () => controlled.stream)
+    })
+
+    await service.dispatch(subscriber, request())
+    const hold = service.pause('backup')
+    controlled.controller.close()
+    const draining = service.drainInFlight({ timeoutMs: 5_000 })
+
+    await vi.waitFor(() => expect(cleanup.onTopicQuiesced).toHaveBeenCalledOnce())
+    let drained = false
+    void draining.then(() => {
+      drained = true
+    })
+    await Promise.resolve()
+    expect(drained).toBe(false)
+
+    finishCleanup()
+    await expect(draining).resolves.toEqual({ stragglerIds: [] })
+    hold.dispose()
+  })
+
+  it('does not let an old turn cleanup overwrite a newer turn status', async () => {
+    let finishCleanup!: () => void
+    const cleanupRun = new Promise<void>((resolve) => {
+      finishCleanup = resolve
+    })
+    const cleanup: StreamCleanupPort = {
+      id: 'cleanup-old-turn',
+      onTopicQuiesced: vi.fn(() => cleanupRun)
+    }
+    const subscriber = listener()
+    const first = controlledStream()
+    const second = controlledStream()
+    let commitCount = 0
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateDispatch: vi.fn(async (req, ctx) => validation(req, ctx.hasLiveStream)),
+      commitDispatch: vi.fn(() => committed(subscriber, false, { cleanup: commitCount++ === 0 ? cleanup : undefined }))
+    }
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(
+        vi.fn().mockResolvedValueOnce(first.stream).mockResolvedValueOnce(second.stream)
+      )
+    })
+
+    await service.dispatch(subscriber, request('first'))
+    first.controller.close()
+    await vi.waitFor(() => expect(cleanup.onTopicQuiesced).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+
+    await service.dispatch(subscriber, request('second'))
+    expect(service.inspect(ref).phase).toBe(ConversationPhase.Running)
+    finishCleanup()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(services.cache.setShared).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ status: ConversationStatus.Pending })
+    )
+
+    second.controller.close()
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+  })
+
   it('rejects an invalid admission preview before the history commit can write rows', async () => {
     const subscriber = listener()
     const provider: ConversationHistoryPort = {
@@ -259,7 +389,7 @@ describe('ConversationRuntimeService', () => {
       canHandle: () => true,
       validateDispatch: vi.fn(async (req, ctx) => ({
         ...validation(req, ctx.hasLiveStream),
-        executionCount: 1
+        executionModelIds: [modelId]
       })),
       commitDispatch: vi.fn(() => committed(subscriber, false))
     }
@@ -328,7 +458,7 @@ describe('ConversationRuntimeService', () => {
   it('serializes a durable approval decision and its continuation in one actor command', async () => {
     const subscriber = listener()
     const controlled = controlledStream()
-    const commitInteractionDecision = vi.fn(() => ({ kind: ConversationInteractionCommitResultKind.Ready }))
+    const commitInteractionDecision = vi.fn(() => ({ kind: ConversationInteractionCommitResultKind.Ready as const }))
     const provider: ConversationHistoryPort = {
       name: 'test-chat',
       isPersistentConversation: true,
@@ -354,6 +484,57 @@ describe('ConversationRuntimeService', () => {
     expect(service.inspect(ref).phase).toBe(ConversationPhase.Running)
 
     controlled.controller.close()
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+  })
+
+  it('reconciles a duplicate durable approval decision with the still-waiting aggregate', async () => {
+    const subscriber = listener()
+    const first = controlledStream()
+    const continuation = controlledStream()
+    const commitInteractionDecision = vi.fn(() => ({
+      kind: ConversationInteractionCommitResultKind.Duplicate as const,
+      continuation: ConversationInteractionCommitResultKind.Ready as const
+    }))
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateDispatch: vi.fn(async (req, ctx) => validation(req, ctx.hasLiveStream)),
+      commitDispatch: vi.fn(() => committed(subscriber, false)),
+      commitInteractionDecision
+    }
+    const openStream = vi.fn().mockResolvedValueOnce(first.stream).mockResolvedValueOnce(continuation.stream)
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(openStream)
+    })
+
+    await service.dispatch(subscriber, request())
+    first.controller.enqueue({
+      type: 'tool-approval-request',
+      approvalId: 'approval-1',
+      toolCallId: 'tool-1'
+    } as UIMessageChunk)
+    first.controller.close()
+    await vi.waitFor(() => {
+      const state = service.inspect(ref)
+      expect(state.phase).toBe(ConversationPhase.Running)
+      if (state.phase === ConversationPhase.Running) {
+        expect([...state.turn.executions.values()][0]?.phase).toBe(ConversationExecutionPhase.WaitingInteraction)
+      }
+    })
+
+    await expect(
+      service.respondChatToolApproval(ref, 'assistant-1', { approvalId: 'approval-1', approved: true }, subscriber)
+    ).resolves.toBe(true)
+    const resumed = service.inspect(ref)
+    expect(resumed.phase).toBe(ConversationPhase.Running)
+    if (resumed.phase === ConversationPhase.Running) {
+      expect([...resumed.turn.executions.values()][0]?.phase).toBe(ConversationExecutionPhase.Starting)
+      expect(resumed.turn.interactions.size).toBe(0)
+    }
+
+    continuation.controller.close()
     await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
   })
 })

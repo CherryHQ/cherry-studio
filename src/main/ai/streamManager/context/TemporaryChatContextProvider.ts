@@ -10,9 +10,9 @@ import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSett
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
 import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
+import { ConversationKind, ConversationOpenTrigger, type ConversationRef } from '@shared/ai/conversation'
 import { toContentRole } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -47,7 +47,25 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
     signal: AbortSignal
   ): Promise<ValidatedDispatch> {
     signal.throwIfAborted()
-    return { kind: ConversationHistoryAdapterKind.TemporaryChat, request: req, context: ctx, executionCount: 1 }
+    if (req.trigger !== ConversationOpenTrigger.SubmitMessage) {
+      throw new Error(`${req.trigger} is not supported for temporary chats`)
+    }
+    const topic = temporaryChatService.getTopic(req.conversation.id)
+    if (!topic) throw new Error(`Temporary topic not found: ${req.conversation.id}`)
+    const selectedModelId = req.mentionedModelIds?.[0]
+    const { assistantId, defaultModelId } =
+      !topic.assistantId && selectedModelId
+        ? { assistantId: undefined, defaultModelId: selectedModelId }
+        : resolveAssistantModelId(topic.assistantId)
+    const resolvedModels = resolveModels(selectedModelId ? [selectedModelId] : undefined, defaultModelId)
+    return {
+      kind: ConversationHistoryAdapterKind.TemporaryChat,
+      request: req,
+      context: ctx,
+      executionModelIds: resolvedModels.map((model) => model.id),
+      resolvedModels,
+      assistantId
+    }
   }
 
   commitDispatch(
@@ -78,16 +96,7 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
       throw new Error('Cannot submit to a temporary chat while a turn is in flight')
     }
 
-    const topic = temporaryChatService.getTopic(req.conversation.id)
-    if (!topic) throw new Error(`Temporary topic not found: ${req.conversation.id}`)
-
-    const selectedModelId = req.mentionedModelIds?.[0]
-    const { assistantId, defaultModelId } =
-      !topic.assistantId && selectedModelId
-        ? { assistantId: undefined, defaultModelId: selectedModelId }
-        : resolveAssistantModelId(topic.assistantId)
-
-    let resolveWith: UniqueModelId[] | undefined
+    const assistantId = validation.assistantId
     if (req.mentionedModelIds?.length) {
       if (req.mentionedModelIds.length > 1) {
         logger.warn('Temporary chat received multiple mentionedModelIds — only the first is used', {
@@ -95,9 +104,8 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
           mentioned: req.mentionedModelIds
         })
       }
-      resolveWith = [req.mentionedModelIds[0]]
     }
-    const models = resolveModels(resolveWith, defaultModelId)
+    const models = validation.resolvedModels
     const model = models[0]
     const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
     const modelSnap = { id: model.apiModelId ?? rawModelId, name: model.name, provider: providerId }

@@ -76,7 +76,7 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
-  StartAgentSessionRunMode: { Started: 'started', NotStarted: 'not-started' },
+  StartAgentSessionRunMode: { Started: 'started', Injected: 'injected', Blocked: 'blocked' },
   StartAgentSessionRunRejection: { Busy: 'busy', SessionInvalid: 'session-invalid' },
   startAgentSessionRun: mockStartRun
 }))
@@ -507,7 +507,7 @@ describe('runAgentTask', () => {
     it('stands down when the locked start reports a reused session busy', async () => {
       const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
       vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(bound)
-      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' } as never)
+      mockStartRun.mockResolvedValueOnce({ mode: 'blocked', reason: 'busy' } as never)
 
       vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
@@ -529,7 +529,7 @@ describe('runAgentTask', () => {
     it('reports a busy skip as a completed run, not a throw', async () => {
       const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
       vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(bound)
-      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' } as never)
+      mockStartRun.mockResolvedValueOnce({ mode: 'blocked', reason: 'busy' } as never)
 
       vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
@@ -717,7 +717,7 @@ describe('runAgentTask', () => {
     mockStartRun.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          finishAdmission = () => resolve({ mode: 'not-started', reason: 'busy' } as never)
+          finishAdmission = () => resolve({ mode: 'blocked', reason: 'busy' } as never)
         })
     )
 
@@ -740,7 +740,7 @@ describe('runAgentTask', () => {
       .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-stale' })
       .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-rebound' })
     mockStartRun
-      .mockResolvedValueOnce({ mode: 'not-started', reason: 'session-invalid' } as never)
+      .mockResolvedValueOnce({ mode: 'blocked', reason: 'session-invalid' } as never)
       .mockImplementationOnce(async (opts) => {
         captured.listeners = opts.listeners
         return { mode: 'started' }
