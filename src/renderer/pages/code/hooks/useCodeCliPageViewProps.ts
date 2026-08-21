@@ -155,7 +155,11 @@ export function useCodeCliPageViewProps(
   )
   const enabledProvider = selectedProvider ?? defaultGatewayProvider
   const enabledProviderConfig = selectedProvider ? currentProviderConfig : defaultGatewayConfig
-  const [currentCliConfigConnection, setCurrentCliConfigConnection] = useCurrentCliConfigConnection({
+  const {
+    connection: currentCliConfigConnection,
+    setConnection: setCurrentCliConfigConnection,
+    reload: reloadCliConfigConnection
+  } = useCurrentCliConfigConnection({
     enabledProvider,
     selectedCliTool,
     currentProviderConfig: enabledProviderConfig,
@@ -255,7 +259,9 @@ export function useCodeCliPageViewProps(
     upsertProviderConfig,
     setCurrentProvider
   })
-  const hermesDashboard = useHermesDashboardController(selectedCliTool)
+  const hermesDashboard = useHermesDashboardController(selectedCliTool, {
+    onConfigMayHaveChanged: reloadCliConfigConnection
+  })
   const deepSeekHarnessActionsDisabled =
     isDeepSeekHarnessTool && (deepSeekHarness.running || deepSeekHarness.starting || deepSeekHarness.stopping)
   const hermesDashboardActionsDisabled =
@@ -343,14 +349,14 @@ export function useCodeCliPageViewProps(
               ? () => removeDialog.requestRemove(selectedCliTool)
               : undefined,
           onLaunch: () =>
-            defaultGatewayProvider && !defaultGatewayConfig
-              ? configPanel.onToggleCurrent(defaultGatewayProvider)
-              : isOpenClawTool
-                ? void openClawGateway.onLaunch()
-                : isDeepSeekHarnessTool
-                  ? void deepSeekHarness.onLaunch()
-                  : isHermesDashboardTool
-                    ? void hermesDashboard.onLaunch()
+            isHermesDashboardTool
+              ? void hermesDashboard.onLaunch()
+              : defaultGatewayProvider && !defaultGatewayConfig
+                ? configPanel.onToggleCurrent(defaultGatewayProvider)
+                : isOpenClawTool
+                  ? void openClawGateway.onLaunch()
+                  : isDeepSeekHarnessTool
+                    ? void deepSeekHarness.onLaunch()
                     : launchDialog.openLaunchDialog(),
           onStop: () =>
             isDeepSeekHarnessTool

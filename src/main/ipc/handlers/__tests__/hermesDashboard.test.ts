@@ -36,6 +36,7 @@ describe('hermesDashboardHandlers', () => {
 
     await expect(hermesDashboardHandlers['hermes_dashboard.start'](undefined, ctx)).resolves.toEqual({
       success: false,
+      reason: 'startup_failed',
       message: 'Dashboard dependencies are missing'
     })
   })

@@ -7,7 +7,11 @@ export const hermesDashboardHandlers: IpcHandlersFor<typeof hermesDashboardReque
     try {
       return await application.get('HermesDashboardService').start()
     } catch (error) {
-      return { success: false, message: error instanceof Error ? error.message : 'Failed to start Hermes Dashboard' }
+      return {
+        success: false,
+        reason: 'startup_failed',
+        message: error instanceof Error ? error.message : 'Failed to start Hermes Dashboard'
+      }
     }
   },
   'hermes_dashboard.stop': async () => {

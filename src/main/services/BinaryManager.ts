@@ -194,7 +194,9 @@ type MiseInstallEntry = { version?: string; active?: boolean; install_path?: str
 // `mise ls --json` reports a backend's canonical key without bracketed tool
 // options (for example `pipx:hermes-agent` instead of
 // `pipx:hermes-agent[extras=web]`). Options affect installation but not the
-// installed recipe identity, so every comparison goes through this normalizer.
+// installed package identity, so every comparison goes through this normalizer.
+// The normalized application fact does not prove bracketed install options such as
+// Hermes's `extras=web`; those options are not observable in the mise listing.
 const normalizeToolIdentity = (tool: string): string =>
   (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
 
@@ -457,9 +459,10 @@ export class BinaryManager extends BaseService {
     const bundled = this.probeBundled()
     const shimsDir = getBinaryShimsDir()
 
-    // The exact-application fact is independent of runnable availability. When the
+    // The application fact is independent of runnable availability. When the
     // backend cannot answer, every name is `unknown` with the reason — never a
-    // misleading `absent` inferred from an empty query.
+    // misleading `absent` inferred from an empty query. For backends that omit
+    // recipe options, `applied` proves package identity, not optional capabilities.
     const backendUnknown: BinaryApplication | null = !this.miseBin
       ? { status: 'unknown', reason: 'backend_unavailable' }
       : queryFailed

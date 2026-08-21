@@ -9,7 +9,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isWin } from '@main/core/platform'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
-import type { HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
+import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { redactSecretText } from '@shared/utils/redaction'
 import { Mutex } from 'async-mutex'
@@ -29,6 +29,16 @@ const DIAGNOSTIC_LIMIT = 2_000
 interface HermesDashboardRuntime {
   env: NodeJS.ProcessEnv
   executablePath: string
+}
+
+class HermesDashboardStartError extends Error {
+  constructor(
+    readonly reason: HermesDashboardStartFailureReason,
+    message: string
+  ) {
+    super(message)
+    this.name = 'HermesDashboardStartError'
+  }
 }
 
 @Injectable('HermesDashboardService')
@@ -55,16 +65,22 @@ export class HermesDashboardService extends BaseService {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
   }
 
-  async start(): Promise<{ success: true; url: string } | { success: false; message: string }> {
+  async start(): Promise<
+    { success: true; url: string } | { success: false; reason: HermesDashboardStartFailureReason; message: string }
+  > {
     const startupAbortController = new AbortController()
     this.startupAbortControllers.add(startupAbortController)
     try {
       return await this.operationMutex.runExclusive(async () => {
         if (this.isLifecycleStopping) {
-          return { success: false, message: 'Hermes Dashboard is unavailable during application shutdown' }
+          return {
+            success: false,
+            reason: 'cancelled',
+            message: 'Hermes Dashboard is unavailable during application shutdown'
+          }
         }
         if (startupAbortController.signal.aborted) {
-          return { success: false, message: 'Hermes Dashboard startup was cancelled' }
+          return { success: false, reason: 'cancelled', message: 'Hermes Dashboard startup was cancelled' }
         }
         if (this.child && this.status === 'running' && this.url) {
           return { success: true, url: this.url }
@@ -75,13 +91,20 @@ export class HermesDashboardService extends BaseService {
           this.status = 'starting'
           this.url = undefined
           const runtime = await this.resolveRuntime()
-          if (startupAbortController.signal.aborted) throw new Error('Hermes Dashboard startup was cancelled')
+          if (startupAbortController.signal.aborted) {
+            throw new HermesDashboardStartError('cancelled', 'Hermes Dashboard startup was cancelled')
+          }
           const port = await findAvailablePort()
-          if (startupAbortController.signal.aborted) throw new Error('Hermes Dashboard startup was cancelled')
+          if (startupAbortController.signal.aborted) {
+            throw new HermesDashboardStartError('cancelled', 'Hermes Dashboard startup was cancelled')
+          }
           const url = `http://${DASHBOARD_HOST}:${port}`
           await this.spawnAndWaitForReady(runtime, port, url, startupAbortController.signal)
           if (!this.child || this.child.exitCode !== null || this.child.signalCode !== null) {
-            throw new Error('Hermes Dashboard exited immediately after becoming ready')
+            throw new HermesDashboardStartError(
+              'startup_failed',
+              'Hermes Dashboard exited immediately after becoming ready'
+            )
           }
           this.status = 'running'
           this.url = url
@@ -92,9 +115,13 @@ export class HermesDashboardService extends BaseService {
           })
           this.status = 'error'
           this.url = undefined
+          const message = sanitizeDiagnostic(
+            error instanceof Error ? error.message : 'Failed to start Hermes Dashboard'
+          )
           return {
             success: false,
-            message: sanitizeDiagnostic(error instanceof Error ? error.message : 'Failed to start Hermes Dashboard')
+            reason: getStartFailureReason(error, message),
+            message
           }
         }
       })
@@ -120,7 +147,9 @@ export class HermesDashboardService extends BaseService {
 
   private async resolveRuntime(): Promise<HermesDashboardRuntime> {
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['hermes'])).hermes
-    if (snapshot.availability.source === 'none') throw new Error('Hermes is not installed')
+    if (snapshot.availability.source === 'none') {
+      throw new HermesDashboardStartError('not_installed', 'Hermes is not installed')
+    }
     const env = snapshot.availability.source === 'system' ? await getRawShellEnv() : await refreshShellEnv()
     return { env, executablePath: AbsoluteFilePathSchema.parse(snapshot.availability.path) }
   }
@@ -216,6 +245,16 @@ function sanitizeDiagnostic(value: string): string {
   return redactSecretText(value).slice(0, DIAGNOSTIC_LIMIT)
 }
 
+function getStartFailureReason(error: unknown, message: string): HermesDashboardStartFailureReason {
+  if (error instanceof HermesDashboardStartError) return error.reason
+  if (/dashboard startup was cancelled/i.test(message)) return 'cancelled'
+  return 'startup_failed'
+}
+
+function isMissingDashboardDependencyDiagnostic(value: string): boolean {
+  return /web ui requires\b.*\bfastapi\b.*\buvicorn\b/i.test(value)
+}
+
 function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     let stdout = ''
@@ -239,7 +278,17 @@ function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Pr
       if (settled) return
       settled = true
       cleanup()
-      const diagnostic = sanitizeDiagnostic([error.message, stderr, stdout].filter(Boolean).join('\n'))
+      const rawDiagnostic = [error.message, stderr, stdout].filter(Boolean).join('\n')
+      const diagnostic = sanitizeDiagnostic(rawDiagnostic)
+      if (isMissingDashboardDependencyDiagnostic(rawDiagnostic)) {
+        reject(
+          new HermesDashboardStartError(
+            'dashboard_dependencies_missing',
+            diagnostic || 'Hermes Dashboard dependencies are missing'
+          )
+        )
+        return
+      }
       reject(new Error(diagnostic || 'Hermes Dashboard failed during startup'))
     }
     const succeed = () => {

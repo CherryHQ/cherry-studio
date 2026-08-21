@@ -570,7 +570,13 @@ describe('CodeCliPage', () => {
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 
-  it('opens Hermes Dashboard without requiring a selected provider or terminal directory', async () => {
+  it('opens Hermes Dashboard before the Gateway bootstrap when no default Gateway model exists', async () => {
+    const ensureReady = vi.fn()
+    gatewayState.bundle = {
+      provider: { ...provider, id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Gateway' },
+      apiKey: 'gateway-key',
+      ensureReady
+    }
     mockCodeCliState({ selectedCliTool: CodeCli.HERMES })
     render(<CodeCliPage />)
 
@@ -578,6 +584,7 @@ describe('CodeCliPage', () => {
     fireEvent.click(screen.getByText('start tool'))
 
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('hermes_dashboard.start'))
+    expect(ensureReady).not.toHaveBeenCalled()
     expect(selectFolderMock).not.toHaveBeenCalled()
     expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
   })

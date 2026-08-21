@@ -1,5 +1,5 @@
 import { CodeCli } from '@shared/types/codeCli'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -31,7 +31,10 @@ describe('useHermesDashboardController', () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_774_560_000_000)
   })
 
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
 
   it('starts and opens the Dashboard without a confirmation prompt', async () => {
     const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
@@ -49,15 +52,97 @@ describe('useHermesDashboardController', () => {
     })
   })
 
+  it('ignores a stale status response after a newer launch succeeds', async () => {
+    let resolveStatus: ((status: { status: 'stopped'; url?: string }) => void) | undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'hermes_dashboard.get_status') {
+        return new Promise((resolve) => {
+          resolveStatus = resolve as (status: { status: 'stopped'; url?: string }) => void
+        })
+      }
+      if (route === 'hermes_dashboard.start') return Promise.resolve({ success: true, url: 'http://127.0.0.1:49152' })
+      throw new Error(`Unexpected IPC route: ${route}`)
+    })
+    const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+    await act(async () => {
+      resolveStatus?.({ status: 'stopped' })
+      await Promise.resolve()
+    })
+
+    expect(result.current.running).toBe(true)
+  })
+
+  it('reloads config when startup fails after the service cleanup completes', async () => {
+    const reload = vi.fn()
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'hermes_dashboard.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'hermes_dashboard.start') {
+        return Promise.resolve({
+          success: false,
+          reason: 'dashboard_dependencies_missing',
+          message: 'Hermes Dashboard dependencies are missing'
+        })
+      }
+      throw new Error(`Unexpected IPC route: ${route}`)
+    })
+    const { result } = renderHook(() =>
+      useHermesDashboardController(CodeCli.HERMES, { onConfigMayHaveChanged: reload })
+    )
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('reloads config after a successful stop even when the local status is not running', async () => {
+    const reload = vi.fn()
+    const { result } = renderHook(() =>
+      useHermesDashboardController(CodeCli.HERMES, { onConfigMayHaveChanged: reload })
+    )
+
+    await act(async () => {
+      await result.current.onStop()
+    })
+
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('reloads config after a successful stop', async () => {
+    const reload = vi.fn()
+    const { result } = renderHook(() =>
+      useHermesDashboardController(CodeCli.HERMES, { onConfigMayHaveChanged: reload })
+    )
+
+    await act(async () => {
+      await result.current.onLaunch()
+      await result.current.onStop()
+    })
+
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
   it('refreshes Dashboard status only while Hermes is selected', async () => {
-    renderHook(() => useHermesDashboardController(CodeCli.HERMES))
+    vi.useFakeTimers()
+    const { rerender } = renderHook(({ tool }) => useHermesDashboardController(tool), {
+      initialProps: { tool: CodeCli.HERMES }
+    })
 
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('hermes_dashboard.get_status'))
+    await act(async () => {
+      await Promise.resolve()
+    })
     mocks.request.mockClear()
+    rerender({ tool: CodeCli.PI })
 
-    renderHook(() => useHermesDashboardController(CodeCli.PI))
-
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
     expect(mocks.request).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })

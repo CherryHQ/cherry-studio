@@ -2,7 +2,7 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-08-20T10:47:31.784Z
+ * Generated at: 2026-08-06T03:38:10.988Z
  * Total icons: 23
  */
 

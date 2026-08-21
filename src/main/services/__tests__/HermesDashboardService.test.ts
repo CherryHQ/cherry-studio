@@ -31,6 +31,8 @@ class FakeChild extends EventEmitter {
   pid = 43001
   exitCode: number | null = null
   signalCode: NodeJS.Signals | null = null
+  stdout = Object.assign(new EventEmitter(), { resume: vi.fn() })
+  stderr = Object.assign(new EventEmitter(), { resume: vi.fn() })
 
   close(signal: NodeJS.Signals | null = null): void {
     if (this.exitCode !== null || this.signalCode !== null) return
@@ -97,9 +99,50 @@ describe('HermesDashboardService', () => {
 
     await expect(new HermesDashboardService().start()).resolves.toEqual({
       success: false,
+      reason: 'not_installed',
       message: 'Hermes is not installed'
     })
     expect(mocks.spawn).not.toHaveBeenCalled()
+  })
+
+  it('classifies missing Dashboard dependencies from the child diagnostic', async () => {
+    const service = new HermesDashboardService()
+    vi.mocked(fetch).mockRejectedValue(new Error('Dashboard is not ready'))
+    const starting = service.start()
+
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce())
+    child.stderr.emit('data', Buffer.from('Web UI requires fastapi and uvicorn.'))
+    child.close()
+
+    await expect(starting).resolves.toMatchObject({
+      success: false,
+      reason: 'dashboard_dependencies_missing',
+      message: expect.stringContaining('Web UI requires fastapi and uvicorn')
+    })
+  })
+
+  it('does not classify unrelated Uvicorn diagnostics as missing dependencies', async () => {
+    const service = new HermesDashboardService()
+    vi.mocked(fetch).mockRejectedValue(new Error('Dashboard is not ready'))
+    const starting = service.start()
+
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce())
+    child.stderr.emit('data', Buffer.from('Uvicorn failed to bind port 49152.'))
+    child.close()
+
+    await expect(starting).resolves.toMatchObject({ success: false, reason: 'startup_failed' })
+  })
+
+  it('classifies a dependency signature even after a long diagnostic prefix', async () => {
+    const service = new HermesDashboardService()
+    vi.mocked(fetch).mockRejectedValue(new Error('Dashboard is not ready'))
+    const starting = service.start()
+
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce())
+    child.stderr.emit('data', Buffer.from(`${'diagnostic '.repeat(3000)}Web UI requires fastapi and uvicorn.`))
+    child.close()
+
+    await expect(starting).resolves.toMatchObject({ success: false, reason: 'dashboard_dependencies_missing' })
   })
 
   it('cancels a startup awaiting binary discovery without spawning the Dashboard', async () => {
@@ -118,7 +161,11 @@ describe('HermesDashboardService', () => {
     const stopping = service.stop()
     resolveSnapshots!({ hermes: { availability: { source: 'system', path: '/usr/local/bin/hermes' } } })
 
-    await expect(starting).resolves.toEqual({ success: false, message: 'Hermes Dashboard startup was cancelled' })
+    await expect(starting).resolves.toEqual({
+      success: false,
+      reason: 'cancelled',
+      message: 'Hermes Dashboard startup was cancelled'
+    })
     await expect(stopping).resolves.toBeUndefined()
     expect(mocks.spawn).not.toHaveBeenCalled()
   })
@@ -130,6 +177,7 @@ describe('HermesDashboardService', () => {
 
     await expect(service.start()).resolves.toEqual({
       success: false,
+      reason: 'cancelled',
       message: 'Hermes Dashboard is unavailable during application shutdown'
     })
     expect(mocks.spawn).not.toHaveBeenCalled()
