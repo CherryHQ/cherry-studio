@@ -59,6 +59,7 @@ export interface MacScreenGeometry {
 export interface ConversationIslandPlacement {
   bounds: Rectangle
   presentation: 'notch' | 'capsule'
+  notchWidth?: number
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -174,7 +175,8 @@ export function resolveConversationIslandBounds(
       width,
       height: ISLAND_HEIGHT
     },
-    presentation: 'notch'
+    presentation: 'notch',
+    notchWidth: gapWidth
   }
 }
 

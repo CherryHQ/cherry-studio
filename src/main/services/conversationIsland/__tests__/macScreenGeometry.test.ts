@@ -22,7 +22,8 @@ describe('macScreenGeometry', () => {
 
     expect(resolveConversationIslandBounds(display, geometries, 320)).toEqual({
       bounds: { x: 1400, y: 24, width: 320, height: 38 },
-      presentation: 'notch'
+      presentation: 'notch',
+      notchWidth: 120
     })
   })
 
