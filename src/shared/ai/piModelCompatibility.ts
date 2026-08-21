@@ -115,16 +115,6 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
   return mapEndpointToPiApi(endpointType, adapterFamily)
 }
 
-/** Compaction boundary for models that declare no context window. */
-export const DEFAULT_AGENT_CONTEXT_WINDOW = 256_000
-
-/** Pi needs a limit for compaction and overflow recovery; an unknown value falls back to the default. */
-export function resolveAgentContextWindow(model: Model): number {
-  return typeof model.contextWindow === 'number' && Number.isFinite(model.contextWindow) && model.contextWindow > 0
-    ? model.contextWindow
-    : DEFAULT_AGENT_CONTEXT_WINDOW
-}
-
 /** Whether a pi agent can use this provider+model. Used for renderer filtering. */
 export function isPiCompatibleModel(provider: Provider, model: Model): boolean {
   return resolvePiApi(provider, model) !== undefined

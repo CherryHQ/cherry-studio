@@ -15,13 +15,13 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { resolveAgentContextWindow } from '@shared/ai/agentContextWindow'
 import {
   type DshApi,
   hasDshTextInput,
   mapEndpointToDshApi,
   resolveDshEndpointType
 } from '@shared/ai/dshModelCompatibility'
-import { resolveAgentContextWindow } from '@shared/ai/piModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
