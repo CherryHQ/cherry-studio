@@ -29,10 +29,9 @@ const DEFAULT_VERSION = '3.12.13'
 const MIRROR_TIMEOUT_MS = 5 * 60_000
 const OFFICIAL_TIMEOUT_MS = 10 * 60_000
 const FIND_TIMEOUT_MS = 120_000
-// uv appends `/{build-tag}/{archive}` to the mirror base, so the mirror only has
-// to mimic python-build-standalone's release layout — version metadata and
-// checksums still come from uv's built-in catalog.
-const MODELSCOPE_MIRROR = 'https://www.modelscope.cn/datasets/awwaawwa/BabelDOCAssets/resolve/master/python'
+// uv appends `/{build-tag}/{archive}` and verifies the result against its
+// built-in catalog's checksums, so any host mirroring that layout is safe.
+const CHINA_PYTHON_MIRROR = 'https://registry.npmmirror.com/-/binary/python-build-standalone'
 
 const execFileAsync = promisify(execFile)
 
@@ -81,7 +80,7 @@ async function findInstalled(version: string, env: Record<string, string>): Prom
 /**
  * Absolute path to a Cherry-managed interpreter for `requestedVersion` (a bare
  * version such as `3.12`, not a mise spec), installing one if needed. In China
- * the ModelScope mirror is tried first, then the official source.
+ * the npmmirror mirror is tried first, then the official source.
  *
  * @param baseEnv the isolated environment the uv subprocess should inherit
  * @throws if every source fails, carrying each source's error
@@ -115,9 +114,9 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
 
   if (inChina) {
     try {
-      await runUv(installArgs, { ...env, UV_PYTHON_INSTALL_MIRROR: MODELSCOPE_MIRROR }, MIRROR_TIMEOUT_MS)
+      await runUv(installArgs, { ...env, UV_PYTHON_INSTALL_MIRROR: CHINA_PYTHON_MIRROR }, MIRROR_TIMEOUT_MS)
     } catch (error) {
-      failures.push(`ModelScope: ${sanitizedCommandError(error)}`)
+      failures.push(`npmmirror: ${sanitizedCommandError(error)}`)
     }
   }
 

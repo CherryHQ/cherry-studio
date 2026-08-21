@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecFileAsync, mockFs, mockFsp } = vi.hoisted(() => ({
   mockExecFileAsync: vi.fn(),
-  mockFs: { existsSync: vi.fn((_candidate: string) => false) },
+  mockFs: { existsSync: vi.fn<(candidate: string) => boolean>() },
   mockFsp: { mkdir: vi.fn(async () => {}) }
 }))
 
@@ -34,7 +34,7 @@ const { provideManagedPython } = await import('../pythonRuntime')
 const UV_BIN = '/mock/cherry.bin/uv'
 const INSTALL_DIR = '/mock/feature.binary.data/uv-python'
 const MANAGED_PYTHON = `${INSTALL_DIR}/cpython-3.12.13/bin/python`
-const MODELSCOPE_MIRROR = 'https://www.modelscope.cn/datasets/awwaawwa/BabelDOCAssets/resolve/master/python'
+const CHINA_PYTHON_MIRROR = 'https://registry.npmmirror.com/-/binary/python-build-standalone'
 
 const uvCalls = (subcommand: string) =>
   mockExecFileAsync.mock.calls.filter(
@@ -98,7 +98,7 @@ describe('provideManagedPython', () => {
     expect(uvCalls('install')).toHaveLength(1)
   })
 
-  it('installs from the ModelScope mirror in China', async () => {
+  it('installs from the China mirror when in China', async () => {
     vi.mocked(regionService.isInChina).mockResolvedValue(true)
     let installed = false
     mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
@@ -115,7 +115,7 @@ describe('provideManagedPython', () => {
     })
 
     await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
-    expect(uvCalls('install')[0]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBe(MODELSCOPE_MIRROR)
+    expect(uvCalls('install')[0]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBe(CHINA_PYTHON_MIRROR)
   })
 
   it('never reaches for the mirror outside China', async () => {
@@ -139,13 +139,13 @@ describe('provideManagedPython', () => {
     expect(installs[0]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBeUndefined()
   })
 
-  it('falls back to the official source only after the ModelScope mirror fails', async () => {
+  it('falls back to the official source only after the China mirror fails', async () => {
     vi.mocked(regionService.isInChina).mockResolvedValue(true)
     let installed = false
     mockExecFileAsync.mockImplementation(
       async (bin: string, args: string[], options: { env?: Record<string, string> }) => {
         if (bin === UV_BIN && args[1] === 'install') {
-          if (options.env?.UV_PYTHON_INSTALL_MIRROR) throw new Error('ModelScope unavailable')
+          if (options.env?.UV_PYTHON_INSTALL_MIRROR) throw new Error('npmmirror unavailable')
           installed = true
           return { stdout: '', stderr: '' }
         }
@@ -162,7 +162,7 @@ describe('provideManagedPython', () => {
 
     const installs = uvCalls('install')
     expect(installs).toHaveLength(2)
-    expect(installs[0]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBe(MODELSCOPE_MIRROR)
+    expect(installs[0]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBe(CHINA_PYTHON_MIRROR)
     expect(installs[1]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBeUndefined()
   })
 
@@ -180,7 +180,7 @@ describe('provideManagedPython', () => {
     )
 
     await expect(provideManagedPython('3.12', {})).rejects.toThrow(
-      /ModelScope: https:\/\/\*\*\*@mirror\.test\/python failed[\s\S]*official: github unreachable/
+      /npmmirror: https:\/\/\*\*\*@mirror\.test\/python failed[\s\S]*official: github unreachable/
     )
   })
 
