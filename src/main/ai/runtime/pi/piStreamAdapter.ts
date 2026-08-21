@@ -18,6 +18,7 @@
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 export interface PiStreamSink {
@@ -28,10 +29,13 @@ export interface PiStreamSink {
 export const PI_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
+  const parsed = parseFunctionCallToolName(toolName)
   return {
     cherry: {
       transport: PI_TRANSPORT,
-      tool: { type: 'builtin', name: toolName }
+      tool: parsed
+        ? { type: 'mcp' as const, name: parsed.toolPart, serverName: parsed.serverPart }
+        : { type: 'builtin' as const, name: toolName }
     },
     pi: { toolName, ...extra }
   }
@@ -198,9 +202,11 @@ export class PiStreamAdapter {
 }
 
 function projectPiToolOutput(toolName: string, result: unknown): unknown {
-  if (toolName !== PI_TOOL_SEARCH_TOOL_NAME && toolName !== PI_TOOL_EXEC_TOOL_NAME) return result ?? null
   if (!result || typeof result !== 'object' || !('details' in result)) return result ?? null
-  return (result as { details?: unknown }).details ?? result
+  if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === PI_TOOL_EXEC_TOOL_NAME) {
+    return (result as { details?: unknown }).details ?? result
+  }
+  return result ?? null
 }
 
 interface TurnUsageTotals {

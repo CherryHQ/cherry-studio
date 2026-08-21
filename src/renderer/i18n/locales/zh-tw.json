@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。",
-            "warning_pi": "危險 — 除已停用工具外，所有操作均不會詢問，包含檔案刪除與網路存取。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
           },
           "default": {
             "description": "編輯檔案或執行命令前詢問。",
@@ -3491,6 +3490,12 @@
         "title": "隱藏"
       }
     },
+    "split": {
+      "already_open": "已顯示在另一側",
+      "choose": "選擇要並排顯示的小程式",
+      "close": "關閉分割檢視",
+      "open": "分割檢視"
+    },
     "title": "小程式",
     "unpin_failed": "取消固定小程式失敗",
     "update_partial_failure": "{{total}} 個更新中有 {{failed}} 個失敗"
@@ -3602,6 +3607,7 @@
     }
   },
   "navigate": {
+    "model_settings": "前往模型設定",
     "provider_settings": "前往供應商設定頁面"
   },
   "notes": {
@@ -4521,6 +4527,10 @@
         "custom": "自訂功能",
         "delete_confirm": "確定要刪除這個自訂功能嗎？",
         "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "用於「解釋」、「總結」、「潤飾」及使用預設模型的自訂功能。",
+          "translate_description": "用於產生翻譯結果；自動語言偵測也可能使用快速模型。"
+        },
         "reset": {
           "button": "重設",
           "confirm": "確定要重設為預設功能嗎？自訂功能不會被刪除。",
@@ -6208,8 +6218,9 @@
       "provider_key_confirm_title": "為 {{provider}} 新增 API 金鑰",
       "provider_name": "供應商名稱",
       "quick_assistant_default_tag": "預設",
-      "quick_assistant_model": "快速助理模型",
+      "quick_assistant_response_settings": "回應設定",
       "quick_assistant_selection": "選擇助理",
+      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "用於對話命名、搜尋關鍵字提煉等簡單任務的模型",
         "label": "快速模型",

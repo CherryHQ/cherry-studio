@@ -43,7 +43,7 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
-  useOptionalMessageListUi: () => ({ externalCodeEditors: [] }),
+  useOptionalMessageListUi: () => ({}),
   useOptionalMessageListTopicId: () => undefined
 }))
 

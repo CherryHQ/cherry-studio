@@ -1,24 +1,16 @@
-export type ExternalAppTag = 'code-editor' | 'terminal'
+export type ExternalOpenTargetKind = 'system_default' | 'application' | 'file_manager' | 'terminal'
 
-export type ExternalAppId = 'vscode' | 'cursor' | 'zed' | 'wt'
-
-export interface ExternalAppConfig {
-  id: ExternalAppId
-  name: string
-  /**
-   * Deep-link protocol (e.g. `vscode://`) used to open the app via a URL.
-   * Absent for executable-based apps (e.g. Windows Terminal).
-   */
-  protocol?: string
-  tags: ExternalAppTag[]
-  /**
-   * When set, the app is launched by spawning this executable instead of
-   * opening a protocol URL (e.g. `wt.exe` — Windows Terminal registers no
-   * URL scheme, it is invoked as `wt.exe -d <directory>`).
-   */
-  executable?: string
+export interface ExternalOpenTarget {
+  id: string
+  /** Best-effort display name; absence does not make the target unavailable. */
+  name?: string
+  iconDataUrl?: string
+  kind: ExternalOpenTargetKind
 }
 
-export interface ExternalAppInfo extends ExternalAppConfig {
-  path: string
+export interface ExternalOpenTargetResult {
+  pathKind: 'file' | 'directory'
+  /** Product fallback used when no valid persisted target preference exists. */
+  recommendedTargetId: string
+  targets: ExternalOpenTarget[]
 }
