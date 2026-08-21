@@ -32,12 +32,12 @@ This is a medium-sized, macOS-specific feature. The expected production implemen
 
 ### Existing Cherry Studio contracts
 
-- `ChatStreamLifecycle` already writes `topic.stream.statuses.${topicId}` to the main-owned shared Cache. `CacheService.subscribeSharedChange()` can observe template-key changes from either process without renderer polling.
+- `ChatStreamLifecycle` already writes `topic.stream.statuses.${topicId}` to the main-owned shared Cache. `CacheService.subscribeSharedChange()` can observe template-key changes from either process without renderer polling. Because Agent Session topic IDs use the deliberate `agent-session:` namespace while runtime template segments exclude colons, complete observation uses the existing general topic template plus the narrower `agent-session:${sessionId}` template; it does not change Cache matching rules.
 - `TopicStreamStatus` already defines `pending`, `streaming`, `awaiting-approval`, `done`, `error`, and `aborted`.
 - `ConversationNavigationService` and `navigation.focus_or_open_conversation` already focus or open both Assistant Conversations and Agent Sessions.
 - `WindowManager` already supports manual singleton panels, `showInactive()`, macOS panel windows, screen-saver stacking, fullscreen Spaces, Dock suppression, and always-on-top reapplication.
 - Preference is the repository owner for stable user-configurable feature toggles. New v2-only keys originate in `target-key-definitions.json` and are generated; generated Preference schemas are not edited by hand.
-- `NotificationService` remains a separate presentation channel. Users may enable both system notifications and Conversation Island.
+- `NotificationService` already owns presentation-ready conversation notifications, topic-to-navigation-target projection, title fallback, and the existing completion/approval triggers. It becomes the single main-process conversation-notification source; system notifications and Conversation Island remain independent presentation policies over that source and may both be enabled.
 
 ### Cindy lessons
 
@@ -156,17 +156,20 @@ Add `WindowType.ConversationIsland` as a manual singleton with no retention conf
 
 On a recognized notched display, the pill joins the top edge around the physical notch. On other displays, it is a rounded capsule centered eight pixels below the top edge.
 
-The window is created on the first eligible activity, reused while any activity remains eligible, and destroyed when the activity set becomes empty after terminal lifetimes. Disabling the feature immediately closes the window and clears display listeners and timers. The state subscription remains so enabling during a live response can present the current activity.
+The window is created on the first eligible activity, reused while any activity remains eligible, and destroyed when the activity set becomes empty after terminal lifetimes. Disabling the feature immediately closes the window and clears display listeners and timers. The lightweight `NotificationService` activity listener remains so enabling during a live response can present the current activity.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Cache[Shared topic stream status cache] --> Service[ConversationIslandService]
+  Cache[Shared topic stream status cache] --> Notifications[NotificationService]
+  Events[AiStreamManager and Agent Runtime events] --> Notifications
+  Notifications --> System[Existing in-app and system notifications]
+  Notifications --> Service[ConversationIslandService]
   Preference[PreferenceService] --> Service
   Screen[Electron screen events] --> Geometry[JXA AppKit geometry probe]
   Geometry --> Service
-  Service --> State[Ephemeral activity reducer]
+  Service --> State[Ephemeral island activity reducer]
   State --> Snapshot[Primary Activity snapshot]
   Snapshot --> WM[WindowManager init-data update]
   WM --> Pill[Minimal React pill window]
@@ -175,17 +178,24 @@ flowchart LR
 
 ### Main-process ownership
 
-`ConversationIslandService` is a macOS-conditional lifecycle service because it owns long-lived cache and preference subscriptions, display listeners while enabled, transient timers, and a managed window. Its topic grows into `src/main/services/conversationIsland/` only because the implementation has three independent responsibilities:
+`NotificationService` is the shared conversation-notification source. It keeps its existing precise `AiStreamManager` and Agent Runtime completion/approval subscriptions for in-app and system notifications, and adds two lightweight shared-Cache subscriptions for the complete transient status stream:
 
-- lifecycle orchestration and title/navigation target projection;
+- `topic.stream.statuses.${topicId}` for ordinary Assistant Conversation keys;
+- `topic.stream.statuses.agent-session:${sessionId}` for namespaced Agent Session keys.
+
+The second pattern places the colon in the fixed prefix, so it works with the existing runtime placeholder character set. `NotificationService` converts every concrete key into the existing `ConversationNavigationTarget`, emits a main-only `ConversationActivityChangedEvent`, and remains the sole owner of conversation name lookup and localized fallback. This is an in-process lifecycle event, not a new IpcApi event or shared event bus. Existing system-notification foreground/background gates and completion/approval IDs do not change.
+
+`ConversationIslandService` is a macOS-conditional lifecycle service because it owns the island activity reducer, preference subscriptions, display listeners while enabled, transient timers, and a managed window. It depends on `NotificationService` and never reads the shared Cache directly. Its topic grows into `src/main/services/conversationIsland/` only because the implementation has three independent responsibilities:
+
+- lifecycle orchestration and island snapshot projection;
 - pure activity arbitration and expiry;
 - feature-local macOS display geometry probing and validation.
 
 No new top-level directory or `features/` domain is justified.
 
-The service subscribes to `topic.stream.statuses.${topicId}` before any island window exists. The event path performs constant work per status transition and never receives streamed content. The in-memory map contains only live activities and terminal activities with an expiry timestamp. While the feature is disabled, expired entries are pruned lazily on the next status change or enable instead of arming a timer.
+The service subscribes to `NotificationService.onConversationActivityChanged` before any island window exists. The event path performs constant work per status transition and never receives streamed content. The in-memory map contains only live activities and terminal activities with an expiry timestamp. While the feature is disabled, expired entries are pruned lazily on the next status change or enable instead of arming a timer.
 
-When both the feature and title display are enabled, the service resolves the name only when an activity first becomes Primary and caches it for that activity lifetime. Turning title display off removes title data from subsequent snapshots and avoids name queries. A runtime `app.language` change rebuilds the localized snapshot without recreating the window.
+When both the feature and title display are enabled, the service asks `NotificationService` for the conversation name only when an activity first becomes Primary and caches it for that activity lifetime. Turning title display off removes title data from subsequent island snapshots and avoids island-triggered name queries; independently enabled system notifications may still resolve their own title. A runtime `app.language` change rebuilds the localized snapshot without recreating the window.
 
 ### Renderer ownership
 
@@ -217,7 +227,7 @@ Initial and subsequent snapshots use `WindowManager` init data and `pushInitData
 - Title lookup failure uses a localized generic title.
 - Window creation or renderer failure hides the island until a later state change; there is no restart loop.
 - Disabling the setting synchronously prevents further presentation work and releases the window.
-- App shutdown disposes subscriptions, screen listeners, child process, and timers through the lifecycle service.
+- App shutdown disposes notification/activity subscriptions, screen listeners, child process, and timers through their lifecycle services.
 
 ## Performance contract
 
@@ -226,12 +236,12 @@ Initial and subsequent snapshots use `WindowManager` init data and `pushInitData
 - No BrowserWindow or renderer process.
 - No JXA child process.
 - No display listener or timer.
-- One Cache template subscription and a bounded ephemeral activity map updated only on status transitions.
+- Two Cache template subscriptions owned by the already-resident `NotificationService`, one in-process activity listener, and a bounded ephemeral activity map updated only on status transitions.
 
 ### Enabled but idle
 
 - No BrowserWindow, renderer process, helper process, timer, or polling.
-- Cached display geometry and the same status subscription only.
+- Cached display geometry and the same notification activity listener only.
 
 ### Active
 
@@ -251,6 +261,7 @@ Tracked-app verification must compare disabled, enabled-idle, single-activity, a
 | Preferences | Two v2-only target definitions and generated Preference output |
 | Settings | One macOS-only group in the existing Notification settings page |
 | Shared | One declaration-only snapshot type |
+| Notifications | Extend `NotificationService` with one normalized conversation-activity event while preserving existing delivery rules |
 | Main lifecycle | One registered conditional service topic with reducer and geometry helper |
 | Window system | One `WindowType`, one registry entry, and renderer build input |
 | Preload | One minimal IpcApi-only preload entry |
@@ -265,7 +276,8 @@ Each test below protects a distinct regression:
 
 - Pure reducer tests: incorrect priority, tie-breaking, `+N`, terminal expiry, immediate abort removal, or accidental terminal queuing.
 - Geometry parser tests: malformed JXA output accepted as geometry, invalid notch gaps, missing display IDs, or fallback not selected.
-- Service tests: feature-off window creation, title queries while hidden, duplicate windows, missed runtime preference changes, leaked timers/listeners, and failure propagation into status handling.
+- Notification service tests: both Assistant and namespaced Agent Cache keys produce the same normalized activity contract, while existing completion/approval delivery and foreground/background gates remain unchanged.
+- Island service tests: feature-off window creation, title queries while hidden, duplicate windows, missed runtime preference changes, leaked timers/listeners, and failure propagation into status handling.
 - Window registry invariant test: wrong lifecycle, preload, focus, Dock, fullscreen, sandbox, or always-on-top configuration.
 - Renderer component test: visible state/title/count contract and click invoking the existing navigation route.
 - Notification settings test: macOS-only visibility and both Preference writes.
@@ -304,6 +316,10 @@ It reduces first-show latency but keeps renderer memory resident whenever the pr
 ### Renderer-owned status reporting
 
 It could carry exact source-window identity but duplicates status projection across windows and becomes stale on renderer crash. Main already observes authoritative shared status transitions.
+
+### Island-owned Cache subscription
+
+It keeps the first implementation superficially local, but duplicates topic-to-target parsing, title fallback, and notification semantics already owned by `NotificationService`. Extending the existing notification source with a narrow main-only activity event gives the system-notification and island presenters one normalization boundary without changing their different delivery policies.
 
 ### Extending `AiStreamManager` with source-window metadata
 
