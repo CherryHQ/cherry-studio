@@ -6374,6 +6374,25 @@
         "tip": "Fügen Sie jeweils nur einen API-Schlüssel hinzu",
         "unnamed": "API-Schlüssel"
       },
+      "api_setup": {
+        "add_and_verify": "Modelle hinzufügen und prüfen",
+        "add_key": "API-Schlüssel hinzufügen",
+        "check_failed": "Die Modellanfrage ist fehlgeschlagen",
+        "continue_models": "Weitere Modelle hinzufügen",
+        "deselect_all": "Auswahl aufheben",
+        "edit_key": "Gespeicherten Schlüssel bearbeiten",
+        "enable_failed": "Die Modellprüfung war erfolgreich, aber der Anbieter konnte nicht aktiviert werden",
+        "loading_models": "Verfügbare Modelle werden geladen…",
+        "manual_description": "Die ausgewählten Modelle unterstützen nur kostenintensive oder nicht unterstützte Prüfungen. Sie wurden hinzugefügt, der Anbieter bleibt jedoch deaktiviert. Führen Sie eine Modellprüfung aus und aktivieren Sie den Anbieter nach erfolgreicher Bestätigung manuell.",
+        "manual_title": "Manuelle Bestätigung erforderlich",
+        "models_empty_hint": "Ihr API-Schlüssel ist gespeichert. Wählen Sie mindestens ein Modell aus, um die Einrichtung abzuschließen.",
+        "models_title": "Modelle auswählen",
+        "no_models": "Der Anbieter hat keine verfügbaren Modelle zurückgegeben.",
+        "save_key": "Schlüssel speichern und fortfahren",
+        "select_model": "{{model}} auswählen",
+        "success": "API-Schlüssel und Modell wurden geprüft. Der Anbieter ist jetzt aktiviert.",
+        "verifying": "Speichern und prüfen…"
+      },
       "api_version": "API-Version",
       "aws-bedrock": {
         "access_key_id": "AWS-Zugriffsschlüssel-ID",

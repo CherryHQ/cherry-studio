@@ -6374,6 +6374,25 @@
         "tip": "Dùng dấu phẩy để phân tách nhiều khóa",
         "unnamed": "Khóa API"
       },
+      "api_setup": {
+        "add_and_verify": "Thêm mô hình và xác minh",
+        "add_key": "Thêm khóa API",
+        "check_failed": "Yêu cầu tới mô hình đã thất bại",
+        "continue_models": "Tiếp tục thêm mô hình",
+        "deselect_all": "Bỏ chọn tất cả",
+        "edit_key": "Chỉnh sửa khóa đã lưu",
+        "enable_failed": "Kiểm tra mô hình đã thành công nhưng không thể bật nhà cung cấp",
+        "loading_models": "Đang tải các mô hình khả dụng…",
+        "manual_description": "Các mô hình đã chọn chỉ hỗ trợ kiểm tra chi phí cao hoặc chưa được hỗ trợ. Chúng đã được thêm nhưng nhà cung cấp vẫn tắt. Hãy chạy kiểm tra mô hình và bật nhà cung cấp theo cách thủ công sau khi xác nhận mô hình hoạt động.",
+        "manual_title": "Cần xác nhận thủ công",
+        "models_empty_hint": "Khóa API của bạn đã được lưu. Chọn ít nhất một mô hình để hoàn tất thiết lập.",
+        "models_title": "Chọn mô hình",
+        "no_models": "Nhà cung cấp không trả về mô hình khả dụng nào.",
+        "save_key": "Lưu khóa và tiếp tục",
+        "select_model": "Chọn {{model}}",
+        "success": "Khóa API và mô hình đã được xác minh. Nhà cung cấp hiện đã được bật.",
+        "verifying": "Đang lưu và xác minh…"
+      },
       "api_version": "Phiên bản API",
       "aws-bedrock": {
         "access_key_id": "ID Khóa Truy Cập AWS",

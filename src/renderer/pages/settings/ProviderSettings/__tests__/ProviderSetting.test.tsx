@@ -5,7 +5,7 @@ import ProviderSetting from '../ProviderSetting'
 
 const useProviderMock = vi.fn()
 const useProviderApiKeyMock = vi.fn()
-const useProviderOnboardingAutoEnableMock = vi.fn()
+const updateProviderMock = vi.fn()
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
@@ -15,10 +15,6 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
-}))
-
-vi.mock('../hooks/providerSetting/useProviderOnboardingAutoEnable', () => ({
-  useProviderOnboardingAutoEnable: (...args: any[]) => useProviderOnboardingAutoEnableMock(...args)
 }))
 
 vi.mock('../hooks/providerSetting/useProviderApiKey', () => ({
@@ -42,6 +38,10 @@ vi.mock('../ConnectionSettings/AuthenticationSection', async () => {
   }
 })
 
+vi.mock('../ConnectionSettings/ProviderApiSetupDialog', () => ({
+  default: ({ initialStep }: any) => <div role="dialog" aria-label={`api-setup-${initialStep}`} />
+}))
+
 vi.mock('../ModelList', async () => {
   const { useAuthenticationApiKey } = await import('../hooks/providerSetting/useAuthenticationApiKey')
 
@@ -60,7 +60,8 @@ describe('ProviderSetting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', isEnabled: true, name: 'openai' }
+      provider: { id: 'openai', isEnabled: false, name: 'openai' },
+      updateProvider: updateProviderMock
     })
     useProviderApiKeyMock.mockReturnValue({
       serverApiKey: 'server-key',
@@ -72,7 +73,7 @@ describe('ProviderSetting', () => {
   })
 
   it('shares one API-key draft between authentication and model settings', () => {
-    render(<ProviderSetting providerId="openai" isOnboarding />)
+    render(<ProviderSetting providerId="openai" />)
 
     expect(screen.getByTestId('provider-detail-shell')).toBeInTheDocument()
     expect(screen.getByText('provider-header-openai')).toBeInTheDocument()
@@ -80,10 +81,13 @@ describe('ProviderSetting', () => {
     expect(screen.getByText('model-list-openai-shared-draft-key')).toBeInTheDocument()
     expect(useProviderApiKeyMock).toHaveBeenCalledTimes(1)
     expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
-    expect(useProviderOnboardingAutoEnableMock).toHaveBeenCalledWith({
-      providerId: 'openai',
-      isOnboarding: true
-    })
+    expect(updateProviderMock).not.toHaveBeenCalled()
+  })
+
+  it('opens the requested setup step when a newly created provider is selected', () => {
+    render(<ProviderSetting providerId="openai" initialApiSetupStep="models" />)
+
+    expect(screen.getByRole('dialog', { name: 'api-setup-models' })).toBeInTheDocument()
   })
 
   it('renders nothing when the provider is missing', () => {

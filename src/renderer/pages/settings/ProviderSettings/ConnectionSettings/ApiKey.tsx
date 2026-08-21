@@ -1,5 +1,7 @@
-import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { maskApiKey } from '@renderer/utils/api'
+import { cn } from '@renderer/utils/style'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,13 +17,20 @@ import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 interface ApiKeyProps {
   providerId: string
   onRequestModelPullGuide?: () => void
+  onOpenApiSetup?: () => void
 }
 
-export default function ApiKey({ providerId, onRequestModelPullGuide }: ApiKeyProps) {
+function maskStoredApiKey(key: string) {
+  const maskedKey = maskApiKey(key)
+  return maskedKey === key ? '••••••••' : maskedKey
+}
+
+export default function ApiKey({ providerId, onRequestModelPullGuide, onOpenApiSetup }: ApiKeyProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const meta = useProviderMeta(providerId)
   const { inputApiKey, setInputApiKey, hasPendingSync, commitInputApiKeyNow } = useAuthenticationApiKey()
+  const { data: apiKeysData, isLoading: isLoadingApiKeys } = useProviderApiKeys(providerId)
   const [showApiKey, setShowApiKey] = useState(false)
   const [keyListOpen, setKeyListOpen] = useState(false)
   const [apiKeyEdited, setApiKeyEdited] = useState(false)
@@ -48,6 +57,10 @@ export default function ApiKey({ providerId, onRequestModelPullGuide }: ApiKeyPr
     return null
   }
 
+  const apiKeys = apiKeysData?.keys ?? []
+  const primaryApiKey = apiKeys.find((entry) => entry.isEnabled) ?? apiKeys[0]
+  const requiresApiKey = provider.authOptional !== true
+
   return (
     <>
       <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
@@ -68,21 +81,65 @@ export default function ApiKey({ providerId, onRequestModelPullGuide }: ApiKeyPr
             </div>
           }
           titleClassName="text-foreground">
-          <div className={fieldClasses.inputRow}>
-            <InputGroup className={fieldClasses.inputGroup}>
-              <InputGroupInput
-                type={showApiKey ? 'text' : 'password'}
-                className={fieldClasses.input}
-                value={inputApiKey}
-                placeholder={t('settings.provider.api_key.placeholder')}
-                onChange={(event) => {
-                  setApiKeyEdited(true)
-                  setInputApiKey(event.target.value)
-                }}
-                onBlur={() => void handleApiKeyBlur()}
-                disabled={provider.id === 'copilot'}
-              />
-              {provider.id !== 'copilot' && (
+          {requiresApiKey ? (
+            isLoadingApiKeys ? (
+              <div className={fieldClasses.inputGroupBlock} aria-label={t('common.loading')}>
+                <span className="text-muted-foreground text-sm">{t('common.loading')}</span>
+              </div>
+            ) : primaryApiKey ? (
+              <div className={fieldClasses.inputRow}>
+                <button
+                  type="button"
+                  className={cn(
+                    fieldClasses.inputGroup,
+                    'cursor-pointer text-left outline-none transition-colors hover:border-border-strong hover:bg-accent/40 focus-visible:border-ring focus-visible:bg-accent/40'
+                  )}
+                  aria-label={t('settings.provider.api.key.list.title')}
+                  aria-haspopup="dialog"
+                  aria-expanded={keyListOpen}
+                  onClick={() => setKeyListOpen(true)}>
+                  <span className="min-w-0 flex-1 truncate font-mono text-foreground text-sm">
+                    {maskStoredApiKey(primaryApiKey.key)}
+                  </span>
+                  {apiKeys.length > 1 ? (
+                    <span className="shrink-0 text-muted-foreground text-xs">+{apiKeys.length - 1}</span>
+                  ) : null}
+                </button>
+                <ProviderModelCheck />
+              </div>
+            ) : (
+              <div className={fieldClasses.inputRow}>
+                <Button type="button" variant="outline" className="h-8 flex-1" onClick={onOpenApiSetup}>
+                  <KeyRound size={14} />
+                  {t('settings.provider.api_setup.add_key')}
+                </Button>
+                <Tooltip content={t('settings.provider.api.key.list.title')}>
+                  <span className="inline-flex shrink-0">
+                    <button
+                      type="button"
+                      className={fieldClasses.inputActionButton}
+                      aria-label={t('settings.provider.api.key.list.title')}
+                      onClick={() => setKeyListOpen(true)}>
+                      <KeyRound size={14} />
+                    </button>
+                  </span>
+                </Tooltip>
+              </div>
+            )
+          ) : (
+            <div className={fieldClasses.inputRow}>
+              <InputGroup className={fieldClasses.inputGroup}>
+                <InputGroupInput
+                  type={showApiKey ? 'text' : 'password'}
+                  className={fieldClasses.input}
+                  value={inputApiKey}
+                  placeholder={t('settings.provider.api_key.placeholder')}
+                  onChange={(event) => {
+                    setApiKeyEdited(true)
+                    setInputApiKey(event.target.value)
+                  }}
+                  onBlur={() => void handleApiKeyBlur()}
+                />
                 <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
                   <Tooltip
                     content={
@@ -96,22 +153,21 @@ export default function ApiKey({ providerId, onRequestModelPullGuide }: ApiKeyPr
                     </button>
                   </Tooltip>
                 </InputGroupAddon>
-              )}
-            </InputGroup>
-            <Tooltip content={t('settings.provider.api.key.list.title')}>
-              <span className="inline-flex shrink-0">
-                <button
-                  type="button"
-                  disabled={provider.id === 'copilot'}
-                  className={fieldClasses.inputActionButton}
-                  aria-label={t('settings.provider.api.key.list.title')}
-                  onClick={() => setKeyListOpen(true)}>
-                  <KeyRound size={14} />
-                </button>
-              </span>
-            </Tooltip>
-            <ProviderModelCheck />
-          </div>
+              </InputGroup>
+              <Tooltip content={t('settings.provider.api.key.list.title')}>
+                <span className="inline-flex shrink-0">
+                  <button
+                    type="button"
+                    className={fieldClasses.inputActionButton}
+                    aria-label={t('settings.provider.api.key.list.title')}
+                    onClick={() => setKeyListOpen(true)}>
+                    <KeyRound size={14} />
+                  </button>
+                </span>
+              </Tooltip>
+              <ProviderModelCheck />
+            </div>
+          )}
         </ProviderField>
       </ProviderSection>
       <ProviderApiKeyListDrawer providerId={providerId} open={keyListOpen} onClose={() => setKeyListOpen(false)} />

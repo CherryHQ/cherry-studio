@@ -2,6 +2,7 @@ import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -267,6 +268,29 @@ describe('aiHandlers', () => {
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
     expect(error.message).toBe('boom')
+  })
+
+  it('keeps provider model error details in IPC without writing them to logs', async () => {
+    const apiKey = 'sk-should-not-reach-logs'
+    const failure = Object.assign(new Error(`Unauthorized for ${apiKey}`), {
+      statusCode: 401,
+      responseBody: `bad key: ${apiKey}`
+    })
+    aiService.listModels.mockRejectedValue(failure)
+
+    const error = await aiHandlers['ai.provider.model.list']({ providerId: 'openai' }, ctx).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.data).toMatchObject({
+      message: `Unauthorized for ${apiKey}`,
+      statusCode: 401,
+      responseBody: `bad key: ${apiKey}`
+    })
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('ai.provider.model.list failed', {
+      errorType: 'Error',
+      statusCode: 401
+    })
+    expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain(apiKey)
   })
 })
 

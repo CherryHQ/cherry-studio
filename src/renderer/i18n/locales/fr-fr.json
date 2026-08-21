@@ -6374,6 +6374,25 @@
         "tip": "Ajouter une clé API à la fois",
         "unnamed": "Clé API"
       },
+      "api_setup": {
+        "add_and_verify": "Ajouter les modèles et vérifier",
+        "add_key": "Ajouter une clé API",
+        "check_failed": "La requête au modèle a échoué",
+        "continue_models": "Continuer à ajouter des modèles",
+        "deselect_all": "Tout désélectionner",
+        "edit_key": "Modifier la clé enregistrée",
+        "enable_failed": "La vérification du modèle a réussi, mais le fournisseur n’a pas pu être activé",
+        "loading_models": "Chargement des modèles disponibles…",
+        "manual_description": "Les modèles sélectionnés ne prennent en charge que des vérifications coûteuses ou non compatibles. Ils ont été ajoutés, mais le fournisseur reste désactivé. Lancez une vérification de modèle, puis activez manuellement le fournisseur après avoir confirmé son fonctionnement.",
+        "manual_title": "Confirmation manuelle requise",
+        "models_empty_hint": "Votre clé API est enregistrée. Choisissez au moins un modèle pour terminer la configuration.",
+        "models_title": "Choisir les modèles",
+        "no_models": "Le fournisseur n’a renvoyé aucun modèle disponible.",
+        "save_key": "Enregistrer la clé et continuer",
+        "select_model": "Sélectionner {{model}}",
+        "success": "La clé API et le modèle ont été vérifiés. Le fournisseur est maintenant activé.",
+        "verifying": "Enregistrement et vérification…"
+      },
       "api_version": "Version API",
       "aws-bedrock": {
         "access_key_id": "Identifiant de clé d'accès AWS",
