@@ -4,7 +4,6 @@ import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
-import { motion, useReducedMotion, type Variants } from 'motion/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,18 +15,6 @@ export type UsageHeatmapMetric = 'tokens' | 'cost'
 const CELL_SIZE = 12
 const CELL_GAP = 3
 const MIN_HEATMAP_DAYS = 365
-const heatmapCellVariants: Variants = {
-  hidden: { opacity: 0, scale: 0.7 },
-  visible: (cellIndex: number) => ({
-    opacity: 1,
-    scale: 1,
-    transition: {
-      delay: (Math.floor(cellIndex / 7) * 8 + (cellIndex % 7) * 12) / 1000,
-      duration: 0.52,
-      ease: [0.22, 1, 0.36, 1]
-    }
-  })
-}
 
 function startOfLocalWeek(date: Date, firstDayOfWeek: number): Date {
   const day = startOfLocalDay(date)
@@ -163,9 +150,7 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
   const { t, i18n } = useTranslation()
   const [metric, setMetric] = usePersistCache('settings.usage.heatmap_metric')
   const { ref: heatmapRef, width: heatmapWidth } = useElementWidth()
-  const reduceMotion = useReducedMotion()
-  const animationKey = `${range?.from ?? 'all'}-${range?.to ?? 'now'}-${isLoading ? 'loading' : 'ready'}`
-  const shouldAnimate = !reduceMotion && !isLoading
+  const animationRef = useRef<HTMLDivElement>(null)
 
   const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
   const days = useMemo(() => buildHeatmapDays(buckets, range, firstDayOfWeek), [buckets, firstDayOfWeek, range])
@@ -188,6 +173,18 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
 
     element.scrollLeft = element.scrollWidth - element.clientWidth
   }, [days, heatmapRef, heatmapWidth])
+
+  useEffect(() => {
+    if (isLoading) return
+
+    const element = animationRef.current
+    if (!element || typeof element.getAnimations !== 'function') return
+
+    for (const animation of element.getAnimations({ subtree: true })) {
+      animation.currentTime = 0
+      animation.play()
+    }
+  }, [isLoading, range?.from, range?.to])
 
   const monthLabels = useMemo(() => {
     const formatter = new Intl.DateTimeFormat(i18n.language, { month: 'short' })
@@ -249,10 +246,10 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
       </div>
 
       <div ref={heatmapRef} className="mt-2 min-w-0 max-w-full overflow-x-auto">
-        <div className="flex w-max min-w-full justify-end" style={{ gap: CELL_GAP }}>
+        <div ref={animationRef} className="flex w-max min-w-full justify-end" style={{ gap: CELL_GAP }}>
           {weeks.map((week, weekIndex) => (
             <div
-              key={`${animationKey}-${week[0]?.key ?? weekIndex}`}
+              key={week[0]?.key ?? weekIndex}
               className="grid shrink-0"
               style={{
                 width: CELL_SIZE,
@@ -274,18 +271,19 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
                     ))
                   : week.map((day, dayIndex) => {
                       const cellIndex = weekIndex * 7 + dayIndex
+                      const cellStyle = {
+                        height: CELL_SIZE,
+                        width: CELL_SIZE,
+                        animationDelay: `${Math.floor(cellIndex / 7) * 8 + (cellIndex % 7) * 12}ms`
+                      }
 
                       if (day.isOutsideRange) {
                         return (
-                          <motion.div
+                          <div
                             key={day.key}
                             aria-hidden
-                            className="rounded-[3px] bg-muted/30"
-                            style={{ height: CELL_SIZE, width: CELL_SIZE }}
-                            custom={cellIndex}
-                            variants={heatmapCellVariants}
-                            initial={shouldAnimate ? 'hidden' : false}
-                            animate="visible"
+                            className="animation-usage-heatmap-cell-enter rounded-[3px] bg-muted/30"
+                            style={cellStyle}
                           />
                         )
                       }
@@ -307,18 +305,14 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
 
                       return (
                         <NormalTooltip key={day.key} content={tooltipContent} side="top" sideOffset={4}>
-                          <motion.div
+                          <div
                             role="img"
                             aria-label={`${dateFormatter.format(day.date)} · ${tooltipValue} · ${t(
                               'settings.usage.tooltip.requests',
                               { count: bucket?.requestCount ?? 0 }
                             )}`}
-                            className={`cursor-help rounded-[3px] ${intensityClassNames[intensity]}`}
-                            style={{ height: CELL_SIZE, width: CELL_SIZE }}
-                            custom={cellIndex}
-                            variants={heatmapCellVariants}
-                            initial={shouldAnimate ? 'hidden' : false}
-                            animate="visible"
+                            className={`animation-usage-heatmap-cell-enter cursor-help rounded-[3px] ${intensityClassNames[intensity]}`}
+                            style={cellStyle}
                           />
                         </NormalTooltip>
                       )
