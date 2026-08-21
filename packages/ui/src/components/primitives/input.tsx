@@ -3,14 +3,22 @@ import * as React from 'react'
 
 interface InputProps extends React.ComponentProps<'input'> {}
 
-function Input({ className, type, ...props }: InputProps) {
+function Input({ className, type, onWheel, ...props }: InputProps) {
   return (
     <input
       type={type}
       data-slot="input"
+      // Chromium spins a *focused* number field on wheel. Blur rather than
+      // preventDefault, so the value holds and the scroll still reaches the page.
+      onWheel={(event) => {
+        if (type === 'number') event.currentTarget.blur()
+        onWheel?.(event)
+      }}
       className={cn(
         'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed md:text-sm',
         'focus-visible:border-primary',
+        '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+        '[&::-webkit-search-cancel-button]:hidden',
         'disabled:opacity-50',
         'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
         className

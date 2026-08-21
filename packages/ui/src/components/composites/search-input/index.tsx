@@ -5,7 +5,6 @@ import {
   InputGroupButton,
   InputGroupInput
 } from '@cherrystudio/ui/components/primitives/input-group'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Search, X } from 'lucide-react'
 import type * as React from 'react'
 
@@ -44,13 +43,7 @@ function SearchInput({ className, value, disabled, onClear, clearLabel, size, ..
       <InputGroupAddon>
         <Search />
       </InputGroupAddon>
-      <InputGroupInput
-        type="search"
-        value={value}
-        disabled={disabled}
-        className={cn('[&::-webkit-search-cancel-button]:hidden', className)}
-        {...props}
-      />
+      <InputGroupInput type="search" value={value} disabled={disabled} className={className} {...props} />
       {showClear && (
         <InputGroupAddon align="inline-end">
           <InputGroupButton type="button" size="icon-xs" aria-label={clearLabel} disabled={disabled} onClick={onClear}>
