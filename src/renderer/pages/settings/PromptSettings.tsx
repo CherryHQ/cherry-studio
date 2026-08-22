@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
   EmojiIcon,
   EmptyState,
-  Input,
   ReorderableList,
   Scrollbar,
   Skeleton,
@@ -18,6 +17,7 @@ import {
 } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import {
@@ -31,7 +31,7 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
-import { GripVertical, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
+import { GripVertical, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -250,32 +250,23 @@ export function PromptSettings() {
   return (
     <SettingsContentBody className="min-h-0 flex-1 overflow-hidden pt-4" innerClassName="flex min-h-0 flex-1 flex-col">
       <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <SettingTitle className="m-0">{t('settings.prompts.title')}</SettingTitle>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <SettingTitle className="m-0 shrink-0">{t('settings.prompts.title')}</SettingTitle>
+          <CollapsibleSearchBar
+            value={search}
+            onSearch={setSearch}
+            placeholder={t('settings.prompts.searchPlaceholder')}
+            tooltip={t('common.search')}
+            clearLabel={t('common.clear')}
+            maxWidth={220}
+            collapsedSize={30}
+            style={{ borderRadius: 8 }}
+          />
+        </div>
         <Button size="sm" onClick={() => setPromptDialog({ prompt: null })}>
           <Plus size={12} />
           {t('settings.prompts.add')}
         </Button>
-      </div>
-
-      <div className="relative mb-3 shrink-0">
-        <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-tertiary" />
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          aria-label={t('settings.prompts.searchPlaceholder')}
-          placeholder={t('settings.prompts.searchPlaceholder')}
-          className="h-8 rounded-md border-input bg-background pr-8 pl-8 text-sm placeholder:text-muted-foreground"
-        />
-        {search ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('common.clear')}
-            onClick={() => setSearch('')}
-            className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-muted-foreground hover:text-foreground">
-            <X size={12} />
-          </Button>
-        ) : null}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
