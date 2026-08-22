@@ -809,14 +809,19 @@ function FilesPage() {
     setRenamingId(id)
   }, [])
 
+  const handleDeleteOne = useCallback((id: string) => handleDelete(new Set([id])), [handleDelete])
+  const handleRestoreOne = useCallback((id: string) => void handleRestore(new Set([id])), [handleRestore])
+  const handleRenameConfirm = useCallback((id: string, name: string) => void handleRename(id, name), [handleRename])
+  const handleRenameCancel = useCallback(() => setRenamingId(null), [])
+
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
       onRename: startInlineRename,
-      onDelete: (id) => handleDelete(new Set([id])),
-      onRestore: (id) => void handleRestore(new Set([id])),
+      onDelete: handleDeleteOne,
+      onRestore: handleRestoreOne,
       onShowInFolder: handleShowInFolder
     }),
-    [handleDelete, handleRestore, handleShowInFolder, startInlineRename]
+    [handleDeleteOne, handleRestoreOne, handleShowInFolder, startInlineRename]
   )
 
   const handleSort = useCallback(
@@ -1002,12 +1007,12 @@ function FilesPage() {
                     scrollRef={contentScrollRef}
                     onLayoutChange={maybeFillClientFilteredViewport}
                     onOpen={handleOpen}
-                    onDelete={(id) => handleDelete(new Set([id]))}
+                    onDelete={handleDeleteOne}
                     isTrash={isTrash}
                     menuActions={listMenuActions}
                     renamingId={renamingId}
-                    onRenameConfirm={(id, name) => void handleRename(id, name)}
-                    onRenameCancel={() => setRenamingId(null)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 ) : (
                   <FileList
@@ -1018,13 +1023,13 @@ function FilesPage() {
                     onOpen={handleOpen}
                     isTrash={isTrash}
                     menuActions={listMenuActions}
-                    onDelete={(id) => handleDelete(new Set([id]))}
-                    onRestore={(id) => void handleRestore(new Set([id]))}
+                    onDelete={handleDeleteOne}
+                    onRestore={handleRestoreOne}
                     onRename={startInlineRename}
                     onShowInFolder={handleShowInFolder}
                     renamingId={renamingId}
-                    onRenameConfirm={(id, name) => void handleRename(id, name)}
-                    onRenameCancel={() => setRenamingId(null)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 )}
               </>
