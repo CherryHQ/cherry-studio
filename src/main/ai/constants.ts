@@ -3,12 +3,12 @@ export const DEFAULT_TIMEOUT = 30 * 1000 * 60
 export const DEFAULT_MAX_TOKENS = 8192
 
 /**
- * Context-compaction budget ratios, shared by both altitudes so their triggers
- * stay in lockstep: turn-start durable compaction (PersistentChatContextProvider)
- * and the in-loop prepareStep hook (inLoopCompaction). Recompact when the served
- * prompt exceeds TRIGGER×window; keep KEEP_BUDGET×window as recent verbatim turns.
+ * Keep budget for context compaction, shared by both altitudes so they stay in
+ * lockstep: turn-start durable compaction (PersistentChatContextProvider) and
+ * the in-loop prepareStep hook (inLoopCompaction) keep KEEP_BUDGET×window as
+ * recent verbatim turns. The recompact trigger is per-assistant configurable
+ * (`contextSettings.compress.thresholdPercent`), not a constant.
  */
-export const CONTEXT_COMPACT_TRIGGER_RATIO = 0.8
 export const CONTEXT_COMPACT_KEEP_BUDGET_RATIO = 0.3
 
 /**

@@ -36,6 +36,7 @@ const scope = (overrides: {
   contextWindow?: number
   enabled?: boolean
   compressEnabled?: boolean
+  thresholdPercent?: number
   compressionModel?: unknown
   adapterFamily?: string
 }) =>
@@ -45,7 +46,7 @@ const scope = (overrides: {
     provider: provider(overrides.adapterFamily),
     contextSettings: {
       enabled: overrides.enabled ?? true,
-      compress: { enabled: overrides.compressEnabled ?? true }
+      compress: { enabled: overrides.compressEnabled ?? true, thresholdPercent: overrides.thresholdPercent ?? 80 }
     },
     compressionModel: 'compressionModel' in overrides ? overrides.compressionModel : COMPRESSION_MODEL
   }) as any
@@ -216,6 +217,17 @@ describe('inLoopCompactionFeature', () => {
     const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
     expect(maxOutputTokens + maxInputTokens).toBeLessThan(100_000) // fits the window
     expect(result).toEqual({ messages: compacted })
+  })
+
+  it('honors a configured threshold below the default', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 50 })
+    )
+    // ~60k tokens: under the 80k default trigger, over the 50k configured one.
+    await prepareStep({ messages: [userMessage(60_000)] } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
   })
 
   // The summarize call goes to the COMPRESSOR, so its budget must come from the

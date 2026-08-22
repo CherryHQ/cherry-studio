@@ -55,6 +55,8 @@ export interface AssistantFormState {
    * not what happens when the context overflows, and it persists on its own.
    */
   contextMaxMessages: number | null
+  /** Compact once the prompt passes this percent of the model context window. */
+  contextCompressThresholdPercent: number
   /** null = no explicit pick (follow the global / current model). */
   contextCompressModelId: string | null
   // relations
@@ -91,6 +93,8 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
     contextMaxMessages: ctx?.maxMessages ?? null,
+    contextCompressThresholdPercent:
+      ctx?.compress?.thresholdPercent ?? DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent,
     contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
@@ -147,6 +151,7 @@ export function diffAssistantUpdate(
     (form.contextOverrideEnabled &&
       (baseline.contextCompressEnabled !== form.contextCompressEnabled ||
         baseline.contextTruncateThreshold !== form.contextTruncateThreshold ||
+        baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
   const settings: NonNullable<UpdateAssistantDto['settings']> = {
@@ -169,7 +174,11 @@ export function diffAssistantUpdate(
             ? {
                 truncateThreshold: form.contextTruncateThreshold,
                 ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
-                compress: { enabled: form.contextCompressEnabled, modelId: form.contextCompressModelId }
+                compress: {
+                  enabled: form.contextCompressEnabled,
+                  modelId: form.contextCompressModelId,
+                  thresholdPercent: form.contextCompressThresholdPercent
+                }
               }
             : form.contextMaxMessages !== null
               ? { maxMessages: form.contextMaxMessages }

@@ -34,7 +34,8 @@ export function resolveContextSettings(input: ResolveContextSettingsInput): Effe
       enabled: assistant?.compress?.enabled ?? globals.compress.enabled,
       // `??` treats null/undefined alike: users disable compression via
       // `compress.enabled = false`, never by nulling the modelId.
-      modelId: assistant?.compress?.modelId ?? globals.compress.modelId
+      modelId: assistant?.compress?.modelId ?? globals.compress.modelId,
+      thresholdPercent: assistant?.compress?.thresholdPercent ?? globals.compress.thresholdPercent
     }
   }
 }

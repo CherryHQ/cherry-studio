@@ -19,7 +19,9 @@ export const ContextSettingsCompressOverrideSchema = z.object({
   enabled: z.boolean(),
   // min(1): '' would read as an explicit pick and silently kill compression
   // (resolveCompressionModel('') → null) — clearing must be expressed as null.
-  modelId: z.string().min(1).nullable().optional()
+  modelId: z.string().min(1).nullable().optional(),
+  /** Compact once the prompt passes this percent of the model context window. */
+  thresholdPercent: z.number().int().min(10).max(100).optional()
 })
 export type ContextSettingsCompressOverride = z.infer<typeof ContextSettingsCompressOverrideSchema>
 
@@ -47,7 +49,8 @@ export const EffectiveContextSettingsSchema = z.object({
   maxMessages: z.number().int().min(1).nullable(),
   compress: z.object({
     enabled: z.boolean(),
-    modelId: z.string().nullable()
+    modelId: z.string().nullable(),
+    thresholdPercent: z.number().int().min(10).max(100)
   })
 })
 export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSchema>
@@ -67,6 +70,21 @@ export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSc
  */
 export const MIN_TRUNCATE_THRESHOLD = 2000
 
+/**
+ * Bounds for the compaction trigger, shared by both settings UIs and the
+ * resolver. A trigger at 0 would fold on every step (nothing to fold on the
+ * first one), and above 100 it can never fire.
+ */
+export const MIN_COMPRESS_THRESHOLD_PERCENT = 10
+export const MAX_COMPRESS_THRESHOLD_PERCENT = 100
+
+/** Non-finite (or absent) input falls back to the default rather than to NaN,
+ *  which would compare false against every estimate and compact forever. */
+export function clampThresholdPercent(value: number | null | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent
+  return Math.min(MAX_COMPRESS_THRESHOLD_PERCENT, Math.max(MIN_COMPRESS_THRESHOLD_PERCENT, Math.floor(value)))
+}
+
 /** Hardcoded floor. compress.enabled defaults TRUE (P2-B decision); the
  *  threshold mirrors CONTEXT_PERSIST_THRESHOLD_CHARS so the persist trigger
  *  and the default agree out of the box. */
@@ -76,6 +94,7 @@ export const DEFAULT_CONTEXT_SETTINGS: EffectiveContextSettings = {
   maxMessages: null,
   compress: {
     enabled: true,
-    modelId: null
+    modelId: null,
+    thresholdPercent: 80
   }
 }
