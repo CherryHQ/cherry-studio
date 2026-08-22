@@ -208,6 +208,7 @@ const AppearanceSettings: FC = () => {
   )
   const navigationLayoutOptions = useMemo(
     () => [
+      { value: 'both' as const, label: t('settings.appearance.navigation_layout.both') },
       { value: 'sidebar' as const, label: t('settings.appearance.navigation_layout.sidebar') },
       { value: 'tabs' as const, label: t('settings.appearance.navigation_layout.tabs') }
     ],

@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   closeWorkspace: vi.fn(),
   navigate: vi.fn(),
-  navigationLayout: 'sidebar' as 'sidebar' | 'tabs',
+  navigationLayout: 'sidebar' as 'sidebar' | 'tabs' | 'both',
   openRoute: vi.fn(),
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
@@ -306,6 +306,19 @@ describe('LaunchpadPage', () => {
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
   })
 
+  it('preserves the legacy Launchpad behavior in the combined layout', async () => {
+    const user = userEvent.setup()
+    mocks.navigationLayout = 'both'
+
+    render(<LaunchpadPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Knowledge' }))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
+    expect(mocks.openRoute).not.toHaveBeenCalled()
+    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
+  })
+
   it('preserves query parameters when replacing the launchpad tab in tabs layout', async () => {
     const user = userEvent.setup()
     mocks.navigationLayout = 'tabs'
@@ -567,5 +580,18 @@ describe('LaunchpadPage', () => {
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
     expect(mocks.closeWorkspace).toHaveBeenCalledWith('app:knowledge')
+  })
+
+  it('does not close an open tab when a Sidebar favorite is removed in the combined layout', async () => {
+    const user = userEvent.setup()
+    mocks.navigationLayout = 'both'
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
+
+    render(<LaunchpadPage />)
+
+    await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge'))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
+    expect(mocks.closeWorkspace).not.toHaveBeenCalled()
   })
 })

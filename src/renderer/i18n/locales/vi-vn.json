@@ -4908,6 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
+        "both": "Thanh bên + Thẻ",
         "sidebar": "Thanh bên",
         "tabs": "Thẻ",
         "title": "Bố cục điều hướng"

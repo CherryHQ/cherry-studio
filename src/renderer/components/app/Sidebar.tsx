@@ -18,8 +18,10 @@ import {
   getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
+  isMessageOnlyConversationUrl,
   REQUIRED_SIDEBAR_FAVORITES,
-  resolveSidebarActiveItem
+  resolveSidebarActiveItem,
+  tabBelongsToApp
 } from '@renderer/utils/sidebar'
 import { Plus } from 'lucide-react'
 import type { Ref } from 'react'
@@ -56,7 +58,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     removeAssistant,
     reorderFavorites
   } = useSidebarFavorites()
-  const { activeTab, activateWorkspace, closeWorkspace, tabs, updateTab } = useTabs()
+  const { activeTab, activateWorkspace, closeWorkspace, navigationLayout, openTab, setActiveTab, tabs, updateTab } =
+    useTabs()
   const workspaceTaskStatuses = useWorkspaceTaskStatuses()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const { agents } = useAgents({ enabled: agentFavoriteIds.length > 0 })
@@ -147,17 +150,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     (favorite: SidebarAppId) => {
       if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       setAppPinned(favorite, false)
-      closeWorkspace(`app:${favorite}`)
+      if (navigationLayout === 'sidebar') closeWorkspace(`app:${favorite}`)
     },
-    [closeWorkspace, setAppPinned]
+    [closeWorkspace, navigationLayout, setAppPinned]
   )
 
   const handleRemoveMiniAppFavorite = useCallback(
     (appId: string) => {
       removeMiniApp(appId)
-      closeWorkspace(`mini-app:${appId}`)
+      if (navigationLayout === 'sidebar') closeWorkspace(`mini-app:${appId}`)
     },
-    [closeWorkspace, removeMiniApp]
+    [closeWorkspace, navigationLayout, removeMiniApp]
   )
 
   const activeItem = resolveSidebarActiveItem(pathname)
@@ -169,13 +172,37 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
       if (!app || !path) return
 
-      activateWorkspace(`app:${menuId}`, path, { title: getDefaultRouteTitle(path) })
+      if (navigationLayout === 'sidebar') {
+        activateWorkspace(`app:${menuId}`, path, { title: getDefaultRouteTitle(path) })
+        return
+      }
+
+      const isActiveTarget =
+        !!activeTab &&
+        (app.conversationRoute
+          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
+          : activeTab.url === path)
+      if (isActiveTarget) return
+
+      const title = getDefaultRouteTitle(path)
+      if (activeTab?.isPinned) {
+        openTab(path, { forceNew: true, title })
+      } else if (activeTab) {
+        updateTab(activeTab.id, { url: path, title, icon: undefined, metadata: undefined })
+      } else {
+        openTab(path, { forceNew: true, title })
+      }
     },
-    [activateWorkspace, defaultPaintingProvider]
+    [activeTab, activateWorkspace, defaultPaintingProvider, navigationLayout, openTab, updateTab]
   )
   const handleOpenLaunchpad = useCallback(() => {
-    activateWorkspace('launchpad', '/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad') })
-  }, [activateWorkspace])
+    const title = getDefaultRouteTitle('/app/launchpad')
+    if (navigationLayout === 'sidebar') {
+      activateWorkspace('launchpad', '/app/launchpad', { title })
+    } else {
+      openTab('/app/launchpad', { title, forceNew: true })
+    }
+  }, [activateWorkspace, navigationLayout, openTab])
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/general')
   }, [])
@@ -193,29 +220,60 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const title = app.nameKey ? t(app.nameKey) : app.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       const icon = app.logoSrc ?? app.logo
-      activateWorkspace(`mini-app:${app.appId}`, path, { title, icon })
+
+      if (navigationLayout === 'sidebar') {
+        activateWorkspace(`mini-app:${app.appId}`, path, { title, icon })
+        return
+      }
+
+      if (activeTab?.url === path) return
+      const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
+      if (existingTab) {
+        setActiveTab(existingTab.id)
+      } else if (activeTab?.isPinned) {
+        openTab(path, { forceNew: true, title, icon })
+      } else if (activeTab) {
+        updateTab(activeTab.id, { url: path, title, icon, metadata: undefined })
+      } else {
+        openTab(path, { forceNew: true, title, icon })
+      }
     },
-    [activateWorkspace, openableMiniAppById, t]
+    [activeTab, activateWorkspace, navigationLayout, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
+  )
+
+  const handleOpenEntity = useCallback(
+    (path: string, title: string, workspaceKey: 'app:agents' | 'app:assistants') => {
+      if (navigationLayout === 'sidebar') {
+        activateWorkspace(workspaceKey, path, { title })
+      } else if (activeTab?.url === path) {
+        return
+      } else if (activeTab?.isPinned) {
+        openTab(path, { forceNew: true, title })
+      } else if (activeTab) {
+        updateTab(activeTab.id, { url: path, title, icon: undefined, metadata: undefined })
+      } else {
+        openTab(path, { forceNew: true, title })
+      }
+    },
+    [activeTab, activateWorkspace, navigationLayout, openTab, updateTab]
   )
 
   const handleOpenAgent = useCallback(
     (agentId: string) => {
       const agent = installedAgents.get(agentId)
       if (!agent) return
-      activateWorkspace('app:agents', `/app/agents?agentId=${encodeURIComponent(agentId)}`, { title: agent.name })
+      handleOpenEntity(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name, 'app:agents')
     },
-    [activateWorkspace, installedAgents]
+    [handleOpenEntity, installedAgents]
   )
 
   const handleOpenAssistant = useCallback(
     (assistantId: string) => {
       const assistant = installedAssistants.get(assistantId)
       if (!assistant) return
-      activateWorkspace('app:assistants', `/app/chat?assistantId=${encodeURIComponent(assistantId)}`, {
-        title: assistant.name
-      })
+      handleOpenEntity(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name, 'app:assistants')
     },
-    [activateWorkspace, installedAssistants]
+    [handleOpenEntity, installedAssistants]
   )
 
   useEffect(() => {
@@ -343,30 +401,33 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         onOverlayOpenChange={onOverlayOpenChange}
       />
     ),
-    fixedAction: (fixedActionLayout: SidebarVisibleLayout) =>
-      fixedActionLayout === 'icon' ? (
-        <Tooltip content={t('title.launchpad')} placement="right" delay={600}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t('title.launchpad')}
-            onClick={handleOpenLaunchpad}
-            className="size-9 rounded-full text-muted-foreground hover:bg-accent/60 hover:text-foreground">
-            <Plus size={18} strokeWidth={1.6} />
-          </Button>
-        </Tooltip>
-      ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={t('title.launchpad')}
-          onClick={handleOpenLaunchpad}
-          className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground hover:bg-accent/60">
-          <Plus size={16} strokeWidth={1.6} />
-          <span>{t('title.launchpad')}</span>
-        </Button>
-      ),
+    fixedAction:
+      navigationLayout === 'sidebar'
+        ? (fixedActionLayout: SidebarVisibleLayout) =>
+            fixedActionLayout === 'icon' ? (
+              <Tooltip content={t('title.launchpad')} placement="right" delay={600}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('title.launchpad')}
+                  onClick={handleOpenLaunchpad}
+                  className="size-9 rounded-full text-muted-foreground hover:bg-accent/60 hover:text-foreground">
+                  <Plus size={18} strokeWidth={1.6} />
+                </Button>
+              </Tooltip>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={t('title.launchpad')}
+                onClick={handleOpenLaunchpad}
+                className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground hover:bg-accent/60">
+                <Plus size={16} strokeWidth={1.6} />
+                <span>{t('title.launchpad')}</span>
+              </Button>
+            )
+        : undefined,
     onEntriesReorder: handleReorder
   }
 

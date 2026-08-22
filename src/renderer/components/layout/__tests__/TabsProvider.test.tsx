@@ -11,7 +11,7 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let currentLanguage = 'en'
-let navigationLayout: 'sidebar' | 'tabs' = 'tabs'
+let navigationLayout: 'sidebar' | 'tabs' | 'both' = 'tabs'
 const sidebarMocks = vi.hoisted(() => ({
   ensureFavoritesPinned: vi.fn(),
   favorites: [
@@ -263,6 +263,7 @@ function WorkspaceControls() {
     closeWorkspace,
     navigationLayout,
     openRoute,
+    setActiveTab,
     tabBarTabs,
     tabs
   } = useTabsContext()
@@ -277,6 +278,9 @@ function WorkspaceControls() {
       </button>
       <button type="button" onClick={() => openRoute('/app/release-notes')}>
         Open release notes
+      </button>
+      <button type="button" onClick={() => setActiveTab('home')}>
+        Activate home workspace
       </button>
       <button type="button" onClick={closeFocusedRoute}>
         Close focused
@@ -423,6 +427,52 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('restores the full multi-tab session in the combined layout', () => {
+    navigationLayout = 'both'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      { id: 'chat-id', type: 'route', url: '/app/chat', title: 'Chat', lastAccessTime: 2, isDormant: false },
+      { id: 'agent-id', type: 'route', url: '/app/agents', title: 'Agent', lastAccessTime: 1, isDormant: false }
+    ]
+    activeTabIdValue = 'chat-id'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both')
+    expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent('chat-id,agent-id')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('chat-id:focused:/app/chat')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('agent-id:focused:/app/agents')
+  })
+
+  it('preserves legacy independent utility tabs in the combined layout', async () => {
+    navigationLayout = 'both'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/settings/appearance'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open release notes' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/app/release-notes'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/settings/appearance')
+    expect((screen.getByTestId('workspace-tabs').textContent ?? '').split(',')).toHaveLength(3)
+    expect((screen.getByTestId('tab-bar-tabs').textContent ?? '').split(',')).toHaveLength(3)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate home workspace' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('home'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/settings/appearance')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/app/release-notes')
+  })
+
   it('keeps one mounted workspace per app in sidebar layout', async () => {
     navigationLayout = 'sidebar'
     pinnedTabsValue = []
@@ -659,7 +709,7 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent(':launchpad:/app/launchpad')
   })
 
-  it('surfaces only the active Sidebar workspace when switching to top tabs', async () => {
+  it('surfaces only the active Sidebar workspace when switching to the combined layout', async () => {
     navigationLayout = 'sidebar'
     pinnedTabsValue = []
     normalTabsValue = [
@@ -683,13 +733,14 @@ describe('TabsProvider', () => {
     )
     await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('sidebar'))
 
-    navigationLayout = 'tabs'
+    navigationLayout = 'both'
     view.rerender(
       <TabsProvider initialDefaultTab={null}>
         <WorkspaceControls />
       </TabsProvider>
     )
 
+    await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both'))
     await waitFor(() => expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^agent-id$/))
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('agent-id:app:agents:')
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('launch-id:launchpad:')

@@ -222,6 +222,28 @@ describe('AppShellTabBar', () => {
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad' })
   })
 
+  it('keeps the legacy new-tab behavior when the Sidebar is also visible', async () => {
+    const user = userEvent.setup()
+    const openTab = vi.fn()
+
+    renderTabBar({ showsSidebar: true, openTab })
+
+    await user.click(screen.getByRole('button', { name: 'Launchpad' }))
+
+    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+    expect(screen.getByTestId('shell-tab-actions')).not.toHaveAttribute('data-show-settings')
+  })
+
+  it('preserves the legacy macOS traffic-light reserve when the Sidebar is visible', () => {
+    mocks.platformState.isMac = true
+
+    renderTabBar({ showsSidebar: true })
+
+    expect(screen.getByTestId('app-shell-tab-strip')).toHaveStyle({
+      paddingLeft: 'env(titlebar-area-x, 0px)'
+    })
+  })
+
   it('shows the focused tab as a Back control with a visible detach action', async () => {
     const user = userEvent.setup()
     const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
@@ -248,6 +270,20 @@ describe('AppShellTabBar', () => {
     expect(detachButton).toHaveTextContent('')
     await user.click(detachButton)
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
+  })
+
+  it('preserves the legacy focused Settings actions in the combined layout', () => {
+    const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+
+    renderTabBar({
+      tabs: [settingsTab],
+      activeTabId: settingsTab.id,
+      isFocusedTab: true,
+      legacyCombinedLayout: true
+    })
+
+    expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
+    expect(screen.getByTestId('window-controls')).toBeInTheDocument()
   })
 
   it('detaches the focused tab when dragged outside the tab bar', () => {

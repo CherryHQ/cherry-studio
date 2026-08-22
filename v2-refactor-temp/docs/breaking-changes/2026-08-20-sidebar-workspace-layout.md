@@ -1,5 +1,5 @@
 ---
-title: Sidebar workspaces are the default navigation layout
+title: Three navigation layouts are available without changing the default
 category: changed
 severity: notice
 introduced_in_pr: TBD
@@ -8,16 +8,16 @@ date: 2026-08-20
 
 ## What changed
 
-The main window now defaults to Sidebar workspaces instead of showing the Sidebar and top tabs together. Each Sidebar app keeps one live workspace, while users who prefer parallel tabs can switch to the mutually exclusive Tabs layout in Settings → Appearance.
+The main window now offers Sidebar-only, Tabs-only, and Sidebar + Tabs layouts in Settings → Appearance. Sidebar + Tabs remains the default and preserves the navigation behavior from previous releases.
 
 ## Why this matters to the user
 
-Switching Sidebar apps preserves page state without duplicating the same navigation controls. When switching to Tabs, only the current workspace appears in the tab bar; other Sidebar workspaces stay available in the background. The Sidebar has a fixed Launchpad button; in Tabs layout the Sidebar is hidden and the top new-tab button remains available.
+Existing users see no layout or navigation change after upgrading. Sidebar-only keeps one live workspace per app and preserves page state while removing the top tab bar. Tabs-only hides the Sidebar and keeps the parallel tab workflow. Only Sidebar-only shows the fixed Sidebar Launchpad button; both tab-bearing layouts use the top new-tab button.
 
 ## What the user should do
 
-Nothing — automatic. Choose Tabs in Settings → Appearance to keep the multi-tab workflow.
+Nothing — automatic. Choose Sidebar or Tabs in Settings → Appearance to opt into either streamlined layout.
 
 ## Notes for release manager
 
-Mention that running Chat, Agent, and translation work continues across app switches and layout changes. Settings, file previews, and release notes open as a focused page with a Back action.
+Mention that Sidebar + Tabs remains the default for upgrade compatibility. Running Chat, Agent, and translation work continues across app switches and layout changes. Settings, file previews, and release notes use a focused page with a Back action in Sidebar-only and Tabs-only; the combined layout retains the previous ordinary-tab behavior.

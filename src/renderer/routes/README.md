@@ -71,7 +71,7 @@ function SettingsLayout() {
 
 This project provides layout-aware route navigation plus in-workspace navigation:
 
-Switching from Sidebar to Tabs exposes only the current workspace in the top bar. Other Sidebar workspaces remain in the shared keep-alive pool and are restored when selected or when returning to Sidebar.
+The main window supports Sidebar-only, Tabs-only, and the legacy combined Sidebar + Tabs layout. The combined layout keeps the pre-change ordinary-tab navigation behavior. Switching from Sidebar-only to either tab-bearing layout exposes only the current workspace in the top bar. Other Sidebar workspaces remain in the shared keep-alive pool and are restored when selected or when returning to Sidebar-only.
 
 ### 1. Shell Navigation - `openRoute`
 
@@ -83,13 +83,14 @@ import { useTabs } from '@renderer/hooks/tab'
 function MyComponent() {
   const { openRoute, activateWorkspace, openFocusedRoute, closeFocusedRoute, closeTab } = useTabs()
 
-  // Sidebar: activate the app's unique workspace. Tabs: reuse/create a tab.
+  // Sidebar-only: activate the app's unique workspace. Tabs/Both: reuse/create a tab.
   openRoute('/app/knowledge')
 
   // Explicitly activate a stable Sidebar workspace without replacing its route.
   activateWorkspace('app:assistants', '/app/chat')
 
-  // Settings, file previews, and release notes use the single focused page.
+  // Sidebar-only and Tabs-only use one focused page for utility routes.
+  // The legacy combined layout keeps them as ordinary tabs.
   openFocusedRoute('/settings/general')
   closeFocusedRoute()
 
@@ -126,8 +127,8 @@ function SettingsPage() {
 
 | Scenario | Method | Result |
 |----------|--------|--------|
-| Open feature module | `openRoute('/app/knowledge')` | Activates its Sidebar workspace or opens a Tab |
-| Open settings / file preview | `openFocusedRoute(...)` | Opens the single focused page and records its return workspace |
+| Open feature module | `openRoute('/app/knowledge')` | Activates its Sidebar-only workspace or opens a Tab |
+| Open settings / file preview | `openFocusedRoute(...)` | Opens a focused page in the streamlined layouts; the combined layout retains ordinary tabs |
 | Switch sub-page in settings | `navigate({ to: '/settings/provider' })` | Navigates within current Tab |
 | Switch conversation inside an app | `navigate(...)` | Keeps the app's workspace and component state |
 | Go back to previous page | `navigate({ to: '..' })` | Goes back within current Tab |
@@ -142,10 +143,10 @@ function SettingsPage() {
 | `tabBarTabs` | `Tab[]` | Tabs currently exposed in the top tab bar |
 | `activeTabId` | `string` | Currently active Tab ID |
 | `activeTab` | `Tab \| undefined` | Currently active Tab object |
-| `openRoute(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | Layout-aware app/focused-page navigation |
+| `openRoute(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | Layout-aware navigation; the combined layout preserves legacy tab behavior |
 | `openTab(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | Compatibility alias of `openRoute` |
 | `activateWorkspace(key, route, options?)` | `(string, string, OpenTabOptions?) => string` | Activate or create one stable workspace |
-| `openFocusedRoute(route, returnId?, options?)` | `(string, string?, OpenTabOptions?) => string` | Open/reuse the single focused page |
+| `openFocusedRoute(route, returnId?, options?)` | `(string, string?, OpenTabOptions?) => string` | Open/reuse the single focused page used by the streamlined layouts |
 | `closeFocusedRoute()` | `() => void` | Close the focused page and restore its source workspace |
 | `closeTab(id)` | `(id: string) => void` | Close specified Tab |
 | `setActiveTab(id)` | `(id: string) => void` | Switch to specified Tab |
@@ -155,7 +156,7 @@ function SettingsPage() {
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `forceNew` | `boolean` | `false` | Force a new app Tab in Tabs layout; Sidebar still keeps one workspace per app |
+| `forceNew` | `boolean` | `false` | Force a new app Tab in either tab-bearing layout; Sidebar-only still keeps one workspace per app |
 | `workspaceKey` | `string` | inferred | Stable app workspace identity; normally inferred from the route |
 | `title` | `string` | URL path | Tab title |
 | `type` | `'route' \| 'webview'` | `'route'` | Tab type |
@@ -165,8 +166,9 @@ function SettingsPage() {
 
 ```text
 AppShell
-├── Sidebar
-├── TabBar
+├── Sidebar (Sidebar-only / Sidebar + Tabs)
+├── TabBar (Tabs-only / Sidebar + Tabs)
+├── TitleBar (Sidebar-only)
 └── Content Area
     ├── TabRouter #1 (Home)
     │   └── Activity(visible) → MemoryRouter → RouterProvider

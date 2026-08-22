@@ -356,6 +356,24 @@ describe('AppearanceSettings selectors', () => {
     ])
   })
 
+  it('offers all three navigation layouts and reflects the combined selection', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.navigation.layout', 'both')
+    render(<AppearanceSettings />)
+
+    expect(screen.getByRole('button', { name: 'settings.appearance.navigation_layout.both' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(screen.getByRole('button', { name: 'settings.appearance.navigation_layout.sidebar' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+    expect(screen.getByRole('button', { name: 'settings.appearance.navigation_layout.tabs' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+  })
+
   it('shows migration guidance for marked v1 custom CSS', () => {
     MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', `${V1_CUSTOM_CSS_MARKER}\nbody { color: red; }`)
 

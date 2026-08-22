@@ -9,6 +9,7 @@ import { getTabWorkspaceKey, getWorkspaceKeyForUrl } from '@renderer/utils/navig
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react'
 
@@ -45,7 +46,20 @@ export const AppShell = () => {
     closeFocusedRoute
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
-  const isFocusedTabActive = !!activeTab && !getTabWorkspaceKey(activeTab)
+  const isSettingsTabActive = isSettingsPath(activeTab?.url)
+  const previousLegacyTabIdRef = useRef<string | undefined>(undefined)
+  if (activeTab && !isSettingsTabActive) {
+    previousLegacyTabIdRef.current = activeTab.id
+  } else if (isSettingsTabActive && !previousLegacyTabIdRef.current) {
+    previousLegacyTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
+      if (isSettingsPath(tab.url)) return latest
+      return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+    }, undefined)?.id
+  }
+  const isFocusedTabActive =
+    navigationLayout === 'both' ? isSettingsTabActive : !!activeTab && !getTabWorkspaceKey(activeTab)
+  const showsTabBar = navigationLayout !== 'sidebar'
+  const showsSidebar = navigationLayout === 'sidebar' || (navigationLayout === 'both' && !isFocusedTabActive)
   const visibleTabBarTabs = useMemo(
     () => (isFocusedTabActive && activeTab ? [activeTab] : tabBarTabs),
     [activeTab, isFocusedTabActive, tabBarTabs]
@@ -83,14 +97,18 @@ export const AppShell = () => {
   const handleCloseTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
-      if (tab && !getTabWorkspaceKey(tab)) {
+      if (navigationLayout === 'both' && isSettingsPath(tab?.url)) {
+        closeTabs([id], previousLegacyTabIdRef.current)
+        return
+      }
+      if (navigationLayout !== 'both' && tab && !getTabWorkspaceKey(tab)) {
         closeFocusedRoute()
         return
       }
       clearSplitWithLastMiniAppTab(id, tab?.url)
       closeTab(id)
     },
-    [clearSplitWithLastMiniAppTab, closeFocusedRoute, closeTab, tabs]
+    [clearSplitWithLastMiniAppTab, closeFocusedRoute, closeTab, closeTabs, navigationLayout, tabs]
   )
 
   const handleDetachTab = useCallback(
@@ -100,16 +118,19 @@ export const AppShell = () => {
         typeof tab?.metadata?.returnWorkspaceId === 'string' ? tab.metadata.returnWorkspaceId : undefined
       clearSplitWithLastMiniAppTab(id, tab?.url)
       detachTab(id)
-      if (tab && !getTabWorkspaceKey(tab) && returnWorkspaceId) {
+      if (navigationLayout === 'both' && isSettingsPath(tab?.url) && previousLegacyTabIdRef.current) {
+        setActiveTab(previousLegacyTabIdRef.current)
+      } else if (tab && !getTabWorkspaceKey(tab) && returnWorkspaceId) {
         setActiveTab(returnWorkspaceId)
       }
     },
-    [clearSplitWithLastMiniAppTab, detachTab, setActiveTab, tabs]
+    [clearSplitWithLastMiniAppTab, detachTab, navigationLayout, setActiveTab, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
+    if (navigationLayout === 'both' && isSettingsTabActive) return
     void GlobalSearchPopup.show()
-  }, [])
+  }, [isSettingsTabActive, navigationLayout])
 
   // Pinned tabs join the same flat cycle, matching Chrome / VS Code Ctrl+Tab.
   const cycleTab = useCallback(
@@ -128,6 +149,10 @@ export const AppShell = () => {
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
+
+  useEffect(() => {
+    if (navigationLayout === 'both' && isSettingsTabActive) GlobalSearchPopup.hide()
+  }, [isSettingsTabActive, navigationLayout])
 
   // The compact minimum tracks the active tab's route here, at window level.
   // It must not live in the pages themselves: they sit inside <Activity>, whose
@@ -189,6 +214,7 @@ export const AppShell = () => {
       activeTabId={activeTabId}
       isFullscreen={isFullscreen}
       isFocusedTab={isFocusedTabActive}
+      legacyCombinedLayout={navigationLayout === 'both'}
       setActiveTab={setActiveTab}
       closeTab={handleCloseTab}
       closeTabs={closeTabs}
@@ -197,6 +223,7 @@ export const AppShell = () => {
       unpinTab={unpinTab}
       detachTab={handleDetachTab}
       openTab={openTab}
+      showsSidebar={showsSidebar}
     />
   )
 
@@ -238,7 +265,7 @@ export const AppShell = () => {
 
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {navigationLayout === 'tabs' ? tabBar : titleBar}
+      {showsTabBar ? tabBar : titleBar}
       {contentArea}
     </div>
   )
@@ -250,7 +277,7 @@ export const AppShell = () => {
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {navigationLayout === 'sidebar' && <Sidebar />}
+        {showsSidebar && <Sidebar />}
         {contentColumn}
       </div>
     )
@@ -269,7 +296,7 @@ export const AppShell = () => {
           className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
         />
       )}
-      {navigationLayout === 'sidebar' && (
+      {showsSidebar && (
         <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
           {!isFullscreen && (
             <div

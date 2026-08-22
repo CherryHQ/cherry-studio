@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   ipcHandlers: new Map<string, (value: unknown) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve(false)),
   activeTabId: 'home',
-  navigationLayout: 'tabs' as 'sidebar' | 'tabs',
+  navigationLayout: 'tabs' as 'sidebar' | 'tabs' | 'both',
   platformState: { isMac: false },
   tabs: [
     {
@@ -154,11 +154,18 @@ afterEach(() => {
 })
 
 describe('AppShell', () => {
-  it('renders sidebar and top-tab navigation as mutually exclusive layouts', () => {
+  it('renders sidebar-only, tabs-only, and combined navigation layouts', () => {
     const view = render(<AppShell />)
 
     expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
     expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('title-bar')).not.toBeInTheDocument()
+
+    mocks.navigationLayout = 'both'
+    view.rerender(<AppShell />)
+
+    expect(screen.getByTestId('sidebar')).toBeInTheDocument()
+    expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
     expect(screen.queryByTestId('title-bar')).not.toBeInTheDocument()
 
     mocks.navigationLayout = 'sidebar'
@@ -231,6 +238,7 @@ describe('AppShell', () => {
   })
 
   it('focuses the active Settings tab and hides workspace navigation', () => {
+    mocks.navigationLayout = 'both'
     const settingsTab = {
       id: 'settings',
       isDormant: false,
@@ -247,9 +255,40 @@ describe('AppShell', () => {
     expect(mocks.tabBarProps).toMatchObject({
       activeTabId: settingsTab.id,
       isFocusedTab: true,
+      legacyCombinedLayout: true,
       tabs: [settingsTab]
     })
+    expect(document.querySelector('[data-ui="app.content"]')?.parentElement).toHaveClass('pr-2')
+    expect(document.querySelector('[data-ui="app.content"]')?.parentElement).not.toHaveClass('px-2')
     expect(screen.getAllByTestId('tab-router').map((router) => router.dataset.tabId)).toEqual(['home', 'settings'])
+  })
+
+  it('keeps non-Settings utility pages as ordinary tabs in the combined layout', () => {
+    mocks.navigationLayout = 'both'
+    const previewTab = {
+      id: 'preview',
+      isDormant: false,
+      title: 'Preview',
+      type: 'route' as const,
+      url: '/file-preview?path=%2Ftmp%2Fnotes.md'
+    }
+    mocks.tabs = [...mocks.tabs, previewTab]
+    mocks.activeTabId = previewTab.id
+
+    render(<AppShell />)
+
+    expect(screen.getByTestId('sidebar')).toBeInTheDocument()
+    expect(mocks.tabBarProps).toMatchObject({
+      activeTabId: previewTab.id,
+      isFocusedTab: false,
+      tabs: mocks.tabs
+    })
+
+    const closePreviewTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closePreviewTab?.(previewTab.id)
+
+    expect(mocks.closeTab).toHaveBeenCalledWith(previewTab.id)
+    expect(mocks.closeFocusedRoute).not.toHaveBeenCalled()
   })
 
   it('keeps a background Settings tab in the positional tab-bar list', () => {
@@ -346,6 +385,38 @@ describe('AppShell', () => {
     expect(mocks.setActiveTab).toHaveBeenCalledWith('first')
   })
 
+  it('preserves the legacy Settings return behavior in the combined layout', () => {
+    mocks.navigationLayout = 'both'
+    const workspaceTabs = [
+      { id: 'first', isDormant: false, title: 'First', type: 'route' as const, url: '/app/chat' },
+      { id: 'second', isDormant: false, title: 'Second', type: 'route' as const, url: '/app/files' }
+    ]
+    const settingsTab = {
+      id: 'settings',
+      isDormant: false,
+      title: 'Settings',
+      type: 'route' as const,
+      url: '/settings/provider'
+    }
+    mocks.tabs = workspaceTabs
+    mocks.activeTabId = 'first'
+    const view = render(<AppShell />)
+
+    mocks.tabs = [...workspaceTabs, settingsTab]
+    mocks.activeTabId = settingsTab.id
+    view.rerender(<AppShell />)
+
+    const closeSettingsTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeSettingsTab?.(settingsTab.id)
+    expect(mocks.closeTabs).toHaveBeenCalledWith([settingsTab.id], 'first')
+    expect(mocks.closeFocusedRoute).not.toHaveBeenCalled()
+
+    const detachSettingsTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachSettingsTab?.(settingsTab.id)
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('first')
+  })
+
   it('keeps global search available while a focused page is open', () => {
     mocks.tabs = [
       ...mocks.tabs,
@@ -364,6 +435,27 @@ describe('AppShell', () => {
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
     expect(mocks.hideSearchPopup).not.toHaveBeenCalled()
+  })
+
+  it('preserves the legacy global-search suppression on combined-layout Settings', () => {
+    mocks.navigationLayout = 'both'
+    mocks.tabs = [
+      ...mocks.tabs,
+      {
+        id: 'settings',
+        isDormant: false,
+        title: 'Settings',
+        type: 'route',
+        url: '/settings/provider'
+      }
+    ]
+    mocks.activeTabId = 'settings'
+
+    render(<AppShell />)
+    mocks.commandHandlers.get('app.search')?.handler()
+
+    expect(mocks.showSearchPopup).not.toHaveBeenCalled()
+    expect(mocks.hideSearchPopup).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the macOS traffic lights in the sidebar column', () => {

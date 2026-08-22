@@ -71,7 +71,7 @@ function SettingsLayout() {
 
 本项目提供布局感知的 Shell 导航，以及 workspace 内部导航：
 
-从 Sidebar 切换到多标签布局时，顶部只展示当前 workspace；其他 Sidebar workspace 继续保留在统一 keep-alive 池中，被选中或切回 Sidebar 时恢复。
+主窗口支持纯 Sidebar、纯多标签，以及兼容旧行为的 Sidebar + 多标签三种布局。组合布局继续使用改动前的普通标签导航行为。从纯 Sidebar 切换到任一包含顶部标签栏的布局时，顶部只展示当前 workspace；其他 Sidebar workspace 继续保留在统一 keep-alive 池中，被选中或切回纯 Sidebar 时恢复。
 
 ### 1. Shell 导航 - `openRoute`
 
@@ -83,13 +83,14 @@ import { useTabs } from '@renderer/hooks/tab'
 function MyComponent() {
   const { openRoute, activateWorkspace, openFocusedRoute, closeFocusedRoute, closeTab } = useTabs()
 
-  // Sidebar：激活应用唯一 workspace；多标签：复用或新建 Tab
+  // 纯 Sidebar：激活应用唯一 workspace；多标签/兼容布局：复用或新建 Tab
   openRoute('/app/knowledge')
 
   // 显式激活稳定 workspace，不覆盖其当前内部路由
   activateWorkspace('app:assistants', '/app/chat')
 
-  // 设置、文件预览、版本说明使用唯一专注页
+  // 纯 Sidebar 和纯多标签中的工具路由使用唯一专注页
+  // 兼容组合布局仍将它们作为普通标签处理
   openFocusedRoute('/settings/general')
   closeFocusedRoute()
 
@@ -126,8 +127,8 @@ function SettingsPage() {
 
 | 场景 | 使用 | 效果 |
 |-----|------|------|
-| 打开功能模块 | `openRoute('/app/knowledge')` | 激活 Sidebar workspace 或打开 Tab |
-| 打开设置 / 文件预览 | `openFocusedRoute(...)` | 打开唯一专注页并记录返回来源 |
+| 打开功能模块 | `openRoute('/app/knowledge')` | 激活纯 Sidebar workspace 或打开 Tab |
+| 打开设置 / 文件预览 | `openFocusedRoute(...)` | 精简布局打开专注页；兼容组合布局保留普通标签行为 |
 | 设置页内切换子页 | `navigate({ to: '/settings/provider' })` | 当前 Tab 内跳转 |
 | 应用内切换会话 | `navigate(...)` | 保留应用 workspace 和组件状态 |
 | 返回上一页 | `navigate({ to: '..' })` | 当前 Tab 内返回 |
@@ -142,10 +143,10 @@ function SettingsPage() {
 | `tabBarTabs` | `Tab[]` | 当前展示在顶部标签栏中的 Tab |
 | `activeTabId` | `string` | 当前激活的 Tab ID |
 | `activeTab` | `Tab \| undefined` | 当前激活的 Tab 对象 |
-| `openRoute(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | 感知布局的应用 / 专注页导航 |
+| `openRoute(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | 感知布局的导航；组合布局保留旧标签行为 |
 | `openTab(url, options?)` | `(url: string, options?: OpenTabOptions) => string` | `openRoute` 的兼容别名 |
 | `activateWorkspace(key, route, options?)` | `(string, string, OpenTabOptions?) => string` | 激活或创建唯一稳定 workspace |
-| `openFocusedRoute(route, returnId?, options?)` | `(string, string?, OpenTabOptions?) => string` | 打开或复用唯一专注页 |
+| `openFocusedRoute(route, returnId?, options?)` | `(string, string?, OpenTabOptions?) => string` | 打开或复用精简布局使用的唯一专注页 |
 | `closeFocusedRoute()` | `() => void` | 关闭专注页并恢复来源 workspace |
 | `closeTab(id)` | `(id: string) => void` | 关闭指定 Tab |
 | `setActiveTab(id)` | `(id: string) => void` | 切换到指定 Tab |
@@ -155,7 +156,7 @@ function SettingsPage() {
 
 | 选项 | 类型 | 默认值 | 说明 |
 |-----|------|-------|------|
-| `forceNew` | `boolean` | `false` | 多标签布局中强制新开应用 Tab；Sidebar 仍只保留一个应用 workspace |
+| `forceNew` | `boolean` | `false` | 在包含顶部标签栏的布局中强制新开应用 Tab；纯 Sidebar 仍只保留一个应用 workspace |
 | `workspaceKey` | `string` | 自动推导 | 稳定的应用 workspace 标识，通常根据路由自动推导 |
 | `title` | `string` | URL 路径 | Tab 标题 |
 | `type` | `'route' \| 'webview'` | `'route'` | Tab 类型 |
@@ -165,8 +166,9 @@ function SettingsPage() {
 
 ```text
 AppShell
-├── Sidebar
-├── TabBar
+├── Sidebar（纯 Sidebar / Sidebar + 多标签）
+├── TabBar（纯多标签 / Sidebar + 多标签）
+├── TitleBar（纯 Sidebar）
 └── Content Area
     ├── TabRouter #1 (Home)
     │   └── Activity(visible) → MemoryRouter → RouterProvider

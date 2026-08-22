@@ -73,7 +73,7 @@ export default function LaunchpadPage() {
     (url: string, options?: { title?: string; icon?: string }) => {
       const parsedUrl = new URL(url, BASE_URL)
 
-      if (navigationLayout === 'tabs') {
+      if (navigationLayout !== 'sidebar') {
         if (parsedUrl.search) {
           void navigate({
             to: parsedUrl.pathname,
@@ -96,14 +96,14 @@ export default function LaunchpadPage() {
 
     const path = getSidebarMenuPath(favorite, defaultPaintingProvider)
     if (!path) return
-    setAppPinned(favorite, true)
+    if (navigationLayout !== 'both') setAppPinned(favorite, true)
     openUrl(path)
   }
 
   const openMiniApp = (app: MiniAppType) => {
     if (shouldSuppressLaunchClick(app.appId)) return
 
-    setMiniAppPinned(app.appId, true)
+    if (navigationLayout !== 'both') setMiniAppPinned(app.appId, true)
     openUrl(`/app/mini-app/${app.appId}`, {
       title: app.nameKey ? t(app.nameKey) : app.name,
       icon: app.logoSrc ?? app.logo
@@ -111,7 +111,7 @@ export default function LaunchpadPage() {
   }
 
   const openDeepSeekHarness = () => {
-    setAppPinned('code_tools', true)
+    if (navigationLayout !== 'both') setAppPinned('code_tools', true)
     openUrl(DEEPSEEK_HARNESS_URL)
   }
 
@@ -127,9 +127,9 @@ export default function LaunchpadPage() {
     (favorite: SidebarAppId) => {
       if (!visibleSidebarFavoriteSet.has(favorite) || REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       setAppPinned(favorite, false)
-      closeWorkspace(`app:${favorite}`)
+      if (navigationLayout === 'sidebar') closeWorkspace(`app:${favorite}`)
     },
-    [closeWorkspace, setAppPinned, visibleSidebarFavoriteSet]
+    [closeWorkspace, navigationLayout, setAppPinned, visibleSidebarFavoriteSet]
   )
 
   const getAppContextMenuItems = useCallback(

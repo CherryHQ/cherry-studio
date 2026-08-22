@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   openSettingsTab: vi.fn(),
   setActiveTab: vi.fn(),
+  navigationLayout: 'sidebar' as 'sidebar' | 'tabs' | 'both',
   useMiniApps: vi.fn(),
   updateTab: vi.fn(),
   activeTab: {
@@ -125,6 +126,7 @@ vi.mock('@renderer/hooks/tab', () => ({
     activeTab: mocks.activeTab,
     activateWorkspace: mocks.activateWorkspace,
     closeWorkspace: mocks.closeWorkspace,
+    navigationLayout: mocks.navigationLayout,
     tabs: mocks.tabs,
     openTab: mocks.openTab,
     updateTab: mocks.updateTab,
@@ -362,6 +364,7 @@ afterEach(() => {
     url: '/app/chat',
     title: 'Chat'
   }
+  mocks.navigationLayout = 'sidebar'
   mocks.tabs = []
   mocks.allApps = []
   mocks.visibleMiniApps = null
@@ -450,6 +453,17 @@ describe('app Sidebar', () => {
     expect(mocks.closeWorkspace).toHaveBeenCalledWith('app:knowledge')
   })
 
+  it('keeps open tabs when a favorite is removed in the combined layout', () => {
+    mocks.navigationLayout = 'both'
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-app.knowledge'))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
+    expect(mocks.closeWorkspace).not.toHaveBeenCalled()
+  })
+
   it('keeps required sidebar favorites protected in the context menu', () => {
     render(<Sidebar />)
 
@@ -472,6 +486,21 @@ describe('app Sidebar', () => {
     await user.click(manageSidebar)
 
     expect(mocks.activateWorkspace).toHaveBeenCalledWith('launchpad', '/app/launchpad', { title: 'Launchpad' })
+  })
+
+  it('opens a new Launchpad tab from the manage action in the combined layout', async () => {
+    const user = userEvent.setup()
+    mocks.navigationLayout = 'both'
+    mocks.sidebarFavorites = [appFavorite('knowledge')]
+
+    render(<Sidebar />)
+
+    await user.click(
+      within(screen.getByRole('group', { name: 'knowledge' })).getByRole('button', { name: 'Manage Sidebar' })
+    )
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+    expect(mocks.activateWorkspace).not.toHaveBeenCalled()
   })
 
   it('renders favorite mini apps directly in the sidebar mini app section', () => {
@@ -612,6 +641,27 @@ describe('app Sidebar', () => {
     })
   })
 
+  it('reuses an existing mini-app tab in the combined layout', async () => {
+    const user = userEvent.setup()
+    mocks.navigationLayout = 'both'
+    configureMiniApps(['calculator'])
+    mocks.tabs = [
+      {
+        id: 'calculator-tab',
+        type: 'route',
+        url: '/app/mini-app/calculator',
+        title: 'Calculator'
+      }
+    ]
+
+    render(<Sidebar />)
+    await user.click(screen.getByRole('button', { name: 'Calculator' }))
+
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('calculator-tab')
+    expect(mocks.activateWorkspace).not.toHaveBeenCalled()
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+  })
+
   it('activates a stable built-in app workspace', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
 
@@ -621,12 +671,36 @@ describe('app Sidebar', () => {
     expect(mocks.activateWorkspace).toHaveBeenCalledWith('app:agents', '/app/agents', { title: 'Work' })
   })
 
+  it('replaces the active unpinned tab from the Sidebar in the combined layout', () => {
+    mocks.navigationLayout = 'both'
+    mocks.sidebarFavorites = [appFavorite('agents')]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
+
+    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
+      url: '/app/agents',
+      title: 'Work',
+      icon: undefined,
+      metadata: undefined
+    })
+    expect(mocks.activateWorkspace).not.toHaveBeenCalled()
+  })
+
   it('renders the fixed launchpad action outside the sortable entries', () => {
     render(<Sidebar />)
 
     fireEvent.click(within(screen.getByTestId('sidebar-fixed-action')).getByRole('button', { name: 'title.launchpad' }))
 
     expect(mocks.activateWorkspace).toHaveBeenCalledWith('launchpad', '/app/launchpad', { title: 'Launchpad' })
+  })
+
+  it('omits the fixed launchpad action in the combined layout', () => {
+    mocks.navigationLayout = 'both'
+
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-fixed-action')).toBeEmptyDOMElement()
   })
 
   it('migrates a persisted intermediate sidebar width to icon width and converges', () => {

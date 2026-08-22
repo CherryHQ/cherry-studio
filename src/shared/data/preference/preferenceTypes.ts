@@ -83,7 +83,7 @@ export type LanguageVarious =
 
 export type WindowStyle = 'transparent' | 'opaque'
 
-export type NavigationLayout = 'sidebar' | 'tabs'
+export type NavigationLayout = 'sidebar' | 'tabs' | 'both'
 
 /**
  * A composer key binding (send / line break / steer). Stored as a token array so the

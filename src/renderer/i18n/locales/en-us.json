@@ -4908,6 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
+        "both": "Sidebar + Tabs",
         "sidebar": "Sidebar",
         "tabs": "Tabs",
         "title": "Navigation layout"

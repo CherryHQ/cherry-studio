@@ -175,9 +175,9 @@
     {
       "targetKey": "ui.navigation.layout",
       "type": "PreferenceTypes.NavigationLayout",
-      "defaultValue": "sidebar",
+      "defaultValue": "both",
       "status": "classified",
-      "description": "Main-window navigation layout: sidebar workspaces or top tabs"
+      "description": "Main-window navigation layout: sidebar workspaces, top tabs, or the legacy combined layout"
     },
     {
       "targetKey": "ui.launchpad.app_order",

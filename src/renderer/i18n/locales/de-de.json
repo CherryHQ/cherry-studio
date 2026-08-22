@@ -4908,6 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
+        "both": "Seitenleiste + Tabs",
         "sidebar": "Seitenleiste",
         "tabs": "Tabs",
         "title": "Navigationslayout"

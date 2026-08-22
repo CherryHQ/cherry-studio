@@ -4908,6 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
+        "both": "侧边栏 + 多标签页",
         "sidebar": "侧边栏",
         "tabs": "多标签页",
         "title": "导航布局"

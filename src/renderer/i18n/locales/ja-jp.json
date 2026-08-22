@@ -4908,6 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
+        "both": "サイドバー + タブ",
         "sidebar": "サイドバー",
         "tabs": "タブ",
         "title": "ナビゲーションレイアウト"
