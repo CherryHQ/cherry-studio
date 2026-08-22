@@ -1178,6 +1178,21 @@ export class AiStreamManager extends BaseService {
     stream.status = 'aborted'
   }
 
+  /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
+  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+    await this.withDispatchLock(topicId, async () => {
+      const stream = this.activeStreams.get(topicId)
+      const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
+
+      this.abort(topicId, reason)
+      await Promise.allSettled(loopPromises)
+
+      if (isAgentSessionTopic(topicId)) {
+        await application.get('AgentSessionRuntimeService').closeSession(extractAgentSessionId(topicId))
+      }
+    })
+  }
+
   // ── Execution loop callbacks ──────────────────────────────────────
   // Driven internally by `createAndLaunchExecution`. Public because
   // tests invoke them directly to simulate chunk/done/error.

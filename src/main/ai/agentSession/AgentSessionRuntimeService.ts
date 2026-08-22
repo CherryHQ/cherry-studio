@@ -323,6 +323,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+  private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -926,8 +927,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   closeSession(sessionId: string): Promise<void> {
+    const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
-    if (!entry) return Promise.resolve()
+    if (!entry) return priorClosing?.promise ?? Promise.resolve()
     const fallbackConnection = this.currentConnection(entry)
     let closing: Promise<void>
     try {
@@ -936,11 +938,21 @@ export class AgentSessionRuntimeService extends BaseService {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
       closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
     }
+    const combinedClosing = Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(
+      () => undefined
+    )
+    const barrier = {
+      promise: combinedClosing.finally(() => {
+        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
+      }),
+      resumeToken: entry.lastResumeToken ?? priorClosing?.resumeToken
+    }
+    this.closingSessions.set(sessionId, barrier)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
-    return closing
+    return barrier.promise
   }
 
   /**
@@ -1417,6 +1429,15 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
+      const closing = this.closingSessions.get(entry.sessionId)
+      if (closing) {
+        await closing.promise
+        if (this.isCurrentEntry(entry) && !entry.lastResumeToken && closing.resumeToken) {
+          entry.lastResumeToken = closing.resumeToken
+        }
+        continue
+      }
+
       const target = this.connectionTarget(entry)
       const connection = this.currentConnection(entry)
       if (connection) {
@@ -3045,7 +3066,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private closeAll(): Promise<void> {
-    const closings = [...this.entries.keys()].map((sessionId) => this.closeSession(sessionId))
+    const sessionIds = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
+    const closings = [...sessionIds].map((sessionId) => this.closeSession(sessionId))
     return Promise.allSettled(closings).then(() => undefined)
   }
 
