@@ -22,6 +22,15 @@ import { Input } from './input'
  * Both callbacks take the value, not the DOM event: the raw `FocusEvent` would
  * be misleading here anyway, since `event.target.value` at that point is still
  * the text the user typed.
+ *
+ * `min`/`max` mean *clamp into this range on commit*, which is only meaningful
+ * where the number is a magnitude — where larger and smaller say something, so a
+ * bound is a sensible answer to a value beyond it. Where the number is an
+ * identifier (a port, an id) its size means nothing and clamping would invent a
+ * value nobody chose: pass no range and validate in the caller instead.
+ *
+ * A minus sign is therefore always typable. Whether the value may be negative is
+ * a range question, settled on commit like any other, not a keystroke question.
  */
 interface InputNumberProps
   extends Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode' | 'value' | 'onChange' | 'onBlur' | 'size'> {
@@ -40,7 +49,7 @@ interface InputNumberProps
   onValueChange?: (value: number | null) => void
   /** Fires on blur/Enter with the normalized value; route it back into `value` to render it. */
   onBlur?: (value: number | null) => void
-  /** Also decides whether a minus sign can be typed: omitted or negative allows it. */
+  /** The floor a committed value is clamped up to, negatives included. */
   min?: number
   /** Read on commit only, so it does nothing without `onBlur`. An empty range settles on `min` and warns. */
   max?: number
@@ -56,19 +65,17 @@ const sizeClasses: Record<NonNullable<InputNumberProps['size']>, string> = {
 }
 
 const format = (value: number | null) => (value === null ? '' : String(value))
-const allowsNegative = (min?: number) => min === undefined || min < 0
 const allowsDecimal = (step?: number) => step === undefined || !Number.isInteger(step)
 
-const signedPattern = /^-?\d*\.?\d*(?:e[+-]?\d*)?$/i
-const unsignedPattern = /^\d*\.?\d*(?:e[+-]?\d*)?$/i
+const typablePattern = /^-?\d*\.?\d*(?:e[+-]?\d*)?$/i
 
 /**
  * Accepts anything that could still become a number — `"1."`, `"-"`, `"1e-"` —
  * and rejects the rest wholesale. Deleting the offending characters instead
  * would silently rewrite the magnitude: `"1e-6"` would become `"16"`.
  */
-function isTypable(raw: string, min?: number): boolean {
-  return (allowsNegative(min) ? signedPattern : unsignedPattern).test(raw)
+function isTypable(raw: string): boolean {
+  return typablePattern.test(raw)
 }
 
 /** Normalizes on commit only: an integer `step` truncates, then the value is clamped into range. `min` wins an empty range. */
@@ -109,7 +116,7 @@ function InputNumber({
     const next = event.target.value
     // ReactDOM restores the rendered text on a controlled input whose state did
     // not change, so returning here is what drops the rejected input.
-    if (!isTypable(next, min)) return
+    if (!isTypable(next)) return
     setDraft(next)
     const parsed = Number(next)
     // A viable prefix like `"-"` or `"1e"` is not yet a value, and reporting it

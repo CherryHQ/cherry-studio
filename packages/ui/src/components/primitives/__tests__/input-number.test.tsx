@@ -15,13 +15,38 @@ function Controlled({ initial = null, ...props }: Partial<InputNumberProps> & { 
 }
 
 describe('InputNumber', () => {
-  it('drops a minus sign when min forbids negatives', async () => {
+  it('settles a typed negative at min instead of dropping the sign', async () => {
     const user = userEvent.setup()
-    render(<Controlled min={0} />)
+    const onBlur = vi.fn()
+    render(<Controlled min={0} onBlur={onBlur} />)
 
     await user.type(screen.getByLabelText('amount'), '-5')
+    expect(screen.getByLabelText('amount')).toHaveValue('-5')
 
-    expect(screen.getByLabelText('amount')).toHaveValue('5')
+    await user.tab()
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(0)
+  })
+
+  it('settles a typed and a pasted negative on the same value', async () => {
+    const user = userEvent.setup()
+    const typed = vi.fn()
+    const pasted = vi.fn()
+    render(
+      <>
+        <Controlled min={1} onBlur={typed} />
+        <InputNumber aria-label="pasted" min={1} value={null} onBlur={pasted} />
+      </>
+    )
+
+    await user.type(screen.getByLabelText('amount'), '-3')
+    await user.tab()
+
+    await user.click(screen.getByLabelText('pasted'))
+    await user.paste('-3')
+    await user.tab()
+
+    expect(typed).toHaveBeenCalledExactlyOnceWith(1)
+    expect(pasted).toHaveBeenCalledExactlyOnceWith(1)
   })
 
   it('keeps a minus sign when no min is given', async () => {
