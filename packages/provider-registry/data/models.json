@@ -7718,11 +7718,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.055
+          "perMillionTokens": 0.04
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.13
         }
       },
       "reasoning": {
@@ -21698,5 +21698,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "7a8ec69b5981aea8"
+  "version": "16bc47d5a47e86a6"
 }

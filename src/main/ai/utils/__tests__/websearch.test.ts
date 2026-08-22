@@ -153,6 +153,61 @@ describe('dashscope built-in web search: endpoint x model matrix', () => {
   })
 })
 
+// QwenCloud (DashScope international): chat enable_search eligibility and the agent strategy both
+// follow the web-search supported-models table (qwen3.8/3.7/3.6/3.5 Max-Plus-Flash lines, qwen3-max).
+describe('qwencloud built-in web search: enable_search + agent strategy subset', () => {
+  const qwencloud = (apiModelId: string) =>
+    model({ id: `qwencloud::${apiModelId}`, providerId: 'qwencloud', apiModelId })
+
+  it.each([
+    'qwen3.8-max',
+    'qwen3.8-2.4t-a95b',
+    'qwen3.7-max',
+    'qwen3.7-max-preview',
+    'qwen3.7-plus',
+    'qwen3.7-flash',
+    'qwen3.6-plus',
+    'qwen3.6-flash',
+    'qwen3.5-plus',
+    'qwen3.5-flash',
+    'qwen3-max'
+  ])('pins search_strategy=agent for %s', (apiModelId) => {
+    expect(getWebSearchParams(qwencloud(apiModelId), preset('qwencloud'))).toEqual({
+      enable_search: true,
+      search_options: { forced_search: true, search_strategy: 'agent' }
+    })
+  })
+
+  it('sends plain enable_search outside the agent subset (legacy alias)', () => {
+    expect(getWebSearchParams(qwencloud('qwen-plus'), preset('qwencloud'))).toEqual({
+      enable_search: true,
+      search_options: { forced_search: true }
+    })
+  })
+
+  it('serves a copied QwenCloud provider identically (preset link, not runtime id)', () => {
+    expect(getWebSearchParams(qwencloud('qwen3.7-max'), copyOf('qwencloud'))).toMatchObject({
+      enable_search: true
+    })
+  })
+
+  // DeepSeek-V4 / GLM-5.2 search through the Responses web_search tool (bare shape, no OpenAI-only
+  // knobs); Qwen lines stay off the Responses tool — their search is Chat's enable_search.
+  describe('qwencloud Responses web_search tool', () => {
+    it.each(['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2'])('attaches the bare tool for %s', (id) => {
+      expect(
+        buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, qwencloud(id), preset('qwencloud'))
+      ).toEqual({ openai: {} })
+    })
+
+    it('suppresses the Responses tool for qwen chat models', () => {
+      expect(
+        buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, qwencloud('qwen3.7-max'), preset('qwencloud'))
+      ).toBeUndefined()
+    })
+  })
+})
+
 // A user-copied provider keeps its own id but still gets the preset's serverTools and the preset's
 // request transform, so delivery must key off the preset link — not `model.providerId`. Keying it off
 // the runtime id routed these copies to the server side and then injected nothing.
