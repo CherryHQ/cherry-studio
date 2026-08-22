@@ -3,11 +3,16 @@ import { useTranslation } from 'react-i18next'
 
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
+/**
+ * Only a number is a size — the same test `canonicalGenerate` applies before it
+ * composes `WxH`. Anything else is the unset pair it turns into "the server
+ * picks its own size".
+ */
+const toSize = (value: unknown) => (typeof value === 'number' ? value : null)
+
 export default function SizeField({ item, painting, onChange }: PaintingFieldComponentProps) {
   const { t } = useTranslation()
   const { widthKey = 'width', heightKey = 'height', validation = {} } = item
-  const widthValue = painting[widthKey] ?? ''
-  const heightValue = painting[heightKey] ?? ''
 
   // SizeField only renders when the parent chip widget has `sizeKey === 'custom'`
   // (see `condition` on the customSize item in imageGenerationToFields). The
@@ -22,8 +27,8 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
         <InputNumber
           aria-label={t('paintings.generate.width')}
           placeholder={t('paintings.generate.width')}
-          value={widthValue === undefined || widthValue === null ? null : Number(widthValue)}
-          onBlur={(value) => onChange({ [widthKey]: value === null ? '' : value })}
+          value={toSize(painting[widthKey])}
+          onBlur={(value) => onChange({ [widthKey]: value ?? undefined })}
           min={validation.minWidth}
           max={validation.maxWidth}
           step={1}
@@ -33,8 +38,8 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
         <InputNumber
           aria-label={t('paintings.generate.height')}
           placeholder={t('paintings.generate.height')}
-          value={heightValue === undefined || heightValue === null ? null : Number(heightValue)}
-          onBlur={(value) => onChange({ [heightKey]: value === null ? '' : value })}
+          value={toSize(painting[heightKey])}
+          onBlur={(value) => onChange({ [heightKey]: value ?? undefined })}
           min={validation.minHeight}
           max={validation.maxHeight}
           step={1}
