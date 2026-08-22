@@ -2694,14 +2694,14 @@
             "immutable_hint": "Không thể thay đổi sau khi tạo",
             "label": "Chế độ chạy",
             "option": {
-              "claude_code": "Nâng cao: Claude Agent",
+              "claude_code": "Claude Agent",
               "dsh": "DeepSeek Harness",
-              "pi": "Nhanh: Pi"
+              "pi": "Pi"
             },
             "option_description": {
-              "claude_code": "Hiệu năng cao hơn — hỗ trợ chế độ lập kế hoạch và mô hình phân tầng",
-              "dsh": "Tương thích nhiều nhà cung cấp với thực thi theo mục tiêu",
-              "pi": "Phản hồi nhanh hơn, chi phí vận hành thấp hơn"
+              "claude_code": "Năng lực tổng thể mạnh hơn, phù hợp với tác vụ phức tạp",
+              "dsh": "Thêm và kết hợp khả năng bằng plugin linh hoạt",
+              "pi": "Nhanh và gọn nhẹ"
             }
           },
           "small_model": {
@@ -2828,6 +2828,7 @@
           "agent_title": "Agent mới",
           "assistant_title": "Trợ lý mới",
           "avatar_aria": "Chọn hình đại diện",
+          "avatar_name_label": "Ảnh đại diện và tên",
           "back": "Quay lại",
           "capability": {
             "builtin_badge": "Được bật theo mặc định",

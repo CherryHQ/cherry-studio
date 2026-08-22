@@ -2694,14 +2694,14 @@
             "immutable_hint": "Kann nach der Erstellung nicht geändert werden",
             "label": "Laufzeitmodus",
             "option": {
-              "claude_code": "Erweitert: Claude Agent",
+              "claude_code": "Claude Agent",
               "dsh": "DeepSeek Harness",
-              "pi": "Schnell: Pi"
+              "pi": "Pi"
             },
             "option_description": {
-              "claude_code": "Leistungsstärker — Planmodus und Modelle je Stufe",
-              "dsh": "Breite Anbieterunterstützung mit zielorientierter Ausführung",
-              "pi": "Schnellere Antworten, geringerer Overhead"
+              "claude_code": "Insgesamt leistungsstärker, ideal für komplexe Aufgaben",
+              "dsh": "Funktionen mit flexiblen Plugins hinzufügen und kombinieren",
+              "pi": "Schnell und leicht"
             }
           },
           "small_model": {
@@ -2828,6 +2828,7 @@
           "agent_title": "Neuer Agent",
           "assistant_title": "Neuer Assistent",
           "avatar_aria": "Avatar auswählen",
+          "avatar_name_label": "Avatar und Name",
           "back": "Zurück",
           "capability": {
             "builtin_badge": "Standardmäßig aktiviert",

@@ -2694,14 +2694,14 @@
             "immutable_hint": "Nu poate fi schimbat după creare",
             "label": "Mod de rulare",
             "option": {
-              "claude_code": "Avansat: Claude Agent",
+              "claude_code": "Claude Agent",
               "dsh": "DeepSeek Harness",
-              "pi": "Rapid: Pi"
+              "pi": "Pi"
             },
             "option_description": {
-              "claude_code": "Mai capabil — modul de plan și modele pe niveluri",
-              "dsh": "Suport larg pentru furnizori, cu execuție orientată pe obiective",
-              "pi": "Răspunsuri mai rapide, overhead redus"
+              "claude_code": "Mai capabil per ansamblu, ideal pentru sarcini complexe",
+              "dsh": "Adaugă și combină capabilități cu pluginuri flexibile",
+              "pi": "Rapid și eficient"
             }
           },
           "small_model": {
@@ -2828,6 +2828,7 @@
           "agent_title": "Agent nou",
           "assistant_title": "Asistent Nou",
           "avatar_aria": "Alege avatar",
+          "avatar_name_label": "Avatar și nume",
           "back": "Înapoi",
           "capability": {
             "builtin_badge": "Activat implicit",

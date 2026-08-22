@@ -2694,14 +2694,14 @@
             "immutable_hint": "Cannot be changed after creation",
             "label": "Runtime mode",
             "option": {
-              "claude_code": "Advanced: Claude Agent",
+              "claude_code": "Claude Agent",
               "dsh": "DeepSeek Harness",
-              "pi": "Fast: Pi"
+              "pi": "Pi"
             },
             "option_description": {
-              "claude_code": "More capable — plan mode and per-tier models",
-              "dsh": "Broad provider support with goal-driven execution",
-              "pi": "Faster responses, lower overhead"
+              "claude_code": "Stronger overall, ideal for complex tasks",
+              "dsh": "Add and combine capabilities with flexible plugins",
+              "pi": "Fast and lightweight"
             }
           },
           "small_model": {
@@ -2828,6 +2828,7 @@
           "agent_title": "New Agent",
           "assistant_title": "New Assistant",
           "avatar_aria": "Choose avatar",
+          "avatar_name_label": "Avatar and name",
           "back": "Back",
           "capability": {
             "builtin_badge": "Enabled by default",
