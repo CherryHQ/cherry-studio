@@ -98,6 +98,13 @@
       "when": 1787345194710,
       "tag": "0013_graceful_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1787384459769,
+      "tag": "0014_premium_kitty_pryde",
+      "breakpoints": true
     }
   ],
   "version": "7"
