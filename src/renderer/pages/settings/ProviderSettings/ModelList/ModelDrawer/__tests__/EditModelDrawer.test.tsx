@@ -254,6 +254,21 @@ describe('EditModelDrawer pricing', () => {
     expect(minInputTokens).toHaveValue('12')
   })
 
+  it('reports a zero tier boundary instead of raising it to the nearest legal value', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+
+    const minInputTokens = screen.getByLabelText(/models\.price\.min_input_tokens/)
+    await user.clear(minInputTokens)
+    await user.type(minInputTokens, '0')
+    await user.tab()
+
+    expect(minInputTokens).toHaveValue('0')
+    expect(minInputTokens).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('models.price.validation_min_input_tokens')
+    expect(updateModelMock).not.toHaveBeenCalled()
+  })
+
   it('preserves explicit zero cache rates and unedited pricing fields when a price is saved', async () => {
     const user = userEvent.setup()
     const model = makeTieredPricingModel()

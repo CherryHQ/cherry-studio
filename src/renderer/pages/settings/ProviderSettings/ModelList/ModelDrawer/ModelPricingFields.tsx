@@ -173,8 +173,9 @@ function ModelPricingTierFields({
               {errors.minInputTokens ?? t('models.price.min_input_tokens_help')}
             </div>
           }>
+          {/* No `min`: the real floor is the previous tier's boundary, which the field cannot
+              know, so `buildModelPricingDraft` stays the only judge of what is valid here. */}
           <InputNumber
-            min={1}
             step={1}
             required
             aria-label={minInputTokensAriaLabel}
