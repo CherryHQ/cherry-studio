@@ -938,11 +938,17 @@ export class OpenClawService extends BaseService {
       return { status: this.gatewayStatus, port: this.gatewayPort }
     }
 
+    const statusBefore = this.gatewayStatus
+    const portBefore = this.gatewayPort
     const { status } = await this.checkGatewayHealth()
-    if (status === 'healthy' && this.gatewayStatus !== 'running') {
+    // A transition (stop/start/port change) that completed mid-probe invalidates its result.
+    if (this.gatewayStatus !== statusBefore || this.gatewayPort !== portBefore) {
+      return { status: this.gatewayStatus, port: this.gatewayPort }
+    }
+    if (status === 'healthy' && statusBefore !== 'running') {
       logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
       this.setGatewayStatus('running')
-    } else if (status === 'unhealthy' && this.gatewayStatus === 'running') {
+    } else if (status === 'unhealthy' && statusBefore === 'running') {
       logger.warn(`Gateway on port ${this.gatewayPort} is no longer reachable, marking as stopped`)
       this.setGatewayStatus('stopped')
     }
