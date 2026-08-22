@@ -55,6 +55,25 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
     }
   }
 
+  if (provider && matchesPreset(provider, 'qwencloud')) {
+    // Chat `enable_search` follows the QwenCloud web-search supported-models table; eligible lines
+    // take the `agent` strategy (docs.qwencloud.com/developer-guides/text-generation/web-search).
+    const apiModelId = getRawModelId(model)
+    const searchStrategy =
+      /qwen3[.-]8-(?:max|2)|qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(
+        apiModelId
+      )
+        ? 'agent'
+        : undefined
+    return {
+      enable_search: true,
+      search_options: {
+        forced_search: true,
+        ...(searchStrategy ? { search_strategy: searchStrategy } : {})
+      }
+    }
+  }
+
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
   if (provider && matchesPreset(provider, 'poe')) {
     return {
