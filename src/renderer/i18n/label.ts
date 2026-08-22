@@ -68,6 +68,7 @@ const providerKeyMap = {
   ph8: 'provider.ph8',
   ppio: 'provider.ppio',
   qiniu: 'provider.qiniu',
+  qwencloud: 'provider.qwencloud',
   qwenlm: 'provider.qwenlm',
   'radeon-cloud': 'provider.radeon-cloud',
   silicon: 'provider.silicon',

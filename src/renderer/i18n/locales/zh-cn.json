@@ -3025,6 +3025,7 @@
   "provider.poe": "Poe",
   "provider.ppio": "PPIO 派欧云",
   "provider.qiniu": "七牛云 AI 推理",
+  "provider.qwencloud": "QwenCloud",
   "provider.qwenlm": "QwenLM",
   "provider.radeon-cloud": "AMD GPU Cloud",
   "provider.silicon": "硅基流动",
