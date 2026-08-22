@@ -28,15 +28,23 @@ describe('CherryCloudLoopbackCallback', () => {
     )
   })
 
-  it('returns a closed response when callback validation fails', async () => {
-    receiver = await CherryCloudLoopbackCallback.open(async () => {
-      throw new Error('invalid callback')
-    }, 'http://127.0.0.1:8084')
+  it('keeps listening when callback validation fails', async () => {
+    const callback = vi.fn(async (url: URL) => {
+      if (url.searchParams.get('state') === 'wrong') throw new Error('invalid callback')
+    })
+    receiver = await CherryCloudLoopbackCallback.open(callback, 'http://127.0.0.1:8084')
 
-    const response = await fetch(`http://127.0.0.1:${receiver.port}/cloud-auth/callback?state=wrong`, {
+    const invalid = await fetch(`http://127.0.0.1:${receiver.port}/cloud-auth/callback?state=wrong`, {
       redirect: 'manual'
     })
-    expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('http://127.0.0.1:8084/login/complete#desktop_result=invalid')
+    expect(invalid.status).toBe(303)
+    expect(invalid.headers.get('location')).toBe('http://127.0.0.1:8084/login/complete#desktop_result=invalid')
+
+    const valid = await fetch(`http://127.0.0.1:${receiver.port}/cloud-auth/callback?state=expected`, {
+      redirect: 'manual'
+    })
+    expect(valid.status).toBe(303)
+    expect(valid.headers.get('location')).toBe('http://127.0.0.1:8084/login/complete#desktop_result=success')
+    expect(callback).toHaveBeenCalledTimes(2)
   })
 })
