@@ -263,17 +263,36 @@ describe('InputNumber', () => {
     expect(onWindowKeyDown.mock.calls.map(([event]) => event.key)).not.toContain('Escape')
   })
 
-  it('warns and settles on min when the range is empty', async () => {
+  // No number is both >= 10 and <= 5, so there is nothing for either bound to
+  // win: below, inside and above the inverted range all settle on nothing.
+  it.each(['3', '7', '20'])('settles on no value at all when the range is empty (%s)', async (typed) => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const user = userEvent.setup()
     const onBlur = vi.fn()
     render(<InputNumber aria-label="amount" min={10} max={5} value={null} onBlur={onBlur} />)
 
-    await user.type(screen.getByLabelText('amount'), '7')
+    const input = screen.getByLabelText('amount')
+    await user.type(input, typed)
     await user.tab()
 
-    expect(onBlur).toHaveBeenCalledExactlyOnceWith(10)
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(null)
+    expect(input).toHaveValue('')
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('min (10) is greater than max (5)'))
+    warn.mockRestore()
+  })
+
+  it('refuses to step when the range is empty', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    render(<InputNumber aria-label="amount" min={10} max={5} value={7} onValueChange={onValueChange} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.keyboard('{ArrowUp}')
+
+    expect(input).toHaveValue('7')
+    expect(onValueChange).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 
