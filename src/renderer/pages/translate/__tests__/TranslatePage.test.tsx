@@ -32,14 +32,14 @@ const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => 
 const babeldocInstalledSnapshot: BinaryToolSnapshot = {
   name: 'babeldoc-stream',
   availability: { source: 'mise', path: '/shims/babeldoc-stream' },
-  application: { status: 'applied', version: '0.6.4.post3' }
+  application: { status: 'applied', version: '0.6.4.post4' }
 }
 const binaryMock = vi.hoisted(() => ({
   snapshots: {
     'babeldoc-stream': {
       name: 'babeldoc-stream',
       availability: { source: 'mise', path: '/shims/babeldoc-stream' },
-      application: { status: 'applied', version: '0.6.4.post3' }
+      application: { status: 'applied', version: '0.6.4.post4' }
     }
   } as Record<string, BinaryToolSnapshot>
 }))
@@ -877,7 +877,14 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.install_babeldoc' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'babeldoc-stream' }))
+    // Pinned even on a first install — `@latest` would resolve against whichever
+    // PyPI mirror answers and can land a build older than Cherry's parser needs.
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
+        name: 'babeldoc-stream',
+        targetVersion: '0.6.4.post4'
+      })
+    )
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
   })
@@ -903,7 +910,7 @@ describe('TranslatePage', () => {
     await waitFor(() =>
       expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
         name: 'babeldoc-stream',
-        targetVersion: '0.6.4.post3'
+        targetVersion: '0.6.4.post4'
       })
     )
   })
