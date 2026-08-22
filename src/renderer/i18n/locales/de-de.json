@@ -1002,6 +1002,7 @@
       "welcome_title": "Worüber sollen wir heute sprechen?"
     },
     "input": {
+      "ai_disclaimer": "KI-generierte Inhalte – wichtige Informationen sorgfältig prüfen",
       "cancel_editing": "Bearbeitung abbrechen",
       "clear": {
         "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",

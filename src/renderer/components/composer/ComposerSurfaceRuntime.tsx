@@ -163,6 +163,8 @@ export interface ComposerSurfaceProps {
   editable?: boolean
   fontSize: number
   narrowMode: boolean
+  /** Shows the "AI-generated content" disclaimer line below the input card. */
+  showAiDisclaimer?: boolean
   /** Extra padding on both sides matching the message column's anchor-rail gutter,
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
@@ -515,7 +517,8 @@ export default function ComposerSurfaceRuntime({
   sendAccessory,
   deferQuickPanel = false,
   initialTextSelection,
-  deferredIntent
+  deferredIntent,
+  showAiDisclaimer = false
 }: ComposerSurfaceProps) {
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
@@ -2314,6 +2317,11 @@ export default function ComposerSurfaceRuntime({
               {inputbarStack}
             </>
           )}
+          {showAiDisclaimer ? (
+            <div className="-mt-3 pt-[3px] pb-[8px] text-center text-[11px] text-foreground-tertiary opacity-70">
+              {t('chat.input.ai_disclaimer')}
+            </div>
+          ) : null}
         </div>
       </div>
     </NarrowLayout>

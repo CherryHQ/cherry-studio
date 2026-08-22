@@ -1002,6 +1002,7 @@
       "welcome_title": "De quoi parlerons-nous aujourd'hui ?"
     },
     "input": {
+      "ai_disclaimer": "Contenu généré par IA — vérifiez attentivement les informations importantes",
       "cancel_editing": "Annuler la modification",
       "clear": {
         "content": "Êtes-vous sûr de vouloir effacer tous les messages de la conversation actuelle ?",

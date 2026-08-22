@@ -1002,6 +1002,7 @@
       "welcome_title": "Despre ce să vorbim astăzi?"
     },
     "input": {
+      "ai_disclaimer": "Conținut generat de IA — verificați cu atenție informațiile importante",
       "cancel_editing": "Anulează editarea",
       "clear": {
         "content": "Vrei să ștergi toate mesajele subiectului curent?",
