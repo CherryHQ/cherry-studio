@@ -5,12 +5,14 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/composer/quoteToken'
+import { useOptionalOpenFilePreviewTab } from '@renderer/components/FilePreview'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { ipcApi } from '@renderer/ipc'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
@@ -326,7 +328,17 @@ function getReadOnlyFilePreviewPath(readOnlyFilePreview: ReadOnlyComposerFileTok
   if (!readOnlyFilePreview?.url) return undefined
 
   try {
-    return fileUrlToPath(readOnlyFilePreview.url as FileUrlString)
+    return normalizeFilePreviewPath(fileUrlToPath(readOnlyFilePreview.url as FileUrlString))
+  } catch {
+    return undefined
+  }
+}
+
+function getEditableFilePreviewPath(file: ComposerAttachment | undefined) {
+  if (!file?.path) return undefined
+
+  try {
+    return normalizeFilePreviewPath(file.path)
   } catch {
     return undefined
   }
@@ -697,6 +709,7 @@ function ComposerTokenHoverPopover({
 }
 
 export function FileComposerToken(props: FileComposerTokenProps) {
+  const openFilePreviewTab = useOptionalOpenFilePreviewTab()
   const { imageIconPreview = false, onRemove, removeLabel: removeLabelProp, tooltipActions } = props
   const tokenFile = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
   const previewFileType = props.readOnlyFilePreview?.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : undefined
@@ -723,7 +736,37 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const removeLabel = removeLabelProp ?? 'Remove'
   const shouldShowPopover =
     shouldShowFileTokenPopover(file) && (!props.readOnly || Boolean(props.readOnlyFilePreview?.url))
-  const pathTooltipPath = props.readOnly ? getReadOnlyFilePreviewPath(props.readOnlyFilePreview) : file?.path
+  const readOnlyFilePreviewPath = getReadOnlyFilePreviewPath(props.readOnlyFilePreview)
+  const pathTooltipPath = props.readOnly ? readOnlyFilePreviewPath : file?.path
+  const filePreviewPath = props.readOnly ? readOnlyFilePreviewPath : getEditableFilePreviewPath(file)
+  const canOpenFilePreview = presentation.variant === 'markdown' && Boolean(filePreviewPath && openFilePreviewTab)
+  const openFilePreview = useCallback(() => {
+    if (!canOpenFilePreview || !filePreviewPath || !openFilePreviewTab) return
+    openFilePreviewTab(filePreviewPath, label)
+  }, [canOpenFilePreview, filePreviewPath, label, openFilePreviewTab])
+  const handleFilePreviewClick = useCallback(
+    (event: ReactMouseEvent<HTMLSpanElement>) => {
+      if (!canOpenFilePreview || (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+      stopTokenActionEvent(event)
+      openFilePreview()
+    },
+    [canOpenFilePreview, openFilePreview]
+  )
+  const handleFilePreviewKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLSpanElement>) => {
+      if (
+        !canOpenFilePreview ||
+        (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]') ||
+        (event.key !== 'Enter' && event.key !== ' ')
+      ) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      openFilePreview()
+    },
+    [canOpenFilePreview, openFilePreview]
+  )
   const shouldShowPathTooltip = Boolean(pathTooltipPath) && !shouldShowFileTokenPopover(file)
   const shouldUseNeutralImageIcon = imageIconPreview && presentation.variant === 'image'
   const tokenIcon = props.token.icon ? (
@@ -739,7 +782,8 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       className={cn(
         'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
         'group-focus-visible:border-primary',
-        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
+        (props.readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
+        canOpenFilePreview && 'cursor-pointer',
         presentation.containerClassName,
         props.selected && 'border-primary ring-1 ring-primary/40',
         props.className
@@ -747,6 +791,11 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       title={props.readOnly || shouldShowPathTooltip ? undefined : title}
       data-composer-token-kind={props.token.kind}
       data-file-token-variant={presentation.variant}
+      role={canOpenFilePreview ? 'button' : undefined}
+      tabIndex={canOpenFilePreview ? 0 : undefined}
+      aria-label={canOpenFilePreview ? accessibleTitle : undefined}
+      onClick={canOpenFilePreview ? handleFilePreviewClick : undefined}
+      onKeyDown={canOpenFilePreview ? handleFilePreviewKeyDown : undefined}
       onMouseDown={props.onMouseDown}>
       <span
         className={cn(
