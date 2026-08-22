@@ -1,4 +1,4 @@
-import type { BaseConfigItem, OptionItem } from './baseConfigItem'
+import type { OptionItem, OptionsConfigItem } from './baseConfigItem'
 
 /**
  * Resolve a field's options — a static `OptionItem[]` or a
@@ -7,7 +7,7 @@ import type { BaseConfigItem, OptionItem } from './baseConfigItem'
  * field renderers so the resolve-then-localize step lives in one place.
  */
 export function resolveOptions(
-  item: BaseConfigItem,
+  item: OptionsConfigItem,
   painting: Record<string, unknown>,
   translate: (key: string) => string
 ): OptionItem[] {

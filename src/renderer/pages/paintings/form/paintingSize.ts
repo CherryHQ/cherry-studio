@@ -1,5 +1,6 @@
 import type { PaintingData } from '../model/types/paintingData'
-import type { BaseConfigItem } from './baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem, type OptionsConfigItem } from './baseConfigItem'
+import { controlValue, optionalFiniteNumber } from './fieldValue'
 import { resolveOptions } from './resolveOptions'
 import { deriveChipLabel, parseRatio } from './sizeLabel'
 
@@ -11,12 +12,12 @@ import { deriveChipLabel, parseRatio } from './sizeLabel'
  * identically instead of drifting to the raw enum.
  */
 export function sizeOptionLabel(
-  item: BaseConfigItem,
+  item: OptionsConfigItem,
   value: string,
   params: PaintingData['params'],
   translate: (key: string) => string
 ): string {
-  const selected = resolveOptions(item, params ?? {}, translate).find((option) => String(option.value) === value)
+  const selected = resolveOptions(item, params ?? {}, translate).find((option) => controlValue(option.value) === value)
   return deriveChipLabel(selected?.label ?? value, value)
 }
 
@@ -46,9 +47,11 @@ export function resolveRatio(params: PaintingData['params'], items: BaseConfigIt
 
     const value = params?.[item.key] ?? item.initialValue
     if (value === 'custom') {
-      const customWidth = Number(params?.customSize_width)
-      const customHeight = Number(params?.customSize_height)
-      if (customWidth > 0 && customHeight > 0) return customWidth / customHeight
+      const customWidth = optionalFiniteNumber(params?.customSize_width)
+      const customHeight = optionalFiniteNumber(params?.customSize_height)
+      if (customWidth !== null && customHeight !== null && customWidth > 0 && customHeight > 0) {
+        return customWidth / customHeight
+      }
       continue
     }
 
@@ -86,13 +89,15 @@ export function resolveSizeLabel(
 
     const value = params?.[item.key] ?? item.initialValue
     if (value === 'custom') {
-      const customWidth = Number(params?.customSize_width)
-      const customHeight = Number(params?.customSize_height)
-      return customWidth > 0 && customHeight > 0 ? `${customWidth}×${customHeight}` : undefined
+      const customWidth = optionalFiniteNumber(params?.customSize_width)
+      const customHeight = optionalFiniteNumber(params?.customSize_height)
+      return customWidth !== null && customHeight !== null && customWidth > 0 && customHeight > 0
+        ? `${customWidth}×${customHeight}`
+        : undefined
     }
 
     if (typeof value !== 'string' || value === '') continue
-    return sizeOptionLabel(item, value, params, translate)
+    if (isOptionsConfigItem(item)) return sizeOptionLabel(item, value, params, translate)
   }
 
   return undefined

@@ -5,7 +5,7 @@ import type {
   SupportSpec
 } from '@shared/data/types/model'
 
-import type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
+import type { BaseConfigItem, CustomSizeConfigItem, OptionItem, SliderConfigItem } from '../form/baseConfigItem'
 
 /**
  * Canonical key → i18n labels. Exhaustive over `CanonicalParamKey`: every
@@ -174,7 +174,7 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
     case 'text':
       return spec.multiline ? { type: 'textarea', key, ...labels } : { type: 'input', key, ...labels }
     case 'range': {
-      const item: BaseConfigItem = {
+      const item: SliderConfigItem = {
         type: 'slider',
         key,
         ...labels,
@@ -182,7 +182,7 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
         max: spec.max,
         initialValue: spec.default ?? spec.min
       }
-      if (spec.step !== undefined) (item as { step?: number }).step = spec.step
+      if (spec.step !== undefined) item.step = spec.step
       return item
     }
     case 'enum': {
@@ -214,7 +214,7 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
     }
     case 'size': {
       const pairedKey = spec.pairedEnumKey
-      const item: BaseConfigItem = {
+      const item: CustomSizeConfigItem = {
         type: 'customSize',
         key,
         widthKey: `${key}_width`,
