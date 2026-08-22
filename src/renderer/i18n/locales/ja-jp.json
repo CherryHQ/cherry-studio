@@ -6867,6 +6867,7 @@
       "batchInstallComplete": "{{count}}個のスキルをインストールしました",
       "batchInstallPartialFailed": "{{success}}/{{total}} 個のスキルをインストールしました、{{failed}} 個に失敗",
       "batchInstallQueued": "キューに追加されました",
+      "enabledOnly": "有効なスキルのみ",
       "globalToggle": "スキル {{name}} をグローバルに有効化",
       "install": "インストール",
       "installFailed": "スキルのインストールに失敗しました: {{name}}",

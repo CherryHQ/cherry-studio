@@ -6867,6 +6867,7 @@
       "batchInstallComplete": "Установлено {{count}} навыков",
       "batchInstallPartialFailed": "Установлено {{success}}/{{total}} навыков, {{failed}} не удалось",
       "batchInstallQueued": "В очереди",
+      "enabledOnly": "Только включённые навыки",
       "globalToggle": "Включить навык {{name}} глобально",
       "install": "Установить",
       "installFailed": "Не удалось установить навык: {{name}}",

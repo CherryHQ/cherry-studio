@@ -6867,6 +6867,7 @@
       "batchInstallComplete": "Εγκαταστάθηκαν {{count}} δεξιότητες",
       "batchInstallPartialFailed": "Εγκαταστάθηκαν {{success}}/{{total}} δεξιότητες, {{failed}} αποτυχίες",
       "batchInstallQueued": "Σε ουρά",
+      "enabledOnly": "Μόνο ενεργοποιημένες δεξιότητες",
       "globalToggle": "Καθολική ενεργοποίηση δεξιότητας {{name}}",
       "install": "Εγκατάσταση",
       "installFailed": "Αποτυχία εγκατάστασης δεξιότητας: {{name}}",

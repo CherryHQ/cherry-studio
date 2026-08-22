@@ -6867,6 +6867,7 @@
       "batchInstallComplete": "{{count}} habilidades instaladas",
       "batchInstallPartialFailed": "Instaladas {{success}}/{{total}} habilidades, {{failed}} fallidas",
       "batchInstallQueued": "En cola",
+      "enabledOnly": "Solo habilidades habilitadas",
       "globalToggle": "Activar globalmente la habilidad {{name}}",
       "install": "Instalar",
       "installFailed": "Error al instalar la habilidad: {{name}}",

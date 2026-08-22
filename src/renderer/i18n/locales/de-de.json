@@ -6867,6 +6867,7 @@
       "batchInstallComplete": "{{count}} Fähigkeiten installiert",
       "batchInstallPartialFailed": "{{success}}/{{total}} Fähigkeiten installiert, {{failed}} fehlgeschlagen",
       "batchInstallQueued": "In Warteschlange",
+      "enabledOnly": "Nur aktivierte Skills",
       "globalToggle": "Fähigkeit {{name}} global aktivieren",
       "install": "Installieren",
       "installFailed": "Fehler beim Installieren der Fähigkeit: {{name}}",

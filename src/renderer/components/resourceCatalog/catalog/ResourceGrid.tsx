@@ -367,6 +367,7 @@ export const ResourceGrid: FC<Props> = ({
                   collapsedSize={30}
                   style={{ borderRadius: 8 }}
                 />
+                {toolbarLeading ? <div className="flex shrink-0 items-center">{toolbarLeading}</div> : null}
               </div>
               {description ? (
                 <SettingDescription className="mt-1 text-sm leading-5">{description}</SettingDescription>
