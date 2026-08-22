@@ -30,7 +30,7 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
   const isMaxResultsDefault = maxResults === DEFAULT_MAX_RESULTS
   const persist = useWebSearchPersist()
 
-  // `onCommit` fires once per edit with the normalized value, so the field needs
+  // `onBlur` fires once per edit with the normalized value, so the field needs
   // no local draft: a failed save leaves the saved value shown.
   const commitMaxResults = (value: number | null) => {
     const next = value === null ? 1 : Math.min(100, Math.max(1, Math.trunc(value)))

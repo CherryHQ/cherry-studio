@@ -171,7 +171,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     [handleSaveError, provider, updateProvider]
   )
 
-  // `onCommit` delivers the normalized value once per edit, so these fields hold
+  // `onBlur` delivers the normalized value once per edit, so these fields hold
   // no local draft — the saved value is what they render.
   const commitTokenThreshold = useCallback(
     (value: number | null) => {

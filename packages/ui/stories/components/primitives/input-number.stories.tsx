@@ -10,7 +10,7 @@ const meta: Meta<typeof InputNumber> = {
     docs: {
       description: {
         component:
-          'A thin `Input` wrapper for numeric entry. Filtering follows the declared constraints: `min` decides whether a minus sign is allowed, `step` decides whether a decimal point is. Clamping happens on blur, never mid-edit.'
+          'A thin `Input` wrapper for numeric entry. Keystrokes are filtered only on whether the text could still become a number, so a minus sign is always typable; `min`/`max`/`step` are settled on commit, never mid-edit.'
       }
     }
   }
