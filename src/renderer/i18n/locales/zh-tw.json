@@ -527,6 +527,13 @@
         "warning": "重複使用的工作階段會持續累積上下文，導致 Token 成本隨時間增加，並可能超出模型的上下文視窗。若要重新綁定乾淨的工作階段，請先停用並儲存，然後再啟用並儲存。"
       },
       "run": "執行",
+      "runSummary": {
+        "cancelled": "上次執行已取消 · {{time}}",
+        "completed": "上次執行成功 · {{time}}",
+        "failed": "上次執行失敗 · {{time}}",
+        "queued": "等待執行",
+        "running": "執行中"
+      },
       "runTriggered": "任務已觸發",
       "save": "儲存",
       "schedule": {

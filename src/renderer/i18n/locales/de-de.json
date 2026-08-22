@@ -527,6 +527,13 @@
         "warning": "Eine wiederverwendete Sitzung sammelt kontinuierlich Kontext an, was die Token-Kosten im Laufe der Zeit erhöht und das Kontextfenster des Modells überlaufen lassen kann. Um eine saubere Sitzung neu zu binden, deaktivieren und speichern Sie, dann aktivieren und speichern Sie erneut."
       },
       "run": "Ausführen",
+      "runSummary": {
+        "cancelled": "Letzter Lauf abgebrochen · {{time}}",
+        "completed": "Letzter Lauf erfolgreich · {{time}}",
+        "failed": "Letzter Lauf fehlgeschlagen · {{time}}",
+        "queued": "Wartet auf Ausführung",
+        "running": "Wird ausgeführt"
+      },
       "runTriggered": "Aufgabe ausgelöst",
       "save": "Speichern",
       "schedule": {

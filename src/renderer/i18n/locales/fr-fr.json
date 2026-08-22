@@ -527,6 +527,13 @@
         "warning": "Une session réutilisée accumule continuellement du contexte, ce qui augmente le coût des tokens au fil du temps et peut déborder la fenêtre de contexte du modèle. Pour réinitialiser une session propre, désactivez et sauvegardez, puis activez et sauvegardez."
       },
       "run": "Exécuter",
+      "runSummary": {
+        "cancelled": "Dernière exécution annulée · {{time}}",
+        "completed": "Dernière exécution réussie · {{time}}",
+        "failed": "Dernière exécution échouée · {{time}}",
+        "queued": "En attente d’exécution",
+        "running": "En cours d’exécution"
+      },
       "runTriggered": "Tâche déclenchée",
       "save": "Enregistrer",
       "schedule": {

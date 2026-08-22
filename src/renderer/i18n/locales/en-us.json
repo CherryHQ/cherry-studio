@@ -527,6 +527,13 @@
         "warning": "A reused session keeps accumulating context, which raises token cost over time and can overflow the model's context window. To rebind a clean session, disable and save, then enable and save."
       },
       "run": "Run",
+      "runSummary": {
+        "cancelled": "Last run cancelled · {{time}}",
+        "completed": "Last run succeeded · {{time}}",
+        "failed": "Last run failed · {{time}}",
+        "queued": "Waiting to run",
+        "running": "Running"
+      },
       "runTriggered": "Task triggered",
       "save": "Save",
       "schedule": {

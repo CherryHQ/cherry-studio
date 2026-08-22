@@ -527,6 +527,13 @@
         "warning": "Una sesión reutilizada sigue acumulando contexto, lo que aumenta el costo de tokens con el tiempo y puede desbordar la ventana de contexto del modelo. Para vincular una sesión limpia, deshabilítela y guarde, luego habilítela y guarde."
       },
       "run": "Ejecutar",
+      "runSummary": {
+        "cancelled": "Última ejecución cancelada · {{time}}",
+        "completed": "Última ejecución completada correctamente · {{time}}",
+        "failed": "Última ejecución fallida · {{time}}",
+        "queued": "Esperando para ejecutarse",
+        "running": "En ejecución"
+      },
       "runTriggered": "Tarea activada",
       "save": "Guardar",
       "schedule": {
