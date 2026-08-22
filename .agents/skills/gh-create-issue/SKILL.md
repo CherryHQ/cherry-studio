@@ -24,8 +24,13 @@ Engineering Task is not a GitHub issue form and is not offered to regular users.
 
 #### Eligibility Check (Engineering Task only)
 
-Engineering Task is restricted to repository members and collaborators with write access. Before
-collecting any information, confirm the authenticated user's permission level:
+Engineering Task is reserved by convention for repository members and collaborators with write
+access. This is a skill-level agreement, not an access control — nothing prevents anyone from
+calling `gh issue create` directly. The check below exists to fail early and to record that intent.
+(GitHub does enforce part of it independently: users with `read` or below cannot apply labels at
+all, so they cannot produce an issue that looks like an internal task.)
+
+Before collecting any information, confirm the authenticated user's permission level:
 
 ```bash
 repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
