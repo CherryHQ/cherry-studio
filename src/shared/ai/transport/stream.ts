@@ -241,8 +241,22 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   anchorId?: string
 }
 
+/**
+ * Why a tool-approval decision was not delivered. Present on `ok: false` so the
+ * renderer can tell an unrecoverable rejection (the approval's turn is gone —
+ * retrying can never succeed) from a transient refusal.
+ */
+export type AiToolApprovalRejectionReason =
+  | 'no-anchor-context'
+  | 'live-stream-refused'
+  | 'anchor-missing'
+  | 'no-caller-window'
+  | 'dispatch-failed'
+
 export interface AiToolApprovalRespondResponse {
   ok: boolean
+  /** Set when `ok` is `false`; see {@link AiToolApprovalRejectionReason}. */
+  reason?: AiToolApprovalRejectionReason
 }
 
 /** Subscribe to a topic's stream state. */

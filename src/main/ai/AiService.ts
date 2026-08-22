@@ -392,7 +392,7 @@ export class AiService extends BaseService {
       logger.warn('Tool-approval response had no live registry entry and no anchor context', {
         approvalId: payload.approvalId
       })
-      return { ok: false }
+      return { ok: false, reason: 'no-anchor-context' }
     }
 
     // The approval card is clickable the moment the `tool-approval-request` chunk arrives (the live
@@ -413,7 +413,7 @@ export class AiService extends BaseService {
           topicId: payload.topicId
         }
       )
-      return { ok: false }
+      return { ok: false, reason: 'live-stream-refused' }
     }
 
     // Main is the single authority for the approval mutation: the
@@ -443,7 +443,7 @@ export class AiService extends BaseService {
         approvalId: payload.approvalId,
         anchorId: payload.anchorId
       })
-      return { ok: false }
+      return { ok: false, reason: 'anchor-missing' }
     }
     const { parts: committedParts, appliedApprovalIds, alreadySettledApprovalIds } = approvalResult
     if (appliedApprovalIds.length === 0 && alreadySettledApprovalIds.includes(decision.approvalId)) {
@@ -465,7 +465,7 @@ export class AiService extends BaseService {
     // surface it on, so resolve through the result shape instead of dispatching into the void.
     if (!senderWc) {
       logger.warn('Tool-approval continuation skipped: no caller window', { approvalId: payload.approvalId })
-      return { ok: false }
+      return { ok: false, reason: 'no-caller-window' }
     }
 
     const aiStreamManager = application.get('AiStreamManager')
@@ -488,7 +488,7 @@ export class AiService extends BaseService {
         topicId: payload.topicId,
         error: error instanceof Error ? error.message : String(error)
       })
-      return { ok: false }
+      return { ok: false, reason: 'dispatch-failed' }
     }
     return { ok: true }
   }

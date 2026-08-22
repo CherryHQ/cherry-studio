@@ -579,10 +579,15 @@
       "confirmation": "Bạn có chắc chắn muốn chạy công cụ Claude này không?",
       "defaultDenyMessage": "Người dùng đã từ chối cấp quyền cho công cụ này.",
       "error": {
-        "sendFailed": "Không thể gửi quyết định của bạn. Vui lòng thử lại."
+        "sendFailed": "Không thể gửi quyết định của bạn. Vui lòng thử lại.",
+        "stale": "Quyết định này không thể gửi đi nữa — lượt đã đặt câu hỏi đã kết thúc. Hãy gửi tin nhắn mới để tiếp tục."
       },
       "inputPreview": "Xem trước đầu vào công cụ",
       "pendingBadge": "Đang chờ xử lý",
+      "staleFallback": {
+        "intro": "Trả lời câu hỏi trước đó (yêu cầu ban đầu không thể gửi đi):",
+        "noAnswer": "(chưa trả lời)"
+      },
       "waiting": "Đang chờ quyết định cấp quyền cho công cụ..."
     },
     "tools": {

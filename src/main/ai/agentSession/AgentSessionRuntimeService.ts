@@ -355,6 +355,26 @@ export class AgentSessionRuntimeService extends BaseService {
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
 
+    // Settle persisted interaction cards whose SDK-side request resolved without a renderer
+    // decision — turn aborted, session closed, service shutdown. The registry resolves the
+    // driver promise but knows nothing of the persisted card row (`handleToolApprovalRequest`
+    // wrote it as a settled `success` row), so without this sweep the card stays
+    // `approval-requested` and clickable against a dead turn until the next restart's crash
+    // reconcile rewrites it. Renderer-path responses also notify after their explicit settle;
+    // `settleUnansweredApproval` is idempotent, so the extra pass is a cheap no-op.
+    toolApprovalRegistry.onSettlement(({ sessionId, approvalId, decision }) => {
+      try {
+        agentSessionMessageService.settleUnansweredApproval(sessionId, approvalId, {
+          approvalId,
+          approved: decision.approved,
+          ...(decision.reason !== undefined && { reason: decision.reason }),
+          ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
+        })
+      } catch (error) {
+        logger.warn('Failed to settle unanswered tool-approval card', { sessionId, approvalId, error })
+      }
+    })
+
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
     // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"

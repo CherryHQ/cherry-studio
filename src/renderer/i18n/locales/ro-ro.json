@@ -579,10 +579,15 @@
       "confirmation": "Ești sigur că vrei să rulezi acest instrument Claude?",
       "defaultDenyMessage": "Utilizatorul a refuzat permisiunea pentru acest instrument.",
       "error": {
-        "sendFailed": "Nu s-a putut trimite decizia ta. Te rugăm să încerci din nou."
+        "sendFailed": "Nu s-a putut trimite decizia ta. Te rugăm să încerci din nou.",
+        "stale": "Această decizie nu mai poate fi livrată — tura care a cerut-o s-a încheiat. Trimiteți un mesaj nou pentru a continua."
       },
       "inputPreview": "Previzualizare intrare instrument",
       "pendingBadge": "În așteptare",
+      "staleFallback": {
+        "intro": "Răspuns la întrebarea anterioară (cererea inițială nu a putut fi livrată):",
+        "noAnswer": "(fără răspuns)"
+      },
       "waiting": "Se așteaptă decizia privind permisiunea instrumentului..."
     },
     "tools": {

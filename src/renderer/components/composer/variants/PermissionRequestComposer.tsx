@@ -4,6 +4,7 @@ import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/component
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
+import { StaleApprovalError } from '@renderer/components/chat/messages/tools/shared/toolApprovalErrors'
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
@@ -176,7 +177,11 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           action,
           approvalId
         })
-        toast.error(t('agent.toolPermission.error.sendFailed'))
+        toast.error(
+          error instanceof StaleApprovalError
+            ? t('agent.toolPermission.error.stale')
+            : t('agent.toolPermission.error.sendFailed')
+        )
         setSubmittingApprovalId((current) => (current === approvalId ? null : current))
       }
     },

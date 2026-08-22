@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -6,6 +7,7 @@ import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import { StaleApprovalError } from '@renderer/components/chat/messages/tools/shared/toolApprovalErrors'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
@@ -26,6 +28,9 @@ import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useAgentChatRuntimeState')
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -68,6 +73,26 @@ function isAskUserQuestionApprovalResponse(input: MessageToolApprovalInput): inp
 function getAskUserQuestionAnswers(value: unknown): Record<string, string> | undefined {
   const answers = parseAskUserQuestionToolInput(value)?.answers
   return answers && Object.keys(answers).length > 0 ? answers : undefined
+}
+
+/**
+ * Compose the fallback chat message for an answered AskUserQuestion whose approval channel
+ * died before the answer could be delivered (stale card). The parsed response input carries
+ * both the questions and the user's answers, so the next turn gets a self-contained reply.
+ * Returns null when there is nothing meaningful to forward.
+ */
+function buildStaleAskUserQuestionMessage(
+  updatedInput: Record<string, unknown>,
+  t: (key: string) => string
+): string | null {
+  const parsed = parseAskUserQuestionToolInput(updatedInput)
+  if (!parsed?.questions.length) return null
+  const answers = parsed.answers ?? {}
+  const lines = parsed.questions.map((question) => {
+    const answer = answers[question.question]?.trim()
+    return `- ${question.question}: ${answer ? answer : t('agent.toolPermission.staleFallback.noAnswer')}`
+  })
+  return [t('agent.toolPermission.staleFallback.intro'), ...lines].join('\n')
 }
 
 function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
@@ -245,6 +270,8 @@ export function useAgentChatRuntimeState({
 
   const displayMessages = useMemo(() => mergeMessagesById(uiMessages, liveAssistants), [liveAssistants, uiMessages])
 
+  const { t } = useTranslation()
+
   const respondToolApproval = useCallback(
     async (input: MessageToolApprovalInput) => {
       const { match, approved, reason, updatedInput } = input
@@ -275,11 +302,26 @@ export function useAgentChatRuntimeState({
 
       if (!result.ok) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
+        // A rejection is unrecoverable when the approval channel is gone (`anchor-missing`: no
+        // live registry entry and no resumable persisted anchor — the asking turn aborted or the
+        // session restarted). A retry toast would be a dead end, so degrade an answered question
+        // into a normal message the next turn can act on; anything else surfaces as stale.
+        if (result.reason === 'anchor-missing') {
+          const fallbackText = isAskUserQuestionApprovalResponse(input)
+            ? buildStaleAskUserQuestionMessage(input.updatedInput, t)
+            : null
+          if (fallbackText) {
+            logger.warn('Delivering stale ask-user-question decision as a normal message', { approvalId })
+            await sendMessage({ text: fallbackText })
+            return
+          }
+          throw new StaleApprovalError()
+        }
         throw new Error('Tool approval response was not accepted')
       }
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
+    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionTopicId, t]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,

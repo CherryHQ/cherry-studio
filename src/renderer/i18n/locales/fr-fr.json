@@ -579,10 +579,15 @@
       "confirmation": "Êtes-vous sûr de vouloir exécuter cet outil Claude ?",
       "defaultDenyMessage": "L'utilisateur a refusé l'autorisation pour cet outil.",
       "error": {
-        "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer."
+        "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer.",
+        "stale": "Cette décision ne peut plus être transmise — le tour qui l'a demandée est terminé. Envoyez un nouveau message pour continuer."
       },
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pendingBadge": "En attente",
+      "staleFallback": {
+        "intro": "Réponse à la question précédente (sa demande n'a pu être transmise) :",
+        "noAnswer": "(aucune réponse)"
+      },
       "waiting": "En attente de la décision d'autorisation de l'outil..."
     },
     "tools": {

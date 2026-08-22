@@ -1767,6 +1767,60 @@ export class AgentSessionMessageService {
     }
     return applied
   }
+
+  /**
+   * Settle a persisted approval card whose SDK-side request was resolved without a renderer
+   * decision — turn aborted, session closed, or the app crashed before the response arrived.
+   * Unlike {@link applyToolApprovalDecision} the anchor message is unknown to the registry,
+   * so the row is located by scanning this session's rows for a still-pending card with the
+   * matching `approval.id`. Idempotent: returns false when no `approval-requested` part with
+   * that id remains (e.g. the renderer path already settled it).
+   */
+  settleUnansweredApproval(sessionId: string, approvalId: string, decision: ApprovalDecision): boolean {
+    const settled = application.get('DbService').withWriteTx((tx) => {
+      const candidateRows = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            sql`exists (
+              select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+              where json_extract(part.value, '$.state') = 'approval-requested'
+                and json_extract(part.value, '$.approval.id') = ${approvalId}
+            )`
+          )
+        )
+        .all()
+      if (candidateRows.length === 0) return false
+
+      const updatedAt = Date.now()
+      for (const row of candidateRows) {
+        const existing = this.rowToEntity(row)
+        const nextParts = applyApprovalDecisions(existing.data.parts ?? [], [decision])
+        tx.update(sessionMessagesTable)
+          .set({ data: { ...existing.data, parts: nextParts }, updatedAt })
+          .where(eq(sessionMessagesTable.id, row.id))
+          .run()
+      }
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
+      return true
+    })
+
+    if (settled) {
+      agentSessionService.notifyReadModelChange([sessionId], 'projection')
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds: []
+        }
+      ])
+    }
+    return settled
+  }
 }
 
 export const agentSessionMessageService = new AgentSessionMessageService()
