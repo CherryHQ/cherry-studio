@@ -5,6 +5,7 @@
 !README*.md
 !cherry-electron-dev
 !cherry-pr-test
+!cherry-regression-test
 !create-skill
 !demand-first-review
 !gh-create-issue
