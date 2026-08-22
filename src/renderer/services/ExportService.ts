@@ -553,8 +553,8 @@ const isAlertQuoteNode = (quote: Blockquote): boolean => {
   if (firstChild?.type !== 'paragraph') {
     return false
   }
-  const firstNode = (firstChild as Paragraph).children?.[0]
-  return firstNode?.type === 'text' && ALERT_MARKER_RE.test((firstNode as Text).value)
+  const firstNode = firstChild.children?.[0]
+  return firstNode?.type === 'text' && ALERT_MARKER_RE.test(firstNode.value)
 }
 
 // One flag per source blockquote in document order (parents before children),
