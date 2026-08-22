@@ -105,14 +105,6 @@ export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
   return new Promise((resolve) => {
     const t0 = performance.now()
     const t0Wall = Date.now()
-    // Resolves exactly once; `exit` fires after a successful `message` too.
-    let settled = false
-    const settle = (windows: RawWindowInfo[]) => {
-      if (settled) return
-      settled = true
-      resolve(windows)
-    }
-
     try {
       const worker = new Worker(enumeratorSource, { eval: true, workerData: { backendPath } })
       const spawnMs = performance.now() - t0
@@ -142,23 +134,24 @@ export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
                   `dispatch=${(total - bootMs - message.loadMs - message.enumMs).toFixed(0)}ms`
               )
             }
-            settle(message.windows)
+            resolve(message.windows)
           } else {
             logger.warn('Skipping snap targets: the enumerator worker failed', new Error(message.message))
-            settle([])
+            resolve([])
           }
           void worker.terminate()
         }
       )
       worker.on('error', (error) => {
         logger.warn('Skipping snap targets: the enumerator worker errored', error)
-        settle([])
+        resolve([])
       })
       // Covers a worker that dies without reporting — otherwise the caller waits forever.
-      worker.on('exit', () => settle([]))
+      // Fires after a successful `message` too, where resolving again is a no-op.
+      worker.on('exit', () => resolve([]))
     } catch (error) {
       logger.warn('Skipping snap targets: the enumerator worker could not be spawned', error as Error)
-      settle([])
+      resolve([])
     }
   })
 }
