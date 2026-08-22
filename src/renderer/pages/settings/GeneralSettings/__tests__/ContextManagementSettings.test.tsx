@@ -115,12 +115,12 @@ describe('ContextManagementSettings', () => {
     fireEvent.blur(input)
     expect(setter).toHaveBeenLastCalledWith(80_000)
 
-    // `min` forbids a minus sign, so a pasted negative is rejected outright and
-    // never becomes its own magnitude.
-    setter.mockClear()
+    // A negative is clamped up to the floor like any other below-floor value:
+    // the threshold doubles as fs_read's per-call output cap, so anything lower
+    // makes persisted output unreadable.
     fireEvent.change(input, { target: { value: '-5' } })
     fireEvent.blur(input)
-    expect(setter).not.toHaveBeenCalledWith(5)
+    expect(setter).toHaveBeenLastCalledWith(MIN_TRUNCATE_THRESHOLD)
 
     // A below-floor value is not ignored but clamped. It doubles as fs_read's
     // per-call output cap, so anything lower makes persisted output unreadable.

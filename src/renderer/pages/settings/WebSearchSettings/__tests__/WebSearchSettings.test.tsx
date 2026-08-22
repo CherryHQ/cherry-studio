@@ -303,7 +303,8 @@ describe('WebSearchSettings', () => {
 
   it.each([
     ['1000', 100],
-    ['3.9', 3]
+    ['3.9', 3],
+    ['-3', 1]
   ])('normalizes max-result draft %s to %s on commit', async (value, expected) => {
     const { rerender } = render(<WebSearchSettings />)
     openAdvancedSettings()
@@ -324,15 +325,15 @@ describe('WebSearchSettings', () => {
   })
 
   // Filtering the offending characters out instead would rewrite what was
-  // pasted: "-3" would save as 3, and "abc" would reset the setting to 1.
-  it.each(['-3', 'abc'])('rejects the pasted max-result draft %s and keeps the saved value', async (value) => {
+  // pasted: "abc" would reset the setting to 1.
+  it('rejects a non-numeric pasted max-result draft and keeps the saved value', async () => {
     render(<WebSearchSettings />)
     openAdvancedSettings()
 
     const field = screen.getByLabelText('settings.tool.websearch.search_max_result.label')
     const saved = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')
 
-    fireEvent.change(field, { target: { value } })
+    fireEvent.change(field, { target: { value: 'abc' } })
     fireEvent.blur(field)
 
     expect(field).toHaveValue(String(saved))
