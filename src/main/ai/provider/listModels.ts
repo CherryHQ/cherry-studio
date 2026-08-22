@@ -50,7 +50,6 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
-  GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
@@ -345,27 +344,6 @@ const vertexFetcher: ModelFetcher = {
   }
 }
 
-const githubFetcher: ModelFetcher = {
-  match: (p) => matchesPreset(p, SystemProviderIds.github),
-  fetch: async (provider, signal) => {
-    const headers = defaultHeaders(provider)
-    const catalogResponse = await getFromApi({
-      url: 'https://models.github.ai/catalog/models',
-      headers,
-      responseSchema: GitHubModelsResponseSchema,
-      abortSignal: signal
-    })
-    const catalogModels = catalogResponse.map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        description: pickPreferredString([m.summary, m.description]),
-        ownedBy: m.publisher
-      })
-    )
-    return dedup(catalogModels, (m) => m.apiModelId)
-  }
-}
-
 const copilotFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
@@ -413,10 +391,13 @@ const ovmsFetcher: ModelFetcher = {
       responseSchema: OVMSConfigResponseSchema,
       abortSignal: signal
     })
-    const entries = Object.entries(response).filter(([, info]) =>
-      info?.model_version_status?.some((v) => v?.state === 'AVAILABLE')
+    // List every model registered in OVMS config regardless of its server-side
+    // loading state (AVAILABLE, LOADING, FAILED_PRECONDITION, etc.).  Users
+    // expect downloaded models to appear in the model manager even when OVMS
+    // fails to load them server-side — the UI communicates readiness, not OVMS.
+    return dedup(Object.entries(response), ([name]) => name).map(([name]) =>
+      toModel(name, provider, { ownedBy: 'ovms' })
     )
-    return dedup(entries, ([name]) => name).map(([name]) => toModel(name, provider, { ownedBy: 'ovms' }))
   }
 }
 
@@ -795,7 +776,6 @@ const fetchers: ModelFetcher[] = [
   ollamaFetcher,
   geminiFetcher,
   vertexFetcher,
-  githubFetcher,
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,

@@ -451,7 +451,20 @@
       "fast": "Fast",
       "faster": "Faster",
       "label": "Speed",
+      "service_tier": {
+        "auto": "Auto",
+        "fast": "Fast",
+        "flex": "Flex",
+        "label": "Service tier",
+        "standard": "Standard"
+      },
       "smarter": "Smarter",
+      "summary": {
+        "auto": "Auto",
+        "concise": "Concise",
+        "detailed": "Detailed",
+        "label": "Thinking summary"
+      },
       "title": "Response settings"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "Insert a prompt published by an MCP server",
         "empty": "No MCP prompts available",
+        "fill_arguments": "Fill prompt arguments",
+        "fill_arguments_description": "Provide values for this prompt before inserting it",
+        "insert": "Insert",
         "insert_failed": "Failed to insert the prompt",
         "title": "MCP Prompts"
       },
@@ -2838,7 +2854,7 @@
           "basic_tab": "Basic",
           "knowledge_tab": "Knowledge",
           "permission_tab": "Permission",
-          "prompt_tab": "Prompt",
+          "prompt_tab": "System Prompt",
           "save_failed": "Save failed",
           "tools_tab": "Tools"
         }
@@ -2863,7 +2879,7 @@
         "generate_failed_description": "Check or change the default model, then try again.",
         "generate_failed_title": "Failed to generate prompt",
         "insert_variable": "Insert variable",
-        "label": "System prompt",
+        "label": "System Prompt",
         "placeholder": "Enter instructions for the assistant, such as response style, role, or background context",
         "polish": "Polish prompt",
         "polish_failed_description": "Check or change the default model, then try again.",
@@ -6272,22 +6288,57 @@
     },
     "prompts": {
       "add": "Add Prompt",
+      "binding": {
+        "bind": "Bind prompt",
+        "manageTargets": "Manage targets for {{title}}",
+        "noLinked": "No prompts linked",
+        "noMore": "No more prompts available",
+        "noTargets": "No targets available",
+        "remove": "Remove prompt {{title}}",
+        "search": "Search prompts",
+        "searchTargets": "Search assistants or agents",
+        "tabTitle": "Prompts",
+        "targetCount": "{{count}} targets",
+        "targets": "Available to",
+        "unassigned": "Not assigned"
+      },
       "contentLabel": "Content",
-      "contentPlaceholder": "Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "contentPlaceholder": "Enter prompt content",
       "delete": "Delete Prompt",
-      "deleteConfirm": "The prompt will be permanently deleted. Continue?",
+      "deleteConfirm": "This cannot be undone.",
+      "deleteGlobalConfirm": "This removes it from every context and cannot be undone.",
+      "deleteRestrictedConfirm": "This removes it from every linked context and cannot be undone.",
+      "deleteSharedConfirm": "This removes it from {{count}} linked contexts and cannot be undone.",
       "edit": "Edit Prompt",
       "errors": {
+        "bindFailed": "Failed to link prompt",
         "createFailed": "Failed to create prompt",
         "deleteFailed": "Failed to delete prompt",
+        "loadBindingsFailed": "Failed to load available targets",
         "loadFailed": "Failed to load prompts",
+        "reorderFailed": "Failed to reorder prompts",
+        "unbindFailed": "Failed to unlink prompt",
         "updateFailed": "Failed to update prompt"
       },
       "manage": "Manage Prompts",
-      "title": "Prompt Management",
+      "noPrompts": "No prompts",
+      "reorder": "Drag to reorder {{title}}",
+      "searchPlaceholder": "Search prompt titles or content",
+      "title": "Prompts",
       "titleLabel": "Title",
-      "titlePlaceholder": "Enter prompt title",
-      "variablePlaceholder": "${variable}"
+      "titlePlaceholder": "Enter a title",
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Global",
+          "label": "Use globally"
+        },
+        "makeGlobalConfirmDescription": "Making this prompt global keeps it available everywhere, but permanently removes its {{count}} context links and their ordering. Continue?",
+        "makeGlobalConfirmTitle": "Make prompt global?",
+        "restricted": {
+          "badge": "Selected"
+        }
+      }
     },
     "provider": {
       "add": {
@@ -6329,10 +6380,6 @@
             "token_threshold": "Cache Token Threshold",
             "token_threshold_help": "Messages exceeding this token count will be cached. Set to 0 to disable caching."
           },
-          "array_content": {
-            "help": "Does the provider support the content field of the message being of array type?",
-            "label": "Supports array format message content"
-          },
           "developer_role": {
             "help": "Does the provider support messages with role: \"developer\"?",
             "label": "Support Developer Message"
@@ -6342,17 +6389,13 @@
             "label": "Support enable_thinking"
           },
           "label": "API Settings",
-          "service_tier": {
-            "help": "Whether the provider supports configuring the service_tier parameter. When enabled, this parameter can be adjusted in the service tier settings on the chat page. (OpenAI models only)",
-            "label": "Supports service_tier"
+          "reasoning_summary": {
+            "help": "Send reasoning.summary to this Responses endpoint. Enable only when the server accepts this OpenAI parameter.",
+            "label": "Support reasoning summary"
           },
           "stream_options": {
             "help": "Does the provider support the stream_options parameter?",
             "label": "Support stream_options"
-          },
-          "verbosity": {
-            "help": "Whether the provider supports the verbosity parameter",
-            "label": "Support verbosity"
           }
         },
         "url": {
@@ -7073,9 +7116,8 @@
       "explore": {
         "analysis": "Analysis",
         "chart": "Chart",
-        "clearDate": "Clear date filter",
-        "drilldownTitle": "{{date}} drilldown",
         "entries": "Requests",
+        "granularity": "Granularity",
         "groupBy": "Group by",
         "loadMore": "Load more",
         "loading": "Loading...",
@@ -7085,7 +7127,6 @@
         "noEntries": "No entries",
         "noEntriesDescription": "Try a broader window or a different provider.",
         "rollup": "Rollup",
-        "selectedDate": "Selected date: {{date}}",
         "shareLabel": "Share",
         "title": "Explore",
         "top": "Top",
@@ -7099,7 +7140,6 @@
         "source": "Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Usage on {{date}}",
         "title": "Daily activity"
       },
       "metric": {

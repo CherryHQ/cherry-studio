@@ -31,7 +31,7 @@ export function extractOllamaContextWindow(modelInfo: Record<string, unknown> | 
   const architecture = modelInfo['general.architecture']
   if (typeof architecture === 'string') {
     const declared = modelInfo[`${architecture}.context_length`]
-    if (Number.isSafeInteger(declared) && (declared as number) > 0) return declared as number
+    return Number.isSafeInteger(declared) && (declared as number) > 0 ? (declared as number) : undefined
   }
 
   const candidates = Object.entries(modelInfo)

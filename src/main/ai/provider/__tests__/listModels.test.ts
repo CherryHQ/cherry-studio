@@ -158,14 +158,14 @@ describe('listModels — Ollama capabilities', () => {
     })
   })
 
-  it('reads each model context window from the lightweight show endpoint', async () => {
+  it('reads the trained context window from /api/show so num_ctx is not left at Ollama default', async () => {
     aiSdkGetFromApiMock.mockResolvedValueOnce({
       value: {
         models: [
           {
-            name: 'custom-gemma:12b',
+            name: 'qwen3:32b',
             capabilities: ['completion', 'tools'],
-            details: { family: 'gemma3' }
+            details: { family: 'qwen3' }
           }
         ]
       }
@@ -173,8 +173,8 @@ describe('listModels — Ollama capabilities', () => {
     postJsonToApiMock.mockResolvedValueOnce({
       value: {
         model_info: {
-          'general.architecture': 'gemma3',
-          'gemma3.context_length': 131_072
+          'general.architecture': 'qwen3',
+          'qwen3.context_length': 40_960
         }
       }
     })
@@ -182,13 +182,13 @@ describe('listModels — Ollama capabilities', () => {
     const models = await listModels(makeOllamaProvider())
 
     expect(models[0]).toMatchObject({
-      apiModelId: 'custom-gemma:12b',
-      contextWindow: 131_072
+      apiModelId: 'qwen3:32b',
+      contextWindow: 40_960
     })
     expect(postJsonToApiMock).toHaveBeenCalledWith(
       expect.objectContaining({
         url: 'http://ollama.test:11434/api/show',
-        body: { model: 'custom-gemma:12b', verbose: false }
+        body: { model: 'qwen3:32b', verbose: false }
       })
     )
   })
@@ -202,6 +202,19 @@ describe('listModels — Ollama capabilities', () => {
     await expect(listModels(makeOllamaProvider())).resolves.toEqual([
       expect.objectContaining({ apiModelId: 'offline-details:latest' })
     ])
+  })
+
+  it('ignores a context length that does not match the reported architecture', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'qwen3-mismatch:32b', capabilities: ['completion'] }] }
+    })
+    postJsonToApiMock.mockResolvedValueOnce({
+      value: { model_info: { 'general.architecture': 'qwen3', 'llama.context_length': 8192 } }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0].contextWindow).toBeUndefined()
   })
 
   it('uses the request-selected credential when resolving runtime model metadata', async () => {
@@ -595,26 +608,6 @@ describe('listModels — openRouterFetcher image models', () => {
       expect.objectContaining({ apiModelId: 'anthropic/claude-sonnet-4' }),
       expect.objectContaining({ apiModelId: 'openai/text-embedding-3-small' })
     ])
-  })
-})
-
-describe('listModels — copied preset provider routing', () => {
-  it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
-    const provider = makeProvider({
-      id: '550e8400-e29b-41d4-a716-446655440001',
-      presetProviderId: 'github'
-    })
-    aiSdkGetFromApiMock.mockResolvedValue({
-      value: [{ id: 'openai/gpt-4o', name: 'GPT-4o', publisher: 'OpenAI' }]
-    })
-
-    const models = await listModels(provider)
-
-    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
-    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
-      url: 'https://models.github.ai/catalog/models'
-    })
-    expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
   })
 })
 
@@ -1089,9 +1082,9 @@ describe('listModels — ovmsFetcher config endpoint', () => {
     expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
   })
 
-  // A servable that is registered in config.json but failed to load must not be offered
-  // as a usable model.
-  it('lists only servables reporting an AVAILABLE version', async () => {
+  // All models registered in OVMS config are listed regardless of their server-side
+  // loading state, so users see every downloaded model in the model manager.
+  it('lists all configured servables regardless of loading state', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] },
@@ -1104,7 +1097,11 @@ describe('listModels — ovmsFetcher config endpoint', () => {
 
     const models = await listModels(makeOvmsProvider('http://localhost:8000/v3/'))
 
-    expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
+    expect(models.map((m) => m.apiModelId)).toEqual([
+      'Qwen3-4B-int4-ov',
+      'FLUX.1-schnell-int4-ov',
+      'bge-base-en-v1.5-fp16-ov'
+    ])
   })
 })
 
