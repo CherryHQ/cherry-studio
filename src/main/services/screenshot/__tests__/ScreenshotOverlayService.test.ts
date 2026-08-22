@@ -278,6 +278,12 @@ const resetOverlayTargets = (): string[] =>
     .filter((call) => call[1] === 'screenshot.reset_overlay')
     .map((call) => call[0])
 
+/** Every snap-target push one overlay received, in order, as title lists. */
+const snapTargetPushesTo = (id: string): string[][] =>
+  container.ipcApiService.send.mock.calls
+    .filter((call) => call[0] === id && call[1] === 'screenshot.snap_targets')
+    .map((call) => call[2].windows.map((w: DetectedWindow) => w.title))
+
 /** The snap targets last pushed to one overlay, or undefined if it never got any. */
 const snapTargetsOf = (id: string): DetectedWindow[] | undefined =>
   [...container.ipcApiService.send.mock.calls]
@@ -710,6 +716,33 @@ describe('ScreenshotOverlayService', () => {
       await release()
 
       expect(snapTargetsOf('overlay-0-0')).toBeUndefined()
+    })
+
+    it('pushes the targets again when they landed before the overlay reported ready', async () => {
+      // The enumeration can beat the renderer: a cold one has not subscribed yet, and a
+      // pooled one clears the previous session's targets on new init data. Either drops
+      // that push, and hover-to-window snapping is gone for the whole capture.
+      singleDisplaySetup()
+      enumerator.listWindowsOffThread.mockResolvedValue([makeWindowInfo({ title: 'Visible' })])
+
+      await service.startCapture()
+      await settleSnapTargets()
+      expect(snapTargetPushesTo('overlay-0-0')).toEqual([['Visible']])
+
+      service.markOverlayReady('overlay-0-0', initDataOf('overlay-0-0').mediaId)
+
+      expect(snapTargetPushesTo('overlay-0-0')).toEqual([['Visible'], ['Visible']])
+    })
+
+    it('does not repeat the push to an overlay that was ready before the targets landed', async () => {
+      singleDisplaySetup()
+      const release = holdEnumeration([makeWindowInfo({ title: 'Visible' })])
+
+      await service.startCapture()
+      service.markOverlayReady('overlay-0-0', initDataOf('overlay-0-0').mediaId)
+      await release()
+
+      expect(snapTargetPushesTo('overlay-0-0')).toEqual([['Visible']])
     })
 
     it('excludes our own windows and minimized windows from the hit-test list', async () => {
