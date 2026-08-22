@@ -111,5 +111,7 @@ ${instructions}
 
 function getLanguageInstruction(): string {
   const englishName = languageEnglishNameMap[getAppLanguage()]
-  return englishName ? `IMPORTANT: You must respond in ${englishName}.` : ''
+  return englishName
+    ? `By default, respond in ${englishName}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
+    : ''
 }
