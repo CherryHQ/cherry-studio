@@ -5669,6 +5669,10 @@
         "global": "全局字体",
         "select": "选择字体",
         "title": "字体设置"
+      },
+      "list_position": {
+        "chat": "对话列表位置",
+        "work": "任务列表位置"
       }
     },
     "fetch": {

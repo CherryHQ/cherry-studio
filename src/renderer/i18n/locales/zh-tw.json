@@ -5669,6 +5669,10 @@
         "global": "全域字型",
         "select": "選擇字型",
         "title": "字型設定"
+      },
+      "list_position": {
+        "chat": "對話列表位置",
+        "work": "任務列表位置"
       }
     },
     "fetch": {
