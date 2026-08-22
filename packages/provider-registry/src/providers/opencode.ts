@@ -41,10 +41,12 @@ const chatFixedModels = [
 
 const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
+  { modelId: 'deepseek-v4-flash-vision-exp', values: ['low', 'high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
   { modelId: 'glm-5-2', values: ['high', 'max'] },
   { modelId: 'hy3', values: ['none', 'low', 'high'] },
-  { modelId: 'kimi-k3', values: ['max'] }
+  { modelId: 'kimi-k3', values: ['max'] },
+  { modelId: 'ox-alpha', values: ['low', 'high', 'max'] }
 ]
 
 const anthropicFixedModels = ['minimax-m2-5', 'minimax-m2-7']

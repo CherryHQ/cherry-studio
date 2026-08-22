@@ -1490,6 +1490,46 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "QwenCloud - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/apps/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
+        }
+      },
+      "id": "qwencloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://home.qwencloud.com/api-keys",
+          "docs": "https://docs.qwencloud.com/developer-guides/getting-started/introduction",
+          "models": "https://www.qwencloud.com/models",
+          "official": "https://www.qwencloud.com/"
+        }
+      },
+      "name": "QwenCloud",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "StepFun - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2410,5 +2450,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "d4aebe86a12ca8f8"
+  "version": "18098d2afb97f344"
 }

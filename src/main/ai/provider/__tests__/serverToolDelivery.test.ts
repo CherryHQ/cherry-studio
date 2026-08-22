@@ -63,6 +63,8 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   // search_strategy to `agent_max` (provider-options), Responses appends the `web_extractor` tool via a
   // custom-fetch body transform (appendDashScopeWebExtractor) — the openai adapter drops unknown tool ids.
   dashscope: { 'web-search': { kind: 'provider-options' }, 'url-context': { kind: 'body-transform' } },
+  // web-search: enable_search body params (getWebSearchParams), same provider-options path as dashscope chat.
+  qwencloud: { 'web-search': { kind: 'provider-options' } },
   // web_search marker via providerOptions, moved into `tools` by transformZhipuRequestBody.
   zhipu: { 'web-search': { kind: 'provider-options' } },
   // $web_search echo tool injected by the moonshot extension factory.
