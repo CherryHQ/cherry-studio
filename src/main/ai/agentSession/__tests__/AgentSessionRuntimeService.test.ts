@@ -3938,6 +3938,69 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
+  it('waits for the aborted connection to close before connecting an immediate retry', async () => {
+    const firstEvents = createAsyncQueue<any>()
+    const secondEvents = createAsyncQueue<any>()
+    const firstClose = createDeferred<void>()
+    const firstConnection = {
+      events: firstEvents.iterable,
+      send: vi.fn(),
+      close: vi.fn(() => firstClose.promise)
+    }
+    const secondConnection = {
+      events: secondEvents.iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstAbort = new AbortController()
+    const firstReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: firstAbort.signal })
+      .getReader()
+
+    await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(firstConnection.send).toHaveBeenCalledOnce())
+    firstEvents.push({ type: 'resume-token', token: 'resume-before-stop' })
+    await vi.waitFor(() => expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-before-stop' }))
+
+    firstAbort.abort('user-requested')
+    await vi.waitFor(() => expect(firstConnection.close).toHaveBeenCalledOnce())
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const secondReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: new AbortController().signal })
+      .getReader()
+
+    await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(connect).toHaveBeenCalledOnce()
+    expect(secondConnection.send).not.toHaveBeenCalled()
+
+    firstClose.resolve()
+
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    expect(connect).toHaveBeenLastCalledWith(expect.objectContaining({ resumeToken: 'resume-before-stop' }))
+    await vi.waitFor(() =>
+      expect(secondConnection.send).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: false })
+    )
+    void service.closeSession('session-1')
+    await firstReader.cancel().catch(() => undefined)
+    await secondReader.cancel().catch(() => undefined)
+  })
+
   it('closes a late runtime connection when the user aborts before connect resolves', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
