@@ -104,6 +104,16 @@ const platformToArch = {
   linuxmusl: 'linuxmusl'
 }
 
+const conversationIslandPackageFilters = (platform) =>
+  platform === 'darwin'
+    ? []
+    : [
+        '!out/preload/conversationIsland.js',
+        '!out/renderer/windows/conversationIsland/**',
+        '!out/renderer/assets/conversationIsland-*.js'
+      ]
+exports.conversationIslandPackageFilters = conversationIslandPackageFilters
+
 // Most native packages encode Electron's platform key (win32) in their name, but some
 // (e.g. sqlite-vec) use the npm `windows` convention. Match either so a win32 build keeps
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
@@ -258,9 +268,10 @@ exports.default = async function (context) {
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
-  if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
-  } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
-  }
+  const architectureExclusions = context.arch === Arch.arm64 ? arm64ExcludePackages : x64ExcludePackages
+  await excludePackages([
+    ...architectureExclusions,
+    ...excludeBundledBinaryFilters,
+    ...conversationIslandPackageFilters(platform)
+  ])
 }

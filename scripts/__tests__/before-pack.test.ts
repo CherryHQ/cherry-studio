@@ -10,12 +10,27 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages, keepPackages } from '../before-pack'
+import { assertPrebuiltPackages, conversationIslandPackageFilters, keepPackages } from '../before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
 const legacyMacOcrVersion = '1.0.2'
 const macOcrPackages = ['@napi-rs/system-ocr-darwin-arm64', '@napi-rs/system-ocr-darwin-x64']
+const featureOutputs = [
+  '!out/preload/conversationIsland.js',
+  '!out/renderer/windows/conversationIsland/**',
+  '!out/renderer/assets/conversationIsland-*.js'
+]
+
+describe('conversationIslandPackageFilters', () => {
+  it('keeps the feature outputs in macOS packages', () => {
+    expect(conversationIslandPackageFilters('darwin')).toEqual([])
+  })
+
+  it.each(['win32', 'linux'])('excludes the feature outputs from %s packages', (platform) => {
+    expect(conversationIslandPackageFilters(platform)).toEqual(featureOutputs)
+  })
+})
 
 describe('assertPrebuiltPackages', () => {
   it.each(['arm64', 'x64'])('passes for the host platform on %s', (arch) => {
