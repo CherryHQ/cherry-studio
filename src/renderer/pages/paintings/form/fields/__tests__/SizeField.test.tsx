@@ -1,0 +1,66 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+
+import type { BaseConfigItem } from '../../baseConfigItem'
+import SizeField from '../SizeField'
+
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<object>()
+
+  return {
+    ...actual,
+    useTranslation: () => ({ t: (key: string) => key })
+  }
+})
+
+const item: BaseConfigItem = { type: 'customSize', key: 'customSize', validation: { minWidth: 512 } }
+
+function renderSizeField(painting: Record<string, unknown>) {
+  const onChange = vi.fn()
+  render(
+    <SizeField
+      item={item}
+      fieldKey="customSize"
+      painting={painting}
+      translate={(key) => key}
+      currentValue={painting.customSize}
+      onChange={onChange}
+    />
+  )
+  return onChange
+}
+
+describe('SizeField', () => {
+  // An unset pair is what `canonicalGenerate` turns into "the server picks its
+  // own size", so it has to stay reachable: visible as empty, and not quietly
+  // turned into a concrete size by touching the field.
+  it.each([
+    ['unset', {}],
+    ['a non-numeric leftover', { customSize_width: '' }]
+  ])('shows an empty width field when the size is %s', (_case, painting) => {
+    renderSizeField(painting)
+
+    expect(screen.getByLabelText('paintings.generate.width')).toHaveValue('')
+  })
+
+  it('writes no size when an empty field is focused and left', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSizeField({})
+
+    await user.click(screen.getByLabelText('paintings.generate.width'))
+    await user.tab()
+
+    expect(onChange).toHaveBeenCalledWith({ customSize_width: undefined })
+  })
+
+  it('clears back to unset rather than to an empty string', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSizeField({ customSize_width: 1024 })
+
+    await user.clear(screen.getByLabelText('paintings.generate.width'))
+    await user.tab()
+
+    expect(onChange).toHaveBeenCalledWith({ customSize_width: undefined })
+  })
+})
