@@ -638,6 +638,7 @@
   "chat.input.placeholder": "Введите сообщение. Нажмите {{key}}, чтобы отправить его. Введите / для инструментов и действий или @ для ссылки на беседу.",
   "chat.input.reference_panel.load_failed": "Не удалось загрузить указанный разговор",
   "chat.input.reference_panel.no_room": "Недостаточно места в сообщении, чтобы добавить этот разговор",
+  "chat.input.reference_panel.no_room_selection": "В сообщении недостаточно места, чтобы добавить это выделение",
   "chat.input.reference_panel.session.no_results.description": "Нет сеансов, соответствующих вашему поиску",
   "chat.input.reference_panel.session.no_results.label": "Сеансы не найдены",
   "chat.input.reference_panel.session.title": "Сессии",

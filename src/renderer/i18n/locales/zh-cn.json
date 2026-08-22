@@ -638,6 +638,7 @@
   "chat.input.placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作，输入 @ 引用话题",
   "chat.input.reference_panel.load_failed": "加载引用内容失败",
   "chat.input.reference_panel.no_room": "输入框剩余长度不足，无法插入该会话",
+  "chat.input.reference_panel.no_room_selection": "输入框剩余长度不足，无法插入该选区",
   "chat.input.reference_panel.session.no_results.description": "没有名称匹配的会话",
   "chat.input.reference_panel.session.no_results.label": "无匹配会话",
   "chat.input.reference_panel.session.title": "会话",

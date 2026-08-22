@@ -638,6 +638,7 @@
   "chat.input.placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
   "chat.input.reference_panel.load_failed": "Fehler beim Laden der referenzierten Konversation",
   "chat.input.reference_panel.no_room": "Nicht genug Platz in der Nachricht, um diese Konversation hinzuzufügen",
+  "chat.input.reference_panel.no_room_selection": "Nicht genügend Platz in der Nachricht, um diese Auswahl einzufügen",
   "chat.input.reference_panel.session.no_results.description": "Keine Sitzungen entsprechen Ihrer Suche",
   "chat.input.reference_panel.session.no_results.label": "Keine Sitzungen gefunden",
   "chat.input.reference_panel.session.title": "Sitzungen",

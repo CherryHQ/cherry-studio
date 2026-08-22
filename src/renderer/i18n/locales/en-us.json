@@ -638,6 +638,7 @@
   "chat.input.placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions, @ to reference topics.",
   "chat.input.reference_panel.load_failed": "Failed to load the referenced conversation",
   "chat.input.reference_panel.no_room": "Not enough room left in the message to add this conversation",
+  "chat.input.reference_panel.no_room_selection": "Not enough room left in the message to add this selection",
   "chat.input.reference_panel.session.no_results.description": "No sessions match your search",
   "chat.input.reference_panel.session.no_results.label": "No Sessions Found",
   "chat.input.reference_panel.session.title": "Sessions",

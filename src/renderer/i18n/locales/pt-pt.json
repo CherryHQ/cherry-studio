@@ -638,6 +638,7 @@
   "chat.input.placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para ver ferramentas e ações e @ para referenciar tópicos.",
   "chat.input.reference_panel.load_failed": "Falha ao carregar a conversa referenciada",
   "chat.input.reference_panel.no_room": "Não há espaço suficiente na mensagem para adicionar esta conversa",
+  "chat.input.reference_panel.no_room_selection": "Não há espaço suficiente na mensagem para adicionar esta seleção",
   "chat.input.reference_panel.session.no_results.description": "Nenhuma sessão corresponde à sua pesquisa",
   "chat.input.reference_panel.session.no_results.label": "Nenhuma sessão encontrada",
   "chat.input.reference_panel.session.title": "Sessões",

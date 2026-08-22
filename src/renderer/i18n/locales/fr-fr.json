@@ -638,6 +638,7 @@
   "chat.input.placeholder": "Saisissez un message. Appuyez sur {{key}} pour l’envoyer. Saisissez / pour afficher les outils et les actions, ou @ pour référencer des conversations.",
   "chat.input.reference_panel.load_failed": "Échec du chargement de la conversation référencée",
   "chat.input.reference_panel.no_room": "Pas assez d'espace restant dans le message pour ajouter cette conversation",
+  "chat.input.reference_panel.no_room_selection": "Il ne reste pas assez de place dans le message pour ajouter cette sélection",
   "chat.input.reference_panel.session.no_results.description": "Aucune session ne correspond à votre recherche",
   "chat.input.reference_panel.session.no_results.label": "Aucune session trouvée",
   "chat.input.reference_panel.session.title": "Séances",
