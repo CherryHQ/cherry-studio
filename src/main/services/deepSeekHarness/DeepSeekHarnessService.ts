@@ -157,12 +157,14 @@ export class DeepSeekHarnessService extends BaseService {
           this.runningPermissionMode = input.permissionMode
           return { success: true, url }
         } catch (error) {
+          // Terminal state first: the cleanup-driven termination handler must not
+          // broadcast 'stopped' for a failed launch on its way to 'error'.
+          this.url = undefined
+          this.setStatus('error')
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError as Error)
           })
           if (receipt) await this.rollbackLaunchConfig(receipt)
-          this.url = undefined
-          this.setStatus('error')
           const message = error instanceof Error ? error.message : 'Failed to start DeepSeek Harness'
           return { success: false, message: sanitizeDiagnostic(message) }
         }
@@ -307,7 +309,9 @@ export class DeepSeekHarnessService extends BaseService {
     this.runningPermissionMode = undefined
     if (this.stoppingChild === child) {
       this.stoppingChild = null
-      this.setStatus('stopped')
+      // A teardown that began after the state already left starting/running (failed-launch
+      // cleanup sets 'error' first) must not revive 'stopped'.
+      if (this.status === 'starting' || this.status === 'running') this.setStatus('stopped')
       return
     }
     if (this.status === 'starting' || this.status === 'running') {

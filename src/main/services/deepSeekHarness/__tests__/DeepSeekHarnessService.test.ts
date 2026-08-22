@@ -461,6 +461,22 @@ describe('DeepSeekHarnessService', () => {
       expect(statusPayloads().at(-1)).toEqual({ status: 'error' })
     })
 
+    it('does not broadcast stopped while cleaning up a failed launch', async () => {
+      // Timeout failure with the child still alive: cleanup kills it after the
+      // terminal 'error' state is set, and the termination handler must stay quiet.
+      vi.useFakeTimers()
+      spawnChild(() => undefined)
+      const service = new DeepSeekHarnessService()
+      const start = service.start(startInput)
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(30_000)
+      const result = await start
+
+      expect(result.success).toBe(false)
+      expect(statusPayloads()).toEqual([{ status: 'starting' }, { status: 'error' }])
+      expect(service.getStatus()).toEqual({ status: 'error' })
+    })
+
     it('broadcasts error immediately when the running child is killed, without waiting for a poll', async () => {
       const child = spawnChild((process) => process.stdout.write('dsh web: http://127.0.0.1:43123\n'))
       const service = new DeepSeekHarnessService()
