@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf, prefixHit } from '../../scripts/canonicalize'
+import { canonOf, isModelsDevRoutingAlias, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { SERVER_TOOL } from '../schemas/enums'
@@ -20,6 +20,7 @@ import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
+import { getServiceTierCatalogErrors } from '../utils/serviceTierCatalog'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
@@ -34,6 +35,16 @@ const models = modelsRaw.models as Array<{
   inputModalities?: string[]
   outputModalities?: string[]
   ownedBy?: string
+  imageGeneration?: {
+    modes?: {
+      generate?: {
+        supports?: {
+          aspectRatio?: { default?: string; options?: string[]; render?: string; type?: string }
+          imageResolution?: { default?: string; options?: string[]; render?: string; type?: string }
+        }
+      }
+    }
+  }
 }>
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
@@ -48,6 +59,29 @@ const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).
 const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 // shapes a creator never publishes: custom SKUs, double-dash vendor wrappers, routers
 const JUNK = /(?:-vip|-ssvip|-cursor|-all|-nx|-gizmo|-mobile)$|--|^duo-chat-|\bauto\b/
+
+const GEMINI_IMAGE_ASPECT_RATIO_OPTIONS = [
+  {
+    modelId: 'gemini-3-1-flash-image',
+    options: [
+      'auto',
+      'ASPECT_1_1',
+      'ASPECT_1_4',
+      'ASPECT_1_8',
+      'ASPECT_2_3',
+      'ASPECT_3_2',
+      'ASPECT_3_4',
+      'ASPECT_4_1',
+      'ASPECT_4_3',
+      'ASPECT_4_5',
+      'ASPECT_5_4',
+      'ASPECT_8_1',
+      'ASPECT_9_16',
+      'ASPECT_16_9',
+      'ASPECT_21_9'
+    ]
+  }
+] as const
 
 describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
@@ -65,6 +99,26 @@ describe('catalog invariants (data/*.json)', () => {
       ownedBy
     })
   })
+
+  it.each(GEMINI_IMAGE_ASPECT_RATIO_OPTIONS)(
+    'keeps smart aspect ratio and explicit resolution controls for $modelId',
+    ({ modelId, options }) => {
+      const supports = models.find((model) => model.id === modelId)?.imageGeneration?.modes?.generate?.supports
+
+      expect(supports?.aspectRatio).toEqual({
+        default: 'auto',
+        options,
+        render: 'chips',
+        type: 'enum'
+      })
+      expect(supports?.imageResolution).toEqual({
+        default: 'auto',
+        options: ['auto', '1K', '2K', '4K'],
+        render: 'chips',
+        type: 'enum'
+      })
+    }
+  )
 
   // `listProviderPresetModels` sends `apiModelId ?? modelId` on the wire, so a row whose canonical key
   // is not the served id must carry `apiModelId` — otherwise the canonical spelling (`glm-5-2` for
@@ -99,6 +153,31 @@ describe('catalog invariants (data/*.json)', () => {
   // and coexists with (or shadows) its true base row.
   it('every base id is a canonicalization fixpoint (id === canonOf(id))', () => {
     expect(ids.filter((id) => canonOf(id) !== id)).toEqual([])
+  })
+
+  // A `:batch` twin bills through OpenRouter's async job API, which the app never calls — it must not
+  // reach the catalog as a model or as a provider row (see scripts/canonicalize.ts).
+  it('excludes batch-API twins from both the catalog and provider rows', () => {
+    const isBatch = (id: string) => /[:-]batch$/.test(id)
+    expect([
+      ...ids.filter(isBatch),
+      ...overrides.filter((o) => isBatch(o.apiModelId ?? o.modelId)).map((o) => `${o.providerId}/${o.apiModelId}`)
+    ]).toEqual([])
+  })
+
+  it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {
+    expect(isModelsDevRoutingAlias('vercel', 'openai/gpt-5-fast')).toBe(true)
+    expect(isModelsDevRoutingAlias('vercel', 'bytedance/seedance-2.0-fast')).toBe(false)
+    expect(isModelsDevRoutingAlias('openrouter', 'anthropic/claude-opus-4.8-fast')).toBe(false)
+    expect(models.some((model) => model.id === 'claude-opus-4-8-fast')).toBe(true)
+    expect(
+      models.filter((model) => model.ownedBy === 'openai' && model.id.endsWith('-fast')).map((model) => model.id)
+    ).toEqual([])
+    expect(
+      overrides
+        .filter((override) => override.providerId === 'gateway' && /^openai\/.+-fast$/.test(override.apiModelId ?? ''))
+        .map((override) => override.apiModelId)
+    ).toEqual([])
   })
 
   it('assigns overlapping creator prefixes to the most specific owner', () => {
@@ -248,11 +327,13 @@ describe('catalog invariants (data/*.json)', () => {
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
   })
 
-  it('Fast transports belong only to Codex and Claude Code', () => {
-    expect(providers.filter((provider) => provider.fastMode).map((provider) => provider.id)).toEqual([
-      'claude-code',
-      'openai-codex'
-    ])
+  it('Fast transports belong only to Codex, Claude Code, and Ark', () => {
+    expect(
+      providers
+        .filter((provider) => provider.fastMode)
+        .map((provider) => provider.id)
+        .sort()
+    ).toEqual(['claude-code', 'doubao', 'openai-codex'])
   })
 
   it('Fast provider-model declarations require a provider transport', () => {
@@ -262,6 +343,10 @@ describe('catalog invariants (data/*.json)', () => {
         .filter((override) => override.supportsFastMode && !fastProviders.has(override.providerId))
         .map((override) => `${override.providerId}/${override.modelId}`)
     ).toEqual([])
+  })
+
+  it('service tier overrides only expose options mapped by their endpoints', () => {
+    expect(getServiceTierCatalogErrors(providers, providerModelOverrides)).toEqual([])
   })
 
   it('budget wire operations require an explicit budget policy', () => {

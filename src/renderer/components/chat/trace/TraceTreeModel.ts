@@ -1,4 +1,4 @@
-import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import type { TraceNode, TraceVisibleRow } from './traceNode'
 

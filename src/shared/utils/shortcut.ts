@@ -43,13 +43,26 @@ export const SHORTCUT_FUNCTION_KEYS = [
   'F9',
   'F10',
   'F11',
-  'F12'
+  'F12',
+  'F13',
+  'F14',
+  'F15',
+  'F16',
+  'F17',
+  'F18',
+  'F19',
+  'F20',
+  'F21',
+  'F22',
+  'F23',
+  'F24'
 ] as const
 
 export const SHORTCUT_SYMBOLS = ['=', '-', '[', ']', ',', '.', '/', '\\', ';', "'", '`'] as const
 
 export const SHORTCUT_NAMED_KEYS = [
   'Escape',
+  'CapsLock',
   'Enter',
   'Tab',
   'Space',
@@ -198,7 +211,7 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
     return upper
   }
 
-  if (/^F(?:[1-9]|1[0-2])$/.test(upper) && isShortcutToken(upper)) {
+  if (/^F(?:[1-9]|1\d|2[0-4])$/.test(upper) && isShortcutToken(upper)) {
     return upper as ShortcutFunctionKey
   }
 
@@ -362,7 +375,8 @@ export const isValidShortcut = (binding: ShortcutBinding): boolean => {
 
   const hasModifier = binding.some(isShortcutModifier)
   const hasNonModifier = binding.some((key) => !isShortcutModifier(key))
-  const isSpecialKey = binding.length === 1 && (binding[0] === 'Escape' || isShortcutFunctionKey(binding[0]))
+  const isSpecialKey =
+    binding.length === 1 && (binding[0] === 'Escape' || binding[0] === 'CapsLock' || isShortcutFunctionKey(binding[0]))
 
   return (hasModifier && hasNonModifier) || isSpecialKey
 }

@@ -1,6 +1,5 @@
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useAnimationControls } from 'motion/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -75,14 +74,6 @@ vi.mock('motion/react', () => ({
   useAnimationControls: () => motionTestState.controls,
   useReducedMotion: () => motionTestState.reducedMotion
 }))
-
-function createDeferred() {
-  let resolve!: () => void
-  const promise = new Promise<void>((complete) => {
-    resolve = complete
-  })
-  return { promise, resolve }
-}
 
 function mockMainRegionWidth(width: number) {
   vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
@@ -192,12 +183,13 @@ describe('RightPaneHost', () => {
       </PersistentRightPaneHost>
     )
 
-    const host = container.querySelector('[data-right-pane]')
     const spacer = container.querySelector('[data-right-pane-spacer]')
 
     // Yield order: pane first (stored → 255 while the center keeps 360), then the
     // center (360 → 200 with the pane pinned), then both proportionally — never 0.
-    expect(host).toHaveStyle({ maxWidth: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
+    expect(motionTestState.controls.set).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
+    )
     // The spacer must share the exact expression or the pane would overlap the center.
     expect(spacer).toHaveStyle({ maxWidth: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
   })
@@ -332,79 +324,37 @@ describe('RightPaneHost', () => {
     expect(lifecycle).toEqual(['mount'])
   })
 
-  it('wipes between the docked strip and full width without blanking the pane', async () => {
-    const controls = useAnimationControls() as unknown as {
-      set: ReturnType<typeof vi.fn>
-      start: ReturnType<typeof vi.fn>
-    }
-    const dockedStripClip =
-      'inset(0% 0% 0% calc(100% - max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))))'
-    const { container, rerender } = render(
+  it('hands Motion the box width rather than wiping a clip across a fixed box', async () => {
+    const dockedWidth = 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))'
+    const Harness = ({ maximized }: { maximized: boolean }) => (
       <div className="relative">
-        <PersistentRightPaneHost open width={460}>
+        <PersistentRightPaneHost open maximized={maximized} width={460}>
           <div>artifact pane</div>
         </PersistentRightPaneHost>
       </div>
     )
-    controls.set.mockClear()
-    controls.start.mockClear()
-
-    rerender(
-      <div className="relative">
-        <PersistentRightPaneHost open maximized width={460}>
-          <div>artifact pane</div>
-        </PersistentRightPaneHost>
-      </div>
-    )
-    await waitFor(() =>
-      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
-    )
-    // Maximize from docked starts the wipe at the strip the pane already occupies.
-    expect(controls.set).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
-    expect(controls.set).not.toHaveBeenCalledWith(expect.objectContaining({ clipPath: 'inset(0% 0% 0% 100%)' }))
-
-    controls.set.mockClear()
-    controls.start.mockClear()
-
-    rerender(
-      <div className="relative">
-        <PersistentRightPaneHost open width={460}>
-          <div>artifact pane</div>
-        </PersistentRightPaneHost>
-      </div>
-    )
-    await waitFor(() =>
-      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
-    )
-    // Minimize wipes down to that same strip instead of collapsing to nothing.
-    expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
-  })
-
-  it('starts the maximize wipe from the space-constrained docked width', async () => {
-    const { rerender } = render(
-      <div className="relative">
-        <PersistentRightPaneHost open width={460}>
-          <div>artifact pane</div>
-        </PersistentRightPaneHost>
-      </div>
-    )
+    const { container, rerender } = render(<Harness maximized={false} />)
+    const pane = () => container.querySelector<HTMLElement>('[data-right-pane]')
     motionTestState.controls.set.mockClear()
+    motionTestState.controls.start.mockClear()
 
-    rerender(
-      <div className="relative">
-        <PersistentRightPaneHost open maximized width={460}>
-          <div>artifact pane</div>
-        </PersistentRightPaneHost>
-      </div>
+    rerender(<Harness maximized />)
+    await waitFor(() => expect(pane()).toHaveAttribute('data-right-pane-phase', 'maximized'))
+
+    expect(motionTestState.controls.start).toHaveBeenCalledWith(expect.objectContaining({ width: '100%' }))
+    // The old mechanism cropped a full-width box back to the docked strip; nothing may reinstate
+    // it, or the pane content would again lay out for full width behind that strip.
+    expect(motionTestState.controls.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ clipPath: expect.stringContaining('calc(100% -') })
     )
 
-    await waitFor(() =>
-      expect(motionTestState.controls.set).toHaveBeenCalledWith({
-        clipPath:
-          'inset(0% 0% 0% calc(100% - max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))))',
-        opacity: 1
-      })
-    )
+    motionTestState.controls.start.mockClear()
+    rerender(<Harness maximized={false} />)
+    await waitFor(() => expect(pane()).toHaveAttribute('data-right-pane-phase', 'docked'))
+
+    // The space-clamped expression, not the raw stored width: the box has to animate to the
+    // width it will actually occupy once docked.
+    expect(motionTestState.controls.start).toHaveBeenCalledWith(expect.objectContaining({ width: dockedWidth }))
   })
 
   it('restores the settled maximized visual state when Activity reconnects effects', () => {
@@ -426,16 +376,15 @@ describe('RightPaneHost', () => {
     expect(motionTestState.controls.set).toHaveBeenCalledTimes(1)
     expect(motionTestState.controls.set).toHaveBeenCalledWith({
       clipPath: 'inset(0% 0% 0% 0%)',
-      opacity: 1
+      opacity: 1,
+      width: '100%'
     })
     expect(motionTestState.controls.start).not.toHaveBeenCalled()
     expect(onLayoutAnimationComplete).not.toHaveBeenCalled()
   })
 
   it('settles an interrupted maximize when Activity reconnects effects', async () => {
-    const maximizeAnimation = createDeferred()
     const onLayoutAnimationComplete = vi.fn()
-    motionTestState.controls.start.mockImplementationOnce(() => maximizeAnimation.promise)
 
     const { container, rerender } = render(
       <ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />
@@ -455,20 +404,22 @@ describe('RightPaneHost', () => {
     )
     expect(motionTestState.controls.set).toHaveBeenCalledWith({
       clipPath: 'inset(0% 0% 0% 0%)',
-      opacity: 1
+      opacity: 1,
+      width: '100%'
     })
     expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
     expect(onLayoutAnimationComplete).toHaveBeenCalledWith('maximized')
 
-    await act(async () => maximizeAnimation.resolve())
+    // A settle left over from the interrupted phase would report a second completion here.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
 
     expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
   })
 
   it('settles an interrupted minimize when Activity reconnects effects', async () => {
-    const minimizeAnimation = createDeferred()
     const onLayoutAnimationComplete = vi.fn()
-    motionTestState.controls.start.mockImplementationOnce(() => minimizeAnimation.promise)
 
     const { container, rerender } = render(
       <ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
@@ -486,12 +437,16 @@ describe('RightPaneHost', () => {
     )
     expect(motionTestState.controls.set).toHaveBeenCalledWith({
       clipPath: 'inset(0% 0% 0% 0%)',
-      opacity: 1
+      opacity: 1,
+      width: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))'
     })
     expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
     expect(onLayoutAnimationComplete).toHaveBeenCalledWith('docked')
 
-    await act(async () => minimizeAnimation.resolve())
+    // A settle left over from the interrupted phase would report a second completion here.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
 
     expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
   })
@@ -516,7 +471,8 @@ describe('RightPaneHost', () => {
     )
     expect(motionTestState.controls.set).toHaveBeenCalledWith({
       clipPath: 'inset(0% 0% 0% 0%)',
-      opacity: 1
+      opacity: 1,
+      width: '100%'
     })
     expect(motionTestState.controls.start).not.toHaveBeenCalled()
     expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
@@ -524,12 +480,7 @@ describe('RightPaneHost', () => {
   })
 
   it('ignores a stale maximize completion when minimizing before it finishes', async () => {
-    const firstAnimation = createDeferred()
-    const secondAnimation = createDeferred()
     const onLayoutAnimationComplete = vi.fn()
-    motionTestState.controls.start
-      .mockImplementationOnce(() => firstAnimation.promise)
-      .mockImplementationOnce(() => secondAnimation.promise)
 
     const { container, rerender } = render(
       <div className="relative">
@@ -559,13 +510,6 @@ describe('RightPaneHost', () => {
 
     expect(motionTestState.controls.stop).toHaveBeenCalled()
     expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
-
-    await act(async () => firstAnimation.resolve())
-
-    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
-    expect(onLayoutAnimationComplete).not.toHaveBeenCalled()
-
-    await act(async () => secondAnimation.resolve())
 
     await waitFor(() =>
       expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')

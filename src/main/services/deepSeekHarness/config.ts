@@ -294,7 +294,16 @@ function renderCredentials(snapshot: FileSnapshot, credentialRef: string, creden
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(credentialRef)) {
     throw new Error(`DeepSeek Harness credential reference ${JSON.stringify(credentialRef)} is invalid`)
   }
-  document.setIn([credentialRef], credentialValue)
+  // DSH 0.1.1 nests entries under `version: 1` + `refs:` and rejects unknown
+  // top-level keys, including the one Cherry used to write there. Any other
+  // document stays flat: pre-0.1.1 builds read it, and 0.1.1 migrates it itself.
+  if (document.get('version') === 1) {
+    if (document.getIn(['refs']) == null) document.setIn(['refs'], document.createNode({}))
+    document.delete(credentialRef)
+    document.setIn(['refs', credentialRef], credentialValue)
+  } else {
+    document.setIn([credentialRef], credentialValue)
+  }
   return document.toString()
 }
 
@@ -328,29 +337,11 @@ export function resolveDeepSeekHarnessEndpoint(
     Boolean(endpoint && DIRECT_ENDPOINTS.includes(endpoint as (typeof DIRECT_ENDPOINTS)[number]))
   const hasBaseUrl = (endpoint: EndpointType): boolean => Boolean(provider.endpointConfigs?.[endpoint]?.baseUrl)
   const declaredModelEndpoints = model.endpointTypes?.length ? model.endpointTypes.filter(isSupported) : undefined
-  let endpoint = declaredModelEndpoints
+  const endpoint = declaredModelEndpoints
     ? declaredModelEndpoints.find(hasBaseUrl)
     : isSupported(provider.defaultChatEndpoint) && hasBaseUrl(provider.defaultChatEndpoint)
       ? provider.defaultChatEndpoint
       : DIRECT_ENDPOINTS.find(hasBaseUrl)
-
-  const dshMarksModelAsReasoning = typeof projectReasoningEfforts(model) === 'object'
-  const selectedBaseUrl = endpoint ? provider.endpointConfigs?.[endpoint]?.baseUrl : undefined
-  const piAiUsesSystemRole =
-    endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS && selectedBaseUrl?.includes('deepseek.com')
-  const requiresDeveloperRole =
-    endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ||
-    (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS && dshMarksModelAsReasoning && !piAiUsesSystemRole)
-  if (provider.apiFeatures.developerRole === false && requiresDeveloperRole) {
-    if (
-      declaredModelEndpoints?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) &&
-      hasBaseUrl(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    ) {
-      endpoint = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-    } else {
-      throw new Error(`Provider ${provider.id} must be used through the Unified Gateway for DeepSeek Harness`)
-    }
-  }
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
   const rawBaseUrl = provider.endpointConfigs?.[endpoint]?.baseUrl

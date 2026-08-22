@@ -13,22 +13,18 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { TRACER_NAME } from '@main/ai/observability'
+import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { ROOT_CONTEXT, type Span, SpanKind, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -37,12 +33,11 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -52,8 +47,9 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
-import { createPiApprovalExtension } from './approvalExtension'
+import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
 import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
+import { createPiCodeModeTools } from './piCodeMode'
 import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
@@ -66,24 +62,24 @@ import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
-const PI_BUILTIN_TOOL_NAMES = PI_BUILTIN_TOOLS.map((tool) => tool.name)
+const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
-const toPiMcpRuntimeName = (runtimeName: string): string => {
-  const [, serverName, toolName] = runtimeName.split('__')
-  return buildPiMcpToolName(serverName, toolName)
-}
-const PI_AUTO_APPROVED_MCP_TOOLS = new Set([
-  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
-  buildPiMcpToolName('agent-memory', 'memory'),
-  buildPiMcpToolName('skills', 'search_skills'),
-  ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
-  ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
+const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
+  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
+    buildPiMcpToolName(serverName, toolName)
+  )
+)
+const PI_APPROVAL_REQUIRED_TOOLS = new Set([
+  PI_TOOL_EXEC_TOOL_NAME,
+  ...listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
+    buildPiMcpToolName(serverName, toolName)
+  )
 ])
-const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set([
-  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
-  ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
-  ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
-])
+const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
+    buildPiMcpToolName(serverName, toolName)
+  )
+)
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -219,16 +215,32 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const citationsGuidance = buildCitationsGuidance({
         web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
         kb:
-          (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
+          (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
           (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
       })
       const prompt = await buildAgentRuntimePrompt({
         workspacePath,
         agentDataPath,
         agent,
-        channelLinked: linkedChannel !== null,
         citationsGuidance
       })
+      const approvalContext = {
+        sessionId: this.input.sessionId,
+        workspacePath,
+        agentDataPath,
+        emit: (event: AgentRuntimeEvent) => this.eventQueue.push(event),
+        getInteractionState: () =>
+          application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
+        getPermissionMode: () => this.permissionMode,
+        isDisabled: (toolName: string) => this.disabledTools.has(toolName),
+        additionalReadOnlyRoots: additionalSkillPaths,
+        // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
+        // disabledTools hard-blocks every class at fire-time.
+        autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
+        approvalRequiredTools: PI_APPROVAL_REQUIRED_TOOLS,
+        nonBypassableApprovalTools: PI_NON_BYPASSABLE_APPROVAL_TOOLS
+      }
+      const authorizeTool = createPiToolAuthorizer(approvalContext)
       const resourceLoader = new pi.DefaultResourceLoader({
         cwd: workspacePath,
         agentDir,
@@ -250,20 +262,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         additionalSkillPaths,
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
-          createPiApprovalExtension({
-            sessionId: this.input.sessionId,
-            workspacePath,
-            agentDataPath,
-            emit: (event) => this.eventQueue.push(event),
-            getInteractionState: () =>
-              application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
-            getPermissionMode: () => this.permissionMode,
-            isDisabled: (toolName) => this.disabledTools.has(toolName),
-            // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
-            // disabledTools hard-blocks every class at fire-time.
-            autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
-            approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS
-          })
+          createPiApprovalExtension(approvalContext)
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
@@ -276,19 +275,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !linkedChannel
+      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannel !== null })
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
           session,
           agent,
-          assistantMcpEnabled,
+          mountedServers,
           initialSnapshot.mcpServerSnapshots,
           linkedChannel,
           agentDataPath,
           this.input.knowledgeBaseIds
         )
       )
-      const customTools = this.mcpBridge.tools
+      const customTools = createPiCodeModeTools(
+        this.mcpBridge.tools,
+        (toolName) => this.disabledTools.has(toolName),
+        authorizeTool
+      )
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,
@@ -627,7 +630,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private startProviderSpan(model: { provider?: string; id?: string }): PiProviderSpanObserver | undefined {
-    const span = this.startSpan('pi.generate_content', SpanKind.CLIENT, {
+    const span = startAgentRuntimeChildSpan(this.traceContext, 'pi.generate_content', SpanKind.CLIENT, {
       'gen_ai.operation.name': 'chat',
       ...(model.provider ? { 'gen_ai.provider.name': model.provider } : {}),
       ...(model.id ? { 'gen_ai.request.model': model.id } : {})
@@ -656,7 +659,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           logger.warn('Failed to annotate Pi provider span', { error })
         }
         const failed = message.stopReason === 'error' || message.stopReason === 'aborted'
-        finishPiSpan(
+        endAgentRuntimeSpan(
           span,
           failed
             ? { code: SpanStatusCode.ERROR, message: message.errorMessage ?? message.stopReason }
@@ -666,7 +669,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       error: (error) => {
         if (!this.providerSpans.delete(span)) return
         const failure = error instanceof Error ? error : new Error(String(error))
-        finishPiSpan(span, { code: SpanStatusCode.ERROR, message: failure.message }, failure)
+        endAgentRuntimeSpan(span, { code: SpanStatusCode.ERROR, message: failure.message }, failure)
       }
     }
   }
@@ -674,7 +677,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private startToolSpan(event: Extract<AgentSessionEvent, { type: 'tool_execution_start' }>): void {
     const previous = this.toolSpans.get(event.toolCallId)
     if (previous) this.endSpanWithError(previous, 'duplicate pi tool execution start')
-    const span = this.startSpan('pi.execute_tool', SpanKind.INTERNAL, {
+    const span = startAgentRuntimeChildSpan(this.traceContext, 'pi.execute_tool', SpanKind.INTERNAL, {
       'gen_ai.operation.name': 'execute_tool',
       'gen_ai.tool.name': event.toolName,
       'gen_ai.tool.call.id': event.toolCallId
@@ -686,40 +689,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const span = this.toolSpans.get(event.toolCallId)
     if (!span) return
     this.toolSpans.delete(event.toolCallId)
-    finishPiSpan(
+    endAgentRuntimeSpan(
       span,
       event.isError ? { code: SpanStatusCode.ERROR, message: `${event.toolName} failed` } : { code: SpanStatusCode.OK }
     )
-  }
-
-  private startSpan(name: string, kind: SpanKind, attributes: Record<string, string>): Span | undefined {
-    const context = this.traceContext
-    if (!context) return undefined
-    try {
-      const parent = trace.setSpanContext(ROOT_CONTEXT, {
-        traceId: context.traceId,
-        spanId: context.rootSpanId,
-        traceFlags: TraceFlags.SAMPLED,
-        isRemote: true
-      })
-      return trace.getTracer(TRACER_NAME).startSpan(
-        name,
-        {
-          kind,
-          attributes: {
-            ...attributes,
-            'trace.topicId': context.topicId,
-            ...(context.modelName ? { 'trace.modelName': context.modelName } : {}),
-            'cs.agent_session_id': context.sessionId,
-            'cs.agent_turn_id': context.turnId
-          }
-        },
-        parent
-      )
-    } catch (error) {
-      logger.warn(`Failed to start Pi span ${name}`, { error })
-      return undefined
-    }
   }
 
   private endOpenToolSpans(message: string): void {
@@ -734,7 +707,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private endSpanWithError(span: Span, message: string): void {
-    finishPiSpan(span, { code: SpanStatusCode.ERROR, message })
+    endAgentRuntimeSpan(span, { code: SpanStatusCode.ERROR, message })
   }
 
   private handleCompactionEnd(event: Extract<AgentSessionEvent, { type: 'compaction_end' }>): void {
@@ -835,28 +808,15 @@ interface PiProviderSpanObserver {
   error(error: unknown): void
 }
 
-function finishPiSpan(span: Span, status: { code: SpanStatusCode; message?: string }, error?: Error): void {
-  try {
-    span.setStatus(status)
-    if (error) span.recordException(error)
-  } catch (traceError) {
-    logger.warn('Failed to finalize Pi span metadata', { error: traceError })
-  } finally {
-    try {
-      span.end()
-    } catch (traceError) {
-      logger.warn('Failed to end Pi span', { error: traceError })
-    }
-  }
-}
-
 function withPiRequestEnvironment(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  environment: Record<string, string> | undefined
+  providerEnvironment: Record<string, string> | undefined
 ): NonNullable<ProviderConfig['streamSimple']> {
-  if (!environment) return streamSimple
   return (model, context, options) =>
-    streamSimple(model, context, { ...options, env: { ...options?.env, ...environment } })
+    streamSimple(model, context, {
+      ...options,
+      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment }
+    })
 }
 
 function finiteTokenCount(value: number | undefined): number {

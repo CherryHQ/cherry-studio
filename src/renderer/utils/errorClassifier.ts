@@ -100,7 +100,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('not available in your territory') ||
     (msg.includes('territory') && (numStatus === 403 || msg.includes('unsupported')))
   ) {
-    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/system' }
+    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/general' }
   }
 
   // Auth errors (401). 403 is handled below: a refused request is often unrelated to key
@@ -219,7 +219,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('fetch failed') ||
     msg.includes('enotfound')
   ) {
-    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/system' }
+    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/general' }
   }
 
   // Proxy / SSL certificate errors
@@ -230,7 +230,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('self-signed') ||
     msg.includes('unable_to_verify_leaf_signature')
   ) {
-    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/system' }
+    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/general' }
   }
 
   // Server errors (5xx / overloaded)

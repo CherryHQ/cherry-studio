@@ -559,6 +559,126 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('stays applied for a recipe with no eponymous bin, through a shim it does expose', async () => {
+      // core:rust exposes rustc/cargo and no `rust`, so a name-keyed `mise which`
+      // reports a working install as unusable (#19075).
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              rust: [{ version: '1.98.0', active: true, install_path: '/mock/cargo/bin' }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which' && args[1] === 'rust') throw new Error('rust is not a mise bin')
+        if (args[0] === 'which') return { stdout: `/mock/cargo/bin/${args[1]}\n`, stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return {
+            stdout: JSON.stringify([
+              { name: 'cargo', path: '/mock/cargo/bin/cargo' },
+              { name: 'rustc', path: '/mock/cargo/bin/rustc' }
+            ]),
+            stderr: ''
+          }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => ['cargo', 'rustc'])
+
+      await expect(service.getToolSnapshots(['rust'])).resolves.toEqual({
+        rust: {
+          name: 'rust',
+          definition: { name: 'rust', tool: 'core:rust' },
+          availability: { source: 'mise', path: '/mock/feature.binary.data/shims/cargo', version: '1.98.0' },
+          application: { status: 'applied', version: '1.98.0' }
+        }
+      })
+    })
+
+    it('reports broken when the exposed bin has a shim that is not executable', async () => {
+      // `mise which` resolving the target says nothing about the shim Cherry puts
+      // on PATH: a present-but-unexecutable shim is not a runnable path.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              rust: [{ version: '1.98.0', active: true, install_path: '/mock/cargo/bin' }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which' && args[1] === 'rust') throw new Error('rust is not a mise bin')
+        if (args[0] === 'which') return { stdout: `/mock/cargo/bin/${args[1]}\n`, stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return { stdout: JSON.stringify([{ name: 'cargo', path: '/mock/cargo/bin/cargo' }]), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string, mode: number) => {
+        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+        // The shim file exists, but carries no execute bit.
+        if (candidate === '/mock/feature.binary.data/shims/cargo' && mode === mockFs.constants.X_OK) {
+          throw new Error('EACCES')
+        }
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => ['cargo'])
+
+      await expect(service.getToolSnapshots(['rust'])).resolves.toMatchObject({
+        rust: {
+          availability: { source: 'none' },
+          application: { status: 'broken', version: '1.98.0' }
+        }
+      })
+    })
+
+    it('reports broken when no bin the recipe exposes has a shim', async () => {
+      // The exposed-bin fallback must not turn a lost shim into a runnable tool:
+      // with nothing shimmed, the recipe is not reachable on Cherry's PATH.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              rust: [{ version: '1.98.0', active: true, install_path: '/mock/cargo/bin' }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which' && args[1] === 'rust') throw new Error('rust is not a mise bin')
+        if (args[0] === 'which') return { stdout: `/mock/cargo/bin/${args[1]}\n`, stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return { stdout: JSON.stringify([{ name: 'cargo', path: '/mock/cargo/bin/cargo' }]), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => [])
+
+      await expect(service.getToolSnapshots(['rust'])).resolves.toMatchObject({
+        rust: {
+          availability: { source: 'none' },
+          application: { status: 'broken', version: '1.98.0' }
+        }
+      })
+    })
+
     it('stays applied when mise which resolves through its latest-version symlink', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -1175,7 +1295,10 @@ describe('BinaryManager', () => {
         if (args[0] === 'ls' && args.length === 2)
           return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
         if (args[0] === 'ls')
-          return { stdout: uninstalled ? '{}' : JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
+          return {
+            stdout: uninstalled ? '{}' : JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
+            stderr: ''
+          }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
         if (args[0] === 'uninstall') uninstalled = true
         return { stdout: '', stderr: '' }
@@ -1597,7 +1720,8 @@ describe('BinaryManager', () => {
 
       const latestCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'latest')
       expect(latestCall?.[1]).toEqual(['latest', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh'])
-      expect(latestCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' })
+      expect(latestCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1' })
+      expect(latestCall?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
     })
 
     it('includes an applied custom tool under its manifest name', async () => {
@@ -1771,7 +1895,8 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = {}
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/node\n', stderr: '' }
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ node: [{ version: '22.23.1' }] }), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ node: [{ version: '22.23.1', active: true }] }), stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
@@ -1791,7 +1916,8 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
@@ -1804,12 +1930,97 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
-    it('rejects when the installed tool is not runnable', async () => {
+    it('accepts a recipe whose bins are not named after it (core:rust ships rustc/cargo)', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      const cargoBin = '/mock/feature.binary.data.isolated.cargo/bin'
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ rust: [{ version: '1.98.0', active: true, install_path: cargoBin }] }),
+            stderr: ''
+          }
+        }
+        // mise: "rust is not a mise bin" — the recipe exposes rustc/cargo instead.
+        if (args[0] === 'which' && args[1] === 'rust') throw new Error('rust is not a mise bin')
+        if (args[0] === 'which') return { stdout: `${cargoBin}/${args[1]}\n`, stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return { stdout: JSON.stringify([{ name: 'cargo', path: `${cargoBin}/cargo` }]), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => ['cargo', 'rustc'])
+
+      await expect(
+        (service as any).applyDefinition({ name: 'rust', tool: 'core:rust' }, undefined, [])
+      ).resolves.toBeUndefined()
+      // The exposed bin is verified for THIS recipe, not by bare name.
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+        'which',
+        'cargo',
+        '--tool',
+        'core:rust'
+      ])
+    })
+
+    it('rejects an exposed binary that resolves outside the active install', async () => {
+      // The bin a recipe exposes only counts when it resolves into THIS install —
+      // otherwise a foreign provider on PATH would pass as a successful install.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              rust: [{ version: '1.98.0', active: true, install_path: '/mock/managed/cargo/bin' }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which' && args[1] === 'rust') throw new Error('rust is not a mise bin')
+        if (args[0] === 'which') return { stdout: '/usr/local/bin/cargo\n', stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return { stdout: JSON.stringify([{ name: 'cargo', path: '/mock/managed/cargo/bin/cargo' }]), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => ['cargo'])
+
+      await expect(
+        (service as any).applyDefinition({ name: 'rust', tool: 'core:rust' }, undefined, [])
+      ).rejects.toThrow('not runnable')
+    })
+
+    it('rejects when mise reports the installed version but no active entry', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, undefined, [])).rejects.toThrow(
+        'not runnable'
+      )
+    })
+
+    it('rejects when the installed tool is not runnable', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '', stderr: '' }
         return { stdout: '', stderr: '' }
       })
@@ -1824,7 +2035,8 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
         if (args[0] === 'prune') throw new Error('cleanup failed')
         return { stdout: '', stderr: '' }
@@ -2117,10 +2329,12 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
     })
 
-    it('installs the current DeepSeek Harness prerelease without mise release-age filtering', async () => {
+    it('pins an exact healthy Node and puts its npm ahead of ambient PATH for DeepSeek Harness', async () => {
       const service = makeService()
       let installed = false
+      ;(service as any).isolatedEnv = { PATH: '/mock/mise/shims:/usr/bin' }
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
         if (args[0] === 'ls' && args.length === 2) {
           return {
             stdout: JSON.stringify(
@@ -2135,23 +2349,42 @@ describe('BinaryManager', () => {
             stderr: ''
           }
         }
-        if (args[0] === 'use') installed = true
+        if (args.includes('npm:@deepseek-ai/dsh@latest')) installed = true
+        if (args[0] === 'which' && args[1] === 'node') {
+          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
+        }
+        if (args[0] === 'which' && args[1] === 'npm') {
+          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
+        }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/dsh\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
       await service.installByName({ name: 'dsh' })
 
-      const useCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'use')
-      expect(useCall?.[1]).toEqual([
-        'use',
-        '-g',
+      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
+      expect(useCalls.map((call: any[]) => call[1])).toEqual([
+        ['use', '-g', '--pin', 'node@22.23.2'],
+        ['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest']
+      ])
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+        'latest',
         '--minimum-release-age',
         '0s',
-        'node@22',
-        'npm:@deepseek-ai/dsh@latest'
+        'node@22'
       ])
-      expect(useCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' })
+      expect(useCalls[0]?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
+      expect(useCalls[1]?.[2].env).toMatchObject({
+        PATH: '/mock/mise/installs/node/22.23.2/bin:/mock/mise/shims:/usr/bin',
+        MISE_PRERELEASES: '1',
+        MISE_NPM_SHELL_OUT: '1',
+        MISE_NPM_PACKAGE_MANAGER: 'npm'
+      })
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).not.toContainEqual([
+        'install',
+        '--force',
+        'node@22.23.2'
+      ])
     })
   })
 
@@ -2362,6 +2595,20 @@ describe('BinaryManager', () => {
       }
     })
 
+    it('pins rustup/cargo homes to the same dirs the execution env uses', async () => {
+      // rustup keeps its toolchains outside MISE_DATA_DIR. If the install
+      // subprocess and the launched tools disagree on these homes, cargo/rustc
+      // find no toolchain and re-download it into the user's real home.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      const env = await (service as any).buildIsolatedEnv()
+      const execution = getBinaryExecutionEnv()
+
+      expect(env['MISE_RUSTUP_HOME']).toBe(execution['MISE_RUSTUP_HOME'])
+      expect(env['MISE_CARGO_HOME']).toBe(execution['MISE_CARGO_HOME'])
+      expect(execution['MISE_CARGO_HOME']).toBe('/mock/feature.binary.data.isolated.cargo')
+    })
+
     it('passes through whitelisted variables but not the ambient auth token', async () => {
       const original = { ...process.env }
       try {
@@ -2525,6 +2772,65 @@ describe('BinaryManager', () => {
   })
 
   describe('installWithMise', () => {
+    it.each([
+      { name: 'resolved latest', definitions: [], runtimeSpec: 'node@22.23.2', resolvesLatest: true },
+      {
+        name: 'applied custom pin',
+        definitions: [{ name: 'node', tool: 'core:node', requestedVersion: '22.23.2' }],
+        runtimeSpec: 'core:node@22.23.2',
+        resolvesLatest: false
+      }
+    ])('force-reinstalls the $name exact Node version when its launchers are broken', async (testCase) => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { PATH: '/mock/mise/shims:/usr/bin' }
+      let runtimeReinstalled = false
+
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'install' && args[1] === '--force') {
+          runtimeReinstalled = true
+          return { stdout: '', stderr: '' }
+        }
+        if (args[0] === 'which' && args.includes('--tool') && !runtimeReinstalled) {
+          throw new Error('broken exact runtime')
+        }
+        if (args[0] === 'which' && args[1] === 'node') {
+          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
+        }
+        if (args[0] === 'which' && args[1] === 'npm') {
+          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
+        }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] }),
+            stderr: ''
+          }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        (service as any).installWithMise(
+          { name: 'dsh', tool: 'npm:@deepseek-ai/dsh', requestedVersion: 'latest' },
+          undefined,
+          testCase.definitions
+        )
+      ).resolves.toBe('0.1.0-rc.6')
+
+      const calls = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(calls).toContainEqual(['install', '--force', testCase.runtimeSpec])
+      expect(calls.filter((args: string[]) => args[0] === 'use' && args.includes(testCase.runtimeSpec))).toHaveLength(2)
+      expect(calls.some((args: string[]) => args[0] === 'latest')).toBe(testCase.resolvesLatest)
+      const installCall = mockExecFileAsync.mock.calls.find((call: any[]) =>
+        call[1].includes('npm:@deepseek-ai/dsh@latest')
+      )
+      expect(installCall?.[2].env).toMatchObject({
+        PATH: '/mock/mise/installs/node/22.23.2/bin:/mock/mise/shims:/usr/bin',
+        MISE_NPM_PACKAGE_MANAGER: 'npm'
+      })
+    })
+
     it('uses mise global config and reshim for npm: backend tools', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -2537,7 +2843,8 @@ describe('BinaryManager', () => {
       // Custom Add persists then applies via mise, exercising installWithMise.
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ 'npm:mynpmtool': [{ version: '1.0.0' }] }), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ 'npm:mynpmtool': [{ version: '1.0.0', active: true }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/mynpmtool\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
@@ -2568,7 +2875,7 @@ describe('BinaryManager', () => {
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         // node is applied at its live version, so the package install adopts it.
         if (args[0] === 'ls' && args[2] === 'npm:mynpmtool') {
-          return { stdout: JSON.stringify({ 'npm:mynpmtool': [{ version: '1.0.0' }] }), stderr: '' }
+          return { stdout: JSON.stringify({ 'npm:mynpmtool': [{ version: '1.0.0', active: true }] }), stderr: '' }
         }
         if (args[0] === 'ls') {
           return { stdout: JSON.stringify({ 'core:node': [{ version: '20.19.4', active: true }] }), stderr: '' }
@@ -2670,7 +2977,7 @@ describe('BinaryManager', () => {
         if (args[0] === 'ls') {
           const toolKey = args[2]
           const version = toolKey === 'fd' ? '10.0.0' : '15.0.0'
-          return { stdout: JSON.stringify({ [toolKey]: [{ version }] }), stderr: '' }
+          return { stdout: JSON.stringify({ [toolKey]: [{ version, active: true }] }), stderr: '' }
         }
         if (args[0] === 'which') {
           return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
@@ -2704,7 +3011,8 @@ describe('BinaryManager', () => {
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'use') await installStarted
         if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '1.0.0' }] }), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '1.0.0', active: true }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
@@ -2771,7 +3079,8 @@ describe('BinaryManager', () => {
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'use') await installStarted
         if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '1.0.0' }] }), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '1.0.0', active: true }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
@@ -2792,7 +3101,8 @@ describe('BinaryManager', () => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ [toolKey]: [{ version: '1.0.0' }] }), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ [toolKey]: [{ version: '1.0.0', active: true }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: `/mock/mise/shims/${binaryName}\n`, stderr: '' }
         return { stdout: '', stderr: '' }
       })
@@ -2902,6 +3212,41 @@ describe('BinaryManager', () => {
         env: isolatedEnv,
         timeout: 120_000
       })
+    })
+
+    it('keeps prerelease and npm shell-out environment controls independent', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { MISE_DATA_DIR: '/isolated' }
+      mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' })
+
+      await (service as any).runMise(['latest', 'npm:prerelease-tool'], { includePrerelease: true })
+      await (service as any).runMise(['latest', 'npm:shell-out-tool'], { shellOutNpm: true })
+
+      const prereleaseEnv = mockExecFileAsync.mock.calls[0][2].env
+      const shellOutEnv = mockExecFileAsync.mock.calls[1][2].env
+      expect(prereleaseEnv).toMatchObject({ MISE_DATA_DIR: '/isolated', MISE_PRERELEASES: '1' })
+      expect(prereleaseEnv).not.toHaveProperty('MISE_NPM_SHELL_OUT')
+      expect(shellOutEnv).toMatchObject({
+        MISE_DATA_DIR: '/isolated',
+        MISE_NPM_SHELL_OUT: '1',
+        MISE_NPM_PACKAGE_MANAGER: 'npm'
+      })
+      expect(shellOutEnv).not.toHaveProperty('MISE_PRERELEASES')
+    })
+
+    it('prepends a managed runtime without leaving a competing Windows PATH casing', async () => {
+      platformMock.isWin = true
+      const service = new BinaryManager()
+      ;(service as any).miseBin = 'C:\\Cherry\\mise.exe'
+      ;(service as any).isolatedEnv = { Path: 'C:\\Cherry\\shims;C:\\Windows' }
+      mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' })
+
+      await (service as any).runMise(['registry'], { prependPath: 'C:\\Cherry\\node\\bin' })
+
+      const env = mockExecFileAsync.mock.calls[0][2].env
+      expect(env.Path).toBe('C:\\Cherry\\node\\bin;C:\\Cherry\\shims;C:\\Windows')
+      expect(env).not.toHaveProperty('PATH')
     })
 
     it('includes mise stderr in the thrown diagnostic', async () => {
@@ -3045,6 +3390,59 @@ describe('BinaryManager', () => {
       expect(JSON.stringify(inventory)).not.toContain('/mock/')
       expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
       expect(mockExecFileAsync.mock.calls[0][1]).toEqual(['ls', '--json'])
+    })
+
+    it('reports a recipe with no eponymous bin as ready through the shims it exposes', async () => {
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ rust: [{ version: '1.98.0', active: true }] }), stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return { stdout: JSON.stringify([{ name: 'cargo', path: '/mock/cargo/bin/cargo' }]), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => [
+        { name: 'cargo', isFile: () => true, isSymbolicLink: () => false },
+        { name: 'rustc', isFile: () => true, isSymbolicLink: () => false }
+      ])
+
+      await expect(service.getToolInventory()).resolves.toContainEqual({
+        name: 'rust',
+        recipe: 'core:rust',
+        status: 'ready',
+        version: '1.98.0'
+      })
+    })
+
+    it('does not report ready when the exposed shim is not executable', async () => {
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ rust: [{ version: '1.98.0', active: true }] }), stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return { stdout: JSON.stringify([{ name: 'cargo', path: '/mock/cargo/bin/cargo' }]), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => [
+        { name: 'cargo', isFile: () => true, isSymbolicLink: () => false }
+      ])
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string, mode: number) => {
+        if (candidate === '/mock/feature.binary.data/shims/cargo' && mode === mockFs.constants.X_OK) {
+          throw new Error('EACCES')
+        }
+      })
+
+      await expect(service.getToolInventory()).resolves.toContainEqual(
+        expect.objectContaining({ name: 'rust', status: 'failed' })
+      )
     })
 
     it('reads live state on every inventory call instead of caching snapshots', async () => {

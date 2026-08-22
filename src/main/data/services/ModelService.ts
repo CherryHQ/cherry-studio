@@ -23,7 +23,8 @@ import {
   projectRuntimeReasoning,
   providerRegistryService,
   type ReasoningProviderContext,
-  type ResolvedReasoningProfile
+  type ResolvedReasoningProfile,
+  type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
@@ -122,6 +123,7 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
  */
 type CreateModelRegistryData = ModelLookupResult & {
   reasoningProfile: ResolvedReasoningProfile
+  serviceTierControl?: ResolvedServiceTierControl
 }
 
 type ReconcileRemovalFilterResult = {
@@ -434,8 +436,12 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
   }
 }
 
-function createPresetFallback(row: UserModelRow, profile?: ResolvedReasoningProfile['wire']): Model {
-  const baseline = createCustomModel(row.providerId, row.modelId, profile)
+function createPresetFallback(
+  row: UserModelRow,
+  profile?: ResolvedReasoningProfile['wire'],
+  serviceTierControl?: ResolvedServiceTierControl
+): Model {
+  const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
   return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
 }
 
@@ -445,13 +451,20 @@ class ModelService {
     modelId: string,
     reasoningConfigCache?: Map<string, ReasoningProviderContext>
   ): Model | null {
-    const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
+    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = providerRegistryService.lookupModel(
       providerId,
       modelId,
       reasoningConfigCache
     )
     if (!presetModel) return null
-    return mergePresetModel(presetModel, registryOverride, providerId, reasoningProfile.wire, reasoningProfile.support)
+    return mergePresetModel(
+      presetModel,
+      registryOverride,
+      providerId,
+      reasoningProfile.wire,
+      reasoningProfile.support,
+      serviceTierControl
+    )
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
@@ -464,7 +477,8 @@ class ModelService {
         registryData?.registryOverride ?? null,
         dto.providerId,
         registryData?.reasoningProfile.wire,
-        registryData?.reasoningProfile.support
+        registryData?.reasoningProfile.support,
+        registryData?.serviceTierControl
       )
       const deltaFields = collectPresetDeltaFields(dto, baseline)
       return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
@@ -643,22 +657,19 @@ class ModelService {
   /**
    * Registry resolution shared by every row-serving path. Preset-backed rows
    * use the current registry as their baseline and apply every non-null sparse
-   * config column. Complete custom rows keep their row-owned capabilities and
-   * receive only the narrow metadata/reasoning enrichment used for recognized
-   * models. Nothing is written back.
+   * config column. Complete custom rows keep their row-owned identity and
+   * capabilities while recognized models receive narrow metadata/reasoning
+   * enrichment plus missing limits and pricing. Nothing is written back.
    */
   private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
     const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
     return rows.map((row) => {
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
-            row.providerId,
-            row.modelId,
-            reasoningConfigCache
-          )
+          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+            providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
           if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile.wire)
+            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
 
           const baseline = mergePresetModel(
@@ -666,7 +677,8 @@ class ModelService {
             registryOverride,
             row.providerId,
             reasoningProfile.wire,
-            reasoningProfile.support
+            reasoningProfile.support,
+            serviceTierControl
           )
           const resolved = applyStoredPresetDeltas(baseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
@@ -685,27 +697,45 @@ class ModelService {
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
-          model.providerId,
-          modelId,
-          reasoningConfigCache
-        )
+        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+          providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+        const registryModel = presetModel
+          ? mergePresetModel(
+              presetModel,
+              registryOverride,
+              model.providerId,
+              reasoningProfile.wire,
+              reasoningProfile.support,
+              serviceTierControl
+            )
+          : undefined
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        if (model.contextWindow === undefined && registryModel?.contextWindow !== undefined) {
+          updates.contextWindow = registryModel.contextWindow
+        }
+        if (model.maxInputTokens === undefined && registryModel?.maxInputTokens !== undefined) {
+          updates.maxInputTokens = registryModel.maxInputTokens
+        }
+        if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
+          updates.maxOutputTokens = registryModel.maxOutputTokens
+        }
+        if (model.pricing === undefined && registryModel?.pricing !== undefined) {
+          updates.pricing = registryModel.pricing
+        }
         if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
+        if (serviceTierControl) {
+          updates.requestControls = {
+            serviceTier: { default: serviceTierControl.default, options: serviceTierControl.options }
+          }
+        }
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
-        if (presetModel) {
-          reasoning = mergePresetModel(
-            presetModel,
-            registryOverride,
-            model.providerId,
-            reasoningProfile.wire,
-            reasoningProfile.support
-          ).reasoning
+        if (registryModel) {
+          reasoning = registryModel.reasoning
         } else if (model.reasoning?.controls?.length) {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
