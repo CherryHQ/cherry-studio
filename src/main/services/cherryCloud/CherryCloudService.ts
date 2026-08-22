@@ -1,11 +1,9 @@
-import { readFile } from 'node:fs/promises'
-
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { cherryCloudSessionService } from '@data/services/CherryCloudSessionService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { atomicWriteFile } from '@main/utils/file'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -13,29 +11,50 @@ import {
 } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { app, net, safeStorage, shell } from 'electron'
+import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
 
 import {
   accountSnapshotSchema,
   cloudModelListSchema,
   createDesktopAuthorizationResponseSchema,
-  EMPTY_STORED_CHERRY_CLOUD_STATE,
   exchangeDesktopAuthorizationResponseSchema,
-  refreshProductSessionResponseSchema,
-  type StoredCherryCloudState,
-  storedCherryCloudStateSchema
+  refreshProductSessionResponseSchema
 } from './contracts'
 import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from './crypto'
 import { CherryCloudLoopbackCallback } from './loopbackCallback'
 
 const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
-const SESSION_FILE_MODE = 0o600
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
+type CherryCloudDevice = ReturnType<typeof createDeviceKeyPair>
+type PendingAuthorization = {
+  authorizationId: string
+  state: string
+  codeVerifier: string
+  expiresAt: string
+}
+type ProductSession = {
+  accessToken: string
+  accessExpiresAt: number
+  refreshToken: string
+  sessionId: string
+  sessionExpiresAt: number
+  deviceId: string
+  accountId: string
+  displayName: string | null
+}
+type CherryCloudState = {
+  device: CherryCloudDevice | null
+  pending: PendingAuthorization | null
+  session: ProductSession | null
+}
+
+function emptyState(): CherryCloudState {
+  return { device: null, pending: null, session: null }
+}
 
 function resolveApiOrigin(): string {
   if (app.isPackaged) throw new Error('Cherry Cloud production API origin is not configured')
@@ -48,13 +67,8 @@ function platformName(): 'darwin' | 'windows' | 'linux' {
   throw new Error(`Cherry Cloud login is not supported on ${process.platform}`)
 }
 
-function accessExpiresAt(expiresIn: number): string {
-  return new Date(Date.now() + expiresIn * 1000).toISOString()
-}
-
-function isSecureCredentialStorageAvailable(): boolean {
-  if (!safeStorage.isEncryptionAvailable()) return false
-  return process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'
+function accessExpiresAt(expiresIn: number): number {
+  return Date.now() + expiresIn * 1000
 }
 
 export class CherryCloudLoginUnavailableError extends Error {
@@ -68,9 +82,9 @@ export class CherryCloudLoginUnavailableError extends Error {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['ApiGatewayService'])
 export class CherryCloudService extends BaseService {
-  private storedState: StoredCherryCloudState = structuredClone(EMPTY_STORED_CHERRY_CLOUD_STATE)
+  private cloudState = emptyState()
   private loginPromise: Promise<CherryCloudStatus> | null = null
-  private refreshPromise: Promise<NonNullable<StoredCherryCloudState['session']>> | null = null
+  private refreshPromise: Promise<ProductSession> | null = null
   private modelSyncPromise: Promise<{ modelCount: number }> | null = null
   private agentGatewayLeasePromise: Promise<void> | null = null
   private hasAgentGatewayLease = false
@@ -87,7 +101,7 @@ export class CherryCloudService extends BaseService {
       this.loopbackCallback?.dispose()
       this.loopbackCallback = null
     })
-    await this.restoreState()
+    await this.restoreSession()
   }
 
   protected async onStop(): Promise<void> {
@@ -112,12 +126,11 @@ export class CherryCloudService extends BaseService {
   private async createLogin(): Promise<CherryCloudStatus> {
     const current = await this.getStatus()
     if (current.phase !== 'signed-out') return current
-    this.assertEncryptionAvailable()
 
-    const device = this.storedState.device ?? createDeviceKeyPair()
+    const device = this.cloudState.device ?? createDeviceKeyPair()
     const secrets = createAuthorizationSecrets()
     const loopbackCallback = app.isPackaged ? null : await this.openLoopbackCallback()
-    let pending: NonNullable<StoredCherryCloudState['pending']> | null = null
+    let pending: PendingAuthorization | null = null
 
     try {
       const created = await this.postJson(
@@ -140,15 +153,14 @@ export class CherryCloudService extends BaseService {
         codeVerifier: secrets.codeVerifier,
         expiresAt: created.expires_at
       }
-      this.storedState = { ...this.storedState, device, pending }
-      await this.persistState()
+      this.cloudState = { ...this.cloudState, device, pending }
       this.emitStatus()
 
       await shell.openExternal(created.authorization_url)
     } catch (error) {
       loopbackCallback?.dispose()
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
-      if (pending) await this.clearPendingAuthorization(pending)
+      if (pending) this.clearPendingAuthorization(pending)
       throw error
     }
 
@@ -170,7 +182,7 @@ export class CherryCloudService extends BaseService {
       throw new Error('Invalid Cherry Cloud callback')
     }
 
-    const pending = this.storedState.pending
+    const pending = this.cloudState.pending
     const authorizationId = url.searchParams.get('authorization_id')
     const callbackState = url.searchParams.get('state')
     if (!pending || authorizationId !== pending.authorizationId || callbackState !== pending.state) {
@@ -185,18 +197,18 @@ export class CherryCloudService extends BaseService {
     }
 
     if (Date.parse(pending.expiresAt) <= Date.now()) {
-      await this.clearPendingAuthorization(pending)
+      this.clearPendingAuthorization(pending)
       throw new Error('Cherry Cloud authorization has expired')
     }
 
     if (url.searchParams.has('error')) {
-      await this.clearPendingAuthorization(pending)
+      this.clearPendingAuthorization(pending)
       return
     }
 
     const handoffCode = url.searchParams.get('handoff_code')
     if (!handoffCode) {
-      await this.clearPendingAuthorization(pending)
+      this.clearPendingAuthorization(pending)
       throw new Error('Cherry Cloud callback is missing the handoff code')
     }
 
@@ -211,7 +223,7 @@ export class CherryCloudService extends BaseService {
     return exchange
   }
 
-  private async exchangeCallback(pending: NonNullable<StoredCherryCloudState['pending']>, handoffCode: string) {
+  private async exchangeCallback(pending: PendingAuthorization, handoffCode: string) {
     try {
       const exchanged = await this.postJson(
         `/api/v1/desktop/authorizations/${encodeURIComponent(pending.authorizationId)}/exchange`,
@@ -224,21 +236,21 @@ export class CherryCloudService extends BaseService {
       )
 
       const tokenSet = exchanged.token_set
-      this.storedState = {
-        ...this.storedState,
+      this.cloudState = {
+        ...this.cloudState,
         pending: null,
         session: {
           accessToken: tokenSet.access_token,
           accessExpiresAt: accessExpiresAt(tokenSet.expires_in),
           refreshToken: tokenSet.refresh_token,
           sessionId: tokenSet.session_id,
-          sessionExpiresAt: tokenSet.session_expires_at,
+          sessionExpiresAt: Date.parse(tokenSet.session_expires_at),
           deviceId: exchanged.account.device.id,
           accountId: exchanged.account.account.id,
           displayName: exchanged.account.account.display_name ?? null
         }
       }
-      await this.persistState()
+      this.persistSession()
       this.emitStatus()
       void this.syncFreeModels().catch((error) => {
         logger.warn('Cherry Cloud model sync failed after login', {
@@ -246,25 +258,24 @@ export class CherryCloudService extends BaseService {
         })
       })
     } catch (error) {
-      await this.clearPendingAuthorization(pending)
+      this.clearPendingAuthorization(pending)
       throw error
     }
   }
 
-  private async clearPendingAuthorization(pending: NonNullable<StoredCherryCloudState['pending']>): Promise<void> {
-    const current = this.storedState.pending
+  private clearPendingAuthorization(pending: PendingAuthorization): void {
+    const current = this.cloudState.pending
     if (!current || current.authorizationId !== pending.authorizationId || current.state !== pending.state) return
 
-    this.storedState = { ...this.storedState, pending: null }
-    await this.persistState()
+    this.cloudState = { ...this.cloudState, pending: null }
     this.emitStatus()
   }
 
   private currentStatus(): CherryCloudStatus {
-    if (this.storedState.session) {
-      return { phase: 'signed-in', displayName: this.storedState.session.displayName }
+    if (this.cloudState.session) {
+      return { phase: 'signed-in', displayName: this.cloudState.session.displayName }
     }
-    if (this.storedState.pending) {
+    if (this.cloudState.pending) {
       return { phase: 'authorizing', displayName: null }
     }
     return { phase: 'signed-out', displayName: null }
@@ -293,7 +304,7 @@ export class CherryCloudService extends BaseService {
 
   private async syncFreeModelsOnce(): Promise<{ modelCount: number }> {
     await this.pruneExpiredState()
-    if (!this.storedState.session) {
+    if (!this.cloudState.session) {
       this.reconcileFreeModels([])
       return { modelCount: 0 }
     }
@@ -305,7 +316,7 @@ export class CherryCloudService extends BaseService {
         'anthropic-version': '2023-06-01'
       })
     ])
-    if (this.sessionGeneration !== sessionGeneration || !this.storedState.session) return { modelCount: 0 }
+    if (this.sessionGeneration !== sessionGeneration || !this.cloudState.session) return { modelCount: 0 }
 
     const freeModelIds = new Set(
       account.entitlements
@@ -397,13 +408,13 @@ export class CherryCloudService extends BaseService {
 
   public async revokeCurrentSession(): Promise<CherryCloudStatus> {
     await this.pruneExpiredState()
-    if (!this.storedState.session) return this.currentStatus()
+    if (!this.cloudState.session) return this.currentStatus()
 
     let response: Response
     try {
       response = await this.authenticatedFetch('/api/v1/product-sessions/current', { method: 'DELETE' })
     } catch (error) {
-      if (!this.storedState.session) return this.currentStatus()
+      if (!this.cloudState.session) return this.currentStatus()
       throw error
     }
     if (response.status === 401) return this.currentStatus()
@@ -442,11 +453,11 @@ export class CherryCloudService extends BaseService {
     return schema.parse(await response.json())
   }
 
-  private async activeSession(): Promise<NonNullable<StoredCherryCloudState['session']>> {
+  private async activeSession(): Promise<ProductSession> {
     await this.pruneExpiredState()
-    const session = this.storedState.session
+    const session = this.cloudState.session
     if (!session) throw new Error('Cherry Cloud account is not signed in')
-    if (Date.parse(session.accessExpiresAt) - ACCESS_TOKEN_REFRESH_SKEW_MS > Date.now()) return session
+    if (session.accessExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > Date.now()) return session
     if (this.refreshPromise) return this.refreshPromise
 
     const refresh = this.refreshSession(session).finally(() => {
@@ -456,9 +467,7 @@ export class CherryCloudService extends BaseService {
     return refresh
   }
 
-  private async refreshSession(
-    session: NonNullable<StoredCherryCloudState['session']>
-  ): Promise<NonNullable<StoredCherryCloudState['session']>> {
+  private async refreshSession(session: ProductSession): Promise<ProductSession> {
     const body = JSON.stringify({ session_id: session.sessionId, refresh_token: session.refreshToken })
     const url = new URL('/api/v1/product-sessions/refresh', `${resolveApiOrigin()}/`)
     const response = await this.signedFetch(
@@ -487,23 +496,23 @@ export class CherryCloudService extends BaseService {
       accessExpiresAt: accessExpiresAt(refreshed.expires_in),
       refreshToken: refreshed.refresh_token,
       sessionId: refreshed.session_id,
-      sessionExpiresAt: refreshed.session_expires_at
+      sessionExpiresAt: Date.parse(refreshed.session_expires_at)
     }
-    if (this.storedState.session !== session) {
+    if (this.cloudState.session !== session) {
       throw new Error('Cherry Cloud session changed while refresh was in progress')
     }
-    this.storedState = { ...this.storedState, session: next }
-    await this.persistState()
+    this.cloudState = { ...this.cloudState, session: next }
+    this.persistSession()
     return next
   }
 
-  private async clearSession(expectedSession?: NonNullable<StoredCherryCloudState['session']>): Promise<void> {
-    const currentSession = this.storedState.session
+  private async clearSession(expectedSession?: ProductSession): Promise<void> {
+    const currentSession = this.cloudState.session
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
 
-    this.storedState = { ...this.storedState, session: null }
+    this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
-    await this.persistState()
+    cherryCloudSessionService.clear()
     await this.releaseAgentGatewayLease()
     this.reconcileFreeModels([])
     this.emitStatus()
@@ -527,10 +536,10 @@ export class CherryCloudService extends BaseService {
   private async signedFetch(
     url: URL,
     init: CherryCloudRequestInit | undefined,
-    session: NonNullable<StoredCherryCloudState['session']>,
+    session: ProductSession,
     options: { bearer: boolean; idempotencyKey?: string }
   ): Promise<Response> {
-    const device = this.storedState.device
+    const device = this.cloudState.device
     if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
     const method = (init?.method ?? 'GET').toUpperCase()
     const body = Buffer.from(init?.body ?? '', 'utf8')
@@ -570,53 +579,58 @@ export class CherryCloudService extends BaseService {
 
   private async pruneExpiredState(): Promise<void> {
     const now = Date.now()
-    const pendingExpired = this.storedState.pending && Date.parse(this.storedState.pending.expiresAt) <= now
-    const sessionExpired = this.storedState.session && Date.parse(this.storedState.session.sessionExpiresAt) <= now
+    const pendingExpired = this.cloudState.pending && Date.parse(this.cloudState.pending.expiresAt) <= now
+    const sessionExpired = this.cloudState.session && this.cloudState.session.sessionExpiresAt <= now
     if (!pendingExpired && !sessionExpired) return
 
-    this.storedState = {
-      ...this.storedState,
-      pending: pendingExpired ? null : this.storedState.pending,
-      session: sessionExpired ? null : this.storedState.session
+    this.cloudState = {
+      ...this.cloudState,
+      pending: pendingExpired ? null : this.cloudState.pending,
+      session: sessionExpired ? null : this.cloudState.session
     }
     if (sessionExpired) this.sessionGeneration += 1
-    await this.persistState()
+    if (sessionExpired) cherryCloudSessionService.clear()
     if (sessionExpired) await this.releaseAgentGatewayLease()
     this.emitStatus()
   }
 
-  private async restoreState(): Promise<void> {
-    if (!isSecureCredentialStorageAvailable()) return
+  private async restoreSession(): Promise<void> {
+    const stored = cherryCloudSessionService.get()
+    if (!stored) return
 
-    try {
-      const encrypted = await readFile(this.sessionFilePath())
-      const serialized = safeStorage.decryptString(encrypted)
-      this.storedState = storedCherryCloudStateSchema.parse(JSON.parse(serialized))
-      await this.pruneExpiredState()
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.warn('Failed to restore Cherry Cloud login state')
+    this.cloudState = {
+      device: { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey },
+      pending: null,
+      session: {
+        accessToken: stored.accessToken,
+        accessExpiresAt: stored.accessExpiresAt,
+        refreshToken: stored.refreshToken,
+        sessionId: stored.sessionId,
+        sessionExpiresAt: stored.sessionExpiresAt,
+        deviceId: stored.deviceId,
+        accountId: stored.accountId,
+        displayName: stored.displayName ?? null
       }
     }
+    await this.pruneExpiredState()
   }
 
-  private assertEncryptionAvailable(): void {
-    if (!isSecureCredentialStorageAvailable()) {
-      throw new Error('Secure credential storage is unavailable')
-    }
-  }
+  private persistSession(): void {
+    const { device, session } = this.cloudState
+    if (!device || !session) return
 
-  private async persistState(): Promise<void> {
-    this.assertEncryptionAvailable()
-    const serialized = JSON.stringify(storedCherryCloudStateSchema.parse(this.storedState))
-    const encrypted = safeStorage.encryptString(serialized)
-    await atomicWriteFile(this.sessionFilePath(), encrypted, {
-      mode: SESSION_FILE_MODE
+    cherryCloudSessionService.replace({
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      accessExpiresAt: session.accessExpiresAt,
+      sessionId: session.sessionId,
+      sessionExpiresAt: session.sessionExpiresAt,
+      deviceId: session.deviceId,
+      accountId: session.accountId,
+      displayName: session.displayName,
+      devicePublicKey: device.publicKey,
+      devicePrivateKey: device.privateKey
     })
-  }
-
-  private sessionFilePath() {
-    return AbsoluteFilePathSchema.parse(application.getPath('feature.cherry_cloud.session_file'))
   }
 
   private async postJson<T>(path: string, body: unknown, schema: ZodType<T>): Promise<T> {
