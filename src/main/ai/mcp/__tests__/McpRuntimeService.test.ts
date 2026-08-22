@@ -1240,11 +1240,12 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(restartSpy).not.toHaveBeenCalled()
   })
 
-  it('does not block shutdown or write stale status when background finishAuth hangs', async () => {
+  it('drains background finishAuth during shutdown without writing stale status', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
     let resolveBackgroundCode!: (code: string) => void
-    mcpSdkMock.state.finishAuthPromise = new Promise<void>(() => undefined)
+    const finishAuth = createDeferred<void>()
+    mcpSdkMock.state.finishAuthPromise = finishAuth.promise
     callbackServerMock.waitForAuthCode
       .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
       .mockImplementationOnce(
@@ -1264,7 +1265,16 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     resolveBackgroundCode('background-auth-code')
     await vi.waitFor(() => expect(mcpSdkMock.state.finishAuthStarted).toHaveBeenCalledTimes(1))
 
-    await (service as any).onStop()
+    const stop = (service as any).onStop()
+    let stopped = false
+    void stop.then(() => {
+      stopped = true
+    })
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    expect(stopped).toBe(false)
+
+    finishAuth.resolve()
+    await stop
 
     expect(restartSpy).not.toHaveBeenCalled()
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
