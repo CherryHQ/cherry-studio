@@ -41,7 +41,8 @@ function tabsContext(activeTab?: TabsContextValue['activeTab']): TabsContextValu
     unpinTab: vi.fn(),
     reorderTabs: vi.fn(),
     detachTab: vi.fn(),
-    attachTab: vi.fn()
+    attachTab: vi.fn(),
+    subscribeTabsClosed: vi.fn(() => () => {})
   }
 }
 

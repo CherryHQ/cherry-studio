@@ -26,7 +26,8 @@ function createTabsContext(tabs: Tab[], closeTabs = vi.fn(), activeTabId = tabs[
     unpinTab: vi.fn(),
     reorderTabs: vi.fn(),
     detachTab: vi.fn(),
-    attachTab: vi.fn()
+    attachTab: vi.fn(),
+    subscribeTabsClosed: vi.fn()
   }
 }
 
