@@ -152,7 +152,7 @@ export class CherryCloudService extends BaseService {
 
     const device = this.cloudState.device ?? createDeviceKeyPair()
     const secrets = createAuthorizationSecrets()
-    const loopbackCallback = app.isPackaged ? null : await this.openLoopbackCallback()
+    const loopbackCallback = app.isPackaged ? null : await this.openLoopbackCallback(lifecycleGeneration)
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       loopbackCallback?.dispose()
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
@@ -197,12 +197,16 @@ export class CherryCloudService extends BaseService {
     return this.currentStatus()
   }
 
-  private async openLoopbackCallback(): Promise<CherryCloudLoopbackCallback> {
+  private async openLoopbackCallback(lifecycleGeneration: number): Promise<CherryCloudLoopbackCallback> {
     this.loopbackCallback?.dispose()
     const receiver = await CherryCloudLoopbackCallback.open(async (url) => {
       await this.handleCallback(url)
       if (this.loopbackCallback === receiver) this.loopbackCallback = null
     }, resolveApiOrigin())
+    if (this.lifecycleGeneration !== lifecycleGeneration) {
+      receiver.dispose()
+      this.assertLifecycleGeneration(lifecycleGeneration)
+    }
     this.loopbackCallback = receiver
     return receiver
   }
@@ -526,7 +530,8 @@ export class CherryCloudService extends BaseService {
   }
 
   public async ensureAgentGateway(): Promise<void> {
-    await this.activeSession()
+    const session = await this.activeSession()
+    if (this.cloudState.session !== session) throw new Error('Cherry Cloud account is not signed in')
     if (this.hasAgentGatewayLease) return
     if (this.agentGatewayLeasePromise) return this.agentGatewayLeasePromise
 

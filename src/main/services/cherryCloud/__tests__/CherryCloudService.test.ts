@@ -374,6 +374,33 @@ describe('CherryCloudService', () => {
     expect(mocks.openExternal).not.toHaveBeenCalled()
   })
 
+  it('does not let an older loopback open replace the restarted login receiver', async () => {
+    const oldOpen = deferred<typeof mocks.loopbackReceiver>()
+    const newOpen = deferred<typeof mocks.loopbackReceiver>()
+    const oldReceiver = { dispose: vi.fn(), port: 49152, setExpiresAt: vi.fn() }
+    const newReceiver = { dispose: vi.fn(), port: 49153, setExpiresAt: vi.fn() }
+    mocks.loopbackOpen.mockReset()
+    mocks.loopbackOpen.mockReturnValueOnce(oldOpen.promise).mockReturnValueOnce(newOpen.promise)
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    const oldLogin = service.startLogin()
+    await vi.waitFor(() => expect(mocks.loopbackOpen).toHaveBeenCalledOnce())
+    await service._doStop()
+    await service._doInit()
+    const newLogin = service.startLogin()
+    await vi.waitFor(() => expect(mocks.loopbackOpen).toHaveBeenCalledTimes(2))
+    newOpen.resolve(newReceiver)
+    await newLogin
+    oldOpen.resolve(oldReceiver)
+
+    await expect(oldLogin).rejects.toThrow('service stopped during login')
+    await service._doStop()
+    expect(oldReceiver.dispose).toHaveBeenCalledOnce()
+    expect(newReceiver.dispose).toHaveBeenCalledOnce()
+  })
+
   it('reports an unavailable login service when the backend cannot be reached', async () => {
     mocks.netFetch.mockRejectedValueOnce(new TypeError('fetch failed'))
     const service = new CherryCloudService()
@@ -1010,5 +1037,20 @@ describe('CherryCloudService', () => {
 
     await service._doStop()
     expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
+  })
+
+  it('does not acquire a gateway lease after the Session is cleared', async () => {
+    const service = await createSignedInService()
+    const pendingRequest = deferred<Response>()
+    mocks.netFetch.mockReturnValueOnce(pendingRequest.promise)
+    const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
+
+    pendingRequest.resolve(jsonResponse({}, 401))
+    const gateway = service.ensureAgentGateway()
+
+    await oldRequest
+    await expect(gateway).rejects.toThrow('Cherry Cloud account is not signed in')
+    expect(mocks.acquireGatewayLease).not.toHaveBeenCalled()
   })
 })
