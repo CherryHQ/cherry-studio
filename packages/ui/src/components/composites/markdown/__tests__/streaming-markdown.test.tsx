@@ -8,9 +8,12 @@
  * emits for the *unrevealed* tail.
  */
 
-import { render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { JSX } from 'react'
+import type { ExtraProps } from 'streamdown'
 import { describe, expect, it } from 'vitest'
 
+import { useMarkdownBlockContext } from '../context'
 import { StreamingMarkdown } from '../streaming-markdown'
 
 describe('StreamingMarkdown', () => {
@@ -80,5 +83,43 @@ describe('StreamingMarkdown', () => {
     expect(animated).not.toBeNull()
     const animation = (animated as HTMLElement).style.getPropertyValue('--sd-animation')
     expect(animation).toBe('sd-fadeIn')
+  })
+
+  it('provides each streaming block source to custom renderers', () => {
+    const copied: string[] = []
+    const tableMarkdown = `| Name | Type |
+| :--- | ---: |
+| Project A | In progress |`
+    const content = `Intro paragraph\n\n${tableMarkdown}`
+
+    function CopyableTable({ node, ...props }: JSX.IntrinsicElements['table'] & ExtraProps) {
+      const markdownContext = useMarkdownBlockContext()
+      const position = node?.position
+      const source = position
+        ? markdownContext?.content
+            .split('\n')
+            .slice(position.start.line - 1, position.end.line)
+            .join('\n')
+            .trim()
+        : ''
+
+      return (
+        <div>
+          <table {...props} />
+          <button type="button" onClick={() => copied.push(source ?? '')}>
+            Copy table
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <StreamingMarkdown id="table-source" animated={false} components={{ table: CopyableTable }}>
+        {content}
+      </StreamingMarkdown>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy table' }))
+    expect(copied).toEqual([tableMarkdown])
   })
 })
