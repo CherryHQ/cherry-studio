@@ -1,7 +1,8 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
+import { assertAgentPreflightOutput } from './agent'
 import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
 import { SUITE_IDS } from './cases'
@@ -117,6 +118,58 @@ async function agentSettingsCommand(): Promise<void> {
   )
   const redacted = createRedactor(getSensitiveConfigValues(config))
   process.stdout.write(`${JSON.stringify(redacted({ output, suite }))}\n`)
+}
+
+async function agentPreflightCommand(): Promise<void> {
+  const paths = runDirectory()
+  const claudePath = resolve(argument('claude-path') ?? '')
+  const config = loadTestConfig()
+  const marker = 'CHERRY_TEST_AGENT_READY'
+  const environment = { ...process.env }
+  for (const name of REQUIRED_CONFIG) delete environment[name]
+  environment.ANTHROPIC_BASE_URL = config.customProvider.baseUrl
+  environment.ANTHROPIC_API_KEY = config.customProvider.apiKey
+  const result = spawnSync(
+    claudePath,
+    [
+      '--print',
+      '--bare',
+      '--model',
+      config.customProvider.chatModel,
+      '--max-turns',
+      '1',
+      '--output-format',
+      'json',
+      '--no-session-persistence',
+      '--tools',
+      '',
+      '--system-prompt',
+      'Respond with only the requested marker.',
+      `Reply exactly ${marker}.`
+    ],
+    { cwd: process.cwd(), encoding: 'utf8', env: environment, maxBuffer: 10 * 1024 * 1024, timeout: 120_000 }
+  )
+  const redact = createRedactor(getSensitiveConfigValues(config))
+  writeFileSync(
+    join(paths.logs, 'agent-preflight.json'),
+    `${JSON.stringify(
+      redact({
+        error: result.error?.message,
+        signal: result.signal,
+        status: result.status,
+        stderr: result.stderr,
+        stdout: result.stdout
+      }),
+      null,
+      2
+    )}\n`,
+    { mode: 0o600 }
+  )
+  if (result.error || result.status !== 0) {
+    throw new Error('Test agent preflight failed; inspect the redacted platform evidence')
+  }
+  assertAgentPreflightOutput(result.stdout, marker)
+  process.stdout.write('Test agent preflight passed\n')
 }
 
 async function releaseCommand(): Promise<void> {
@@ -247,6 +300,9 @@ async function main(): Promise<void> {
       break
     case 'agent-settings':
       await agentSettingsCommand()
+      break
+    case 'agent-preflight':
+      await agentPreflightCommand()
       break
     case 'release':
       await releaseCommand()
