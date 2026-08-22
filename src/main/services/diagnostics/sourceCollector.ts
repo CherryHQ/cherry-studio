@@ -392,7 +392,7 @@ export async function stageSourceCandidate(
       }
       if (!classified) continue
       bytes += classified.data.length
-      if (!writer.write(classified.data)) await once(writer, 'drain')
+      if (!writer.write(classified.data)) await Promise.race([once(writer, 'drain'), completion])
     }
     if (bytes !== candidate.eligibleBytes || malformedLineCount !== candidate.malformedLineCount) {
       throw new SourceChangedError()
