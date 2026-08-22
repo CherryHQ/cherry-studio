@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { assertAgentPreflightOutput } from './agent'
+import { assertAgentPreflightOutput, assertAgentSuiteOutput } from './agent'
 import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
 import { SUITE_IDS } from './cases'
@@ -15,6 +15,22 @@ import { parseRemoteRefs, resolveTrustedRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
 import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
 import { PLATFORMS, type RegressionRun, RUN_MODES } from './types'
+
+const AGENT_ALLOWED_TOOLS = [
+  'Read',
+  'Glob',
+  'Grep',
+  'mcp__cherry_regression__get_run_context',
+  'mcp__cherry_regression__begin_case',
+  'mcp__cherry_regression__inspect_ui',
+  'mcp__cherry_regression__interact',
+  'mcp__cherry_regression__system_action',
+  'mcp__cherry_regression__restart_app',
+  'mcp__cherry_regression__record_evidence',
+  'mcp__cherry_regression__complete_case'
+] as const
+
+const AGENT_DISALLOWED_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent'] as const
 
 function argument(name: string, required = true): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
@@ -172,6 +188,82 @@ async function agentPreflightCommand(): Promise<void> {
   process.stdout.write('Test agent preflight passed\n')
 }
 
+async function runAgentSuiteCommand(): Promise<void> {
+  const paths = runDirectory()
+  const suite = oneOf(argument('suite') ?? '', SUITE_IDS, 'suite')
+  const claudePath = resolve(argument('claude-path') ?? '')
+  const settingsPath = join(paths.root, `claude-settings-${suite}.json`)
+  const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as { env?: Record<string, string | undefined> }
+  if (!settings.env) throw new Error(`Agent settings are missing environment values for ${suite}`)
+
+  const config = loadTestConfig(settings.env)
+  const skillInstructions = readFileSync(resolve('.agents/skills/cherry-regression-test/SKILL.md'), 'utf8')
+  const environment = {
+    ...process.env,
+    ...settings.env,
+    ANTHROPIC_BASE_URL: config.customProvider.baseUrl,
+    ANTHROPIC_API_KEY: config.customProvider.apiKey
+  }
+  const mcpConfig = JSON.stringify({
+    mcpServers: {
+      cherry_regression: {
+        command: 'node',
+        args: ['node_modules/tsx/dist/cli.mjs', 'scripts/cherry-regression-test/server.ts']
+      }
+    }
+  })
+  const result = spawnSync(
+    claudePath,
+    [
+      '--print',
+      '--bare',
+      '--model',
+      config.customProvider.chatModel,
+      '--max-turns',
+      '180',
+      '--output-format',
+      'json',
+      '--no-session-persistence',
+      '--settings',
+      settingsPath,
+      '--append-system-prompt',
+      skillInstructions,
+      '--mcp-config',
+      mcpConfig,
+      '--strict-mcp-config',
+      '--allowedTools',
+      AGENT_ALLOWED_TOOLS.join(','),
+      '--disallowedTools',
+      AGENT_DISALLOWED_TOOLS.join(','),
+      '--permission-mode',
+      'dontAsk',
+      `Run suite ${suite}. Use only the CI MCP workflow for application control and evidence. Finish every applicable case with its actual status.`
+    ],
+    { cwd: process.cwd(), encoding: 'utf8', env: environment, maxBuffer: 100 * 1024 * 1024, timeout: 45 * 60_000 }
+  )
+  const redact = createRedactor(getSensitiveConfigValues(config))
+  writeFileSync(
+    join(paths.logs, `agent-${suite}.json`),
+    `${JSON.stringify(
+      redact({
+        error: result.error?.message,
+        signal: result.signal,
+        status: result.status,
+        stderr: result.stderr,
+        stdout: result.stdout
+      }),
+      null,
+      2
+    )}\n`,
+    { mode: 0o600 }
+  )
+  if (result.error || result.status !== 0) {
+    throw new Error(`Test agent failed for ${suite}; inspect the redacted platform evidence`)
+  }
+  assertAgentSuiteOutput(result.stdout)
+  process.stdout.write(`Test agent completed ${suite}\n`)
+}
+
 async function releaseCommand(): Promise<void> {
   const paths = runDirectory()
   let run = readRun(paths.runState)
@@ -303,6 +395,9 @@ async function main(): Promise<void> {
       break
     case 'agent-preflight':
       await agentPreflightCommand()
+      break
+    case 'run-agent-suite':
+      await runAgentSuiteCommand()
       break
     case 'release':
       await releaseCommand()

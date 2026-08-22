@@ -220,136 +220,82 @@ jobs:
           done
 
       - name: Run suite 1 — startup and models
-        id: suite_1
         continue-on-error: true
         timeout-minutes: 50
-        uses: anthropics/claude-code-action/base-action@v1
+        shell: bash
         env:
-          ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
           MCP_TIMEOUT: "30000"
           MCP_TOOL_TIMEOUT: "240000"
-        with:
-          anthropic_api_key: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          path_to_claude_code_executable: ${{ steps.claude.outputs.path }}
-          settings: ${{ runner.temp }}/cherry-regression/claude-settings-suite-1.json
-          prompt: |
-            Run the cherry-regression-test skill for suite-1. Use only its CI MCP workflow for application control and evidence. Do not edit source or test files. Finish every applicable case in this suite with its actual status.
-          claude_args: |
-            --model ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-            --max-turns 180
-            --mcp-config '{"mcpServers":{"cherry_regression":{"command":"node","args":["node_modules/tsx/dist/cli.mjs","scripts/cherry-regression-test/server.ts"]}}}'
-            --allowedTools "Read,Glob,Grep,mcp__cherry_regression__get_run_context,mcp__cherry_regression__begin_case,mcp__cherry_regression__inspect_ui,mcp__cherry_regression__interact,mcp__cherry_regression__system_action,mcp__cherry_regression__restart_app,mcp__cherry_regression__record_evidence,mcp__cherry_regression__complete_case"
-            --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          --run-dir "$RUN_DIR"
+          --suite suite-1
+          --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run suite 2 — assistant interactions
-        id: suite_2
         continue-on-error: true
         timeout-minutes: 50
-        uses: anthropics/claude-code-action/base-action@v1
+        shell: bash
         env:
-          ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
           MCP_TIMEOUT: "30000"
           MCP_TOOL_TIMEOUT: "240000"
-        with:
-          anthropic_api_key: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          path_to_claude_code_executable: ${{ steps.claude.outputs.path }}
-          settings: ${{ runner.temp }}/cherry-regression/claude-settings-suite-2.json
-          prompt: |
-            Run the cherry-regression-test skill for suite-2. Use only its CI MCP workflow for application control and evidence. Do not edit source or test files. Finish every applicable case in this suite with its actual status.
-          claude_args: |
-            --model ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-            --max-turns 180
-            --mcp-config '{"mcpServers":{"cherry_regression":{"command":"node","args":["node_modules/tsx/dist/cli.mjs","scripts/cherry-regression-test/server.ts"]}}}'
-            --allowedTools "Read,Glob,Grep,mcp__cherry_regression__get_run_context,mcp__cherry_regression__begin_case,mcp__cherry_regression__inspect_ui,mcp__cherry_regression__interact,mcp__cherry_regression__system_action,mcp__cherry_regression__restart_app,mcp__cherry_regression__record_evidence,mcp__cherry_regression__complete_case"
-            --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          --run-dir "$RUN_DIR"
+          --suite suite-2
+          --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run suite 3 — knowledge and MCP
-        id: suite_3
         continue-on-error: true
         timeout-minutes: 50
-        uses: anthropics/claude-code-action/base-action@v1
+        shell: bash
         env:
-          ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
           MCP_TIMEOUT: "30000"
           MCP_TOOL_TIMEOUT: "240000"
-        with:
-          anthropic_api_key: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          path_to_claude_code_executable: ${{ steps.claude.outputs.path }}
-          settings: ${{ runner.temp }}/cherry-regression/claude-settings-suite-3.json
-          prompt: |
-            Run the cherry-regression-test skill for suite-3. Use only its CI MCP workflow for application control and evidence. Do not edit source or test files. Finish every applicable case in this suite with its actual status.
-          claude_args: |
-            --model ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-            --max-turns 180
-            --mcp-config '{"mcpServers":{"cherry_regression":{"command":"node","args":["node_modules/tsx/dist/cli.mjs","scripts/cherry-regression-test/server.ts"]}}}'
-            --allowedTools "Read,Glob,Grep,mcp__cherry_regression__get_run_context,mcp__cherry_regression__begin_case,mcp__cherry_regression__inspect_ui,mcp__cherry_regression__interact,mcp__cherry_regression__system_action,mcp__cherry_regression__restart_app,mcp__cherry_regression__record_evidence,mcp__cherry_regression__complete_case"
-            --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          --run-dir "$RUN_DIR"
+          --suite suite-3
+          --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run suite 4 — Agent runtimes
-        id: suite_4
         continue-on-error: true
         timeout-minutes: 50
-        uses: anthropics/claude-code-action/base-action@v1
+        shell: bash
         env:
-          ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
           MCP_TIMEOUT: "30000"
           MCP_TOOL_TIMEOUT: "240000"
-        with:
-          anthropic_api_key: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          path_to_claude_code_executable: ${{ steps.claude.outputs.path }}
-          settings: ${{ runner.temp }}/cherry-regression/claude-settings-suite-4.json
-          prompt: |
-            Run the cherry-regression-test skill for suite-4. Use only its CI MCP workflow for application control and evidence. Do not edit source or test files. Finish every applicable case in this suite with its actual status.
-          claude_args: |
-            --model ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-            --max-turns 180
-            --mcp-config '{"mcpServers":{"cherry_regression":{"command":"node","args":["node_modules/tsx/dist/cli.mjs","scripts/cherry-regression-test/server.ts"]}}}'
-            --allowedTools "Read,Glob,Grep,mcp__cherry_regression__get_run_context,mcp__cherry_regression__begin_case,mcp__cherry_regression__inspect_ui,mcp__cherry_regression__interact,mcp__cherry_regression__system_action,mcp__cherry_regression__restart_app,mcp__cherry_regression__record_evidence,mcp__cherry_regression__complete_case"
-            --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          --run-dir "$RUN_DIR"
+          --suite suite-4
+          --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run suite 5 — image and translation
-        id: suite_5
         continue-on-error: true
         timeout-minutes: 50
-        uses: anthropics/claude-code-action/base-action@v1
+        shell: bash
         env:
-          ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
           MCP_TIMEOUT: "30000"
           MCP_TOOL_TIMEOUT: "240000"
-        with:
-          anthropic_api_key: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          path_to_claude_code_executable: ${{ steps.claude.outputs.path }}
-          settings: ${{ runner.temp }}/cherry-regression/claude-settings-suite-5.json
-          prompt: |
-            Run the cherry-regression-test skill for suite-5. Use only its CI MCP workflow for application control and evidence. Do not edit source or test files. Finish every applicable case in this suite with its actual status.
-          claude_args: |
-            --model ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-            --max-turns 180
-            --mcp-config '{"mcpServers":{"cherry_regression":{"command":"node","args":["node_modules/tsx/dist/cli.mjs","scripts/cherry-regression-test/server.ts"]}}}'
-            --allowedTools "Read,Glob,Grep,mcp__cherry_regression__get_run_context,mcp__cherry_regression__begin_case,mcp__cherry_regression__inspect_ui,mcp__cherry_regression__interact,mcp__cherry_regression__system_action,mcp__cherry_regression__restart_app,mcp__cherry_regression__record_evidence,mcp__cherry_regression__complete_case"
-            --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          --run-dir "$RUN_DIR"
+          --suite suite-5
+          --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run suite 6 — mini apps, code, and notes
-        id: suite_6
         continue-on-error: true
         timeout-minutes: 50
-        uses: anthropics/claude-code-action/base-action@v1
+        shell: bash
         env:
-          ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
           MCP_TIMEOUT: "30000"
           MCP_TOOL_TIMEOUT: "240000"
-        with:
-          anthropic_api_key: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          path_to_claude_code_executable: ${{ steps.claude.outputs.path }}
-          settings: ${{ runner.temp }}/cherry-regression/claude-settings-suite-6.json
-          prompt: |
-            Run the cherry-regression-test skill for suite-6. Use only its CI MCP workflow for application control and evidence. Do not edit source or test files. Finish every applicable case in this suite with its actual status.
-          claude_args: |
-            --model ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-            --max-turns 180
-            --mcp-config '{"mcpServers":{"cherry_regression":{"command":"node","args":["node_modules/tsx/dist/cli.mjs","scripts/cherry-regression-test/server.ts"]}}}'
-            --allowedTools "Read,Glob,Grep,mcp__cherry_regression__get_run_context,mcp__cherry_regression__begin_case,mcp__cherry_regression__inspect_ui,mcp__cherry_regression__interact,mcp__cherry_regression__system_action,mcp__cherry_regression__restart_app,mcp__cherry_regression__record_evidence,mcp__cherry_regression__complete_case"
-            --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          --run-dir "$RUN_DIR"
+          --suite suite-6
+          --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Finalize platform report
         if: always()
