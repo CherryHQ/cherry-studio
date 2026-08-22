@@ -95,6 +95,9 @@ styles, charts, images, and macros in untouched parts survive exactly. Edit shap
 
 - `{"format":"xlsx","sheet":"S","cells":{"B2":42,"C3":"text","D4":true}}` — numbers,
   strings, and booleans; an existing formula in an edited cell is replaced by the value.
+  Replacing a formula also drops `xl/calcChain.xml` (a recalculation cache Excel rebuilds);
+  keeping a chain entry for a cell that no longer has a formula makes Excel report the
+  derived file as damaged.
 - `{"format":"docx","replacements":[{"paragraph":3,"text":"new text"}]}` — the
   paragraph keeps its paragraph style and the first run's character style; other inline
   content within that one paragraph (mixed run styling, hyperlinks) is flattened.

@@ -18,6 +18,8 @@ Edit JSON shapes (pass via --edits):
 xlsx: each cell is overwritten with the JSON value (number, string, or
 boolean); an existing formula in that cell is replaced by the value. The
 worksheet's <dimension> is widened when edits create cells outside it.
+Replacing a formula also drops xl/calcChain.xml (see drop_calc_chain), the
+only part besides the edited worksheet this script ever rewrites.
 docx: 'paragraph' is the zero-based ordinal among BODY-LEVEL paragraphs
 (direct w:body children; tables excluded); the paragraph keeps its paragraph
 style and the first run's character style, but other inline content (extra
@@ -39,6 +41,10 @@ RELATIONSHIP_ATTR_NS = "http://schemas.openxmlformats.org/officeDocument/2006/re
 PACKAGE_RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 A1_CELL_RE = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
+
+CONTENT_TYPES_PART = "[Content_Types].xml"
+WORKBOOK_RELS_PART = "xl/_rels/workbook.xml.rels"
+CALC_CHAIN_PART = "xl/calcChain.xml"
 
 MAX_ZIP_ENTRIES = 10_000
 MAX_ENTRY_BYTES = 256 * 1024 * 1024
@@ -126,6 +132,11 @@ def serialize_part(doc: minidom.Document) -> bytes:
 # ── xlsx ─────────────────────────────────────────────────────────────────────
 
 
+def resolve_rel_target(target: str) -> str:
+    """Package-absolute part name for a Target declared in xl/_rels/workbook.xml.rels."""
+    return target.lstrip("/") if target.startswith("/") else f"xl/{target}"
+
+
 def resolve_worksheet_part(archive: zipfile.ZipFile, sheet_name: str) -> str:
     workbook = ET.fromstring(read_xml_part(archive, "xl/workbook.xml"))
     relationship_id = None
@@ -140,10 +151,31 @@ def resolve_worksheet_part(archive: zipfile.ZipFile, sheet_name: str) -> str:
     rels = ET.fromstring(read_xml_part(archive, "xl/_rels/workbook.xml.rels"))
     for relationship in rels.iter(f"{{{PACKAGE_RELS_NS}}}Relationship"):
         if relationship.get("Id") == relationship_id:
-            target = relationship.get("Target", "")
-            return target.lstrip("/") if target.startswith("/") else f"xl/{target}"
+            return resolve_rel_target(relationship.get("Target", ""))
     fail(f"workbook relationship {relationship_id!r} not found")
     raise AssertionError  # unreachable
+
+
+def drop_calc_chain(archive: zipfile.ZipFile) -> dict[str, bytes]:
+    """Rewrite the two parts that declare xl/calcChain.xml so it can be left out of the copy.
+
+    calcChain records the calculation order of every formula cell. Leaving an entry for a cell
+    whose formula we just replaced with a literal makes Excel report the derived file as corrupt
+    and "repair" it on open. The part is a pure recalculation cache that Excel rebuilds on its
+    own, so dropping it whole is the safe move — but a dangling <Override> or <Relationship>
+    pointing at a missing part triggers the same repair prompt, hence these two edits.
+    """
+    content_types = minidom.parseString(read_xml_part(archive, CONTENT_TYPES_PART))
+    for override in list(element_children(content_types.documentElement, "Override")):
+        if override.getAttribute("PartName") == f"/{CALC_CHAIN_PART}":
+            override.parentNode.removeChild(override)
+
+    rels = minidom.parseString(read_xml_part(archive, WORKBOOK_RELS_PART))
+    for relationship in list(element_children(rels.documentElement, "Relationship")):
+        if resolve_rel_target(relationship.getAttribute("Target")) == CALC_CHAIN_PART:
+            relationship.parentNode.removeChild(relationship)
+
+    return {CONTENT_TYPES_PART: serialize_part(content_types), WORKBOOK_RELS_PART: serialize_part(rels)}
 
 
 def set_cell_value(doc: minidom.Document, cell, value) -> None:
@@ -211,7 +243,7 @@ def update_dimension(worksheet, edited: list[tuple[int, int]]) -> None:
     dimension.setAttribute("ref", start if start == end else f"{start}:{end}")
 
 
-def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> dict[str, bytes]:
+def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes], set[str]]:
     sheet_name = edits.get("sheet")
     cells = edits.get("cells")
     if not sheet_name or not isinstance(cells, dict) or not cells:
@@ -225,21 +257,29 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> dict[str, bytes]:
         fail(f"{part_name} has no sheetData element")
 
     edited: list[tuple[int, int]] = []
+    replaced_formula = False
     for ref, value in sorted(cells.items(), key=lambda item: (parse_a1_cell(item[0])[1], parse_a1_cell(item[0])[0])):
         column, row_number = parse_a1_cell(ref)
         row = find_or_create_ordered(doc, sheet_data, "row", lambda r: int(r), row_number, str(row_number))
         cell = find_or_create_ordered(doc, row, "c", lambda r: parse_a1_cell(r)[0], column, ref)
+        if first_child(cell, "f") is not None:
+            replaced_formula = True
         set_cell_value(doc, cell, value)
         edited.append((column, row_number))
     update_dimension(worksheet, edited)
 
-    return {part_name: serialize_part(doc)}
+    replaced = {part_name: serialize_part(doc)}
+    dropped: set[str] = set()
+    if replaced_formula and CALC_CHAIN_PART in archive.namelist():
+        replaced.update(drop_calc_chain(archive))
+        dropped.add(CALC_CHAIN_PART)
+    return replaced, dropped
 
 
 # ── docx ─────────────────────────────────────────────────────────────────────
 
 
-def patch_docx(archive: zipfile.ZipFile, edits: dict) -> dict[str, bytes]:
+def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes], set[str]]:
     replacements = edits.get("replacements")
     if not isinstance(replacements, list) or not replacements:
         fail("docx edits require a non-empty 'replacements' array")
@@ -276,7 +316,7 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> dict[str, bytes]:
         run.appendChild(text_element)
         paragraph.appendChild(run)
 
-    return {"word/document.xml": serialize_part(doc)}
+    return {"word/document.xml": serialize_part(doc)}, set()
 
 
 PATCHERS = {"xlsx": patch_xlsx, "docx": patch_docx}
@@ -309,9 +349,11 @@ def main() -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(src) as archive:
         preflight_zip(archive)
-        replaced_parts = patcher(archive, edits)
+        replaced_parts, dropped_parts = patcher(archive, edits)
         with zipfile.ZipFile(out_path, "w") as derived:
             for item in archive.infolist():
+                if item.filename in dropped_parts:
+                    continue
                 data = replaced_parts.get(item.filename, None)
                 if data is None:
                     data = archive.read(item.filename)
