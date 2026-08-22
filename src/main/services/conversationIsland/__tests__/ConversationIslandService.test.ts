@@ -292,6 +292,13 @@ describe('ConversationIslandService', () => {
 
     service = new ConversationIslandService()
     await service._doInit()
+    mocks.activitiesListener = (event) => {
+      const pattern =
+        event.target.conversationType === 'agent'
+          ? 'topic.stream.statuses.agent-session:${sessionId}'
+          : 'topic.stream.statuses.${topicId}'
+      mocks.cacheSubscriptions.get(pattern)?.(event.snapshot, null, `topic.stream.statuses.${event.topicId}`)
+    }
   })
 
   afterEach(async () => {
@@ -388,6 +395,34 @@ describe('ConversationIslandService', () => {
     expect(services.windowManager.pushInitData.mock.calls[0][1]).toMatchObject({
       title: 'Research notes',
       state: 'streaming'
+    })
+  })
+
+  it('shows live approval anchors as awaiting confirmation', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    vi.setSystemTime(100)
+    const approvalAnchor = {
+      executionId: 'provider::model',
+      attemptId: 1,
+      anchorMessageId: 'assistant-message-1'
+    }
+    mocks.activitiesListener?.({
+      topicId: 'agent-session:session-1',
+      target: { conversationType: 'agent', conversationId: 'session-1' },
+      snapshot: {
+        status: 'streaming',
+        turnId: 'turn-1',
+        activeExecutions: [approvalAnchor],
+        awaitingApprovalAnchors: [approvalAnchor]
+      },
+      changedAt: 100
+    })
+
+    expect(services.windowManager.open.mock.calls[0][1]).toMatchObject({
+      initData: {
+        state: 'awaiting-confirmation',
+        statusText: 'conversation_island.status.awaiting_confirmation'
+      }
     })
   })
 

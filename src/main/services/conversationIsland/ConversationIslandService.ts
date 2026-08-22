@@ -192,7 +192,9 @@ export class ConversationIslandService extends BaseService {
 
   private handleConversationActivity(event: ConversationActivityChangedEvent): void {
     const previous = this.activities.get(event.topicId)
-    const status = event.snapshot?.status ?? null
+    const status = event.snapshot?.awaitingApprovalAnchors.length
+      ? 'awaiting-approval'
+      : (event.snapshot?.status ?? null)
     const isNewPending =
       status === 'pending' && (!previous || previous.turnId !== event.snapshot?.turnId || isTerminal(previous.status))
     const isRemoval = status === null || status === 'aborted'
