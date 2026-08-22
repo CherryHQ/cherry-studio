@@ -1,10 +1,11 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
-import { getAppLanguage } from '@main/i18n'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { languageEnglishNameMap } from '@shared/utils/languages'
 
 const logger = loggerService.withContext('AgentPrompt')
@@ -81,7 +82,7 @@ export async function buildAgentRuntimePrompt({
 
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
-    getLanguageInstruction(),
+    getLanguageInstruction(agent),
     parts.context,
     workspaceInstructions,
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
@@ -105,9 +106,24 @@ ${instructions}
 </agent_instructions>`
 }
 
-function getLanguageInstruction(): string {
-  const englishName = languageEnglishNameMap[getAppLanguage()]
-  return englishName
-    ? `By default, respond in ${englishName}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
-    : ''
+function resolveAgentLanguage(agent: AgentEntity): string | null {
+  const perAgent = agent.configuration?.language as string | undefined
+  if (typeof perAgent === 'string' && perAgent.trim() !== '') {
+    if (perAgent === 'auto') return null
+    return perAgent
+  }
+  try {
+    const global = application.get('PreferenceService').get('agent.language') as unknown as string | null
+    if (typeof global === 'string' && global.trim() !== '' && global !== 'auto') return global
+  } catch {
+    // PreferenceService unavailable in some test harnesses
+  }
+  return null
+}
+
+function getLanguageInstruction(agent: AgentEntity): string {
+  const language = resolveAgentLanguage(agent)
+  if (!language) return ''
+  const displayName = languageEnglishNameMap[language as LanguageVarious] ?? language
+  return `Respond in ${displayName}.`
 }
