@@ -9,9 +9,10 @@ outside that directory is what stops regular users from picking it. It is used b
 
 ## Eligibility
 
-Reserved by convention for repository members and collaborators holding `write` or `admin`
-permission. This is a skill-level agreement rather than an access control; the skill checks it
-before use so that it fails early. See [SKILL.md](../SKILL.md) Step 1.
+Meant for maintainers and collaborators holding `write` or `admin` permission. This is a request
+rather than an access control — please do not use this template without write access. The skill
+checks the permission level before use so that it comes up early; see [SKILL.md](../SKILL.md)
+Step 1.
 
 ## Metadata
 

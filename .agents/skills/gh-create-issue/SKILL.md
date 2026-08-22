@@ -24,13 +24,12 @@ Engineering Task is not a GitHub issue form and is not offered to regular users.
 
 #### Eligibility Check (Engineering Task only)
 
-Engineering Task is reserved by convention for repository members and collaborators with write
-access. This is a skill-level agreement, not an access control — nothing prevents anyone from
-calling `gh issue create` directly. The check below exists to fail early and to record that intent.
-(GitHub does enforce part of it independently: users with `read` or below cannot apply labels at
-all, so they cannot produce an issue that looks like an internal task.)
+Engineering Task is meant for maintainers and collaborators with write access. This is a request,
+not an access control — nothing prevents anyone from calling `gh issue create` directly, and this
+skill does not try to. The check below is here so that a contributor without write access learns
+that early and gets pointed somewhere more useful.
 
-Before collecting any information, confirm the authenticated user's permission level:
+Before collecting any information, read the authenticated user's permission level:
 
 ```bash
 repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
@@ -45,12 +44,13 @@ esac
 Only `admin` and `write` are eligible (`maintain` reports as `write`). Always compare the returned
 value: on a public repository this endpoint answers `read` for any user, including one who is not a
 collaborator at all, so a successful call proves nothing on its own. Do not use
-`repos/{owner}/{repo}/collaborators/{user}` here — collaborators can hold `read` or `triage` only,
-and those users cannot apply the restricted labels or the issue type anyway.
+`repos/{owner}/{repo}/collaborators/{user}` here — it answers `204` for `read`- and `triage`-only
+collaborators, who are not the intended audience for this template.
 
-If the check fails, **stop**. Tell the user this template is restricted to members and
-collaborators, and ask them to choose one of the public templates instead. Do not silently fall back
-to another template, and do not create the issue with Engineering Task metadata.
+If the result is anything else, do not use this template. Explain that it is meant for maintainers
+with write access, politely ask the contributor to use one of the public templates instead, and
+offer to help them file it there — their report is welcome, just not under this template. Do not
+quietly switch templates while keeping the Engineering Task labels or issue type.
 
 ### Step 2: Read the Selected Template
 
