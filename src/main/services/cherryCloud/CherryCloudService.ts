@@ -390,6 +390,24 @@ export class CherryCloudService extends BaseService {
     return response
   }
 
+  public async revokeCurrentSession(): Promise<CherryCloudStatus> {
+    await this.pruneExpiredState()
+    if (!this.storedState.session) return this.currentStatus()
+
+    let response: Response
+    try {
+      response = await this.authenticatedFetch('/api/v1/product-sessions/current', { method: 'DELETE' })
+    } catch (error) {
+      if (!this.storedState.session) return this.currentStatus()
+      throw error
+    }
+    if (response.status === 401) return this.currentStatus()
+    if (!response.ok) throw new Error(`Cherry Cloud logout failed (${response.status})`)
+
+    await this.clearSession()
+    return this.currentStatus()
+  }
+
   public getModelApiBaseUrl(): string {
     return `${resolveApiOrigin()}/v1`
   }
