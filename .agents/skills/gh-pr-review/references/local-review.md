@@ -1,12 +1,27 @@
 # Local Review
 
-Single-agent review for local changes. Reviews the diff, presents confirmed
-issues, and lets the user interactively choose which ones to fix.
+Single-agent review for small changes, or as the explicit fallback when a
+runtime cannot launch independent subagents. The canonical size calculation
+lives in `SKILL.md` § Route. Reviews the diff and reports confirmed issues with
+fix guidance; edits code only when the invocation explicitly authorized fixing.
+Follow `SKILL.md` § Interaction and interruption contract; this flow introduces
+no additional prompt category.
+
+## Input from SKILL.md
+
+- Review scope (already determined during routing; re-derive with the Step 1
+  rules if invoked standalone).
+- `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
+  fixing (`fix` modifier or equivalent user wording). Commit and range
+  targets are always report-only regardless of the flag.
+- `LIMITED_SINGLE_AGENT`: `true` only when a non-small scope was routed here
+  because the runtime has no subagent capability. Default `false`.
 
 ## References
 
 | File | Purpose |
 |------|---------|
+| `consumer-review.md` | Consumer review stage (changes adding/expanding shared surface) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
@@ -41,7 +56,11 @@ Determine the diff to review based on `$ARGUMENTS` and working tree state:
 - **File/directory paths**: verify all paths exist on disk, then read file
   contents.
 
-If diff is empty → show usage examples and exit:
+The resolved review scope, not a diff, decides whether there is work: for a
+path target it is the set of files resolved from the given paths; for every
+other target it is the diff. A clean tree does not make a path target empty.
+
+If the resolved review scope is empty → show usage examples and exit:
 `/gh-pr-review` (uncommitted changes or current branch),
 `/gh-pr-review a1b2c3d`, `/gh-pr-review a1b2c3d..e4f5g6h`,
 `/gh-pr-review src/foo.ts`, `/gh-pr-review 123`,
@@ -51,13 +70,34 @@ If diff is empty → show usage examples and exit:
 
 ## Step 2: Review
 
+Run the review stages defined in `SKILL.md` § Review Stages in order.
+
+1. **Product Demand gate** — follow `SKILL.md` § Review Stages, stage 1 for
+   the skip test and mode rules: skip silently only after inspecting the
+   semantics the change expresses or constrains, never from its change type;
+   interactive is the default (ask the current user for the product decision
+   and stop the whole review if the direction is rejected), and record-only
+   automated behavior applies only when the invocation or workflow context
+   explicitly identifies an automated run, carrying the product-impact
+   summary into Step 4's report. Skip this step when the PR wrapper already
+   ran the gate.
+2. **Consumer review** — whenever the diff adds or expands shared surface,
+   judged by diff semantics rather than change label. Follow
+   `consumer-review.md`; only surviving surfaces continue to the stages below.
+3. **Architecture-First, Implementation, Style** — as follows.
+
 Review the diff. Apply `code-checklist.md` to code files,
 `doc-checklist.md` to documentation files. Apply `cherry-review-guidance.md` to
-code, mixed, Cherry architecture documentation, and project-skill changes. For
-React component changes, also consult `vercel-react-best-practices` skill for
-detailed performance patterns. When changed lines depend on surrounding context,
-read the relevant sections or related definitions as needed. Untracked files
-have no diff — review their full contents as new code.
+code, mixed, Cherry architecture documentation, and project-skill changes:
+first read the docs its "Mandatory Baseline Docs" section requires for the
+touched processes, then load only the on-demand references it routes to.
+Review architecture-first — settle placement, ownership, and
+abstraction-integrity findings against those docs before line-level detail;
+doc violations are Warning minimum. For React component changes, also consult
+`vercel-react-best-practices` skill for detailed performance patterns. When
+changed lines depend on surrounding context, read the relevant sections or
+related definitions as needed. Untracked files have no diff — review their
+full contents as new code.
 
 If the branch has an associated GitHub PR, inspect its checks with `gh pr
 checks` and include failing or pending CI in the review. Do not run `pnpm lint`,
@@ -81,23 +121,43 @@ but ruled out.
 Consult `judgment-matrix.md` for risk level assessment, worth-fixing criteria,
 and special rules. Discard issues that are not worth reporting.
 
-If no issues remain after filtering → report "no issues found" and exit.
+If no issues remain after filtering, keep an empty issue list and continue to
+Step 4 so every mandatory disclosure is still reported. Step 5 may be skipped
+because there are no confirmed issues to evolve into checklist candidates.
 
 ---
 
-## Step 4: Report and fix
+## Step 4: Fix and report
 
-Present a summary of what was reviewed, then list all confirmed issues. Ask
-which ones to fix via multi-select. Each option's label is the issue summary
-(e.g., `[risk] file:line — description`). Follow the grouping rule in
-`SKILL.md`: ≤4 items → one question; >4 items → group by priority or category
-(each group ≤4 options), then present all groups as separate questions in a
-single prompt.
+Do not ask the user which issues to fix.
 
-If the user selects any issues, apply the fixes. Do not run local lint, test, or
-format commands as part of the review flow. Report that existing CI covers the
-reviewed commit, not unpushed local fixes; re-check CI only after the fixes are
-published through a user-authorized workflow.
+- **`AUTHORIZED_FIX` = false** (default): report all issues with at-altitude
+  fix guidance; edit nothing.
+- **`AUTHORIZED_FIX` = true**: auto-fix **low-risk** issues only (a single
+  reasonable fix exists), keeping every fix at the defect's altitude per
+  `cherry-review-guidance.md` § Fix Recommendation Policy. Medium- and
+  high-risk issues report feasible options, key trade-offs, and an optional
+  reviewer recommendation — multiple reasonable implementations must be
+  surfaced, never silently chosen.
+
+Present a summary of what was reviewed and either the issues fixed/reported
+with their fix guidance or "no issues found". If
+`LIMITED_SINGLE_AGENT = true`, explicitly state that the scope was non-small
+but the runtime had no subagent capability, so the review was single-agent and
+did not include independent adversarial verification. In an automated session
+with product impact, include the Product Demand summary — impact, direction,
+and points needing human confirmation — explicitly marked as awaiting a
+product decision, never as approved.
+
+Validation: when fixes were applied, the session is a coding task — run
+`pnpm lint`, `pnpm test`, and `pnpm format`, and report their results; a
+failure caused by a fix means the fix is reverted or reported as failed.
+
+When nothing was edited, do not run local lint/test/format and state the CI
+baseline recorded in Step 2, matching it: with an associated PR, existing CI
+covers the reviewed commit but not any unpushed change; with no associated PR
+— file, commit, or local-branch review — CI validation is unavailable and the
+result is static review only. Never claim CI coverage the target does not have.
 
 ---
 
@@ -105,4 +165,5 @@ published through a user-authorized workflow.
 
 Review all confirmed issues from this session. If any represent a recurring
 pattern not covered by the current checklist, read `checklist-evolution.md` and
-follow its steps.
+record valid candidates as `proposed` in the report. A regular review never
+accepts, inserts, or claims to persist checklist rules.
