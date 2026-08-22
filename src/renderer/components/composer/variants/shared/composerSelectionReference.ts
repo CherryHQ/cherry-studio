@@ -9,6 +9,9 @@ import { useTranslation } from 'react-i18next'
 import { COMPOSER_INPUT_MAX_LENGTH } from '../../composerDraft'
 import type { ComposerDraftToken } from '../../tokens'
 
+/** insertComposerTokenAtCursor appends one separator space after the token unless told not to. */
+const TOKEN_SEPARATOR_LENGTH = 1
+
 interface SelectionReferenceInsertionActions {
   getDraft: () => { text: string }
   insertToken: (token: ComposerDraftToken) => void
@@ -30,9 +33,10 @@ export function useComposerSelectionReferenceInsertion<T extends SelectionRefere
     const token = createSelectionReferenceToken(reference)
     // Token insertion bypasses the composer's input-length guards, which sit on the typing and
     // paste paths. A reference block carries the whole excerpt, so one near the limit — or a few
-    // in a row — would otherwise push the draft past COMPOSER_INPUT_MAX_LENGTH.
-    const promptLength = token.promptText?.length ?? 0
-    if (promptLength > COMPOSER_INPUT_MAX_LENGTH - actionsRef.current.getDraft().text.length) {
+    // in a row — would otherwise push the draft past COMPOSER_INPUT_MAX_LENGTH. insertToken also
+    // appends a separator space, so the insertion costs one character more than its promptText.
+    const insertionLength = (token.promptText?.length ?? 0) + TOKEN_SEPARATOR_LENGTH
+    if (insertionLength > COMPOSER_INPUT_MAX_LENGTH - actionsRef.current.getDraft().text.length) {
       toast.error(t('chat.input.reference_panel.no_room_selection'))
       return
     }
