@@ -278,17 +278,36 @@ def paragraph_para_id(paragraph) -> str:
 
 
 def paragraph_text(paragraph) -> str:
+    """Reproduce python-docx's Paragraph.text, which office_extract.py compares against.
+
+    python-docx walks the paragraph's inner content — its direct w:r children plus the runs
+    inside a w:hyperlink — and within a run maps w:t to its text, w:tab to a tab and
+    w:br/w:cr to a newline. Everything else is absent from `.text`: deleted runs (w:delText)
+    and, because text boxes live under mc:AlternateContent rather than being run children,
+    text box content. Walking every descendant w:t instead would drop the separators and
+    pick up text box text, failing the expectText gate on an unchanged paragraph in either
+    direction. Verified against python-docx 1.2.
+    """
     parts = []
 
-    def walk(node):
-        for child in node.childNodes:
-            if child.nodeType == minidom.Node.ELEMENT_NODE:
-                if child.tagName.rsplit(":", 1)[-1] == "t":
-                    parts.append("".join(t.data for t in child.childNodes if t.nodeType == minidom.Node.TEXT_NODE))
-                else:
-                    walk(child)
+    def append_run(run) -> None:
+        for child in element_children(run):
+            local_name = child.tagName.rsplit(":", 1)[-1]
+            if local_name == "t":
+                parts.append("".join(t.data for t in child.childNodes if t.nodeType == minidom.Node.TEXT_NODE))
+            elif local_name == "tab":
+                parts.append("\t")
+            elif local_name in ("br", "cr"):
+                parts.append("\n")
 
-    walk(paragraph)
+    for child in element_children(paragraph):
+        local_name = child.tagName.rsplit(":", 1)[-1]
+        if local_name == "r":
+            append_run(child)
+        elif local_name == "hyperlink":
+            for run in element_children(child, "r"):
+                append_run(run)
+
     return "".join(parts)
 
 
@@ -800,13 +819,20 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
             matches = [p for p in paragraphs if paragraph_para_id(p) == para_id]
             if len(matches) > 1:
                 fail(f"paraId {para_id!r} matches {len(matches)} paragraphs; refusing an ambiguous edit")
-            if matches and matches[0] is not paragraph:
+            # No match means the paragraph was deleted or its id changed. Falling back to the
+            # ordinal here would edit whatever text now sits at that position — the silent
+            # wrong pick this gate exists to prevent.
+            if not matches:
+                fail(
+                    f"paraId {para_id!r} matches no body paragraph — the document changed since the "
+                    "anchor was captured; re-select instead of falling back to the ordinal"
+                )
+            if matches[0] is not paragraph:
                 fail(
                     f"paraId {para_id!r} and paragraph {index} point at different paragraphs — "
                     "the document changed since the anchor was captured; re-select instead of guessing"
                 )
-            if matches:
-                paragraph = matches[0]
+            paragraph = matches[0]
 
         expect_text = replacement.get("expectText")
         if expect_text is not None:

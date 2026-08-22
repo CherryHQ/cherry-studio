@@ -272,7 +272,14 @@ def extract_docx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
         matches = [i for i, p in enumerate(paragraphs) if p_para_id(p) == para_id]
         if len(matches) > 1:
             fail(f"paraId {para_id!r} matches {len(matches)} paragraphs; refusing an ambiguous anchor")
-        if matches and matches[0] != paragraph_index:
+        # No match means the paragraph was deleted or its id changed. Falling back to the
+        # ordinal here would extract whatever text now sits at that position.
+        if not matches:
+            fail(
+                f"paraId {para_id!r} matches no body paragraph — the document changed since the "
+                "anchor was captured; re-select instead of falling back to the ordinal"
+            )
+        if matches[0] != paragraph_index:
             fail(
                 f"paraId {para_id!r} resolves to paragraph {matches[0]} but the anchor says {paragraph_index} — "
                 "the document changed since the anchor was captured; re-select"
