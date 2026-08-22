@@ -1,4 +1,5 @@
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
+import type { MessageSelectionStore } from '@renderer/components/chat/messages/selection/MessageSelectionStore'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Citation, MessageUiState } from '@renderer/types/message'
@@ -416,4 +417,11 @@ export interface MessageListProviderValue {
   state: MessageListState
   actions: MessageListActions
   meta: MessageListMeta
+  /**
+   * Per-message selection subscription store (#19209). Mirrors
+   * `state.selection.selectedMessageIds`; lists that select messages provide
+   * it so frames can subscribe per id instead of per selection change.
+   * Absent in embeds without selection.
+   */
+  selectionStore?: MessageSelectionStore | null
 }

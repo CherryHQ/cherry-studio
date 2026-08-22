@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { useMessageParts } from '../blocks/MessagePartsContext'
 import {
   useMessageListActions,
-  useMessageListSelection,
+  useMessageSelectionMode,
   useMessageListUi,
   useMessageRenderConfig
 } from '../MessageListProvider'
@@ -56,7 +56,13 @@ const MessageMenuBar: FC<Props> = (props) => {
   } = props
   const { t } = useTranslation()
   const actions = useMessageListActions()
-  const selection = useMessageListSelection()
+  const selectionMode = useMessageSelectionMode()
+  // menuBarActions reads only `enabled`; keep the memo dep stable across
+  // selection-set changes by deriving from the mode-only projection (#19209)
+  const selection = useMemo(
+    () => (selectionMode ? { ...selectionMode, selectedMessageIds: undefined } : undefined),
+    [selectionMode]
+  )
   const messageUi = useMessageListUi()
   const renderConfig = useMessageRenderConfig()
   const menuConfig = messageUi.menuConfig ?? defaultMessageMenuConfig

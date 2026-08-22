@@ -31,7 +31,8 @@ import {
   useMessageListActions,
   useMessageListData,
   useMessageListMeta,
-  useMessageListSelection,
+  useMessageSelectionMode,
+  useSelectedMessageIds,
   useMessageListUi,
   useMessageRenderConfig
 } from './MessageListProvider'
@@ -177,7 +178,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
-  const selection = useMessageListSelection()
+  const selectionMode = useMessageSelectionMode()
+  const selectedIdsFromStore = useSelectedMessageIds()
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
   // The rail gutter lives in the chat layout context (single source of truth) so
@@ -188,8 +190,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
-  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
-  const selectedMessageIds = selection?.selectedMessageIds ?? []
+  const isMultiSelectMode = selectionMode?.isMultiSelectMode ?? false
+  const selectedMessageIds = selectedIdsFromStore
   const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
   const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
   const bottomOverlayInsets = useChatBottomOverlayInset()
