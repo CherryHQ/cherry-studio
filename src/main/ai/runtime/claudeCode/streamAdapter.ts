@@ -1408,7 +1408,8 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
-    if (this.backgroundTaskToolCallIds.get(taskId) === toolCallId) return
+    // First registration wins: resume edges carry the resuming call's id, not the launch root.
+    if (this.backgroundTaskToolCallIds.has(taskId)) return
     this.backgroundTaskToolCallIds.set(taskId, toolCallId)
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }

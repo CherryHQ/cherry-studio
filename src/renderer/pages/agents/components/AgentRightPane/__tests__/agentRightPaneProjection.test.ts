@@ -2,7 +2,11 @@ import { getPartParentToolCallId } from '@renderer/components/chat/messages/tool
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { buildAgentRightPaneStatus, buildAgentToolFlowProjection } from '../agentRightPaneProjection'
+import {
+  buildAgentRightPaneStatus,
+  buildAgentToolFlowProjection,
+  resolveFlowToolCallId
+} from '../agentRightPaneProjection'
 
 const message = (id: string, parts: CherryMessagePart[]): CherryUIMessage =>
   ({
@@ -105,6 +109,73 @@ describe('agent right pane projections', () => {
     expect(nextProjection.partsByMessageId['root:agent-flow-assistant'][1]).toBe(
       projection.partsByMessageId['root:agent-flow-assistant'][1]
     )
+  })
+
+  // A cold reconnect can bind a resumed task to its SendMessage receipt — the entry must redirect
+  // to the launch root, or the flow opens empty.
+  it('resolves a send-message bound entry back to the launch root', () => {
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the review' },
+        'reviewing... agentId: af5051807ed7aaa30 (use SendMessage to continue)'
+      ),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', summary: 'Finish the review', message: 'Please finalize' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      )
+    ]
+    const partsByMessageId = { m1: parts }
+
+    expect(resolveFlowToolCallId('call_resume', partsByMessageId)).toEqual({
+      toolCallId: 'call_launch',
+      description: 'Launch the review'
+    })
+    expect(resolveFlowToolCallId('call_launch', partsByMessageId)).toBeUndefined()
+    expect(resolveFlowToolCallId('missing', partsByMessageId)).toBeUndefined()
+  })
+
+  // A SendMessage receipt resolving to the selected launch splits its timeline: the prompt of
+  // each continuation lands as a user message between the agent's rounds.
+  it('interleaves resume prompts between the rounds of a continued agent', () => {
+    const launchOutput = 'reviewing... agentId: af5051807ed7aaa30 (use SendMessage to continue)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', summary: 'Finish the review', message: 'Please finalize the four conclusions' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    // Resolved output deliberately unset — the production path derives it from the part.
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-prompt')).toEqual(['Launch the review'])
+    // The launch result belongs to the final round only — never duplicated onto the earlier one.
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings'])
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Please finalize the four conclusions'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings', launchOutput])
   })
 
   it('uses a lazily resolved selected output and preserves child parts untouched', () => {
@@ -626,6 +697,39 @@ describe('agent right pane projections', () => {
         taskType: 'local_bash',
         outputFile: '/tmp/bg-1.md'
       })
+    ])
+  })
+
+  // A SendMessage resume re-points lifecycle edges at the resuming call's id, while the resumed
+  // content keeps streaming under the launch id — the row's navigation anchor must stay there.
+  it('keeps the launch tool-use id when a resumed run reports a new one', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'agent-1',
+          status: 'in_progress',
+          title: 'Review patch',
+          toolUseId: 'call_launch'
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'agent-1',
+          status: 'in_progress',
+          description: 'Resumed work',
+          toolUseId: 'call_resume'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({ id: 'agent-1', status: 'in_progress', toolUseId: 'call_launch' })
     ])
   })
 

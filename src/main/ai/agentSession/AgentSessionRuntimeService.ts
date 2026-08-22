@@ -2127,20 +2127,17 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
       .then(() => {
-        const completedMessageIds = new Set<string>()
         const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
         for (const accumulator of accumulators) {
           const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
           if (!parts) continue
-          completedMessageIds.add(accumulator.messageId)
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
           completedFlows.push({ messageId: accumulator.messageId, parts })
         }
 
         entry.backgroundFlowAccumulators?.clear()
-        for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
-          if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
-        }
+        // Flow anchors are retained on purpose: a SendMessage resume re-streams under the original
+        // tool-call id after these flows have drained, and must still find its host message.
         if (this.isCurrentEntry(entry)) {
           const cacheService = application.get('CacheService')
           for (const { messageId, parts } of completedFlows) {
@@ -2307,7 +2304,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
     void this.finishBackgroundFlows(entry)
-    entry.flowMessageIdsByToolCallId?.clear()
+    // flowMessageIdsByToolCallId is deliberately kept: anchors outlive connections so a resumed
+    // subagent's detached stream still lands on its spawning message.
     entry.persistedFlowMessageIds?.clear()
     entry.pendingBackgroundFlowChunks?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
