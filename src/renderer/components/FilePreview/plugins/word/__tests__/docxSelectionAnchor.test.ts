@@ -76,6 +76,18 @@ describe('selectionToDocxAnchor', () => {
     expect(selectionToDocxAnchor(selectionOver(rangeOver(textNode)))).toBeNull()
   })
 
+  it('returns null inside a text box, whose paragraphs nest in a numbered body paragraph', () => {
+    // docx-preview parses w:txbxContent through parseBodyElements without a part, so the text
+    // box's own <p> carries no ordinal while the body paragraph wrapping the shape does.
+    const { paragraph: bodyParagraph } = buildParagraph({ part: 'body', index: '2', paraId: 'DDDD0004' }, '')
+    const boxed = document.createElement('p')
+    const textNode = document.createTextNode('text inside the box')
+    boxed.appendChild(textNode)
+    bodyParagraph.appendChild(boxed)
+
+    expect(selectionToDocxAnchor(selectionOver(rangeOver(textNode)))).toBeNull()
+  })
+
   it('returns null for a collapsed selection', () => {
     const { textNode } = buildParagraph({ part: 'body', index: '3' }, 'body paragraph text')
     const range = document.createRange()
