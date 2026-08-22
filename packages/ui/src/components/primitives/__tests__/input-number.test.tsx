@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { InputGroup, InputGroupInputNumber } from '../input-group'
@@ -337,6 +337,27 @@ describe('InputNumber', () => {
     const input = screen.getByRole('spinbutton', { name: 'amount' })
     expect(input).not.toHaveAttribute('aria-valuemin')
     expect(input).not.toHaveAttribute('aria-valuemax')
+  })
+
+  // Nothing here declares a ref: React 19 passes it as an ordinary prop, so it
+  // survives only as long as no wrapper in the chain filters what it spreads.
+  it('forwards a ref through to the underlying input', () => {
+    function WithRef() {
+      const ref = useRef<HTMLInputElement>(null)
+      return (
+        <>
+          <InputNumber ref={ref} aria-label="amount" value={1} onValueChange={vi.fn()} />
+          <button type="button" onClick={() => ref.current?.focus()}>
+            focus
+          </button>
+        </>
+      )
+    }
+    render(<WithRef />)
+
+    screen.getByRole('button', { name: 'focus' }).click()
+
+    expect(screen.getByLabelText('amount')).toHaveFocus()
   })
 
   it('lets className override the default height', () => {
