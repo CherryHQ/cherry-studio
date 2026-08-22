@@ -137,6 +137,48 @@ describe('prepareComposerQuickPanelSearch', () => {
     expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
     expect(inputAdapter.focus).not.toHaveBeenCalled()
   })
+
+  it('does not delete leftover draft when a type:input trigger has no queryAnchor', () => {
+    // Bug: searchAnchor falls back to triggerInfo.position (0) when queryAnchor is undefined,
+    // so prepareComposerQuickPanelSearch wipes leftover composer text such as `/skills hello world`.
+    const leftover = '/skills hello world'
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => leftover.length,
+      getText: () => leftover,
+      insertText: vi.fn()
+    }
+
+    prepareComposerQuickPanelSearch({
+      inputAdapter,
+      triggerInfo: { type: 'input', position: 0, originalText: leftover }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).not.toHaveBeenCalled()
+  })
+
+  it('uses a live cursor offset as rangeEnd instead of the value captured at entry', () => {
+    // Bug: cursorOffset is snapshotted at function entry and reused as rangeEnd, so a later
+    // caret move (e.g. 8 → 19) deletes a stale shorter range and leaves trigger text.
+    const offsets = [8, 19]
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: vi.fn(() => offsets.shift() ?? 19),
+      getText: () => '/skills leftover',
+      insertText: vi.fn()
+    }
+
+    prepareComposerQuickPanelSearch({
+      inputAdapter,
+      queryAnchor: 0,
+      triggerInfo: { type: 'input', position: 0, originalText: '/skills leftover' }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 19 })
+  })
 })
 
 describe('createUnifiedQuickPanelOpenOptions', () => {

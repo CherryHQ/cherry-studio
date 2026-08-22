@@ -68,10 +68,12 @@ export function prepareComposerQuickPanelSearch({
   const cursorOffset = inputAdapter ? (inputAdapter.getCursorOffset?.() ?? text?.length ?? 0) : undefined
   let searchAnchor = queryAnchor ?? triggerInfo?.position ?? cursorOffset
 
-  if (inputAdapter && triggerInfo?.type === 'input' && searchAnchor !== undefined) {
-    const rangeEnd = cursorOffset ?? searchAnchor
-    if (rangeEnd > searchAnchor) {
-      inputAdapter.deleteTriggerRange({ from: searchAnchor, to: rangeEnd })
+  // type:input deletion is queryAnchor-owned. position is authoritative for type:button only.
+  if (inputAdapter && triggerInfo?.type === 'input' && queryAnchor !== undefined) {
+    const liveText = inputAdapter.getText()
+    const rangeEnd = inputAdapter.getCursorOffset?.() ?? liveText.length
+    if (rangeEnd > queryAnchor) {
+      inputAdapter.deleteTriggerRange({ from: queryAnchor, to: rangeEnd })
       inputAdapter.focus()
       // The trigger is gone; a leftover typed prefix must not be tracked as a query.
       searchAnchor = undefined

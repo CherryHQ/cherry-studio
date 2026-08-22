@@ -249,13 +249,35 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     list
   ])
 
+  const consumeInputQuery = useCallback(() => {
+    if (!inputAdapter) return
+
+    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
+    if (queryAnchor === undefined) return
+
+    const text = inputAdapter.getText()
+    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    if (cursorOffset <= queryAnchor) return
+
+    if (ctx.triggerInfo?.type === 'button') {
+      const currentInputQuery = text.slice(queryAnchor, cursorOffset)
+      if (!activeSearchQuery || currentInputQuery !== activeSearchQuery) return
+    }
+
+    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
+  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
+
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
+      const keepLiveFilter = Boolean(ctx.trackInputQuery && ctx.triggerInfo?.type === 'button')
+      if (keepLiveFilter && queryAnchorRef.current !== undefined) {
+        consumeInputQuery()
+      }
       const cleanSearchText = activeSearchQuery.trim()
       ctx.close(action, cleanSearchText)
       scrollTriggerRef.current = 'initial'
     },
-    [ctx, activeSearchQuery]
+    [ctx, activeSearchQuery, consumeInputQuery]
   )
 
   const getCurrentPanelOptions = useCallback(
@@ -281,24 +303,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }),
     [activeSearchQuery, ctx]
   )
-
-  const consumeInputQuery = useCallback(() => {
-    if (!inputAdapter) return
-
-    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
-    if (queryAnchor === undefined) return
-
-    const text = inputAdapter.getText()
-    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    if (cursorOffset <= queryAnchor) return
-
-    if (ctx.triggerInfo?.type === 'button') {
-      const currentInputQuery = text.slice(queryAnchor, cursorOffset)
-      if (!activeSearchQuery || currentInputQuery !== activeSearchQuery) return
-    }
-
-    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
 
   const consumeInputQueryOnce = useCallback(() => {
     if (inputQueryConsumedRef.current) return
@@ -691,8 +695,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           const hasSearch = activeSearchQuery.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible && !i.fixedToBottom).length
           const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
-          if (!isCollapsed && list?.[activeIndex]) {
-            handleItemAction(list[activeIndex], 'enter')
+          const activeItem = list?.[activeIndex]
+          if (activeItem && (!isCollapsed || activeItem.fixedToBottom)) {
+            handleItemAction(activeItem, 'enter')
           }
           return true
         }
@@ -715,6 +720,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             e.preventDefault()
             e.stopPropagation()
             setIsMouseOver(false)
+            const activeItem = list?.[activeIndex]
+            if (activeItem?.fixedToBottom) {
+              handleItemAction(activeItem, 'enter')
+            }
             return true
           }
 

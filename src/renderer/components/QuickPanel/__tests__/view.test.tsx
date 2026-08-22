@@ -85,6 +85,7 @@ function PanelHarness({
   inputAdapter,
   items,
   manageListExternally,
+  multiple,
   readOnly,
   symbol = '/',
   title = 'Actions',
@@ -99,6 +100,7 @@ function PanelHarness({
   inputAdapter?: QuickPanelInputAdapter
   items: QuickPanelListItem[]
   manageListExternally?: boolean
+  multiple?: boolean
   readOnly?: boolean
   symbol?: string
   title?: string
@@ -124,6 +126,7 @@ function PanelHarness({
   useEffect(() => {
     open({
       list: items,
+      multiple,
       readOnly,
       symbol,
       title,
@@ -143,6 +146,7 @@ function PanelHarness({
     initialSearchText,
     items,
     manageListExternally,
+    multiple,
     onClose,
     open,
     queryAnchor,
@@ -570,6 +574,60 @@ describe('QuickPanelView', () => {
 
     expect(childAction).toHaveBeenCalledTimes(1)
     expect(deleteTriggerRange).toHaveBeenCalledOnce()
+  })
+
+  it('consumes a button-tracked live filter when a multi-select panel is dismissed', async () => {
+    // Bug: keepLiveFilter retains the typed query across picks, but Esc/outside-click never
+    // consume it, so "card" stays in the composer draft and is sent with the message.
+    const captureDispatch = vi.fn()
+    const action = vi.fn()
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    expect(screen.queryByText('Other note')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Card note'))
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+    expect(text).toBe('card')
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(text).toBe('')
   })
 
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；
@@ -1194,6 +1252,56 @@ describe('QuickPanelView', () => {
     fireEvent.click(screen.getByText('Customize toolbar'))
     expect(action).toHaveBeenCalledTimes(1)
   })
+
+  it.each(['Tab', 'Enter'] as const)(
+    'activates a bottom-fixed item with %s when search collapses the list',
+    async (key) => {
+      // Bug: collapsed panels still render fixedToBottom Manage/Add, but Tab/Enter return
+      // early on isCollapsed, so keyboard cannot activate the only remaining action.
+      const action = vi.fn()
+      const captureDispatch = vi.fn()
+      const inputAdapter: QuickPanelInputAdapter = {
+        deleteTriggerRange: vi.fn(),
+        focus: vi.fn(),
+        getCursorOffset: () => 0,
+        getText: () => '',
+        insertText: vi.fn()
+      }
+      const items: QuickPanelListItem[] = [
+        { id: 'regular', label: 'Regular action', icon: 'r', action: vi.fn() },
+        { id: 'manage', label: 'Manage', icon: 'settings', fixedToBottom: true, action }
+      ]
+
+      render(
+        <QuickPanelProvider>
+          <PanelHarness
+            captureDispatch={captureDispatch}
+            inputAdapter={inputAdapter}
+            items={items}
+            queryAnchor={0}
+            triggerInfo={{ type: 'button', position: 0 }}
+            trackInputQuery
+            initialSearchText="zzz"
+          />
+        </QuickPanelProvider>
+      )
+
+      await screen.findByText('No results')
+      expect(within(screen.getByTestId('quick-panel-fixed-bottom')).getByText('Manage')).toBeInTheDocument()
+
+      const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+      act(() => {
+        dispatchKeyDown(createKeyDownEvent(key).event)
+      })
+
+      expect(action).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'enter',
+          item: expect.objectContaining({ id: 'manage' })
+        })
+      )
+    }
+  )
 
   it('keeps the exit layout stable when closing', async () => {
     const inputAdapter: QuickPanelInputAdapter = {
