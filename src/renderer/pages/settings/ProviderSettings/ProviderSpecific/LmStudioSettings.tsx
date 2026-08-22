@@ -39,7 +39,13 @@ const LmStudioSettings: FC<Props> = ({ providerId }) => {
     <div>
       <ProviderSettingsSubtitle className="mb-1">{t('lmstudio.keep_alive_time.title')}</ProviderSettingsSubtitle>
       <InputGroup>
-        <InputGroupInputNumber value={keepAliveTime} min={0} step={5} onBlur={(v) => void handleCommit(v)} />
+        <InputGroupInputNumber
+          aria-label={t('lmstudio.keep_alive_time.title')}
+          value={keepAliveTime}
+          min={0}
+          step={5}
+          onBlur={(v) => void handleCommit(v)}
+        />
         <InputGroupAddon align="inline-end">
           <InputGroupText>{t('lmstudio.keep_alive_time.placeholder')}</InputGroupText>
         </InputGroupAddon>

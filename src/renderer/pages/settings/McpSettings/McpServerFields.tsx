@@ -588,8 +588,10 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
               {t('settings.mcp.timeout')}
               <InfoTooltip content={t('settings.mcp.timeoutTooltip')} />
             </FormLabel>
-            <FormControl>
-              <div className="flex items-center gap-2">
+            {/* `FormControl` is a Slot: it puts `id={formItemId}` on its direct child, which is
+                what `FormLabel`'s `htmlFor` points at. Wrapping the row would name the div. */}
+            <div className="flex items-center gap-2">
+              <FormControl>
                 <InputNumber
                   min={1}
                   step={1}
@@ -598,9 +600,9 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
                   onBlur={(value) => field.onChange(value ?? undefined)}
                   className="h-8 w-24 py-0"
                 />
-                <span className="text-foreground-tertiary text-xs">s</span>
-              </div>
-            </FormControl>
+              </FormControl>
+              <span className="text-foreground-tertiary text-xs">s</span>
+            </div>
           </FormItem>
         )}
       />

@@ -757,6 +757,7 @@ function AssistantAdvancedFields({
               <InputNumber
                 min={1}
                 step={1}
+                aria-label={t('library.config.basic.max_tokens')}
                 className="h-8 rounded-lg px-2.5"
                 value={field.value}
                 onBlur={(value) =>
@@ -817,6 +818,7 @@ function AssistantAdvancedFields({
                 min={MIN_TOOL_CALLS}
                 max={MAX_TOOL_CALLS}
                 step={1}
+                aria-label={t('library.config.basic.max_tool_calls')}
                 className="h-8 rounded-lg px-2.5"
                 value={field.value}
                 onBlur={(value) =>
