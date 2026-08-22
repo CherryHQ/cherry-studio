@@ -84,6 +84,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('firecrawl'),
     officialWebsite: 'https://firecrawl.dev',
     apiKeyWebsite: 'https://firecrawl.dev/app/api-keys'
+  },
+  'openai-codex': {
+    descriptionKey: 'settings.tool.websearch.provider_description.openai_codex',
+    // Reuse the OpenAI mark; consistent with the provider icon alias in @cherrystudio/ui.
+    iconRef: providerIconRef('openai'),
+    officialWebsite: 'https://chatgpt.com'
   }
 }
 

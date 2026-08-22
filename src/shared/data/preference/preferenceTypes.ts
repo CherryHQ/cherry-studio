@@ -220,7 +220,7 @@ export const parseTranslateBidirectionalPair = (value: readonly [string, string]
 // WebSearch Types
 // ============================================================================
 
-export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'mcp'] as const
+export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'mcp', 'oauth'] as const
 
 export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
 
@@ -234,7 +234,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'querit',
   'fetch',
   'jina',
-  'firecrawl'
+  'firecrawl',
+  'openai-codex'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
