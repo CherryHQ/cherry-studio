@@ -510,7 +510,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 1_048_600, maxOutputTokens: 1_048_600 }
     )
 
-    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(800_000)
+    // With the 0.9 margin the budget is ~799K — still far above the 100K floor.
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(700_000)
   })
 
   // The CLI has no table for third-party models, so without the pin they would request its generic
@@ -612,6 +613,30 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(1_000_000)
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '2000000' })
+  })
+
+  // Third-party models may report a contextWindow larger than the provider's actual
+  // limit. The safety margin shrinks the effective window so auto-compaction triggers
+  // earlier, leaving headroom for the gap between declared and real limits.
+  it('applies the safety margin to the auto-compact budget for overstated declared windows', async () => {
+    // 256K declared, 128K real limit: without the margin the budget would be
+    // floor((256K - 32K) * 0.98) = 219K; with the 0.9 margin it is
+    // floor((floor(256K * 0.9) - 32K) * 0.98) = floor((230K - 32K) * 0.98) = 194K.
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
+    // Without the margin: floor((256_000 - 32_000) * 0.98) = 219_520
+    // With the margin: floor((floor(256_000 * 0.9) - 32_000) * 0.98) = floor((230_400 - 32_000) * 0.98) = 194_432
+    expect(budget).toBeLessThan(219_520)
+    expect(budget).toBe(194_432)
   })
 
   it.each([undefined, 64_000, 99_999])(
