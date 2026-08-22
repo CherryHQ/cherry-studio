@@ -107,7 +107,7 @@ function TokenLimitField({
         value={value === '' ? null : Number(value)}
         placeholder={placeholder}
         className={drawerClasses.input}
-        onChange={(next) => onChange(next === null ? '' : String(next))}
+        onValueChange={(next) => onChange(next === null ? '' : String(next))}
         onBlur={settle}
       />
     </ProviderField>
