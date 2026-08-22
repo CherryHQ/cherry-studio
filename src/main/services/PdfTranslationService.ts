@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { regionService } from '@main/services/RegionService'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { crossPlatformSpawn, killProcessTree } from '@main/utils/processRunner'
@@ -585,6 +586,7 @@ export class PdfTranslationService extends BaseService {
 
   private async buildSidecarEnv(gatewayBaseUrl: string): Promise<Record<string, string>> {
     const shellEnv = await getShellEnv()
+    const inChina = await regionService.isInChina().catch(() => false)
     const allowedEnv: Record<string, string> = {}
     for (const [key, value] of Object.entries(shellEnv)) {
       if (SIDECAR_ENV_KEYS.has(key.toUpperCase())) allowedEnv[key] = value
@@ -596,7 +598,8 @@ export class PdfTranslationService extends BaseService {
       ...buildSidecarProxyEnv(allowedEnv.NO_PROXY ?? allowedEnv.no_proxy, new URL(gatewayBaseUrl).hostname),
       HOME: runtimeHome,
       USERPROFILE: runtimeHome,
-      PYTHONUTF8: '1'
+      PYTHONUTF8: '1',
+      ...(inChina ? { BABELDOC_ASSET_UPSTREAM: 'modelscope' } : {})
     })
   }
 }

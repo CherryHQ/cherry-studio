@@ -159,6 +159,7 @@ const container = vi.hoisted(() => {
       return id
     }),
     getWindow: vi.fn((id: string) => windows.get(id)),
+    behavior: { setAlwaysOnTopLevel: vi.fn() },
     close: vi.fn(() => true),
     setInitData: vi.fn(),
     suspendPool: vi.fn(() => 0),
@@ -377,6 +378,22 @@ describe('ScreenshotOverlayService', () => {
 
       expect(capture.captureAllMonitors).not.toHaveBeenCalled()
       expect(container.openCalls).toHaveLength(0)
+    })
+
+    it('restores the declared window level when a session ends while the text editor is open', async () => {
+      electron.displays = [makeDisplay(1, 0, 0)]
+      capture.captureAllMonitors.mockReturnValue(new Map([[1, makeCapture()]]))
+      await service.startCapture()
+      const [overlayId] = [...container.windows.keys()]
+      service.markOverlayActive(overlayId)
+      service.setTextEditing(overlayId, true)
+
+      service.dismiss()
+
+      // Overlays are pooled, so an override left behind comes back on the next capture:
+      // the whole overlay would sit at the text editor's level and stop covering the Dock.
+      const calls = container.windowManager.behavior.setAlwaysOnTopLevel.mock.calls
+      expect(calls.at(-1)).toEqual([overlayId, null])
     })
 
     it('releases every stored media entry AND session capture on dismiss', async () => {

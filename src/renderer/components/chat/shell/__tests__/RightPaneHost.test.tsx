@@ -106,6 +106,97 @@ function ActivityRightPaneHarness({
   )
 }
 
+/**
+ * ResizeObserver fake that only notifies observers actually watching the resized target, so a
+ * test fails when production forgets to observe a node it depends on.
+ */
+class TargetTrackingResizeObserver {
+  static instances: TargetTrackingResizeObserver[] = []
+  readonly targets = new Set<Element>()
+
+  constructor(readonly callback: () => void) {
+    TargetTrackingResizeObserver.instances.push(this)
+  }
+
+  observe(target: Element) {
+    this.targets.add(target)
+  }
+
+  unobserve(target: Element) {
+    this.targets.delete(target)
+  }
+
+  disconnect() {
+    this.targets.clear()
+  }
+}
+
+function installTargetTrackingResizeObserver() {
+  const original = globalThis.ResizeObserver
+  TargetTrackingResizeObserver.instances = []
+  globalThis.ResizeObserver = TargetTrackingResizeObserver as unknown as typeof ResizeObserver
+  restoreResizeObserver = () => {
+    globalThis.ResizeObserver = original
+    TargetTrackingResizeObserver.instances = []
+  }
+}
+
+/** Notifies only the observers that are watching `target`, mirroring a real resize. */
+function resizeTarget(target: Element) {
+  for (const observer of TargetTrackingResizeObserver.instances) {
+    if (observer.targets.has(target)) observer.callback()
+  }
+}
+
+/**
+ * Mirrors the shell nesting the composer really sits in — shell root > main region > center >
+ * dock frame — so a mutation watch has to descend to notice a composer arriving.
+ */
+function createShellRoot() {
+  const shell = document.createElement('div')
+  shell.setAttribute('data-chat-app-shell-root', '')
+  const region = document.createElement('div')
+  const center = document.createElement('div')
+  const composerHost = document.createElement('div')
+  const mount = document.createElement('div')
+  center.append(composerHost)
+  region.append(center, mount)
+  shell.append(region)
+  document.body.append(shell)
+  return { composerHost, mount, shell }
+}
+
+function createComposerSurface() {
+  const surface = document.createElement('div')
+  surface.setAttribute('data-composer-dock-surface', '')
+  return surface
+}
+
+let restoreResizeObserver: (() => void) | null = null
+
+/** Gives the absolutely positioned pane the containing block and rect jsdom never computes. */
+function prepareMeasuredPane(container: HTMLElement) {
+  const pane = container.querySelector<HTMLElement>('[data-right-pane]')
+  const region = pane?.parentElement
+  if (!pane || !region) throw new Error('pane not mounted')
+  Object.defineProperty(pane, 'offsetParent', { configurable: true, get: () => region })
+  stubRect(region, { top: 0, bottom: 800 })
+}
+
+function stubRect(element: HTMLElement, { top, bottom }: { top: number; bottom: number }) {
+  vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+    bottom,
+    height: bottom - top,
+    left: 0,
+    right: 0,
+    top,
+    width: 0,
+    x: 0,
+    y: top,
+    toJSON: () => ({})
+  } as DOMRect)
+}
+
 describe('RightPaneHost', () => {
   beforeEach(() => {
     motionTestState.controls.set.mockReset()
@@ -116,6 +207,8 @@ describe('RightPaneHost', () => {
   })
 
   afterEach(() => {
+    restoreResizeObserver?.()
+    restoreResizeObserver = null
     persistCacheMock.state.width = ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH
     persistCacheMock.setWidth.mockClear()
     document.body.style.cursor = ''
@@ -322,6 +415,103 @@ describe('RightPaneHost', () => {
     )
     expect(screen.getByRole('button', { name: 'pane state 1' })).toBe(pane)
     expect(lifecycle).toEqual(['mount'])
+  })
+
+  it('exposes the covering composer height on the pane only while it spans full width', async () => {
+    const { composerHost, mount, shell } = createShellRoot()
+    const composer = createComposerSurface()
+    composerHost.append(composer)
+    stubRect(composer, { top: 700, bottom: 820 })
+
+    const Harness = ({ maximized }: { maximized: boolean }) => (
+      <div className="relative">
+        <PersistentRightPaneHost open maximized={maximized} width={460}>
+          <div>pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const { container, rerender } = render(<Harness maximized={false} />, { container: mount })
+    prepareMeasuredPane(container)
+
+    const inset = () =>
+      container.querySelector<HTMLElement>('[data-right-pane] > div')?.style.getPropertyValue('--chat-composer-inset')
+    expect(inset()).toBe('')
+
+    rerender(<Harness maximized />)
+    // 800 - 700 of covered pane bottom, plus the gap the message list keeps.
+    await waitFor(() => expect(inset()).toBe('116px'))
+
+    rerender(<Harness maximized={false} />)
+    await waitFor(() => expect(inset()).toBe(''))
+    shell.remove()
+  })
+
+  it('re-observes the composer after a session switch replaces it', async () => {
+    installTargetTrackingResizeObserver()
+    const { composerHost, mount, shell } = createShellRoot()
+    const composer = createComposerSurface()
+    composerHost.append(composer)
+    stubRect(composer, { top: 700, bottom: 820 })
+
+    const Harness = ({ maximized }: { maximized: boolean }) => (
+      <div className="relative">
+        <PersistentRightPaneHost open maximized={maximized} width={460}>
+          <div>pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const { container, rerender } = render(<Harness maximized={false} />, { container: mount })
+    prepareMeasuredPane(container)
+
+    const inset = () =>
+      container.querySelector<HTMLElement>('[data-right-pane] > div')?.style.getPropertyValue('--chat-composer-inset')
+    rerender(<Harness maximized />)
+    await waitFor(() => expect(inset()).toBe('116px'))
+
+    // The session key remounts the composer under a pane that stays maximized. The old node
+    // leaves the document, where it measures as a zero rect.
+    composer.remove()
+    stubRect(composer, { top: 0, bottom: 0 })
+    const replacement = createComposerSurface()
+    composerHost.append(replacement)
+    stubRect(replacement, { top: 600, bottom: 820 })
+    act(() => resizeTarget(composer))
+    await waitFor(() => expect(inset()).toBe('216px'))
+
+    // Only reaches the hook if the replacement is now observed in the old node's place.
+    stubRect(replacement, { top: 500, bottom: 820 })
+    act(() => resizeTarget(replacement))
+    await waitFor(() => expect(inset()).toBe('316px'))
+    shell.remove()
+  })
+
+  it('picks up a composer that mounts after the pane is already maximized', async () => {
+    installTargetTrackingResizeObserver()
+    const { composerHost, mount, shell } = createShellRoot()
+
+    const Harness = ({ maximized }: { maximized: boolean }) => (
+      <div className="relative">
+        <PersistentRightPaneHost open maximized={maximized} width={460}>
+          <div>pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const { container, rerender } = render(<Harness maximized={false} />, { container: mount })
+    prepareMeasuredPane(container)
+
+    const inset = () =>
+      container.querySelector<HTMLElement>('[data-right-pane] > div')?.style.getPropertyValue('--chat-composer-inset')
+    rerender(<Harness maximized />)
+    await waitFor(() => expect(inset()).toBe(''))
+
+    // An empty center carries no composer; selecting a topic mounts one while the pane stays
+    // maximized. A DOM insertion resizes nothing, so only a mutation watch can notice it.
+    const composer = createComposerSurface()
+    stubRect(composer, { top: 640, bottom: 820 })
+    composerHost.append(composer)
+
+    await waitFor(() => expect(inset()).toBe('176px'))
+    shell.remove()
   })
 
   it('hands Motion the box width rather than wiping a clip across a fixed box', async () => {
