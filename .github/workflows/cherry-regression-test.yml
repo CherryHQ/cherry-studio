@@ -1,0 +1,545 @@
+name: Cherry Regression Test
+
+on:
+  push:
+    branches:
+      - "kangfenmao/github-action-auto-test"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Trusted ref to test: main, release/*, or a v* release tag"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/kangfenmao/github-action-auto-test') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.ref.outputs.mode }}
+      name: ${{ steps.ref.outputs.name }}
+      ref: ${{ steps.ref.outputs.ref }}
+      sha: ${{ steps.ref.outputs.sha }}
+    steps:
+      - name: Check out workflow control plane
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install control-plane dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve and validate requested ref
+        id: ref
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_REF: ${{ github.ref }}
+          PUSH_REF_NAME: ${{ github.ref_name }}
+          PUSH_SHA: ${{ github.sha }}
+          REQUESTED_REF: ${{ inputs.ref }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            {
+              echo "mode=branch"
+              echo "name=$PUSH_REF_NAME"
+              echo "ref=$PUSH_REF"
+              echo "sha=$PUSH_SHA"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts resolve-ref \
+            --requested "$REQUESTED_REF" \
+            --repository "${{ github.repository }}"
+
+  test:
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            platform: macos
+          - runner: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    env:
+      TARGET_DIR: ${{ github.workspace }}/target-app
+      MCP_TIMEOUT: "30000"
+      MCP_TOOL_TIMEOUT: "240000"
+    steps:
+      - name: Check out workflow control plane
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          fetch-depth: 1
+
+      - name: Check out application under test
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          path: target-app
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Export pinned Node.js version
+        shell: bash
+        run: echo "NODE_VERSION=$(node -p 'process.versions.node')" >> "$GITHUB_ENV"
+
+      - name: Install control-plane dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Claude Code
+        id: claude
+        shell: bash
+        run: |
+          npm install --global @anthropic-ai/claude-code@2.1.239
+          npm_root="$(npm root --global | tr -d '\r')"
+          claude_path="$(node -e "const { join } = require('node:path'); process.stdout.write(join(process.argv[1], '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'))" "$npm_root")"
+          node -e "require('node:child_process').execFileSync(process.argv[1], ['--version'], { stdio: 'inherit' })" "$claude_path"
+          echo "path=$claude_path" >> "$GITHUB_OUTPUT"
+
+      - name: Define isolated run directory
+        shell: bash
+        run: echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
+
+      - name: Initialize isolated test run
+        shell: bash
+        env:
+          TEST_MODE: ${{ needs.resolve.outputs.mode }}
+          TEST_REF_NAME: ${{ needs.resolve.outputs.name }}
+          TEST_SHA: ${{ needs.resolve.outputs.sha }}
+          TEST_RUNNER: ${{ matrix.runner }}
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts initialize
+          --run-dir "$RUN_DIR"
+          --mode "$TEST_MODE"
+          --platform "${{ matrix.platform }}"
+          --ref "$TEST_REF_NAME"
+          --sha "$TEST_SHA"
+          --runner "$TEST_RUNNER"
+
+      - name: Validate required test configuration
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
+          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
+          CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL }}
+          CHERRY_TEST_CHERRYIN_IMAGE2_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE2_MODEL }}
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts preflight
+
+      - name: Validate test agent connection
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
+          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
+          CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL }}
+          CHERRY_TEST_CHERRYIN_IMAGE2_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE2_MODEL }}
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts agent-preflight
+          --run-dir "$RUN_DIR"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Install application dependencies
+        if: needs.resolve.outputs.mode == 'branch'
+        run: pnpm --dir target-app install --frozen-lockfile
+
+      - name: Download and install release
+        if: needs.resolve.outputs.mode == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts release
+          --run-dir "$RUN_DIR"
+          --repository "${{ github.repository }}"
+          --arch "${{ runner.arch }}"
+
+      - name: Launch owned Cherry Studio instance
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts launch
+          --run-dir "$RUN_DIR"
+          --target-root "$TARGET_DIR"
+          --run-key "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}"
+
+      - name: Prepare isolated agent settings
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
+          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
+          CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL }}
+          CHERRY_TEST_CHERRYIN_IMAGE2_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE2_MODEL }}
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts prepare-agent-settings
+          --run-dir "$RUN_DIR"
+
+      - name: Run task 01 — app startup smoke
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: bash
+        env:
+          REGRESSION_TASK: startup-smoke
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 02 — CherryIN chat
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: cherryin-chat
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 03 — custom provider chat
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: custom-provider-chat
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 04 — custom assistant
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: custom-assistant
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 05 — quick assistant
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: quick-assistant
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 06 — selection assistant
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: selection-assistant
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 07 — knowledge import
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: knowledge-import
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 08 — knowledge Q&A
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: knowledge-qa
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 09 — Everything MCP
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: everything-mcp
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 10 — Agent PPT
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: agent-ppt
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 11 — Skill import
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: skill-import
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 12 — Claude Agent runtime
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: claude-agent-runtime
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 13 — Pi runtime
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: pi-runtime
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 14 — DeepSeek Harness runtime
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: deepseek-harness-runtime
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 15 — image generation
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: image-generation
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 16 — translation
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: translation
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 17 — mini app
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: mini-app
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 18 — Claude Code and Codex
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: code-cli
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 19 — OpenClaw
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: openclaw
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 20 — notes
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: notes
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Finalize platform report
+        if: always()
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts finalize --run-dir "$RUN_DIR"
+
+      - name: Upload platform evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-regression-${{ matrix.platform }}-${{ needs.resolve.outputs.sha }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            ${{ runner.temp }}/cherry-regression/report
+            ${{ runner.temp }}/cherry-regression/evidence
+            ${{ runner.temp }}/cherry-regression/agent-workspace
+            ${{ runner.temp }}/cherry-regression/fixtures
+            ${{ runner.temp }}/cherry-regression/release/installation.json
+
+      - name: Enforce platform verdict
+        if: always()
+        shell: bash
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts gate --run-dir "$RUN_DIR"
+
+      - name: Stop only the owned application
+        if: always()
+        shell: bash
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts cleanup --run-dir "$RUN_DIR"
+
+  aggregate:
+    needs: [resolve, test]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out workflow control plane
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install control-plane dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download platform reports
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          path: downloaded-reports
+          pattern: cherry-regression-*
+          merge-multiple: false
+
+      - name: Build combined report
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate
+          --input downloaded-reports
+          --output combined-report
+          --mode "${{ needs.resolve.outputs.mode }}"
+
+      - name: Upload combined report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-regression-combined-${{ github.run_id }}
+          path: combined-report
+          retention-days: 30
+
+      - name: Enforce combined verdict
+        if: always()
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate-gate
+          --report combined-report/combined-results.json
