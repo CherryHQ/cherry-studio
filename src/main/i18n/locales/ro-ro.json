@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[ieșire trunchiată: {{omittedBytes}} octeți omiși]"
+      },
       "new": "Sarcină nouă",
       "run_status": {
         "busy": "Sesiunea Agent este ocupată. Încercați din nou în curând.",

@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Информация о завершении",
+        "empty": {
+          "description": "Выберите вызов инструмента агента, чтобы просмотреть поток его дочерних сообщений.",
+          "title": "Инструмент не выбран"
+        },
+        "launch_receipt": "Информация о запуске",
         "no_messages": {
           "description": "У этого вызова инструмента нет захваченного дочернего потока сообщений.",
           "title": "Нет сообщений"
@@ -226,17 +232,60 @@
           "system_tools": "Системные инструменты"
         },
         "context_usage": "Использование контекста",
+        "label": "Информация о сессии",
+        "more": "+{{count}} ещё",
+        "no_artifacts": "Нет заявленных результатов",
+        "no_subagents": "Без субагентов",
         "shell_tasks": "Фоновые команды",
         "subagents": "Субагенты",
         "workflows": "Рабочие процессы"
       },
       "status": {
+        "activity": "Деятельность",
+        "agent": "Агент",
+        "agent_count_one": "{{count}} агент",
+        "agent_count_other": "{{count}} агентов",
+        "background_command": "Фоновая команда",
+        "completed": "Завершено",
+        "context": "Контекст",
+        "context_size": "Размер контекста",
+        "copy_agent_name": "Скопировать имя агента: {{name}}",
+        "copy_all": "Копировать все",
+        "execution_async": "Асинхр.",
+        "execution_sync": "Синхр.",
+        "hide_output": "Свернуть вывод",
+        "no_tasks": "Нет активных задач",
+        "run_task_live_one": "{{count}} активная задача",
+        "run_task_live_other": "{{count}} активной задачи",
+        "run_tasks": "Подзадачи",
+        "running": "Выполняется",
+        "selected_tool": "Выбранный инструмент",
+        "show_output": "Показать вывод",
         "stop_run_task": "Остановить задачу",
         "stop_run_task_failed": "Не удалось остановить задачу",
+        "stopped": "Остановлено",
         "task_count": "{{completed}} / {{total}} завершено",
         "task_progress_compact": "Шаг {{current}}/{{total}}",
+        "tasks": "Задачи",
+        "time": "Время",
         "tool_uses_one": "{{count}} вызов инструмента",
-        "tool_uses_other": "{{count}} вызова инструмента"
+        "tool_uses_other": "{{count}} вызова инструмента",
+        "tools": "Инструменты",
+        "tools_active": "Активный",
+        "tools_done": "Готово",
+        "tools_failed": "Не удалось",
+        "tools_total": "Итого",
+        "total": "Итого",
+        "view_details": "Просмотр деталей",
+        "workflow": "Рабочий процесс",
+        "workflow_state": {
+          "completed": "Завершено",
+          "error": "Прервано",
+          "pending": "Не запущено",
+          "running": "Выполняется",
+          "unknown": "Неизвестный статус"
+        },
+        "workspace": "Рабочая область"
       },
       "tabs": {
         "files": "Файлы",

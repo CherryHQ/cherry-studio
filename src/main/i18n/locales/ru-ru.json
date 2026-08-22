@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[вывод обрезан: пропущено {{omittedBytes}} байт]"
+      },
       "new": "Новая задача",
       "run_status": {
         "busy": "Сеанс Agent занят. Повторите попытку чуть позже.",

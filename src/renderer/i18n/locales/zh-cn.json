@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "完成信息",
+        "empty": {
+          "description": "选择一个智能体工具调用来查看它的子消息流。",
+          "title": "未选择工具"
+        },
+        "launch_receipt": "启动信息",
         "no_messages": {
           "description": "这个工具调用没有捕获到子消息流。",
           "title": "暂无消息"
@@ -226,17 +232,60 @@
           "system_tools": "系统工具"
         },
         "context_usage": "上下文用量",
+        "label": "任务信息",
+        "more": "还有 {{count}} 项",
+        "no_artifacts": "暂无声明产物",
+        "no_subagents": "暂无子智能体",
         "shell_tasks": "后台命令",
         "subagents": "子智能体",
         "workflows": "工作流"
       },
       "status": {
+        "activity": "活动",
+        "agent": "智能体",
+        "agent_count_one": "{{count}} 个智能体",
+        "agent_count_other": "{{count}} 个智能体",
+        "background_command": "后台命令",
+        "completed": "已完成",
+        "context": "上下文",
+        "context_size": "上下文规模",
+        "copy_agent_name": "复制智能体名称：{{name}}",
+        "copy_all": "复制全部",
+        "execution_async": "异步",
+        "execution_sync": "同步",
+        "hide_output": "收起输出",
+        "no_tasks": "暂无活动任务",
+        "run_task_live_one": "{{count}} 个进行中",
+        "run_task_live_other": "{{count}} 个进行中",
+        "run_tasks": "子任务",
+        "running": "运行中",
+        "selected_tool": "选中工具",
+        "show_output": "查看输出",
         "stop_run_task": "停止任务",
         "stop_run_task_failed": "停止任务失败",
+        "stopped": "已停止",
         "task_count": "{{completed}} / {{total}} 已完成",
         "task_progress_compact": "步骤 {{current}}/{{total}}",
+        "tasks": "任务",
+        "time": "时间",
         "tool_uses_one": "{{count}} 次工具调用",
-        "tool_uses_other": "{{count}} 次工具调用"
+        "tool_uses_other": "{{count}} 次工具调用",
+        "tools": "工具",
+        "tools_active": "活跃",
+        "tools_done": "完成",
+        "tools_failed": "失败",
+        "tools_total": "总数",
+        "total": "总计",
+        "view_details": "查看详情",
+        "workflow": "工作流",
+        "workflow_state": {
+          "completed": "已完成",
+          "error": "异常中断",
+          "pending": "暂未运行",
+          "running": "正在运行",
+          "unknown": "状态未知"
+        },
+        "workspace": "工作区"
       },
       "tabs": {
         "files": "文件",

@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Informations de fin",
+        "empty": {
+          "description": "Sélectionnez un appel d'outil d'agent pour inspecter le flux de messages enfants.",
+          "title": "Aucun outil sélectionné"
+        },
+        "launch_receipt": "Informations de lancement",
         "no_messages": {
           "description": "Cet appel d'outil n'a capturé aucun flux de messages enfant.",
           "title": "Aucun message"
@@ -226,17 +232,60 @@
           "system_tools": "Outils système"
         },
         "context_usage": "Utilisation du contexte",
+        "label": "Informations de session",
+        "more": "+{{count}} de plus",
+        "no_artifacts": "Aucun livrable déclaré",
+        "no_subagents": "Aucun sous-agent",
         "shell_tasks": "Commandes en arrière-plan",
         "subagents": "Sous-agents",
         "workflows": "Flux de travail"
       },
       "status": {
+        "activity": "Activité",
+        "agent": "Agent",
+        "agent_count_one": "{{count}} agent",
+        "agent_count_other": "{{count}} agents",
+        "background_command": "Commande en arrière-plan",
+        "completed": "Terminé",
+        "context": "Contexte",
+        "context_size": "Taille du contexte",
+        "copy_agent_name": "Copier le nom de l'agent : {{name}}",
+        "copy_all": "Tout copier",
+        "execution_async": "Asynch.",
+        "execution_sync": "Synch.",
+        "hide_output": "Réduire la sortie",
+        "no_tasks": "Aucune tâche active",
+        "run_task_live_one": "{{count}} en direct",
+        "run_task_live_other": "{{count}} en direct",
+        "run_tasks": "Sous-tâches",
+        "running": "En cours",
+        "selected_tool": "Outil sélectionnée",
+        "show_output": "Afficher la sortie",
         "stop_run_task": "Arrêter la tâche",
         "stop_run_task_failed": "Impossible d'arrêter la tâche",
+        "stopped": "Arrêté",
         "task_count": "{{completed}} / {{total}} terminé",
         "task_progress_compact": "Étape {{current}}/{{total}}",
+        "tasks": "Tâches",
+        "time": "Temps",
         "tool_uses_one": "{{count}} appel d'outil",
-        "tool_uses_other": "{{count}} appels d'outils"
+        "tool_uses_other": "{{count}} appels d'outils",
+        "tools": "Outils",
+        "tools_active": "Actif",
+        "tools_done": "Fait",
+        "tools_failed": "Échec",
+        "tools_total": "Total",
+        "total": "Total",
+        "view_details": "Voir les détails",
+        "workflow": "Flux de travail",
+        "workflow_state": {
+          "completed": "Terminé",
+          "error": "Interrompu",
+          "pending": "Non démarré",
+          "running": "En cours",
+          "unknown": "Statut inconnu"
+        },
+        "workspace": "Espace de travail"
       },
       "tabs": {
         "files": "Fichiers",

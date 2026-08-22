@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Completion information",
+        "empty": {
+          "description": "Select an agent tool call to inspect its child message flow.",
+          "title": "No tool selected"
+        },
+        "launch_receipt": "Launch information",
         "no_messages": {
           "description": "This tool call has no captured child message flow.",
           "title": "No messages"
@@ -226,17 +232,60 @@
           "system_tools": "System tools"
         },
         "context_usage": "Context usage",
+        "label": "Session information",
+        "more": "+{{count}} more",
+        "no_artifacts": "No declared outputs",
+        "no_subagents": "No sub-agents",
         "shell_tasks": "Background commands",
         "subagents": "Sub-agents",
         "workflows": "Workflows"
       },
       "status": {
+        "activity": "Activity",
+        "agent": "Agent",
+        "agent_count_one": "{{count}} agent",
+        "agent_count_other": "{{count}} agents",
+        "background_command": "Background command",
+        "completed": "Completed",
+        "context": "Context",
+        "context_size": "Context size",
+        "copy_agent_name": "Copy agent name: {{name}}",
+        "copy_all": "Copy all",
+        "execution_async": "Async",
+        "execution_sync": "Sync",
+        "hide_output": "Collapse output",
+        "no_tasks": "No active tasks",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} live",
+        "run_tasks": "Subtasks",
+        "running": "Running",
+        "selected_tool": "Selected tool",
+        "show_output": "View output",
         "stop_run_task": "Stop task",
         "stop_run_task_failed": "Failed to stop task",
+        "stopped": "Stopped",
         "task_count": "{{completed}} / {{total}} complete",
         "task_progress_compact": "Step {{current}}/{{total}}",
+        "tasks": "Tasks",
+        "time": "Time",
         "tool_uses_one": "{{count}} tool call",
-        "tool_uses_other": "{{count}} tool calls"
+        "tool_uses_other": "{{count}} tool calls",
+        "tools": "Tools",
+        "tools_active": "Active",
+        "tools_done": "Done",
+        "tools_failed": "Failed",
+        "tools_total": "Total",
+        "total": "Total",
+        "view_details": "View details",
+        "workflow": "Workflow",
+        "workflow_state": {
+          "completed": "Completed",
+          "error": "Interrupted",
+          "pending": "Not started",
+          "running": "Running",
+          "unknown": "Unknown status"
+        },
+        "workspace": "Workspace"
       },
       "tabs": {
         "files": "Files",

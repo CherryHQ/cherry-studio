@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "完了情報",
+        "empty": {
+          "description": "エージェントツール呼び出しを選択して、その子メッセージフローを確認してください。",
+          "title": "ツールが選択されていません"
+        },
+        "launch_receipt": "起動情報",
         "no_messages": {
           "description": "このツール呼び出しにはキャプチャされた子メッセージフローがありません。",
           "title": "メッセージはありません"
@@ -226,17 +232,60 @@
           "system_tools": "システムツール"
         },
         "context_usage": "コンテキストの使用",
+        "label": "セッション情報",
+        "more": "+{{count}} 件",
+        "no_artifacts": "宣言された成果物なし",
+        "no_subagents": "サブエージェントなし",
         "shell_tasks": "バックグラウンドコマンド",
         "subagents": "サブエージェント",
         "workflows": "ワークフロー"
       },
       "status": {
+        "activity": "活動",
+        "agent": "エージェント",
+        "agent_count_one": "{{count}} エージェント",
+        "agent_count_other": "{{count}} エージェント",
+        "background_command": "バックグラウンドコマンド",
+        "completed": "完了",
+        "context": "コンテキスト",
+        "context_size": "コンテキストサイズ",
+        "copy_agent_name": "エージェント名をコピー：{{name}}",
+        "copy_all": "すべてコピー",
+        "execution_async": "非同期",
+        "execution_sync": "同期",
+        "hide_output": "出力を折りたたむ",
+        "no_tasks": "アクティブなタスクはありません",
+        "run_task_live_one": "{{count}} ライブ",
+        "run_task_live_other": "{{count}} ライブ",
+        "run_tasks": "サブタスク",
+        "running": "実行中",
+        "selected_tool": "選択されたツール",
+        "show_output": "出力を表示",
         "stop_run_task": "タスクを停止",
         "stop_run_task_failed": "タスクの停止に失敗しました",
+        "stopped": "停止済み",
         "task_count": "{{completed}} / {{total}} 完了",
         "task_progress_compact": "ステップ {{current}}/{{total}}",
+        "tasks": "タスク",
+        "time": "時間",
         "tool_uses_one": "{{count}} ツール呼び出し",
-        "tool_uses_other": "{{count}} 回のツール呼び出し"
+        "tool_uses_other": "{{count}} 回のツール呼び出し",
+        "tools": "ツール",
+        "tools_active": "アクティブ",
+        "tools_done": "完了",
+        "tools_failed": "失敗",
+        "tools_total": "合計",
+        "total": "合計",
+        "view_details": "詳細を表示",
+        "workflow": "ワークフロー",
+        "workflow_state": {
+          "completed": "完了",
+          "error": "中断",
+          "pending": "未開始",
+          "running": "実行中",
+          "unknown": "不明な状態"
+        },
+        "workspace": "ワークスペース"
       },
       "tabs": {
         "files": "ファイル",

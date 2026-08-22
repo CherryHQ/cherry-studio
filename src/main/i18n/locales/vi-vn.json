@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[đầu ra đã bị cắt bớt: đã bỏ qua {{omittedBytes}} byte]"
+      },
       "new": "Nhiệm vụ mới",
       "run_status": {
         "busy": "Phiên Agent đang bận. Vui lòng thử lại sau ít phút.",

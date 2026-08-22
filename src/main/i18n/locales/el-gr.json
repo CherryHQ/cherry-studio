@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[η έξοδος περικόπηκε: παραλείφθηκαν {{omittedBytes}} byte]"
+      },
       "new": "Νέα εργασία",
       "run_status": {
         "busy": "Η συνεδρία Agent είναι απασχολημένη. Δοκιμάστε ξανά σε λίγο.",

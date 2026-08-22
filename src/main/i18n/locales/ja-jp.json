@@ -9,6 +9,9 @@
       }
     },
     "session": {
+      "background_bash": {
+        "output_truncated": "[出力を省略しました: {{omittedBytes}} バイト省略]"
+      },
       "new": "新しいタスク",
       "run_status": {
         "busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",

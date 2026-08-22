@@ -23,6 +23,7 @@
  * - data-retry (transient model-retry/fallback status; shown live, never persisted)
  */
 
+import type { AgentWorkflowSnapshot } from '@shared/ai/agentWorkflowProgress'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
@@ -69,6 +70,8 @@ export type CompactionAnchorPartData = CompactionAnchorData
 export interface AgentTaskEventPartData {
   event: 'started' | 'progress' | 'updated' | 'notification'
   taskId: string
+  createdAt?: string
+  completedAt?: string
   toolUseId?: string
   status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title?: string
@@ -85,8 +88,12 @@ export interface AgentTaskEventPartData {
   /** Per-task edge authority for whether this task has detached from its spawning turn. */
   isBackgrounded?: boolean
   skipTranscript?: boolean
+  workflow?: AgentWorkflowSnapshot
   usage?: {
+    /** Sum of all assistant request usages observed in this task transcript. */
     totalTokens?: number
+    /** Latest request usage while running; the terminal SDK value is authoritative after completion. */
+    contextTokens?: number
     toolUses?: number
     durationMs?: number
   }

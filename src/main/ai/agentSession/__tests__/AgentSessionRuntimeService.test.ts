@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
+  checkpointWorkflowTaskEvent: vi.fn(),
   getSessionMessage: vi.fn(),
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     replaceMessageParts: mocks.replaceMessageParts,
+    checkpointWorkflowTaskEvent: mocks.checkpointWorkflowTaskEvent,
     getSessionMessage: mocks.getSessionMessage,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
@@ -2100,6 +2102,927 @@ describe('AgentSessionRuntimeService', () => {
     const BG_KEY = 'agent.session.background_tasks.session-1'
     const tasks = [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
 
+    beforeEach(() => {
+      const cacheStore: Record<string, unknown> = {}
+      mocks.cacheSetShared.mockImplementation((key: string, value: unknown) => {
+        cacheStore[key] = value
+      })
+      mocks.cacheGetShared.mockImplementation((key: string) => cacheStore[key])
+      mocks.cacheDeleteShared.mockImplementation((key: string) => {
+        delete cacheStore[key]
+      })
+    })
+
+    it('persists a turn-out terminal event beside detached flow content on the spawning message', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          toolUseId: 'task-root',
+          status: 'in_progress',
+          title: 'Audit the codebase',
+          taskType: 'subagent'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+
+      for (const chunk of [
+        {
+          type: 'text-start',
+          id: 'subagent-text',
+          providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
+        },
+        { type: 'text-delta', id: 'subagent-text', delta: 'Found the regression' },
+        { type: 'text-end', id: 'subagent-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'bg-1',
+          status: 'completed',
+          summary: 'Audit complete',
+          usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: 'Found the regression' }),
+            expect.objectContaining({
+              type: 'data-agent-task-event',
+              data: expect.objectContaining({
+                taskId: 'bg-1',
+                status: 'completed',
+                title: 'Audit the codebase'
+              })
+            })
+          ])
+        )
+      })
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalledWith('session-1', 'assistant-2', expect.anything())
+    })
+
+    it('keeps a prior task completion out of a later foreground turn stream', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          toolUseId: 'task-root',
+          status: 'in_progress',
+          title: 'Audit the codebase'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      const enqueueSuccessor = vi.fn()
+      entry.currentTurn.controller = { enqueue: enqueueSuccessor } as never
+      const completion = {
+        event: 'notification' as const,
+        taskId: 'bg-1',
+        status: 'completed' as const,
+        summary: 'Audit complete'
+      }
+
+      // The adapter reports the same native edge through the session status sink and the active
+      // turn stream. Ownership must keep the persisted copy on assistant-1 only.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: completion })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'data-agent-task-event',
+          id: 'task-bg-1-notification',
+          data: completion
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(enqueueSuccessor).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'data-agent-task-event', data: expect.objectContaining({ taskId: 'bg-1' }) })
+      )
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'data-agent-task-event',
+              data: expect.objectContaining({ taskId: 'bg-1', status: 'completed' })
+            })
+          ])
+        )
+      })
+    })
+
+    it('waits for a reordered task anchor and parent message persistence before appending the terminal edge', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn(), close: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          toolUseId: 'late-tool-root',
+          status: 'in_progress',
+          title: 'Audit the codebase'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'late-tool-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'bg-1',
+          status: 'completed',
+          summary: 'Audit complete'
+        }
+      })
+
+      expect(mocks.getSessionMessage).not.toHaveBeenCalled()
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'data-agent-task-event',
+              data: expect.objectContaining({ taskId: 'bg-1', status: 'completed' })
+            })
+          ])
+        )
+      })
+    })
+
+    it('preserves a pending-only terminal handoff across connection reset until its parent persists', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      const terminalChunk = {
+        type: 'data-agent-task-event',
+        id: 'task-bg-1-notification',
+        data: { event: 'notification', taskId: 'bg-1', status: 'completed' }
+      }
+      entry.connection = connection
+      entry.flowMessageIdsByToolCallId = new Map([['task-root', 'assistant-1']])
+      entry.taskToolCallIdsByTaskId = new Map([['bg-1', 'task-root']])
+      entry.taskMessageIdsByTaskId = new Map([['bg-1', 'assistant-1']])
+      entry.pendingBackgroundFlowChunks = new Map([['assistant-1', [terminalChunk]]])
+
+      await (service as any).resetConnectionRuntimeState(entry, connection)
+
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      ;(service as any).markFlowMessagePersisted(entry, 'assistant-1')
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'data-agent-task-event',
+              data: expect.objectContaining({ taskId: 'bg-1', status: 'completed' })
+            })
+          ])
+        )
+      })
+    })
+
+    it('persists the latest orphan edge and drops the oldest task after the handoff cap', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      mocks.getSessionMessage.mockImplementation((_sessionId: string, messageId: string) => ({
+        id: messageId,
+        role: 'assistant',
+        data: { parts: [] }
+      }))
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'orphan-0',
+          toolUseId: 'orphan-root-0',
+          status: 'in_progress',
+          title: 'Original title'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: { event: 'notification', taskId: 'orphan-0', status: 'completed', summary: 'Done' }
+      })
+      const lastIndex = 1024
+      for (let index = 1; index <= lastIndex; index += 1) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: {
+            event: 'started',
+            taskId: `orphan-${index}`,
+            ...(index === lastIndex ? { toolUseId: `orphan-root-${lastIndex}` } : {}),
+            status: 'in_progress'
+          }
+        })
+      }
+
+      entry.flowMessageIdsByToolCallId = new Map([
+        ['orphan-root-0', 'assistant-oldest'],
+        [`orphan-root-${lastIndex}`, 'assistant-latest']
+      ])
+      entry.persistedFlowMessageIds = new Set(['assistant-oldest', 'assistant-latest'])
+      ;(service as any).resolveBackgroundTasksForToolCall(entry, 'orphan-root-0', 'assistant-oldest')
+      ;(service as any).resolveBackgroundTasksForToolCall(entry, `orphan-root-${lastIndex}`, 'assistant-latest')
+      await (service as any).finishBackgroundFlows(entry)
+
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalledWith('session-1', 'assistant-oldest', expect.anything())
+      expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+        'session-1',
+        'assistant-latest',
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ taskId: `orphan-${lastIndex}`, status: 'in_progress' })
+          })
+        ])
+      )
+    })
+
+    it('keeps one terminal workflow snapshot when late progress arrives before the parent anchor', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      const workflow = (totalTokens: number) => ({
+        runId: 'wf-pending',
+        taskId: 'workflow-pending',
+        totalTokens,
+        phases: [{ title: 'Review' }],
+        workflowProgress: []
+      })
+      for (const data of [
+        {
+          event: 'notification' as const,
+          taskId: 'workflow-pending',
+          toolUseId: 'workflow-root',
+          status: 'completed' as const,
+          workflow: workflow(400)
+        },
+        {
+          event: 'progress' as const,
+          taskId: 'workflow-pending',
+          status: 'in_progress' as const,
+          workflow: workflow(200)
+        }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data })
+      }
+
+      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+      ;(service as any).resolveBackgroundTasksForToolCall(entry, 'workflow-root', 'assistant-1')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalled())
+      const persistedParts = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] ?? []
+      const workflowEvents = persistedParts.filter(
+        (part: any) => part.type === 'data-agent-task-event' && part.data.taskId === 'workflow-pending'
+      )
+      expect(workflowEvents).toHaveLength(1)
+      expect(workflowEvents[0]).toMatchObject({
+        data: {
+          status: 'completed',
+          workflow: { totalTokens: 400 }
+        }
+      })
+    })
+
+    it('persists the first terminal snapshot and checkpoints a later terminal notification', async () => {
+      let persistedParts: any[] = [
+        {
+          type: 'tool-Workflow',
+          toolCallId: 'workflow-root',
+          state: 'input-available',
+          input: { workflow: 'review' }
+        }
+      ]
+      mocks.getSessionMessage.mockImplementation(() => ({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: structuredClone(persistedParts) }
+      }))
+      mocks.replaceMessageParts.mockImplementation((_sessionId, _messageId, parts) => {
+        persistedParts = structuredClone(parts)
+      })
+      mocks.checkpointWorkflowTaskEvent.mockImplementation((_sessionId, _messageId, event) => {
+        const terminalIndex = persistedParts.findLastIndex(
+          (part) =>
+            part.type === 'data-agent-task-event' &&
+            part.data.taskId === event.taskId &&
+            part.data.workflow !== undefined &&
+            ['completed', 'stopped', 'error'].includes(part.data.status)
+        )
+        const fallbackIndex = persistedParts.findLastIndex(
+          (part) =>
+            part.type === 'data-agent-task-event' &&
+            part.data.taskId === event.taskId &&
+            part.data.workflow !== undefined
+        )
+        const index = terminalIndex >= 0 ? terminalIndex : fallbackIndex
+        const checkpoint = {
+          type: 'data-agent-task-event',
+          id: index >= 0 ? persistedParts[index].id : `task-${event.taskId}-workflow-checkpoint`,
+          data: event
+        }
+        if (index >= 0) persistedParts[index] = checkpoint
+        else persistedParts.push(checkpoint)
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'workflow-root',
+          toolName: 'Workflow',
+          input: { workflow: 'review' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'workflow-1',
+          toolUseId: 'workflow-root',
+          status: 'in_progress',
+          taskType: 'local_workflow'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      const workflow = (totalTokens: number) => ({
+        runId: 'wf-1',
+        taskId: 'workflow-1',
+        totalTokens,
+        phases: [{ title: 'Review' }],
+        workflowProgress: []
+      })
+      for (const data of [
+        {
+          event: 'progress' as const,
+          taskId: 'workflow-1',
+          status: 'in_progress' as const,
+          workflow: workflow(100)
+        },
+        {
+          event: 'progress' as const,
+          taskId: 'workflow-1',
+          status: 'in_progress' as const,
+          workflow: workflow(200)
+        },
+        {
+          event: 'updated' as const,
+          taskId: 'workflow-1',
+          status: 'completed' as const,
+          workflow: workflow(300)
+        }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data })
+      }
+
+      await Promise.resolve()
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+      expect(entry.taskMessageIdsByTaskId?.get('workflow-1')).toBe('assistant-1')
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'workflow-1',
+          status: 'completed',
+          workflow: workflow(400)
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalled())
+      const writtenParts = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] ?? []
+      const workflowEvents = writtenParts.filter(
+        (part: any) => part.type === 'data-agent-task-event' && part.data.taskId === 'workflow-1'
+      )
+      const workflowSnapshots = workflowEvents.filter((part: any) => part.data.workflow)
+      expect(workflowSnapshots).toHaveLength(2)
+      expect(workflowSnapshots.map((part: any) => part.data.workflow?.totalTokens)).toEqual([100, 300])
+      expect(workflowEvents).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+          })
+        ])
+      )
+      expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+      )
+      expect(persistedParts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+          })
+        ])
+      )
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+          })
+        ]),
+        60_000
+      )
+    })
+
+    it('checkpoints the latest workflow statistics and flushes terminal data immediately', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+
+        const event = (totalTokens: number, status: 'in_progress' | 'completed' = 'in_progress') => ({
+          event: status === 'completed' ? ('updated' as const) : ('progress' as const),
+          taskId: 'workflow-checkpoint',
+          toolUseId: 'workflow-root',
+          status,
+          title: 'Review',
+          workflow: {
+            runId: 'run-checkpoint',
+            taskId: 'workflow-checkpoint',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 10 }) })
+        )
+
+        vi.runOnlyPendingTimers()
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(30, 'completed') })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(3)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 30 }) })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps the latest workflow checkpoint after parent persistence and close finalization', async () => {
+      vi.useFakeTimers()
+      try {
+        const persistedParts: any[] = [
+          {
+            type: 'tool-Workflow',
+            toolCallId: 'workflow-root',
+            state: 'input-available',
+            input: { workflow: 'review' }
+          }
+        ]
+        mocks.getSessionMessage.mockImplementation(() => ({
+          id: 'assistant-1',
+          role: 'assistant',
+          data: { parts: structuredClone(persistedParts) }
+        }))
+        mocks.saveMessage.mockImplementation(({ message }) => ({ ...message, id: message.id ?? 'assistant-1' }))
+
+        const service = new AgentSessionRuntimeService()
+        const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { close: vi.fn(), enqueue: vi.fn() } as never
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-1',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          title: 'Review',
+          taskType: 'local_workflow',
+          workflow: {
+            runId: 'run-1',
+            taskId: 'workflow-1',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'chunk',
+          chunk: {
+            type: 'tool-input-available',
+            toolCallId: 'workflow-root',
+            toolName: 'Workflow',
+            input: { workflow: 'review' }
+          }
+        })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        await persistenceListener(handle).onDone({
+          status: 'success',
+          isTopicDone: true,
+          finalMessage: {
+            id: 'assistant-1',
+            role: 'assistant',
+            parts: [
+              persistedParts[0],
+              { type: 'data-agent-task-event', id: 'task-workflow-1-progress', data: event(10) }
+            ]
+          }
+        })
+        terminalListener(handle).onDone()
+
+        const closing = service.closeSession('session-1')
+        await entry.backgroundFlowFlush
+        await closing
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({
+            workflow: expect.objectContaining({ totalTokens: 20, totalCumulativeTokens: 30, totalToolCalls: 2 })
+          })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('flushes the latest throttled workflow checkpoint before pruning settled task state', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-pruned-checkpoint',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          title: 'Review',
+          workflow: {
+            runId: 'run-pruned-checkpoint',
+            taskId: 'workflow-pruned-checkpoint',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        ;(service as any).pruneSettledBackgroundFlowState(entry)
+        vi.runOnlyPendingTimers()
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('flushes the latest throttled workflow checkpoint before releasing settled message state', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-released-checkpoint',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          title: 'Review',
+          workflow: {
+            runId: 'run-released-checkpoint',
+            taskId: 'workflow-released-checkpoint',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        ;(service as any).releaseBackgroundFlowMessageState(entry, 'assistant-1')
+        vi.runOnlyPendingTimers()
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+        expect(entry.workflowCheckpoints?.has('workflow-released-checkpoint')).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('flushes the latest throttled workflow checkpoint before connection reset', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+        entry.connection = connection
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-reset-checkpoint',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          workflow: {
+            runId: 'run-reset-checkpoint',
+            taskId: 'workflow-reset-checkpoint',
+            totalTokens,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        await (service as any).resetConnectionRuntimeState(entry, connection)
+        vi.runOnlyPendingTimers()
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('checkpoints the latest workflow statistics when its message anchor arrives late', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'workflow-late-anchor',
+          toolUseId: 'workflow-root',
+          status: 'in_progress',
+          title: 'Review',
+          workflow: {
+            runId: 'run-late-anchor',
+            taskId: 'workflow-late-anchor',
+            totalTokens: 55,
+            totalCumulativeTokens: 89,
+            totalToolCalls: 5,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        }
+      })
+      expect(mocks.checkpointWorkflowTaskEvent).not.toHaveBeenCalled()
+
+      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+      ;(service as any).resolveBackgroundTasksForToolCall(entry, 'workflow-root', 'assistant-1')
+
+      expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.objectContaining({
+          taskId: 'workflow-late-anchor',
+          workflow: expect.objectContaining({ totalTokens: 55, totalCumulativeTokens: 89, totalToolCalls: 5 })
+        })
+      )
+    })
+
+    it('finalizes a task_updated terminal flow while another background task remains live', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.getSessionMessage.mockImplementation((_sessionId: string, messageId: string) => {
+        const toolCallId = messageId === 'assistant-1' ? 'long-root' : 'short-root'
+        return {
+          id: messageId,
+          role: 'assistant',
+          data: {
+            parts: [{ type: 'tool-Bash', toolCallId, state: 'input-available', input: { command: toolCallId } }]
+          }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+
+      for (const [toolCallId, taskId] of [
+        ['long-root', 'long-task'],
+        ['short-root', 'short-task']
+      ] as const) {
+        if (toolCallId === 'short-root') {
+          service.markTurnTerminal('session-1', 'success')
+          service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2', userMessage: userMessage('user-2') })
+          entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        }
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'chunk',
+          chunk: { type: 'tool-input-available', toolCallId, toolName: 'Bash', input: { command: toolCallId } }
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'started', taskId, toolUseId: toolCallId, status: 'in_progress', taskType: 'local_bash' }
+        })
+      }
+      service.markTurnTerminal('session-1', 'success')
+      entry.flowMessageIdsByToolCallId = new Map([
+        ['long-root', 'assistant-1'],
+        ['short-root', 'assistant-2']
+      ])
+      entry.taskToolCallIdsByTaskId = new Map([
+        ['long-task', 'long-root'],
+        ['short-task', 'short-root']
+      ])
+      entry.taskMessageIdsByTaskId = new Map([
+        ['long-task', 'assistant-1'],
+        ['short-task', 'assistant-2']
+      ])
+      entry.persistedFlowMessageIds = new Set(['assistant-1', 'assistant-2'])
+
+      for (const toolCallId of ['long-root', 'short-root']) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: toolCallId,
+          chunk: {
+            type: 'tool-output-available',
+            toolCallId,
+            output: `${toolCallId} output`,
+            dynamic: true,
+            providerExecuted: true
+          }
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: { event: 'updated', taskId: 'short-task', status: 'completed' }
+      })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-2',
+          expect.arrayContaining([expect.objectContaining({ toolCallId: 'short-root', output: 'short-root output' })])
+        )
+      })
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalledWith('session-1', 'assistant-1', expect.any(Array))
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: { event: 'notification', taskId: 'long-task', status: 'completed' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ toolCallId: 'long-root', output: 'long-root output' })])
+        )
+      })
+    })
+
     it('patches detached subagent chunks onto the spawning message after a new foreground turn starts', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -2431,10 +3354,59 @@ describe('AgentSessionRuntimeService', () => {
       await expect(service.stopBackgroundTask('session-1', 'bg-1')).resolves.toBe(false)
     })
 
+    it('coalesces progress cache broadcasts and publishes terminal task state immediately', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        const taskEventWrites = () =>
+          mocks.cacheSetShared.mock.calls.filter(([key]) => key === 'agent.session.task_events.session-1')
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'started', taskId: 'bg-throttled', status: 'in_progress', description: 'Starting' }
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'progress', taskId: 'bg-throttled', status: 'in_progress', description: 'Step 1' }
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'progress', taskId: 'bg-throttled', status: 'in_progress', description: 'Step 2' }
+        })
+
+        expect(taskEventWrites()).toHaveLength(1)
+        vi.runOnlyPendingTimers()
+        expect(taskEventWrites()).toHaveLength(2)
+        expect(taskEventWrites().at(-1)?.[1]).toMatchObject({
+          'bg-throttled': { status: 'in_progress', description: 'Step 2' }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'progress', taskId: 'bg-throttled', status: 'in_progress', description: 'Step 3' }
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-task-event',
+          data: { event: 'updated', taskId: 'bg-throttled', status: 'completed', summary: 'Done' }
+        })
+
+        expect(taskEventWrites()).toHaveLength(3)
+        expect(taskEventWrites().at(-1)?.[1]).toMatchObject({
+          'bg-throttled': { status: 'completed', description: 'Step 3', summary: 'Done' }
+        })
+        vi.runOnlyPendingTimers()
+        expect(taskEventWrites()).toHaveLength(3)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     // `task_type` and the row title exist only on `task_started` (SDK-verified); a completion event
     // replacing the cache entry wholesale would strip both, dropping a finished bash task into the
     // subagent bucket with no name.
-    it('merges late task events per task instead of letting the completion displace the start', () => {
+    it('merges late task identity without letting progress mutate a completed task', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -2463,6 +3435,15 @@ describe('AgentSessionRuntimeService', () => {
           outputFile: '/tmp/o'
         }
       })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          lastToolName: 'Read'
+        }
+      })
 
       const key = 'agent.session.task_events.session-1'
       expect(cacheStore[key]['bg-1']).toMatchObject({
@@ -2472,6 +3453,7 @@ describe('AgentSessionRuntimeService', () => {
         taskType: 'local_bash',
         summary: 'long prose…'
       })
+      expect(cacheStore[key]['bg-1']).not.toHaveProperty('lastToolName')
     })
 
     it('drops the level when the session closes, since it is scoped to the CLI process', () => {
@@ -2485,7 +3467,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheDeleteShared).toHaveBeenCalledWith(BG_KEY)
     })
 
-    it('ignores task-state resets from a stale connection', () => {
+    it('ignores task-state resets from a stale connection', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -2504,7 +3486,7 @@ describe('AgentSessionRuntimeService', () => {
       }
       mocks.cacheSetShared.mockClear()
 
-      ;(service as any).resetConnectionRuntimeState(entry, staleConnection)
+      await (service as any).resetConnectionRuntimeState(entry, staleConnection)
 
       expect(entry.runtimeState.background).toEqual({ kind: 'active', responder: 'interactive' })
       expect(entry.runtimeState.execution).toMatchObject({
@@ -2857,7 +3839,7 @@ describe('AgentSessionRuntimeService', () => {
 
       // Model the connection-loop finalizer: connection-local ownership is released, but the pending
       // stream outcome must survive until openTurnStream installs the receive-only controller.
-      ;(service as any).resetConnectionRuntimeState(entry, connection)
+      await (service as any).resetConnectionRuntimeState(entry, connection)
       entry.connection = undefined
       expect(entry.runtimeState.execution).toMatchObject({
         kind: 'autonomous-turn',
