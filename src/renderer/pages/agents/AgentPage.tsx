@@ -49,8 +49,8 @@ import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
-import Sessions from './components/Sessions'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
+import Sessions from './components/Sessions'
 import {
   createFeedbackComposerLaunch,
   FEEDBACK_INTENT_GUARD_TTL_MS,
@@ -172,6 +172,7 @@ const AgentPage = () => {
     }
   }, [routeActiveSessionId])
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
+  const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
@@ -963,46 +964,46 @@ const AgentPage = () => {
         onToggleSidebar={toggleShellPane}
       />
       <Container>
-      <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <AgentChat
-          centerSurface={centerSurface}
-          conversationBootstrap={conversationBootstrap}
-          pane={pane}
-          paneOpen={shellPaneOpen}
-          panePosition="left"
-          onPaneCollapse={() => setShellPaneOpenManually(false)}
-          onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
-          onFileNavigationRequestChange={handleFileNavigationRequestChange}
-          requestFileNavigation={requestFileNavigation}
-          paneManualToggle={paneManualToggle}
-          showResourceListControls={!isMessageOnlyView}
-          sidebarOpen={shellPaneOpen}
-          onSidebarToggle={toggleShellPane}
-          missingAgentSelection={!isMessageOnlyView && missingAgentSelection && !visibleSession}
-          onCreateEmptySession={isMessageOnlyView ? undefined : createAndActivateEmptySession}
-          onMissingAgentSelectionAgentChange={isMessageOnlyView ? undefined : handleMissingAgentSelectionAgentChange}
-          onSessionWorkspaceChange={isMessageOnlyView ? undefined : replaceSessionWorkspace}
-          onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
-          onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
-          locateMessageId={locateMessageId}
-          onLocateMessageHandled={handleLocateMessageHandled}
-          selectingMissingAgent={selectingMissingAgent}
-          replacingSessionWorkspace={replacingSessionWorkspace}
-          resourcePane={resourcePane}
-          resourcePaneCount={sessionResourcePaneCount}
-          resourcePaneRevealRequest={sessionRevealRequest}
-          sessionPaneOpen={isClassicSessionLayout ? sessionPaneOpen : undefined}
-          onSessionPaneOpenChange={isClassicSessionLayout ? setSessionPaneOpen : undefined}
-          sessionPaneUserOpenIntentSeq={sessionPaneUserOpenIntentSeq}
-          composerLaunchOptions={composerLaunchOptions}
+        <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
+          <AgentChat
+            centerSurface={centerSurface}
+            conversationBootstrap={conversationBootstrap}
+            pane={pane}
+            paneOpen={shellPaneOpen}
+            panePosition="left"
+            onPaneCollapse={() => setShellPaneOpenManually(false)}
+            onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
+            onFileNavigationRequestChange={handleFileNavigationRequestChange}
+            requestFileNavigation={requestFileNavigation}
+            paneManualToggle={paneManualToggle}
+            showResourceListControls={!isMessageOnlyView}
+            sidebarOpen={shellPaneOpen}
+            onSidebarToggle={toggleShellPane}
+            missingAgentSelection={!isMessageOnlyView && missingAgentSelection && !visibleSession}
+            onCreateEmptySession={isMessageOnlyView ? undefined : createAndActivateEmptySession}
+            onMissingAgentSelectionAgentChange={isMessageOnlyView ? undefined : handleMissingAgentSelectionAgentChange}
+            onSessionWorkspaceChange={isMessageOnlyView ? undefined : replaceSessionWorkspace}
+            onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
+            onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
+            locateMessageId={locateMessageId}
+            onLocateMessageHandled={handleLocateMessageHandled}
+            selectingMissingAgent={selectingMissingAgent}
+            replacingSessionWorkspace={replacingSessionWorkspace}
+            resourcePane={resourcePane}
+            resourcePaneCount={sessionResourcePaneCount}
+            resourcePaneRevealRequest={sessionRevealRequest}
+            sessionPaneOpen={isClassicSessionLayout ? sessionPaneOpen : undefined}
+            onSessionPaneOpenChange={isClassicSessionLayout ? setSessionPaneOpen : undefined}
+            sessionPaneUserOpenIntentSeq={sessionPaneUserOpenIntentSeq}
+            composerLaunchOptions={composerLaunchOptions}
+          />
+        </div>
+        <AgentCreateDialog
+          open={agentCreateOpen}
+          onOpenChange={setAgentCreateOpen}
+          onCreated={handleAgentConversationSelect}
         />
-      </div>
-      <AgentCreateDialog
-        open={agentCreateOpen}
-        onOpenChange={setAgentCreateOpen}
-        onCreated={handleAgentConversationSelect}
-      />
-    </Container>
+      </Container>
     </>
   )
 }

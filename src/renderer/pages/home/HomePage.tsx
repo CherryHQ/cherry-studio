@@ -51,8 +51,8 @@ import {
   AssistantConversationPickerDialog,
   type AssistantConversationSelection
 } from './components/AssistantConversationPickerDialog'
-import { TopicRightPane } from './components/TopicRightPane'
 import { HomeTabRuntime } from './components/HomeTabRuntime'
+import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
 import HomeTabs from './Tabs/HomeTabs'
@@ -335,6 +335,7 @@ const HomePage: FC = () => {
     visibleConversationId: visibleTopic?.id
   })
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
+  const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -656,7 +657,7 @@ const HomePage: FC = () => {
     return (
       <>
         <HomeTabRuntime
-          title={visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')}
+          title={tabTitle}
           emoji={visibleAssistant?.emoji}
           preserveVisuals={preserveTabVisuals}
           activeTopic={activeTopic}
@@ -771,7 +772,7 @@ const HomePage: FC = () => {
       userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
       <HomeTabRuntime
-        title={visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')}
+        title={tabTitle}
         emoji={visibleAssistant?.emoji}
         preserveVisuals={preserveTabVisuals}
         activeTopic={activeTopic}
