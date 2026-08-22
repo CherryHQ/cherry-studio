@@ -3,6 +3,8 @@ import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } fr
 import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ARTIFACT_RIGHT_PANE_WIDTH_PROFILE, RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE } from '../../../shell/paneLayout'
+import { createResourcePaneCapability, type ResourcePaneConfig } from '../resourcePane'
 import {
   RightPanel,
   type RightPanelCapability,
@@ -84,12 +86,18 @@ vi.mock('../../../shell/RightPaneHost', () => ({
   // Mirrors the host's phase reporting: it enters the full-width phase with the click and only
   // leaves it once the box has settled, which is what "settle pane" stands in for.
   PersistentRightPaneHost: ({
+    cacheKey,
     children,
     maximized,
+    maxWidth,
+    minWidth,
     open,
     onFullWidthPhaseChange
   }: PropsWithChildren<{
+    cacheKey?: string
     maximized?: boolean
+    maxWidth?: number
+    minWidth?: number
     open: boolean
     onFullWidthPhaseChange?: (active: boolean) => void
   }>) => {
@@ -98,7 +106,13 @@ vi.mock('../../../shell/RightPaneHost', () => ({
     }, [maximized, onFullWidthPhaseChange])
 
     return (
-      <div data-testid="right-pane-host" data-maximized={String(Boolean(maximized))} data-open={String(open)}>
+      <div
+        data-testid="right-pane-host"
+        data-cache-key={cacheKey}
+        data-maximized={String(Boolean(maximized))}
+        data-max-width={maxWidth}
+        data-min-width={minWidth}
+        data-open={String(open)}>
         <button type="button" onClick={() => onFullWidthPhaseChange?.(false)}>
           settle pane
         </button>
@@ -152,7 +166,8 @@ const capabilities = [
       id: 'second',
       instanceKey: 'second',
       title: 'Second',
-      readiness: scope.secondReadiness
+      readiness: scope.secondReadiness,
+      paneWidth: RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE
     })
   }
 ] satisfies readonly RightPanelCapability<TestScope>[]
@@ -435,6 +450,26 @@ describe('RightPanel', () => {
     consoleError.mockRestore()
   })
 
+  it('sizes the pane from the presented panel, so a list and an artifact never share a width', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    const host = screen.getByTestId('right-pane-host')
+    expect(host).toHaveAttribute('data-cache-key', ARTIFACT_RIGHT_PANE_WIDTH_PROFILE.cacheKey)
+    expect(host).toHaveAttribute('data-max-width', String(ARTIFACT_RIGHT_PANE_WIDTH_PROFILE.maxWidth))
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+
+    expect(host).toHaveAttribute('data-cache-key', RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.cacheKey)
+    expect(host).toHaveAttribute('data-max-width', String(RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.maxWidth))
+    expect(host).toHaveAttribute('data-min-width', String(RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE.minWidth))
+  })
+
   it('rejects duplicate panel ids', () => {
     const duplicateCapabilities = [capabilities[0], capabilities[0]]
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -446,5 +481,15 @@ describe('RightPanel', () => {
         </RightPanelProvider>
       )
     ).toThrow('Duplicate right-panel id: first')
+  })
+})
+
+describe('createResourcePaneCapability', () => {
+  it("claims the list width envelope, so the list never inherits the artifact pane's", () => {
+    const capability = createResourcePaneCapability<{ resourcePane: ResourcePaneConfig | null }>()
+
+    const entry = capability.resolve({ resourcePane: { node: null, label: 'Topics' } })
+
+    expect(entry?.paneWidth).toEqual(RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE)
   })
 })
