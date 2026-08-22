@@ -83,6 +83,13 @@
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "feature.mini_app.tab_icon_size",
+      "type": "number",
+      "defaultValue": 25,
+      "status": "classified",
+      "description": "Mini-app tab icon size in pixels (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.web_search.default_search_keywords_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": "exa-mcp",

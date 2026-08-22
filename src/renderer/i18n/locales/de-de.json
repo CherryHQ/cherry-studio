@@ -6055,6 +6055,10 @@
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
       "show_app": "{{name}} anzeigen",
+      "tab_icon": {
+        "description": "Symbole für angeheftete und nicht angeheftete Mini-App-Tabs zwischen 20 px und 30 px einstellen",
+        "title": "Größe der Mini-App-Tab-Symbole"
+      },
       "visible": "Angezeigte Mini-Apps"
     },
     "model": "Standardmodell",

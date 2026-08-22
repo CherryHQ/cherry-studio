@@ -6055,6 +6055,10 @@
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
       "show_app": "Mostrar {{name}}",
+      "tab_icon": {
+        "description": "Ajustar entre 20px y 30px los iconos de las pestañas de miniaplicaciones fijadas y sin fijar",
+        "title": "Tamaño de los iconos de pestañas de miniaplicaciones"
+      },
       "visible": "Miniaplicaciones visibles"
     },
     "model": "Modelo predeterminado",

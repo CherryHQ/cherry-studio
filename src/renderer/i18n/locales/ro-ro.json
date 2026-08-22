@@ -6055,6 +6055,10 @@
       },
       "reset_tooltip": "Resetează la implicit",
       "show_app": "Arată {{name}}",
+      "tab_icon": {
+        "description": "Reglează între 20px și 30px pictogramele filelor mini-aplicațiilor fixate și nefixate",
+        "title": "Dimensiunea pictogramelor filelor mini-aplicațiilor"
+      },
       "visible": "Mini-aplicații vizibile"
     },
     "model": "Model implicit",

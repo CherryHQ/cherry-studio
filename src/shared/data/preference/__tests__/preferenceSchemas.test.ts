@@ -68,6 +68,10 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['ui.window_style']).toBe(windowStyleDefault)
   })
 
+  it('defaults mini-app tab icons to 25px', () => {
+    expect(DefaultPreferences.default['feature.mini_app.tab_icon_size']).toBe(25)
+  })
+
   it('defaults message navigation to the anchor rail for new users', () => {
     const messageNavigationDefault: PreferenceSchemas['default']['chat.message.navigation_mode'] = 'anchor'
 

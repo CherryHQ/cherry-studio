@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
   ipcRequest: vi.fn(() => Promise.resolve(undefined)),
   macTransparentState: { value: false },
+  miniAppTabIconSize: 25,
   platformState: { isMac: false },
   showSearchPopup: vi.fn()
 }))
@@ -61,7 +62,7 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [false]
+  usePreference: () => [mocks.miniAppTabIconSize]
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -176,6 +177,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.macTransparentState.value = false
+  mocks.miniAppTabIconSize = 25
   mocks.platformState.isMac = false
 })
 
@@ -216,6 +218,37 @@ describe('AppShellTabBar', () => {
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+  })
+
+  it.each([
+    { iconSize: 20, expectedSize: '20px' },
+    { iconSize: 25, expectedSize: '25px' },
+    { iconSize: 30, expectedSize: '30px' }
+  ])('renders pinned and normal mini-app icons at $expectedSize', ({ iconSize, expectedSize }) => {
+    mocks.miniAppTabIconSize = iconSize
+    const tabs = [
+      createTab('pinned-mini-app', {
+        icon: 'https://example.com/pinned.png',
+        isPinned: true,
+        title: 'Pinned Mini App',
+        url: '/app/mini-app/pinned'
+      }),
+      createTab('normal-mini-app', {
+        icon: 'https://example.com/normal.png',
+        title: 'Normal Mini App',
+        url: '/app/mini-app/normal'
+      })
+    ]
+
+    renderTabBar({ tabs, activeTabId: tabs[1].id })
+
+    // The icon dimensions are the user-visible contract in #18949.
+    for (const label of ['Pinned Mini App', 'Normal Mini App']) {
+      expect(screen.getByRole('button', { name: label }).querySelector('img')).toHaveStyle({
+        height: expectedSize,
+        width: expectedSize
+      })
+    }
   })
 
   it('shows the focused tab as a Back control with a visible detach action', async () => {
