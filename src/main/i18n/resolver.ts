@@ -12,7 +12,6 @@ import JaJP from './locales/ja-jp.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
 import RuRu from './locales/ru-ru.json'
-import thTH from './locales/th-th.json'
 import viVN from './locales/vi-vn.json'
 import ZhCn from './locales/zh-cn.json'
 import ZhTw from './locales/zh-tw.json'
@@ -30,7 +29,6 @@ const locales = Object.fromEntries(
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
     ['ro-RO', roRO],
-    ['th-TH', thTH],
     ['vi-VN', viVN]
   ].map(([locale, translation]) => [locale, { translation }])
 )

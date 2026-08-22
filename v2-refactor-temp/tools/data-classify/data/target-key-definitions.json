@@ -738,6 +738,13 @@
       "description": "Command shortcut: screenshot.capture (unified command system)"
     },
     {
+      "targetKey": "agent.language",
+      "type": "string",
+      "defaultValue": "auto",
+      "status": "classified",
+      "description": "Global default Agent reply language independent of UI (app.language); 'auto' means no language constraint is injected. Per-Agent configuration.language overrides this"
+    },
+    {
       "targetKey": "feature.mini_app.check_updates_on_open",
       "type": "boolean",
       "defaultValue": true,
