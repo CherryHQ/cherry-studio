@@ -7,8 +7,9 @@ import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsC
 import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdownLight'
 import { isWin } from '@renderer/utils/platform'
+import { getNodeText } from '@renderer/utils/reactNodeText'
 import type { Node } from 'mdast'
-import React, { isValidElement, memo, type ReactNode, useCallback, useMemo } from 'react'
+import React, { memo, type ReactNode, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
@@ -34,15 +35,6 @@ const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} inline-flex max-w-full
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
-/** Concatenated text of a node tree, so streamed animate spans still feed the analyses below. */
-function collectText(node: ReactNode): string {
-  if (node == null || typeof node === 'boolean') return ''
-  if (typeof node === 'string' || typeof node === 'number') return String(node)
-  if (Array.isArray(node)) return node.map(collectText).join('')
-  if (isValidElement(node)) return collectText((node.props as { children?: ReactNode }).children)
-  return ''
-}
-
 const CodeBlock: React.FC<Props> = ({
   children: rawChildren,
   className,
@@ -52,7 +44,9 @@ const CodeBlock: React.FC<Props> = ({
   isStreaming = false
 }) => {
   const children = rawChildren ?? ''
-  const text = collectText(children)
+  // Streamed inline code arrives as element children; text extraction keeps
+  // the analyses below working while the render branch keeps the spans.
+  const text = useMemo(() => getNodeText(children), [children])
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = text.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
@@ -85,7 +79,12 @@ const CodeBlock: React.FC<Props> = ({
     [actions, blockId, id]
   )
 
-  const inlinePath = (language === null || language === 'text') && text ? normalizeInlineFilePath(text) : null
+  // Widget rewrites swap the faded <code> for interactive chrome, so they wait
+  // until streaming settles to avoid mid-stream layout jumps.
+  const inlinePath =
+    !isStreaming && !isIncomplete && (language === null || language === 'text') && text
+      ? normalizeInlineFilePath(text)
+      : null
 
   if (inlinePath && isKnownNavigationPath(inlinePath)) {
     return <NavigateToolInline input={{ path: inlinePath }} />

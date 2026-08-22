@@ -151,9 +151,23 @@ describe('CodeBlock', () => {
       expect(screen.getByText('i', { exact: false }).tagName).toBe('SPAN')
     })
 
-    it('still detects file paths inside streamed animate spans', () => {
-      // Path detection must read the concatenated span text, not bail on
-      // non-string children, so the clickable chip works mid-stream.
+    it('keeps streamed path-like inline code faded until streaming settles', () => {
+      // Widget rewrites wait for settled streaming so the pill never swaps
+      // layouts mid-stream; the animate span keeps rendering as inline code.
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className={undefined}
+          isStreaming
+          children={<span data-sd-animate="true">/Users/foo/bar.tsx</span>}
+        />
+      )
+
+      expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+      expect(screen.getByText('/Users/foo/bar.tsx').tagName).toBe('SPAN')
+    })
+
+    it('promotes a settled animate-span path to the clickable file chip', () => {
       render(
         <CodeBlock
           {...defaultProps}
@@ -163,7 +177,6 @@ describe('CodeBlock', () => {
       )
 
       expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
-      expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
     })
 
     it('should render without a message list provider', () => {
