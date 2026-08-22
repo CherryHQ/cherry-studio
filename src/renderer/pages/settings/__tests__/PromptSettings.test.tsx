@@ -112,10 +112,6 @@ vi.mock('../PromptTargetPopover', () => ({
   PromptTargetPopover: () => null
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: { children: ReactNode }) => <div>{children}</div>
-}))
-
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
@@ -212,6 +208,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ))}
     </div>
   ),
+  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Skeleton: (props: ComponentProps<'div'>) => <div {...props} />
 }))
 

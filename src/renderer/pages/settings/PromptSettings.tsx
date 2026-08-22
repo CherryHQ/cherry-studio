@@ -12,13 +12,13 @@ import {
   EmptyState,
   Input,
   ReorderableList,
+  Scrollbar,
   Skeleton,
   type SortableDragHandleProps
 } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import {
   agentAdapter,
@@ -278,7 +278,7 @@ export function PromptSettings() {
         ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border-subtle bg-card">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {error ? (
           <div className="flex min-h-full items-center justify-center p-4">
             <Alert
@@ -304,7 +304,7 @@ export function PromptSettings() {
             className="py-14"
           />
         ) : (
-          <Scrollbar className="min-h-0 flex-1">
+          <Scrollbar className="min-h-0 flex-1 pb-3">
             <ReorderableList
               items={prompts}
               visibleItems={visiblePrompts}
@@ -313,8 +313,7 @@ export function PromptSettings() {
               onReorderError={handleReorderError}
               disabled={savingPrompt || deletingPrompt || isReordering}
               dragHandle
-              gap={0}
-              className="divide-y divide-border-subtle"
+              gap={8}
               restrictions={{ scrollableAncestor: true }}
               renderItem={(prompt, _index, state) => (
                 <PromptRow
@@ -391,9 +390,9 @@ export function PromptSettings() {
 
 function PromptListSkeleton() {
   return (
-    <div className="space-y-3 p-4" data-testid="prompt-settings-loading">
+    <div className="space-y-2 pb-3" data-testid="prompt-settings-loading">
       {Array.from({ length: 5 }, (_, index) => (
-        <div key={index} className="flex items-center gap-3">
+        <div key={index} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
           <Skeleton className="size-6 rounded-md" />
           <div className="min-w-0 flex-1 space-y-2">
             <Skeleton className="h-4 w-1/3" />
@@ -435,7 +434,7 @@ function PromptRow({
   const summary = getPromptSummary(prompt)
 
   return (
-    <div className="group flex items-center gap-3 bg-card px-3 py-2 transition-colors hover:bg-accent/30">
+    <div className="group flex items-center gap-3 rounded-lg border border-border px-3 py-2 transition-[border-color] hover:border-border-strong">
       <Button
         ref={dragHandleProps?.ref}
         type="button"
