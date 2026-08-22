@@ -195,6 +195,7 @@ export class McpRuntimeService extends BaseService {
   // Called on server stop, removal, or restart to prevent a stale listener from
   // racing a fresh connect attempt.
   private pendingOAuthListeners: Map<string, () => void> = new Map()
+  private pendingOAuthCompletions = new Set<Promise<void>>()
   // In-flight liveness probes, deduped per server key. Deliberately separate from
   // pendingClients: removeServer awaits that map, and it must not wait out a ping.
   private pendingProbes: Map<string, Promise<Client | undefined>> = new Map()
@@ -209,6 +210,7 @@ export class McpRuntimeService extends BaseService {
   private activeToolCalls: Map<string, Set<AbortController>> = new Map()
   private serverLogs = new ServerLogBuffer(200)
   private stopping = false
+  private oauthShutdownController = new AbortController()
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
 
@@ -218,15 +220,19 @@ export class McpRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.stopping = false
+    this.oauthShutdownController = new AbortController()
   }
 
   protected async onStop(): Promise<void> {
     this.stopping = true
+    this.oauthShutdownController.abort(new Error('MCP runtime is stopping'))
     for (const cancel of this.pendingOAuthListeners.values()) {
       cancel()
     }
     this.pendingOAuthListeners.clear()
     this.abortActiveToolCalls()
+    await Promise.allSettled(this.pendingOAuthCompletions)
+    this.pendingOAuthCompletions.clear()
     await this.waitForPendingClients()
     await this.closeAllClients()
     this.pendingClients.clear()
@@ -658,10 +664,14 @@ export class McpRuntimeService extends BaseService {
     // background — when the code eventually arrives the server auto-reconnects.
     let graceExpired = false
     let authCode: string | undefined
+    const shutdownSignal = this.oauthShutdownController.signal
     try {
-      authCode = await callbackServer.waitForAuthCode(OAUTH_GRACE_MS)
+      authCode = await callbackServer.waitForAuthCode(OAUTH_GRACE_MS, shutdownSignal)
     } catch (graceError) {
-      if (graceError instanceof OAuthCallbackTimeoutError) {
+      if (shutdownSignal.aborted) {
+        await callbackServer.close()
+        throw shutdownSignal.reason instanceof Error ? shutdownSignal.reason : new Error('MCP runtime is stopping')
+      } else if (graceError instanceof OAuthCallbackTimeoutError) {
         graceExpired = true
       } else {
         void callbackServer.close()
@@ -729,15 +739,18 @@ export class McpRuntimeService extends BaseService {
     this.cancelPendingOAuthListener(server.id)
 
     let active = true
+    const abortController = new AbortController()
     const cancel = () => {
+      if (!active) return
       active = false
+      abortController.abort()
       void callbackServer.close()
     }
     this.pendingOAuthListeners.set(server.id, cancel)
 
     const remaining = OAUTH_CALLBACK_TIMEOUT_MS - OAUTH_GRACE_MS
-    callbackServer
-      .waitForAuthCode(remaining)
+    const completion = callbackServer
+      .waitForAuthCode(remaining, abortController.signal)
       .then(async (authCode) => {
         if (!active || this.stopping) return
         getServerLogger(server).debug(`Background OAuth listener received auth code — completing auth`)
@@ -759,11 +772,13 @@ export class McpRuntimeService extends BaseService {
         })
       })
       .finally(() => {
+        this.pendingOAuthCompletions.delete(completion)
         if (this.pendingOAuthListeners.get(server.id) === cancel) {
           this.pendingOAuthListeners.delete(server.id)
         }
         if (active) void callbackServer.close()
       })
+    this.pendingOAuthCompletions.add(completion)
   }
 
   private cancelPendingOAuthListener(serverId: string): void {
@@ -1075,7 +1090,9 @@ export class McpRuntimeService extends BaseService {
       await this.getOrCreateClient(server)
       await application.get('McpCatalogService').refreshTools(server.id)
     } catch (error) {
-      this.setServerStatus(server.id, 'error', error)
+      if (!(error instanceof OAuthPendingAuthError)) {
+        this.setServerStatus(server.id, 'error', error)
+      }
       throw error
     }
   }

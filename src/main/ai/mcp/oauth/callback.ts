@@ -120,8 +120,8 @@ export class CallBackServer {
   }
 
   async close() {
-    const server = await this.server
-    server.close()
+    const server = await this.server.catch(() => undefined)
+    server?.close()
   }
 
   /**
@@ -133,17 +133,32 @@ export class CallBackServer {
    * tab, but short enough that a pending-auth server does not stall startup for 5 minutes.
    * Callers that need a different bound pass `timeoutMs` explicitly.
    */
-  async waitForAuthCode(timeoutMs = 60_000): Promise<string> {
+  async waitForAuthCode(timeoutMs = 60_000, signal?: AbortSignal): Promise<string> {
     return new Promise((resolve, reject) => {
-      const onCode = (code: string) => {
+      const cleanup = () => {
         clearTimeout(timer)
+        this.events.off('auth-code-received', onCode)
+        signal?.removeEventListener('abort', onAbort)
+      }
+      const onCode = (code: string) => {
+        cleanup()
         resolve(code)
       }
+      const onAbort = () => {
+        cleanup()
+        reject(signal?.reason ?? new Error('OAuth callback wait aborted'))
+      }
       const timer = setTimeout(() => {
-        this.events.off('auth-code-received', onCode)
+        cleanup()
         reject(new OAuthCallbackTimeoutError(timeoutMs))
       }, timeoutMs)
       this.events.once('auth-code-received', onCode)
+      void this.server.catch((error) => {
+        cleanup()
+        reject(error)
+      })
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
     })
   }
 }

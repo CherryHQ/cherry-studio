@@ -10,6 +10,12 @@ class TestCallBackServer extends CallBackServer {
   }
 }
 
+class FailingCallBackServer extends CallBackServer {
+  override initialize(): Promise<http.Server> {
+    return Promise.reject(new Error('callback server failed to listen'))
+  }
+}
+
 describe('CallBackServer.waitForAuthCode', () => {
   let events: EventEmitter
   let server: CallBackServer
@@ -42,6 +48,14 @@ describe('CallBackServer.waitForAuthCode', () => {
     await assertion
   })
 
+  it('rejects and removes the listener when the callback server fails to listen', async () => {
+    server = new FailingCallBackServer({ port: 0, path: '/oauth/callback', events })
+
+    await expect(server.waitForAuthCode(1000)).rejects.toThrow('callback server failed to listen')
+    expect(events.listenerCount('auth-code-received')).toBe(0)
+    await expect(server.close()).resolves.toBeUndefined()
+  })
+
   it('does not reject after resolving (timer is cleared on success)', async () => {
     const promise = server.waitForAuthCode(1000)
     events.emit('auth-code-received', 'first-code')
@@ -51,6 +65,18 @@ describe('CallBackServer.waitForAuthCode', () => {
     // Advancing past the original timeout must not trigger any late rejection,
     // and the listener must have been removed (no leak for a second emit).
     await vi.advanceTimersByTimeAsync(2000)
+    expect(events.listenerCount('auth-code-received')).toBe(0)
+  })
+
+  it('rejects and removes the listener when aborted', async () => {
+    const controller = new AbortController()
+    const reason = new Error('callback wait cancelled')
+    const promise = server.waitForAuthCode(1000, controller.signal)
+    const assertion = expect(promise).rejects.toBe(reason)
+
+    controller.abort(reason)
+
+    await assertion
     expect(events.listenerCount('auth-code-received')).toBe(0)
   })
 })

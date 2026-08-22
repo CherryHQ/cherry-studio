@@ -1141,17 +1141,19 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
   it('marks non-timeout OAuth callback failures as errors without scheduling background completion', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
-    callbackServerMock.waitForAuthCode.mockRejectedValueOnce(new Error('callback listener failed'))
+    callbackServerMock.waitForAuthCode.mockRejectedValueOnce(
+      new Error('Timed out waiting for OAuth authorization code after 8s')
+    )
 
     const service = new McpRuntimeService()
     const server = urlServer('streamableHttp')
 
     await expect((service as any).getOrCreateClient(server)).rejects.toThrow(
-      'OAuth authentication failed: callback listener failed'
+      'OAuth authentication failed: Timed out waiting for OAuth authorization code after 8s'
     )
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
       state: 'error',
-      lastError: 'OAuth authentication failed: callback listener failed'
+      lastError: 'OAuth authentication failed: Timed out waiting for OAuth authorization code after 8s'
     })
     expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(1)
     expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
@@ -1211,6 +1213,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
 
     const service = new McpRuntimeService()
     const server = urlServer('streamableHttp')
+    const restartSpy = vi.spyOn(service, 'restartServer')
 
     await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
       name: 'OAuthPendingAuthError'
@@ -1221,6 +1224,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
         lastError: 'token exchange failed'
       })
     })
+    expect(restartSpy).not.toHaveBeenCalled()
   })
 
   it('does not reconnect or write stale status when stopped during background finishAuth', async () => {
@@ -1250,9 +1254,9 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     resolveBackgroundCode('background-auth-code')
     await vi.waitFor(() => expect(mcpSdkMock.state.finishAuthStarted).toHaveBeenCalledTimes(1))
 
-    await (service as any).onStop()
+    const stop = (service as any).onStop()
     rejectFinishAuth(new Error('late token exchange failure'))
-    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    await stop
 
     expect(restartSpy).not.toHaveBeenCalled()
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
@@ -1260,16 +1264,73 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     })
   })
 
+  it('waits for an in-flight background restart during stop', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    let resolveRestart!: () => void
+    const restartPending = new Promise<void>((resolve) => {
+      resolveRestart = resolve
+    })
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockResolvedValueOnce('background-auth-code')
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    const restartSpy = vi.spyOn(service, 'restartServer').mockReturnValue(restartPending)
+    const abortActiveToolCallsSpy = vi.spyOn(service as any, 'abortActiveToolCalls')
+    const closeAllClientsSpy = vi.spyOn(service as any, 'closeAllClients')
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+    await vi.waitFor(() => expect(restartSpy).toHaveBeenCalledWith(server.id))
+
+    const stop = (service as any).onStop()
+
+    expect(abortActiveToolCallsSpy).toHaveBeenCalledTimes(1)
+    expect(closeAllClientsSpy).not.toHaveBeenCalled()
+
+    resolveRestart()
+    await stop
+    expect(closeAllClientsSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts a pending background OAuth listener during stop', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    let backgroundSignal: AbortSignal | undefined
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce((_timeoutMs: number, signal?: AbortSignal) => {
+        backgroundSignal = signal
+        return new Promise<string>((_, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+      })
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+    await (service as any).onStop()
+
+    expect(backgroundSignal?.aborted).toBe(true)
+    expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
+  })
+
   it('does not schedule background OAuth completion when stopped during the grace wait', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
-    let rejectGraceWait!: (error: Error) => void
-    callbackServerMock.waitForAuthCode.mockImplementationOnce(
-      () =>
-        new Promise<string>((_, reject) => {
-          rejectGraceWait = reject
-        })
-    )
+    let graceSignal: AbortSignal | undefined
+    callbackServerMock.waitForAuthCode.mockImplementationOnce((_timeoutMs: number, signal?: AbortSignal) => {
+      graceSignal = signal
+      return new Promise<string>((_, reject) => {
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
 
     const service = new McpRuntimeService()
     const server = urlServer('streamableHttp')
@@ -1278,11 +1339,12 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
 
     await vi.waitFor(() => expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(1))
     const stop = (service as any).onStop()
-    rejectGraceWait(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
 
     await connectAssertion
     await stop
+    expect(graceSignal?.aborted).toBe(true)
     expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(1)
+    expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
   })
 
   it('cancels background OAuth listener when the server is stopped', async () => {
@@ -1360,6 +1422,30 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     // listener was cancelled and must not trigger a second restart.
     expect(restartSpy).toHaveBeenCalledTimes(1)
     expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves pending-auth when restartServer reaches the OAuth grace timeout', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce(
+        (_timeoutMs: number, signal?: AbortSignal) =>
+          new Promise<string>((_, reject) => {
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.restartServer(server.id)).rejects.toMatchObject({ name: 'OAuthPendingAuthError' })
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'pending-auth'
+    })
+
+    await (service as any).onStop()
   })
 })
 
