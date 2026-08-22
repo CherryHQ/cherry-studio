@@ -9,8 +9,7 @@ const serviceMocks = vi.hoisted(() => ({
   resolveApiKey: vi.fn(),
   getByKey: vi.fn(),
   hasToken: vi.fn(),
-  ensureCherryCloudGateway: vi.fn(),
-  resolveApiGatewayRuntime: vi.fn()
+  resolveCherryCloudGatewayRuntime: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -24,12 +23,11 @@ vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: servic
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    OAuthRuntimeService: { hasToken: serviceMocks.hasToken },
-    CherryCloudService: { ensureAgentGateway: serviceMocks.ensureCherryCloudGateway }
+    OAuthRuntimeService: { hasToken: serviceMocks.hasToken }
   } as never)
 })
 vi.mock('@main/ai/runtime/agentApiGateway', () => ({
-  resolveApiGatewayRuntime: serviceMocks.resolveApiGatewayRuntime
+  resolveCherryCloudGatewayRuntime: serviceMocks.resolveCherryCloudGatewayRuntime
 }))
 
 import {
@@ -54,7 +52,7 @@ const GATEWAY = {
   baseUrl: 'http://127.0.0.1:23333',
   apiKey: GATEWAY_KEY,
   usageHeaders: GATEWAY_USAGE_HEADERS,
-  stateTag: 'gateway-state:false:true',
+  connectionFingerprint: 'gateway-fingerprint',
   internalRequestToken: 'internal-request-token'
 }
 
@@ -547,15 +545,13 @@ describe('Cherry Cloud Pi injection', () => {
   })
 
   it('acquires the signed Cloud gateway before materializing the session route', async () => {
-    serviceMocks.ensureCherryCloudGateway.mockResolvedValue(undefined)
-    serviceMocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
+    serviceMocks.resolveCherryCloudGatewayRuntime.mockResolvedValue(GATEWAY)
 
     await expect(resolvePiProviderInjectionForSession('session-1', provider, model)).resolves.toMatchObject({
       modelId: 'cherryai:deepseek-free',
       apiKey: GATEWAY_KEY
     })
-    expect(serviceMocks.ensureCherryCloudGateway).toHaveBeenCalledOnce()
-    expect(serviceMocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1', { allowDisabled: true })
+    expect(serviceMocks.resolveCherryCloudGatewayRuntime).toHaveBeenCalledWith('session-1')
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
 })
@@ -581,8 +577,7 @@ function stubGrokCliServices(): void {
 describe('modelInjection service resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    serviceMocks.ensureCherryCloudGateway.mockResolvedValue(undefined)
-    serviceMocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
+    serviceMocks.resolveCherryCloudGatewayRuntime.mockResolvedValue(GATEWAY)
     serviceMocks.getByProviderId.mockResolvedValue({
       id: 'p',
       name: 'P',

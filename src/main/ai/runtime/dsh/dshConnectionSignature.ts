@@ -13,12 +13,11 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { resolveDshInjectionApi } from '@main/ai/runtime/dsh/modelInjection'
+import { usesDshGateway } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { isCherryCloudWorkModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
@@ -89,9 +88,7 @@ export async function captureDshConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-  const cherryCloudGatewayGeneration = isCherryCloudWorkModel(model.providerId, model.group)
-    ? await application.get('CherryCloudService').getAgentGatewayGeneration()
-    : null
+  const gatewayCredentials = usesDshGateway(provider, model) ? gatewayCredentialsFingerprint() : null
 
   const signature = createHash('sha256')
     .update(
@@ -110,11 +107,7 @@ export async function captureDshConnectionSnapshot(
           linkedChannel,
           notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          cherryCloudGatewayGeneration,
-          // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
-          // the warm connection (claude's credentialsFingerprint parity); null on native routes.
-          gatewayCredentials:
-            resolveDshInjectionApi(provider, model) === undefined ? gatewayCredentialsFingerprint() : null
+          gatewayCredentials
         })
       )
     )
