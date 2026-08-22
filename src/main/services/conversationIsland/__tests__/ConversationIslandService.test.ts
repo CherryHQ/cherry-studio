@@ -49,7 +49,10 @@ const mocks = vi.hoisted(() => {
       },
       getAllDisplays: vi.fn(() => [] as any[]),
       getPrimaryDisplay: vi.fn(() => undefined as any),
-      getDisplayMatching: vi.fn((_bounds: unknown) => undefined as any)
+      getDisplayMatching: vi.fn((bounds: unknown) => {
+        void bounds
+        return undefined as any
+      })
     },
     windows: new Map<string, any>(),
     windowSequence: 0
@@ -170,7 +173,10 @@ const services = vi.hoisted(() => {
       for (const listener of mocks.createdListeners) listener({ id, type, window })
       return id
     }),
-    pushInitData: vi.fn((id: string, _snapshot: unknown) => mocks.windows.has(id))
+    pushInitData: vi.fn((id: string, snapshot: unknown) => {
+      void snapshot
+      return mocks.windows.has(id)
+    })
   }
 
   return { cacheService, powerService, preferenceService, windowManager }

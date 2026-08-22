@@ -17,15 +17,25 @@ type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => children,
   motion: {
-    div: ({ children, animate, initial, exit: _exit, layout: _layout, transition, ...props }: MotionDivProps) => (
-      <div
-        {...props}
-        data-animate={JSON.stringify(animate)}
-        data-initial={JSON.stringify(initial)}
-        data-transition={JSON.stringify(transition)}>
-        {children}
-      </div>
-    )
+    div: ({ children, ...motionProps }: MotionDivProps) => {
+      const { animate, initial, transition } = motionProps
+      const domProps = { ...motionProps }
+      delete domProps.animate
+      delete domProps.exit
+      delete domProps.initial
+      delete domProps.layout
+      delete domProps.transition
+
+      return (
+        <div
+          {...domProps}
+          data-animate={JSON.stringify(animate)}
+          data-initial={JSON.stringify(initial)}
+          data-transition={JSON.stringify(transition)}>
+          {children}
+        </div>
+      )
+    }
   }
 }))
 
