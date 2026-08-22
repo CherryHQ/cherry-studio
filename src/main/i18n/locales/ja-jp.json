@@ -103,6 +103,7 @@
     "paste": "貼り付け"
   },
   "conversation_island": {
+    "activity_count": "合計 {{count}} 件",
     "status": {
       "agent": {
         "done": "タスク完了",

@@ -103,6 +103,7 @@
     "paste": "Dán"
   },
   "conversation_island": {
+    "activity_count": "Tổng: {{count}}",
     "status": {
       "agent": {
         "done": "Đã hoàn thành tác vụ",

@@ -103,6 +103,7 @@
     "paste": "Pegar"
   },
   "conversation_island": {
+    "activity_count": "Total: {{count}}",
     "status": {
       "agent": {
         "done": "Tarea completada",

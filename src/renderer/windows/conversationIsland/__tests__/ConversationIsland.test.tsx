@@ -38,9 +38,12 @@ const activity = (
 
 const snapshot = (overrides: Partial<ConversationIslandSnapshot> = {}): ConversationIslandSnapshot => ({
   ...activity('topic-1', 'New Chat'),
+  activityCountText: 'Total: 1',
   secondaryCount: 0,
   presentation: 'capsule',
   expanded: false,
+  exiting: false,
+  reducedMotion: false,
   ...overrides
 })
 

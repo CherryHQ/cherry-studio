@@ -91,11 +91,11 @@ function sameBounds(left: Rectangle, right: Rectangle): boolean {
   return left.x === right.x && left.y === right.y && left.width === right.width && left.height === right.height
 }
 
-function shouldAnimateBoundsUpdate(): boolean {
+function prefersReducedMotion(): boolean {
   try {
-    return !systemPreferences.getAnimationSettings().prefersReducedMotion
+    return systemPreferences.getAnimationSettings().prefersReducedMotion
   } catch {
-    return false
+    return true
   }
 }
 
@@ -454,12 +454,17 @@ export class ConversationIslandService extends BaseService {
     placement: ConversationIslandPlacement,
     activities?: ConversationIslandActivity[]
   ): ConversationIslandSnapshot {
+    const activityCount = secondaryCount + 1
+
     return {
       ...this.buildActivityItem(activity),
+      activityCountText: t('conversation_island.activity_count', { count: activityCount }),
       secondaryCount,
       presentation: placement.presentation,
       notchWidth: placement.notchWidth,
       expanded: activities !== undefined,
+      exiting: false,
+      reducedMotion: prefersReducedMotion(),
       ...(activities ? { activities: activities.map((item) => this.buildActivityItem(item)) } : {})
     }
   }
@@ -474,7 +479,7 @@ export class ConversationIslandService extends BaseService {
     if (!window || window.isDestroyed()) throw new Error('Conversation Island window is unavailable')
     const isInitialPosition = this.positionedWindowId !== this.windowId
     if (isInitialPosition || !sameBounds(window.getBounds(), bounds)) {
-      window.setBounds(bounds, isInitialPosition ? false : shouldAnimateBoundsUpdate())
+      window.setBounds(bounds, isInitialPosition ? false : !snapshot.reducedMotion)
       this.positionedWindowId = this.windowId
     }
     window.showInactive()

@@ -103,6 +103,7 @@
     "paste": "Colar"
   },
   "conversation_island": {
+    "activity_count": "Total: {{count}}",
     "status": {
       "agent": {
         "done": "Tarefa concluída",

@@ -11,9 +11,12 @@ export interface ConversationIslandActivityItem {
 }
 
 export interface ConversationIslandSnapshot extends ConversationIslandActivityItem {
+  activityCountText: string
   secondaryCount: number
   presentation: 'notch' | 'capsule'
   notchWidth?: number
   expanded: boolean
+  exiting: boolean
+  reducedMotion: boolean
   activities?: ConversationIslandActivityItem[]
 }

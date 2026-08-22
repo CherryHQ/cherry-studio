@@ -103,6 +103,7 @@
     "paste": "粘贴"
   },
   "conversation_island": {
+    "activity_count": "共 {{count}} 项",
     "status": {
       "agent": {
         "done": "任务完成",

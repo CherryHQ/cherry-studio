@@ -103,6 +103,7 @@
     "paste": "Вставить"
   },
   "conversation_island": {
+    "activity_count": "Всего: {{count}}",
     "status": {
       "agent": {
         "done": "Задача выполнена",

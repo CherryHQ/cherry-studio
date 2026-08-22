@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
   const offScreen = (event: string, listener: Listener) => screenListeners.get(event)?.delete(listener)
 
   return {
+    animationSettingsError: undefined as Error | undefined,
     activitiesListener: undefined as ((event: any) => void) | undefined,
     cacheDisposers: new Map<string, ReturnType<typeof vi.fn>>(),
     cacheSubscriptions: new Map<string, CacheListener>(),
@@ -60,11 +61,12 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@main/i18n', () => ({
-  t: (key: string) => {
+  t: (key: string, options?: { count?: number }) => {
     const fallback: Record<string, string> = {
       'agent.session.new': 'New task',
       'chat.conversation.new': 'New Chat'
     }
+    if (key === 'conversation_island.activity_count') return `Total: ${options?.count}${mocks.i18nSuffix}`
     return `${fallback[key] ?? key}${mocks.i18nSuffix}`
   }
 }))
@@ -83,11 +85,14 @@ vi.mock('../macScreenGeometry', () => ({
 vi.mock('electron', () => ({
   screen: mocks.screen,
   systemPreferences: {
-    getAnimationSettings: () => ({
-      shouldRenderRichAnimation: true,
-      scrollAnimationsEnabledBySystem: true,
-      prefersReducedMotion: mocks.prefersReducedMotion
-    })
+    getAnimationSettings: () => {
+      if (mocks.animationSettingsError) throw mocks.animationSettingsError
+      return {
+        shouldRenderRichAnimation: true,
+        scrollAnimationsEnabledBySystem: true,
+        prefersReducedMotion: mocks.prefersReducedMotion
+      }
+    }
   }
 }))
 
@@ -251,6 +256,7 @@ describe('ConversationIslandService', () => {
     vi.useFakeTimers()
     vi.setSystemTime(0)
     vi.clearAllMocks()
+    mocks.animationSettingsError = undefined
     mocks.activitiesListener = undefined
     mocks.cacheDisposers.clear()
     mocks.cacheSubscriptions.clear()
@@ -518,11 +524,14 @@ describe('ConversationIslandService', () => {
 
     expect(latestSnapshot()).toMatchObject({
       activityId: 'agent-session:topic-approval',
+      activityCountText: 'Total: 2',
       state: 'awaiting-confirmation',
       statusText: 'conversation_island.status.awaiting_confirmation',
       title: 'Approval request',
       secondaryCount: 1,
       expanded: true,
+      exiting: false,
+      reducedMotion: false,
       activities: [
         {
           activityId: 'agent-session:topic-approval',
@@ -679,6 +688,25 @@ describe('ConversationIslandService', () => {
       height: 104
     })
     expect(latestSnapshot()).toMatchObject({ expanded: true, presentation: 'capsule' })
+  })
+
+  it.each([
+    { setting: true, expected: true },
+    { setting: false, expected: false }
+  ])('projects reduced motion $setting into the renderer snapshot', ({ setting, expected }) => {
+    changePreference('feature.conversation_island.enabled', true)
+    mocks.prefersReducedMotion = setting
+    emitActivity('pending', 100)
+
+    expect(latestSnapshot()).toMatchObject({ reducedMotion: expected })
+  })
+
+  it('falls back to no animation when Electron animation settings cannot be read', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    mocks.animationSettingsError = new Error('settings unavailable')
+    emitActivity('pending', 100)
+
+    expect(latestSnapshot()).toMatchObject({ reducedMotion: true })
   })
 
   it('animates only changed follow-up bounds when reduced motion is disabled', () => {

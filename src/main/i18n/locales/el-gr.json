@@ -103,6 +103,7 @@
     "paste": "Επικόλληση"
   },
   "conversation_island": {
+    "activity_count": "Σύνολο: {{count}}",
     "status": {
       "agent": {
         "done": "Η εργασία ολοκληρώθηκε",
