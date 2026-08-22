@@ -1,6 +1,6 @@
 # macOS Conversation Island Motion and Notch Polish Design
 
-Status: awaiting written review
+Status: approved
 
 ## Summary
 
