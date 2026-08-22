@@ -197,6 +197,34 @@ describe('mergeCustomProviderParameters', () => {
     expect((result['openai-compatible'] as Record<string, unknown>).reasoningEffort).toBe('low')
   })
 
+  it('normalizes reasoning_effort → reasoningEffort for github-copilot-openai-compatible (#11140)', () => {
+    // Mirror the OpenAI-compatible path: AI SDK silently drops snake_case keys, so a
+    // user's custom parameter dictionary carrying `reasoning_effort` must be renamed
+    // to `reasoningEffort` before being merged into the `copilot` provider namespace.
+    const result = mergeCustomProviderParameters(
+      { copilot: {} } as unknown as Record<string, Record<string, never>>,
+      { reasoning_effort: 'high' },
+      'github-copilot-openai-compatible',
+      'github-copilot-openai-compatible'
+    )
+    expect(result).toEqual({ copilot: { reasoningEffort: 'high' } })
+    expect(result.copilot.reasoning_effort).toBeUndefined()
+  })
+
+  it('does NOT clobber existing reasoningEffort with renamed reasoning_effort for github-copilot (#11140)', () => {
+    // Mirror the openai-compatible clobber test: when the user's custom params carry BOTH
+    // `reasoningEffort` (already in the SDK dialect) and `reasoning_effort` (snake_case),
+    // the existing camelCase wins and the snake_case form is dropped.
+    const result = mergeCustomProviderParameters(
+      { copilot: {} } as unknown as Record<string, Record<string, never>>,
+      { reasoning_effort: 'high', reasoningEffort: 'low' },
+      'github-copilot-openai-compatible',
+      'github-copilot-openai-compatible'
+    )
+    expect((result['copilot'] as Record<string, unknown>).reasoningEffort).toBe('low')
+    expect((result['copilot'] as Record<string, unknown>).reasoning_effort).toBeUndefined()
+  })
+
   it('normalizes reasoning_effort into a concrete provider namespace for an openai-compatible adapter', () => {
     const result = mergeCustomProviderParameters(
       { dashscope: {} } as Record<string, Record<string, never>>,
