@@ -105,8 +105,7 @@ describe('ApiGatewaySettings', () => {
   // not quietly rounded into range the way a magnitude would be.
   it.each([
     ['999', 'below the minimum'],
-    ['70000', 'above the maximum'],
-    ['', 'empty']
+    ['70000', 'above the maximum']
   ])('refuses the port %s (%s) and says why', (value) => {
     const setApiGatewayConfig = vi.fn()
     useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
@@ -119,6 +118,20 @@ describe('ApiGatewaySettings', () => {
     expect(setApiGatewayConfig).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('apiGateway.messages.portInvalid')
     expect(field).toHaveValue('23333')
+  })
+
+  it('restores the saved port when the field is emptied, without calling it invalid', () => {
+    const setApiGatewayConfig = vi.fn()
+    useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
+    render(<ApiGatewaySettings />)
+
+    const field = screen.getByLabelText('apiGateway.fields.port.label')
+    fireEvent.change(field, { target: { value: '' } })
+    fireEvent.blur(field)
+
+    expect(field).toHaveValue('23333')
+    expect(setApiGatewayConfig).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('applies a port inside the allowed range', () => {

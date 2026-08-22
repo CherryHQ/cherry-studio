@@ -84,7 +84,10 @@ const ApiGatewaySettings: FC = () => {
   // A port is an identifier, not a magnitude, so the field is given no `min`/`max`
   // to clamp against: 999 must be refused, not silently turned into 1000.
   const handlePortChange = (value: number | null) => {
-    if (value === null || value < PORT_MIN || value > PORT_MAX) {
+    // Emptying the field is how you retype it, not how you unset the port — the
+    // gateway always needs one. The field snaps back to the saved value on blur.
+    if (value === null) return
+    if (value < PORT_MIN || value > PORT_MAX) {
       toast.error(t('apiGateway.messages.portInvalid', { min: PORT_MIN, max: PORT_MAX }))
       return
     }
