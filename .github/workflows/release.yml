@@ -1,12 +1,17 @@
 name: Release
+run-name: Release ${{ inputs.operation }} ${{ inputs.platform }} ${{ github.ref_name }} @ ${{ github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release tag (e.g. v1.0.0)"
+      operation:
+        description: "Release operation"
         required: true
-        default: "v1.0.0"
+        default: "build"
+        type: choice
+        options:
+          - build
+          - publish
       platform:
         description: "Build platform"
         required: true
@@ -17,29 +22,194 @@ on:
           - windows
           - mac
           - linux
-  pull_request_target:
-    branches:
-      - main
-    types:
-      - closed
+
+concurrency:
+  group: release-state
+  cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: write
+  pull-requests: read
 
 jobs:
+  prepare:
+    name: Prepare release ref
+    if: github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release-ref.outputs.tag }}
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Validate release branch and version
+        id: release-ref
+        shell: bash
+        run: |
+          export LC_ALL=C
+          BRANCH="${GITHUB_REF_NAME}"
+          TAG="${BRANCH#release/}"
+
+          if [ "$GITHUB_REF_TYPE" != "branch" ] || [[ "$BRANCH" != release/v* ]]; then
+            echo "Release must run from a release/v<semver> branch, not $GITHUB_REF" >&2
+            exit 1
+          fi
+
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Invalid release branch: $BRANCH" >&2
+            exit 1
+          fi
+
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
+            echo "Branch $BRANCH does not match package.json version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release commit passed CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CI_RUN="$(gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$GITHUB_SHA" \
+            -f event=push \
+            -f status=completed \
+            -F per_page=100 \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")][0] // empty')"
+
+          if [ -z "$CI_RUN" ]; then
+            echo "No successful CI push run found for release commit $GITHUB_SHA" >&2
+            exit 1
+          fi
+
+          if [ "$(jq -r '.head_sha' <<< "$CI_RUN")" != "$GITHUB_SHA" ] || \
+             [ "$(jq -r '.event' <<< "$CI_RUN")" != "push" ] || \
+             [ "$(jq -r '.status' <<< "$CI_RUN")" != "completed" ] || \
+             [ "$(jq -r '.conclusion' <<< "$CI_RUN")" != "success" ]; then
+            echo "CI result did not match the exact release commit" >&2
+            exit 1
+          fi
+
+          echo "Verified successful CI run: $(jq -r '.html_url' <<< "$CI_RUN")"
+
+      - name: Validate and update release state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ github.event.inputs.operation }}
+          PUBLISH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          BRANCH="$GITHUB_REF_NAME"
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE="$(jq -c --arg tag "$TAG" '
+            [.[][] | select(.tag_name == $tag)] |
+            if length > 1 then error("multiple releases use tag " + $tag)
+            elif length == 1 then .[0]
+            else empty
+            end
+          ' <<< "$RELEASE_PAGES")"
+
+          if [ "$OPERATION" = "publish" ]; then
+            if [ -z "$RELEASE" ] || [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
+              echo "Release $TAG must exist and still be a draft before publication" >&2
+              exit 1
+            fi
+
+            TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
+            BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+            if [ "$TAG_SHA" != "$GITHUB_SHA" ] || [ "$BRANCH_SHA" != "$GITHUB_SHA" ]; then
+              echo "Tag, release branch, and selected workflow commit must be identical before publication" >&2
+              exit 1
+            fi
+
+            OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
+            if [ -n "$OPEN_RELEASE_PRS" ]; then
+              echo "Release branch still has open pull requests:" >&2
+              echo "$OPEN_RELEASE_PRS" >&2
+              exit 1
+            fi
+
+            EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
+            RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
+            BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
+              [.[] | .workflow_runs[] | select(.display_title == $title and .conclusion == "success")][0] // empty
+            ' <<< "$RELEASE_RUNS")"
+            if [ -z "$BUILD_RUN" ]; then
+              echo "No successful all-platform Release build exists for $GITHUB_SHA" >&2
+              exit 1
+            fi
+
+            if [ "$(jq '.assets | length' <<< "$RELEASE")" -eq 0 ]; then
+              echo "Draft release $TAG has no artifacts" >&2
+              exit 1
+            fi
+
+            RELEASE="$(gh api "repos/$REPO/releases/$(jq -r '.id' <<< "$RELEASE")")"
+            TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
+            BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+            OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
+            if [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ] || \
+               [ "$TAG_SHA" != "$GITHUB_SHA" ] || [ "$BRANCH_SHA" != "$GITHUB_SHA" ] || \
+               [ -n "$OPEN_RELEASE_PRS" ]; then
+              echo "Release state changed during publication validation" >&2
+              exit 1
+            fi
+
+            GH_TOKEN="$PUBLISH_TOKEN" gh release edit "$TAG" --repo "$REPO" --draft=false --verify-tag
+            if [ "$(gh api "repos/$REPO/releases/$(jq -r '.id' <<< "$RELEASE")" --jq '.draft')" != "false" ]; then
+              echo "Release $TAG was not published" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+
+          if [ -n "$RELEASE" ] && [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
+            echo "Release $TAG is already published; create a new version instead" >&2
+            exit 1
+          fi
+
+          REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
+          if [ -z "$RELEASE" ] && [ -n "$REMOTE_TAG_SHA" ] && [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
+            echo "Tag $TAG exists without a draft release and points to another commit" >&2
+            exit 1
+          fi
+
+          git tag --force "$TAG" "$GITHUB_SHA"
+          git push --force-with-lease="refs/tags/$TAG:$REMOTE_TAG_SHA" origin "refs/tags/$TAG"
+
+          CURRENT_RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          CURRENT_RELEASE="$(jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty' <<< "$CURRENT_RELEASE_PAGES")"
+          if [ -n "$CURRENT_RELEASE" ] && [ "$(jq -r '.draft' <<< "$CURRENT_RELEASE")" != "true" ]; then
+            CURRENT_TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
+            if [ "$CURRENT_TAG_SHA" = "$GITHUB_SHA" ]; then
+              if [ -n "$REMOTE_TAG_SHA" ]; then
+                gh api --method PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$REMOTE_TAG_SHA" -F force=true >/dev/null
+              else
+                gh api --method DELETE "repos/$REPO/git/refs/tags/$TAG" >/dev/null
+              fi
+            fi
+            echo "Release $TAG was published while its tag was being prepared; the tag update was rolled back" >&2
+            exit 1
+          fi
+
   release:
-    # Only run for tag push, workflow_dispatch, or PR from release branches
-    if: |
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release/v'))
+    needs: prepare
+    if: github.event.inputs.operation == 'build'
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         os: ${{ fromJSON(
-          github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event_name == 'pull_request_target' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
           github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
@@ -53,28 +223,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
-
-      - name: Get release tag
-        id: get-tag
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "pull_request_target" ]; then
-            # Extract version from branch name (release/v1.0.0 -> v1.0.0)
-            BRANCH="${{ github.event.pull_request.head.ref }}"
-            echo "tag=${BRANCH#release/}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set package.json version
-        shell: bash
-        run: |
-          TAG="${{ steps.get-tag.outputs.tag }}"
-          VERSION="${TAG#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          ref: ${{ github.sha }}
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -156,7 +305,9 @@ jobs:
         with:
           draft: true
           allowUpdates: true
+          updateOnlyUnreleased: true
           makeLatest: false
-          tag: ${{ steps.get-tag.outputs.tag }}
-          artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap${{ matrix.os == 'ubuntu-latest' && !contains(steps.get-tag.outputs.tag, '-') && ',resources/cherry-studio/release-history.json' || '' }}"
+          prerelease: ${{ contains(needs.prepare.outputs.tag, '-') }}
+          tag: ${{ needs.prepare.outputs.tag }}
+          artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap${{ matrix.os == 'ubuntu-latest' && !contains(needs.prepare.outputs.tag, '-') && ',resources/cherry-studio/release-history.json' || '' }}"
           token: ${{ secrets.GITHUB_TOKEN }}

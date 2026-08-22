@@ -9,12 +9,14 @@ on:
     branches:
       - main
       - v2
+      - "release/v*"
   pull_request:
     branches:
       - main
       - develop
       - v2
-    types: [ready_for_review, synchronize, opened]
+      - "release/v*"
+    types: [ready_for_review, synchronize, opened, reopened]
 
 jobs:
   changes:

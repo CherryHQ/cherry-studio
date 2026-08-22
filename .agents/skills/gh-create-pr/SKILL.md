@@ -15,8 +15,19 @@ description: Create or update GitHub pull requests using the repository-required
    git push -u <remote> <head-branch>
    ```
 4. Determine the base branch:
+   - Inspect the head branch before applying any default. If the head is `release/v<version>`, stop: never open a pull request from a release branch, especially not to `main`. Put an isolated fix on a topic branch and target the release branch, or let Post Release create the metadata sync branch.
+   - A `backport/v<version>/pr-<number>` head must target the matching `release/v<version>` base. A `release-sync/v<version>` head must target `main`, use the exact title `chore(release): sync v<version> metadata`, retain the `release-metadata-boundary: v<version>` body marker, and be squash-merged.
    - For official repo(CherryHQ/cherry-studio) as `origin`: default base is `main` from `origin`, but allow the user to explicitly indicate a base branch.
-   - `main` is the active v2 development line. v1 maintenance fixes (head branch `hotfix/*`, critical user-facing bug fixes only) must target `v1`, not `main` — set the base to `v1` for these.
+   - `main` is the active development line, including hotfix PRs. Do not target an old maintenance branch unless the user explicitly requests it.
+   - Only classify a PR as a release hotfix when the user explicitly says it must be included in the active draft release. Use the title `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` with a lowercase alphanumeric kebab-case scope, exactly one space after the colon, and a non-empty description. The `hotfix` label is synchronized automatically from this exact title grammar, and merging the PR opens a separate backport PR against the active release branch.
+   - A release hotfix must provide one user-facing release-note line in each language so automation can update the active draft and stable release history. Put this exact structure inside the template's existing `release-note` fence; do not include bullet prefixes:
+     ```text
+     <!--LANG:en-->
+     [Component] English description.
+     <!--LANG:zh-CN-->
+     [组件] 中文说明。
+     <!--LANG:END-->
+     ```
    - For fork repo as `origin`: check available remotes with `git remote -v`, default base may be `upstream/main` or another remote. Always assume that user wants to merge head to CherryHQ/cherry-studio/main, unless the user explicitly indicates a base branch.
    - Ask the user to confirm the base branch if it's not the default.
 5. Create a temp file and write the PR body using a single Bash heredoc
@@ -37,6 +48,11 @@ description: Create or update GitHub pull requests using the repository-required
    ```bash
    gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
    ```
+   For a release hotfix, ensure the repository label exists and create the PR with it:
+   ```bash
+   gh label create hotfix --color D73A4A --description "Urgent fix for the active draft release" --force
+   gh pr create --base main --head <head> --title "hotfix(<scope>): <description>" --label hotfix --body-file "$pr_body_file"
+   ```
 8. Clean up the temp file: `rm -f "$pr_body_file"`
 9. Report the created PR URL and summarize title/base/head and any required follow-up.
 
@@ -46,6 +62,9 @@ description: Create or update GitHub pull requests using the repository-required
 - Never rewrite the template format.
 - Keep content concise and specific to the current change set.
 - PR title and body must be written in English.
+- Never use a `hotfix` title or label for an ordinary bug fix. It opts the PR into an automatic backport PR after merge when one matching draft release is active.
+- Never create a release hotfix with `NONE` or a single-language release note. The hotfix-label check rejects it, and the backport workflow fails closed instead of publishing a fix without release notes.
+- Never default a `release/v<version>` head to `main`; a release branch is not a pull request source branch.
 - Never create the PR before showing the full final body to the user, unless they explicitly waive the preview or confirmation.
 - Never rely on command permission prompts as PR body preview.
 - **Release note & Documentation checkbox** — both are driven by whether the change is **user-facing**. Use the table below:
