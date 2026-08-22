@@ -75,6 +75,20 @@ describe('canonicalGenerate', () => {
     expect(call.inputImages).toBeUndefined()
   })
 
+  it('submits the same effective slider value rendered from a numeric string', async () => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+
+    await canonicalGenerate(makeInput({ strength: '4.5' }), { support, mode: 'generate' })
+
+    expect(lastGenerateCall().paramValues.strength).toBe(4.5)
+  })
+
   it('composes the customSize widget trio into size and drops the companions', async () => {
     await canonicalGenerate(makeInput({ size: 'custom', customSize_width: 512, customSize_height: 768 }))
 

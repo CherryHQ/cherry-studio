@@ -1,10 +1,18 @@
+/** Match the submit schema's blank handling and numeric-string coercion. */
+function finiteNumber(value: unknown): number | null {
+  if (value === '' || value == null) return null
+
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+  return Number.isFinite(numeric) ? numeric : null
+}
+
 /** Checked reads at the dynamic painting-params boundary. */
 export function finiteNumberOr(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+  return finiteNumber(value) ?? fallback
 }
 
 export function optionalFiniteNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
+  return finiteNumber(value)
 }
 
 export function stringOr(value: unknown, fallback = ''): string {
