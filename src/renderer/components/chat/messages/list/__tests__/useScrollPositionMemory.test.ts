@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   computeScrollAnchor,
+  readScrollSizes,
   resolveRestoreTarget,
   type ScrollPositionMemoryInputs,
   useScrollPositionMemory
@@ -85,6 +86,37 @@ describe('resolveRestoreTarget', () => {
   })
 })
 
+describe('readScrollSizes', () => {
+  // Heights are addressed by index, so any list the snapshot was not measured
+  // against would assign them to the wrong messages.
+  const snapshot = { sizes: [10, 20, 30] }
+  const save = (over: Record<string, unknown> = {}) =>
+    cacheService.set('chat.scroll_sizes.t1', { snapshot, count: 3, firstKey: 'g0', lastKey: 'g2', ...over })
+
+  beforeEach(() => MockCacheUtils.resetMocks())
+
+  it('restores the measured heights for the same list', () => {
+    save()
+    expect(readScrollSizes('t1', ['g0', 'g1', 'g2'])).toBe(snapshot)
+  })
+
+  it('drops the heights when an older page was prepended', () => {
+    save()
+    expect(readScrollSizes('t1', ['older', 'g0', 'g1', 'g2'])).toBeUndefined()
+  })
+
+  it('drops the heights when a boundary message was replaced at the same count', () => {
+    save()
+    expect(readScrollSizes('t1', ['g0', 'g1', 'edited'])).toBeUndefined()
+  })
+
+  it('restores nothing without a topic or items', () => {
+    save()
+    expect(readScrollSizes(undefined, ['g0', 'g1', 'g2'])).toBeUndefined()
+    expect(readScrollSizes('t1', [])).toBeUndefined()
+  })
+})
+
 describe('useScrollPositionMemory', () => {
   let rafQueue: Array<() => void>
 
@@ -103,6 +135,7 @@ describe('useScrollPositionMemory', () => {
     findItemIndex: ReturnType<typeof vi.fn>
     getItemOffset: ReturnType<typeof vi.fn>
     scrollToIndex: ReturnType<typeof vi.fn>
+    cache: object
   }
   let following: boolean
   let enterFollowingAfterRestore: ReturnType<typeof vi.fn>
@@ -141,7 +174,7 @@ describe('useScrollPositionMemory', () => {
     MockCacheUtils.resetMocks()
 
     scroller = { scrollTop: 0, scrollHeight: 1000, clientHeight: 400 }
-    handle = { findItemIndex: vi.fn(), getItemOffset: vi.fn(), scrollToIndex: vi.fn() }
+    handle = { findItemIndex: vi.fn(), getItemOffset: vi.fn(), scrollToIndex: vi.fn(), cache: {} }
     following = false
     enterFollowingAfterRestore = vi.fn()
     enterReadingForRestore = vi.fn()
@@ -223,17 +256,39 @@ describe('useScrollPositionMemory', () => {
     handle.findItemIndex.mockReturnValue(2)
     handle.getItemOffset.mockReturnValue(100)
     const nowSpy = vi.spyOn(Date, 'now')
+    const anchorWrites = () =>
+      vi.mocked(cacheService.set).mock.calls.filter(([key]) => key === 'chat.scroll_anchor.t1').length
 
     nowSpy.mockReturnValue(1000)
     act(() => result.current.save()) // first throttled save → writes
     nowSpy.mockReturnValue(1100) // 100ms later, inside the 200ms window
     act(() => result.current.save()) // throttled out
-    expect(cacheService.set).toHaveBeenCalledTimes(1)
+    expect(anchorWrites()).toBe(1)
 
     act(() => result.current.save(true)) // immediate save bypasses the throttle
-    expect(cacheService.set).toHaveBeenCalledTimes(2)
+    expect(anchorWrites()).toBe(2)
 
     nowSpy.mockRestore()
+  })
+
+  it('snapshots measured heights only at rest, tagged with the list it was measured against', () => {
+    const { result } = renderHook(() => useScrollPositionMemory(buildInputs()))
+    flushRaf()
+
+    handle.findItemIndex.mockReturnValue(2)
+    handle.getItemOffset.mockReturnValue(100)
+    handle.cache = { sizes: [1, 2, 3] }
+
+    act(() => result.current.save())
+    expect(cacheService.set).not.toHaveBeenCalledWith('chat.scroll_sizes.t1', expect.anything())
+
+    act(() => result.current.save(true))
+    expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_sizes.t1', {
+      snapshot: handle.cache,
+      count: 3,
+      firstKey: 'g0',
+      lastKey: 'g2'
+    })
   })
 
   it('saves null when the list is following', () => {

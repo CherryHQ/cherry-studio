@@ -130,6 +130,25 @@ export interface ChatScrollAnchor {
   offset: number
 }
 
+/**
+ * Measured message heights for a chat topic / agent-session message list.
+ *
+ * Without this the virtualizer re-estimates every message on each remount, and
+ * replaces each estimate with its real height as it is scrolled into view —
+ * every replacement is a visible scroll correction.
+ *
+ * The snapshot addresses messages by index, so it is only valid for the exact
+ * item list it was measured against; `count` / `firstKey` / `lastKey` must all
+ * match at mount or the heights would land on the wrong messages.
+ */
+export interface ChatScrollSizes {
+  /** virtua `CacheSnapshot`. Opaque here: `@shared` cannot import renderer libs. */
+  snapshot: object
+  count: number
+  firstKey: string
+  lastKey: string
+}
+
 export interface CacheComposerSerializedToken {
   id: string
   kind: ComposerMessageTokenKind | 'promptVariable'
