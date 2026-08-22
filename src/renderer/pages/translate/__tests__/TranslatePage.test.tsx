@@ -73,7 +73,11 @@ const historyFilesMock = vi.hoisted(() => ({
     target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
   } as TranslationFiles
 }))
-const tabMock = vi.hoisted(() => ({ id: null as string | null, isActive: true }))
+const historyRestoreMock = vi.hoisted(() => ({
+  get: vi.fn(),
+  loadFiles: vi.fn()
+}))
+const tabMock = vi.hoisted(() => ({ id: null as string | null, isActive: true, url: '/app/translate' }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -125,8 +129,19 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useCurrentTab: () => (tabMock.id ? { id: tabMock.id, url: tabMock.url } : undefined),
   useCurrentTabId: () => tabMock.id,
   useIsActiveTab: () => tabMock.isActive
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: { get: historyRestoreMock.get }
+}))
+
+vi.mock('../translationFiles', () => ({
+  isPdfTranslation: (history: { kind: string; sourceText: string; targetText: string }) =>
+    history.kind === 'file' && history.sourceText.endsWith('.pdf') && history.targetText.endsWith('.pdf'),
+  loadTranslationFiles: historyRestoreMock.loadFiles
 }))
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
@@ -456,6 +471,7 @@ describe('TranslatePage', () => {
     MockUseCacheUtils.setCacheValue('translate.detecting', false)
     tabMock.id = null
     tabMock.isActive = true
+    tabMock.url = '/app/translate'
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': null,
       'feature.translate.page.source_language': 'auto',
@@ -529,6 +545,8 @@ describe('TranslatePage', () => {
       source: { entryId: 'entry-source', path: '/tmp/paper.pdf' as AbsoluteFilePath },
       target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
     }
+    historyRestoreMock.get.mockReset()
+    historyRestoreMock.loadFiles.mockReset()
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -587,6 +605,47 @@ describe('TranslatePage', () => {
     fireEvent.change(secondInput, { target: { value: 'Updated second workspace' } })
     expect(MockUseCacheUtils.getCacheValue('translate.session.input.translate-tab-1')).toBe('First workspace')
     expect(MockUseCacheUtils.getCacheValue('translate.session.input.translate-tab-2')).toBe('Updated second workspace')
+  })
+
+  it('reconnects a recreated tab to the translate session named by its route', () => {
+    MockUseCacheUtils.setCacheValue('translate.session.input.closed-session', 'Completed translation input')
+    tabMock.id = 'recreated-tab'
+    tabMock.url = '/app/translate?sessionId=closed-session'
+
+    render(<TranslatePage />)
+
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('Completed translation input')
+  })
+
+  it('restores a completed PDF result named by the notification route', async () => {
+    const history = {
+      id: '019606a0-0000-7000-8000-000000000003',
+      kind: 'file' as const,
+      sourceText: 'paper.pdf',
+      targetText: 'paper.zh-CN.pdf',
+      sourceLanguage: 'en-us' as const,
+      targetLanguage: 'zh-cn' as const,
+      star: false,
+      createdAt: '2026-08-22T00:00:00.000Z',
+      updatedAt: '2026-08-22T00:00:00.000Z'
+    }
+    tabMock.id = 'translate-tab-1'
+    tabMock.url = `/app/translate?sessionId=translate-tab-1&historyId=${history.id}`
+    historyRestoreMock.get.mockResolvedValue(history)
+    historyRestoreMock.loadFiles.mockResolvedValue(historyFilesMock.files)
+
+    render(<TranslatePage />)
+
+    await waitFor(() => expect(historyRestoreMock.loadFiles).toHaveBeenCalledWith(history.id))
+    await waitFor(() =>
+      expect(pdfViewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          file: { name: 'paper.pdf', path: '/tmp/paper.pdf' },
+          restoredOutput: { fileName: 'paper.zh-CN.pdf', outputPath: '/tmp/files/entry-target.pdf' },
+          sessionId: 'translate-tab-1'
+        })
+      )
+    )
   })
 
   it('exports the trimmed current translation result to notes using the first translated line as title', async () => {

@@ -4908,7 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
-        "both": "Barra lateral + Pestañas",
+        "both": "Predeterminado",
         "sidebar": "Barra lateral",
         "tabs": "Pestañas",
         "title": "Diseño de navegación"

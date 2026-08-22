@@ -277,6 +277,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   useEffect(() => {
+    if (navigationLayout !== 'sidebar') return
+
     for (const tab of tabs) {
       const workspaceKey = getTabWorkspaceKey(tab)
       if (!workspaceKey?.startsWith('app:')) continue
@@ -285,7 +287,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (tab.metadata?.preventDormancy === preventDormancy) continue
       updateTab(tab.id, { metadata: { ...tab.metadata, preventDormancy } })
     }
-  }, [tabs, updateTab, workspaceTaskStatuses])
+  }, [navigationLayout, tabs, updateTab, workspaceTaskStatuses])
 
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
   // lives in the variant registry; the container only supplies the runtime context.
@@ -337,7 +339,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       favorites.flatMap((favorite) => {
         const entry = resolveSidebarEntry(favorite, variantContext)
         if (!entry) return []
-        const taskStatus = favorite.type === 'app' ? workspaceTaskStatuses.get(favorite.id as SidebarAppId) : undefined
+        const taskStatus =
+          navigationLayout === 'sidebar' && favorite.type === 'app'
+            ? workspaceTaskStatuses.get(favorite.id as SidebarAppId)
+            : undefined
         const status =
           taskStatus && taskStatus !== 'idle'
             ? {
@@ -369,7 +374,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [favorites, handleOpenLaunchpad, t, variantContext, workspaceTaskStatuses]
+    [favorites, handleOpenLaunchpad, navigationLayout, t, variantContext, workspaceTaskStatuses]
   )
 
   // A single drag reorders the whole mixed list. arrayMove yields the new entry

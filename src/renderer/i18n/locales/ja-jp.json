@@ -4908,7 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
-        "both": "サイドバー + タブ",
+        "both": "デフォルト",
         "sidebar": "サイドバー",
         "tabs": "タブ",
         "title": "ナビゲーションレイアウト"

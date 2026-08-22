@@ -71,7 +71,7 @@ function SettingsLayout() {
 
 This project provides layout-aware route navigation plus in-workspace navigation:
 
-The main window supports Sidebar-only, Tabs-only, and the legacy combined Sidebar + Tabs layout. The combined layout keeps the pre-change ordinary-tab navigation behavior. Switching from Sidebar-only to either tab-bearing layout exposes only the current workspace in the top bar. Other Sidebar workspaces remain in the shared keep-alive pool and are restored when selected or when returning to Sidebar-only.
+The main window supports Sidebar-only, Tabs-only, and the legacy combined Sidebar + Tabs layout. The combined layout keeps the pre-change ordinary-tab navigation behavior. Switching from Sidebar-only to Tabs-only exposes the current workspace in the top bar while the other Sidebar workspaces remain in the keep-alive pool. Switching to the combined layout keeps only the current workspace (plus its source when a focused route is active), exposes every retained page as an ordinary tab, and releases the other Sidebar-only workspaces.
 
 ### 1. Shell Navigation - `openRoute`
 

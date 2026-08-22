@@ -36,8 +36,10 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 
 function isTranslateTarget(meta: unknown): meta is TranslateNotificationTarget {
   if (!meta || typeof meta !== 'object') return false
-  const { sessionId } = meta as TranslateNotificationTarget
-  return sessionId === undefined || (typeof sessionId === 'string' && sessionId.length > 0)
+  const { historyId, sessionId } = meta as TranslateNotificationTarget
+  const hasValidSessionId = sessionId === undefined || (typeof sessionId === 'string' && sessionId.length > 0)
+  const hasValidHistoryId = historyId === undefined || (typeof historyId === 'string' && historyId.length > 0)
+  return hasValidSessionId && hasValidHistoryId
 }
 
 @Injectable('NotificationService')
@@ -72,7 +74,11 @@ export class NotificationService extends BaseService {
       }
 
       if (notification.actionKey === TRANSLATE_NOTIFICATION_ACTION_KEY && isTranslateTarget(notification.meta)) {
-        const query = notification.meta.sessionId ? `?sessionId=${encodeURIComponent(notification.meta.sessionId)}` : ''
+        const params = new URLSearchParams()
+        if (notification.meta.sessionId) params.set('sessionId', notification.meta.sessionId)
+        if (notification.meta.historyId) params.set('historyId', notification.meta.historyId)
+        const search = params.toString()
+        const query = search ? `?${search}` : ''
         openRouteInMainWindow(`/app/translate${query}`)
         return
       }

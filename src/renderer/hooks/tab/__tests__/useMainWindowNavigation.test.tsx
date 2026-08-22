@@ -256,14 +256,32 @@ describe('useMainWindowNavigation', () => {
     expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 
-  it('opens the translate workspace when its completed session no longer exists', () => {
+  it('recreates a completed translate session with its original identity when its tab no longer exists', () => {
     render(<MainWindowNavigationHarness />)
 
     mocks.ipcListeners.get('navigation.open_route_requested')?.({
       to: '/app/translate?sessionId=closed-session'
     })
 
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/translate')
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/translate?sessionId=closed-session', {
+      id: 'closed-session',
+      forceNew: true
+    })
+  })
+
+  it('routes an existing PDF session to the persisted history result', () => {
+    mocks.tabs = [{ id: 'translate-1', type: 'route', url: '/app/translate', title: 'Translate' }]
+    render(<MainWindowNavigationHarness />)
+
+    mocks.ipcListeners.get('navigation.open_route_requested')?.({
+      to: '/app/translate?sessionId=translate-1&historyId=history-1'
+    })
+
+    expect(mocks.updateTab).toHaveBeenCalledWith('translate-1', {
+      url: '/app/translate?sessionId=translate-1&historyId=history-1',
+      lastAccessTime: expect.any(Number)
+    })
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('translate-1')
   })
 
   it('removes the main-route event bridge on unmount', () => {

@@ -4908,7 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
-        "both": "Barre latérale + Onglets",
+        "both": "Par défaut",
         "sidebar": "Barre latérale",
         "tabs": "Onglets",
         "title": "Disposition de navigation"

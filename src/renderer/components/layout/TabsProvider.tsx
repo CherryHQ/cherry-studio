@@ -826,6 +826,49 @@ export function TabsProvider({
       return
     }
 
+    if (navigationLayout === 'both') {
+      const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
+      if (!activeTab) return
+
+      const retainedIds = new Set(
+        previousLayout === 'sidebar' ? [] : tabs.filter(isTabVisibleInTabBar).map((tab) => tab.id)
+      )
+      retainedIds.add(activeTab.id)
+      if (!getTabWorkspaceKey(activeTab)) {
+        const requestedReturnId =
+          typeof activeTab.metadata?.returnWorkspaceId === 'string' ? activeTab.metadata.returnWorkspaceId : undefined
+        const returnWorkspace = tabs.find((tab) => tab.id === requestedReturnId && Boolean(getTabWorkspaceKey(tab)))
+        const fallbackWorkspace =
+          returnWorkspace ??
+          tabs.reduce<Tab | undefined>((latest, tab) => {
+            if (!getTabWorkspaceKey(tab)) return latest
+            return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+          }, undefined)
+        if (fallbackWorkspace) retainedIds.add(fallbackWorkspace.id)
+      }
+
+      const combinedTabs = tabs
+        .filter((tab) => retainedIds.has(tab.id))
+        .map((tab) => ({
+          ...tab,
+          isPinned: previousLayout === 'sidebar' ? false : tab.isPinned,
+          isTabBarVisible: true
+        }))
+      const exposureUnchanged =
+        combinedTabs.length === tabs.length &&
+        combinedTabs.every(
+          (tab, index) =>
+            tab.id === tabs[index]?.id &&
+            tab.isTabBarVisible === tabs[index]?.isTabBarVisible &&
+            Boolean(tab.isPinned) === Boolean(tabs[index]?.isPinned)
+        )
+      if (exposureUnchanged) return
+
+      setPinnedTabs(combinedTabs.filter(storesPinned))
+      setNormalTabs(combinedTabs.filter((tab) => !storesPinned(tab)))
+      return
+    }
+
     if (previousLayout !== 'sidebar') return
 
     const topLayoutTabs = tabs.map((tab) => ({
@@ -834,13 +877,16 @@ export function TabsProvider({
       isTabBarVisible: tab.id === activeTabId
     }))
     const visibilityUnchanged = topLayoutTabs.every(
-      (tab, index) => tab.id === normalTabs[index]?.id && tab.isTabBarVisible === normalTabs[index]?.isTabBarVisible
+      (tab, index) =>
+        tab.id === normalTabs[index]?.id &&
+        tab.isTabBarVisible === normalTabs[index]?.isTabBarVisible &&
+        Boolean(tab.isPinned) === Boolean(normalTabs[index]?.isPinned)
     )
     if (visibilityUnchanged && topLayoutTabs.length === normalTabs.length) return
 
     setPinnedTabs([])
     setNormalTabs(topLayoutTabs)
-  }, [activeTabId, ensureWorkspaceFavorites, navigationLayout, normalTabs, setPinnedTabs, tabs])
+  }, [activeTabId, ensureWorkspaceFavorites, navigationLayout, normalTabs, setPinnedTabs, storesPinned, tabs])
 
   /**
    * Pin a tab in the tab bar. Pinned pages survive the soft budget but remain

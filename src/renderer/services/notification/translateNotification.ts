@@ -6,14 +6,23 @@ import { notificationService } from './NotificationService'
 
 interface TranslateCompletionNotificationInput {
   sessionId?: string
+  historyId?: string
   title: string
   message: string
 }
 
-export function notifyTranslateCompletion({ sessionId, title, message }: TranslateCompletionNotificationInput): void {
+export function notifyTranslateCompletion({
+  sessionId,
+  historyId,
+  title,
+  message
+}: TranslateCompletionNotificationInput): void {
   const timestamp = Date.now()
   const id = `translate-completion:${sessionId ?? 'default'}:${timestamp}`
-  const openTranslation = () => openRoute('/app/translate', sessionId ? { sessionId } : undefined)
+  const target: Record<string, string> = {}
+  if (sessionId) target.sessionId = sessionId
+  if (historyId) target.historyId = historyId
+  const openTranslation = () => openRoute('/app/translate', Object.keys(target).length > 0 ? target : undefined)
 
   toast.success({
     key: id,
@@ -34,7 +43,7 @@ export function notifyTranslateCompletion({ sessionId, title, message }: Transla
     message,
     timestamp,
     actionKey: TRANSLATE_NOTIFICATION_ACTION_KEY,
-    meta: sessionId ? { sessionId } : {},
+    meta: target,
     source: 'translate'
   })
 }

@@ -8,6 +8,7 @@ export const TRANSLATE_NOTIFICATION_ACTION_KEY = 'translate.open'
 
 export interface TranslateNotificationTarget {
   sessionId?: string
+  historyId?: string
 }
 
 export interface Notification<T = any> {

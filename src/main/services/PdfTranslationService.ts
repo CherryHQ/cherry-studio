@@ -109,6 +109,7 @@ interface PdfTranslationResult {
   /** Managed path of the translated PDF (`{userData}/Data/Files/{id}.pdf`), not the sidecar's temp output. */
   outputPath: AbsoluteFilePath
   fileName: string
+  historyId: string
 }
 
 interface ActivePdfTranslation {
@@ -340,7 +341,7 @@ export class PdfTranslationService extends BaseService {
       )
       notifyDataApiDataChange([{ endpoint: '/translate/histories', kind: 'membership', entityIds: [history.id] }])
 
-      return { outputPath: fileManager.getPhysicalPath(entry.id), fileName }
+      return { outputPath: fileManager.getPhysicalPath(entry.id), fileName, historyId: history.id }
     } catch (error) {
       const cancelled = job.cancelled
       if (!cancelled) {

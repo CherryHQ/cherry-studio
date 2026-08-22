@@ -226,7 +226,8 @@ describe('PdfTranslationService', () => {
     expect(fs.existsSync(configPath)).toBe(false)
     expect(result).toEqual({
       fileName: 'research paper.zh-CN.pdf',
-      outputPath: managedPath(TRANSLATED_ENTRY_ID)
+      outputPath: managedPath(TRANSLATED_ENTRY_ID),
+      historyId: HISTORY_ID
     })
   })
 

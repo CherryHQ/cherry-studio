@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   allApps: [] as FakeMiniApp[],
   visibleMiniApps: null as FakeMiniApp[] | null,
   pinnedMiniApps: [] as FakeMiniApp[],
+  workspaceTaskStatuses: new Map<SidebarAppId, 'idle' | 'running' | 'completed' | 'error' | 'action-required'>(),
   onEntriesReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined
 }))
 
@@ -83,7 +84,7 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
 }))
 
 vi.mock('@renderer/hooks/useWorkspaceTaskStatuses', () => ({
-  useWorkspaceTaskStatuses: () => new Map()
+  useWorkspaceTaskStatuses: () => mocks.workspaceTaskStatuses
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -184,6 +185,7 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
 type MockSidebarEntry = {
   key: string
   label: string
+  status?: { value: string; label: string }
   isActive: (active: { activeItem: string; activeTabId?: string }) => boolean
   onOpen: () => void
   contextMenuItems?: Array<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
@@ -273,6 +275,9 @@ vi.mock('../../Sidebar', async () => {
                   onClick={() => item.onOpen()}>
                   <span>{item.label}</span>
                 </button>
+                {item.status ? (
+                  <span data-testid={`sidebar-status-${parseEntryKey(item.key).id}`}>{item.status.value}</span>
+                ) : null}
                 {item.contextMenuItems?.map((menuItem) => (
                   <button
                     key={menuItem.id}
@@ -369,6 +374,7 @@ afterEach(() => {
   mocks.allApps = []
   mocks.visibleMiniApps = null
   mocks.pinnedMiniApps = []
+  mocks.workspaceTaskStatuses.clear()
   mocks.sidebarWidth = 50
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
@@ -462,6 +468,33 @@ describe('app Sidebar', () => {
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
     expect(mocks.closeWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('aggregates workspace task state only in the Sidebar layout', () => {
+    mocks.tabs = [
+      {
+        id: 'chat-running',
+        type: 'route',
+        url: '/app/chat',
+        title: 'Chat',
+        metadata: { preventDormancy: false }
+      }
+    ]
+    mocks.workspaceTaskStatuses.set('assistants', 'running')
+
+    const view = render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-status-assistants')).toHaveTextContent('running')
+    expect(mocks.updateTab).toHaveBeenCalledWith('chat-running', {
+      metadata: { preventDormancy: true }
+    })
+
+    mocks.updateTab.mockClear()
+    mocks.navigationLayout = 'both'
+    view.rerender(<Sidebar />)
+
+    expect(screen.queryByTestId('sidebar-status-assistants')).not.toBeInTheDocument()
+    expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
   it('keeps required sidebar favorites protected in the context menu', () => {

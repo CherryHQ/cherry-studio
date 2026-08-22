@@ -709,7 +709,7 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent(':launchpad:/app/launchpad')
   })
 
-  it('surfaces only the active Sidebar workspace when switching to the combined layout', async () => {
+  it('restores the legacy single-tab state when switching from Sidebar to the combined layout', async () => {
     navigationLayout = 'sidebar'
     pinnedTabsValue = []
     normalTabsValue = [
@@ -743,8 +743,8 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both'))
     await waitFor(() => expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^agent-id$/))
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('agent-id:app:agents:')
-    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('launch-id:launchpad:')
-    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('chat-id:app:assistants:')
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('launch-id')
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('chat-id')
     expect(screen.getByTestId('workspace-active')).toHaveTextContent('agent-id')
 
     fireEvent.click(screen.getByRole('button', { name: 'Open second chat' }))
@@ -752,7 +752,35 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent('agent-id')
   })
 
-  it('restores background Sidebar workspaces without exposing them as top tabs', async () => {
+  it('keeps the focused route and its source as visible tabs when switching to the combined layout', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    const view = render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('focused:/settings/appearance'))
+    const focusedTabId = screen.getByTestId('workspace-active').textContent ?? ''
+
+    navigationLayout = 'both'
+    view.rerender(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('home:app:assistants:/app/chat')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent(`${focusedTabId}:focused:/settings/appearance`)
+    expect(screen.getByTestId('tab-bar-tabs').textContent?.split(',')).toEqual(['home', focusedTabId])
+    expect(screen.getByTestId('workspace-active')).toHaveTextContent(focusedTabId)
+  })
+
+  it('releases hidden Sidebar workspaces when switching from tabs to the combined layout', async () => {
     navigationLayout = 'tabs'
     pinnedTabsValue = []
     normalTabsValue = [
@@ -777,7 +805,7 @@ describe('TabsProvider', () => {
     ]
     activeTabIdValue = 'visible-agent'
 
-    render(
+    const view = render(
       <TabsProvider initialDefaultTab={null}>
         <WorkspaceControls />
       </TabsProvider>
@@ -786,6 +814,18 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^visible-agent$/)
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('hidden-chat:app:assistants:')
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('visible-agent:app:agents:')
+
+    navigationLayout = 'both'
+    view.rerender(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both'))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('hidden-chat'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('visible-agent:app:agents:')
+    expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^visible-agent$/)
   })
 
   it('reuses a hidden Launchpad workspace after the last visible top tab closes', async () => {

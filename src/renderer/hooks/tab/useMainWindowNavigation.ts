@@ -100,7 +100,7 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  */
 export function useMainWindowNavigation() {
   const openSettingsRoute = useOpenSettingsRoute()
-  const { attachTab, openRoute, setActiveTab, tabs } = useTabs()
+  const { attachTab, openRoute, setActiveTab, tabs, updateTab } = useTabs()
   const initData = useWindowInitData<MainWindowInitData>()
   const handledNavigationRequestIdRef = useRef<number | null>(null)
 
@@ -114,20 +114,24 @@ export function useMainWindowNavigation() {
       const target = new URL(to, 'app://cherry')
       const translateSessionId = target.pathname === '/app/translate' ? target.searchParams.get('sessionId') : undefined
       if (translateSessionId) {
+        const translateHistoryId = target.searchParams.get('historyId')
         const translateTab = tabs.find(
           (tab) => tab.id === translateSessionId && getTabWorkspaceKey(tab) === 'app:translate'
         )
         if (translateTab) {
+          if (translateHistoryId && translateTab.url !== to) {
+            updateTab(translateTab.id, { url: to, lastAccessTime: Date.now() })
+          }
           setActiveTab(translateTab.id)
           return
         }
-        openRoute('/app/translate')
+        openRoute(to, { id: translateSessionId, forceNew: true })
         return
       }
 
       openRoute(to)
     },
-    [openRoute, openSettingsRoute, setActiveTab, tabs]
+    [openRoute, openSettingsRoute, setActiveTab, tabs, updateTab]
   )
 
   useIpcOn('navigation.open_route_requested', ({ to }) => handleRoute(to))

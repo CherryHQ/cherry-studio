@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -9,7 +10,7 @@ import { loggerService } from '@logger'
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
-import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
+import { useCurrentTab, useIsActiveTab } from '@renderer/hooks/tab'
 import {
   detectLanguageOrUnknown,
   markTranslateWorkspaceRuntimeSeen,
@@ -76,7 +77,7 @@ import type {
   PdfTranslationStatus
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
-import type { TranslationFiles } from './translationFiles'
+import { isPdfTranslation, loadTranslationFiles, type TranslationFiles } from './translationFiles'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -216,7 +217,18 @@ const OcrJobWatcher: FC<{
 
 const TranslatePage: FC = () => {
   const { t } = useTranslation()
-  const translateSessionId = useCurrentTabId() ?? undefined
+  const currentTab = useCurrentTab()
+  const currentTabUrl = currentTab?.url
+  const routeTarget = useMemo<{ historyId?: string; sessionId?: string }>(() => {
+    if (!currentTabUrl) return {}
+    const target = new URL(currentTabUrl, 'app://cherry')
+    return {
+      historyId: target.searchParams.get('historyId') ?? undefined,
+      sessionId: target.searchParams.get('sessionId') ?? undefined
+    }
+  }, [currentTabUrl])
+  const translateSessionId = routeTarget.sessionId ?? currentTab?.id
+  const notificationHistoryId = routeTarget.historyId
   const isActiveTab = useIsActiveTab()
   const translateWorkspaceStatus = useTranslateWorkspaceRuntimeStatus()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
@@ -653,6 +665,29 @@ const TranslatePage: FC = () => {
       targetLanguage
     ]
   )
+
+  const restoredNotificationHistoryIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!notificationHistoryId || restoredNotificationHistoryIdRef.current === notificationHistoryId) return
+
+    restoredNotificationHistoryIdRef.current = notificationHistoryId
+    let cancelled = false
+    void dataApiService
+      .get(`/translate/histories/${encodeURIComponent(notificationHistoryId)}`)
+      .then(async (history) => {
+        if (!isPdfTranslation(history)) return
+        const files = await loadTranslationFiles(history.id)
+        if (!cancelled) onHistoryItemClick(history, files)
+      })
+      .catch((error) => {
+        logger.error('Failed to restore PDF translation from notification', error as Error)
+        if (!cancelled) toast.error(t('translate.history.file.unavailable'))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [notificationHistoryId, onHistoryItemClick, t])
 
   const inputScrollHandler = useMemo(
     () => createInputScrollHandler(inputScrollRef, outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),

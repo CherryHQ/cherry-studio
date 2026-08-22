@@ -296,12 +296,14 @@ describe('NotificationService', () => {
       timestamp: 1,
       source: 'translate',
       actionKey: 'translate.open',
-      meta: { sessionId: 'translate-tab-1' }
+      meta: { sessionId: 'translate-tab-1', historyId: 'history-1' }
     })
 
     mocks.electronNotifications[0].click?.()
 
-    expect(mocks.openRouteInMainWindow).toHaveBeenCalledWith('/app/translate?sessionId=translate-tab-1')
+    expect(mocks.openRouteInMainWindow).toHaveBeenCalledWith(
+      '/app/translate?sessionId=translate-tab-1&historyId=history-1'
+    )
     expect(mocks.broadcastToType).not.toHaveBeenCalled()
   })
 })

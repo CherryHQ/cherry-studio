@@ -247,6 +247,7 @@ const PdfTranslationView = ({
           setPhase('success')
           notifyTranslateCompletion({
             sessionId,
+            historyId: result.historyId,
             title: t('translate.pdf.success'),
             message: file.name
           })

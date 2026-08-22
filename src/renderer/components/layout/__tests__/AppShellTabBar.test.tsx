@@ -234,10 +234,21 @@ describe('AppShellTabBar', () => {
     expect(screen.getByTestId('shell-tab-actions')).not.toHaveAttribute('data-show-settings')
   })
 
-  it('preserves the legacy macOS traffic-light reserve when the Sidebar is visible', () => {
+  it('subtracts the visible Sidebar width from the legacy macOS traffic-light reserve', () => {
     mocks.platformState.isMac = true
 
     renderTabBar({ showsSidebar: true })
+
+    // This CSS formula is the pre-layout-selector contract for the combined shell.
+    expect(screen.getByTestId('app-shell-tab-strip')).toHaveStyle({
+      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+    })
+  })
+
+  it('keeps the full macOS traffic-light reserve when the Sidebar is hidden', () => {
+    mocks.platformState.isMac = true
+
+    renderTabBar({ showsSidebar: false })
 
     expect(screen.getByTestId('app-shell-tab-strip')).toHaveStyle({
       paddingLeft: 'env(titlebar-area-x, 0px)'

@@ -16,6 +16,8 @@ import WebSearchButton from '../WebSearchButton'
 const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
   openSettingsTab: vi.fn(),
+  navigate: vi.fn(() => Promise.resolve()),
+  navigationLayout: 'both' as 'sidebar' | 'tabs' | 'both',
   assistant: undefined as any,
   model: undefined as Model | undefined,
   provider: undefined as any,
@@ -36,6 +38,14 @@ vi.mock('react-i18next', async (importOriginal) => {
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mocks.openSettingsTab
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({ navigationLayout: mocks.navigationLayout })
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mocks.navigate
 }))
 
 vi.mock('@renderer/components/ActionIconButton', () => ({
@@ -163,6 +173,7 @@ describe('WebSearchButton', () => {
     }
     mocks.provider = undefined
     mocks.providerLookupId = undefined
+    mocks.navigationLayout = 'both'
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
@@ -202,7 +213,7 @@ describe('WebSearchButton', () => {
     expect(mocks.updateAssistant).not.toHaveBeenCalled()
   })
 
-  it('does not restore trigger focus after confirming the missing-provider navigation', async () => {
+  it('keeps missing-provider settings navigation inside the current tab in the combined layout', async () => {
     vi.mocked(popup.confirm).mockResolvedValue(true)
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
@@ -210,10 +221,22 @@ describe('WebSearchButton', () => {
     fireEvent.click(button)
 
     const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
-    await waitFor(() => expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/websearch'))
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/websearch' }))
+    expect(mocks.openSettingsTab).not.toHaveBeenCalled()
     confirmOptions.focusOnClose?.()
 
     expect(button).not.toHaveFocus()
+  })
+
+  it('opens the focused settings route in a streamlined layout', async () => {
+    mocks.navigationLayout = 'tabs'
+    vi.mocked(popup.confirm).mockResolvedValue(true)
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+
+    await waitFor(() => expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/websearch'))
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
   it('disables web search when the configured provider cannot be consumed by the current model', async () => {

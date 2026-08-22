@@ -50,7 +50,11 @@ describe('PdfTranslationView', () => {
   it('translates through IpcApi and previews the translated PDF beside the source', async () => {
     mocks.ipcRequest.mockImplementation(async (route: string) => {
       if (route === 'translate.pdf.start') {
-        return { fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' }
+        return {
+          fileName: 'paper.zh-CN.mono.pdf',
+          outputPath: '/tmp/job/paper.zh-CN.mono.pdf',
+          historyId: '019606a0-0000-7000-8000-000000000003'
+        }
       }
       return undefined
     })
@@ -97,14 +101,15 @@ describe('PdfTranslationView', () => {
     expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories')
     expect(mocks.notifyTranslateCompletion).toHaveBeenCalledWith({
       sessionId: undefined,
+      historyId: '019606a0-0000-7000-8000-000000000003',
       title: 'translate.pdf.success',
       message: 'paper.pdf'
     })
   })
 
   it('shows stable streamed progress for the active PDF translation job', async () => {
-    let resolveStart!: (result: { fileName: string; outputPath: string }) => void
-    const startPromise = new Promise<{ fileName: string; outputPath: string }>((resolve) => {
+    let resolveStart!: (result: { fileName: string; outputPath: string; historyId: string }) => void
+    const startPromise = new Promise<{ fileName: string; outputPath: string; historyId: string }>((resolve) => {
       resolveStart = resolve
     })
     mocks.ipcRequest.mockImplementation((route: string) => {
@@ -258,7 +263,11 @@ describe('PdfTranslationView', () => {
       '90'
     )
 
-    resolveStart({ fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' })
+    resolveStart({
+      fileName: 'paper.zh-CN.mono.pdf',
+      outputPath: '/tmp/job/paper.zh-CN.mono.pdf',
+      historyId: '019606a0-0000-7000-8000-000000000003'
+    })
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
   })
 
@@ -303,8 +312,8 @@ describe('PdfTranslationView', () => {
   })
 
   it('keeps a session-owned job running after its workspace unmounts', async () => {
-    let resolveStart!: (result: { fileName: string; outputPath: string }) => void
-    const startPromise = new Promise<{ fileName: string; outputPath: string }>((resolve) => {
+    let resolveStart!: (result: { fileName: string; outputPath: string; historyId: string }) => void
+    const startPromise = new Promise<{ fileName: string; outputPath: string; historyId: string }>((resolve) => {
       resolveStart = resolve
     })
     mocks.ipcRequest.mockImplementation((route: string) => {
@@ -336,10 +345,20 @@ describe('PdfTranslationView', () => {
     unmount()
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('translate.pdf.cancel', expect.anything())
 
-    resolveStart({ fileName: 'paper.zh-CN.pdf', outputPath: '/tmp/files/entry-1.pdf' })
+    resolveStart({
+      fileName: 'paper.zh-CN.pdf',
+      outputPath: '/tmp/files/entry-1.pdf',
+      historyId: '019606a0-0000-7000-8000-000000000003'
+    })
     await waitFor(() => expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories'))
     expect(mocks.ipcRequest.mock.calls.map(([route]) => route)).toEqual(['translate.pdf.start'])
     expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories')
+    expect(mocks.notifyTranslateCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'translate-tab-1',
+        historyId: '019606a0-0000-7000-8000-000000000003'
+      })
+    )
   })
 
   it('mounts straight into the side-by-side result when reopened from history', () => {

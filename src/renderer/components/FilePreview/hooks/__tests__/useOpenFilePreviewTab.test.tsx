@@ -58,10 +58,11 @@ describe('useOpenFilePreviewTab', () => {
     })
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/file-preview?path=%2Ftmp%2Freport.md', {
-      metadata: { filePreviewRefreshKey: 3, retained: true },
       title: 'report.md'
     })
-    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.updateTab).toHaveBeenCalledWith('file-preview-tab', {
+      metadata: { filePreviewRefreshKey: 3, retained: true }
+    })
   })
 
   it('uses the provided file name as the tab title', () => {

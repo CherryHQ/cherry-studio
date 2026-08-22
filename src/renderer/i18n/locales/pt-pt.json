@@ -4908,7 +4908,7 @@
     },
     "appearance": {
       "navigation_layout": {
-        "both": "Barra lateral + Separadores",
+        "both": "Predefinição",
         "sidebar": "Barra lateral",
         "tabs": "Separadores",
         "title": "Esquema de navegação"

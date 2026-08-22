@@ -38,12 +38,17 @@ describe('notifyTranslateCompletion', () => {
   it('sends a clickable system notification when the window is not focused', () => {
     vi.mocked(document.hasFocus).mockReturnValue(false)
 
-    notifyTranslateCompletion({ sessionId: 'translate-1', title: 'Completed', message: 'document.pdf' })
+    notifyTranslateCompletion({
+      sessionId: 'translate-1',
+      historyId: 'history-1',
+      title: 'Completed',
+      message: 'document.pdf'
+    })
 
     expect(mocks.send).toHaveBeenCalledWith(
       expect.objectContaining({
         actionKey: 'translate.open',
-        meta: { sessionId: 'translate-1' },
+        meta: { sessionId: 'translate-1', historyId: 'history-1' },
         source: 'translate'
       })
     )

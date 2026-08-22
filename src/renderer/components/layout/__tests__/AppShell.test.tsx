@@ -258,8 +258,8 @@ describe('AppShell', () => {
       legacyCombinedLayout: true,
       tabs: [settingsTab]
     })
-    expect(document.querySelector('[data-ui="app.content"]')?.parentElement).toHaveClass('pr-2')
-    expect(document.querySelector('[data-ui="app.content"]')?.parentElement).not.toHaveClass('px-2')
+    expect(document.querySelector('[data-ui="app.content"]')?.parentElement).toHaveClass('px-2')
+    expect(document.querySelector('[data-ui="app.content"]')?.parentElement).not.toHaveClass('pr-2')
     expect(screen.getAllByTestId('tab-router').map((router) => router.dataset.tabId)).toEqual(['home', 'settings'])
   })
 

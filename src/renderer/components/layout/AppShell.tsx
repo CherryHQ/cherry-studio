@@ -237,7 +237,7 @@ export const AppShell = () => {
   )
 
   const contentArea = (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', navigationLayout === 'tabs' ? 'px-2' : 'pr-2')}>
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', showsSidebar ? 'pr-2' : 'px-2')}>
       <main
         data-ui="app.content"
         className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">

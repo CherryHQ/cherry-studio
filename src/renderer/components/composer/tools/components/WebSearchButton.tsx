@@ -5,6 +5,7 @@ import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { useTabs } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
@@ -15,6 +16,7 @@ import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
+import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import type { FC, MouseEventHandler } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
@@ -40,6 +42,8 @@ const WebSearchProviderIcon: FC<{ iconRef?: IconRef }> = ({ iconRef }) => {
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { navigationLayout } = useTabs()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
   const {
@@ -109,7 +113,11 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         if (!confirmed) return
 
         navigatedAway = true
-        openSettingsTab('/settings/websearch')
+        if (navigationLayout === 'both') {
+          await navigate({ to: '/settings/websearch' })
+        } else {
+          openSettingsTab('/settings/websearch')
+        }
         return
       }
 
@@ -119,7 +127,17 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [assistant, disabledReason, enableWebSearch, t, updateAssistant, model, searchUnavailableReason]
+    [
+      assistant,
+      disabledReason,
+      enableWebSearch,
+      model,
+      navigate,
+      navigationLayout,
+      searchUnavailableReason,
+      t,
+      updateAssistant
+    ]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
