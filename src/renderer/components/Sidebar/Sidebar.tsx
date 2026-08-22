@@ -23,6 +23,8 @@ export interface SidebarProps {
   logo?: React.ReactNode
   user?: SidebarUser
   isFloating?: boolean
+  /** Holds the hover overlay open while the pointer sits on the window-chrome toggle. */
+  keepOpen?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
@@ -43,6 +45,7 @@ export function Sidebar({
   logo,
   user,
   isFloating = false,
+  keepOpen = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
@@ -92,6 +95,28 @@ export function Sidebar({
   }, [clearHoverDismiss, handleDismiss])
 
   useEffect(() => clearHoverDismiss, [clearHoverDismiss])
+
+  // The sidebar toggle paints over this panel but is a DOM sibling, so reaching for
+  // it fires our mouseleave and the peek would close right under the user's cursor.
+  // Leaving the toggle has to re-arm the dismiss by hand for the same reason: the
+  // pointer never touched the panel itself, so no mouseleave of ours will follow.
+  // The mount pass must stay inert, or the peek would self-close before the pointer
+  // ever reaches it.
+  const wasKeptOpen = useRef(keepOpen)
+  useEffect(() => {
+    if (keepOpen) {
+      wasKeptOpen.current = true
+      clearHoverDismiss()
+      return
+    }
+
+    if (!wasKeptOpen.current) return
+    wasKeptOpen.current = false
+
+    if (!floatingPointerInsideRef.current && !contextMenuOpenRef.current && !footerOverlayOpenRef.current) {
+      scheduleHoverDismiss()
+    }
+  }, [clearHoverDismiss, keepOpen, scheduleHoverDismiss])
 
   const handleContextMenuOpenChange = useCallback(
     (open: boolean) => {
@@ -146,8 +171,9 @@ export function Sidebar({
     return (
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
+          style={{ width }}
           className={cn(
-            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
+            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
             windowDragClassName,
             isMac && 'pt-[env(titlebar-area-height)]'
           )}

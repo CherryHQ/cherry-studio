@@ -129,7 +129,10 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+// The sidebar toggle is absolutely positioned over this row (see AppShell), so the
+// tab strip has to keep its footprint clear wherever the sidebar is too narrow to hold it.
+const SIDEBAR_TOGGLE_RESERVE = '40px'
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = `max(0px, calc(env(titlebar-area-x, 0px) + ${SIDEBAR_TOGGLE_RESERVE} - var(--sidebar-width, 0px)))`
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -878,6 +881,16 @@ export const AppShellTabBar = ({
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
+  // The focused (settings) tab hides the sidebar and its toggle, so it only clears
+  // the traffic lights.
+  const tabStripPaddingLeft = isFocusedTab
+    ? isMac && !isFullscreen
+      ? 'env(titlebar-area-x)'
+      : undefined
+    : isMac && !isFullscreen
+      ? MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+      : SIDEBAR_TOGGLE_RESERVE
+
   return (
     <>
       <header
@@ -892,11 +905,7 @@ export const AppShellTabBar = ({
         <div
           ref={stripRef}
           data-testid="app-shell-tab-strip"
-          style={
-            isMac && !isFullscreen
-              ? { paddingLeft: isFocusedTab ? 'env(titlebar-area-x)' : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE }
-              : undefined
-          }
+          style={{ paddingLeft: tabStripPaddingLeft }}
           onMouseEnter={() => {
             stripPointerInsideRef.current = true
             thawAfterCollapseRef.current = false

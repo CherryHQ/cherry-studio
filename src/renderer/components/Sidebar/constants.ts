@@ -6,6 +6,10 @@ export const SIDEBAR_MAX_WIDTH = 280
 export const SIDEBAR_HIDDEN_THRESHOLD = 20
 export const SIDEBAR_FULL_THRESHOLD = 120
 
+// Fallback width for the hover overlay. It always renders labels, so a remembered
+// icon-band width would leave it unreadable rather than merely narrow.
+export const SIDEBAR_PEEK_WIDTH = 174
+
 export function getSidebarLayout(width: number): SidebarLayout {
   if (width < SIDEBAR_HIDDEN_THRESHOLD) return 'hidden'
   if (width < SIDEBAR_FULL_THRESHOLD) return 'icon'
@@ -31,4 +35,10 @@ export function getSidebarDisplayWidth(width: number): number {
   if (isIntermediateSidebarWidth(width)) return width
   if (getSidebarLayout(width) === 'icon') return SIDEBAR_ICON_WIDTH
   return width
+}
+
+// The hover overlay reopens at the width the user last had, so peeking after a
+// collapse looks like the sidebar they closed rather than a stock-width panel.
+export function getSidebarPeekWidth(expandedWidth: number): number {
+  return getSidebarLayout(expandedWidth) === 'full' ? expandedWidth : SIDEBAR_PEEK_WIDTH
 }
