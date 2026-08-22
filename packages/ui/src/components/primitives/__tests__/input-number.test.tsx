@@ -49,7 +49,7 @@ describe('InputNumber', () => {
     expect(pasted).toHaveBeenCalledExactlyOnceWith(1)
   })
 
-  it('keeps a minus sign when no min is given', async () => {
+  it('keeps a minus sign while the text is being typed', async () => {
     const user = userEvent.setup()
     render(<Controlled step={0.1} />)
 

@@ -22,7 +22,7 @@ const LmStudioSettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
 
   const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
-  // `onCommit` fires once per edit with the normalized value, so the field needs
+  // `onBlur` fires once per edit with the normalized value, so the field needs
   // no local draft: a failed save leaves the saved value shown.
   const handleCommit = async (value: number | null) => {
     const next = Math.floor(value ?? 0)
