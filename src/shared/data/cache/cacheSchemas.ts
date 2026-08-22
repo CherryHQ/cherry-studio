@@ -370,6 +370,9 @@ export type RendererPersistCacheSchema = {
   'ui.global_search.recent_items': CacheValueTypes.GlobalSearchRecentEntry[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
+  // Width to restore when the sidebar is expanded from the hidden state; tracks the last
+  // visible width so the toggle button returns to the band the user was last in.
+  'ui.sidebar.expanded_width': number
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
@@ -432,6 +435,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.global_search.recent_items': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
+  'ui.sidebar.expanded_width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
   'ui.composer.input_history': [],

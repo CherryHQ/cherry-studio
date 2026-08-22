@@ -28,6 +28,7 @@ import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,
+  getSidebarPeekWidth,
   normalizeSidebarWidth,
   Sidebar as UISidebar,
   type SidebarUser,
@@ -40,7 +41,19 @@ import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVarian
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  keepPeekOpen = false,
+  peekOpen = false,
+  onPeekOpenChange
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  /** True while the pointer rests on the shell's sidebar toggle. */
+  keepPeekOpen?: boolean
+  /** Hover-reveal overlay visibility. The shell owns it so its toggle can pin what it shows. */
+  peekOpen?: boolean
+  onPeekOpenChange?: (open: boolean) => void
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const {
@@ -75,6 +88,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // intermediate 50-120px range uses a local preview width so the UI can
   // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [expandedWidth, setExpandedWidth] = usePersistCache('ui.sidebar.expanded_width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -99,6 +113,15 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     }
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
+  // The toggle button restores the band the user was last in, so the last visible
+  // width has to be tracked here — collapsing by drag never goes through the button.
+  useEffect(() => {
+    if (previewSidebarWidth !== null) return
+    if (getSidebarLayout(sidebarWidth) === 'hidden' || sidebarWidth === expandedWidth) return
+
+    setExpandedWidth(sidebarWidth)
+  }, [expandedWidth, previewSidebarWidth, setExpandedWidth, sidebarWidth])
+
   // User avatar
   const avatar = useAvatar()
   const sidebarUser = useMemo<SidebarUser>(
@@ -122,9 +145,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [sidebarUser]
   )
 
-  // Floating sidebar (hover reveal when hidden)
-  const [hoverVisible, setHoverVisible] = useState(false)
   const layout = getSidebarLayout(activeSidebarWidth)
+
+  // Pinning the overlay from the toggle button leaves the hover flag set, and a
+  // later collapse would then pop the overlay open again with no pointer nearby.
+  useEffect(() => {
+    if (layout !== 'hidden') onPeekOpenChange?.(false)
+  }, [layout, onPeekOpenChange])
 
   // Menu items
   const pathname = activeTab?.url || '/'
@@ -391,16 +418,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       <UISidebar
         width={activeSidebarWidth}
         setWidth={setSidebarWidth}
-        onHoverChange={setHoverVisible}
+        onHoverChange={onPeekOpenChange}
         onResizePreview={setPreviewSidebarWidth}
         {...sidebarProps}
       />
-      {hoverVisible && layout === 'hidden' && (
+      {peekOpen && layout === 'hidden' && (
         <UISidebar
-          width={activeSidebarWidth}
+          width={getSidebarPeekWidth(expandedWidth)}
           setWidth={setSidebarWidth}
           isFloating
-          onDismiss={() => setHoverVisible(false)}
+          keepOpen={keepPeekOpen}
+          onDismiss={() => onPeekOpenChange?.(false)}
           {...sidebarProps}
         />
       )}

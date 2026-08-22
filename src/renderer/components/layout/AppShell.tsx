@@ -10,8 +10,9 @@ import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTi
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { AppSidebarToggleButton } from '../app/AppSidebarToggleButton'
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
@@ -56,6 +57,8 @@ export const AppShell = () => {
     [activeTab, isSettingsTabActive, tabs]
   )
   const isFullscreen = useNativeFullscreen()
+  const [sidebarTogglePointerInside, setSidebarTogglePointerInside] = useState(false)
+  const [sidebarPeekOpen, setSidebarPeekOpen] = useState(false)
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
 
@@ -222,6 +225,22 @@ export const AppShell = () => {
     </div>
   )
 
+  // The toggle keeps one fixed spot: beside the macOS traffic lights, where it stays
+  // put across every sidebar width. Without them it leads the tab strip instead.
+  // It must stay the LAST child of the shell root: Chromium collects draggable
+  // regions in DOM order, so an earlier `no-drag` is overwritten by the title-bar
+  // and tab-strip drag regions that follow, and real clicks never reach the button.
+  const sidebarToggle = !isSettingsTabActive && (
+    <div
+      data-testid="app-sidebar-toggle-slot"
+      onMouseEnter={() => setSidebarTogglePointerInside(true)}
+      onMouseLeave={() => setSidebarTogglePointerInside(false)}
+      className="absolute top-0 z-50 flex h-11 items-center [-webkit-app-region:no-drag]"
+      style={{ left: isMac && !isFullscreen ? 'env(titlebar-area-x)' : 'calc(var(--sidebar-width, 0px) + 8px)' }}>
+      <AppSidebarToggleButton peekOpen={sidebarPeekOpen} />
+    </div>
+  )
+
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {tabBar}
@@ -233,11 +252,18 @@ export const AppShell = () => {
     return (
       <div
         className={cn(
-          'flex h-screen w-screen flex-row overflow-hidden text-foreground',
+          'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {!isSettingsTabActive && <Sidebar />}
+        {!isSettingsTabActive && (
+          <Sidebar
+            keepPeekOpen={sidebarTogglePointerInside}
+            peekOpen={sidebarPeekOpen}
+            onPeekOpenChange={setSidebarPeekOpen}
+          />
+        )}
         {contentColumn}
+        {sidebarToggle}
       </div>
     )
   }
@@ -264,10 +290,15 @@ export const AppShell = () => {
               className="h-11 shrink-0 [-webkit-app-region:drag]"
             />
           )}
-          <Sidebar />
+          <Sidebar
+            keepPeekOpen={sidebarTogglePointerInside}
+            peekOpen={sidebarPeekOpen}
+            onPeekOpenChange={setSidebarPeekOpen}
+          />
         </div>
       )}
       {contentColumn}
+      {sidebarToggle}
     </div>
   )
 }

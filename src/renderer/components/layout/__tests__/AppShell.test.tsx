@@ -352,7 +352,7 @@ describe('AppShell', () => {
     expect(contentColumn).toContainElement(tabBar)
     expect(contentColumn).toContainElement(tabRouter)
     expect(contentColumn.querySelector('main')).toHaveAttribute('data-ui', 'app.content')
-    expect(Array.from(root.children)).toEqual([sidebar, contentColumn])
+    expect(Array.from(root.children)).toEqual([sidebar, contentColumn, screen.getByTestId('app-sidebar-toggle-slot')])
     expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
   })
 
@@ -387,7 +387,15 @@ describe('AppShell', () => {
     expect(Array.from(leftColumn.children)).toEqual([trafficLightSpacer, sidebar])
     expect(contentColumn).toContainElement(tabBar)
     expect(contentColumn).toContainElement(tabRouter)
-    expect(Array.from(root.children)).toEqual([trafficLightDragRegion, leftColumn, contentColumn])
+    // Last child on purpose: Chromium resolves overlapping draggable regions in DOM
+    // order, so an earlier toggle slot would be re-covered by the title-bar drag
+    // regions and stop receiving real clicks.
+    expect(Array.from(root.children)).toEqual([
+      trafficLightDragRegion,
+      leftColumn,
+      contentColumn,
+      screen.getByTestId('app-sidebar-toggle-slot')
+    ])
     expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
     expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
   })

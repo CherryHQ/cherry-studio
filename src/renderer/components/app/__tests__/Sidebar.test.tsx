@@ -5,7 +5,7 @@ import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as SidebarConstants from '../../Sidebar/constants'
@@ -395,7 +395,12 @@ describe('app Sidebar', () => {
   it('keeps feedback mounted when the floating sidebar closes', async () => {
     const user = userEvent.setup()
     mocks.sidebarWidth = 0
-    render(<Sidebar />)
+    // The shell owns peek visibility so its toggle can pin what the overlay shows.
+    const ShellHost = () => {
+      const [peekOpen, setPeekOpen] = useState(false)
+      return <Sidebar peekOpen={peekOpen} onPeekOpenChange={setPeekOpen} />
+    }
+    render(<ShellHost />)
 
     await user.click(screen.getByRole('button', { name: 'reveal' }))
     const floatingSidebar = screen.getByTestId('floating-sidebar')

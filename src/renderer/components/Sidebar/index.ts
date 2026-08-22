@@ -1,12 +1,14 @@
 export {
   getSidebarDisplayWidth,
   getSidebarLayout,
+  getSidebarPeekWidth,
   isIntermediateSidebarWidth,
   normalizeSidebarWidth,
   SIDEBAR_FULL_THRESHOLD,
   SIDEBAR_HIDDEN_THRESHOLD,
   SIDEBAR_ICON_WIDTH,
-  SIDEBAR_MAX_WIDTH
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_PEEK_WIDTH
 } from './constants'
 export { MiniAppIcon, UserAvatar } from './primitives'
 export { Sidebar, type SidebarProps } from './Sidebar'

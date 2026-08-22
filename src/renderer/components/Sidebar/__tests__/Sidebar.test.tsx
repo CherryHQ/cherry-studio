@@ -7,11 +7,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   getSidebarDisplayWidth,
+  getSidebarPeekWidth,
   normalizeSidebarWidth,
   SIDEBAR_FULL_THRESHOLD,
   SIDEBAR_HIDDEN_THRESHOLD,
   SIDEBAR_ICON_WIDTH,
-  SIDEBAR_MAX_WIDTH
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_PEEK_WIDTH
 } from '../constants'
 import { MiniAppIcon } from '../primitives'
 import { Sidebar } from '../Sidebar'
@@ -270,6 +272,27 @@ describe('Sidebar resize handle', () => {
     expect(getSidebarDisplayWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)
   })
 
+  it('peeks at the width the user last expanded to', () => {
+    expect(getSidebarPeekWidth(SIDEBAR_MAX_WIDTH)).toBe(SIDEBAR_MAX_WIDTH)
+    // An icon rail carries no labels, and the overlay always renders them.
+    expect(getSidebarPeekWidth(SIDEBAR_ICON_WIDTH)).toBe(SIDEBAR_PEEK_WIDTH)
+    expect(getSidebarPeekWidth(0)).toBe(SIDEBAR_PEEK_WIDTH)
+  })
+
+  it('opens the hover overlay at the requested width', () => {
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_MAX_WIDTH}
+        setWidth={vi.fn()}
+        isFloating
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+      />
+    )
+
+    expect(container.querySelector('.slide-in-from-left-2')).toHaveStyle({ width: `${SIDEBAR_MAX_WIDTH}px` })
+  })
+
   it('normalizes persisted intermediate widths to icon width', () => {
     expect(normalizeSidebarWidth(SIDEBAR_ICON_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
     expect(normalizeSidebarWidth(INTERMEDIATE_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
@@ -388,6 +411,63 @@ describe('Sidebar resize handle', () => {
 
       act(() => uiMocks.contextMenuOpenChange?.(false))
       expect(panel).toHaveClass('[-webkit-app-region:drag]')
+      vi.advanceTimersByTime(350)
+
+      expect(onDismiss).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the floating sidebar open while the pointer rests on the shell toggle', () => {
+    vi.useFakeTimers()
+    const onDismiss = vi.fn()
+
+    try {
+      const { container, rerender } = render(
+        <Sidebar
+          width={SIDEBAR_FULL_THRESHOLD}
+          setWidth={vi.fn()}
+          active={{ activeItem: 'chat' }}
+          entries={entries}
+          isFloating
+          onDismiss={onDismiss}
+        />
+      )
+
+      const panel = container.querySelector('.slide-in-from-left-2') as HTMLElement
+
+      // Reaching for the toggle leaves the panel in DOM terms, so the dismiss is
+      // already scheduled by the time the toggle reports the pointer.
+      fireEvent.mouseEnter(panel)
+      fireEvent.mouseLeave(panel)
+      rerender(
+        <Sidebar
+          width={SIDEBAR_FULL_THRESHOLD}
+          setWidth={vi.fn()}
+          active={{ activeItem: 'chat' }}
+          entries={entries}
+          isFloating
+          keepOpen
+          onDismiss={onDismiss}
+        />
+      )
+      vi.advanceTimersByTime(350)
+
+      expect(onDismiss).not.toHaveBeenCalled()
+
+      // The pointer never re-enters the panel on the way out, so nothing else would
+      // re-arm the dismiss.
+      rerender(
+        <Sidebar
+          width={SIDEBAR_FULL_THRESHOLD}
+          setWidth={vi.fn()}
+          active={{ activeItem: 'chat' }}
+          entries={entries}
+          isFloating
+          onDismiss={onDismiss}
+        />
+      )
       vi.advanceTimersByTime(350)
 
       expect(onDismiss).toHaveBeenCalledTimes(1)
