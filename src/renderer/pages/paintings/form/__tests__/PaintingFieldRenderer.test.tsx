@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import { buildParamsSchema } from '@cherrystudio/provider-registry'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +17,28 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
     )
 
     expect(screen.getByRole('spinbutton')).toHaveValue(4)
+  })
+
+  it('displays a numeric string using the same effective value as submit normalization', () => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+    const submitted = buildParamsSchema(support, 'generate').parse({ strength: '4.5' })
+
+    render(
+      <PaintingFieldRenderer
+        item={{ type: 'slider', key: 'strength', min: 0, max: 10, initialValue: 4 }}
+        painting={{ strength: '4.5' }}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('spinbutton')).toHaveValue(4.5)
+    expect(submitted.strength).toBe(4.5)
   })
 
   it('does not stringify an invalid text param into the input', () => {
