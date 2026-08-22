@@ -2,7 +2,6 @@ import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
-import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -10,10 +9,6 @@ const mocks = vi.hoisted(() => ({
   agentApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
   applicationGet: vi.fn(),
   broadcastToType: vi.fn(),
-  cacheSubscriptions: new Map<
-    string,
-    (value: TopicStatusSnapshotEntry | null | undefined, oldValue: unknown, concreteKey: string) => void
-  >(),
   completionListener: undefined as ((event: ConversationCompletedEvent) => void) | undefined,
   electronNotifications: [] as Array<{
     options: { title: string; body: string }
@@ -109,7 +104,6 @@ describe('NotificationService', () => {
     vi.clearAllMocks()
     mocks.electronNotifications.length = 0
     mocks.agentApprovalListener = undefined
-    mocks.cacheSubscriptions.clear()
     mocks.completionListener = undefined
     mocks.streamApprovalListener = undefined
     mocks.getWindowInfosByType.mockReturnValue([])
@@ -138,21 +132,6 @@ describe('NotificationService', () => {
         }
       }
       if (name === 'ConversationNavigationService') return { focusOrOpen: mocks.focusOrOpen }
-      if (name === 'CacheService') {
-        return {
-          subscribeSharedChange: (
-            key: string,
-            listener: (
-              value: TopicStatusSnapshotEntry | null | undefined,
-              oldValue: unknown,
-              concreteKey: string
-            ) => void
-          ) => {
-            mocks.cacheSubscriptions.set(key, listener)
-            return vi.fn()
-          }
-        }
-      }
       if (name === 'WindowManager') return { getWindowInfosByType: mocks.getWindowInfosByType }
       if (name === 'IpcApiService') return { send: mocks.send, broadcastToType: mocks.broadcastToType }
       if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
@@ -164,39 +143,8 @@ describe('NotificationService', () => {
     await service._doInit()
   })
 
-  it.each([
-    {
-      pattern: 'topic.stream.statuses.${topicId}',
-      concreteKey: 'topic.stream.statuses.topic-1',
-      topicId: 'topic-1',
-      target: { conversationType: 'assistant' as const, conversationId: 'topic-1' }
-    },
-    {
-      pattern: 'topic.stream.statuses.agent-session:${sessionId}',
-      concreteKey: 'topic.stream.statuses.agent-session:session-1',
-      topicId: 'agent-session:session-1',
-      target: { conversationType: 'agent' as const, conversationId: 'session-1' }
-    }
-  ])('normalizes $concreteKey into a conversation activity event', ({ pattern, concreteKey, topicId, target }) => {
-    const listener = vi.fn()
-    service.onConversationActivityChanged(listener)
-    const snapshot: TopicStatusSnapshotEntry = {
-      status: 'streaming',
-      turnId: 'turn-1',
-      activeExecutions: [],
-      awaitingApprovalAnchors: []
-    }
-
-    mocks.cacheSubscriptions.get(pattern)?.(snapshot, null, concreteKey)
-
-    expect(listener).toHaveBeenCalledWith({
-      topicId,
-      target,
-      snapshot,
-      changedAt: expect.any(Number)
-    })
-    expect(mocks.send).not.toHaveBeenCalled()
-    expect(mocks.electronNotifications).toHaveLength(0)
+  it('initializes without accessing conversation activity cache state', () => {
+    expect(mocks.applicationGet).not.toHaveBeenCalledWith('CacheService')
   })
 
   it('sends one presentation-ready event to the focused full-chrome window', () => {

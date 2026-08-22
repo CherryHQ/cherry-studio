@@ -1,7 +1,13 @@
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
-import type { TopicStreamStatus } from '@shared/ai/transport'
+import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+type CacheListener = (
+  value: TopicStatusSnapshotEntry | null | undefined,
+  oldValue: TopicStatusSnapshotEntry | null | undefined,
+  concreteKey: string
+) => void
 
 const mocks = vi.hoisted(() => {
   type Listener = (...args: unknown[]) => void
@@ -14,6 +20,8 @@ const mocks = vi.hoisted(() => {
 
   return {
     activitiesListener: undefined as ((event: any) => void) | undefined,
+    cacheDisposers: new Map<string, ReturnType<typeof vi.fn>>(),
+    cacheSubscriptions: new Map<string, CacheListener>(),
     createdListeners: [] as Array<(managed: any) => void>,
     destroyedListeners: [] as Array<(managed: any) => void>,
     displays: [] as any[],
@@ -97,16 +105,15 @@ function createWindow(initialBounds = { x: 0, y: 0, width: 320, height: 38 }) {
 }
 
 const services = vi.hoisted(() => {
-  const notificationService = {
-    onConversationActivityChanged: vi.fn((listener: (event: any) => void) => {
-      mocks.activitiesListener = listener
-      return {
-        dispose: vi.fn(() => {
-          if (mocks.activitiesListener === listener) mocks.activitiesListener = undefined
-        })
-      }
-    }),
-    resolveConversationName: (...args: unknown[]) => mocks.resolveName(...args)
+  const cacheService = {
+    subscribeSharedChange: vi.fn((key: string, listener: CacheListener) => {
+      const dispose = vi.fn(() => {
+        if (mocks.cacheSubscriptions.get(key) === listener) mocks.cacheSubscriptions.delete(key)
+      })
+      mocks.cacheSubscriptions.set(key, listener)
+      mocks.cacheDisposers.set(key, dispose)
+      return dispose
+    })
   }
 
   const preferenceService = {
@@ -161,14 +168,30 @@ const services = vi.hoisted(() => {
     pushInitData: vi.fn((id: string, _snapshot: unknown) => mocks.windows.has(id))
   }
 
-  return { notificationService, powerService, preferenceService, windowManager }
+  return { cacheService, powerService, preferenceService, windowManager }
 })
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    getById: (conversationId: string) => ({
+      name: mocks.resolveName({ conversationType: 'agent', conversationId })
+    })
+  }
+}))
+
+vi.mock('@data/services/TopicService', () => ({
+  topicService: {
+    getById: (conversationId: string) => ({
+      name: mocks.resolveName({ conversationType: 'assistant', conversationId })
+    })
+  }
+}))
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       const service = {
-        NotificationService: services.notificationService,
+        CacheService: services.cacheService,
         PowerService: services.powerService,
         PreferenceService: services.preferenceService,
         WindowManager: services.windowManager
@@ -192,12 +215,16 @@ function emitActivity(
   turnId = `${topicId}-turn`
 ): void {
   vi.setSystemTime(changedAt)
-  mocks.activitiesListener?.({
-    topicId,
-    target: { conversationType, conversationId: topicId },
-    snapshot: status === null ? null : { status, turnId, activeExecutions: [], awaitingApprovalAnchors: [] },
-    changedAt
-  })
+  const pattern =
+    conversationType === 'agent'
+      ? 'topic.stream.statuses.agent-session:${sessionId}'
+      : 'topic.stream.statuses.${topicId}'
+  const concreteTopicId = conversationType === 'agent' ? `agent-session:${topicId}` : topicId
+  mocks.cacheSubscriptions.get(pattern)?.(
+    status === null ? null : { status, turnId, activeExecutions: [], awaitingApprovalAnchors: [] },
+    null,
+    `topic.stream.statuses.${concreteTopicId}`
+  )
 }
 
 function changePreference(key: string, value: unknown): void {
@@ -225,6 +252,8 @@ describe('ConversationIslandService', () => {
     vi.setSystemTime(0)
     vi.clearAllMocks()
     mocks.activitiesListener = undefined
+    mocks.cacheDisposers.clear()
+    mocks.cacheSubscriptions.clear()
     mocks.createdListeners.length = 0
     mocks.destroyedListeners.length = 0
     mocks.displays = [internalDisplay, externalDisplay]
@@ -270,6 +299,36 @@ describe('ConversationIslandService', () => {
     vi.clearAllTimers()
     vi.useRealTimers()
     BaseService.resetInstances()
+  })
+
+  it('observes assistant and agent-session activity through their exact cache patterns', () => {
+    expect([...mocks.cacheSubscriptions.keys()]).toEqual([
+      'topic.stream.statuses.${topicId}',
+      'topic.stream.statuses.agent-session:${sessionId}'
+    ])
+  })
+
+  it('projects assistant and agent-session cache activity to navigation targets', () => {
+    mocks.resolveName.mockImplementation(
+      (target: { conversationType: 'assistant' | 'agent'; conversationId: string }) =>
+        `${target.conversationType}:${target.conversationId}`
+    )
+    changePreference('feature.conversation_island.enabled', true)
+
+    emitActivity('streaming', 100, 'topic-assistant', 'assistant')
+    expect(latestSnapshot()).toMatchObject({
+      activityId: 'topic-assistant',
+      target: { conversationType: 'assistant', conversationId: 'topic-assistant' },
+      title: 'assistant:topic-assistant'
+    })
+
+    emitActivity('aborted', 200, 'topic-assistant', 'assistant')
+    emitActivity('streaming', 300, 'session-1', 'agent')
+    expect(latestSnapshot()).toMatchObject({
+      activityId: 'agent-session:session-1',
+      target: { conversationType: 'agent', conversationId: 'session-1' },
+      title: 'agent:session-1'
+    })
   })
 
   it('retains live activity while disabled without creating resources', async () => {
@@ -423,7 +482,7 @@ describe('ConversationIslandService', () => {
     ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
 
     expect(latestSnapshot()).toMatchObject({
-      activityId: 'topic-approval',
+      activityId: 'agent-session:topic-approval',
       state: 'awaiting-confirmation',
       statusText: 'conversation_island.status.awaiting_confirmation',
       title: 'Approval request',
@@ -431,7 +490,7 @@ describe('ConversationIslandService', () => {
       expanded: true,
       activities: [
         {
-          activityId: 'topic-approval',
+          activityId: 'agent-session:topic-approval',
           state: 'awaiting-confirmation',
           statusText: 'conversation_island.status.awaiting_confirmation',
           title: 'Approval request'
@@ -706,6 +765,8 @@ describe('ConversationIslandService', () => {
   })
 
   it('cleans listeners, active probes, timers, and the transient window on stop', async () => {
+    const assistantCacheDisposer = mocks.cacheDisposers.get('topic.stream.statuses.${topicId}')
+    const agentCacheDisposer = mocks.cacheDisposers.get('topic.stream.statuses.agent-session:${sessionId}')
     let signal: AbortSignal | undefined
     mocks.geometryProbe.mockImplementationOnce((value: AbortSignal) => {
       signal = value
@@ -717,7 +778,9 @@ describe('ConversationIslandService', () => {
     await service._doStop()
 
     expect(signal?.aborted).toBe(true)
-    expect(mocks.activitiesListener).toBeUndefined()
+    expect(assistantCacheDisposer).toHaveBeenCalledOnce()
+    expect(agentCacheDisposer).toHaveBeenCalledOnce()
+    expect(mocks.cacheSubscriptions.size).toBe(0)
     expect(mocks.powerListener).toBeUndefined()
     expect(mocks.screenListeners.size === 0 || [...mocks.screenListeners.values()].every((set) => set.size === 0)).toBe(
       true

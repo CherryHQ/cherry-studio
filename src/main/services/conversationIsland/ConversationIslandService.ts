@@ -1,5 +1,8 @@
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   BaseService,
   Conditional,
@@ -12,13 +15,14 @@ import {
 } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import type { ConversationActivityChangedEvent } from '@main/services/NotificationService'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type {
   ConversationIslandActivityItem,
   ConversationIslandSnapshot,
   ConversationIslandStateKind
 } from '@shared/types/conversationIsland'
+import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import { type Display, type Rectangle, screen, systemPreferences } from 'electron'
 
 import { type ConversationIslandActivity, reduceActivities, selectPrimaryActivity } from './activityReducer'
@@ -37,7 +41,15 @@ import {
   resolveConversationIslandSize
 } from './macScreenGeometry'
 
-const logger = loggerService.withContext('ConversationIslandService')
+const logger = loggerService.withContext('Conversation Island')
+const TOPIC_STATUS_PREFIX = 'topic.stream.statuses.'
+
+interface ConversationActivityChangedEvent {
+  topicId: string
+  target: ConversationNavigationTarget
+  snapshot: TopicStatusSnapshotEntry | null
+  changedAt: number
+}
 
 function snapshotState(status: ConversationIslandActivity['status']): ConversationIslandStateKind {
   return status === 'awaiting-approval' ? 'awaiting-confirmation' : status
@@ -89,7 +101,7 @@ function shouldAnimateBoundsUpdate(): boolean {
 
 @Injectable('ConversationIslandService')
 @Conditional(onPlatform('darwin'))
-@DependsOn(['NotificationService', 'WindowManager', 'PowerService'])
+@DependsOn(['WindowManager', 'PowerService'])
 @ServicePhase(Phase.WhenReady)
 export class ConversationIslandService extends BaseService {
   private readonly activities = new Map<string, ConversationIslandActivity>()
@@ -122,10 +134,17 @@ export class ConversationIslandService extends BaseService {
       })
     )
 
+    const cacheService = application.get('CacheService')
     this.registerDisposable(
-      application
-        .get('NotificationService')
-        .onConversationActivityChanged((event) => this.handleConversationActivity(event))
+      cacheService.subscribeSharedChange('topic.stream.statuses.${topicId}', (snapshot, _oldSnapshot, key) =>
+        this.handleConversationActivitySnapshot(snapshot, key)
+      )
+    )
+    this.registerDisposable(
+      cacheService.subscribeSharedChange(
+        'topic.stream.statuses.agent-session:${sessionId}',
+        (snapshot, _oldSnapshot, key) => this.handleConversationActivitySnapshot(snapshot, key)
+      )
     )
 
     const preferences = application.get('PreferenceService')
@@ -148,6 +167,27 @@ export class ConversationIslandService extends BaseService {
     this.deactivateResources()
     this.activities.clear()
     this.titleCache.clear()
+  }
+
+  private handleConversationActivitySnapshot(
+    snapshot: TopicStatusSnapshotEntry | null | undefined,
+    concreteKey: string
+  ): void {
+    const topicId = concreteKey.slice(TOPIC_STATUS_PREFIX.length)
+    if (!topicId) return
+
+    this.handleConversationActivity({
+      topicId,
+      target: this.resolveConversationTarget(topicId),
+      snapshot: snapshot ?? null,
+      changedAt: Date.now()
+    })
+  }
+
+  private resolveConversationTarget(topicId: string): ConversationNavigationTarget {
+    return isAgentSessionTopic(topicId)
+      ? { conversationType: 'agent', conversationId: extractAgentSessionId(topicId) }
+      : { conversationType: 'assistant', conversationId: topicId }
   }
 
   private handleConversationActivity(event: ConversationActivityChangedEvent): void {
@@ -375,11 +415,10 @@ export class ConversationIslandService extends BaseService {
   }
 
   private buildActivityItem(activity: ConversationIslandActivity): ConversationIslandActivityItem {
-    const fallback = activity.target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
     const cached = this.titleCache.get(activity.topicId)
     let title = cached && cached.turnId === activity.turnId ? cached.title : undefined
     if (title === undefined) {
-      title = application.get('NotificationService').resolveConversationName(activity.target) || fallback
+      title = this.resolveConversationName(activity.target)
       this.titleCache.set(activity.topicId, { turnId: activity.turnId, title })
     }
 
@@ -389,6 +428,21 @@ export class ConversationIslandService extends BaseService {
       state: snapshotState(activity.status),
       statusText: statusText(activity),
       title
+    }
+  }
+
+  private resolveConversationName(target: ConversationNavigationTarget): string {
+    const fallback = target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
+
+    try {
+      const name =
+        target.conversationType === 'agent'
+          ? agentSessionService.getById(target.conversationId).name
+          : topicService.getById(target.conversationId).name
+      return name.trim() || fallback
+    } catch (error) {
+      logger.warn('Failed to resolve conversation name for Conversation Island', { target, err: error })
+      return fallback
     }
   }
 
