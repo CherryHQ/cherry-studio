@@ -113,7 +113,7 @@ if (command === 'use') {
   const createService = () => {
     const service = new BinaryManager()
     ;(service as any).miseBin = misePath
-    ;(service as any).isolatedEnv = { ...shellEnvRef.current }
+    ;(service as any).isolatedEnv = { env: { ...shellEnvRef.current }, usesDefaultChinaPipIndex: false }
     return service
   }
 

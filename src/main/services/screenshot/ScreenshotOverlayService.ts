@@ -351,7 +351,21 @@ export class ScreenshotOverlayService extends BaseService {
     if (!this.isSessionOverlay(windowId)) return
     const window = application.get('WindowManager').getWindow(windowId)
     if (!window || window.isDestroyed()) return
-    window.focus()
+    makeKeyWindow(window)
+  }
+
+  /**
+   * Step this overlay below the IME candidate window while its text editor is open.
+   *
+   * macOS only: for a Chromium client the candidate window is placed at a fixed, low
+   * level instead of above the client, so an overlay raised over the Dock and menu bar
+   * covers it — text can be composed but the candidates are never visible. Stepping down
+   * for the duration of the edit is the only lever available from this side; the Dock and
+   * the menu bar do show over the frozen capture while it lasts.
+   */
+  public setTextEditing(windowId: WindowId, editing: boolean): void {
+    if (!isMac) return
+    application.get('WindowManager').behavior.setAlwaysOnTopLevel(windowId, editing ? 'floating' : null)
   }
 
   /**
@@ -559,7 +573,7 @@ export class ScreenshotOverlayService extends BaseService {
       if (generation !== this.sessionGeneration) return
       if (window.isDestroyed()) return
       window.setOpacity(1)
-      if (isCursorDisplay) window.focus()
+      if (isCursorDisplay) makeKeyWindow(window)
     }
 
     const timer = setTimeout(() => {
@@ -591,6 +605,14 @@ export class ScreenshotOverlayService extends BaseService {
     // Per-session: a recycled overlay that painted last time has to earn it again, or
     // the next session's never-painted window would have no Escape rescue.
     this.renderersReady.clear()
+
+    // Explicit, not left to pool release: an overlay whose session ended mid-edit would
+    // otherwise come back at the text editor's level and never cover the Dock again.
+    // Only macOS ever steps an overlay down (see setTextEditing), so only macOS restores.
+    if (isMac) {
+      const windowManager = application.get('WindowManager')
+      for (const windowId of this.overlayWindowIds) windowManager.behavior.setAlwaysOnTopLevel(windowId, null)
+    }
 
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
@@ -631,7 +653,7 @@ export class ScreenshotOverlayService extends BaseService {
       window.setOpacity(0)
       // The active overlay must become the key window again or Esc and the next drag
       // land nowhere; the others stay unfocused, as at session start.
-      if (windowId === this.activeOverlayWindowId) window.show()
+      if (windowId === this.activeOverlayWindowId) makeKeyWindow(window)
       else window.showInactive()
       // No handshake here: the image was decoded before the dialog opened.
       window.setOpacity(1)
@@ -708,6 +730,19 @@ export class ScreenshotOverlayService extends BaseService {
       defaultId: 0
     })
   }
+}
+
+/**
+ * Make an already-visible overlay the keyboard target.
+ *
+ * On macOS the overlay is a non-activating panel and a capture normally starts with
+ * the app in the background, where `focus()` makes the panel key for an instant
+ * before AppKit takes it back — leaving Esc and the next drag nowhere to land.
+ * `show()` keeps it key, and skips app activation for a panel just as `focus()` does.
+ */
+function makeKeyWindow(window: BrowserWindow): void {
+  if (isMac) window.show()
+  else window.focus()
 }
 
 /**
