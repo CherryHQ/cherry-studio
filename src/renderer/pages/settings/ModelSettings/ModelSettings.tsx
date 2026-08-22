@@ -54,6 +54,7 @@ interface ModelSettingsProps {
   autoFillEmptyModels?: boolean
   onDefaultModelSelected?: (model: Model) => void | Promise<void>
   compact?: boolean
+  focus?: 'default' | 'translate'
   className?: string
 }
 
@@ -112,7 +113,7 @@ const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
 
-const ModelSettings: FC<ModelSettingsProps> = ({
+const ModelSettingsBase: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
   showDescription = true,
   showDividers = true,
@@ -121,6 +122,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   autoFillEmptyModels = false,
   onDefaultModelSelected,
   compact = false,
+  focus,
   className
 }) => {
   const {
@@ -137,7 +139,6 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { focus } = validateModelSettingsSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const defaultRowRef = useRef<HTMLDivElement | null>(null)
   const translateRowRef = useRef<HTMLDivElement | null>(null)
   const [showFocusGuide, setShowFocusGuide] = useState(false)
@@ -438,6 +439,17 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       )}
     </div>
   )
+}
+
+// ModelSettings renders on the settings route (on-router) and during onboarding
+// (compact, off-router — no router context). useSearch throws off-router, so only
+// the non-compact branch calls it.
+const ModelSettings: FC<ModelSettingsProps> = (props) =>
+  props.compact ? <ModelSettingsBase {...props} /> : <ModelSettingsWithFocus {...props} />
+
+const ModelSettingsWithFocus: FC<ModelSettingsProps> = (props) => {
+  const { focus } = validateModelSettingsSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  return <ModelSettingsBase {...props} focus={focus} />
 }
 
 export default ModelSettings
