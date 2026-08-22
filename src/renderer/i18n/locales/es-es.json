@@ -816,6 +816,7 @@
     "messages": {
       "apiKeyRegenerated": "Clave API regenerada",
       "notEnabled": "El servidor de API no está habilitado.",
+      "portInvalid": "Introduce un puerto entre {{min}} y {{max}}.",
       "restartError": "Error al reiniciar el Servidor API: ",
       "restartFailed": "Falló el reinicio del Servidor API: ",
       "restartSuccess": "Servidor API reiniciado exitosamente",

@@ -816,6 +816,7 @@
     "messages": {
       "apiKeyRegenerated": "API 密钥已重新生成",
       "notEnabled": "请先启动网关，再通过此地址连接。",
+      "portInvalid": "请输入 {{min}} 到 {{max}} 之间的端口。",
       "restartError": "重启 API 网关失败：",
       "restartFailed": "API 网关重启失败：",
       "restartSuccess": "API 网关重启成功",

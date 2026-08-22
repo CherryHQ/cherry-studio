@@ -816,6 +816,7 @@
     "messages": {
       "apiKeyRegenerated": "Cheia API a fost regenerată",
       "notEnabled": "Serverul API nu este activat.",
+      "portInvalid": "Introduceți un port între {{min}} și {{max}}.",
       "restartError": "Nu s-a putut reporni serverul API: ",
       "restartFailed": "Repornirea serverului API a eșuat: ",
       "restartSuccess": "Serverul API a repornit cu succes",
