@@ -29,6 +29,17 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['text'],
       openWeights: true
+    },
+    {
+      id: 'deepseek-v4-flash-vision-exp',
+      name: 'DeepSeek V4 Flash Vision Exp',
+      family: 'deepseek-flash',
+      capabilities: ['function-call', 'reasoning', 'structured-output', 'image-recognition'],
+      contextWindow: 1048576,
+      maxOutputTokens: 393216,
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      openWeights: true
     }
   ],
   reasoningFamilies: [
