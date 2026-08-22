@@ -74,9 +74,9 @@ function probeScreenCapture(platform: Platform, paths: RunPaths): CapabilityResu
 export function probeCapabilities(platform: Platform, paths: RunPaths): Record<string, CapabilityResult> {
   const desktopAutomation = probeDesktopAutomation(platform)
   const screenCapture = probeScreenCapture(platform, paths)
-  const playwright = commandAvailable(process.execPath, [
+  const directCdp = commandAvailable(process.execPath, [
     '-e',
-    "require.resolve('@playwright/test'); process.stdout.write('Playwright available')"
+    "require.resolve('ws'); process.stdout.write('Direct CDP available')"
   ])
 
   return {
@@ -93,8 +93,8 @@ export function probeCapabilities(platform: Platform, paths: RunPaths): Record<s
         ? 'Desktop automation can focus an external app and emit the configured shortcut'
         : desktopAutomation.detail
     },
+    directCdp,
     npx: commandAvailable(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['--version']),
-    playwright,
     screenCapture,
     systemFilePicker: {
       available: desktopAutomation.available,

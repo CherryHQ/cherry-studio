@@ -1,9 +1,7 @@
-import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 
-import { type Browser, chromium, type Locator, type Page } from '@playwright/test'
-
+import { type CdpLocatorDescriptor, ElectronCdpClient } from './cdp-client'
 import type { ConfigRef, RegressionTestConfig } from './config'
 import { getConfigRef } from './config'
 import { type FileEvidenceOptions, validateFileEvidence } from './file-evidence'
@@ -64,16 +62,9 @@ function truncate(value: string, maximum = 12_000): string {
   return value.length > maximum ? `${value.slice(0, maximum)}\n…[truncated]` : value
 }
 
-function classifyPage(page: Page): Exclude<WindowScope, 'any'> | 'other' {
-  const pathname = new URL(page.url()).pathname.toLowerCase()
-  if (pathname.endsWith('/windows/main/index.html')) return 'main'
-  if (pathname.includes('/windows/quickassistant/')) return 'quick-assistant'
-  if (pathname.includes('/windows/selection/')) return 'selection-assistant'
-  return 'other'
-}
-
 export class RegressionController {
-  private browser?: Browser
+  private client?: ElectronCdpClient
+  private cdpPort?: number
 
   constructor(
     private readonly paths: RunPaths,
@@ -82,97 +73,48 @@ export class RegressionController {
   ) {}
 
   async dispose(): Promise<void> {
-    this.browser = undefined
+    this.client = undefined
+    this.cdpPort = undefined
   }
 
-  private async connect(): Promise<Browser> {
-    if (this.browser?.isConnected()) return this.browser
+  private connect(): ElectronCdpClient {
     const record = readAppRecord(this.paths)
-    this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${record.cdpPort}`)
-    return this.browser
+    if (!this.client || this.cdpPort !== record.cdpPort) {
+      this.client = new ElectronCdpClient(record.cdpPort)
+      this.cdpPort = record.cdpPort
+    }
+    return this.client
   }
 
-  private async pages(): Promise<Page[]> {
-    const browser = await this.connect()
-    return browser.contexts().flatMap((context) => context.pages())
-  }
-
-  private async page(scope: WindowScope = 'main'): Promise<Page> {
-    const deadline = Date.now() + 15_000
-    do {
-      const pages = await this.pages()
-      const matched =
-        scope === 'any'
-          ? (pages.find((candidate) => classifyPage(candidate) === 'main') ?? pages[0])
-          : pages.find((candidate) => classifyPage(candidate) === scope)
-      if (matched) return matched
-      await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
-    } while (Date.now() < deadline)
-    throw new Error(`Cherry Studio window is not available: ${scope}`)
-  }
-
-  private locate(page: Page, descriptor: LocatorDescriptor = {}): Locator {
-    const exact = descriptor.exact ?? false
+  private resolvedLocator(descriptor: LocatorDescriptor = {}): CdpLocatorDescriptor {
     const name = descriptor.nameConfigRef ? getConfigRef(this.config, descriptor.nameConfigRef) : descriptor.name
     const text = descriptor.textConfigRef ? getConfigRef(this.config, descriptor.textConfigRef) : descriptor.text
-    let locator: Locator
-    if (descriptor.role) {
-      locator = page.getByRole(descriptor.role as Parameters<Page['getByRole']>[0], {
-        exact,
-        name
-      })
-    } else if (descriptor.label) {
-      locator = page.getByLabel(descriptor.label, { exact })
-    } else if (descriptor.placeholder) {
-      locator = page.getByPlaceholder(descriptor.placeholder, { exact })
-    } else if (text) {
-      locator = page.getByText(text, { exact })
-    } else if (descriptor.testId) {
-      locator = page.getByTestId(descriptor.testId)
-    } else if (descriptor.css) {
-      locator = page.locator(descriptor.css)
-    } else {
-      locator = page.locator('body')
+    return {
+      css: descriptor.css,
+      exact: descriptor.exact,
+      label: descriptor.label,
+      name,
+      nth: descriptor.nth,
+      placeholder: descriptor.placeholder,
+      role: descriptor.role,
+      scope: descriptor.scope,
+      testId: descriptor.testId,
+      text
     }
-    return descriptor.nth === undefined ? locator : locator.nth(descriptor.nth)
   }
 
   async listWindows(): Promise<Array<{ scope: string; title: string; url: string }>> {
-    const result = await Promise.all(
-      (await this.pages()).map(async (page) => ({
-        scope: classifyPage(page),
-        title: await page.title(),
-        url: page.url()
-      }))
-    )
-    return this.redact(result)
+    return this.redact(await this.connect().listWindows())
   }
 
   private async inspectRaw(descriptor: LocatorDescriptor = {}): Promise<UiObservation> {
-    const page = await this.page(descriptor.scope)
-    const locator = this.locate(page, descriptor)
-    const count = await locator.count()
-    if (count === 0) {
-      return {
-        ariaSnapshot: '',
-        count,
-        page: { title: await page.title(), url: page.url() },
-        text: '',
-        visible: false
-      }
-    }
-    const first = locator.first()
-    const [ariaSnapshot, text, visible] = await Promise.all([
-      first.ariaSnapshot({ timeout: 10_000 }).catch(() => ''),
-      first.innerText({ timeout: 10_000 }).catch(() => ''),
-      first.isVisible().catch(() => false)
-    ])
+    const observation = await this.connect().inspect(this.resolvedLocator(descriptor))
     return {
-      ariaSnapshot: truncate(ariaSnapshot),
-      count,
-      page: { title: await page.title(), url: page.url() },
-      text: truncate(text),
-      visible
+      ariaSnapshot: truncate(observation.ariaSnapshot),
+      count: observation.count,
+      page: { title: observation.title, url: observation.url },
+      text: truncate(observation.text),
+      visible: observation.visible
     }
   }
 
@@ -187,35 +129,36 @@ export class RegressionController {
       return { waitedMs: waitMs }
     }
     if (!request.locator) throw new Error(`${request.action} requires a locator`)
-    const page = await this.page(request.locator.scope)
-    const locator = this.locate(page, request.locator)
-    await locator.waitFor({ state: request.action === 'set-files' ? 'attached' : 'visible', timeout: 15_000 })
+    const locator = this.resolvedLocator(request.locator)
+    const client = this.connect()
+    await client.waitFor(locator, request.action === 'set-files')
+    let window: { title: string; url: string }
 
     switch (request.action) {
       case 'click':
-        await locator.click()
+        window = await client.interact(locator, 'click')
         break
       case 'fill': {
         const value = request.configRef ? getConfigRef(this.config, request.configRef) : request.value
         if (value === undefined) throw new Error('fill requires value or configRef')
-        await locator.fill(value)
+        window = await client.interact(locator, 'fill', value)
         break
       }
       case 'press':
         if (!request.key) throw new Error('press requires key')
-        await locator.press(request.key)
+        window = await client.press(locator, request.key)
         break
       case 'check':
-        await locator.check()
+        window = await client.interact(locator, 'check')
         break
       case 'uncheck':
-        await locator.uncheck()
+        window = await client.interact(locator, 'uncheck')
         break
       case 'select':
         {
           const value = request.configRef ? getConfigRef(this.config, request.configRef) : request.value
           if (value === undefined) throw new Error('select requires value or configRef')
-          await locator.selectOption(value)
+          window = await client.interact(locator, 'select', value)
         }
         break
       case 'set-files': {
@@ -223,22 +166,18 @@ export class RegressionController {
         const files = request.files.map((filePath) =>
           resolveAllowedPath(filePath, [this.paths.fixtures, this.paths.workspace, this.paths.evidence])
         )
-        await locator.setInputFiles(files)
+        window = await client.setFiles(locator, files)
         break
       }
       case 'download': {
         const downloads = join(this.paths.evidence, 'downloads')
-        mkdirSync(downloads, { recursive: true })
-        const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), locator.click()])
-        const target = join(downloads, `${randomUUID()}-${basename(download.suggestedFilename())}`)
-        await download.saveAs(target)
-        return { downloadedFile: target }
+        return { downloadedFile: await client.download(locator, downloads) }
       }
       case 'hover':
-        await locator.hover()
+        window = await client.interact(locator, 'hover')
         break
       case 'focus':
-        await locator.focus()
+        window = await client.interact(locator, 'focus')
         break
       default:
         throw new Error(`Unsupported interaction: ${request.action satisfies never}`)
@@ -252,7 +191,7 @@ export class RegressionController {
         : request.action === 'fill'
           ? '[USER_VALUE]'
           : request.value,
-      window: { title: await page.title(), url: page.url() }
+      window
     }
   }
 
@@ -294,18 +233,14 @@ export class RegressionController {
     locatorDescriptor: LocatorDescriptor,
     configuredValue: string
   ): Promise<unknown> {
-    const page = await this.page(locatorDescriptor.scope)
-    const locator = this.locate(page, locatorDescriptor).first()
-    await locator.waitFor({ state: 'visible', timeout: 15_000 })
-    const [inputType, inputValue, visible] = await Promise.all([
-      locator.getAttribute('type'),
-      locator.inputValue(),
-      locator.isVisible()
-    ])
+    const locator = this.resolvedLocator(locatorDescriptor)
+    const client = this.connect()
+    await client.waitFor(locator, false)
+    const observation = await client.inspect(locator)
     const details = {
-      hasConfiguredValue: inputValue === configuredValue,
-      inputType,
-      visible
+      hasConfiguredValue: observation.inputValue === configuredValue,
+      inputType: observation.inputType,
+      visible: observation.visible
     }
     const artifactPath = join(this.paths.evidence, caseId, `${evidenceId}.json`)
     mkdirSync(join(this.paths.evidence, caseId), { recursive: true })
@@ -313,7 +248,7 @@ export class RegressionController {
     return {
       artifactPath,
       details,
-      passed: visible && inputType === 'password' && inputValue === configuredValue
+      passed: observation.visible && observation.inputType === 'password' && observation.inputValue === configuredValue
     }
   }
 
@@ -335,14 +270,13 @@ export class RegressionController {
   }
 
   async recordScreenshot(caseId: string, evidenceId: string, scope: WindowScope = 'main'): Promise<unknown> {
-    const page = await this.page(scope)
     const directory = join(this.paths.evidence, caseId)
     const artifactPath = join(directory, `${evidenceId}.png`)
     mkdirSync(directory, { recursive: true })
-    await page.screenshot({ animations: 'disabled', path: artifactPath })
+    const page = await this.connect().screenshot(scope, artifactPath)
     return {
       artifactPath,
-      details: this.redact({ title: await page.title(), url: page.url() }),
+      details: this.redact(page),
       passed: true
     }
   }
