@@ -112,6 +112,20 @@ describe('canonicalizeFilePath — UNC', () => {
   it('does not let `..` escape the share root by silently canonicalizing', () => {
     expect(() => canonicalizeFilePath('\\\\server\\share\\..\\..\\secret')).toThrow(/UNC/i)
   })
+
+  // The forward-slash spelling is accepted as UNC by Win32 just as readily, and
+  // POSIX leaves exactly-two-leading-slash paths implementation-defined — the
+  // POSIX branch must not silently rewrite it into an unrelated single-root path.
+  // See https://github.com/CherryHQ/cherry-studio/issues/18207
+  it('rejects the forward-slash UNC spelling instead of silently rewriting it', () => {
+    expect(() => canonicalizeFilePath('//server/share/doc.pdf')).toThrow(/UNC/i)
+    expect(() => canonicalizeFilePath('//server/share')).toThrow(/UNC/i)
+    expect(() => canonicalizeFilePath('//server/share/../../secret')).toThrow(/UNC/i)
+  })
+
+  it('still collapses three or more leading slashes per POSIX', () => {
+    expect(canonicalizeFilePath('///foo/bar')).toBe('/foo/bar')
+  })
 })
 
 describe('CanonicalFilePathSchema (assert-only, no repair)', () => {
@@ -183,6 +197,10 @@ describe('AbsoluteFilePathSchema ↔ canonicalizeFilePath alignment', () => {
     // The one intended divergence: a valid path for `fs`, not a valid dedup key.
     { input: '\\\\server\\share\\doc.pdf', branded: true, canonicalizable: false },
     { input: '\\\\server\\share', branded: true, canonicalizable: false },
+    // Same divergence, forward-slash UNC spelling (Win32 accepts it; the POSIX
+    // branch must not silently rewrite it into a single-root path).
+    { input: '//server/share/doc.pdf', branded: true, canonicalizable: false },
+    { input: '//server/share', branded: true, canonicalizable: false },
     // Rejected by both — the brand still filters these out first.
     { input: 'relative/doc.pdf', branded: false, canonicalizable: false },
     { input: '\\\\server', branded: false, canonicalizable: false },

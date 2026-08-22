@@ -20,7 +20,8 @@
  *
  * ## Scope (this function's contract)
  *
- *   0. Reject null bytes (`\0`) and UNC (`\\server\share\…`).
+ *   0. Reject null bytes (`\0`) and UNC (`\\server\share\…` or the
+ *      equivalent forward-slash spelling `//server/share/…`).
  *   1. Resolve segments (`.`, `..`, repeated separators).
  *   2. Strip trailing separator (except on a bare drive / POSIX root).
  *   3. Windows only: uppercase the drive letter, normalize separators to `\`.
@@ -48,9 +49,15 @@
  *
  * UNC (`\\server\share\…`) is a valid `AbsoluteFilePath` but is **rejected
  * here**: `\\server\share` is an indivisible root that `..` must not escape,
- * and neither branch models that. The brand gates what is safe to hand to
- * `fs`; this function gates what is safe to persist as a dedup key, and those
- * are deliberately not the same set.
+ * and neither branch models that. The same applies to its forward-slash
+ * spelling `//server/share/…`: Win32 accepts it as UNC just as readily, POSIX
+ * leaves a path beginning with exactly two slashes implementation-defined, and
+ * the POSIX branch would silently rewrite it into an unrelated single-root
+ * path — so it is rejected by the same rule (exactly two leading slashes
+ * followed by a non-slash; three or more leading slashes stay collapsible per
+ * POSIX). The brand gates what is safe to hand to `fs`; this function gates
+ * what is safe to persist as a dedup key, and those are deliberately not the
+ * same set.
  *
  * ## Rule-evolution discipline
  *
@@ -81,7 +88,15 @@ function canonicalizeAbsolutePath(raw: string): string {
   // `..` must not escape, which neither branch below models. Reject explicitly
   // — otherwise UNC falls through to `canonicalizePosix` and dies on the
   // misleading "path must be absolute".
-  if (raw.startsWith('\\\\')) {
+  //
+  // The backslash check alone only recognises one spelling: Win32 also accepts
+  // the forward-slash form `//server/share/…`, and POSIX leaves a path beginning
+  // with EXACTLY two slashes implementation-defined — while the POSIX branch
+  // below would silently rewrite it into an unrelated single-root path (and
+  // diverge from `path.resolve`, which preserves the double slash). Reject that
+  // spelling by shape too; three or more leading slashes remain collapsible per
+  // POSIX ("more than two leading slashes shall be treated as a single slash").
+  if (raw.startsWith('\\\\') || /^\/\/[^/]/.test(raw)) {
     throw new Error('canonicalizeAbsolutePath: UNC paths are not supported as canonical keys')
   }
   const isWindows = /^[A-Za-z]:[/\\]/.test(raw)
