@@ -1,4 +1,4 @@
-import { Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
+import { InputNumber, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -10,7 +10,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -34,12 +34,11 @@ interface ApiOption {
 const CACHE_TOKEN_THRESHOLD_MAX = 100000
 const CACHE_LAST_N_MAX = 10
 
-function clampInteger(value: string, min: number, max: number): number {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) {
+function clampInteger(value: number | null, min: number, max: number): number {
+  if (value === null) {
     return min
   }
-  return Math.min(max, Math.max(min, Math.trunc(parsed)))
+  return Math.min(max, Math.max(min, Math.trunc(value)))
 }
 
 function apiOptionId(providerId: string, key: string): string {
@@ -76,17 +75,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const cacheTokenThreshold =
     cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
   const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
-  const [tokenThresholdDraft, setTokenThresholdDraft] = useState(String(cacheTokenThreshold))
-  const [cacheLastNDraft, setCacheLastNDraft] = useState(String(cacheLastNMessages))
-  const effectiveCacheTokenThreshold = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
-
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-    setTokenThresholdDraft(String(cacheTokenThreshold))
-    setCacheLastNDraft(String(cacheLastNMessages))
-  }, [cacheLastNMessages, cacheTokenThreshold, open])
+  const effectiveCacheTokenThreshold = clampInteger(cacheTokenThreshold, 0, CACHE_TOKEN_THRESHOLD_MAX)
 
   const openAIOptions = useMemo<ApiOption[]>(
     () => [
@@ -182,24 +171,30 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     [handleSaveError, provider, updateProvider]
   )
 
-  const commitTokenThreshold = useCallback(() => {
-    const next = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
-    setTokenThresholdDraft(String(next))
-    updateCacheSettings({
-      enabled: next > 0,
-      tokenThreshold: next
-    })
-  }, [tokenThresholdDraft, updateCacheSettings])
+  // `onBlur` delivers the normalized value once per edit, so these fields hold
+  // no local draft — the saved value is what they render.
+  const commitTokenThreshold = useCallback(
+    (value: number | null) => {
+      const next = clampInteger(value, 0, CACHE_TOKEN_THRESHOLD_MAX)
+      updateCacheSettings({
+        enabled: next > 0,
+        tokenThreshold: next
+      })
+    },
+    [updateCacheSettings]
+  )
 
-  const commitCacheLastNMessages = useCallback(() => {
-    const next = clampInteger(cacheLastNDraft, 0, CACHE_LAST_N_MAX)
-    setCacheLastNDraft(String(next))
-    updateCacheSettings({
-      enabled: effectiveCacheTokenThreshold > 0,
-      tokenThreshold: effectiveCacheTokenThreshold,
-      cacheLastNMessages: next
-    })
-  }, [cacheLastNDraft, effectiveCacheTokenThreshold, updateCacheSettings])
+  const commitCacheLastNMessages = useCallback(
+    (value: number | null) => {
+      const next = clampInteger(value, 0, CACHE_LAST_N_MAX)
+      updateCacheSettings({
+        enabled: effectiveCacheTokenThreshold > 0,
+        tokenThreshold: effectiveCacheTokenThreshold,
+        cacheLastNMessages: next
+      })
+    },
+    [effectiveCacheTokenThreshold, updateCacheSettings]
+  )
 
   if (!provider) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
@@ -251,19 +246,13 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                   />
                 }
                 action={
-                  <Input
+                  <InputNumber
                     id={apiOptionId(providerId, 'cache-token-threshold')}
-                    type="number"
                     min={0}
                     max={CACHE_TOKEN_THRESHOLD_MAX}
-                    value={tokenThresholdDraft}
-                    onChange={(event) => setTokenThresholdDraft(event.target.value)}
+                    step={1}
+                    value={cacheTokenThreshold}
                     onBlur={commitTokenThreshold}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.currentTarget.blur()
-                      }
-                    }}
                     className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                   />
                 }
@@ -280,19 +269,13 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                       />
                     }
                     action={
-                      <Input
+                      <InputNumber
                         id={apiOptionId(providerId, 'cache-last-n')}
-                        type="number"
                         min={0}
                         max={CACHE_LAST_N_MAX}
-                        value={cacheLastNDraft}
-                        onChange={(event) => setCacheLastNDraft(event.target.value)}
+                        step={1}
+                        value={cacheLastNMessages}
                         onBlur={commitCacheLastNMessages}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.currentTarget.blur()
-                          }
-                        }}
                         className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                       />
                     }

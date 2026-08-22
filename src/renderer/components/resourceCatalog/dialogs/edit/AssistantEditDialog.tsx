@@ -1,12 +1,12 @@
 import {
   Button,
-  EditableNumber,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
   Input,
+  InputNumber,
   SegmentedControl,
   Select,
   SelectContent,
@@ -754,16 +754,13 @@ function AssistantAdvancedFields({
             control={form.control}
             name="maxTokens"
             render={({ field }) => (
-              <EditableNumber
-                block
+              <InputNumber
                 min={1}
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                aria-label={t('library.config.basic.max_tokens')}
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) =>
+                onBlur={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
                 }
               />
@@ -817,17 +814,14 @@ function AssistantAdvancedFields({
             control={form.control}
             name="maxToolCalls"
             render={({ field }) => (
-              <EditableNumber
-                block
+              <InputNumber
                 min={MIN_TOOL_CALLS}
                 max={MAX_TOOL_CALLS}
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                aria-label={t('library.config.basic.max_tool_calls')}
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) =>
+                onBlur={(value) =>
                   field.onChange(
                     typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
                   )
@@ -915,21 +909,17 @@ function ContextManagementFields({
             />
             <FormControl>
               {/* Outside the override group: scope is not an overflow policy. */}
-              <EditableNumber
-                block
+              <InputNumber
                 min={1}
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
                 placeholder={
                   globalDefaults.maxMessages === null
                     ? t('library.config.basic.context_count_unlimited')
                     : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
                 }
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) => field.onChange(value === null ? null : Math.floor(value))}
+                onBlur={(value) => field.onChange(value === null ? null : Math.floor(value))}
               />
             </FormControl>
             <FormMessage />
@@ -1002,18 +992,14 @@ function ContextManagementFields({
                   help={t('library.config.basic.field.context_truncate_threshold.hint')}
                 />
                 <FormControl>
-                  <EditableNumber
-                    block
+                  <InputNumber
                     // Same floor and step as the global panel — this doubles as
                     // fs_read's per-call cap. See MIN_TRUNCATE_THRESHOLD.
                     min={MIN_TRUNCATE_THRESHOLD}
                     step={1}
-                    precision={0}
-                    align="start"
-                    changeOnBlur
-                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                    className="h-8 rounded-lg px-2.5"
                     value={field.value}
-                    onChange={(value) =>
+                    onBlur={(value) =>
                       field.onChange(
                         typeof value === 'number' && Number.isFinite(value)
                           ? Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value))
@@ -1211,13 +1197,11 @@ function CustomParameterRow({
         {param.type !== 'json' ? (
           <div className="flex-1">
             {param.type === 'number' ? (
-              <Input
-                type="number"
-                value={String(param.value)}
-                onChange={(event) => {
-                  const parsed = parseFloat(event.target.value)
-                  onValueChange(Number.isFinite(parsed) ? parsed : 0)
-                }}
+              // Neither `min` nor `step`: custom parameters accept any real
+              // number, including negatives and fractions.
+              <InputNumber
+                value={typeof param.value === 'number' ? param.value : null}
+                onValueChange={(value) => onValueChange(value ?? 0)}
               />
             ) : null}
             {param.type === 'boolean' ? (

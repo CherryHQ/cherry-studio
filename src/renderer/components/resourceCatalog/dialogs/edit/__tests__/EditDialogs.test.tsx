@@ -1088,6 +1088,20 @@ describe('edit dialogs', () => {
     )
   })
 
+  // The heartbeat is turned off by its switch, so an emptied interval is a retype,
+  // not a value — a persisted 0 would be a heartbeat interval of zero minutes.
+  it('does not persist a zero heartbeat interval when the field is cleared', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    const field = screen.getByLabelText('Heartbeat interval')
+    await user.clear(field)
+    await user.tab()
+
+    expect(field).toHaveValue('30')
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
   it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
     const props = { open: true, onOpenChange: vi.fn() }
     const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)
@@ -1356,7 +1370,7 @@ describe('edit dialogs', () => {
 
     const input = await screen.findByLabelText('Recent messages kept')
     // No stored override → unlimited, shown as an empty field with a placeholder.
-    expect(input).toHaveValue(null)
+    expect(input).toHaveValue('')
     expect(input).toHaveAttribute('placeholder', 'Unlimited')
     // The limit is one control, not a switch plus a number.
     expect(screen.queryByRole('switch', { name: 'Recent messages kept' })).not.toBeInTheDocument()
@@ -1364,7 +1378,7 @@ describe('edit dialogs', () => {
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: '5' } })
     fireEvent.blur(input)
-    expect(input).toHaveValue(5)
+    expect(input).toHaveValue('5')
   })
 
   it('repairs invalid legacy max tokens when enabling the limit', async () => {
@@ -1417,14 +1431,17 @@ describe('edit dialogs', () => {
 
     fireEvent.click(maxToolCallsSwitch)
     const maxToolCallsInput = await screen.findByDisplayValue('20')
-    expect(maxToolCallsInput).toHaveAttribute('min', '1')
-    expect(maxToolCallsInput).toHaveAttribute('max', '1000')
+
+    fireEvent.focus(maxToolCallsInput)
+    fireEvent.change(maxToolCallsInput, { target: { value: '0' } })
+    fireEvent.blur(maxToolCallsInput)
+    expect(maxToolCallsInput).toHaveValue('1')
 
     fireEvent.focus(maxToolCallsInput)
     fireEvent.change(maxToolCallsInput, { target: { value: '1001' } })
     fireEvent.blur(maxToolCallsInput)
 
-    expect(maxToolCallsInput).toHaveValue(1000)
+    expect(maxToolCallsInput).toHaveValue('1000')
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({

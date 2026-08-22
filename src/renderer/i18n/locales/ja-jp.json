@@ -816,6 +816,7 @@
     "messages": {
       "apiKeyRegenerated": "API キーが再生成されました",
       "notEnabled": "APIサーバーが有効になっていません。",
+      "portInvalid": "{{min}} から {{max}} の間のポートを入力してください。",
       "restartError": "API サーバーの再起動に失敗しました：",
       "restartFailed": "API サーバーの再起動に失敗しました：",
       "restartSuccess": "API サーバーが正常に再起動されました",

@@ -816,6 +816,7 @@
     "messages": {
       "apiKeyRegenerated": "API ключ перегенерирован",
       "notEnabled": "Запустите шлюз перед подключением к этому адресу.",
+      "portInvalid": "Введите порт от {{min}} до {{max}}.",
       "restartError": "Не удалось перезапустить API сервер: ",
       "restartFailed": "Перезапуск API сервера не удался: ",
       "restartSuccess": "API сервер успешно перезапущен",

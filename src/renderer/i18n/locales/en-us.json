@@ -816,6 +816,7 @@
     "messages": {
       "apiKeyRegenerated": "API Key regenerated",
       "notEnabled": "Start the gateway before connecting to this address.",
+      "portInvalid": "Enter a port between {{min}} and {{max}}.",
       "restartError": "Failed to restart API Gateway: ",
       "restartFailed": "API Gateway restart failed: ",
       "restartSuccess": "API Gateway restarted successfully",

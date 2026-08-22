@@ -816,6 +816,7 @@
     "messages": {
       "apiKeyRegenerated": "Khóa API đã được tạo lại",
       "notEnabled": "Máy chủ API chưa được kích hoạt.",
+      "portInvalid": "Nhập một cổng từ {{min}} đến {{max}}.",
       "restartError": "Không khởi động lại được Máy chủ API:",
       "restartFailed": "Khởi động lại Máy chủ API không thành công:",
       "restartSuccess": "Máy chủ API đã khởi động lại thành công",
