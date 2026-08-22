@@ -1,4 +1,5 @@
 import type { Link, PhrasingContent, Root, RootContent, Strong, Text } from 'mdast'
+import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import type { Plugin } from 'unified'
 import { unified } from 'unified'
@@ -14,8 +15,10 @@ import { visit } from 'unist-util-visit'
  * the Notes editor engine — does, because model output hits this shape often enough that a dead
  * link outweighs spec conformance.
  *
- * The repair only fires when an emphasis opener (`**`) sits immediately before the link — a
- * signal the markers were meant as emphasis. Links without one keep spec behavior.
+ * Two gates keep explicit syntax safe: the link must originate from a literal autolink (link and
+ * label share their first source character; angle/explicit links include their delimiter in the
+ * span), and an emphasis opener must hug the link. Either check failing — including missing
+ * position data — leaves the node untouched.
  */
 
 const CLOSER = '**'
@@ -31,7 +34,8 @@ interface FixPlan {
   nodes: RootContent[]
 }
 
-const tailProcessor = unified().use(remarkParse)
+// Shares the document pipeline so a second URL inside a tail stays clickable.
+const tailProcessor = unified().use(remarkParse).use(remarkGfm)
 
 function stripPositions(nodes: PhrasingContent[]): void {
   for (const node of nodes) {
@@ -40,11 +44,10 @@ function stripPositions(nodes: PhrasingContent[]): void {
   }
 }
 
-// Parsed without GFM on purpose: tails are short prose fragments and this keeps us off a
-// renderer-only dependency; CommonMark still preserves backticks and nested text.
 function parseInlineTail(value: string): PhrasingContent[] {
   const tree = tailProcessor.parse(value)
   const nodes = tree.children.flatMap((child) => (child.type === 'paragraph' ? child.children : []))
+  // Positions from the sub-parse point into the tail substring, not the source document.
   stripPositions(nodes)
   return nodes
 }
@@ -52,16 +55,24 @@ function parseInlineTail(value: string): PhrasingContent[] {
 function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Text] } {
   if (node.children.length !== 1 || node.children[0].type !== 'text') return false
   const value = node.children[0].value
-  return node.url.includes(CLOSER) && (value === node.url || node.url === `http://${value}`)
+  if (!node.url.includes(CLOSER) || (value !== node.url && node.url !== `http://${value}`)) return false
+  // Literal autolinks are built from one contiguous slice, so link and label start together;
+  // angle (`<...>`) and explicit (`[..](..)`) links carry their delimiter in the link span.
+  const linkStart = node.position?.start.offset
+  return linkStart !== undefined && linkStart === node.children[0].position?.start.offset
 }
 
-// The swallowed closer is the LAST marker run before prose resumes; earlier runs may be part
+// The swallowed closer is the last marker run before prose resumes; earlier runs may be part
 // of the path (`https://x.com/a/**/b`). Scan backwards until one is followed by non-URL text.
-function findCloserIndex(url: string): number | undefined {
+function findCloserRun(url: string): { start: number; tailStart: number } | undefined {
   let index = url.lastIndexOf(CLOSER)
   while (index > 0) {
     const after = url[index + CLOSER.length]
-    if (after === undefined || !URL_CONTINUATION_REGEX.test(after)) return index
+    if (after === undefined || !URL_CONTINUATION_REGEX.test(after)) {
+      let start = index
+      while (start > 0 && url[start - 1] === '*') start--
+      return { start, tailStart: index + CLOSER.length }
+    }
     index = url.lastIndexOf(CLOSER, index - 1)
   }
   return undefined
@@ -74,24 +85,26 @@ function buildFix(node: Link, index: number, parent: Parent): FixPlan | undefine
   const opener = prev?.type === 'text' ? (prev as Text) : undefined
   if (!opener?.value.endsWith(CLOSER)) return undefined
 
-  const cut = findCloserIndex(node.url)
-  if (cut === undefined) return undefined
+  const closer = findCloserRun(node.url)
+  if (!closer) return undefined
 
   const text = node.children[0]
-  // Mirror the cut independently on the label; www-form urls carry an `http://` prefix the
-  // text lacks, so deriving it arithmetically could underflow into a wrapped slice.
-  const textCut = text.value.lastIndexOf(CLOSER)
+  // Mirror the cut on the label independently (www-form urls carry an `http://` prefix the
+  // text lacks) and back up to the whole marker run so longer runs leave no stray stars.
+  let textCut = text.value.lastIndexOf(CLOSER)
   if (textCut <= 0) return undefined
+  while (textCut > 0 && text.value[textCut - 1] === '*') textCut--
 
-  const tailNodes = parseInlineTail(node.url.slice(cut + CLOSER.length))
-  node.url = node.url.slice(0, cut)
+  const tailNodes = parseInlineTail(node.url.slice(closer.tailStart))
+  node.url = node.url.slice(0, closer.start)
   text.value = text.value.slice(0, textCut)
   // The old span covers the swallowed run, which no longer belongs to this node.
   delete node.position
 
   const strong: Strong = { type: 'strong', children: [node] }
   const head: RootContent[] = []
-  const lead = opener.value.slice(0, opener.value.length - CLOSER.length)
+  // Consume the opener's full run too, so `***url***` does not leave stray stars behind.
+  const lead = opener.value.replace(/\*{2,}$/, '')
   if (lead) head.push({ type: 'text', value: lead })
   head.push(strong)
   // Splice covers the opener too so the trimmed text replaces it in one step.

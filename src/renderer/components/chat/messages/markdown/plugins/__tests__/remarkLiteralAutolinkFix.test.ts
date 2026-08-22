@@ -1,136 +1,169 @@
-import type { InlineCode, Link, Paragraph, PhrasingContent, Root, Text } from 'mdast'
+import type { Link, PhrasingContent, Root } from 'mdast'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 
 import { remarkLiteralAutolinkFix } from '../remarkLiteralAutolinkFix'
 
-function text(value: string): Text {
-  return { type: 'text', value }
+// Parse and transform on one processor: GFM's syntax extensions only act during tokenize,
+// so a tree parsed without them would not contain the literal autolinks at all.
+const parse = (source: string): Root => {
+  const processor = unified().use(remarkParse).use(remarkGfm).use(remarkLiteralAutolinkFix)
+  return processor.runSync(processor.parse(source), { value: source }) as Root
 }
 
-function swallowedLink(url: string, label?: string): Link {
-  return { type: 'link', url, children: [text(label ?? url)] }
+const parseWithoutPlugin = (source: string): Root => {
+  const processor = unified().use(remarkParse).use(remarkGfm)
+  return processor.runSync(processor.parse(source), { value: source }) as Root
 }
 
-function run(source: string, children: PhrasingContent[]): PhrasingContent[] {
-  const processor = unified().use(remarkLiteralAutolinkFix)
-  const paragraph: Paragraph = { type: 'paragraph', children }
-  const tree: Root = { type: 'root', children: [paragraph] }
-  const result = processor.runSync(tree, { value: source })
-  const first = result.children[0]
-  return first?.type === 'paragraph' ? first.children : []
+function inlineChildren(source: string): PhrasingContent[] {
+  const first = parse(source).children[0]
+  if (first?.type !== 'paragraph') throw new Error(`expected a paragraph, got ${first?.type}`)
+  return first.children
+}
+
+// Position-free projection so assertions compare structure, not source spans.
+type Shape = { type: string; value?: string; url?: string; children?: Shape[] }
+function shape(node: PhrasingContent): Shape {
+  const out: Shape = { type: node.type }
+  if ('value' in node) out.value = node.value
+  if (node.type === 'link') out.url = node.url
+  if ('children' in node) out.children = node.children.map(shape)
+  return out
 }
 
 describe('remarkLiteralAutolinkFix', () => {
   it('re-pairs emphasis that GitHub/cmark-gfm would leave inside the href (deliberate deviation)', () => {
-    const badUrl = 'https://github.com/CherryHQ/cherry-studio/pull/19113**（`tommyzhang100504:fix`'
-    const children = run('PR 已创建：**https://…**（`x`）', [
-      text('PR 已创建：**'),
-      swallowedLink(badUrl),
-      text(' → main）。')
-    ])
-
-    expect(children).toEqual([
-      text('PR 已创建：'),
+    expect(
+      inlineChildren('PR 已创建：**https://github.com/CherryHQ/cherry-studio/pull/19113**（`x` → `y`）。').map(shape)
+    ).toEqual([
+      { type: 'text', value: 'PR 已创建：' },
       {
         type: 'strong',
         children: [
           {
             type: 'link',
             url: 'https://github.com/CherryHQ/cherry-studio/pull/19113',
-            children: [text('https://github.com/CherryHQ/cherry-studio/pull/19113')]
+            children: [{ type: 'text', value: 'https://github.com/CherryHQ/cherry-studio/pull/19113' }]
           }
         ]
       },
-      text('（'),
-      { type: 'inlineCode', value: 'tommyzhang100504:fix' } satisfies InlineCode,
-      text(' → main）。')
+      { type: 'text', value: '（' },
+      { type: 'inlineCode', value: 'x' },
+      { type: 'text', value: ' → ' },
+      { type: 'inlineCode', value: 'y' },
+      { type: 'text', value: '）。' }
     ])
   })
 
-  it('cuts at the closing markers, preserving earlier marker runs inside the path', () => {
-    const children = run('**https://x.com/a/**/b**(x)', [text('**'), swallowedLink('https://x.com/a/**/b**(x)')])
+  it('leaves angle-bracket autolinks untouched — the stars there are intentional', () => {
+    const source = '**<https://a.com/x**(y)>'
+    expect(inlineChildren(source)).toEqual(
+      (() => {
+        const first = parseWithoutPlugin(source).children[0]
+        if (first?.type !== 'paragraph') throw new Error('expected a paragraph')
+        return first.children
+      })()
+    )
+  })
 
-    expect(children).toEqual([
+  it('leaves explicit `[label](url)` links untouched even when label equals url', () => {
+    const source = '**[https://a.com/x**(y)](https://a.com/x**(y))'
+    const expected = parseWithoutPlugin(source)
+    expect(parse(source)).toEqual(expected)
+  })
+
+  it('cuts at the closing marker run, preserving earlier marker runs inside the path', () => {
+    expect(inlineChildren('**https://x.com/a/**/b**(x)').map(shape)).toEqual([
       {
         type: 'strong',
-        children: [{ type: 'link', url: 'https://x.com/a/**/b', children: [text('https://x.com/a/**/b')] }]
+        children: [
+          { type: 'link', url: 'https://x.com/a/**/b', children: [{ type: 'text', value: 'https://x.com/a/**/b' }] }
+        ]
       },
-      text('(x)')
+      { type: 'text', value: '(x)' }
     ])
+  })
+
+  it('consumes longer marker runs on both sides without leaving stray stars', () => {
+    for (const source of ['***https://a.com/x***(y)', '**https://a.com/x****(y)']) {
+      expect(inlineChildren(source).map(shape)).toEqual([
+        {
+          type: 'strong',
+          children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
+        },
+        { type: 'text', value: '(y)' }
+      ])
+    }
   })
 
   it('repairs unpunctuated tails starting with letters or CJK ideographs', () => {
     for (const tail of ['Notes', '中文']) {
-      const children = run(`**https://a.com/x**${tail}`, [text('**'), swallowedLink(`https://a.com/x**${tail}`)])
-
-      expect(children).toEqual([
+      expect(inlineChildren(`**https://a.com/x**${tail}`).map(shape)).toEqual([
         {
           type: 'strong',
-          children: [{ type: 'link', url: 'https://a.com/x', children: [text('https://a.com/x')] }]
+          children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
         },
-        text(tail)
+        { type: 'text', value: tail }
       ])
     }
   })
 
   it('mirrors the cut onto a www literal whose url carries the http:// prefix', () => {
-    const children = run('**www.a.com/b**。', [text('**'), swallowedLink('http://www.a.com/b**。', 'www.a.com/b**。')])
-
-    expect(children).toEqual([
+    expect(inlineChildren('**www.a.com/b**。').map(shape)).toEqual([
       {
         type: 'strong',
-        children: [{ type: 'link', url: 'http://www.a.com/b', children: [text('www.a.com/b')] }]
+        children: [{ type: 'link', url: 'http://www.a.com/b', children: [{ type: 'text', value: 'www.a.com/b' }] }]
       },
-      text('。')
-    ])
-  })
-
-  it('never wraps the slice when a tiny www label is cut shorter than the scheme delta', () => {
-    const children = run('**a**b', [text('**'), swallowedLink('http://a**b', 'a**b')])
-
-    expect(children).toEqual([
-      {
-        type: 'strong',
-        children: [{ type: 'link', url: 'http://a', children: [text('a')] }]
-      },
-      text('b')
+      { type: 'text', value: '。' }
     ])
   })
 
   it('keeps spec behavior when no emphasis opener hugs the link', () => {
-    for (const lead of ['see ', '**<', '']) {
-      const input: PhrasingContent[] =
-        lead === '**<' ? [swallowedLink('https://a.com/x**b')] : [text(lead), swallowedLink('https://a.com/x**(y)')]
-      expect(run(`${lead}https://a.com/x**(y)`, input)).toEqual(input)
-    }
-  })
-
-  it('leaves clean links untouched', () => {
-    const input: PhrasingContent[] = [text('see **'), swallowedLink('https://a.com/x'), text(' now')]
-    expect(run('see **https://a.com/x** now', input)).toEqual(input)
-  })
-
-  it('leaves single-star links untouched', () => {
-    const input: PhrasingContent[] = [text('*'), swallowedLink('https://a.com/x*(y)')]
-    expect(run('*https://a.com/x*(y)', input)).toEqual(input)
-  })
-
-  it('leaves explicit `[label](url)` links untouched even with stars in the url', () => {
-    const input: PhrasingContent[] = [text('**'), swallowedLink('https://a.com/x**(y)', 'label')]
-    expect(run('[label](https://a.com/x**(y))', input)).toEqual(input)
+    const source = 'see https://x.com/a/**/b**(x)'
+    expect(parse(source)).toEqual(parseWithoutPlugin(source))
   })
 
   it('keeps spec behavior when the closing markers continue into a port or query', () => {
-    const input: PhrasingContent[] = [text('**'), swallowedLink('https://a.com/x**:8080')]
-    expect(run('**https://a.com/x**:8080', input)).toEqual(input)
+    for (const source of ['**https://a.com/x**:8080', '**https://a.com/x**?q=1']) {
+      expect(parse(source)).toEqual(parseWithoutPlugin(source))
+    }
   })
 
-  it('is idempotent across streaming frames', () => {
-    const source = '**https://a.com/x**（note）'
-    const first = run(source, [text('**'), swallowedLink('https://a.com/x**（note）')])
-    const second = run(source, structuredClone(first))
+  it('repairs inside nested contexts like blockquotes', () => {
+    const tree = parse('> **https://a.com/x**(y)')
+    const blockquote = tree.children[0]
+    if (blockquote?.type !== 'blockquote') throw new Error('expected a blockquote')
+    const paragraph = blockquote.children[0]
+    if (paragraph.type !== 'paragraph') throw new Error('expected a paragraph')
+    expect(paragraph.children.map(shape)).toEqual([
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
+      },
+      { type: 'text', value: '(y)' }
+    ])
+  })
 
-    expect(second).toEqual(first)
+  it('fails closed on nodes without position data instead of guessing their origin', () => {
+    const link: Link = {
+      type: 'link',
+      url: 'https://a.com/x**(y)',
+      children: [{ type: 'text', value: 'https://a.com/x**(y)' }]
+    }
+    const tree: Root = {
+      type: 'root',
+      children: [{ type: 'paragraph', children: [{ type: 'text', value: '**' }, link] }]
+    }
+    const processor = unified().use(remarkLiteralAutolinkFix)
+    expect(processor.runSync(structuredClone(tree), { value: '**https://a.com/x**(y)' })).toEqual(tree)
+  })
+
+  it('is idempotent: an already-repaired tree passes through unchanged', () => {
+    const once = parse('**https://a.com/x**（note）')
+    const processor = unified().use(remarkLiteralAutolinkFix)
+    expect(processor.runSync(structuredClone(once), { value: '**https://a.com/x**（note）' })).toEqual(once)
   })
 })
