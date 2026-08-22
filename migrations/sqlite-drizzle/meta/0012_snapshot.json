@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8b85ab4f-bd22-4d17-8cea-1e6ba28e1e21",
+  "id": "f0cb0475-dec3-4b5b-bcfc-7ab54578dd0a",
   "prevId": "f88ffda1-c02a-42a5-a3f7-15eb419fb3c3",
   "tables": {
     "agent": {
@@ -4118,89 +4118,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "prompt_binding": {
-      "name": "prompt_binding",
-      "columns": {
-        "prompt_id": {
-          "name": "prompt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "target_type": {
-          "name": "target_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "prompt_binding_target_idx": {
-          "name": "prompt_binding_target_idx",
-          "columns": ["target_type", "target_id", "prompt_id"],
-          "isUnique": false
-        },
-        "prompt_binding_target_order_key_idx": {
-          "name": "prompt_binding_target_order_key_idx",
-          "columns": ["target_type", "target_id", "order_key"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "prompt_binding_prompt_id_prompt_id_fk": {
-          "name": "prompt_binding_prompt_id_prompt_id_fk",
-          "tableFrom": "prompt_binding",
-          "tableTo": "prompt",
-          "columnsFrom": ["prompt_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "prompt_binding_prompt_id_target_type_target_id_pk": {
-          "columns": ["prompt_id", "target_type", "target_id"],
-          "name": "prompt_binding_prompt_id_target_type_target_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "prompt_binding_target_type_check": {
-          "name": "prompt_binding_target_type_check",
-          "value": "\"prompt_binding\".\"target_type\" IN ('assistant', 'agent')"
-        }
-      }
-    },
     "prompt": {
       "name": "prompt",
       "columns": {
@@ -4220,13 +4137,6 @@
         },
         "content": {
           "name": "content",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "visibility": {
-          "name": "visibility",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -4264,12 +4174,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "prompt_visibility_check": {
-          "name": "prompt_visibility_check",
-          "value": "\"prompt\".\"visibility\" IN ('global', 'restricted')"
-        }
-      }
+      "checkConstraints": {}
     },
     "entity_tag": {
       "name": "entity_tag",
@@ -4937,13 +4842,6 @@
         },
         "auth_config": {
           "name": "auth_config",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_features": {
-          "name": "api_features",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

@@ -221,6 +221,20 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
       )
     }
 
+    // Bare text after the last element escapes querySelectorAll('*'), so measure the whole body
+    // range too (jsdom omits Range#getBoundingClientRect, hence the guard).
+    const contentRange = frameDocument.createRange()
+    contentRange.selectNodeContents(body)
+    if (typeof contentRange.getBoundingClientRect === 'function') {
+      const contentRangeRect = contentRange.getBoundingClientRect()
+      if (contentRangeRect.height > 0 || contentRangeRect.bottom > 0) {
+        renderedContentBottom = Math.max(
+          renderedContentBottom,
+          contentRangeRect.bottom + scrollTop + bodyMarginBottom + bodyEndSpacing
+        )
+      }
+    }
+
     const documentScrollHeight = Math.max(
       body.scrollHeight,
       documentElement.scrollHeight,

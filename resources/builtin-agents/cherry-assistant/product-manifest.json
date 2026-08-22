@@ -107,7 +107,8 @@
         "defaultBinding": [
           "Escape"
         ],
-        "editable": false
+        "editable": false,
+        "when": "!webview.focused"
       }
     },
     {
@@ -360,6 +361,18 @@
       }
     },
     {
+      "id": "topic.clear_messages",
+      "titleKey": "chat.topics.clear.title",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "L"
+        ]
+      }
+    },
+    {
       "id": "topic.create",
       "titleKey": "settings.shortcuts.new_topic",
       "categoryKey": "settings.shortcuts.topic",
@@ -435,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "7dd1ae83c85245f9",
-    "count": 62,
+    "version": "d4aebe86a12ca8f8",
+    "count": 61,
     "entries": [
       {
         "id": "cherryin",
@@ -561,10 +574,6 @@
       {
         "id": "vertexai",
         "name": "VertexAI"
-      },
-      {
-        "id": "github",
-        "name": "Github Models"
       },
       {
         "id": "copilot",

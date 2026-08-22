@@ -451,7 +451,20 @@
       "fast": "速い",
       "faster": "より速く",
       "label": "スピード",
+      "service_tier": {
+        "auto": "自動",
+        "fast": "高速",
+        "flex": "フレックス",
+        "label": "サービス階層",
+        "standard": "標準"
+      },
       "smarter": "スマーター",
+      "summary": {
+        "auto": "自動",
+        "concise": "簡潔",
+        "detailed": "詳細",
+        "label": "思考の要約"
+      },
       "title": "応答設定"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "MCP サーバーが公開するプロンプトを挿入",
         "empty": "利用可能な MCP プロンプトがありません",
+        "fill_arguments": "プロンプトの引数を入力",
+        "fill_arguments_description": "挿入する前に、このプロンプトの引数を入力してください",
+        "insert": "挿入",
         "insert_failed": "プロンプトの挿入に失敗しました",
         "title": "MCP プロンプト"
       },
@@ -3490,6 +3506,12 @@
         "title": "非表示"
       }
     },
+    "split": {
+      "already_open": "すでにもう一方に表示されています",
+      "choose": "並べて表示するミニアプリを選択",
+      "close": "分割表示を終了",
+      "open": "分割表示"
+    },
     "title": "ミニアプリ",
     "unpin_failed": "ミニアプリのピン留め解除に失敗しました",
     "update_partial_failure": "{{total}}件中{{failed}}件の更新に失敗しました"
@@ -3601,6 +3623,7 @@
     }
   },
   "navigate": {
+    "model_settings": "モデル設定へ移動",
     "provider_settings": "プロバイダー設定に移動"
   },
   "notes": {
@@ -4520,6 +4543,10 @@
         "custom": "カスタム機能",
         "delete_confirm": "このカスタム機能を削除しますか？",
         "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})",
+        "models": {
+          "default_description": "「説明」「要約」「推敲」、およびデフォルトモデルを使用するカスタムアクションで使用されます。",
+          "translate_description": "翻訳の生成に使用されます。言語の自動検出では高速モデルも使用される場合があります。"
+        },
         "reset": {
           "button": "リセット",
           "confirm": "デフォルトのアクションにリセットしますか？カスタムアクションは削除されません。",
@@ -6207,8 +6234,9 @@
       "provider_key_confirm_title": "{{provider}} の API キーを追加",
       "provider_name": "プロバイダー名",
       "quick_assistant_default_tag": "デフォルト",
-      "quick_assistant_model": "クイックアシスタントモデル",
+      "quick_assistant_response_settings": "応答設定",
       "quick_assistant_selection": "アシスタントを選択します",
+      "quick_assistant_usage_method": "使用方法",
       "quick_model": {
         "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
         "label": "高速モデル",
@@ -6352,10 +6380,6 @@
             "token_threshold": "キャッシュトークン閾値",
             "token_threshold_help": "このトークン数を超えるメッセージはキャッシュされます。キャッシュを無効にするには0を設定してください。"
           },
-          "array_content": {
-            "help": "このプロバイダーは、message の content フィールドが配列型であることをサポートしていますか",
-            "label": "配列形式のメッセージコンテンツをサポート"
-          },
           "developer_role": {
             "help": "このプロバイダーは role: \"developer\" のメッセージをサポートしていますか",
             "label": "Developer Message をサポート"
@@ -6365,17 +6389,13 @@
             "label": "enable_thinking をサポート"
           },
           "label": "API設定",
-          "service_tier": {
-            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
-            "label": "service_tier をサポート"
+          "reasoning_summary": {
+            "help": "この Responses エンドポイントに reasoning.summary を送信します。サーバーがこの OpenAI パラメータを受け付ける場合のみ有効にしてください。",
+            "label": "推論要約をサポート"
           },
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
-          },
-          "verbosity": {
-            "help": "プロバイダーが冗長度パラメータをサポートしているかどうか",
-            "label": "冗長性のサポート"
           }
         },
         "url": {
@@ -7096,9 +7116,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "チャート",
-        "clearDate": "日付フィルターをクリア",
-        "drilldownTitle": "{{date}} ドリルダウン",
         "entries": "リクエスト",
+        "granularity": "粒度",
         "groupBy": "グループ化",
         "loadMore": "もっと読み込む",
         "loading": "読み込み中...",
@@ -7108,7 +7127,6 @@
         "noEntries": "エントリがありません",
         "noEntriesDescription": "より広いウィンドウまたは別のプロバイダーをお試しください。",
         "rollup": "ロールアップ",
-        "selectedDate": "選択された日付: {{date}}",
         "shareLabel": "共有",
         "title": "探索する",
         "top": "トップ",
@@ -7122,7 +7140,6 @@
         "source": "アシスタント / エージェント"
       },
       "heatmap": {
-        "ariaDate": "{{date}}の使用状況",
         "title": "日常活動"
       },
       "metric": {

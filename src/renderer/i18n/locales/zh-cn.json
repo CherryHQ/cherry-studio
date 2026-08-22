@@ -451,7 +451,20 @@
       "fast": "快速",
       "faster": "更快",
       "label": "速度",
+      "service_tier": {
+        "auto": "自动",
+        "fast": "快速",
+        "flex": "弹性",
+        "label": "服务档位",
+        "standard": "标准"
+      },
       "smarter": "更智能",
+      "summary": {
+        "auto": "自动",
+        "concise": "简洁",
+        "detailed": "详细",
+        "label": "思考摘要"
+      },
       "title": "响应设置"
     },
     "tasks": {
@@ -1019,6 +1032,9 @@
       "mcp_prompts": {
         "description": "插入 MCP 服务器提供的提示词",
         "empty": "没有可用的 MCP 提示词",
+        "fill_arguments": "填写提示词参数",
+        "fill_arguments_description": "插入前先填写此提示词所需的参数",
+        "insert": "插入",
         "insert_failed": "提示词插入失败",
         "title": "MCP 提示词"
       },
@@ -3490,6 +3506,12 @@
         "title": "隐藏"
       }
     },
+    "split": {
+      "already_open": "已在另一侧显示",
+      "choose": "选择要并排显示的小程序",
+      "close": "关闭分屏",
+      "open": "分屏"
+    },
     "title": "小程序",
     "unpin_failed": "取消固定小程序失败",
     "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
@@ -3601,6 +3623,7 @@
     }
   },
   "navigate": {
+    "model_settings": "前往模型设置",
     "provider_settings": "跳转到服务商设置界面"
   },
   "notes": {
@@ -4520,6 +4543,10 @@
         "custom": "自定义功能",
         "delete_confirm": "确定要删除这个自定义功能吗？",
         "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "用于解释、总结、润色，以及使用默认模型的自定义功能。",
+          "translate_description": "用于生成翻译结果；自动语言检测也可能使用快速模型。"
+        },
         "reset": {
           "button": "重置",
           "confirm": "确定要重置为默认功能吗？自定义功能不会被删除。",
@@ -6207,8 +6234,9 @@
       "provider_key_confirm_title": "为 {{provider}} 添加 API 密钥",
       "provider_name": "服务商名称",
       "quick_assistant_default_tag": "默认",
-      "quick_assistant_model": "快捷助手模型",
+      "quick_assistant_response_settings": "响应设置",
       "quick_assistant_selection": "选择助手",
+      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "执行对话命名、搜索关键字提炼等简单任务时使用的模型",
         "label": "快速模型",
@@ -6352,10 +6380,6 @@
             "token_threshold": "缓存 Token 阈值",
             "token_threshold_help": "消息超过此 Token 数才会被缓存，设为 0 禁用缓存"
           },
-          "array_content": {
-            "help": "该提供商是否支持 message 的 content 字段为 array 类型",
-            "label": "支持数组格式的 message content"
-          },
           "developer_role": {
             "help": "该提供商是否支持 role: \"developer\" 的消息",
             "label": "支持 Developer Message"
@@ -6365,17 +6389,13 @@
             "label": "支持 enable_thinking"
           },
           "label": "API 设置",
-          "service_tier": {
-            "help": "该提供商是否支持配置 service_tier 参数。开启后，可在对话页面的服务层级设置中调整该参数。（仅限OpenAI模型）",
-            "label": "支持 service_tier"
+          "reasoning_summary": {
+            "help": "向此 Responses 端点发送 reasoning.summary。请仅在服务器接受该 OpenAI 参数时启用。",
+            "label": "支持思考摘要"
           },
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
-          },
-          "verbosity": {
-            "help": "该提供商是否支持 verbosity 参数",
-            "label": "支持 verbosity"
           }
         },
         "url": {
@@ -7096,9 +7116,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "图表",
-        "clearDate": "清除日期筛选",
-        "drilldownTitle": "{{date}} 明细",
         "entries": "请求",
+        "granularity": "粒度",
         "groupBy": "分组",
         "loadMore": "加载更多",
         "loading": "加载中...",
@@ -7108,7 +7127,6 @@
         "noEntries": "暂无记录",
         "noEntriesDescription": "尝试扩大时间范围或更换供应商。",
         "rollup": "汇总",
-        "selectedDate": "选定日期：{{date}}",
         "shareLabel": "占比",
         "title": "探索",
         "top": "Top",
@@ -7122,7 +7140,6 @@
         "source": "助手 / Agent"
       },
       "heatmap": {
-        "ariaDate": "{{date}} 的用量",
         "title": "每日活动"
       },
       "metric": {

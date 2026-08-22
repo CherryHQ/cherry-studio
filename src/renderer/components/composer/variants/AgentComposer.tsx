@@ -66,7 +66,7 @@ import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -116,7 +116,11 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
+import {
+  ComposerSpeedControl,
+  resolveComposerReasoningEffort,
+  resolveComposerServiceTier
+} from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -266,6 +270,7 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
+    inlineDescription: true,
     icon: <ToolCase size={16} />,
     suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
@@ -287,6 +292,7 @@ export interface AgentComposerSendBody {
   sessionId: string
   userMessageParts: ComposerQueuedMessagePayload['userMessageParts']
   reasoningEffort?: ThinkingOption
+  serviceTier?: ServiceTierSelection
   fastMode?: boolean
 }
 
@@ -305,7 +311,7 @@ type Props = {
   resolvedModel: Model | undefined
   resolvedWorkspaceWarning: string | null
   externalContextControls?: boolean
-  sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<boolean | void>
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
@@ -814,6 +820,15 @@ const AgentComposerInner = ({
     setReasoningOverride((current) => (current === reasoningOverride ? null : current))
   }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
   const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
+  const canonicalServiceTier = agent?.configuration?.service_tier ?? 'standard'
+  const [serviceTierOverride, setServiceTierOverride] = useState<{
+    agentId: string
+    value: ServiceTierSelection
+    version: number
+  } | null>(null)
+  const serviceTierMutationVersionRef = useRef(0)
+  const activeServiceTierOverride = serviceTierOverride?.agentId === agent?.id ? serviceTierOverride : null
+  const serviceTier = activeServiceTierOverride?.value ?? canonicalServiceTier
   const [fastMode, setFastMode] = useState(false)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
@@ -821,6 +836,8 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
+  const [isDirectSending, setIsDirectSending] = useState(false)
+  const directSendInFlightRef = useRef(false)
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
@@ -1313,6 +1330,21 @@ const AgentComposerInner = ({
     },
     [agent, canonicalReasoningEffort, updateAgent]
   )
+  const handleServiceTierChange = useCallback(
+    (tier: ServiceTierSelection) => {
+      if (!agent) return
+      const version = ++serviceTierMutationVersionRef.current
+      setServiceTierOverride({ agentId: agent.id, value: tier, version })
+      void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false }).then(
+        () => {
+          setServiceTierOverride((current) =>
+            current?.agentId === agent.id && current.version === version ? null : current
+          )
+        }
+      )
+    },
+    [agent, updateAgent]
+  )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1373,6 +1405,7 @@ const AgentComposerInner = ({
         fileTokenId: agentComposerTokenId.file,
         extra: () => ({
           reasoningEffort: model ? resolveComposerReasoningEffort(model, reasoningEffort) : reasoningEffort,
+          serviceTier: model ? resolveComposerServiceTier(model, serviceTier) : serviceTier,
           ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
         })
       })
@@ -1387,7 +1420,7 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope]
+    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope, serviceTier]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1395,7 +1428,7 @@ const AgentComposerInner = ({
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
-        await chatSendMessage(
+        const sent = await chatSendMessage(
           { text: payload.text },
           {
             body: {
@@ -1403,20 +1436,23 @@ const AgentComposerInner = ({
               sessionId,
               userMessageParts: [...payload.userMessageParts, ...fileParts],
               reasoningEffort: payload.reasoningEffort,
+              serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {})
             }
           }
         )
+        if (sent === false) return false
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         launchOptions?.onSent?.()
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
+        toast.error(t('chat.input.send_failed'))
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId, t]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1467,8 +1503,7 @@ const AgentComposerInner = ({
     scopeKey: sessionTopicId,
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
-    onDrain: sendQueuedPayload,
-    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
+    onDrain: sendQueuedPayload
   })
 
   // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
@@ -1486,14 +1521,24 @@ const AgentComposerInner = ({
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
       handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      handleServiceTierChange(item.payload.serviceTier ?? 'standard')
       setFastMode(item.payload.fastMode === true)
     },
-    [actionsRef, handleReasoningEffortChange, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [
+      actionsRef,
+      handleReasoningEffortChange,
+      handleServiceTierChange,
+      resetHistoryIndex,
+      restoreKnowledgeBaseSelection,
+      setFiles,
+      setText
+    ]
   )
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
+      if (directSendInFlightRef.current) return
       if (!model) {
         toast.error(t('code.model_required'))
         return
@@ -1514,55 +1559,25 @@ const AgentComposerInner = ({
         return
       }
 
-      const previousText = draft.text
-      const previousFiles = files
-      const previousSkills = selectedSkills
-      const previousDraftTokens = draftTokensRef.current
-      const previousShouldValidateSkills = shouldValidateSkills
-
-      clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload)
-      if (!sent) {
-        clearTimeoutTimer('agentComposerSendMessage')
-        setText(previousText)
-        setFiles(previousFiles)
-        setSelectedSkills(previousSkills)
-        setShouldValidateSkills(previousShouldValidateSkills)
-        setDraftTokens(previousDraftTokens)
-        draftTokensRef.current = previousDraftTokens
-        if (draftPersistenceEnabled) {
-          writeAgentDraftCache(draftCacheKey, {
-            text: previousText,
-            tokens: previousDraftTokens,
-            files: previousFiles,
-            knowledgeBaseIds: knowledgeBaseIdsRef.current,
-            workspaceKey,
-            agentId,
-            shouldValidateSkills: previousShouldValidateSkills
-          })
-        }
-        toast.error(t('chat.input.send_failed'))
+      directSendInFlightRef.current = true
+      setIsDirectSending(true)
+      try {
+        const sent = await sendQueuedPayload(payload)
+        if (sent) clearCurrentDraft()
+      } finally {
+        directSendInFlightRef.current = false
+        setIsDirectSending(false)
       }
     },
     [
       buildQueuedPayload,
-      clearTimeoutTimer,
       clearCurrentDraft,
-      agentId,
-      draftCacheKey,
-      draftPersistenceEnabled,
       enqueueFollowup,
-      files,
       isStreaming,
       model,
       sendDisabled,
       sendQueuedPayload,
-      setFiles,
-      setText,
-      selectedSkills,
-      shouldValidateSkills,
       t,
-      workspaceKey,
       workspaceWarning
     ]
   )
@@ -1682,8 +1697,10 @@ const AgentComposerInner = ({
         <ComposerSpeedControl
           model={model}
           reasoningEffort={reasoningEffort}
+          serviceTier={serviceTier}
           fastMode={fastMode}
           onReasoningEffortChange={handleReasoningEffortChange}
+          onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}
         />
       ) : null}
@@ -1702,6 +1719,7 @@ const AgentComposerInner = ({
         <ComposerSurface
           text={text}
           onTextChange={handleTextChange}
+          editable={!isDirectSending}
           tokens={tokens}
           draftTokens={draftTokens}
           managedTokenKinds={
@@ -1717,12 +1735,15 @@ const AgentComposerInner = ({
           steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
+            isDirectSending ||
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
-          sendBlockedReason={sendDisabled || hasPendingReference ? t('common.loading') : missingModelMessage}
+          sendBlockedReason={
+            sendDisabled || isDirectSending || hasPendingReference ? t('common.loading') : missingModelMessage
+          }
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}
@@ -1740,7 +1761,6 @@ const AgentComposerInner = ({
                     // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                     const sent = await sendQueuedPayload(item.payload)
                     if (sent) removeFollowup(id)
-                    else toast.error(t('chat.input.send_failed'))
                   }}
                   onEdit={(id) => {
                     const item = queuedFollowups.find((entry) => entry.id === id)
