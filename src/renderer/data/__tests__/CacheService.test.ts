@@ -6,7 +6,8 @@
  * Object.is → isEqual upgrade for setInternal / setSharedInternal,
  * and the deepEqual → isEqual refactor for setPersist, focusing on the
  * scenarios the upgrade actually changes: object/array/record values that
- * are reconstructed as new references on every write.
+ * are reconstructed as new references on every write. It also covers
+ * versioned transitions applied while loading renderer persist cache.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,8 +17,10 @@ vi.unmock('@data/CacheService')
 const broadcastSync = vi.fn()
 const onSync = vi.fn()
 const getAllShared = vi.fn(async () => ({}))
+const createdServices: Array<{ cleanup: () => void }> = []
 
 beforeEach(() => {
+  localStorage.clear()
   broadcastSync.mockClear()
   onSync.mockClear()
   getAllShared.mockClear()
@@ -35,12 +38,25 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  createdServices.forEach((service) => service.cleanup())
+  createdServices.length = 0
+  localStorage.clear()
   vi.restoreAllMocks()
 })
 
 async function createService() {
   const { CacheService } = await import('../CacheService')
-  return new CacheService()
+  const service = new CacheService()
+  createdServices.push(service)
+  return service
+}
+
+async function createServiceWithPersistedCache(data: Record<string, unknown>) {
+  const { CacheService } = await import('../CacheService')
+  localStorage.setItem('cs_cache_persist', JSON.stringify(data))
+  const service = new CacheService()
+  createdServices.push(service)
+  return service
 }
 
 describe('renderer CacheService equality semantics', () => {
@@ -166,6 +182,42 @@ describe('renderer CacheService equality semantics', () => {
       broadcastSync.mockClear()
       service.deletePersist('ui.sidebar.width') // already default
       expect(broadcastSync).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('artifact pane width default transition', () => {
+    it('moves the historical auto-seeded width to the current default and records the transition', async () => {
+      const service = await createServiceWithPersistedCache({ 'ui.chat.artifact_pane.width': 460 })
+
+      expect(service.getPersist('ui.chat.artifact_pane.width')).toBe(280)
+      expect(JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')).toMatchObject({
+        'ui.chat.artifact_pane.width': 280,
+        'ui.chat.artifact_pane.width_version': 1
+      })
+    })
+
+    it('records the transition without replacing a distinct saved width', async () => {
+      const service = await createServiceWithPersistedCache({ 'ui.chat.artifact_pane.width': 500 })
+
+      expect(service.getPersist('ui.chat.artifact_pane.width')).toBe(500)
+      expect(JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')).toMatchObject({
+        'ui.chat.artifact_pane.width': 500,
+        'ui.chat.artifact_pane.width_version': 1
+      })
+    })
+
+    it('preserves an explicit 460 px resize after the transition has run', async () => {
+      const migratedService = await createServiceWithPersistedCache({ 'ui.chat.artifact_pane.width': 460 })
+      migratedService.setPersist('ui.chat.artifact_pane.width', 460)
+      migratedService.cleanup()
+
+      const restartedService = await createService()
+
+      expect(restartedService.getPersist('ui.chat.artifact_pane.width')).toBe(460)
+      expect(JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')).toMatchObject({
+        'ui.chat.artifact_pane.width': 460,
+        'ui.chat.artifact_pane.width_version': 1
+      })
     })
   })
 })
