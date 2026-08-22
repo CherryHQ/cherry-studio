@@ -500,6 +500,12 @@ const AgentPage = () => {
     ]
   )
 
+  useEffect(() => {
+    if (!routeAgentId || routeSessionId || activeSessionId || isAgentsLoading) return
+    if (!agents.some((agent) => agent.id === routeAgentId)) return
+    void createAndActivateEmptySession({ agentId: routeAgentId, workspaceMode: 'system' })
+  }, [activeSessionId, agents, createAndActivateEmptySession, isAgentsLoading, routeAgentId, routeSessionId])
+
   const showMissingAgentSelection = useCallback(() => {
     closeSurface()
     clearLocate()

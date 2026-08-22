@@ -2529,7 +2529,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
-  it('creates for the sidebar agentId when the pinned agent has no session yet', async () => {
+  it('creates and activates a conversation for an agentId entry with no session yet', async () => {
     agentPageMocks.routeSearch = { agentId: 'agent-a' }
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -2547,16 +2547,13 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    // The composer create path carries no agent id, so without the route fallback it
-    // would resolve to the visible session's agent (none here) and stall.
-    fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
-
     await waitFor(() =>
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
         '/agent-sessions',
         expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-a' }) })
       )
     )
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-pinned-agent'))
   })
 
   it('records the visible agent reported by the chat body', async () => {
