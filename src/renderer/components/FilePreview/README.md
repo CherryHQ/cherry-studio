@@ -168,8 +168,8 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 
 ## Composition Rules
 
-Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, and optional `type`.
-Follow these boundaries when adding formats or capabilities:
+Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, optional `type`, and
+optional `onSelectionReference`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
@@ -185,6 +185,26 @@ Follow these boundaries when adding formats or capabilities:
   centered in its own row for Tab and standalone previews.
 
 This composition lets the same plugin work in embedded and tab hosts without format-specific branches.
+
+## Selection References
+
+`onSelectionReference` is an optional pass-through channel for reporting the user's selection as a
+`SelectionReference` (`@renderer/types/selectionReference`) — an anchor into the document's own structural
+coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixel coordinates.
+
+- A plugin that owns a view → structure inverse mapping calls the callback with the current reference, and with
+  `null` when the selection clears. Plugins without such a mapping ignore the prop entirely.
+- The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
+  conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
+- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+  surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
+  `fileStamp`), which keeps holding one safe.
+- Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture). A reference
+  travels into the conversation as message text, so the consumer that acts on it is the `office-transform` skill:
+  it compares `fileStamp` against the file's current size and mtime and asks the user to re-select, never
+  silently re-anchoring. `isSelectionReferenceStale` is that rule's executable definition — the skill's Python
+  side mirrors it, the same way it mirrors `normalizeSelectionText` — and is what an in-app consumer would call.
+  Nothing in the renderer performs this check today, because no renderer code consumes a reference.
 
 ## File I/O, States, and Errors
 
