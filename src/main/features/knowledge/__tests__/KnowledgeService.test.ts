@@ -1991,6 +1991,13 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('returns no knowledge results for a query without searchable tokens', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+
+    await expect(service.search('kb-1', '🔥🔥🔥')).resolves.toEqual([])
+  })
+
   it('searches embedding-backed bases with hybrid retrieval and keeps ranking scores', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())

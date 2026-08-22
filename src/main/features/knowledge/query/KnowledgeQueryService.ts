@@ -54,10 +54,7 @@ export class KnowledgeQueryService {
 
     // Same tokenization the FTS layer uses: no token means no BM25 hit is even possible.
     if (extractFtsTokens(query).length === 0) {
-      throw DataApiErrorFactory.validation(
-        { query: ['Query has no searchable tokens'] },
-        'Query has no searchable tokens'
-      )
+      return []
     }
 
     // Vector/hybrid retrieval needs an embedding model; a base without one is
