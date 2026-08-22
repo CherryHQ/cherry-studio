@@ -1,5 +1,6 @@
 import { Button, Checkbox, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { StaleApprovalError } from '@renderer/components/chat/messages/tools/shared/toolApprovalErrors'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -99,7 +100,11 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           messageId: request.messageId,
           toolCallId: request.toolCallId
         })
-        toast.error(t('agent.toolPermission.error.sendFailed'))
+        toast.error(
+          error instanceof StaleApprovalError
+            ? t('agent.toolPermission.error.stale')
+            : t('agent.toolPermission.error.sendFailed')
+        )
         setIsSubmitting(false)
       }
     },

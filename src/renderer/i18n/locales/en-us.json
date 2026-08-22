@@ -579,10 +579,15 @@
       "confirmation": "Are you sure you want to run this Claude tool?",
       "defaultDenyMessage": "User denied permission for this tool.",
       "error": {
-        "sendFailed": "Failed to send your decision. Please try again."
+        "sendFailed": "Failed to send your decision. Please try again.",
+        "stale": "This decision can no longer be delivered — the turn that asked for it has ended. Send a new message to continue."
       },
       "inputPreview": "Tool input preview",
       "pendingBadge": "Pending",
+      "staleFallback": {
+        "intro": "Replying to the earlier question (its prompt could no longer be delivered):",
+        "noAnswer": "(no answer)"
+      },
       "waiting": "Waiting for tool permission decision..."
     },
     "tools": {

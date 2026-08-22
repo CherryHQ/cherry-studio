@@ -387,4 +387,66 @@ describe('useAgentChatRuntimeState', () => {
     view.rerender(<ActivityHarness mode="visible" sessionId="session-2" />)
     expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({})
   })
+
+  it('delivers a stale AskUserQuestion decision as a normal message when its channel is gone', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'anchor-missing' })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval(makeAskUserQuestionApproval(part))
+    })
+
+    // The decision must reach the agent through a fresh turn instead of a dead-end retry toast.
+    expect(mocks.sendTurn).toHaveBeenCalledTimes(1)
+    const turnInput = mocks.sendTurn.mock.calls[0][0]
+    expect(turnInput.text).toBe('agent.toolPermission.staleFallback.intro\n- Choose logger: Winston')
+    // The optimistic submitted input is cleared either way.
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('surfaces a stale-channel rejection for decisions that cannot degrade into a message', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'anchor-missing' })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      // A denial carries no answers, so there is nothing meaningful to forward as a message.
+      await expect(
+        result.current.respondToolApproval({ ...makeAskUserQuestionApproval(part), approved: false })
+      ).rejects.toThrow('its approval channel is gone')
+    })
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+  })
+
+  it('keeps the generic rejection for transient approval delivery failures', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'live-stream-refused' })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await expect(result.current.respondToolApproval(makeAskUserQuestionApproval(part))).rejects.toThrow(
+        'Tool approval response was not accepted'
+      )
+    })
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+  })
 })
