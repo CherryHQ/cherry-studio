@@ -332,6 +332,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
+  /** A stopped session is removed synchronously so a retry can create its successor, while the old
+   *  CLI query may still be releasing asynchronously. Successor connects wait on this per-session
+   *  barrier so the two subprocess lifetimes cannot overlap. */
+  private readonly sessionClosings = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
     string,
@@ -927,7 +931,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   closeSession(sessionId: string): Promise<void> {
     const entry = this.entries.get(sessionId)
-    if (!entry) return Promise.resolve()
+    if (!entry) return this.sessionClosings.get(sessionId)?.promise ?? Promise.resolve()
     const fallbackConnection = this.currentConnection(entry)
     let closing: Promise<void>
     try {
@@ -940,6 +944,17 @@ export class AgentSessionRuntimeService extends BaseService {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
+    const previousClosing = this.sessionClosings.get(sessionId)
+    const barrier = {
+      promise: Promise.allSettled(previousClosing ? [previousClosing.promise, closing] : [closing]).then(
+        () => undefined
+      ),
+      resumeToken: entry.lastResumeToken ?? previousClosing?.resumeToken
+    }
+    this.sessionClosings.set(sessionId, barrier)
+    void barrier.promise.then(() => {
+      if (this.sessionClosings.get(sessionId) === barrier) this.sessionClosings.delete(sessionId)
+    })
     return closing
   }
 
@@ -1417,6 +1432,22 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
+      // User Stop deletes the old entry immediately, but its SDK query closes asynchronously. A fast
+      // retry may already own a new entry for the same session; do not spawn its query until every
+      // predecessor is fully released, otherwise the SDK sessions can overlap and yield an empty or
+      // permanently stalled stream.
+      const closing = this.sessionClosings.get(entry.sessionId)
+      if (closing) {
+        await closing.promise
+        // Terminal persistence normally stores the token before the next turn connects, but an
+        // immediate retry can reach this boundary first. Carry the stopped connection's already
+        // observed token directly so the successor resumes the same CLI conversation and its frozen
+        // workspace snapshot.
+        if (this.isCurrentEntry(entry) && !entry.lastResumeToken && closing.resumeToken) {
+          entry.lastResumeToken = closing.resumeToken
+        }
+        continue
+      }
       const target = this.connectionTarget(entry)
       const connection = this.currentConnection(entry)
       if (connection) {
@@ -3046,7 +3077,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeAll(): Promise<void> {
     const closings = [...this.entries.keys()].map((sessionId) => this.closeSession(sessionId))
-    return Promise.allSettled(closings).then(() => undefined)
+    const pendingClosings = [...this.sessionClosings.values()].map(({ promise }) => promise)
+    return Promise.allSettled([...closings, ...pendingClosings]).then(() => undefined)
   }
 
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
