@@ -2529,7 +2529,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
-  it('creates for the sidebar agentId when the pinned agent has no session yet', async () => {
+  it('creates and activates a conversation for an agentId entry with no session yet', async () => {
     agentPageMocks.routeSearch = { agentId: 'agent-a' }
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -2547,16 +2547,73 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    // The composer create path carries no agent id, so without the route fallback it
-    // would resolve to the visible session's agent (none here) and stall.
-    fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
-
     await waitFor(() =>
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
         '/agent-sessions',
         expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-a' }) })
       )
     )
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-pinned-agent'))
+  })
+
+  it('does not let a stale agentId entry replace a newer Agent conversation', async () => {
+    type RouteSessionResult = {
+      session: typeof agentPageMocks.persistedSession
+      created: boolean
+      deletedDuplicateSessionIds: string[]
+    }
+    let resolveAgentA!: (result: RouteSessionResult) => void
+    let resolveAgentB!: (result: RouteSessionResult) => void
+    const sessionA = { ...agentPageMocks.persistedSession, id: 'session-agent-a', agentId: 'agent-a' }
+    const sessionB = { ...agentPageMocks.persistedSession, id: 'session-agent-b', agentId: 'agent-b' }
+
+    agentPageMocks.routeSearch = { agentId: 'agent-a' }
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.reuseOrCreateSession.mockImplementation(
+      (agentId: string) =>
+        new Promise<RouteSessionResult>((resolve) => {
+          if (agentId === 'agent-a') resolveAgentA = resolve
+          if (agentId === 'agent-b') resolveAgentB = resolve
+        })
+    )
+
+    const { rerender } = render(<AgentPage />)
+    await waitFor(() => expect(resolveAgentA).toEqual(expect.any(Function)))
+
+    agentPageMocks.routeSearch = { agentId: 'agent-b' }
+    rerender(<AgentPage />)
+    await waitFor(() => expect(resolveAgentB).toEqual(expect.any(Function)))
+
+    await act(async () => {
+      resolveAgentB({ session: sessionB, created: true, deletedDuplicateSessionIds: [] })
+      await Promise.resolve()
+    })
+    await waitFor(() =>
+      expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: { sessionId: 'session-agent-b' },
+        replace: true
+      })
+    )
+
+    await act(async () => {
+      resolveAgentA({ session: sessionA, created: true, deletedDuplicateSessionIds: [] })
+      await Promise.resolve()
+    })
+
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: { sessionId: 'session-agent-b' },
+      replace: true
+    })
+    expect(agentPageMocks.navigate).not.toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: { sessionId: 'session-agent-a' },
+      replace: true
+    })
   })
 
   it('records the visible agent reported by the chat body', async () => {
