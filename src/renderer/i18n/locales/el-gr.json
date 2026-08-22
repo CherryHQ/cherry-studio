@@ -638,6 +638,7 @@
   "chat.input.placeholder": "Πληκτρολογήστε ένα μήνυμα. Πατήστε {{key}} για αποστολή. Πληκτρολογήστε / για εργαλεία και ενέργειες ή @ για αναφορά σε θέματα.",
   "chat.input.reference_panel.load_failed": "Αποτυχία φόρτωσης της αναφοράς συνομιλίας",
   "chat.input.reference_panel.no_room": "Δεν υπάρχει αρκετός χώρος στο μήνυμα για να προσθέσετε αυτή τη συνομιλία",
+  "chat.input.reference_panel.no_room_selection": "Δεν υπάρχει αρκετός χώρος στο μήνυμα για να προστεθεί αυτή η επιλογή",
   "chat.input.reference_panel.session.no_results.description": "Δεν υπάρχουν συνεδρίες που να ταιριάζουν με την αναζήτησή σας",
   "chat.input.reference_panel.session.no_results.label": "Δεν Βρέθηκαν Συνεδρίες",
   "chat.input.reference_panel.session.title": "Συνεδρίες",

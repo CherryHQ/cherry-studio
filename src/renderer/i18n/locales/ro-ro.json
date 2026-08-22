@@ -638,6 +638,7 @@
   "chat.input.placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
   "chat.input.reference_panel.load_failed": "Nu s-a putut încărca conversația referențiată",
   "chat.input.reference_panel.no_room": "Nu mai este suficient spațiu în mesaj pentru a adăuga această conversație",
+  "chat.input.reference_panel.no_room_selection": "Nu mai este suficient spațiu în mesaj pentru a adăuga această selecție",
   "chat.input.reference_panel.session.no_results.description": "Nicio sesiune nu corespunde căutării tale",
   "chat.input.reference_panel.session.no_results.label": "Nu s-au găsit sesiuni",
   "chat.input.reference_panel.session.title": "Sesiuni",

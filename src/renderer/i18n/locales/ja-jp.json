@@ -638,6 +638,7 @@
   "chat.input.placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
   "chat.input.reference_panel.load_failed": "参照された会話の読み込みに失敗しました",
   "chat.input.reference_panel.no_room": "メッセージにこの会話を追加する余地が残っていません",
+  "chat.input.reference_panel.no_room_selection": "メッセージの残り文字数が不足しているため、この選択範囲を挿入できません",
   "chat.input.reference_panel.session.no_results.description": "検索条件に一致するセッションはありません",
   "chat.input.reference_panel.session.no_results.label": "セッションが見つかりません",
   "chat.input.reference_panel.session.title": "セッション",

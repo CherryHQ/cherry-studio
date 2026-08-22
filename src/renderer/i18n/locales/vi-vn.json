@@ -638,6 +638,7 @@
   "chat.input.placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
   "chat.input.reference_panel.load_failed": "Không thể tải cuộc trò chuyện được tham chiếu",
   "chat.input.reference_panel.no_room": "Không còn đủ chỗ trong tin nhắn để thêm cuộc trò chuyện này",
+  "chat.input.reference_panel.no_room_selection": "Không còn đủ chỗ trong tin nhắn để thêm vùng chọn này",
   "chat.input.reference_panel.session.no_results.description": "Không có phiên nào khớp với tìm kiếm của bạn",
   "chat.input.reference_panel.session.no_results.label": "Không tìm thấy phiên làm việc nào",
   "chat.input.reference_panel.session.title": "Phiên họp",
