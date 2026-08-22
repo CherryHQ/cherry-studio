@@ -1,910 +1,196 @@
 # Cherry Studio Design System
 
-> **Token architecture:** The normative v2 contract for variable layers, Shadcn/Tailwind mappings, compatibility,
-> and migration metadata is
-> [`packages/ui/docs/design-token-system.md`](./packages/ui/docs/design-token-system.md). Official Shadcn semantics
-> and approved Cherry Studio product semantics share one unprefixed public namespace. The operational variable
-> inventory and selection rules are in
-> [`packages/ui/docs/variable-catalog.md`](./packages/ui/docs/variable-catalog.md).
-
-> **Semantic DOM contract:** For Custom CSS, tests, inspectors, and automation that need structural selectors, see
-> [`docs/references/ui-semantic-contract.md`](./docs/references/ui-semantic-contract.md).
-
-> **Usage notation:** Tailwind examples use semantic utilities such as `bg-background` and `text-foreground`.
-> Authored CSS examples use the unprefixed public runtime contract directly, whether the role is official Shadcn
-> (`var(--background)`) or a Cherry Studio product extension (`var(--success)`). Shared `--cs-*` variables are
-> internal providers, while `--color-*` belongs to the generated Tailwind adapter and is not an authored CSS API.
-
-## 1. Visual Theme & Atmosphere
-
-> **Source of truth:** foundation values live in `packages/ui/src/styles/tokens/`, controlled host-written inputs live in `packages/ui/src/styles/theme-input.css`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Cherry Studio product semantics live in `packages/ui/src/styles/product.css`. `contract.css` composes those layers in order; Tailwind-facing aliases are generated in `theme.css`. Component, page, and App Shell implementation variables stay in their owning stylesheets and are not public theme roles. For actual values and stability, inspect the source plus `packages/ui/scripts/theme-contract.ts`.
-
-Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
-
-The typography system is single-track: `var(--font-family-body)` and `var(--font-family-heading)` currently resolve to the same primary UI font token. Code-rendering components own their mono font stack locally. This single-family approach reflects a product with a unified voice — coherent in conversation, precise in code.
-
-What makes Cherry Studio distinctive is its commitment to a calm UI foundation. Primary actions use `var(--primary)` as the strongest action color in the chrome, while neutral strong fills are used by shared buttons where that component defines the action hierarchy. New UI should avoid introducing a page-local chromatic brand hue. Other chromatic departures are reserved for semantic feedback: `var(--destructive)` for dangerous actions, `var(--success)` for positive states, `var(--warning)` for caution, `var(--info)` for informational surfaces. This creates an interface that feels like a high-quality writing tool — think iA Writer meets VS Code — where the user's content is usually the most colorful thing on screen.
-
-**Key Characteristics:**
-- Calm UI foundation: chrome stays mostly neutral; `var(--primary)` is reserved for true primary actions and selected states, while semantic accents carry feedback
-- Dual-mode system: fully specified light and dark tokens with true inversion (not just darkening)
-- Primary action color resolves through `var(--primary)`; do not introduce a separate page-local brand hue
-- Full semantic color set: `var(--destructive)` (red), `var(--success)` (green), `var(--warning)` (amber), `var(--info)` (blue)
-- Stable feedback accents plus subtle surface/foreground pairs and borders for success, warning, info, and error
-- Border-radius scale derives from the canonical `--radius` input; use `rounded-none` for square corners and `rounded-full` for pills
-- Subtle borders via `var(--border)` (semi-transparent neutral) for structure, not decoration
-- Surfaces stack via color, not shadow: `var(--background)` → `var(--card)` → `var(--popover)`
-- 7-level shadow utility system (`--shadow-2xs` through `--shadow-2xl`)
-- Floating overlays use concrete Tailwind utilities from the shared primitive unless a token-backed product role exists; do not invent local glass, overlay, or blur variables that masquerade as shared tokens
-- Sidebar as a distinct spatial zone with its own complete token set: `var(--sidebar)`, `var(--sidebar-primary)`, `var(--sidebar-accent)`, `var(--sidebar-border)`
-
-## 2. Color Palette & Roles
-
-> Internal token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,status-legacy,providers}.css`; public semantic mappings live in `packages/ui/src/styles/shadcn.css` and `packages/ui/src/styles/product.css`. This section names what each token is for; refer to those source files for resolved values.
-
-### Palette Philosophy — Solid Foregrounds, Alpha Surface Tints
-
-The color system separates contrast-bearing content from surface tinting:
-
-- **Foreground tokens** (text and icons) use **solid `oklch` values**. Their resolved color and contrast must stay predictable across cards, popovers, translucent surfaces, vibrancy, and user wallpapers.
-- **Neutral surface tints** (borders, secondary fills, hover backgrounds, and ghost states) use **black/white + an alpha channel**. These roles intentionally harmonise with the surface beneath them and do not carry a text-contrast contract.
-- **Chromatic tokens** (`--primary`, `--destructive`, `--success`, `--warning`, `--info`, and primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
-
-When you reach for a value:
-1. If the role is content, use the solid foreground hierarchy (`--foreground`, `--muted-foreground`, `--foreground-tertiary`, or `--foreground-disabled`).
-2. If the role is a surface tint (divider, soft fill, hover), use an approved public neutral role (`--border`, `--secondary`, `--accent`, `--background-subtle`, `--border-subtle`, `--border-strong`, `--border-selected`). A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
-3. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
-
-### Primary
-- **Primary**: `var(--primary)` — public semantic output for true page actions, selected states, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
-- **Primary Foreground**: `var(--primary-foreground)` — contrast text on `bg-primary` surfaces
-- **Primary Hover**: owned by the component variant (`hover:*` utility); do not consume a compatibility adapter variable from authored CSS
-
-### Text Colors
-- **Foreground**: `var(--foreground)` — primary body text
-- **Muted Foreground**: `var(--muted-foreground)` — secondary readable text, descriptions, labels, and placeholders
-- **Tertiary Foreground**: `var(--foreground-tertiary)` — timestamps, counts, empty-state copy, and icons that intentionally sit one level below readable secondary text
-- **Disabled Foreground**: `var(--foreground-disabled)` — disabled or unavailable foreground content; initially matches tertiary but may evolve independently
-- **Card / Popover / Accent / Secondary Foreground**: `var(--card-foreground)` / `var(--popover-foreground)` / `var(--accent-foreground)` / `var(--secondary-foreground)` — contrast text on each surface
-
-All shared foreground roles resolve to solid colors. Do not recreate `foreground-secondary` or `foreground-muted`,
-and do not weaken foreground semantics with Tailwind color-opacity modifiers.
-
-### Surface & Background
-- **Background**: `var(--background)` — primary page background
-- **Background Subtle**: `var(--background-subtle)` — slightly tinted background variant
-- **Card**: `var(--card)` — elevated card surfaces
-- **Popover**: `var(--popover)` — floating panel surfaces (dropdowns, menus, tooltips)
-- **Muted**: `var(--muted)` — subdued backgrounds, disabled states
-- **Accent**: `var(--accent)` — hover/active backgrounds for transparent buttons
-- **Secondary**: `var(--secondary)` — secondary action backgrounds
-- **Secondary Hover / Active**: use the shared component variant state classes; these are not standalone runtime semantics
-- **Ghost Hover / Active**: use `--accent` for the shared hover fill; keep any additional active treatment component-local
-
-### Sidebar (Distinct Spatial Zone)
-- **Sidebar**: `var(--sidebar)` — sidebar surface
-- **Sidebar Foreground**: `var(--sidebar-foreground)` — text on sidebar
-- **Sidebar Accent / Sidebar Accent Foreground**: `var(--sidebar-accent)` / `var(--sidebar-accent-foreground)` — hover/active state in sidebar; do not substitute generic secondary roles even when current values look similar
-- **Sidebar Border**: `var(--sidebar-border)` — sidebar dividers
-- **Sidebar Ring**: `var(--sidebar-ring)` — color source for focus feedback contained inside sidebar controls
-
-### Borders & Rings
-- **Border**: `var(--border)` — component borders, dividers
-- **Border Subtle**: `var(--border-subtle)` — very quiet outlines on cards, nested panels, and non-interactive containers
-- **Border Strong**: `var(--border-strong)` — higher-emphasis structural borders
-- **Border Selected**: `var(--border-selected)` — selected-state component borders
-- **Input**: `var(--input)` — input field borders
-- **Ring**: `var(--ring)` — color source for focus feedback contained inside component bounds
-
-### Border Token Rules
-- Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-border-selected`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
-- Use `border-border-selected` only for selected state. Keyboard focus always uses `border-ring` / `ring-ring`.
-- Plain `border`, `border-t`, `border-r`, `border-b`, and `border-l` are acceptable only when the global theme base provides the color fallback; reusable components should still name a semantic border color when the role is known.
-- For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--border)]` or `[border-right:0.5px_solid_var(--border-subtle)]`.
-- Existing opacity-modified border classes (`border-border/10` through `border-border/80`, plus hover/focus/active variants) continue to resolve through Tailwind v4's native color-opacity modifier support; `theme.css` does not enumerate separate compatibility mappings for them.
-- Do not introduce new opacity-modified semantic border classes such as `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15`. Use the semantic border utilities above so the visual role is explicit.
-
-### Semantic Status — Single-token aliases
-- **Destructive**: `var(--destructive)` — dangerous user actions; use the `--error*` family for error feedback
-- **Destructive Hover**: use the shared component variant's `hover:bg-destructive-hover` state; do not consume its compatibility adapter variable in authored CSS
-- **Destructive Foreground**: `var(--destructive-foreground)`
-- **Success**: `var(--success)` — positive states, confirmations
-- **Warning**: `var(--warning)` — caution states, pending actions
-- **Info**: `var(--info)` — informational states, neutral highlights
-
-### Semantic Status — Stable surface contract
-Use the stable subtle surface pair plus its border for alerts, toast bodies, tags, and validation feedback. The
-base `--{intent}` token is an accent for icons, text, or markers rather than a shared filled surface. All four
-runtime families expose `--{intent}`, `--{intent}-subtle`, `--{intent}-subtle-foreground`, and
-`--{intent}-border`; Tailwind exposes matching semantic utility names.
-
-The older `*-base`, `*-text`, `*-bg`, hover, and active names remain internal frozen providers or migration
-sources only; they are no longer Tailwind utilities. Do not introduce them in component APIs.
-
-### Brand
-Do not use a page-local chromatic brand color for new UI chrome. `--cs-brand-*` is a foundation scale, not a component-facing semantic contract; new component styling should express action hierarchy through `var(--primary)` and status through the stable product roles.
-
-### Links
-- Clickable text uses `text-link` / `var(--link)`. Link color is independent from `primary`; reserve `primary` for
-  primary actions, selected states, and component accents.
-- Links use the product default blue. Hover normally adds underline without changing color; do not add a global
-  `link-hover` token.
-- See the [Variable Catalog](./packages/ui/docs/variable-catalog.md) for token ownership and contract details.
-
-### Floating Scrims
-No dedicated public glass or overlay product role is exported today. `--color-*` is reserved for generated Tailwind mappings; a future shared runtime role would require an approved unprefixed semantic contract. Use the shared primitive defaults first:
-- Dialog overlay: use the shared `Dialog` overlay (`bg-black/50`) and customize only through `overlayClassName` when needed.
-- Floating panels: use `bg-popover`, `border-border`, and the appropriate shadow utility (`shadow-md` to `shadow-xl`) rather than a page-local glass token.
-- QuickPanel is a design-approved exception: its composer-attached surface may derive a component-local translucent
-  background from `--card` while retaining `--card-foreground`, keeping it independent from generic floating panels.
-  It exposes `data-slot="quick-panel-content"` so Custom CSS themes can override the QuickPanel background and
-  foreground together. Keep this treatment local to QuickPanel; it is not a reusable
-  glass token or a precedent for other floating panels.
-- If a reusable translucent surface is needed, add/export a real token first and document it here in the same change.
-
-### Chart Colors
-Use `--chart-1` through `--chart-5` in authored CSS (or `bg-chart-1` through `bg-chart-5` utilities) for default categorical series. Primitive scales remain building
-blocks for visualizations that require a reviewed palette beyond five series; do not use primitives for ordinary
-component state.
-
-### Primitive Color Families
-Available primitive scales in `tokens/colors/primitive.css` (each has 11 shades, `*-50` through `*-950`): neutral / stone / zinc / slate / gray / red / orange / amber / yellow / lime / green / emerald / teal / cyan / sky / blue / indigo / violet / purple / fuchsia / pink / rose. Use these as raw building blocks; prefer semantic tokens for UI surfaces.
-
-## 3. Typography Rules
-
-> Token values defined in `packages/ui/src/styles/tokens/typography.css`. The technical contract is the CSS variable; family-name strings appear here for human readability.
-
-### Font Families
-- **Body / Heading**: `var(--font-family-body)` / `var(--font-family-heading)` → primary UI font with system-ui fallbacks. Handles functional UI text.
-- **Mono**: use the app mono font stack where code-rendering components define one. Code blocks, terminals, technical content.
-
-### Size Scale
-
-| Role | Token | Approx. value |
-|------|-------|--------------|
-| Body XS | `var(--font-size-body-xs)` | 12px — tags, badges, timestamps, metadata |
-| Body SM | `var(--font-size-body-sm)` | 14px — navigation, secondary labels, captions |
-| Body MD | `var(--font-size-body-md)` | 16px — standard body text, form inputs, descriptions |
-| Body LG | `var(--font-size-body-lg)` | 18px — emphasized body, sub-headings |
-| Heading XS | `var(--font-size-heading-xs)` | 20px — minor section titles |
-| Heading SM | `var(--font-size-heading-sm)` | 24px — sub-section headings |
-| Heading MD | `var(--font-size-heading-md)` | 32px — section headings |
-| Heading LG | `var(--font-size-heading-lg)` | 40px — page titles |
-| Heading XL | `var(--font-size-heading-xl)` | 48px — hero headlines |
-| Heading 2XL | `var(--font-size-heading-2xl)` | 60px — display / landing |
-
-The full Tailwind text scale is also exposed: `--text-xs` through `--text-9xl` (12px → 128px) for large display contexts.
-
-### Weight System
-
-Three weights are exposed as semantic tokens; the rest of the Tailwind weight utility scale (`font-thin` → `font-black`, including `font-semibold`) is available but not part of the token contract.
-
-| Weight | Token | Usage |
-|--------|-------|-------|
-| Regular | `var(--font-weight-regular)` (400) | Body text, descriptions, secondary labels |
-| Medium | `var(--font-weight-medium)` (500) | Navigation, emphasized body, form labels |
-| Bold | `var(--font-weight-bold)` (700) | Page titles, strong emphasis, hero headlines |
-
-### Line Heights
-
-| Token | Approx. value | Usage |
-|-------|---------------|-------|
-| `var(--line-height-body-xs)` | 20px | Body XS / tight labels |
-| `var(--line-height-body-sm)` | 24px | Body SM (14px) |
-| `var(--line-height-body-md)` | 24px | Body MD (16px) |
-| `var(--line-height-body-lg)` | 28px | Body LG (18px) |
-| `var(--line-height-heading-xs)` | 32px | Heading XS (20px) |
-| `var(--line-height-heading-sm)` | 40px | Heading SM (24px) |
-| `var(--line-height-heading-md)` | 48px | Heading MD (32px) |
-| `var(--line-height-heading-lg)` | 60px | Heading LG (40px) |
-| `var(--line-height-heading-xl)` | 80px | Heading XL (48px) |
-
-> Heading 2XL (60px) currently has no matching `--line-height-heading-2xl` token. For display contexts using `var(--font-size-heading-2xl)`, set a one-off Tailwind line-height utility (e.g. `leading-[72px]`) until a canonical token is added.
-
-### Paragraph Spacing
-`var(--paragraph-spacing-body-{xs|sm|md|lg})` and `var(--paragraph-spacing-heading-{xs|sm|md|lg|xl|2xl})` set vertical rhythm between paragraphs and headings.
-
-### Principles
-- **One font handles the entire UI**: lean on the body / heading font aliases everywhere unless rendering code, where the code-rendering component's mono font stack takes over.
-- **Medium (500) is the pivot point**: regular for content, medium for structural labels, bold for page-level emphasis.
-- **Consistent line-height rhythm**: body at ~1.4–1.5×, headings tighter (~1.0–1.3×).
-
-## 4. Component Stylings
-
-> Use Tailwind's numeric spacing utilities (`px-4 py-2`) in component code. In raw CSS, derive values from Tailwind's `--spacing` base unit.
-
-### Buttons
-
-Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/button.tsx`).
-
-**Base**
-- Layout: inline flex, centered, `gap-2`, no wrapping
-- Radius / font / motion: `rounded-md`, `font-normal`, `transition-all`
-- Disabled: pointer events disabled, `opacity-40`
-- Loading: `data-loading=true`, `cursor-progress`, `opacity-40`, spinner before content
-- Focus: reuse the variant's hover feedback (`background`, text, or underline); do not draw an outer ring or outline
-
-**Default**
-- Background: neutral strong action fill as defined in the shared Button primitive (`bg-neutral-900` light / `bg-neutral-100` dark)
-- Text: white in light mode, neutral dark in dark mode
-- Shadow: `shadow-xs`
-- Hover: neutral hover fill (`hover:bg-neutral-800` light / `dark:hover:bg-neutral-200`)
-- Use: Main CTAs outside dialogs ("Send", "Save", "Create")
-
-**Outline**
-- Background: transparent
-- Text: `var(--foreground)`
-- Border: 1px solid `var(--border)`
-- Shadow: none
-- Hover: fill `var(--accent)`
-- Use: Secondary or cancel actions that need a visible boundary
-
-**Secondary**
-- Background: `var(--secondary)`
-- Text: `var(--secondary-foreground)`
-- Radius: `var(--radius-lg)`
-- Shadow: none
-- Hover: shared `hover:bg-secondary-hover` state
-- Use: Secondary actions ("Cancel", "Back", "Export")
-
-**Emphasis**
-- Background: neutral strong action fill as defined in the shared Button primitive (`bg-neutral-900` light / `bg-neutral-100` dark)
-- Text: white in light mode, neutral dark in dark mode
-- Radius: `var(--radius-lg)`
-- Shadow: none
-- Hover: neutral hover fill (`hover:bg-neutral-800` light / `dark:hover:bg-neutral-200`)
-- Use: Primary action inside Dialog footers; visually strong, flatter than default
-
-**Ghost**
-- Background: transparent
-- Text: neutral foreground
-- Shadow: none
-- Hover: fill `var(--accent)`, text `var(--accent-foreground)`
-- Active: component-local state treatment when required
-- Use: Toolbar actions, inline actions, icon buttons
-
-**Destructive**
-- Background: `var(--destructive)`
-- Text: white
-- Shadow: `shadow-xs`
-- Hover: shared `hover:bg-destructive-hover` state
-- Use: Dangerous actions ("Delete", "Remove", "Reset")
-
-**Link**
-- Background: none
-- Text: neutral foreground
-- Hover: neutral muted text + underline
-- Use: Inline text links, navigation shortcuts
-
-**Sizes**
-
-| Size | Classes | Use |
-|------|---------|-----|
-| `default` | `min-h-7.5 gap-1.5 px-2.5 text-[13px]` | Standard buttons |
-| `sm` | `min-h-7 gap-1.5 px-2.5 text-xs` | Dense controls |
-| `lg` | `min-h-9 px-4 text-sm` | Higher-emphasis actions |
-| `icon` | `size-9` | Standard icon button |
-| `icon-sm` | `size-7` | Dense icon button |
-| `icon-lg` | `size-10` | Large icon button |
-
-**Pill** — shape modifier, not a color variant
-- Radius: `rounded-full`
-- Use: Tags, filters, toggles, tab indicators
-
-**Icon-only buttons and low-emphasis actions**
-
-Public icon-only buttons should use the shared `Button` primitive first: `variant="ghost"` with `size="icon"` or `size="icon-sm"`. They must provide an `aria-label`; add `Tooltip` / `NormalTooltip` when the icon meaning is not obvious.
-
-**Color hierarchy — ask one question first: is this icon the user's primary reason to be on this page?**
-
-- **Yes** → use the Button ghost variant's default text color (no `text-*` override). The icon *is* the action. (The ghost variant currently renders `text-neutral-900 dark:text-neutral-100`.)
-- **No, it's a utility shortcut** → mute it with `text-muted-foreground hover:text-foreground` so it recedes at rest and surfaces on hover.
-
-| Case | Color | Example |
-|---|---|---|
-| Page-primary action in chrome | (Button ghost variant default, no override) | Mini-apps page top-right `+` and menu — the page exists to launch apps; these icons *are* the action. |
-| Secondary utility entry | `text-muted-foreground hover:text-foreground` | Translate page top-right history / settings — user came to translate, not to manage history. |
-| Toggle while active | `text-foreground` when active; muted otherwise | Panel-toggle icon while its panel is open. |
-| Destructive row action | `text-muted-foreground hover:text-destructive` | Delete X next to a custom language row. |
-
-**Rule of thumb:** if an area shows 3+ icon buttons, at most one should sit at the ghost default. The rest are utilities — mute them. Otherwise the eye has no anchor.
-
-**Do not:**
-- Apply a heavy `text-foreground` override to every icon button by reflex — the ghost default is for one action per cluster, not all of them.
-- Use `text-primary` as a "more emphasis" replacement for the ghost default; `text-primary` is reserved for selected / branded states, not for raising icon weight.
-
-**Row-level patterns**
-
-- Row-level low-emphasis actions are a distinct pattern: copy, edit, delete, favorite, history, and other secondary actions inside dense rows or work surfaces should stay visually quiet by default (`text-muted-foreground`, no static fill or shadow) and only gain emphasis on hover, focus, active, or pressed state.
-- Dangerous row actions should not be permanently red. Keep the trigger low-emphasis, then use `ConfirmDialog` plus a destructive confirm button for the actual destructive decision.
-- Favorite / starred actions may use an amber active tint only for favorite semantics. Do not reuse that tint for generic active states.
-- The translate page currently has a page-local `IconButton` wrapper for this row-level low-emphasis behavior (`xs` / `sm` / `md`, `ghost` / `destructive` / `star`, `active`, built-in tooltip). Treat that as a pattern to promote into a shared `IconButton` if another page needs the same behavior; do not create more page-local copies.
-
-### Button Hover Interaction Summary
-
-Button hover behavior is variant-specific:
-
-| Variant | Hover Fill | Hover Border | Hover Shadow | Text Change |
-|---------|-----------|-------------|-------------|-------------|
-| Default | neutral hover fill | — | keeps `shadow-xs` | — |
-| Outline | `var(--accent)` | existing border | none | — |
-| Secondary | shared `hover:bg-secondary-hover` state | — | none | — |
-| Emphasis | neutral hover fill | — | none | — |
-| Ghost | `var(--accent)` | — | none | `var(--accent-foreground)` |
-| Destructive | shared `hover:bg-destructive-hover` state | — | keeps `shadow-xs` | — |
-| Link | — | — | none | muted text + underline |
-
-**Hover rules:**
-1. Default and destructive buttons keep the base `shadow-xs`.
-2. Outline, secondary, emphasis, and ghost buttons are flat (`shadow-none`) at rest and on hover.
-3. Link hover adds underline and a text color change only — no background, no shadow.
-
-### Dialogs
-
-Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`packages/ui/src/components/primitives/dialog.tsx`).
-
-**Shell**
-- Surface: `bg-card`
-- Text: `text-card-foreground`
-- Radius: `rounded-3xl`
-- Border: none (`border-0`)
-- Padding / gap: `p-6`, `gap-4`
-- Shadow: `shadow-xl`
-- Motion: the overlay fades in over 220ms; content fades, rises 16px with an ease-out curve, and scales from 99%
-  over 260ms. Both close over 200ms with a 16px ease-in downward motion. Motion is disabled when
-  `prefers-reduced-motion` requests it.
-- Imperative Dialog hosts remain mounted for 200ms on close.
-- `ConfirmDialog` and the `popup.confirm/error/info/warning` acknowledgement family use `motion="fade-scale"`:
-  they keep the shared fade and 99% scale but omit vertical movement.
-
-**Layout**
-- Overlay: fixed full-window scrim, `z-[80]`, default `bg-black/50`
-- Content: fixed centered, `top-[50%] left-[50%]`, translated by `-50%`
-- Width: full width with `max-w-[calc(100%-2rem)]` (narrow-window fallback, all sizes). Desktop width is set by the `size` prop on `DialogContent`:
-  - `size="sm"` → `sm:max-w-sm` (24rem ≈ 384px) — single-field inputs, rename, short confirmations. Use this whenever the body is one label + one input or a one-line confirmation; the default size feels empty for that amount of content.
-  - `size="default"` (current default) → `sm:max-w-lg` (32rem ≈ 512px) — standard forms with a few fields.
-  - `size="lg"` → `sm:max-w-xl` (36rem ≈ 576px) — multi-field forms, scrollable bodies, rich configuration panels.
-- Do not override the dialog width with `className="sm:max-w-*"` or similar. Pick a `size` instead; if no size fits, propose a new size in `@cherrystudio/ui` rather than patching at the call site. `className` on `DialogContent` is reserved for non-width layout concerns (e.g. `max-h-[70vh]`, `flex flex-col overflow-hidden` for scrollable bodies).
-- Consumers should use the default overlay first. If the scrim needs local tuning, pass `overlayClassName`; do not rewrite a page-local Dialog shell.
-
-**Structure**
-- Header: flex column, `gap-2`, centered on mobile and left-aligned from `sm`
-- Title: `text-lg leading-none font-semibold`
-- Description: `text-muted-foreground text-sm`
-- Footer: mobile `flex-col-reverse`, desktop row with `sm:justify-end`
-- Close button: shown by default, absolute `top-4 right-4`, low opacity, higher opacity on hover; hide with `showCloseButton={false}` when the surrounding UI supplies its own close affordance
-
-**Actions**
-- Use `Button variant="outline"` for cancel/secondary actions.
-- Prefer `Button variant="emphasis"` for new neutral Dialog primary actions; existing dialogs using `default` are acceptable during migration, but new work should not introduce a page-local primary style.
-- Use `Button variant="destructive"` for dangerous confirmation actions.
-- `ConfirmDialog` currently uses `default` for non-destructive confirms and `destructive` for dangerous confirms. Treat that as a migration-compatible composite, not as a reason to invent page-local Dialog button styles.
-
-**Use Dialog for**
-- Centered confirmations, focused form flows, command palettes, and blocking decisions.
-- Short-to-medium content that should not feel attached to a page edge.
-- Cases where the user must either complete or dismiss the interaction before returning to the page.
-
-### Drawers & Page Side Panels
-
-There are two different drawer patterns. Do not collapse them into one generic "side drawer" rule.
-
-**PageSidePanel** — in-page side panel
-
-Source: `PageSidePanel` from `@cherrystudio/ui` (`packages/ui/src/components/composites/page-side-panel/index.tsx`).
-
-Use `PageSidePanel` for page-owned management surfaces such as mini-app display settings, translate settings, and translate history. By default, the panel and backdrop portal to `document.body` so page scroll containers, transformed ancestors, and nested layout shells cannot clip or re-base the drawer. In app shell route tabs, the tab content root is provided via `PortalContainerProvider` on every platform; `PageSidePanel` reads it with `usePortalContainer()`, portals into its owning tab root, and switches to absolute positioning, so a still-open panel stays hidden with its owning tab instead of surfacing over the active tab. The same provider scopes tab-owned Radix floating overlays (popovers, dropdown menus, selects, tooltips, hover cards, context menus) to that root, so the panel and those overlays share one portal container per tab.
-
-- Backdrop: default fixed `inset-0`, scoped absolute `inset-0`, `z-60`, `bg-black/50`, fades over `0.15s`
-- Panel: default fixed `top-3 bottom-3`, scoped absolute `top-3 bottom-3`, `right-3` or `left-3`, `z-70`
-- Size / shell: `w-100`, `rounded-3xl`, `bg-card`, `text-card-foreground`, `shadow-xl`, `overflow-hidden`
-- Motion: horizontal slide from the chosen side with spring transition (`damping: 30`, `stiffness: 350`)
-- Header: `px-6 pt-6 pb-3`, optional header content plus ghost close button
-- Body: shared `Scrollbar`, `space-y-4 px-6 py-4`
-- Footer: optional, `px-6 pt-3 pb-6`, for sticky action groups
-- Accessibility: role `dialog`, `aria-modal=true`, focus moves into the panel on open and returns to the trigger on close
-
-For standard settings panels, pass `title` instead of custom `header`. This renders the shared title style (`font-semibold text-base text-foreground`). Use custom `header` only when the title area needs richer layout.
-
-Use `PageSidePanelSection` and `PageSidePanelItem` as optional content primitives for settings-style panels. The structure is intentionally three-layered:
-
-1. `PageSidePanel` owns only the floating drawer shell: placement, backdrop, title/close chrome, body scroll, and footer.
-2. `PageSidePanelSection` owns a settings group: section title, optional right-aligned low-emphasis actions, and group spacing.
-3. `PageSidePanelItem` owns a single setting row: title/description stack, trailing control, and optional expanded content below the row.
-
-Use this full shell → section → item stack for settings drawers such as mini-app display settings and translate settings:
-
-- Section: `flex flex-col gap-3` — this `gap-3` is the rhythm between the section title row, its actions, and the preference row group below; it is **not** the spacing between preference rows themselves.
-- Preference row group: wrap the row stack inside the section with an extra `<div className="flex flex-col gap-5">` so individual preference rows breathe more than the title-to-rows gap. Existing callers (`TranslateSettings`, `MiniAppDisplaySettings`) follow this convention.
-- Item: title/description stack with a trailing `action`; the trailing control may also expand into an optional `children` slot below the row.
-- Related sections should be separated by `gap-8`.
-- Do not place repeated cards inside the panel unless each card is a genuine repeated entity.
-
-Do not force `PageSidePanelSection` / `PageSidePanelItem` onto non-settings content. List, history, detail, or picker drawers should still use the shared `PageSidePanel` shell, but their body layout should match the task. For example, translate history uses `PageSidePanel` for the drawer chrome and a custom list/detail/empty-state layout inside the body.
-
-**Drawer primitive** — modal edge drawer
-
-Source: `Drawer` primitives from `@cherrystudio/ui` (`packages/ui/src/components/primitives/drawer.tsx`, Vaul-based).
-
-Use `Drawer` for modal edge/bottom sheets, especially mobile-oriented or full-viewport overlays that are not visually nested inside a page workspace.
-
-- Overlay: fixed `inset-0`, `z-50`, `bg-black/50`
-- Content: fixed `z-50`, flex column, `bg-background`
-- Top / bottom: full width, `max-h-[80vh]`, border on the attached edge, `rounded-b-lg` or `rounded-t-lg`
-- Bottom drawer: includes the built-in centered drag handle (`h-2 w-25 rounded-full bg-muted`)
-- Left / right: `inset-y-0`, `w-3/4`, `sm:max-w-sm`, border on the attached edge
-- Header: `p-4`, `gap-0.5`, centered for top/bottom and left-aligned from `md`
-- Footer: `mt-auto flex flex-col gap-2 p-4`
-- Title / description: `font-semibold text-foreground`; `text-sm text-muted-foreground`
-
-`Drawer` uses `bg-background` and edge attachment, not the floating `bg-card rounded-3xl shadow-xl` shell of `PageSidePanel`. New drawer work should use `PageSidePanel` or this shared `Drawer` primitive.
-
-### Cards
-
-**Standard Card**
-- Background: `var(--card)`
-- Text: `var(--card-foreground)`
-- Border: 1px solid `var(--border)`
-- Radius: `var(--radius-lg)` to `var(--radius-xl)`
-- Padding: `p-4` to `p-6` (16–24px)
-- Use: Content containers, conversation panels, settings sections
-
-**Popover / Floating**
-- Background: `var(--popover)`
-- Text: `var(--popover-foreground)`
-- Border: 0.5px hairline `var(--border)`
-- Radius: `var(--radius-lg)`
-- Shadow: `var(--shadow-lg)`
-- Use: Dropdowns, menus, tooltips, command palettes
-
-### Popover
-
-Source: `Popover`, `PopoverTrigger`, `PopoverAnchor`, and `PopoverContent` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/popover.tsx`). Use this as the default floating container for dropdowns, compact action menus, filters, and other trigger-bound transient panels.
-
-**Default `PopoverContent`:**
-- Background: `var(--popover)`
-- Text: `var(--popover-foreground)`
-- Border: 0.5px hairline `var(--border)` (`border-[0.5px]`)
-- Radius: `var(--radius-lg)`
-- Padding: 16px (`p-4`)
-- Width: 288px (`w-72`)
-- Shadow: `var(--shadow-lg)` (`shadow-lg`)
-- Offset from trigger: 4px
-- Z-index: 80
-
-**Compact menu popovers:**
-- Keep `PopoverContent` from `@cherrystudio/ui`; override layout density with `w-fit min-w-32 rounded-xl p-1.5`.
-- Width is content-driven (`w-fit`), floored at 128px (`min-w-32`) so short menus stay legible. This matches `ContextMenu`'s `min-w-[8rem]` baseline in `packages/ui/src/components/primitives/context-menu.tsx`. Do not hard-code widths like `w-40` / `w-44` — they trap trailing whitespace when labels are shorter than the slot.
-- Compose menu bodies with `MenuList` and `MenuItem` from `@cherrystudio/ui`.
-- Menu rows should use 32px height (`h-8`), `rounded-lg`, `px-2.5`, and `text-sm`.
-- Close the popover after a menu action is selected unless the action intentionally opens an inline sub-flow.
-- Do not add page-specific theme scopes to portal popovers unless the whole floating surface is intentionally part of that page-local theme.
-
-**Glass Panel** (floating chrome with backdrop blur)
-- Background: use `bg-popover` unless a real translucent token is introduced
-- Border: 1px solid `var(--border)`
-- Backdrop filter: use Tailwind blur utilities directly only when the component is intentionally translucent
-- Radius: `var(--radius-lg)` to `var(--radius-xl)`
-- Use: Floating toolbars, header bars over scrollable content, tooltips on imagery
-
-### Page-Level Patterns
-
-These patterns reflect the current v2 pages and should be treated as valid design-system usage, not exceptions.
-
-**Tool Gallery / Code Tools**
-- Use a focused, centered gallery on `bg-background` with a constrained width (`max-w-5xl` style scale) and responsive card grid.
-- Prominent tool-entry cards may use `bg-card`, `border-border`, `p-4`, and `var(--radius-2xl)` to create a launchpad feel without adding shadows.
-- Selection should use border/ring feedback (`border-border-selected`, `ring-ring`) rather than a new chromatic accent.
-- Hero or product icons may be circular (`rounded-full`) and use `shadow-lg` only when they behave as a visual anchor, not as repeated card elevation.
-
-**Mini App Launchpad / Settings Drawer**
-- The launchpad should stay sparse: small icon buttons in the top action area, centered search, then an app grid with compact launchpad tiles.
-- Settings and visibility management belong in `PageSidePanel` with grouped sections and dense list rows. Use the shared `Drawer` primitive only for modal edge/bottom sheets.
-- Dense mini-app rows should use `rounded-md`, subtle hover fills, and compact icons; avoid converting every row into a card.
-
-**Translation Workspace**
-- Translation input/output panes are work surfaces, not cards. Use full-height `bg-background` panes separated by structure and controls.
-- Keep the two-pane workspace flat at rest: no card nesting, no static shadows, no decorative color.
-- The main translate/confirm action may use `bg-primary text-primary-foreground`; target-language chips and selected language states may use `bg-primary/10` or `text-primary`.
-- File upload/drop states should use dashed semantic borders (`border-border-subtle` / hover `border-border-strong`) and muted foreground text.
-- Toolbar and copy/clear controls should use ghost/icon-button behavior so text content remains the primary visual focus.
-
-### Inputs
-
-- Background: `var(--background)`
-- Border: 1px solid `var(--input)`
-- Radius: `var(--radius-md)` (8px)
-- Shadow: none — inputs stay flat at rest; per the depth philosophy, shadows are reserved for hover feedback and floating elements
-- Focus: text-entry fields may change their own border to `border-primary` while editing; do not add an outer ring,
-  outline, or focus shadow
-- Font: `var(--font-family-body)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
-- Placeholder: `var(--muted-foreground)`
-
-### Focus Feedback
-
-Keyboard focus must remain visible without adding a second frame outside the component. Pointer interaction should
-not add a theme-colored border merely because a control was clicked or a popup was opened.
-
-- Text-entry fields (inputs, textareas, editors, and wrappers whose primary purpose is text entry) may change the
-  existing border to `border-primary` while editing so it follows the selected theme.
-- Select triggers, popup controls, buttons, selectable cards, and containers with nested actions must not change
-  their border for pointer focus, `open`, `expanded`, or `pressed` state. Use `focus-visible:border-primary` or
-  `has-[:focus-visible]:border-primary` only when a border is the appropriate keyboard-focus treatment.
-- Persistent semantic states such as `selected`, `checked`, `active`, and `invalid` may use a border when the border
-  communicates that lasting state rather than a transient click.
-- Buttons, menu items, icon actions, tabs, and selectable rows: reuse the component's hover vocabulary through a
-  focus-visible background, text-color, opacity, or underline change.
-- Text links and link-style buttons: use `focus-visible:underline` plus the link's focused text color.
-- Controls that cannot express focus through an existing border, fill, or text treatment (for example a slider
-  thumb) may use an inset indicator such as `focus-visible:ring-inset` or an inset box-shadow.
-- Never use positive-width focus `ring` utilities without `ring-inset`, positive `outline-offset`, or focus
-  box-shadows that render beyond the component bounds. Do not remove focus feedback without replacing it with one
-  of the contained treatments above.
-
-**Search field with trailing action:**
-When a search field needs an inline trailing button (e.g. add provider in `ProviderList`), embed a 24×24 icon button inside the search wrap, after the input:
-
-- Size: 24×24 (`size-6`)
-- Radius: 8px (`rounded-[8px]`)
-- Idle background: `var(--muted)` (`bg-muted`)
-- Hover background: `var(--accent)` (`bg-accent`)
-- Foreground: `var(--foreground)` at full opacity
-- Disabled: `pointer-events-none opacity-30`
-
-Canonical implementation: `providerListClasses.searchInlineAddButton` in `src/renderer/pages/settings/ProviderSettings/primitives/classNames.ts`. The search wrap itself stays the standard input surface (`bg-background`, hairline border, `rounded-xl`).
-
-### Sidebar
-
-Sidebar primitives currently live in `src/renderer/components/Sidebar`, not in `@cherrystudio/ui`. Treat this section as renderer sidebar guidance until a shared `@cherrystudio/ui` sidebar API exists.
-
-The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar internals should own spacing, sizing, and active state so individual pages do not hand-roll divergent menus.
-
-**Colors:**
-- Background: `var(--sidebar)`
-- Text: `var(--sidebar-foreground)` for body; `var(--muted-foreground)` for SectionTitle
-- Border-right (when divider needed): `0.5px solid var(--border)`
-- Active item: `var(--sidebar-accent)` background, `var(--sidebar-accent-foreground)` text — **icon color stays `var(--sidebar-accent-foreground)` on active (no color change)**
-- Hover item: `var(--sidebar-accent)` background
-- Focus: use `var(--sidebar-accent)` background and `var(--sidebar-accent-foreground)` text; no outer ring
-
-**Type:**
-- Header/title rows: `var(--font-size-body-sm)` / `var(--font-weight-medium)`
-- Section labels: `var(--font-size-body-xs)` / `var(--font-weight-regular)`
-- Menu item labels: `var(--font-size-body-sm)` / `var(--font-weight-regular)`
-
-**Spacing & sizing (canonical, baked into the components):**
-
-| Relationship | Value | Token |
-|---|---|---|
-| Header / section label / menu item own height | 32px | `var(--spacing-8)` |
-| Horizontal inset on all rows (left/right padding) | 12px | `var(--spacing-3)` |
-| Gap between section blocks (Header → first Section, Section → next Section) | 12px | `var(--spacing-3)` |
-| Gap **inside** a section (section label → item, item → item) | 4px | `var(--spacing-1)` |
-| MenuItem corner radius | 10px | `rounded-[10px]` |
-| MenuItem icon size | 16px | `[&_svg]:size-4` |
-| MenuItem icon ↔ label gap | 12px | `gap-3` |
-
-**Page-level wrapper guidance (set on the container, NOT on the components):**
-- Recommended sidebar column width: 220px
-- Recommended container padding: 8px horizontal, 12px vertical (`px-2 py-3`)
-
-> If a sidebar elsewhere needs different spacing, propose a shared renderer variant before hard-coding page-local overrides.
->
-> **Target rule:** once the `SidebarHeader / SidebarSection / SidebarSectionTitle / SidebarMenuItem` family lands in `@cherrystudio/ui`, hand-rolled sidebar menus will not be allowed. Until that family ships, compose with `MenuList` + `MenuItem` + project-level className tokens (see `src/renderer/pages/settings/index.tsx` for the canonical token pattern: `settingsSubmenuItemClassName`, `settingsSubmenuItemLabelClassName`, `settingsSubmenuSectionTitleClassName`, `settingsSubmenuDividerClassName`).
-
-### Page Header
-
-Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page or side-panel top title. All settings pages, sidebars, drawers, and content panels that need a heading row **must** use this — never hand-roll `<h2>` with manual padding.
-
-**Anatomy:**
-- `title` (required) — heading text, rendered inside an `<h2>` with `truncate` for overflow safety.
-- `action` (optional) — right-aligned slot for icon-buttons (filter, add, etc.).
-- `bordered` (optional) — adds a `border-b border-border` divider underneath the header row. Default `false`. Use on right-pane detail headers to visually separate the title from the body; omit on left sidebar headers (which sit above a `MenuList` and don't need a divider).
-
-**Type:**
-- Title: `var(--font-size-body-sm)` (14px) · `var(--font-weight-medium)` · `leading-4` · `text-foreground`
-
-**Spacing & sizing (baked in — must not be overridden per-page):**
-
-| Relationship | Value | Token |
-|---|---|---|
-| Bar height | 32px | `h-8` |
-| Margin top (gap above) | 12px | `mt-3` |
-| Margin bottom (gap below) | 8px | `mb-2` |
-| Left padding (title aligns with menu item icon column) | 20px | `pl-5` |
-| Right padding (action sits 12px from the column edge) | 12px | `pr-3` |
-| Title ↔ action gap | 8px | `gap-2` |
-| Bottom border (when `bordered`) | 1px | `border-b border-border` |
-
-**Rules:**
-- Action buttons should be 24×24 (`size-6`); they sit centered inside the 32px bar.
-- Title text comes from i18next; do not hard-code strings.
-- The asymmetric padding is intentional: `pl-5` (20px) aligns the title's left edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
-- Two adjacent `PageHeader` instances (left nav + right panel) are guaranteed to be vertically aligned because spacing tokens are identical; the title line box starts 20px from the column top.
-- Right-pane detail headers in two-column settings layouts **must** pass `bordered`; left sidebar headers **must not** (the menu list below them already provides visual structure). A right-pane header rendered by a non-`PageHeader` component (e.g. `ProviderHeader`, which carries a `<Switch>` plus multiple icons) must wrap itself in a container that draws an equivalent `border-b border-border` divider — see `providerDetailColumnClasses.headerContentMaxWidth` in `ProviderSettings/primitives/classNames.ts`.
-- Provider settings section headings use full `text-foreground` rather than reduced opacity. The right pane already has dense secondary helper text, badges, and inline controls; fully opaque section labels preserve scan hierarchy without introducing another local color rule.
-
-### Switch
-
-Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). Current implementation uses a quiet gray off state and a brand/primary on state, matching the settings screenshots.
-
-**Anatomy & sizing:**
-
-| Size | Track | Thumb | Travel | Use |
-|------|-------|-------|--------|-----|
-| `xs` | 32 × 18 | 16 × 16 | 14px | Dense inline controls |
-| `sm` | 36 × 20 | 18 × 18 | 16px | Slightly larger settings rows |
-| `md` (default) | 44 × 22 | 19 × 19 | 21px | Standard switch |
-| `lg` | 44 × 24 | 20 × 20 | 18px | Hero / marketing surfaces |
-
-**Colors:**
-
-| State | Light | Dark |
-|---|---|---|
-| Track — off | `bg-gray-500/20` | `bg-gray-500/20` |
-| Track — on | `bg-brand-600` | `bg-brand-600` |
-| Loading | `bg-brand-300!` | `bg-brand-300!` |
-| Thumb glyph | white internal SVG | white internal SVG |
-
-**Other rules:**
-- Track carries `shadow-xs`; do not add extra page-local shadow.
-- The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
-- `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
-- Focus: use an inset `var(--ring)` keyline inside the track; do not change its outer dimensions or add an outer ring.
-
-**Don't:**
-- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
-- Don't add inline `style={{ ... }}` overrides for switch dimensions. If a new size is needed, add a variant to `switchRootVariants`/`switchThumbVariants` and document it here.
-- Use `<DescriptionSwitch label="..." description="...">` for reusable standalone preference rows. In dense `PageSidePanel` layouts, composing a row label plus a bare `<Switch>` is acceptable when the surrounding row owns spacing and helper text.
-
-## 5. Layout Principles
-
-### Window Chrome
-
-- **Top chrome height**: `var(--app-top-chrome-height)` = 44px. Use this for the main window tab bar and any standalone macOS window top drag area that should visually align with the main app chrome.
-- **Navbar content height**: `var(--navbar-height)` defaults to `var(--app-top-chrome-height)` for the fixed top-menu layout. Only override it for inner content calculations that intentionally do not include a top navbar.
-- Settings-style floating windows with a transparent macOS shell must keep the outer top inset tied to `var(--app-top-chrome-height)` instead of hard-coded pixel classes such as `h-11` or `h-[50px]`.
-
-### Settings Panel Layout
-
-Settings pages use the same two-column shape:
-
-| Column | Width | Composition |
-|---|---|---|
-| Left submenu | `var(--settings-width)` (250px default in `responsive.css`) | `PageHeader` (title) → `Scrollbar` → `MenuList` of grouped `MenuItem` rows |
-| Right detail | `flex-1` | Page-owned content |
-
-Submenu composition rules:
-
-- Use `PageHeader` from `@cherrystudio/ui` at the top — do not hand-roll a header.
-- **Section-title-as-page-title exception**: when a page-level label is itself a *group name* that should match in-list group labels, keep using `PageHeader` and pass `titleClassName="font-normal text-muted-foreground text-xs leading-4"` so the heading swaps to section-title typography while preserving the same 16px line box. The PageHeader's `mt-3 + h-8 + mb-2` outer geometry is preserved, so the label baseline still aligns with the right column's PageHeader heading. See `page-header.stories.tsx` › `SectionTitleStyle` for the canonical example.
-- Wrap menu rows in `MenuList` with `gap-1`; group with `MenuDivider` + a section title `<div>` carrying `settingsSubmenuSectionTitleClassName`.
-- Each row is a `MenuItem` styled by the canonical settings token pair: `settingsSubmenuItemClassName` on `className` (height / hover / active surface) and `settingsSubmenuItemLabelClassName` on `labelClassName` (`group-data-[active=true]:font-medium` for the bold-on-active label). Both tokens live in `src/renderer/pages/settings/index.tsx`.
-- Provider-style nested lists (`ProviderList`) follow the same shape: `PageHeader` + search field with trailing action + scroll body. They use their own scoped tokens in `ProviderSettings/primitives/classNames.ts` but keep the 200px column convention.
-
-**Right-detail content container (mandatory):**
-
-The right pane of every "simple right-content" settings page (i.e. pages whose right column is one big content area, not its own further-split layout) must use a two-layer wrapper:
-
-| Layer | Class | Purpose |
-|---|---|---|
-| Outer (full-width, scrolling) | `p-6` | Page edge padding — keeps `24px` between the content card and every column edge |
-| Inner (constrained, centered) | `mx-auto w-full max-w-3xl` | Caps content at `768px` and centers it on wide screens |
-
-Use the canonical components in `src/renderer/pages/settings/index.tsx`:
-
-- `SettingsContentColumn` — full-page container that owns its own native scroll (replaces the legacy `SettingContainer` for "simple right-content" pages).
-- `SettingsContentBody` — the same two-layer wrap, but for pages that mount their own `Scrollbar` externally (e.g. `CommonSettings`, `ShortcutSettings`).
-
-This mirrors the model service (Provider Settings) detail column (`providerDetailColumnClasses` in `ProviderSettings/primitives/classNames.ts`), which is the reference implementation.
-
-Do **not**:
-- Use `p-4` or `px-5 py-4` on a settings page's outermost content container — they were the old, divergent paddings and are banned for new pages.
-- Apply `max-w-3xl` directly on a child component to "fix" centering on one page — fix the page container so every page is consistent.
-- Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, Channels, Skills) whose right pane is further subdivided.
-
-When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSettings compact`), the page must NOT add `max-w-3xl` — the drawer width is already constrained and the centered cap would visually mis-align. Branch on the embedding flag and fall back to a plain padded container.
-
-### Spacing System
-
-Use Tailwind's numeric spacing scale, based on the `--spacing` 4px unit. Component code should use utilities such as `p-4`, `gap-6`, and `py-12`; raw CSS should use `calc(var(--spacing) * <multiplier>)`. The UI package does not define a parallel semantic spacing alias scale.
-
-### Common Spacing Patterns
-
-| Context | Tailwind |
-|---------|----------|
-| Inline spacing (icon to text) | `gap-1` to `gap-2` |
-| Component internal padding | `p-2` to `p-4` |
-| Card padding | `p-4` to `p-6` |
-| Section gaps | `gap-6` to `gap-12` |
-| Page section spacing | `py-12` to `py-24` |
-
-### Grid & Container
-
-- Max content widths: Tailwind utilities (`max-w-sm` through `max-w-7xl`)
-- Screen breakpoints: Tailwind defaults (`sm` 640px, `md` 768px, `lg` 1024px, `xl` 1280px, `2xl` 1536px)
-
-### Border Radius Scale
-
-> ⚠️ **Cherry remaps the Tailwind default radius scale.** `rounded-md` resolves to 8px (Tailwind default: 6px), `rounded-lg` to 10px (default: 8px), `rounded-xl` to 14px (default: 12px), and `rounded-3xl` to 22px (default: 24px). When copying components from shadcn examples, Tailwind tutorials, or any third-party Tailwind library, expect a 2–4px visual difference until the radius is consciously chosen against the table below.
-
-> Defined in `tokens/radius.css`. Shadcn consumes `--radius`; generated Tailwind radius variables derive from it.
-
-| Token | Approx. value | Usage |
-|-------|---------------|-------|
-| `rounded-none` | 0 | Square corners; Tailwind utility, not a CSS variable |
-| `var(--radius-xs)` | 2px | Badges, tags |
-| `var(--radius-sm)` | 6px | Chips, small buttons |
-| `var(--radius-md)` | 8px | **Default** — buttons, inputs, dropdowns |
-| `var(--radius-lg)` | 10px | Cards, panels, secondary/emphasis buttons |
-| `var(--radius-xl)` | 14px | Large cards, hero sections |
-| `var(--radius-2xl)` | 18px | Feature cards, prominent containers |
-| `var(--radius-3xl)` | 22px | Dialogs, PageSidePanel, marketing cards, large modals |
-| `var(--radius-4xl)` | 26px | Extra-large feature and presentation surfaces |
-| `rounded-full` | 9999px | Pills, avatars, circular buttons |
-
-## 6. Depth & Elevation
-
-Cherry Studio uses a dual depth system: **surface color layering** for structural hierarchy and **box-shadows** for interactive feedback (hover states, floating elements).
-
-### Surface Color Layers
-
-| Level | Token | Use |
-|-------|-------|-----|
-| Ground (Level 0) | `var(--background)` | Page background |
-| Surface (Level 1) | `var(--card)` | Cards, main panels |
-| Raised (Level 2) | `var(--popover)` | Popovers, menus, dropdowns |
-| Accent (Level 3) | `var(--accent)` | Accent/hover backgrounds, tooltips |
-| Sidebar (Ambient) | `var(--sidebar)` | Sidebar — distinct from main surface |
-| Floating panel | `var(--popover)` + border/shadow utilities | Dropdowns, popovers, transient chrome |
-| Modal scrim | shared Dialog / Drawer / PageSidePanel overlay (`bg-black/50`) | Behind modals, dimmed backdrops |
-
-**Depth Philosophy**: Surface color layering is the primary depth mechanism — `var(--border)` separates same-tone surfaces, and in dark mode progressively lighter neutrals create natural stacking. Shadows are reserved for **interactive feedback** (hover states add a small lift) and **floating elements** (popovers, centered Dialogs, and PageSidePanel use medium-to-heavy lift). The Vaul `Drawer` primitive relies on edge attachment and borders rather than the floating card shell. This keeps the interface feeling flat at rest and responsive on interaction.
-
-## 7. Shadow / Blur / Opacity / Border / Stroke
-
-### Shadow
-
-> Shadow utilities are exposed through the Tailwind theme. Treat them as utility-level design tokens.
-
-**Box shadows (7 levels):**
-
-| Token | Use |
-|-------|-----|
-| `var(--shadow-2xs)` | Subtle dividers, pressed states |
-| `var(--shadow-xs)` | **Button hover** — primary interactive feedback |
-| `var(--shadow-sm)` | Cards, small floating elements |
-| `var(--shadow-md)` | Dropdowns, tooltips |
-| `var(--shadow-lg)` | Large floating panels |
-| `var(--shadow-xl)` | Dialogs, PageSidePanel, full-screen overlays |
-| `var(--shadow-2xl)` | Hero cards, peak emphasis |
-
-### Blur
-
-Use Tailwind blur/backdrop-blur utilities directly when a component intentionally needs blur. There are currently no public `--blur-*` design-token aliases in `@cherrystudio/ui`.
-
-### Opacity
-
-> Do not use opacity to encode foreground semantics.
-
-Foreground variables are solid and must not be weakened with color-opacity modifiers such as
-`text-foreground-tertiary/50`. Choose the correct foreground role instead. Element-level opacity may still be
-used for animation and for existing component-owned disabled treatments that intentionally fade the entire
-control; migrate those controls only when text, icon, border, and background disabled states can be designed
-together. There are no public `--opacity-*` design-token aliases in `@cherrystudio/ui`.
-
-### Border Width
-
-> Use Tailwind border-width utilities and semantic border color tokens.
-
-Use Tailwind border-width utilities (`border`, `border-0`, `border-2`, etc.) with semantic border colors. There are currently no public `--border-width-*` design-token aliases in `@cherrystudio/ui`.
-
-### Stroke Width
-
-Use icon-library defaults unless a component has a documented reason to override SVG `stroke-width`.
-
-## 8. Do's and Don'ts
-
-### Do
-- Use calm, low-saturation chrome — reserve `var(--primary)` for true primary actions/selected states and semantic colors for feedback
-- Apply `var(--radius-md)` as the base button radius, `var(--radius-lg)` where the Button variant explicitly rounds itself, and `var(--radius-md)` for inputs
-- Use `var(--primary)` / neutral strong fills for main CTAs; do not introduce page-local brand hues
-- Let dark mode resolve through semantic surfaces instead of hard-coded dark palette branches
-- Use `var(--muted-foreground)` for secondary readable text
-- Keep `var(--shadow-xs)` only on button variants that already carry the base shadow (`default`, `destructive`)
-- Use `*-hover` tokens or neutral hover classes according to the Button variant definition
-- Use `var(--accent)` fill for outline and ghost button hover states
-- Use `var(--success)`, `var(--warning)`, `var(--info)`, and `var(--error)` for status feedback, toasts, and badges; reserve `var(--destructive)` for dangerous actions
-- Use stable feedback pairs such as `bg-error-subtle text-error-subtle-foreground border-error-border` for richer status surfaces
-- Use `var(--border)`, `var(--border-subtle)`, `var(--border-strong)`, and `var(--border-selected)` for neutral structure and selection instead of opacity-modified border utilities
-- Use the body / heading font aliases at `var(--font-weight-regular)`/`var(--font-weight-medium)` for body and labels, `var(--font-weight-bold)` for page-level emphasis
-- Separate spatial zones (sidebar, main, popover) through surface color layering: `var(--sidebar)` vs `var(--background)` vs `var(--popover)`
-- Use heading size and line-height tokens directly for new headings
-- Use `--chart-1` through `--chart-5` (or their Tailwind utilities) for default categorical data visualization
-- Apply `rounded-full` specifically for pills, avatars, and circular buttons
-- Use `var(--shadow-md)` to `var(--shadow-lg)` for floating elements (popovers, dropdowns, large panels), and `var(--shadow-xl)` for Dialogs or PageSidePanel surfaces that need stronger separation from the dimmed page
-- Use shared overlay/floating primitives first; add real exported tokens before documenting new glass or scrim aliases
-- Keep keyboard focus visible inside component bounds by changing an existing border, background, text treatment,
-  underline, or an explicitly inset indicator
-
-### Don't
-- Don't use shadows for static elevation — reserve shadows for hover feedback and floating elements
-- Don't add outer focus frames (`focus-visible:ring-*` without `ring-inset`, positive focus outline offsets, or
-  focus shadows outside component bounds); use the contained focus treatments defined above
-- Don't use `var(--radius-xs)` or `var(--radius-sm)` for buttons or cards — `var(--radius-md)`/`var(--radius-lg)` are the button radii in the shared primitive
-- Don't use font weights below `var(--font-weight-regular)` for functional UI text — thin/light/extralight weights are display-only
-- Don't apply `var(--destructive)` to non-dangerous actions or error feedback — it is reserved for dangerous user actions such as delete and reset
-- Don't use `var(--success)` / `var(--warning)` / `var(--info)` for decorative purposes — they carry semantic meaning
-- Don't introduce a page-local chromatic brand color — use semantic tokens; for ordinary charts use `--chart-1` through `--chart-5`, and use primitives only for a reviewed palette beyond five series
-- Don't darken the sidebar to match the main background — its distinct surface via `var(--sidebar)` and dedicated palette creates spatial separation
-- Don't use `var(--popover)` background for cards or vice versa — each elevation level has its specific token
-- **Don't hard-code hex / rgba / oklch values** — always reference semantic tokens so light/dark mode works automatically
-- Don't use `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15` — choose a semantic border token instead
-- Don't apply `var(--shadow-xl)` or `var(--shadow-2xl)` to standard UI elements — reserve `var(--shadow-xl)` for Dialogs, PageSidePanel, and full-screen overlays, and `var(--shadow-2xl)` for peak display emphasis
-- Don't author `--color-*` variables; that namespace belongs to the generated Tailwind adapter. Do not invent other token-looking aliases such as `--cs-glass`, `--blur-md`, `--opacity-50`, or `--border-width-2` without adding a reviewed shared contract in the same change
-## 9. Responsive Behavior
-
-### Breakpoints
-| Name | Width | Key Changes |
-|------|-------|-------------|
-| Mobile | <640px | Sidebar hidden, single-column chat, bottom action bar |
-| Tablet | 640–1024px | Collapsible sidebar overlay, condensed spacing |
-| Desktop | 1024–1280px | Persistent sidebar + main content area |
-| Wide | >1280px | Sidebar + main + optional right panel (settings/info) |
-
-### Collapsing Strategy
-- Sidebar: persistent → overlay → hidden (with hamburger toggle)
-- Chat layout: full-width with max-width constraint → stacked mobile view
-- Card grids: multi-column → 2-column → single-column stacked
-- Typography: display sizes scale down ~40% on mobile (48px → 30px)
-- Spacing: section gaps compress from 48–96px to 24–48px on mobile
-- Navigation: horizontal tabs → bottom bar or hamburger menu
-
-## 10. Agent Prompt Guide
-
-### Quick Token Reference
-| Role | Token | Notes |
-|------|-------|-------|
-| Page background | `var(--background)` | Mode-aware page surface |
-| Primary text | `var(--foreground)` | Primary body text |
-| Secondary / muted text | `var(--muted-foreground)` | Descriptions, labels, placeholders, readable secondary content |
-| Tertiary / disabled text | `var(--foreground-tertiary)` / `var(--foreground-disabled)` | Metadata and quiet icons / disabled content |
-| Primary accent | `var(--primary)` | Page-level primary actions, selected states, component accents |
-| Link | `var(--link)` | Clickable text |
-| Destructive action | `var(--destructive)` | Hover: shared variant state; Text: `var(--destructive-foreground)` |
-| Success / Warning / Info | `var(--success)` / `var(--warning)` / `var(--info)` | Single-token semantic accents |
-| Borders | `var(--border)` | Neutral hairline |
-| Quiet / strong / selected borders | `var(--border-subtle)` / `var(--border-strong)` / `var(--border-selected)` | Nested panels / higher-emphasis structure / selection |
-| Card surface | `var(--card)` (text: `--card-foreground`) | Layer above background |
-| Popover / floating | `var(--popover)` (text: `--popover-foreground`) | Layer above card |
-| Overlay / floating chrome | shared Dialog overlay, `bg-popover`, `border-border`, shadow utilities | Modal scrims, popovers, transient panels |
-| Sidebar surface | `var(--sidebar)` | Distinct spatial zone with full sub-palette |
-| Hover backgrounds | `hover:bg-accent` (outline/ghost), shared variant state for secondary/destructive | Choose by variant |
-| Status surfaces | `--{error,success,warning,info}-subtle` with paired foreground and border | Stable feedback contract |
-| Charts | `var(--chart-1)` through `var(--chart-5)` | Default categorical palette |
-| Shadow | `var(--shadow-xs)` for hover, `var(--shadow-md)` for floating | 7-level scale |
-
-### Example Component Prompts
-- "Create a chat interface on `var(--background)`. Messages use `var(--font-size-body-md)` `var(--font-weight-regular)`, `var(--line-height-body-md)`, `var(--foreground)` text. User messages in cards with `var(--secondary)` background and `var(--radius-lg)` border-radius. Primary send button uses the Button `default` variant."
-- "Design a sidebar navigation: `var(--sidebar)` background, 1px right border `var(--sidebar-border)`. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--sidebar-foreground)` text. Active and hover items use `var(--sidebar-accent)` with `var(--sidebar-accent-foreground)` text."
-- "Build a settings card: `var(--card)` background, 1px `var(--border)`, `var(--radius-lg)`. Title in `var(--font-size-heading-sm)` with the matching heading line-height. Description in `var(--font-size-body-sm)` `var(--font-weight-regular)`, `var(--muted-foreground)`. Toggles and inputs at `var(--radius-md)`."
-- "Create a dark-mode conversation view: `var(--background)` page. Message cards on `var(--card)`. Assistant code blocks use the code-rendering component's mono font stack at `var(--font-size-body-sm)` on `var(--popover)` with `var(--radius-md)`. Borders at `var(--border)`."
-- "Design a destructive confirmation dialog with the shared Dialog shell: `bg-card`, `text-card-foreground`, `rounded-3xl`, `border-0`, `p-6`, `gap-4`, `shadow-xl`, default overlay. Footer uses outline cancel + destructive delete."
-- "Build a page-owned settings side panel with `PageSidePanel`: it reads `usePortalContainer()` to scope into the owning route tab/page root when a `PortalContainerProvider` is present, otherwise falls back to the body portal; default fixed and scoped absolute `bg-black/50` backdrop, `top-3 bottom-3 right-3`, `w-100`, `bg-card`, `rounded-3xl`, `shadow-xl`, `title` for the shared `text-base` heading, body `px-6 py-4`, `PageSidePanelSection` groups separated by `gap-8`, and `PageSidePanelItem` rows separated by `gap-5` inside each group. Use only `PageSidePanel` for non-settings history/list/detail drawers, with a task-specific body layout."
-- "Build a modal bottom drawer with the shared `Drawer` primitive: `bg-background`, edge-attached bottom content, `max-h-[80vh]`, `rounded-t-lg`, `border-t`, built-in drag handle, header/footer `p-4`. Do not use the floating `PageSidePanel` shell for this."
-- "Floating toolbar: `bg-popover`, 1px `var(--border)`, `var(--radius-xl)`, `var(--shadow-md)`. Icon buttons inside use the shared `Button` with `variant=\"ghost\"` and `size=\"icon-sm\"`."
-- "Dense row actions: use low-emphasis icon-only controls with muted default text, no static fill, tooltip/`aria-label`, hover-only emphasis, and active tint only when the action has persistent state. Promote this pattern into a shared `IconButton` before reusing it across pages."
-
-### Iteration Guide
-1. Start from semantic tokens — never hard-code hex / oklch / rgba values.
-2. Elevation at rest through surface color layering (`var(--background)` → `var(--card)` → `var(--popover)`); use `var(--shadow-xs)` on hover and `var(--shadow-md)+` for floating elements.
-3. Button hover: follow the shared Button variant definitions; only `default` and `destructive` keep the base `shadow-xs`, while outline/secondary/emphasis/ghost remain flat.
-4. Public icon-only actions use shared `Button` ghost icon sizes first. For dense row-level low-emphasis actions with tone/active/tooltip behavior, promote a shared `IconButton` before duplicating page-local wrappers.
-5. Body / heading font aliases handle UI typography; code-rendering components own mono font stacks.
-6. Keep weights at `var(--font-weight-regular)` / `var(--font-weight-medium)` for UI and `var(--font-weight-bold)` for page-level emphasis.
-7. `var(--radius-md)` for the base Button and inputs, `var(--radius-lg)` where a Button variant explicitly rounds itself, larger (14px+) for cards, `rounded-full` for pills.
-8. Semantic accents: `var(--destructive)` for danger, `var(--success)` for positive, `var(--warning)` for caution, `var(--info)` for informational.
-9. For richer status surfaces use the stable paired contract (e.g. `bg-error-subtle text-error-subtle-foreground border-error-border`).
-10. Charts: use `var(--chart-1)` through `var(--chart-5)` for the default categorical palette.
-11. Overlay/floating surfaces: use the shared Dialog overlay or `bg-popover` + semantic border + shadow utilities. Add real exported tokens before introducing reusable glass/scrim aliases.
-12. New headings: use the `var(--font-size-heading-*)` size tokens with the matching `var(--line-height-heading-*)`.
+This document defines Cherry Studio's product-wide visual direction and the rules for choosing shared design
+semantics. It is intentionally not a component API reference, a copy of Tailwind classes, or a specification for
+individual feature pages.
+
+## Sources of truth
+
+- [Design token system](./packages/ui/docs/design-token-system.md) owns token architecture, namespaces, mappings,
+  and migration rules.
+- [Variable catalog](./packages/ui/docs/variable-catalog.md) owns the current variable inventory and selection
+  order.
+- [`@cherrystudio/ui` components](./packages/ui/src/components) own exact variants, dimensions, interaction states,
+  motion, and accessibility behavior.
+- [Component stories](./packages/ui/stories/components) demonstrate supported component composition and usage.
+- [UI semantic contract](./docs/references/components/ui-semantic-contract.md) owns stable DOM hooks used by Custom CSS,
+  tests, inspectors, and automation.
+
+If this document conflicts with an implementation detail, use the relevant source above and update this document
+only when the product-wide design intent has changed.
+
+## 1. Design direction
+
+Cherry Studio is a content-first AI workspace. The interface should feel calm, precise, and utilitarian so that
+conversation, code, documents, and user-created content remain the visual focus.
+
+The shared direction is:
+
+- **Neutral first:** application chrome is predominantly neutral; color communicates action or meaning.
+- **Semantic color:** use product roles such as primary, destructive, success, warning, and info instead of
+  page-local hues.
+- **Content before decoration:** avoid ornamental containers, gradients, shadows, and color that do not clarify
+  structure or state.
+- **Surface-based hierarchy:** establish depth with background, card, popover, and sidebar surfaces before adding
+  shadows.
+- **Shared behavior:** use `@cherrystudio/ui` primitives and composites instead of recreating their appearance or
+  interaction locally.
+- **Mode independence:** authored UI should work in light and dark modes through semantic tokens, without local
+  palette branches.
+- **Accessible interaction:** focus, disabled, selected, invalid, and loading states must remain perceivable without
+  relying on color alone.
+
+## 2. Documentation ownership
+
+### Global rules belong here
+
+Keep a rule in `DESIGN.md` only when it applies across unrelated product areas and is expected to remain stable as
+individual components evolve. Examples include semantic color usage, depth philosophy, focus visibility, and the
+preference for shared components.
+
+### Component rules stay with components
+
+Exact height, padding, radius, animation timing, portal behavior, and variant styling belong in the component
+implementation. Stories should make supported variants and composition visible. Do not duplicate those values in
+this document or create a parallel component specification that must be synchronized manually.
+
+When a shared component cannot express a required behavior, improve its public API after confirming that the need
+is reusable. Do not establish a second page-local version through documentation.
+
+### Feature pages own their composition
+
+Individual pages choose layouts that fit their tasks. A page-specific column width, toolbar arrangement, card grid,
+or content flow is not a design-system rule. Keep such decisions close to the feature when they need explanation.
+
+Promote a pattern only after it is reused across independent product areas and has a stable shared implementation.
+The reusable component then owns its exact layout; this document may describe only the cross-product principle it
+represents.
+
+## 3. Color and token selection
+
+Use semantic Tailwind utilities in component code and the corresponding public CSS variables in authored CSS. The
+[variable catalog](./packages/ui/docs/variable-catalog.md) is the complete reference.
+
+### Core roles
+
+| Intent | Preferred roles |
+|---|---|
+| Page and work surface | `background`, `background-subtle` |
+| Contained surface | `card`, `card-foreground` |
+| Floating surface | `popover`, `popover-foreground` |
+| Primary and secondary text | `foreground`, `muted-foreground` |
+| Quiet and unavailable content | `foreground-tertiary`, `foreground-disabled` |
+| Primary action or selection | `primary`, `primary-foreground` |
+| Dangerous action | `destructive`, `destructive-foreground` |
+| Feedback | `success`, `warning`, `info`, `error` families |
+| Structure and selection | `border`, `border-subtle`, `border-strong`, `border-selected`, `input`, `ring` |
+| Navigation zone | `sidebar` family |
+| Clickable text | `link` |
+| Categorical data | `chart-1` through `chart-5` |
+
+### Selection rules
+
+1. Use a foreground role for text and icons. Foreground tokens are solid colors; do not weaken their semantics with
+   color-opacity modifiers.
+2. Use semantic neutral roles for borders, subdued fills, hover surfaces, and structural separation.
+3. Use chromatic roles only when the color communicates a stable intent: action, selection, feedback, or data
+   category.
+4. Use the paired subtle foreground and border roles for feedback surfaces, such as
+   `bg-error-subtle text-error-subtle-foreground border-error-border`.
+5. Use `link` for clickable text. Do not treat `primary` as a generic blue or decorative accent.
+6. Use `destructive` for dangerous actions; use the `error` family for error feedback.
+7. Use `chart-1` through `chart-5` for ordinary categorical charts. Primitive color scales require an intentionally
+   reviewed visualization palette.
+
+Do not hard-code hex, `rgb`, `rgba`, or `oklch` values in product UI. Do not declare or consume generated
+`--color-*` variables in authored code. Shared `--cs-*` variables are internal providers, not component-facing
+semantics. Follow the token architecture when adding or changing a public role.
+
+## 4. Typography
+
+Use the shared body and heading font families for functional UI. Code-rendering components own their monospace
+stack locally.
+
+- Regular weight is the default for content.
+- Medium weight establishes navigation and label hierarchy.
+- Bold weight is reserved for strong or page-level emphasis.
+- Use the shared body and heading size/line-height tokens instead of introducing a page-local type scale.
+- Muted, tertiary, and disabled hierarchy comes from foreground roles, not font thinning or opacity.
+
+The canonical values live in `packages/ui/src/styles/tokens/typography.css`; this document does not duplicate the
+scale.
+
+## 5. Surfaces, depth, and shape
+
+Use surface color as the primary depth system:
+
+1. `background` is the ground plane.
+2. `card` contains related content.
+3. `popover` is reserved for transient floating content.
+4. `sidebar` defines a distinct navigation zone.
+
+Borders separate adjacent surfaces when color alone is insufficient. Shadows are for floating elements and
+intentional interaction feedback, not routine static elevation. Use the shared overlay and floating primitives;
+do not invent page-local glass, scrim, or blur tokens.
+
+Use the radius and spacing utilities supplied by the shared Tailwind theme. Let shared components own their shape.
+For custom composition, choose a radius according to scale and density: compact controls use smaller shared radii,
+containers use larger ones, and `rounded-full` is limited to pills, avatars, and circular controls.
+
+## 6. Interaction and accessibility
+
+### Action hierarchy
+
+- Use shared Button variants to express primary, secondary, low-emphasis, and destructive actions.
+- Reserve chromatic primary treatment for the action or selection that truly needs it.
+- Keep utility and row-level actions quiet at rest so content retains emphasis.
+- Icon-only controls require an accessible label and a tooltip when their meaning is not obvious.
+- Dangerous row actions need not remain permanently red; the destructive decision must be clear at confirmation.
+
+### Focus
+
+Keyboard focus must be visible and should reuse a component's existing border, fill, text, underline, or an inset
+indicator. Avoid adding a second frame outside the control.
+
+- Text-entry controls may change their existing border while editing or keyboard-focused.
+- Buttons, menu items, tabs, links, and selectable rows should use their established hover vocabulary for
+  focus-visible feedback.
+- Controls that cannot express focus through an existing surface may use an inset ring or inset shadow.
+- Do not remove focus feedback, and do not use non-inset focus rings, positive outline offsets, or focus shadows
+  that extend beyond the component bounds.
+
+Pointer focus, an open popup, or a pressed control does not automatically justify a theme-colored border.
+Persistent states such as selected, checked, active, and invalid may use a border when it communicates that state.
+
+### State and motion
+
+Prefer the loading, disabled, invalid, selected, and open states already exposed by shared components. Motion should
+explain a state or spatial transition, remain restrained, and respect `prefers-reduced-motion`. Do not introduce
+page-local motion that competes with content or contradicts the shared component behavior.
+
+## 7. Layout and responsive behavior
+
+Use Tailwind's numeric spacing scale and standard breakpoints. Layout should respond to available space and content
+priority rather than following a universal page template.
+
+- Preserve a clear reading order as space narrows.
+- Collapse secondary navigation and utilities before primary content.
+- Avoid nested cards when spacing, a divider, or a surface change communicates grouping sufficiently.
+- Keep touch and pointer targets usable at the supported window sizes.
+- Let feature pages own task-specific grids, columns, panels, and maximum widths.
+
+A repeated layout should become a shared component or composition API. Documentation alone does not make a
+page-specific layout a design-system pattern.
+
+## 8. Review checklist
+
+Before shipping new UI, check that it:
+
+- uses `@cherrystudio/ui` for available primitives and composites;
+- uses semantic tokens without hard-coded colors or private token-looking aliases;
+- preserves light and dark mode behavior;
+- establishes hierarchy through typography, spacing, surfaces, and borders before decoration;
+- has clear hover, focus-visible, disabled, loading, selected, and invalid states where applicable;
+- provides accessible names for icon-only actions;
+- respects reduced motion;
+- keeps page-specific implementation choices out of the global design-system contract.

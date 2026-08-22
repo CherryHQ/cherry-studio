@@ -113,6 +113,8 @@ interface RightPanelRenderContextValue {
 const RightPanelRenderContext = createContext<RightPanelRenderContextValue | null>(null)
 const RightPanelStateContext = createContext<RightPanelState | null>(null)
 const RightPanelActionsContext = createContext<RightPanelControllerActions | null>(null)
+const RightPanelPresentationMaximizedContext = createContext(false)
+const RightPanelComposerElevatedContext = createContext(false)
 
 function resolveRightPanelEntries<TScope>(
   capabilities: readonly RightPanelCapability<TScope>[],
@@ -260,6 +262,9 @@ export function RightPanelProvider<TScope>({
   const reconciledEntry = activeEntry ?? pendingEntry
   const presentationOpen = present && open && Boolean(activeEntry)
   const presentationMaximized = presentationOpen && maximized
+  // The pane keeps covering the centre until its phase ends, so the composer has to stay lifted
+  // past the click that started the restore. `fullWidthActive` lands a commit late, hence the union.
+  const composerElevated = presentationMaximized || fullWidthActive
 
   useLayoutEffect(() => {
     if (!reconciledEntry || reconciledEntry.id === requestedPanelId) return
@@ -384,11 +389,25 @@ export function RightPanelProvider<TScope>({
 
   return (
     <RightPanelActionsContext value={actions}>
-      <RightPanelStateContext value={state}>
-        <RightPanelRenderContext value={renderValue}>{children}</RightPanelRenderContext>
-      </RightPanelStateContext>
+      <RightPanelPresentationMaximizedContext value={presentationMaximized}>
+        <RightPanelComposerElevatedContext value={composerElevated}>
+          <RightPanelStateContext value={state}>
+            <RightPanelRenderContext value={renderValue}>{children}</RightPanelRenderContext>
+          </RightPanelStateContext>
+        </RightPanelComposerElevatedContext>
+      </RightPanelPresentationMaximizedContext>
     </RightPanelActionsContext>
   )
+}
+
+/** Effective maximized presentation shared by shell layout and composer consumers. */
+export function useRightPanelPresentationMaximized(): boolean {
+  return use(RightPanelPresentationMaximizedContext)
+}
+
+/** Whether the composer must paint above the pane — true from the click until the pane settles. */
+export function useRightPanelComposerElevated(): boolean {
+  return use(RightPanelComposerElevatedContext)
 }
 
 export function useRightPanelState(): RightPanelState {

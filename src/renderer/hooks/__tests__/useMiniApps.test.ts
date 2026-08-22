@@ -75,6 +75,13 @@ describe('useMiniApps', () => {
   // === Data Loading ===
 
   describe('data loading', () => {
+    it('keeps the catalog and region detection inactive when no consumer needs mini apps', () => {
+      renderHook(() => useMiniApps({ enabled: false }))
+
+      expect(MockUseDataApi.useQuery).toHaveBeenCalledWith('/mini-apps', { enabled: false })
+      expect(mocks.request).not.toHaveBeenCalled()
+    })
+
     it('should return empty arrays when no data', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
       const { result } = renderHook(() => useMiniApps())
@@ -349,6 +356,42 @@ describe('useMiniApps', () => {
       expect(mockClearWebviewState).toHaveBeenCalledWith('custom-app')
       expect(mockTabs.closeTab).toHaveBeenCalledWith('tab-1')
       expect(mockTabs.closeTab).not.toHaveBeenCalledWith('tab-2')
+    })
+
+    it('should collapse the split pane when the deleted custom miniapp is the one in it', async () => {
+      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [existing])
+      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'custom-app')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.removeCustomMiniApp('custom-app')
+      })
+
+      // The deleted app can never fill the pane again, so a still-open split
+      // just replaces it with a picker the user never asked for.
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
+    })
+
+    it('should keep the split pane when the deleted custom miniapp is not the one in it', async () => {
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
+      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'other-app')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.removeCustomMiniApp('custom-app')
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('other-app')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
     })
 
     it('should remove deleted custom miniapps from sidebar favorites', async () => {

@@ -4,7 +4,12 @@ export const MAX_WEB_SEARCH_INPUTS = 20
 
 export function normalizeWebSearchKeywords(keywords: string[]): string[] {
   // Free-form search terms are valid inputs; URL-only constraints belong to fetchUrls.
-  const normalized = keywords.map((keyword) => keyword.trim()).filter(Boolean)
+  // Guard against non-string elements (e.g. null/undefined from malformed tool calls)
+  // so that .trim() never throws TypeError.
+  const normalized = keywords
+    .filter((keyword): keyword is string => typeof keyword === 'string')
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
 
   if (normalized.length === 0) {
     throw new Error('At least one web search keyword is required')

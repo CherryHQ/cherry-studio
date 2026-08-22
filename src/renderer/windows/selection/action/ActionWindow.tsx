@@ -52,6 +52,15 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   const [showOpacitySlider, setShowOpacitySlider] = useState(false)
   const [opacity, setOpacity] = useState(actionWindowOpacity)
 
+  // A fresh `action` object means a new selection session. Bump during render
+  // (not in an effect) so the remount lands before ActionGeneral sends.
+  const [prevAction, setPrevAction] = useState(action)
+  const [sessionId, setSessionId] = useState(0)
+  if (action !== prevAction) {
+    setPrevAction(action)
+    setSessionId((n) => n + 1)
+  }
+
   const shouldCloseWhenBlur = useRef(false)
   const contentElementRef = useRef<HTMLDivElement>(null)
   const isAutoScrollEnabled = useRef(true)
@@ -200,6 +209,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
 
   return (
     <div
+      data-ui="selection.action"
       className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-[0_0_2px_var(--border)]"
       style={{ opacity: opacity / 100 }}>
       <div
@@ -268,7 +278,9 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           ref={contentElementRef}
           className="flex max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
           {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
-          {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
+          {action.id != 'translate' && (
+            <ActionGeneral key={sessionId} action={action} scrollToBottom={handleScrollToBottom} />
+          )}
         </div>
       </div>
     </div>

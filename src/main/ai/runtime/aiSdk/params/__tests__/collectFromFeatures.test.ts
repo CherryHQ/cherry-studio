@@ -1,3 +1,4 @@
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { describe, expect, it, vi } from 'vitest'
 
 import { collectFromFeatures } from '../collectFromFeatures'
@@ -19,7 +20,9 @@ function makeScope(): RequestScope {
     reasoningProfile: { format: 'none', wire: { disabled: true } },
     reasoning: { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: { requestId: 'req-1', abortSignal: new AbortController().signal },
-    mcpToolIds: new Set()
+    mcpToolIds: new Set(),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 

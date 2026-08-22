@@ -2,6 +2,8 @@ import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { NotesEditorLoading } from '../NotesEditor'
+
 const mocks = vi.hoisted(() => {
   const noteNode = {
     id: '/notes/note.md',
@@ -150,7 +152,7 @@ vi.mock('@renderer/components/popups/ContentPopup', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: mocks.ipcRequest,
-    on: vi.fn()
+    on: vi.fn(() => vi.fn())
   }
 }))
 
@@ -246,7 +248,8 @@ vi.mock('@renderer/services/NotesService', () => ({
   uploadNotes: vi.fn()
 }))
 
-vi.mock('../NotesEditor', async () => {
+vi.mock('../NotesEditor', async (importOriginal) => {
+  const original = await importOriginal<{ NotesEditorLoading: typeof NotesEditorLoading }>()
   const React = await import('react')
 
   function MockNotesEditor({ activeNodeId, codeEditorRef, currentContent, editorRef, onMarkdownChange }: any) {
@@ -289,9 +292,8 @@ vi.mock('../NotesEditor', async () => {
     })
   }
 
-  return {
-    default: MockNotesEditor
-  }
+  // Keep the real loading surface: the page's ready-gate contract is asserted against it.
+  return { ...original, default: MockNotesEditor }
 })
 
 vi.mock('../NotesSettings', () => ({
@@ -365,10 +367,6 @@ describe('NotesPage print payloads', () => {
         file: {
           write: vi.fn().mockResolvedValue(undefined),
           listDirectory: vi.fn().mockResolvedValue([])
-        },
-        tree: {
-          onMutation: vi.fn(() => vi.fn()),
-          dispose: vi.fn().mockResolvedValue(undefined)
         }
       }
     })
@@ -445,6 +443,26 @@ describe('NotesPage print payloads', () => {
       expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
     })
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('does not retain stale rich editor content when the ready draft becomes empty', async () => {
+    mocks.settings.defaultEditMode = 'preview'
+    mocks.mountedEditor = 'rich'
+    mocks.sessionDraft = 'previous note content'
+    mocks.richEditorContent = mocks.sessionDraft
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.sessionDraft = ''
+    rerender(<NotesPage />)
+    await waitFor(() => expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', ''))
+
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+    fireEvent.click(screen.getByRole('button', { name: 'notes.exportToPDF' }))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
+    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('print.export_pdf', expect.anything())
   })
 
   it('routes the app.print command through the current source editor content', async () => {

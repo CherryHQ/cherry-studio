@@ -5,7 +5,9 @@ import { UserAvatar } from './primitives'
 import { SidebarTooltip } from './Tooltip'
 import type { SidebarUser, SidebarVisibleLayout } from './types'
 
-export type SidebarFooterActions = React.ReactNode | ((layout: SidebarVisibleLayout) => React.ReactNode)
+export type SidebarFooterActions =
+  | React.ReactNode
+  | ((layout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => React.ReactNode)
 
 export interface SidebarFooterProps {
   layout: SidebarVisibleLayout
@@ -13,16 +15,17 @@ export interface SidebarFooterProps {
   actions?: SidebarFooterActions
   extensionsLabel?: string
   onExtensionsClick?: () => void
+  onOverlayOpenChange?: (open: boolean) => void
 }
 
-export function SidebarFooter({ layout, actions, ...props }: SidebarFooterProps) {
-  const resolvedActions = typeof actions === 'function' ? actions(layout) : actions
+export function SidebarFooter({ layout, actions, onOverlayOpenChange, ...props }: SidebarFooterProps) {
+  const resolvedActions = typeof actions === 'function' ? actions(layout, onOverlayOpenChange) : actions
 
   if (layout === 'icon') return <IconFooter actions={resolvedActions} {...props} />
   return <FullFooter actions={resolvedActions} {...props} />
 }
 
-type FooterProps = Omit<SidebarFooterProps, 'layout' | 'actions'> & {
+type FooterProps = Omit<SidebarFooterProps, 'layout' | 'actions' | 'onOverlayOpenChange'> & {
   actions?: React.ReactNode
 }
 

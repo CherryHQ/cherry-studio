@@ -1,6 +1,8 @@
 import { cn } from '@renderer/utils/style'
 import { type ComponentPropsWithoutRef, type ReactNode, useEffect, useState } from 'react'
 
+import { useScrollAnchor } from '../../blocks/useScrollAnchor'
+
 export interface ToolDisclosureItem {
   key: string
   label: ReactNode
@@ -40,20 +42,28 @@ export function ToolDisclosure({
   const isLight = variant === 'light'
   const [internalActiveKeys, setInternalActiveKeys] = useState<string[]>(defaultActiveKey ?? [])
   const currentActiveKeys = activeKey ?? internalActiveKeys
+  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const toggleKey = (key: string) => {
-    const nextActiveKeys = currentActiveKeys.includes(key)
-      ? currentActiveKeys.filter((activeKey) => activeKey !== key)
-      : [...currentActiveKeys, key]
+    const isOpening = !currentActiveKeys.includes(key)
+    const nextActiveKeys = isOpening
+      ? [...currentActiveKeys, key]
+      : currentActiveKeys.filter((activeKey) => activeKey !== key)
 
-    if (activeKey === undefined) {
-      setInternalActiveKeys(nextActiveKeys)
-    }
-    onActiveKeyChange?.(nextActiveKeys)
+    withScrollAnchor(
+      () => {
+        if (activeKey === undefined) {
+          setInternalActiveKeys(nextActiveKeys)
+        }
+        onActiveKeyChange?.(nextActiveKeys)
+      },
+      { enterReadingMode: isOpening }
+    )
   }
 
   return (
     <div
+      ref={anchorRef}
       className={cn(
         isLight
           ? 'w-full overflow-hidden bg-transparent'

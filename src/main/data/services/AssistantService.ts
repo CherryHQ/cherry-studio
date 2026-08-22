@@ -16,6 +16,7 @@ import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/e
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   CreateAssistantDto,
+  DuplicateAssistantDto,
   ImportAssistantDto,
   ListAssistantsQuery,
   UpdateAssistantDto
@@ -28,6 +29,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'dri
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
+import { promptService } from './PromptService'
 import { topicService } from './TopicService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -162,7 +164,10 @@ export class AssistantDataService {
     }
   }
 
-  private getRelationIdsByAssistantIds(assistantIds: string[]): Map<string, AssistantRelationIds> {
+  private getRelationIdsByAssistantIds(
+    assistantIds: string[],
+    db: Pick<DbType, 'select'> = this.db
+  ): Map<string, AssistantRelationIds> {
     const relationMap = new Map<string, AssistantRelationIds>()
 
     if (assistantIds.length === 0) {
@@ -173,13 +178,13 @@ export class AssistantDataService {
       relationMap.set(assistantId, createEmptyRelations())
     }
 
-    const mcpServerRows = this.db
+    const mcpServerRows = db
       .select({ assistantId: assistantMcpServerTable.assistantId, mcpServerId: assistantMcpServerTable.mcpServerId })
       .from(assistantMcpServerTable)
       .where(inArray(assistantMcpServerTable.assistantId, assistantIds))
       .orderBy(asc(assistantMcpServerTable.assistantId), asc(assistantMcpServerTable.createdAt))
       .all()
-    const knowledgeBaseRows = this.db
+    const knowledgeBaseRows = db
       .select({
         assistantId: assistantKnowledgeBaseTable.assistantId,
         knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId
@@ -402,6 +407,40 @@ export class AssistantDataService {
     )
   }
 
+  duplicate(id: string, dto: DuplicateAssistantDto): Assistant {
+    this.validateName(dto.name)
+
+    const {
+      assistant: row,
+      modelName,
+      relations,
+      clonedPromptIds
+    } = application.get('DbService').withWriteTx((tx) => {
+      const { assistant: source } = this.getActiveRowWithModelNameById(id, tx)
+      const relations = this.getRelationIdsByAssistantIds([id], tx).get(id) ?? createEmptyRelations()
+      const created = this.createTx(tx, {
+        name: dto.name,
+        prompt: source.prompt,
+        emoji: source.emoji,
+        description: source.description,
+        settings: source.settings,
+        modelId: source.modelId as UniqueModelId | null,
+        groupId: source.groupId,
+        ...relations
+      })
+      const clonedPromptIds = promptService.cloneBindingsForTargetTx(
+        tx,
+        { type: 'assistant', id },
+        { type: 'assistant', id: created.assistant.id }
+      )
+      return { ...created, relations, clonedPromptIds }
+    })
+
+    logger.info('Duplicated assistant', { id: row.id, sourceId: id })
+    if (clonedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
+    return rowToAssistant(row, relations, modelName)
+  }
+
   /**
    * Import one legacy assistant. Exact-name group resolution/creation and the
    * assistant insert share one immediate write transaction, preventing stale
@@ -409,17 +448,28 @@ export class AssistantDataService {
    */
   createFromImport(dto: ImportAssistantDto): Assistant {
     this.validateName(dto.name)
-    const { groupName, ...assistantDto } = dto
+    const { groupName, regularPhrases = [], ...assistantDto } = dto
 
-    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => {
+    const {
+      assistant: row,
+      modelName,
+      importedPromptIds
+    } = application.get('DbService').withWriteTx((tx) => {
       const group = groupName ? groupService.findOrCreateByNameTx(tx, 'assistant', groupName) : null
-      return this.createTx(tx, {
+      const created = this.createTx(tx, {
         ...assistantDto,
         ...(group ? { groupId: group.id } : {})
       })
+      const importedPromptIds = promptService.createRestrictedForTargetTx(
+        tx,
+        { type: 'assistant', id: created.assistant.id },
+        regularPhrases
+      )
+      return { ...created, importedPromptIds }
     })
 
     logger.info('Imported assistant', { id: row.id, name: row.name })
+    if (importedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
 
     return rowToAssistant(row, createEmptyRelations(), modelName)
   }
@@ -567,8 +617,11 @@ export class AssistantDataService {
     if (!deleted) {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
+    topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership')
+    pinService.notifyPurged()
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    promptService.notifyTargetBindingsChanged()
     return { deleted, deletedTopicIds }
   }
 
@@ -583,6 +636,7 @@ export class AssistantDataService {
     if (!row) return false
 
     pinService.purgeForEntityTx(tx, 'assistant', id)
+    promptService.purgeForTargetTx(tx, 'assistant', id)
 
     return true
   }

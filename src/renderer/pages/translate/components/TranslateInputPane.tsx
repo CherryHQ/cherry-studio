@@ -70,6 +70,7 @@ const TranslateInputPane = ({
 
   return (
     <div
+      data-ui="translate.input"
       className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}

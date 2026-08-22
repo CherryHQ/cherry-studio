@@ -1,6 +1,6 @@
 import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
 import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
-import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
@@ -131,6 +131,23 @@ describe('useModels', () => {
 
     expect(result.current.refetch).toBe(mockRefetch)
   })
+
+  it('revalidates mounted model lists after registry metadata changes', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockUseQuery.mockReturnValue({
+      data: mockModelList,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch,
+      mutate: vi.fn()
+    })
+    renderHook(() => useModels())
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/models', kind: 'projection' }])
+
+    expect(refetch).toHaveBeenCalledOnce()
+  })
 })
 
 describe('useModelById', () => {
@@ -154,6 +171,23 @@ describe('useModelById', () => {
       enabled: false,
       swrOptions: { keepPreviousData: false }
     })
+  })
+
+  it('revalidates a mounted model after registry enrichment changes', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockUseQuery.mockReturnValue({
+      data: mockModel1,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch,
+      mutate: vi.fn()
+    })
+    renderHook(() => useModelById('openai::gpt-4o'))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/models/:uniqueModelId*' }])
+
+    expect(refetch).toHaveBeenCalledOnce()
   })
 })
 
@@ -576,6 +610,21 @@ describe('useDefaultModel', () => {
       refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
+  })
+
+  it('keeps every model entity query inactive when its owner is closed', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openai::dall-e-3')
+
+    renderHook(() => useDefaultModel({ enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledTimes(4)
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 
   it('persists the picked painting model id to feature.paintings.default_model_id', async () => {

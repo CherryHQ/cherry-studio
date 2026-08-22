@@ -1,3 +1,13 @@
+---
+description: Lifecycle service that acquires third-party CLI binaries through mise, with tool registry, snapshots, and IPC
+sources:
+  - src/main/services/binaryManager/BinaryManager.ts
+  - src/main/services/binaryManager/pythonRuntime.ts
+  - src/shared/data/presets/binaryTools.ts
+  - src/main/ipc/handlers/binary.ts
+  - scripts/download-binaries.js
+---
+
 # BinaryManager Reference
 
 `BinaryManager` is the lifecycle service that acquires and manages third-party CLI binaries through [mise](https://mise.jdx.dev). It owns the custom tool registry and the filesystem/process orchestration around mise; domain services own execution, configuration, and health logic.
@@ -29,13 +39,13 @@ Backup and restore transport `feature.binary.tools` as portable custom definitio
 `getToolSnapshots(names)` is the one availability surface for renderer and main consumers. Each `BinaryToolSnapshot` combines four independent dimensions:
 
 - `definition`: the user-added `CustomToolDefinition` backing this name; absent for a fixed tool.
-- `application`: the exact-backend-application fact (`applied` / `broken` / `absent` / `conflict` / `unknown`) — whether the exact managed recipe is applied through mise, computed independently of `availability`. Only an `active: true` mise entry whose executable shim and `mise which` target are both runnable can be `applied`; installed but inactive entries are `broken`, and their shim contributes mise availability only when the same target check passes.
+- `application`: the exact-backend-application fact (`applied` / `broken` / `absent` / `conflict` / `unknown`) — whether the exact managed recipe is applied through mise, computed independently of `availability`. Only an `active: true` mise entry whose executable shim and `mise which` target are both runnable can be `applied`; installed but inactive entries are `broken`, and their shim contributes mise availability only when the same target check passes. A tool name is not always an executable — `core:rust` exposes `rustc`/`cargo` and no `rust` — so a recipe without an eponymous shim qualifies through a concrete executable `mise bin-paths --json` reports for it, and only when that executable clears the same bar: a shim that passes the platform-appropriate access check whose target `mise which --tool` still resolves for this recipe.
 - `availability`: current `mise`, `bundled`, `system`, or `none` fact, including an executable path when available.
 - `operation`: optional current install/remove state.
 
 The returned record is intentionally a superset of the requested names. It also includes custom registry entries, active operation entries, and discovered `node`/`python` runtime dependencies from mise. Candidate recipes come from the fixed catalog and the custom registry only — an operation-only name carries no recipe and so omits its `application` fact. This lets a newly mounted settings window render a complete management view.
 
-A snapshot obtains live mise data with one `mise ls --json` query and reports a mise executable only after its shim passes the platform-appropriate access check and `mise which` resolves an accessible target. System discovery uses the raw login-shell environment so Cherry's directories and `MISE_*` settings cannot make a Cherry executable look like a system executable.
+A snapshot obtains live mise data with one `mise ls --json` query and reports a mise executable only after its shim passes the platform-appropriate access check and `mise which` resolves an accessible target; the per-recipe `mise bin-paths --json` fallback above runs only for an installed tool that has no shim of its own. Post-install validation, prune verification, and snapshot derivation share that one runnable proof; they differ only in where the active install entry comes from (a per-recipe `mise ls` for the former two, the batched listing for the latter). System discovery uses the raw login-shell environment so Cherry's directories and `MISE_*` settings cannot make a Cherry executable look like a system executable.
 
 Snapshots are weakly consistent by design: they do not wait on the mutation mutex. The custom registry, operation cache, mise output, and filesystem may change while a snapshot is assembled. Consumers must treat a snapshot as a display/execution decision for that moment, refresh on `binary.availability_changed`, and drive update/uninstall/repair from `application`, never from `availability` alone.
 
@@ -66,13 +76,21 @@ Install and remove mutations are serialized with the custom registry and mise pr
 
 There are two install routes. `installByName({ name, targetVersion? })` resolves the code-owned fixed recipe or the persisted custom definition and applies it against the live `application` fact — it never writes Preference. An already-applied tool is a no-op (or a one-shot version update when a target is given); an externally satisfied (bundled/system) tool is a logged no-op so a race converges; a `conflict`/`unknown` state rejects without mutating; a backend failure records a failed operation. `addCustomTool(definition)` is the only route that accepts an arbitrary recipe: it validates grammar and collisions, then persists the definition to the registry **before** any backend work, so the tool stays defined and retry-able even if the install fails. An already-applied tool short-circuits only when its active version provably satisfies `requestedVersion` (or none was requested); a mismatched or unprovable version runs the targeted installation. Neither route ever rewrites the persisted definition with a resolved/installed version.
 
+After a one-shot version update is installed and proven runnable, BinaryManager runs a tool-filtered `mise prune <tool>` to remove older versions that are no longer referenced by mise configuration. It then reshims and verifies the active executable again. A prune command failure is logged without turning the already-successful update into a failed install; fresh installs and name-only repair operations do not run this cleanup.
+
 Both publish `installing` before waiting for the global mutation lock and clear or fail the operation under it. A failed operation carries `{ status, action, error }` plus, for a failed one-shot update, the `targetVersion` it was applying — so Retry repeats the same targeted update instead of degrading to a name-only no-op. It never carries a recipe, because the recipe is always re-resolvable from the fixed catalog or the custom registry.
 
 Removal publishes `removing` and chooses its cleanup path from the live `application` fact (never the persisted definition). An absent fixed tool is an idempotent success; an absent custom tool drops only its definition. For an applied or broken exact recipe, BinaryManager removes the mise tool, reshims, verifies absence, and only then drops a custom definition — a fixed tool keeps its catalog identity and writes no Preference. `definitionOnly` drops just a custom definition without touching the backend. A blocked cleanup returns a typed `cleanup_blocked` result and retains the definition, so the UI cannot accidentally replace a removal failure with an install retry.
 
 Runtime dependencies have one extra rule. If an existing `node` or `python` shim satisfies the requested version, an install adopts it at its observed version rather than reinstalling. A version mismatch runs mise installation instead. This avoids silently replacing a usable runtime.
 
-Removing a runtime is guarded symmetrically. Under the mutation lock, removal of a `node` runtime is rejected while any installed `npm:` tool remains, and a `python` runtime while any installed `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph.
+Removing a runtime is guarded symmetrically. Under the mutation lock, removal of a `node` runtime is rejected while any installed `npm:` tool remains, and a `python` runtime while any installed `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph. The `pipx` half of that guard now covers only tools an earlier Cherry version installed: their virtual environments were built against mise's Python and still bind to it, while a tool installed since gets the Cherry-provisioned interpreter below and does not.
+
+### Python for the pipx backend
+
+Python is the one runtime BinaryManager does not ask mise for. mise installs Python from GitHub releases, which is unreachable from mainland China, and naming a Python runtime in `mise use` is what triggers that download — so `pythonRuntime.ts` provisions the interpreter with the bundled `uv` into `feature.binary.data.uv_python`, and `mise use` is given the `pipx:` tool alone. `UV_PYTHON` carries the interpreter into mise's pipx backend, which shells out to uv. In China the archive comes from npmmirror's `python-build-standalone` mirror first, the official source second; uv verifies both against its built-in catalog's checksums. Provisioning first asks `uv python find` for an interpreter and spawns it with `--version` — a half-written download is otherwise indistinguishable from a working one. Every install then passes `--reinstall` unconditionally: a plain `uv python install` treats any version uv still lists as already satisfied, and `uv python find` reports an interpreter it cannot inspect exactly as it reports an absent one, so there is no state in which the flag can be skipped safely. On an empty install directory it simply downloads.
+
+After a successful `pipx:` install, BinaryManager drops the global `python` selection with `mise unuse -g --no-prune python`: earlier versions wrote that entry for themselves and leaving it behind keeps mise reporting a runtime it no longer owns as active. `--no-prune` is required, not cosmetic — plain `mise unuse` uninstalls the version as well, and a `pipx:` tool installed by an earlier version has a `pyvenv.cfg` pointing straight into that install directory. The step is skipped when the user added Python as a custom tool, since that selection is theirs, and a failure is logged rather than failing an install that already succeeded.
 
 ### Failure outcomes
 
@@ -124,7 +142,15 @@ For a built-in Dependency settings preset, add an entry to `PRESETS_BINARY_TOOLS
 
 For a Code CLI, add its executable/specification to the Code CLI preset source. `getToolSnapshots()` already includes those candidates, so no BinaryManager adapter is needed.
 
-To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
+To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/binaryManager/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
+
+`scripts/download-binaries.js` fills `resources/binaries/<platform>-<arch>/`, which is what the app extracts from at boot. During packaging (`before-pack.js` passes `--packaging`) it downloads there directly.
+
+A dev run instead downloads into a cache shared by every worktree of the checkout, at `<git-common-dir>/cherry-binaries/<platform>-<arch>/<tool>/<version>/`, and hard-links from it into `resources/binaries/` — so a second worktree costs links rather than a repeat download, and the runtime still reads the one path it always did. The version is part of the cache path, so two worktrees on branches with different tool versions each keep their own copy instead of overwriting each other. Version markers live only in the bundle, written per worktree; the cache holds binaries alone.
+
+Downloads stage under `.staging-<checkout-id>/` and are renamed into place only after their checksum passes, which keeps concurrent worktrees off each other's files and lets an interrupted transfer resume on the next run. Cache-internal entries (`.staging-*`, `.retired-*`) are never mirrored into a worktree, and `verifyBundledBinaries` refuses to package a bundle containing any.
+
+The cache reclaims itself: a version whose files are hard-linked into some worktree has a link count above one, so anything left at one link and untouched for two weeks is deleted at the end of a run. The sweep covers every platform in the cache, not only the one being built, since running the script for another platform leaves a tree nothing else would visit. Deleting `<git-common-dir>/cherry-binaries/` by hand is always safe — the next run re-downloads what it needs, and `git clean` does not reach inside `.git/`.
 
 ## Consuming a tool
 

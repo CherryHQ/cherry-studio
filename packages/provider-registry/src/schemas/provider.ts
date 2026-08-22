@@ -5,48 +5,90 @@
 
 import * as z from 'zod'
 
+import { VENDOR_PATTERNS, type VendorKey } from '../patterns/vendor-patterns'
 import { MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
-import { ENDPOINT_TYPE, type EndpointType, objectValues } from './enums'
+import { ENDPOINT_TYPE, type EndpointType, objectValues, SERVER_TOOL, SERVER_TOOL_MODEL_SCOPE } from './enums'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// API Features
+// Endpoint dialect
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/** API feature flags controlling request construction at the SDK level */
-export const ApiFeaturesSchema = z.object({
-  // --- Request format flags ---
-
-  /** Whether the provider supports array-formatted content in messages */
-  arrayContent: z.boolean().default(true),
-  /** Whether the provider supports stream_options for usage data */
-  streamOptions: z.boolean().default(true),
-
-  // --- Provider-specific parameter flags ---
-
-  /** Whether the provider supports the 'developer' role (OpenAI-specific) */
-  developerRole: z.boolean().default(false),
-  /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
-  serviceTier: z.boolean().default(false),
-  /** Whether the provider supports verbosity settings (OpenAI-specific) */
-  verbosity: z.boolean().default(false),
-
-  // --- Response feature flags ---
-
-  /** Whether the provider returns the actual billed cost in its usage response */
-  reportsActualCost: z.boolean().default(false)
-})
 
 /**
  * Provider-owned transport used to request faster processing.
  *
  * Model availability remains a provider-model concern; this only describes
- * how the provider carries an enabled Fast request.
+ * how the provider carries an enabled Fast request. `openai-priority` means the
+ * `serviceTier` provider option on the OpenAI namespace — the tier *value* is
+ * vendor-specific and travels in `fastMode.serviceTier` (OpenAI's `priority`,
+ * Ark's `fast`), so a new vendor never has to expand this enum: enum expansion
+ * is a breaking wire change, an optional field is not.
  */
 export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code'])
+
+export const ServiceTierSelectionSchema = z.enum(['standard', 'auto', 'fast', 'flex'])
+
+export const ServiceTierOptionsSchema = z
+  .array(ServiceTierSelectionSchema)
+  .min(1)
+  .refine((options) => new Set(options).size === options.length, {
+    message: 'service tier options must be unique'
+  })
+  .refine((options) => options.includes('standard'), {
+    message: 'service tier options must include standard'
+  })
+
+export const ServiceTierDeliverySchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('provider-option'), key: z.string().min(1) }),
+  z.object({ type: z.literal('request-body'), key: z.string().min(1) })
+])
+
+export const ServiceTierRequestControlSchema = z
+  .object({
+    default: ServiceTierSelectionSchema,
+    options: ServiceTierOptionsSchema,
+    wire: z.object({
+      delivery: ServiceTierDeliverySchema,
+      values: z.partialRecord(ServiceTierSelectionSchema, z.string().min(1))
+    })
+  })
+  .superRefine((control, context) => {
+    if (!control.options.includes(control.default)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'service tier default must be one of its options',
+        path: ['default']
+      })
+    }
+    for (const option of control.options) {
+      if (!control.wire.values[option]) {
+        context.addIssue({
+          code: 'custom',
+          message: `service tier option '${option}' must have a wire value`,
+          path: ['wire', 'values', option]
+        })
+      }
+    }
+  })
+
+/** A provider-native tool plus the scope of models on which the host serves it. */
+export const ServerToolConfigSchema = z.object({
+  id: z.enum(objectValues(SERVER_TOOL)),
+  modelScope: z.enum(objectValues(SERVER_TOOL_MODEL_SCOPE)).default(SERVER_TOOL_MODEL_SCOPE.MODEL_DEPENDENT),
+  /** Endpoint protocols on which the host serves the tool. Absent ⇒ all configured endpoints. */
+  endpointTypes: z.array(EndpointTypeSchema).optional(),
+  /**
+   * Vendor families the host actually serves the tool for, when narrower than
+   * the tool's model eligibility (e.g. Vertex url-context is Gemini-only: the
+   * vertex-anthropic SDK exposes no webFetch tool). Absent ⇒ no narrowing.
+   */
+  vendors: z.array(z.enum(Object.keys(VENDOR_PATTERNS) as [VendorKey, ...VendorKey[]])).optional()
+})
+
+export type ServerToolConfig = z.infer<typeof ServerToolConfigSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Reasoning Format
@@ -93,6 +135,20 @@ export const ProviderWebsiteSchema = z.object({
   })
 })
 
+/**
+ * How a host deviates from one endpoint's dialect. These are properties of the
+ * protocol, not of the vendor: a provider serving both chat-completions and
+ * Responses may answer differently for each.
+ */
+export const EndpointDialectSchema = z.object({
+  /** Accepts chat-completions `stream_options` for usage data. Absent ⇒ true. */
+  streamOptions: z.boolean().optional(),
+  /** Accepts messages with `role: "developer"`. Absent ⇒ false. */
+  developerRole: z.boolean().optional(),
+  /** Accepts OpenAI Responses `reasoning.summary`. Absent ⇒ use the registry wire. */
+  reasoningSummary: z.boolean().optional()
+})
+
 /** Per-endpoint-type configuration in registry */
 export const RegistryEndpointConfigSchema = z.object({
   /** Base URL for this endpoint type's API */
@@ -117,7 +173,15 @@ export const RegistryEndpointConfigSchema = z.object({
    * registered in `appProviderIds`. Resolvers should prefer this over
    * heuristic id/baseUrl inference when present.
    */
-  adapterFamily: z.string().optional()
+  adapterFamily: z.string().optional(),
+  /** Dialect deviations of this host's implementation of the endpoint. */
+  dialect: EndpointDialectSchema.optional(),
+  /** User-selectable request controls supported by this endpoint. */
+  requestControls: z
+    .object({
+      serviceTier: ServiceTierRequestControlSchema.optional()
+    })
+    .optional()
 })
 
 export const ProviderConfigSchema = z
@@ -171,8 +235,10 @@ export const ProviderConfigSchema = z
      * local provider still needs its baseUrl input. Defaults false.
      */
     authOptional: z.boolean().default(false),
-    /** API feature flags controlling request construction */
-    apiFeatures: ApiFeaturesSchema.optional(),
+    /** Provider-native (server-executed) built-in tools served by this host. */
+    serverTools: z.array(ServerToolConfigSchema).default([]),
+    /** Whether usage responses carry the actual billed amount. */
+    reportsActualCost: z.boolean().default(false),
     /**
      * Registry-owned currency for provider-reported costs whose wire payload
      * carries an amount but no currency. Absent means the amount stays
@@ -180,7 +246,7 @@ export const ProviderConfigSchema = z
      */
     reportedCostCurrency: ZodCurrencySchema,
     /** Provider-owned Fast request transport. Effective support is declared per provider-model pair. */
-    fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
+    fastMode: z.object({ transport: FastModeTransportSchema, serviceTier: z.string().optional() }).optional(),
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })
@@ -202,8 +268,12 @@ export const ProviderListSchema = z.object({
 })
 
 export { ENDPOINT_TYPE } from './enums'
-export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
 export type ProviderReasoningFormat = z.infer<typeof ProviderReasoningFormatSchema>
+export type EndpointDialect = z.infer<typeof EndpointDialectSchema>
+export type ServiceTierSelection = z.infer<typeof ServiceTierSelectionSchema>
+export type ServiceTierOptions = z.infer<typeof ServiceTierOptionsSchema>
+export type ServiceTierDelivery = z.infer<typeof ServiceTierDeliverySchema>
+export type ServiceTierRequestControl = z.infer<typeof ServiceTierRequestControlSchema>
 export type RegistryEndpointConfig = z.infer<typeof RegistryEndpointConfigSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>

@@ -77,8 +77,8 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
       <ModelListSyncDrawer
         open={pullReconcile.pullReconcileDrawerOpen}
         provider={pullReconcile.provider}
-        allModels={[...pullReconcile.allModels]}
-        localModels={[...pullReconcile.localModels]}
+        allModels={pullReconcile.allModels}
+        localModels={pullReconcile.localModels}
         removableModelIds={pullReconcile.removableModelIds}
         defaultModelIds={pullReconcile.defaultModelIds}
         isLoading={pullReconcile.isLoadingModels}

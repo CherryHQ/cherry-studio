@@ -63,7 +63,9 @@ export function FileSidebar({
   }
 
   return (
-    <aside className="flex w-(--settings-width) min-w-(--settings-width) shrink-0 select-none flex-col border-border border-r-[0.5px]">
+    <aside
+      data-ui="files.navigation"
+      className="flex w-(--settings-width) min-w-(--settings-width) shrink-0 select-none flex-col border-border border-r-[0.5px]">
       <PageHeader title={t('files.title')} />
       <Scrollbar className="min-h-0 flex-1">
         <MenuList className="gap-0.5 px-2.5 pb-2.5">

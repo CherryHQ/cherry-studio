@@ -147,8 +147,9 @@ async function settleAndInvalidate(
   return fulfilled.map((r) => r.value)
 }
 
-export const useMiniApps = () => {
-  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps')
+export const useMiniApps = (options: { enabled?: boolean } = {}) => {
+  const queryEnabled = options.enabled ?? true
+  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
   const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
 
   // Partition by status in single pass (js-combine-iterations)
@@ -179,7 +180,7 @@ export const useMiniApps = () => {
 
   // Auto-detect region once per session
   useEffect(() => {
-    if (miniAppRegionSetting !== 'auto' || detectedRegion) return
+    if (!queryEnabled || miniAppRegionSetting !== 'auto' || detectedRegion) return
     let cancelled = false
     detectUserRegion()
       .then((region) => {
@@ -197,7 +198,7 @@ export const useMiniApps = () => {
     return () => {
       cancelled = true
     }
-  }, [miniAppRegionSetting, detectedRegion, setDetectedRegion])
+  }, [detectedRegion, miniAppRegionSetting, queryEnabled, setDetectedRegion])
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
@@ -218,6 +219,8 @@ export const useMiniApps = () => {
   const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
   openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
+  const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
@@ -369,6 +372,13 @@ export const useMiniApps = () => {
         setMiniAppShow(false)
       }
 
+      // The split pane's app is gone; leaving the pane open would replace it
+      // with a picker the user never asked for.
+      if (splitMiniAppId === appId) {
+        setSplitMiniAppId('')
+        setSplitOpen(false)
+      }
+
       clearWebviewState(appId)
 
       for (const tab of tabsContext?.tabs ?? []) {
@@ -381,8 +391,11 @@ export const useMiniApps = () => {
     },
     [
       currentMiniAppId,
+      splitMiniAppId,
       openedOneOffMiniApp,
       setCurrentMiniAppId,
+      setSplitMiniAppId,
+      setSplitOpen,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
@@ -500,10 +513,14 @@ export const useMiniApps = () => {
     pinned: pinnedApps,
     openedKeepAliveMiniApps,
     currentMiniAppId,
+    splitOpen,
+    splitMiniAppId,
     miniAppShow,
     openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId,
+    setSplitOpen,
+    setSplitMiniAppId,
     setMiniAppShow,
     setOpenedOneOffMiniApp,
     isLoading,

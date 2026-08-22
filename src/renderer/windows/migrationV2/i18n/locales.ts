@@ -150,6 +150,7 @@ export const zhCN = {
     completed: {
       title: '欢迎来到 Cherry Studio V2',
       description: '迁移完成，你的数据已经全部就位。重启应用即可开始使用 V2。',
+      description_with_warnings: '迁移已完成，但部分内容未能完整迁移。请先查看迁移提示，再重启应用。',
       steps_label: '步骤已完成',
       items_label: '迁移项',
       duration_label: '迁移耗时',
@@ -157,7 +158,9 @@ export const zhCN = {
       warning_description: '数据已迁移完成，但以下内容需要注意。',
       warning_copy: '复制全部提示',
       warning_copy_success: '迁移提示已复制',
-      warning_copy_failed: '无法复制迁移提示'
+      warning_copy_failed: '无法复制迁移提示',
+      agent_files_skipped_one: '已跳过 1 个路径重叠的 Agent 文件目标；旧版源数据已保留',
+      agent_files_skipped_other: '已跳过 {{count}} 个路径重叠的 Agent 文件目标；旧版源数据已保留'
     },
     error: {
       title: '迁移失败',
@@ -340,6 +343,8 @@ export const enUS = {
     completed: {
       title: 'Welcome to Cherry Studio V2',
       description: 'Migration is complete. Your data is ready. Restart the app to start using V2.',
+      description_with_warnings:
+        'Migration completed with some content omitted. Review the migration notices before restarting the app.',
       steps_label: 'Steps completed',
       items_label: 'Migration items',
       duration_label: 'Migration time',
@@ -347,7 +352,10 @@ export const enUS = {
       warning_description: 'Migration completed, but the following items need attention.',
       warning_copy: 'Copy all notices',
       warning_copy_success: 'Migration notices copied',
-      warning_copy_failed: 'Failed to copy migration notices'
+      warning_copy_failed: 'Failed to copy migration notices',
+      agent_files_skipped_one: 'Skipped 1 overlapping Agent filesystem target; legacy source data was preserved',
+      agent_files_skipped_other:
+        'Skipped {{count}} overlapping Agent filesystem targets; legacy source data was preserved'
     },
     error: {
       title: 'Migration Failed',

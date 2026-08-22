@@ -2,11 +2,12 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
+import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ActionWindow from '../ActionWindow'
 
-const { actionState, ipcRequest, opacityPreference, platform } = vi.hoisted(() => ({
+const { actionState, generalMounts, ipcRequest, opacityPreference, platform } = vi.hoisted(() => ({
   actionState: {
     value: {
       id: 'test-action',
@@ -15,6 +16,7 @@ const { actionState, ipcRequest, opacityPreference, platform } = vi.hoisted(() =
       isBuiltIn: false
     } as SelectionActionItem
   },
+  generalMounts: { count: 0 },
   ipcRequest: vi.fn(),
   opacityPreference: { value: 100 },
   platform: { isMac: false }
@@ -59,7 +61,15 @@ vi.mock('@renderer/utils/platform', () => ({
   }
 }))
 
-vi.mock('../components/ActionGeneral', () => ({ default: () => null }))
+vi.mock('../components/ActionGeneral', () => {
+  const MockActionGeneral = () => {
+    useEffect(() => {
+      generalMounts.count += 1
+    }, [])
+    return null
+  }
+  return { default: MockActionGeneral }
+})
 vi.mock('../components/ActionTranslate', () => ({ default: () => null }))
 
 describe('ActionWindow surface', () => {
@@ -72,7 +82,18 @@ describe('ActionWindow surface', () => {
     } as SelectionActionItem
     opacityPreference.value = 100
     platform.isMac = false
+    generalMounts.count = 0
     HTMLElement.prototype.scrollTo = vi.fn()
+  })
+
+  it('remounts the chat subtree on reuse so the previous selection is not carried over', async () => {
+    const { rerender } = render(<ActionWindow />)
+    await waitFor(() => expect(generalMounts.count).toBe(1))
+
+    actionState.value = { ...actionState.value, selectedText: 'next selection' }
+    rerender(<ActionWindow />)
+
+    await waitFor(() => expect(generalMounts.count).toBe(2))
   })
 
   it('uses an opaque popover surface at 100% window opacity', () => {

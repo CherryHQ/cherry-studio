@@ -35,6 +35,8 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
+import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
@@ -48,21 +50,37 @@ import type { McpToolDisplayMetadata } from './types'
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
 
 /**
- * A non-success `SDKResultMessage` surfaced as a throw. Carries the result's typed fields so
- * consumers narrow with `instanceof` and read structure — never by parsing the message prose
- * (the SDK provides no error class of its own for result failures).
+ * A failed `SDKResultMessage` surfaced as a throw. Carries the result's typed fields so consumers
+ * narrow with `instanceof` and read structure — never by parsing the message prose (the SDK
+ * provides no error class of its own for result failures).
  */
 export class ClaudeCodeResultError extends Error {
   readonly exitCode = 1
   constructor(
     message: string,
-    readonly subtype: Extract<SDKResultMessage, { is_error: boolean }>['subtype'],
-    /** The result's raw error strings — match against these, not the joined `message`. */
-    readonly errors: readonly string[]
+    readonly subtype: SDKResultMessage['subtype'],
+    /** The result's diagnostic strings — match against these, not the joined `message`. */
+    readonly errors: readonly string[],
+    readonly terminalReason?: SDKResultMessage['terminal_reason'],
+    readonly apiErrorStatus?: number | null
   ) {
     super(message)
     this.name = 'ClaudeCodeResultError'
   }
+}
+
+function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResultError | undefined {
+  const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
+  const isErrorResult =
+    message.subtype !== 'success' ||
+    message.is_error ||
+    message.terminal_reason === 'api_error' ||
+    apiErrorStatus != null
+  if (!isErrorResult) return undefined
+
+  const errors = message.subtype === 'success' ? (message.result ? [message.result] : []) : message.errors
+  const errorMessage = errors.join('; ') || `Claude Code error: ${message.terminal_reason ?? message.subtype}`
+  return new ClaudeCodeResultError(errorMessage, message.subtype, errors, message.terminal_reason, apiErrorStatus)
 }
 
 const MIN_TRUNCATION_LENGTH = 512
@@ -105,7 +123,8 @@ type StreamSink = {
 }
 
 type StreamContext = {
-  sink: StreamSink
+  sink: StreamSink & { redirect(sink: StreamSink): void }
+  systemReminderBodies: Set<string>
   options: Parameters<LanguageModelV3['doStream']>[0]
   toolStates: Map<string, ToolStreamState>
   activeTaskTools: Map<string, { startTime: number }>
@@ -304,6 +323,15 @@ function getContentArray(value: unknown): unknown[] | undefined {
   return undefined
 }
 
+function getTextContent(value: unknown): string[] {
+  if (typeof value === 'string') return [value]
+  return (getContentArray(value) ?? []).flatMap((block) => {
+    if (!isRecord(block)) return []
+    if (block.type === 'text' && typeof block.text === 'string') return [block.text]
+    return getTextContent(block.content)
+  })
+}
+
 function normalizeMcpContentBlock(block: unknown): JSONObject {
   if (isMcpContentBlock(block)) return block as JSONObject
 
@@ -478,6 +506,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly flowContexts: FlowContext[] = []
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
+  private turnHasActivity = false
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
@@ -496,8 +525,10 @@ export class ClaudeCodeStreamAdapter {
    * would silently leak whichever one a later change forgets.
    */
   private createTurnContext(sink = this.sink): StreamContext {
+    const systemReminderBodies = new Set<string>()
     return {
-      sink,
+      sink: this.createSystemReminderFilteringSink(this.createActivityTrackingSink(sink), systemReminderBodies),
+      systemReminderBodies,
       options: this.streamOptions,
       toolStates: new Map(),
       activeTaskTools: new Map(),
@@ -519,13 +550,60 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  /** Filter at the SDK adapter boundary so live rendering and persisted snapshots consume the same text. */
+  private createSystemReminderFilteringSink(
+    sink: StreamSink,
+    reminderBodies: ReadonlySet<string>
+  ): StreamContext['sink'] {
+    let destination = sink
+    const textFilters = new Map<string, SystemReminderTextFilter>()
+    return {
+      redirect: (nextSink) => {
+        destination = nextSink
+      },
+      enqueue: (chunk) => {
+        if (chunk.type === 'text-start') {
+          textFilters.set(chunk.id, new SystemReminderTextFilter(reminderBodies))
+        } else if (chunk.type === 'text-delta') {
+          const filter = textFilters.get(chunk.id) ?? new SystemReminderTextFilter(reminderBodies)
+          textFilters.set(chunk.id, filter)
+          const delta = filter.write(chunk.delta)
+          if (delta) destination.enqueue({ ...chunk, delta })
+          return
+        } else if (chunk.type === 'text-end') {
+          const filter = textFilters.get(chunk.id)
+          if (filter) {
+            const delta = filter.flush()
+            if (delta) destination.enqueue({ type: 'text-delta', id: chunk.id, delta })
+            textFilters.delete(chunk.id)
+          }
+        }
+        destination.enqueue(chunk)
+      }
+    }
+  }
+
+  private createActivityTrackingSink(sink: StreamSink): StreamSink {
+    return {
+      enqueue: (chunk) => {
+        if (chunk.type !== 'message-metadata') this.turnHasActivity = true
+        sink.enqueue(chunk)
+      }
+    }
+  }
+
   /** Whether a turn is open. Turn-scoped session status (an API retry) is gated on this. */
   get isTurnActive(): boolean {
     return this.turnActive
   }
 
+  get hasTurnActivity(): boolean {
+    return this.turnHasActivity
+  }
+
   /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
   beginTurn(): void {
+    this.turnHasActivity = false
     this.ctx = this.createTurnContext()
     this.turnActive = true
     this.autonomousTurn = false
@@ -556,6 +634,8 @@ export class ClaudeCodeStreamAdapter {
     if (message.type !== 'system' && !this.turnActive) {
       if (message.type === 'result') {
         this.setSessionId(message.session_id)
+        const resultError = createClaudeCodeResultError(message)
+        if (resultError) throw resultError
         logger.warn('Received a result message with no active turn; dropping turn-complete', {
           sessionId: this.sessionId
         })
@@ -606,6 +686,12 @@ export class ClaudeCodeStreamAdapter {
     return { type: 'continue' }
   }
 
+  /** Close every active text part so filtering sinks flush buffered marker prefixes before errors escape. */
+  finalizeOpenTextParts(): void {
+    this.closeActiveTextPart(this.ctx)
+    for (const flow of this.flowContexts) this.closeActiveTextPart(flow.stream)
+  }
+
   handleTruncationError(error: unknown): boolean {
     if (!this.ctx.sawAbortedMessage && !isClaudeCodeTruncationError(error, this.ctx.accumulatedText)) return false
     this.turnActive = false
@@ -614,13 +700,14 @@ export class ClaudeCodeStreamAdapter {
       `Detected truncated stream response, returning ${this.ctx.accumulatedText.length} chars of buffered text`
     )
     if (this.ctx.textPartId) {
-      this.ctx.sink.enqueue({ type: 'text-end', id: this.ctx.textPartId })
+      this.closeActiveTextPart(this.ctx)
     } else if (this.ctx.accumulatedText && !this.ctx.textStreamedViaContentBlock) {
       const fallbackTextId = generateId()
       this.ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
       this.ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: this.ctx.accumulatedText })
       this.ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
     }
+    this.finalizeOpenTextParts()
 
     this.finalizeToolCalls(this.ctx)
     this.ctx.sink.enqueue({
@@ -656,7 +743,7 @@ export class ClaudeCodeStreamAdapter {
 
   private detachFlowContexts(): void {
     for (const flow of this.flowContexts) {
-      flow.stream.sink = this.createFlowSink(flow.rootToolCallId)
+      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow.rootToolCallId)))
     }
   }
 
@@ -737,7 +824,9 @@ export class ClaudeCodeStreamAdapter {
     ctx: StreamContext
   ): void {
     const toolId = toolBlock.id
-    const toolName = toolBlock.name
+    // Anthropic-compatible relays may open a tool_use block before the name is known;
+    // `handleToolUse` fills it in from the completed assistant message.
+    const toolName = toolBlock.name ?? ''
     const toolMetadata = this.getToolUseMetadata(toolBlock)
 
     this.closeActiveTextPart(ctx)
@@ -910,7 +999,9 @@ export class ClaudeCodeStreamAdapter {
       const effectiveInput = accumulatedInput || state.lastSerializedInput || ''
       state.lastSerializedInput = effectiveInput
 
-      if (!state.callEmitted) {
+      // A nameless block is still waiting for the name the completed assistant message carries;
+      // emitting now would freeze the call under an unusable name.
+      if (!state.callEmitted && state.name) {
         this.emitToolInputAvailable(toolId, state, ctx)
       }
     }
@@ -964,10 +1055,12 @@ export class ClaudeCodeStreamAdapter {
   ): void {
     const toolId = tool.id
     let state = ctx.toolStates.get(toolId)
+    // The name may be missing here too, in which case the streamed one (if any) stands.
+    const toolName = tool.name ?? state?.name ?? ''
     if (!state) {
-      const currentParentId = getToolParentId(tool.name, sdkParentToolUseId, this.getFallbackParentId(ctx))
+      const currentParentId = getToolParentId(toolName, sdkParentToolUseId, this.getFallbackParentId(ctx))
       state = {
-        name: tool.name,
+        name: toolName,
         inputStarted: false,
         inputClosed: false,
         callEmitted: false,
@@ -978,7 +1071,7 @@ export class ClaudeCodeStreamAdapter {
     } else if (!state.parentToolCallId && sdkParentToolUseId) {
       state.parentToolCallId = sdkParentToolUseId
     }
-    state.name = tool.name
+    state.name = toolName
     this.mergeToolMetadata(state, this.getToolUseMetadata(tool))
     this.mergeToolDisplayMetadata(state)
 
@@ -986,13 +1079,13 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({
         type: 'tool-input-start',
         toolCallId: toolId,
-        toolName: tool.name,
+        toolName,
         providerExecuted: true,
         dynamic: true,
         title: this.getToolTitle(state),
         providerMetadata: this.buildToolProviderMetadata(state)
       })
-      if (isSubagentToolName(tool.name)) ctx.activeTaskTools.set(toolId, { startTime: Date.now() })
+      if (isSubagentToolName(toolName)) ctx.activeTaskTools.set(toolId, { startTime: Date.now() })
       state.inputStarted = true
     }
 
@@ -1014,6 +1107,11 @@ export class ClaudeCodeStreamAdapter {
         ctx.sink.enqueue({ type: 'tool-input-delta', toolCallId: toolId, inputTextDelta: deltaPayload })
       }
       state.lastSerializedInput = serializedInput
+    }
+
+    // The content block closed before the name was known, so its emission was deferred to here.
+    if (state.inputClosed && !state.callEmitted) {
+      this.emitToolInputAvailable(toolId, state, ctx)
     }
   }
 
@@ -1047,6 +1145,13 @@ export class ClaudeCodeStreamAdapter {
   private handleUserMessage(message: SDKUserMessage, ctx: StreamContext): void {
     if (!message.message?.content) return
 
+    if (message.isSynthetic) {
+      // Claude runtime `isMeta` reminders surface through the SDK as synthetic user messages.
+      for (const text of getTextContent(message.message.content)) {
+        for (const body of extractSystemReminderBodies(text)) ctx.systemReminderBodies.add(body)
+      }
+    }
+
     if (ctx.textPartId) {
       this.closeActiveTextPart(ctx)
       ctx.accumulatedText = ''
@@ -1069,7 +1174,7 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.toolResultsEmitted.has(result.tool_use_id)) return
 
     let state = ctx.toolStates.get(result.tool_use_id)
-    const toolName = state?.name ?? this.getToolNameFromResultType(result.type) ?? UNKNOWN_TOOL_NAME
+    const toolName = state?.name || this.getToolNameFromResultType(result.type) || UNKNOWN_TOOL_NAME
 
     if (!state) {
       const resolvedParentId = getToolParentId(toolName, sdkParentToolUseId, this.getFallbackParentId(ctx))
@@ -1134,10 +1239,6 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
-    logger.info(
-      `Stream completed - Session: ${message.session_id}, Cost: $${message.total_cost_usd?.toFixed(4) ?? 'N/A'}, Duration: ${message.duration_ms ?? 'N/A'}ms`
-    )
-
     const finalUsage = convertClaudeCodeUsage(message.usage)
     ctx.usage = {
       ...finalUsage,
@@ -1146,10 +1247,11 @@ export class ClaudeCodeStreamAdapter {
         reasoning: ctx.usage.outputTokens.reasoning
       }
     }
-    const finishReason = mapClaudeCodeFinishReason(message.subtype, message.stop_reason)
     this.setSessionId(message.session_id)
 
-    if (message.subtype !== 'success') {
+    const resultError = createClaudeCodeResultError(message)
+    if (resultError) {
+      this.finalizeOpenTextParts()
       // Error results still carry token totals useful to the live message. The driver only calls
       // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final UI snapshot
       // BEFORE throwing. Per-invocation records are captured independently by the driver.
@@ -1157,11 +1259,15 @@ export class ClaudeCodeStreamAdapter {
         type: 'message-metadata',
         messageMetadata: this.buildMessageMetadata(ctx.usage)
       })
-      const errorMsg = message.errors.join('; ') || `Claude Code error: ${message.subtype}`
-      throw new ClaudeCodeResultError(errorMsg, message.subtype, message.errors)
+      throw resultError
     }
 
-    const structuredOutput = message.structured_output
+    logger.info(
+      `Stream completed - Session: ${message.session_id}, Cost: $${message.total_cost_usd?.toFixed(4) ?? 'N/A'}, Duration: ${message.duration_ms ?? 'N/A'}ms`
+    )
+
+    const finishReason = mapClaudeCodeFinishReason(message.subtype, message.stop_reason)
+    const structuredOutput = message.subtype === 'success' ? message.structured_output : undefined
     const alreadyStreamedJson =
       ctx.hasStreamedJson && ctx.options.responseFormat?.type === 'json' && ctx.hasReceivedStreamEvents
 
@@ -1426,6 +1532,8 @@ export class ClaudeCodeStreamAdapter {
   private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
     const metadata = message.compact_metadata
     const anchor: AgentSessionCompactionAnchorData = {
+      status: 'done',
+      phase: 'agent-session',
       trigger: metadata.trigger,
       completedAt: new Date().toISOString(),
       preTokens: metadata.pre_tokens
@@ -1687,7 +1795,7 @@ export class ClaudeCodeStreamAdapter {
         parentToolCallId: sdkParentToolUseId
       },
       cherry: {
-        transport: 'claude-agent'
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
       }
     }
   }
@@ -1703,7 +1811,7 @@ export class ClaudeCodeStreamAdapter {
     return {
       'claude-code': claudeCode,
       cherry: {
-        transport: 'claude-agent',
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),
@@ -1725,7 +1833,7 @@ export class ClaudeCodeStreamAdapter {
       content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
       metadata: {
         type: 'mcp',
-        ...(state.displayName ? { name: state.displayName } : {}),
+        name: state.displayName ?? state.name,
         ...(state.description ? { description: state.description } : {}),
         serverName: state.serverName ?? 'MCP',
         serverId: state.serverId ?? state.serverName ?? 'unknown'
@@ -1821,7 +1929,8 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({
       type: 'tool-input-available',
       toolCallId: toolId,
-      toolName: state.name,
+      // Last resort: the name never arrived, so the call is emitted under the placeholder.
+      toolName: state.name || UNKNOWN_TOOL_NAME,
       input: this.deserializeToolInput(serializedInput),
       providerExecuted: true,
       dynamic: true,

@@ -450,7 +450,6 @@ function FilesPage() {
   }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
-  const showUploadButton = filter.kind === 'library' && filter.value === 'all'
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const activeFilterLabel =
     filter.kind === 'library'
@@ -854,7 +853,7 @@ function FilesPage() {
   }, [embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
 
   return (
-    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+    <div data-ui="files.view" className="relative flex min-h-0 flex-1 overflow-hidden">
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
         <FileSidebar
           filter={filter}
@@ -891,6 +890,7 @@ function FilesPage() {
         </Dialog>
 
         <div
+          data-ui="files.content"
           className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
           onDragOver={(e) => {
             e.preventDefault()
@@ -934,7 +934,7 @@ function FilesPage() {
                     <Trash2 className="size-3.5" />
                     {t('files.empty_trash')}
                   </Button>
-                ) : showUploadButton ? (
+                ) : (
                   <Button
                     variant="outline"
                     size="sm"
@@ -943,7 +943,7 @@ function FilesPage() {
                     <Upload className="size-3.5 translate-y-px" />
                     <span>{t('files.upload')}</span>
                   </Button>
-                ) : null}
+                )}
               </div>
             }
           />

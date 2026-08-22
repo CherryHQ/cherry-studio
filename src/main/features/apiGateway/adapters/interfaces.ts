@@ -112,6 +112,8 @@ export interface StreamAdapterOptions {
   messageId?: string
   /** Initial input token count */
   inputTokens?: number
+  /** Restore a provider-safe tool name to the identity expected by the API client. */
+  toClientToolName?: (toolName: string) => string
 }
 
 /**
@@ -133,6 +135,12 @@ export interface IMessageConverter<TInputParams = unknown> {
    * tools): the model emits the call and the gateway forwards it to the client.
    */
   toAiSdkTools?(params: TInputParams): ToolSet | undefined
+
+  /** Restore a provider-safe tool name before returning a tool call to the API client. */
+  toClientToolName?(toolName: string): string
+
+  /** Wire-safe (normalized) name for a client tool name; identity when already compatible. */
+  toProviderToolName?(toolName: string): string
 
   /**
    * Extract stream/generation options from input params
@@ -183,6 +191,8 @@ export interface ContentBlockState {
   toolId?: string
   toolName?: string
   toolInput?: string
+  // For thinking blocks — captured from reasoning chunk providerMetadata
+  signature?: string
 }
 
 /**

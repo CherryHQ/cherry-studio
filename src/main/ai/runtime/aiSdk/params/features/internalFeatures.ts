@@ -6,46 +6,66 @@
  *
  * Attachments (pdf/office/image/audio/video) are routed in `prepareChatMessages`
  * (`messages/attachmentRouting.ts`) — native inline or extracted text, with
- * `tools/fileLookup.ts` (`read_file`) paging the overflow — so there is no
+ * `tools/adapters/aiSdk/builtin/ReadFileTool.ts` (`read_file`) paging the
+ * overflow — so there is no
  * document-conversion middleware here.
  */
 
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
+import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
-import { modelParamsFeature } from './modelParams'
+import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
 import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
+import { qwenEnableThinkingFeature } from './qwenEnableThinking'
 import { qwenThinkingFeature } from './qwenThinking'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
+import { stripReasoningReplayFeature } from './stripReasoningReplay'
 import { terminalToolFailureFeature } from './terminalToolFailure'
+import { toolSchemaCompatibilityFeature } from './toolSchemaCompatibility'
 
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   devtoolsFeature,
   gatewayUsageNormalizeFeature,
-  modelParamsFeature,
   // DeepSeek-only: re-extract DSML-markup tool calls from text before reasoning extraction.
   deepseekDsmlParserFeature,
+  // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).
+  deepseekResponsesReasoningReplayFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
+  // Must precede anthropic-cache: middleware array order = transformParams
+  // order, and truncation has to rewrite tool results BEFORE cache markers
+  // are placed on trailing messages (part-level providerOptions survive
+  // the context middleware's IR round-trip — pinned by contextBuild.test.ts).
+  contextBuildFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,
+  // Provider-agnostic: tool schemas lose the keywords providers reject.
+  toolSchemaCompatibilityFeature,
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
+  qwenEnableThinkingFeature,
   skipGeminiThoughtSignatureFeature,
+  // The HuggingFace router rejects reasoning input items — strip them on replay.
+  stripReasoningReplayFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
   // Stop when a trusted local tool cannot succeed without an external change.
   terminalToolFailureFeature,
   // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.
-  steerYieldFeature
+  steerYieldFeature,
+  // Hook only — `prepareStep` rewrites the in-flight prompt with a compacted
+  // history when it crosses 80% of the context window (keeps each call under budget).
+  inLoopCompactionFeature
 ]

@@ -2,6 +2,7 @@
  * IPC handler for migration communication between Main and Renderer
  */
 
+import type { MigrationPaths } from '@data/migration/v2/core/MigrationPaths'
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
@@ -9,10 +10,12 @@ import {
   type MigrationDiagnosticSavePayload,
   type MigrationDiagnosticSaveResult,
   type MigrationExportFileWriteMode,
+  type MigrationExportStage,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationResult,
   type MigrationSummary,
+  type PreparedMigrationExportPaths,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
 import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
@@ -29,6 +32,7 @@ const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
 let inFlightMigration: Promise<MigrationResult> | null = null
 let inFlightDiagnosticSave: Promise<MigrationDiagnosticSaveResult> | null = null
+let exportPrepared = false
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
@@ -74,19 +78,81 @@ const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePay
   logDate: z.string().refine(isValidLocalDate)
 })
 
+function resolvePreparedExportPaths(paths: MigrationPaths): PreparedMigrationExportPaths {
+  return {
+    reduxExportPath: paths.migrationReduxExportDir,
+    dexieExportPath: paths.migrationDexieExportDir,
+    localStorageExportDirectory: paths.migrationLocalStorageExportDir,
+    localStorageExportPath: paths.migrationLocalStorageExportFile
+  }
+}
+
+function isSamePath(actual: unknown, expected: string): actual is string {
+  return typeof actual === 'string' && path.resolve(actual) === path.resolve(expected)
+}
+
+function assertStartMigrationPayload(payload: unknown, expected: PreparedMigrationExportPaths): void {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    !isSamePath((payload as StartMigrationPayload).reduxExportPath, expected.reduxExportPath) ||
+    !isSamePath((payload as StartMigrationPayload).dexieExportPath, expected.dexieExportPath) ||
+    !isSamePath((payload as StartMigrationPayload).localStorageExportPath, expected.localStorageExportPath)
+  ) {
+    throw new Error('Invalid migration export paths.')
+  }
+}
+
 /**
  * Register all migration IPC handlers
  */
-export function registerMigrationIpcHandlers(userDataPath: string): void {
+export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
   logger.info('Registering migration IPC handlers')
+  const preparedExportPaths = resolvePreparedExportPaths(paths)
+  const allowedExportDirectories = new Set(
+    [
+      preparedExportPaths.reduxExportPath,
+      preparedExportPaths.dexieExportPath,
+      preparedExportPaths.localStorageExportDirectory
+    ].map((exportPath) => path.resolve(exportPath))
+  )
+  exportPrepared = false
+  let exportCleanupQueue: Promise<void> = Promise.resolve()
+
+  const cleanupExportDirectories = (): Promise<void> => {
+    exportPrepared = false
+    // Preserve ordering after a failed cleanup so a retry can make a fresh attempt.
+    const cleanup = exportCleanupQueue
+      .catch(() => undefined)
+      .then(async () => {
+        await Promise.all(
+          [...allowedExportDirectories].map((exportPath) => fs.rm(exportPath, { recursive: true, force: true }))
+        )
+      })
+    exportCleanupQueue = cleanup
+    return cleanup
+  }
+
+  const cleanupExportDirectoriesBestEffort = async (reason: string): Promise<void> => {
+    try {
+      await cleanupExportDirectories()
+    } catch (error) {
+      logger.error(`Failed to cleanup migration exports after ${reason}`, error as Error)
+    }
+  }
 
   // Wire the window manager's force-quit escape hatch (crash / hang / repeated close) to the same
   // write-deferral the ConfirmQuit handler uses, so those paths never terminate mid-write.
   migrationWindowManager.setQuitRequester(requestQuit)
 
-  // Get user data path
-  ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
-    return userDataPath
+  ipcMain.handle(MigrationIpcChannels.PrepareExport, async (event: IpcMainInvokeEvent) => {
+    assertMigrationWindowSender(event)
+    if (inFlightMigration) throw new Error(CONCURRENT_MIGRATION_ERROR)
+
+    await cleanupExportDirectories()
+    await fs.mkdir(paths.migrationTempDir, { recursive: true })
+    exportPrepared = true
+    return preparedExportPaths
   })
 
   // Check if migration is needed
@@ -118,13 +184,25 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   ipcMain.handle(
     MigrationIpcChannels.WriteExportFile,
     async (
-      _event,
+      event: IpcMainInvokeEvent,
       exportPath: string,
       tableName: string,
       jsonData: string,
       writeMode: MigrationExportFileWriteMode = 'overwrite'
     ) => {
       try {
+        assertMigrationWindowSender(event)
+        if (!exportPrepared) throw new Error('Migration export has not been prepared.')
+        if (typeof exportPath !== 'string' || !allowedExportDirectories.has(path.resolve(exportPath))) {
+          throw new Error('Invalid migration export directory.')
+        }
+        if (typeof tableName !== 'string' || !/^[A-Za-z0-9_-]+$/u.test(tableName)) {
+          throw new Error('Invalid migration export file name.')
+        }
+        if (typeof jsonData !== 'string' || (writeMode !== 'overwrite' && writeMode !== 'append')) {
+          throw new Error('Invalid migration export file payload.')
+        }
+
         // Ensure export directory exists
         await fs.mkdir(exportPath, { recursive: true })
 
@@ -218,94 +296,121 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     }
   })
 
-  // Start the migration process
-  ipcMain.handle(MigrationIpcChannels.StartMigration, async (_event, payload: StartMigrationPayload) => {
-    if (inFlightMigration) {
-      logger.warn(CONCURRENT_MIGRATION_ERROR)
-      throw new Error(CONCURRENT_MIGRATION_ERROR)
+  ipcMain.handle(MigrationIpcChannels.ReportExportStage, (event: IpcMainInvokeEvent, stage: MigrationExportStage) => {
+    assertMigrationWindowSender(event)
+    if (
+      !stage ||
+      (stage.source !== 'redux' && stage.source !== 'localStorage' && stage.source !== 'dexie') ||
+      (stage.source === 'dexie' && (typeof stage.table !== 'string' || stage.table.length === 0))
+    ) {
+      throw new Error('Invalid migration export stage.')
     }
+    logger.info('Migration renderer export stage', stage)
+    return true
+  })
 
-    let runPromise: Promise<MigrationResult> | null = null
-
-    try {
-      const { reduxData, dexieExportPath, localStorageExportPath } = payload
-
-      if (!reduxData || !dexieExportPath) {
-        throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
+  // Start the migration process
+  ipcMain.handle(
+    MigrationIpcChannels.StartMigration,
+    async (event: IpcMainInvokeEvent, payload: StartMigrationPayload) => {
+      assertMigrationWindowSender(event)
+      if (inFlightMigration) {
+        logger.warn(CONCURRENT_MIGRATION_ERROR)
+        throw new Error(CONCURRENT_MIGRATION_ERROR)
       }
+      if (!exportPrepared) throw new Error('Migration export has not been prepared.')
+      assertStartMigrationPayload(payload, preparedExportPaths)
+      exportPrepared = false
 
-      // Set up progress callback
-      migrationEngine.onProgress((progress) => {
-        updateProgress(progress)
-      })
+      let runPromise: Promise<MigrationResult> | null = null
 
-      // Flip to the protected `migration` stage before running the engine. run() synchronously
-      // clears all v2 tables (verifyAndClearNewTables) before emitting its first progress tick, so
-      // without this the destructive clear would execute while still on the unprotected
-      // `introduction` stage — a window close there would quit immediately, bypassing the
-      // ConfirmQuit write-deferral. The engine's first tick overwrites this shortly after.
-      updateProgress({
-        stage: 'migration',
-        overallProgress: 0,
-        currentMessage: 'Starting migration…',
-        migrators: []
-      })
-
-      // Run migration
-      runPromise = migrationEngine.run(reduxData, dexieExportPath, localStorageExportPath)
-      inFlightMigration = runPromise
-
-      const result = await runPromise
-
-      if (result.success) {
-        updateProgress({
-          stage: 'completed',
-          overallProgress: 100,
-          currentMessage: 'Migration completed successfully!',
-          migrators: currentProgress.migrators.map((m) => ({
-            ...m,
-            status: 'completed'
-          })),
-          warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? []),
-          summary: createMigrationSummary(result, currentProgress)
+      try {
+        // Set up progress callback
+        migrationEngine.onProgress((progress) => {
+          updateProgress(progress)
         })
-      } else {
+
+        // Flip to the protected `migration` stage before running the engine. run() synchronously
+        // clears all v2 tables (verifyAndClearNewTables) before emitting its first progress tick, so
+        // without this the destructive clear would execute while still on the unprotected
+        // `introduction` stage — a window close there would quit immediately, bypassing the
+        // ConfirmQuit write-deferral. The engine's first tick overwrites this shortly after.
+        updateProgress({
+          stage: 'migration',
+          overallProgress: 0,
+          currentMessage: 'Starting migration…',
+          migrators: []
+        })
+
+        // Run migration
+        runPromise = migrationEngine.run(
+          preparedExportPaths.reduxExportPath,
+          preparedExportPaths.dexieExportPath,
+          preparedExportPaths.localStorageExportPath
+        )
+        inFlightMigration = runPromise
+
+        const result = await runPromise
+
+        if (result.success) {
+          updateProgress({
+            stage: 'completed',
+            overallProgress: 100,
+            currentMessage: 'Migration completed successfully!',
+            migrators: currentProgress.migrators.map((m) => ({
+              ...m,
+              status: 'completed'
+            })),
+            warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? []),
+            warningMessages: result.migratorResults.flatMap((migratorResult) => migratorResult.warningMessages ?? []),
+            summary: createMigrationSummary(result, currentProgress)
+          })
+        } else {
+          updateProgress({
+            stage: 'error',
+            overallProgress: currentProgress.overallProgress,
+            currentMessage: result.error || 'Migration failed',
+            migrators: currentProgress.migrators,
+            error: result.error
+          })
+        }
+
+        return result
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error('Error starting migration', error as Error)
+
+        if (errorMessage === CONCURRENT_MIGRATION_ERROR) {
+          throw error
+        }
+
+        // Update progress to error stage so the renderer shows the error UI.
+        // Do NOT re-throw — the progress update already communicates the failure,
+        // and re-throwing causes an unhandled promise rejection in the renderer.
         updateProgress({
           stage: 'error',
           overallProgress: currentProgress.overallProgress,
-          currentMessage: result.error || 'Migration failed',
+          currentMessage: errorMessage,
           migrators: currentProgress.migrators,
-          error: result.error
+          error: errorMessage
         })
-      }
 
-      return result
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Error starting migration', error as Error)
-
-      if (errorMessage === CONCURRENT_MIGRATION_ERROR) {
-        throw error
-      }
-
-      updateProgress({
-        stage: 'error',
-        overallProgress: currentProgress.overallProgress,
-        currentMessage: errorMessage,
-        migrators: currentProgress.migrators,
-        error: errorMessage
-      })
-
-      throw error
-    } finally {
-      if (runPromise && inFlightMigration === runPromise) {
-        inFlightMigration = null
+        return {
+          success: false,
+          migratorResults: [],
+          totalDuration: 0,
+          error: errorMessage
+        } satisfies MigrationResult
+      } finally {
+        if (runPromise && inFlightMigration === runPromise) {
+          inFlightMigration = null
+        }
       }
     }
-  })
+  )
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
-  ipcMain.handle(MigrationIpcChannels.ReportError, (_event, message: string) => {
+  ipcMain.handle(MigrationIpcChannels.ReportError, async (_event, message: string) => {
     updateProgress({
       stage: 'error',
       overallProgress: currentProgress.overallProgress,
@@ -313,6 +418,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       migrators: currentProgress.migrators,
       error: message
     })
+    await cleanupExportDirectoriesBestEffort('renderer export failure')
     return true
   })
 
@@ -339,6 +445,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   ipcMain.handle(MigrationIpcChannels.Cancel, async () => {
     try {
       logger.info('Migration cancelled by user')
+      await cleanupExportDirectoriesBestEffort('migration cancellation')
       migrationWindowManager.close()
       app.quit()
       return true
@@ -359,6 +466,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
 
     try {
       logger.info('User chose to skip migration and use defaults')
+      // Cleanup must succeed before skipMigration persists status=completed; otherwise
+      // the next launch bypasses the migration flow and can never retry this cleanup.
+      await cleanupExportDirectories()
       await migrationEngine.skipMigration()
       migrationEngine.close()
       void migrationWindowManager.restartApp()
@@ -478,6 +588,7 @@ function createMigrationSummary(result: MigrationResult, progress: MigrationProg
 export function resetMigrationData(): void {
   inFlightMigration = null
   inFlightDiagnosticSave = null
+  exportPrepared = false
   quitScheduled = false
   dataLocationNotice = null
   lastSavedDiagnosticBundlePath = null

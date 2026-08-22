@@ -11,8 +11,8 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
@@ -38,18 +38,14 @@ const WebDavSettings: FC = () => {
 
   const { t } = useTranslation()
 
-  const { webdavSync } = getBackupSyncState()
-
-  // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
+  const webdavSync = useBackupSyncState('webdav')
 
   const onSyncIntervalChange = async (value: number) => {
-    void setWebdavSyncInterval(value)
+    await setWebdavSyncInterval(value)
     if (value === 0) {
       await setWebdavAutoSync(false)
-      stopAutoSync('webdav')
     } else {
       await setWebdavAutoSync(true)
-      void startAutoSync(false, 'webdav')
     }
   }
 

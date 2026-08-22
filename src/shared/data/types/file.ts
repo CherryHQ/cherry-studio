@@ -5,7 +5,8 @@
  * - **FileEntry** — the managed-file entity (this section).
  * - **FileHandle** — a call-site reference to a file, by entry-id or raw path.
  * - **FileRef** — the association linking a business entity (chat message,
- *   painting, job, provider logo, mini-app logo) to a `FileEntry`.
+ *   painting, job, translate history, provider logo, mini-app logo) to a
+ *   `FileEntry`.
  *
  * The legacy v1 `FileMetadata` shape lives separately in `./legacyFile.ts`.
  *
@@ -456,13 +457,15 @@ export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObje
 //
 // `sourceId` uses `MessageIdSchema = z.uuid()` (not `z.uuidv7()`) because v1
 // legacy message IDs are UUIDv4 and are preserved verbatim during migration;
-// both formats are valid UUIDs, so `z.uuid()` accepts both. `role` is
-// `'attachment'` for both image blocks and file blocks — the single meaningful
-// relationship a file can have with a message at this stage.
+// both formats are valid UUIDs, so `z.uuid()` accepts both. Roles:
+// - `'attachment'` — image blocks and file blocks attached to the message.
+// - `'tool_output'` — a persisted oversized tool-result blob referenced by a
+//   `$persistedToolOutput` envelope in `message.data` (the blob is the only
+//   full copy; the ref keeps it alive until the message is deleted).
 
 export const chatMessageSourceType = 'chat_message' as const
 
-export const chatMessageRoles = ['attachment'] as const
+export const chatMessageRoles = ['attachment', 'tool_output'] as const
 export const chatMessageRoleSchema = z.enum(chatMessageRoles)
 
 export const chatMessageRefFields = {
@@ -472,6 +475,25 @@ export const chatMessageRefFields = {
 }
 
 export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
+
+// ─── agent_session_message variant ───
+//
+// Agent uploads are internal FileEntries referenced from an agent-session user
+// message's FileUIParts. The ref keeps those bytes alive for exactly as long as
+// the message; runtime delivery (managed path, native image, etc.) is a projection.
+
+export const agentSessionMessageSourceType = 'agent_session_message' as const
+
+export const agentSessionMessageRoles = ['attachment'] as const
+export const agentSessionMessageRoleSchema = z.enum(agentSessionMessageRoles)
+
+export const agentSessionMessageRefFields = {
+  sourceType: z.literal(agentSessionMessageSourceType),
+  sourceId: MessageIdSchema,
+  role: agentSessionMessageRoleSchema
+}
+
+export const agentSessionMessageFileRefSchema = createRefSchema(agentSessionMessageRefFields)
 
 // ─── painting variant ───
 //
@@ -536,6 +558,40 @@ export const jobRefFields = {
 
 export const jobFileRefSchema = createRefSchema(jobRefFields)
 
+// ─── translate_history variant ───
+//
+// Links a FileEntry to a `translate_history` row whose `kind` is `'file'`. A
+// layout-preserving PDF translation always persists the generated translation
+// (`role='target'`, an internal `delete_when_unreferenced` entry Cherry owns)
+// and, best effort, references the user's original (`role='source'`, an external
+// entry — Cherry never copies it, and `permanentDelete` never touches the file
+// itself). The association table has an
+// FK to `translate_history`, so deleting a history row — individually or via
+// "clear all" — cascades its refs, which is what releases the translated PDF
+// for reclaim.
+//
+// Roles are `source` / `target` because the owning row already describes that
+// axis as `sourceText` / `targetText` / `sourceLanguage` / `targetLanguage`; a
+// second vocabulary would only invite mismapping.
+//
+// `translate_history.id` is `uuidPrimaryKeyOrdered()` — UUID v7 for rows created
+// in v2 — but v1-migrated rows keep their original ids verbatim, so `sourceId`
+// uses version-agnostic `z.uuid()`, matching the chat_message / job stance.
+
+export const translateHistorySourceType = 'translate_history' as const
+
+export const translateHistoryRoles = ['source', 'target'] as const
+export const translateHistoryRoleSchema = z.enum(translateHistoryRoles)
+export type TranslateHistoryFileRole = z.infer<typeof translateHistoryRoleSchema>
+
+export const translateHistoryRefFields = {
+  sourceType: z.literal(translateHistorySourceType),
+  sourceId: z.uuid(),
+  role: translateHistoryRoleSchema
+}
+
+export const translateHistoryFileRefSchema = createRefSchema(translateHistoryRefFields)
+
 // ─── Single-file entity-image variants (provider logo / mini-app logo) ───
 //
 // Unlike the collection refs above (`chat_message`, `painting`), these model a
@@ -596,8 +652,10 @@ export function tagStoredFileRef(id: string): string {
  */
 export const allSourceTypes = [
   chatMessageSourceType,
+  agentSessionMessageSourceType,
   paintingSourceType,
   jobSourceType,
+  translateHistorySourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType
 ] as const satisfies readonly string[]
@@ -621,8 +679,10 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
  */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   chatMessageFileRefSchema,
+  agentSessionMessageFileRefSchema,
   paintingFileRefSchema,
   jobFileRefSchema,
+  translateHistoryFileRefSchema,
   providerLogoRef.schema,
   miniAppLogoRef.schema
 ])

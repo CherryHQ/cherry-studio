@@ -1,7 +1,5 @@
-import type * as UseCacheModule from '@data/hooks/useCache'
 import { useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,13 +22,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@data/hooks/useCache', async (importOriginal) => ({
-  // Real hook over the globally mocked cacheService — useAgentTools reads MCP
-  // tool caches through it (physically empty here → misses).
-  useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
-  useCache: vi.fn().mockReturnValue(['agent-1', vi.fn()])
-}))
-
 describe('useAgent', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
@@ -45,6 +36,7 @@ describe('useAgent', () => {
 
     expect(result.current.agent).toBeUndefined()
     expect(mockUseQuery).toHaveBeenCalledWith('/agents/:agentId', expect.objectContaining({ enabled: false }))
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('fetches agent when id is provided', () => {
@@ -54,7 +46,7 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      configuration: { permission_mode: 'default', max_turns: 100, env_vars: {} },
+      configuration: { permission_mode: 'default', env_vars: {} },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -64,6 +56,7 @@ describe('useAgent', () => {
 
     expect(result.current.agent).toBeDefined()
     expect(result.current.agent?.id).toBe('agent-1')
+    expect(result.current.agent).not.toHaveProperty('tools')
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith(
       '/agents/:agentId',
@@ -72,6 +65,7 @@ describe('useAgent', () => {
         swrOptions: expect.objectContaining({ keepPreviousData: false })
       })
     )
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('parses configuration through AgentConfigurationSchema preserving known and unknown fields', () => {
@@ -92,7 +86,6 @@ describe('useAgent', () => {
     expect(result.current.agent?.configuration?.avatar).toBe('🤖')
     expect(result.current.agent?.configuration?.reasoning_effort).toBe('high')
     expect(result.current.agent?.configuration?.permission_mode).toBeUndefined()
-    expect(result.current.agent?.configuration?.max_turns).toBeUndefined()
   })
 
   it('drops type-mismatched keys but preserves valid sibling keys when persisted configuration is malformed', () => {
@@ -102,8 +95,13 @@ describe('useAgent', () => {
       model: 'claude-3',
       type: 'claude-code',
       // permission_mode/reasoning_effort 'invalid' fail enum checks; env_vars/null fails record check.
-      // max_turns/200 is well-typed and must survive.
-      configuration: { permission_mode: 'invalid', reasoning_effort: 'invalid', env_vars: null, max_turns: 200 },
+      // heartbeat_interval/200 is well-typed and must survive.
+      configuration: {
+        permission_mode: 'invalid',
+        reasoning_effort: 'invalid',
+        env_vars: null,
+        heartbeat_interval: 200
+      },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -113,7 +111,7 @@ describe('useAgent', () => {
 
     // Bad keys are stripped so callers' `?? DEFAULT` fallbacks fire normally;
     // valid keys round-trip unchanged.
-    expect(result.current.agent?.configuration).toEqual({ max_turns: 200 })
+    expect(result.current.agent?.configuration).toEqual({ heartbeat_interval: 200 })
   })
 
   it('returns loading state correctly', () => {
@@ -139,7 +137,6 @@ describe('useAgent', () => {
 describe('useAgents', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
-    MockCacheUtils.resetMocks()
     vi.clearAllMocks()
     mockUseInvalidateCache.mockReturnValue(invalidateSpy)
   })
@@ -232,9 +229,8 @@ describe('useAgents', () => {
   })
 
   describe('deleteAgent', () => {
-    it('calls deleteTrigger and shows success toast', async () => {
-      const mockTrigger = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agents/:agentId', mockTrigger)
+    it('calls the mixed-effect deletion command and shows success toast', async () => {
+      ipcRequestMock.mockResolvedValue({ deleted: true })
       MockUseDataApiUtils.mockQueryResult('/agents', {
         data: {
           items: [
@@ -249,19 +245,34 @@ describe('useAgents', () => {
       const { result } = renderHook(() => useAgents())
       await act(async () => result.current.deleteAgent('agent-1'))
 
-      expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.delete', {
+        agentId: 'agent-1',
+        deleteSessions: false
+      })
+      expect(invalidateSpy).toHaveBeenCalledWith('/agents')
       expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     })
 
-    it('shows error toast when deleteTrigger throws', async () => {
-      const mockTrigger = vi.fn().mockRejectedValue(new Error('Delete failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agents/:agentId', mockTrigger)
+    it('shows error toast when the deletion command throws', async () => {
+      ipcRequestMock.mockRejectedValue(new Error('Delete failed'))
       MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
 
       const { result } = renderHook(() => useAgents())
       await act(async () => result.current.deleteAgent('agent-1'))
 
       expect(toast.error).toHaveBeenCalled()
+    })
+
+    it('reports success when deletion commits but cache refresh fails', async () => {
+      ipcRequestMock.mockResolvedValue({ deleted: true })
+      invalidateSpy.mockRejectedValueOnce(new Error('refresh failed'))
+      MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
+
+      const { result } = renderHook(() => useAgents())
+      await act(async () => result.current.deleteAgent('agent-1'))
+
+      expect(toast.success).toHaveBeenCalledWith('common.delete_success')
+      expect(toast.error).not.toHaveBeenCalled()
     })
   })
 })

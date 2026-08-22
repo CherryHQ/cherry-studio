@@ -31,7 +31,7 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('@main/ai/inference/localModelCatalog', () => ({
-  ONNXRUNTIME_NODE_VERSION: '1.24.3',
+  ONNXRUNTIME_NODE_VERSION: '1.25.1',
   ONNXRUNTIME_TARBALL_SHA256: FAKE_TARBALL_SHA256,
   ONNXRUNTIME_LEAVES: {
     [FAKE_PLATFORM]: {
@@ -167,6 +167,22 @@ describe('OnnxRuntimeBinaryService', () => {
     await onnxRuntimeBinaryService.ensure(new AbortController().signal)
 
     expect(net.fetch).toHaveBeenCalledTimes(2)
+    expect(onnxRuntimeBinaryService.isReady()).toBe(true)
+  })
+
+  it('falls back to the second mirror when the first serves a tarball that fails the checksum', async () => {
+    isInChina.mockResolvedValue(false)
+    // A reachable-but-wrong mirror (stale cache, error page, interception) must not be
+    // terminal — the checksum is part of the attempt, so the next mirror still gets its turn.
+    vi.mocked(net.fetch)
+      .mockImplementationOnce((async () =>
+        tarballResponse(Buffer.from('tampered content'))) as unknown as typeof net.fetch)
+      .mockImplementationOnce((async () => tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
+
+    await onnxRuntimeBinaryService.ensure(new AbortController().signal)
+
+    expect(net.fetch).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(net.fetch).mock.calls[1][0]).toContain('registry.npmmirror.com')
     expect(onnxRuntimeBinaryService.isReady()).toBe(true)
   })
 

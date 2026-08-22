@@ -13,8 +13,8 @@ import { defineRoute } from '../define'
 export const tabRequestSchemas = {
   'tab.attach': defineRoute({ input: z.custom<Tab>(), output: z.void() }),
   'tab.detach': defineRoute({
-    // Mirrors SubWindowService.createWindow's payload (a Tab plus a resolved url and an
-    // optional drag drop position); extra Tab fields are stripped by the object schema.
+    // Mirrors SubWindowService.createWindow's tab identity, URL, presentation, and optional
+    // drag-drop position; extra Tab fields are stripped by the object schema.
     input: z.object({
       id: z.string(),
       url: z.string(),
@@ -22,7 +22,6 @@ export const tabRequestSchemas = {
       icon: z.string().optional(),
       type: z.string().optional(),
       isPinned: z.boolean().optional(),
-      metadata: z.record(z.string(), z.unknown()).optional(),
       x: z.number().optional(),
       y: z.number().optional()
     }),

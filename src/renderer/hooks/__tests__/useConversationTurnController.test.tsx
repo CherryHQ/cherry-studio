@@ -1,4 +1,5 @@
 import type { AiStreamOpenResponse } from '@shared/ai/transport'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,6 +40,7 @@ function createDeferred<T>() {
 }
 
 function renderController(initialScopeKey = 'topic-a') {
+  const refreshMetadata = vi.fn()
   const historyAdapter: ConversationHistoryAdapter = {
     seedReservedMessages: vi.fn(),
     refresh: vi.fn(),
@@ -54,12 +56,13 @@ function renderController(initialScopeKey = 'topic-a') {
           trigger: 'submit-message',
           topicId: conversation.topicId,
           userMessageParts: []
-        })
+        }),
+        refreshMetadata
       }),
     { initialProps: { scopeKey: initialScopeKey } }
   )
 
-  return { ...view, historyAdapter }
+  return { ...view, historyAdapter, refreshMetadata }
 }
 
 describe('useConversationTurnController', () => {
@@ -70,9 +73,9 @@ describe('useConversationTurnController', () => {
   it('ignores a stream-open acknowledgement from a previous scope', async () => {
     const pendingAck = createDeferred<AiStreamOpenResponse>()
     mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
-    const { result, rerender } = renderController('agent-session:a')
+    const { result, rerender, historyAdapter, refreshMetadata } = renderController('agent-session:a')
 
-    let sendFromA!: Promise<AiStreamOpenResponse | null>
+    let sendFromA!: Promise<boolean>
     act(() => {
       sendFromA = result.current.send('from A')
     })
@@ -80,23 +83,31 @@ describe('useConversationTurnController', () => {
 
     rerender({ scopeKey: 'agent-session:b' })
     await act(async () => {
-      pendingAck.resolve({ mode: 'started', reservedMessages: [] })
+      pendingAck.resolve({
+        mode: 'started',
+        reservedMessages: [{ id: 'assistant-a', role: 'assistant', parts: [] } as CherryUIMessage]
+      })
       await sendFromA
     })
 
-    expect(result.current.localSendGeneration).toBe(0)
     expect(result.current.phase).toBe('draft')
+    expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
+    expect(refreshMetadata).toHaveBeenCalledWith(
+      { topicId: 'agent-session:a' },
+      expect.objectContaining({ mode: 'started' })
+    )
 
     mocks.streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    let sentFromB: boolean | undefined
     await act(async () => {
-      await result.current.send('from B')
+      sentFromB = await result.current.send('from B')
     })
 
-    expect(result.current.localSendGeneration).toBe(1)
+    expect(sentFromB).toBe(true)
     expect(result.current.phase).toBe('streaming')
   })
 
-  it('does not advance the local-send generation when stream open is blocked', async () => {
+  it('returns to ready when stream open is blocked', async () => {
     mocks.streamOpen.mockResolvedValueOnce({
       mode: 'blocked',
       reason: 'agent-session-workspace',
@@ -104,18 +115,19 @@ describe('useConversationTurnController', () => {
     })
     const { result, historyAdapter } = renderController()
 
+    let sent: boolean | undefined
     await act(async () => {
-      await result.current.send('blocked message')
+      sent = await result.current.send('blocked message')
     })
 
-    expect(result.current.localSendGeneration).toBe(0)
+    expect(sent).toBe(false)
     expect(result.current.phase).toBe('ready')
     expect(mocks.toastError).toHaveBeenCalledWith('Workspace access is required')
     expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
     expect(historyAdapter.rollback).not.toHaveBeenCalled()
   })
 
-  it('does not advance the local-send generation when stream open fails', async () => {
+  it('returns to draft when stream open fails', async () => {
     mocks.streamOpen.mockRejectedValueOnce(new Error('stream open failed'))
     const { result, historyAdapter } = renderController()
 
@@ -123,7 +135,6 @@ describe('useConversationTurnController', () => {
       await expect(result.current.send('failed message')).rejects.toThrow('stream open failed')
     })
 
-    expect(result.current.localSendGeneration).toBe(0)
     expect(result.current.phase).toBe('draft')
     expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
     expect(historyAdapter.rollback).toHaveBeenCalledOnce()
