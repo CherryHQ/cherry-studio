@@ -1056,6 +1056,7 @@
         "title": "Notă de referință"
       },
       "paste_text_file": "Lipește în intrare",
+      "paste_text_too_long": "Textul lipit depășește {{max}} caractere și nu poate fi inserat în câmpul de introducere. Rămâne ca atașament de fișier.",
       "pasted_text_file_name": "text.txt lipit",
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",

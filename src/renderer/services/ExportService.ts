@@ -389,7 +389,7 @@ export const topicToPlainText = async (topic: Topic): Promise<string> => {
   const topicMessages = await getTopicMessages(topic.id)
 
   if (topicMessages && topicMessages.length > 0) {
-    return topicName + '\n\n' + messagesToPlainText(topicMessages)
+    return topicName + '\n\n' + (await messagesToPlainText(topicMessages))
   }
 
   return topicName
