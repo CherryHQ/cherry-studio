@@ -67,6 +67,7 @@ import {
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
@@ -304,6 +305,7 @@ function AgentEditDialogContent({
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
+      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -519,6 +521,13 @@ function AgentEditDialogContent({
           hidden={activeTab !== 'prompt'}
           className="m-0 flex h-full min-h-0 flex-col">
           <AgentPromptField form={form} modelName={promptModelName ?? null} portalContainer={dialogContentElement} />
+        </TabsContent>
+        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
+          <PromptBindingTab
+            enabled={open && activeTab === 'prompts'}
+            target={{ type: 'agent', id: resource.id }}
+            portalContainer={dialogContentElement}
+          />
         </TabsContent>
         {isToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
