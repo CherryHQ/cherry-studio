@@ -440,6 +440,41 @@ describe('ConversationIslandService', () => {
     expect(services.windowManager.close).not.toHaveBeenCalled()
   })
 
+  it('closes immediately when the island window is invalid at exit', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+    mocks.windows.get('island-1').isDestroyed.mockReturnValue(true)
+
+    emitActivity(null, 200)
+
+    expect(services.windowManager.pushInitData).not.toHaveBeenCalled()
+    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('closes immediately when the exit snapshot cannot be presented', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+    services.windowManager.pushInitData.mockReturnValueOnce(false)
+
+    emitActivity(null, 200)
+
+    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not let an old exit timer close a replacement island window', async () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+    emitActivity(null, 200)
+
+    services.windowManager.open(WindowType.ConversationIsland, {})
+    await vi.advanceTimersByTimeAsync(180)
+
+    expect(mocks.windows.has('island-2')).toBe(true)
+    expect(services.windowManager.close).not.toHaveBeenCalled()
+  })
+
   it('closes immediately when normal activity exhausts with reduced motion', () => {
     mocks.prefersReducedMotion = true
     changePreference('feature.conversation_island.enabled', true)
