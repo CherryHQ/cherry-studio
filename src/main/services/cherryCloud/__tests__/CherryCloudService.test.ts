@@ -257,14 +257,15 @@ describe('CherryCloudService', () => {
     expect(await restarted.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
-  it('fails closed in packaged builds until the production origin is configured', async () => {
+  it('uses the HTTPS production origin in packaged builds', async () => {
     mocks.appIsPackaged = true
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
     const service = new CherryCloudService()
     await service._doInit()
 
-    await expect(service.startLogin()).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
     expect(mocks.loopbackOpen).not.toHaveBeenCalled()
-    expect(mocks.netFetch).not.toHaveBeenCalled()
+    expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud.cherryai.com.cn/api/v1/desktop/authorizations')
   })
 
   it('reports an unavailable login service when the backend cannot be reached', async () => {
