@@ -16,7 +16,6 @@ const EXPANDED_WIDTH = 420
 const EXPANDED_ROW_HEIGHT = 44
 const CAPSULE_VERTICAL_PADDING = 16
 const NOTCH_TOP_INSET = 38
-const NOTCH_BOTTOM_PADDING = 8
 
 export type ConversationIslandPresentation = 'notch' | 'capsule'
 
@@ -83,7 +82,7 @@ export function resolveConversationIslandSize(
   if (activityCount < 2) return COMPACT_ISLAND_SIZE
 
   const visibleRows = Math.min(MAX_VISIBLE_EXPANDED_ROWS, activityCount)
-  const chromeHeight = presentation === 'notch' ? NOTCH_TOP_INSET + NOTCH_BOTTOM_PADDING : CAPSULE_VERTICAL_PADDING
+  const chromeHeight = presentation === 'notch' ? NOTCH_TOP_INSET : CAPSULE_VERTICAL_PADDING
   return { width: EXPANDED_WIDTH, height: visibleRows * EXPANDED_ROW_HEIGHT + chromeHeight }
 }
 

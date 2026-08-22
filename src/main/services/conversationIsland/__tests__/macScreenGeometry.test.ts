@@ -36,7 +36,7 @@ describe('macScreenGeometry', () => {
     const size = resolveConversationIslandSize('notch', 8)
 
     expect(resolveConversationIslandBounds(display, geometries, size)).toEqual({
-      bounds: { x: 1350, y: 24, width: 420, height: 266 },
+      bounds: { x: 1350, y: 24, width: 420, height: 258 },
       presentation: 'notch',
       notchWidth: 120
     })
@@ -100,9 +100,9 @@ describe('macScreenGeometry', () => {
     ['capsule', 2, { width: 420, height: 104 }],
     ['capsule', 5, { width: 420, height: 236 }],
     ['capsule', 8, { width: 420, height: 236 }],
-    ['notch', 2, { width: 420, height: 134 }],
-    ['notch', 5, { width: 420, height: 266 }],
-    ['notch', 8, { width: 420, height: 266 }]
+    ['notch', 2, { width: 420, height: 126 }],
+    ['notch', 5, { width: 420, height: 258 }],
+    ['notch', 8, { width: 420, height: 258 }]
   ] as const)('resolves %s size for %i activities', (presentation, activityCount, expected) => {
     expect(resolveConversationIslandSize(presentation, activityCount)).toEqual(expected)
   })
