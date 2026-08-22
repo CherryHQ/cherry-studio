@@ -29,10 +29,10 @@ import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/form
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
-import { memo, type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import HtmlPreviewFrame from './HtmlPreviewFrame'
+import HtmlArtifactPreviewSurface, { htmlArtifactPreviewRequiresInteractive } from './HtmlArtifactPreviewSurface'
 
 const logger = loggerService.withContext('HtmlArtifactsPopup')
 
@@ -100,6 +100,10 @@ interface HtmlArtifactsPopupProps {
   html: string
   onSave?: (html: string) => void
   editable?: boolean
+  /** Explicit user authorization for the interactive preview tier. The popup can only
+   *  be opened by a user action (card click / maximize), so its callers pass true —
+   *  each call site declares that authority explicitly instead of relying on comments. */
+  authorized: boolean
   canCapturePreview?: boolean
   renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
   onClose: () => void
@@ -113,6 +117,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   html,
   onSave,
   editable = true,
+  authorized,
   canCapturePreview = true,
   renderPreview,
   onClose
@@ -189,15 +194,25 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     />
   )
 
+  // The interactive (webview) tier exposes no capture iframe, so the capture menu only
+  // makes sense on the script-less frame — both for the default surface and callers.
+  // An explicit canCapturePreview={false} from any caller is still honored.
+  const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
+  const effectiveCanCapturePreview = renderPreview
+    ? canCapturePreview
+    : canCapturePreview && !requiresInteractivePreview
+
   const renderPreviewPanel = () =>
     renderPreview ? (
       renderPreview(previewFrameRef)
     ) : (
-      <HtmlPreviewFrame
+      <HtmlArtifactPreviewSurface
         iframeRef={previewFrameRef}
         html={html}
         title={t('common.html_preview')}
+        authorized={authorized}
         emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
+        forwardBoundaryWheel={false}
       />
     )
 
@@ -307,7 +322,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             <div
               className="flex flex-1 items-center justify-end gap-2 pr-1"
               onDoubleClick={(event) => event.stopPropagation()}>
-              {canCapturePreview && (
+              {effectiveCanCapturePreview && (
                 <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                   <Tooltip content={t('html_artifacts.capture.label')}>
                     <PopoverTrigger asChild>

@@ -116,6 +116,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
             html={htmlContent}
             onSave={onSave}
             editable={editable}
+            authorized={isPopupOpen}
             onClose={() => setIsPopupOpen(false)}
           />
         </Suspense>
