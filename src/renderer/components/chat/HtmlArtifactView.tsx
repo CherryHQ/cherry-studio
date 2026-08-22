@@ -405,8 +405,12 @@ export function HtmlArtifactPopupOutlet() {
   const popupSession = popupContext.popupSession
   if (!popupSession) return null
 
-  // Opening the full-screen popup is the explicit viewing action, so it never renders a consent surface.
-  const requiresInteractivePreview = htmlArtifactPreviewRequiresInteractive(popupSession.html, popupSession.kind)
+  // Opening the full-screen popup is the explicit viewing action, so it never renders a
+  // consent surface — active content (fragment or document) goes straight to the webview.
+  const requiresInteractivePreview = htmlArtifactPreviewRequiresInteractive(popupSession.html)
+  // Only a whole document may be promoted in the INLINE view after viewing, so the
+  // approve-on-close memory stays kind-gated (fragments remain script-less inline).
+  const approvesInlineInteractive = requiresInteractivePreview && popupSession.kind === 'document'
 
   return (
     <Suspense fallback={null}>
@@ -416,20 +420,18 @@ export function HtmlArtifactPopupOutlet() {
         html={popupSession.html}
         onSave={popupSession.onSave}
         editable={popupSession.editable}
-        kind={popupSession.kind}
         canCapturePreview={!requiresInteractivePreview}
         renderPreview={(iframeRef) => (
           <HtmlArtifactPreviewSurface
             html={popupSession.html}
             title={popupSession.title}
-            kind={popupSession.kind}
             zoom={popupSession.zoom}
             iframeRef={iframeRef}
             forwardBoundaryWheel={false}
           />
         )}
         onClose={() => {
-          if (requiresInteractivePreview) {
+          if (approvesInlineInteractive) {
             popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)
           }
           popupContext.closePopup()

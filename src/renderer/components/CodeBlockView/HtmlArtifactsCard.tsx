@@ -9,8 +9,6 @@ import type { FC } from 'react'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { HtmlArtifactKind } from './HtmlArtifactPreviewSurface'
-
 const HtmlArtifactsPopup = lazy(() => import('./HtmlArtifactsPopup'))
 
 const logger = loggerService.withContext('HtmlArtifactsCard')
@@ -20,11 +18,9 @@ interface Props {
   onSave?: (html: string) => void
   editable?: boolean
   isStreaming?: boolean
-  /** Artifact classification driving the popup preview's safety tier. */
-  kind?: HtmlArtifactKind
 }
 
-const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreaming = false, kind }) => {
+const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreaming = false }) => {
   const { t } = useTranslation()
   const title = extractHtmlTitle(html) || t('common.html_preview')
   const [isPopupOpen, setIsPopupOpen] = useState(false)
@@ -120,7 +116,6 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
             html={htmlContent}
             onSave={onSave}
             editable={editable}
-            kind={kind}
             onClose={() => setIsPopupOpen(false)}
           />
         </Suspense>

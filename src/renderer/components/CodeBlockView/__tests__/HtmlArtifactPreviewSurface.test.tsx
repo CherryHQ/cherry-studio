@@ -6,26 +6,21 @@ import { htmlArtifactPreviewRequiresInteractive, HtmlArtifactPreviewSurface } fr
 const DOCUMENT_WITH_SCRIPT =
   '<!doctype html><html><head><title>App</title></head><body><script>window.__ran = true</script><h1>Interactive app</h1></body></html>'
 const DOCUMENT_INERT = '<!doctype html><html><head><title>Doc</title></head><body><h1>Static doc</h1></body></html>'
-const FRAGMENT = '<div><h2>Fragment</h2></div>'
+const FRAGMENT_INERT = '<div><h2>Fragment</h2></div>'
+const FRAGMENT_WITH_SCRIPT = '<div><canvas id="c"></canvas><script>draw()</script></div>'
 
 describe('htmlArtifactPreviewRequiresInteractive', () => {
-  it('requires the webview tier only for documents with active content', () => {
-    expect(htmlArtifactPreviewRequiresInteractive(DOCUMENT_WITH_SCRIPT, 'document')).toBe(true)
-    expect(htmlArtifactPreviewRequiresInteractive(DOCUMENT_INERT, 'document')).toBe(false)
-    expect(htmlArtifactPreviewRequiresInteractive(FRAGMENT, 'fragment')).toBe(false)
-    // A script-bearing fragment embedded in prose never gets the webview tier.
-    expect(htmlArtifactPreviewRequiresInteractive('<div><script>1</script></div>', 'fragment')).toBe(false)
-  })
-
-  it('fails closed: a missing classification is treated as a document', () => {
+  it('decides by content only — active fragments and documents both need the webview tier', () => {
     expect(htmlArtifactPreviewRequiresInteractive(DOCUMENT_WITH_SCRIPT)).toBe(true)
+    expect(htmlArtifactPreviewRequiresInteractive(FRAGMENT_WITH_SCRIPT)).toBe(true)
     expect(htmlArtifactPreviewRequiresInteractive(DOCUMENT_INERT)).toBe(false)
+    expect(htmlArtifactPreviewRequiresInteractive(FRAGMENT_INERT)).toBe(false)
   })
 })
 
 describe('HtmlArtifactPreviewSurface', () => {
-  it('renders a script-less same-origin frame for fragments', () => {
-    render(<HtmlArtifactPreviewSurface html={FRAGMENT} title="common.html_preview" kind="fragment" />)
+  it('renders a script-less same-origin frame for inert fragments', () => {
+    render(<HtmlArtifactPreviewSurface html={FRAGMENT_INERT} title="common.html_preview" />)
 
     const iframe = screen.getByTitle('common.html_preview')
     expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
@@ -35,14 +30,14 @@ describe('HtmlArtifactPreviewSurface', () => {
   })
 
   it('renders a script-less frame for inert documents', () => {
-    render(<HtmlArtifactPreviewSurface html={DOCUMENT_INERT} title="common.html_preview" kind="document" />)
+    render(<HtmlArtifactPreviewSurface html={DOCUMENT_INERT} title="common.html_preview" />)
 
     expect(screen.getByTitle('common.html_preview')).toHaveAttribute('sandbox', 'allow-same-origin')
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
   })
 
-  it('routes documents with active content to the hardened webview partition, not a frame', () => {
-    render(<HtmlArtifactPreviewSurface html={DOCUMENT_WITH_SCRIPT} title="common.html_preview" kind="document" />)
+  it('routes active documents to the hardened webview partition, not a frame', () => {
+    render(<HtmlArtifactPreviewSurface html={DOCUMENT_WITH_SCRIPT} title="common.html_preview" />)
 
     const webview = screen.getByTestId('interactive-html-webview')
     expect(webview).toHaveAttribute('partition', 'html-artifact-preview')
@@ -50,14 +45,15 @@ describe('HtmlArtifactPreviewSurface', () => {
     expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()
   })
 
-  it('fails closed when kind is omitted: a script-bearing document still gets the webview', () => {
-    render(<HtmlArtifactPreviewSurface html={DOCUMENT_WITH_SCRIPT} title="common.html_preview" />)
+  it('keeps interactive fragments interactive: active fragments also go to the webview tier', () => {
+    render(<HtmlArtifactPreviewSurface html={FRAGMENT_WITH_SCRIPT} title="common.html_preview" />)
 
-    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
+    expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()
   })
 
   it('renders the empty hint instead of any frame for blank content', () => {
-    render(<HtmlArtifactPreviewSurface html="   " title="common.html_preview" kind="fragment" emptyText="No content" />)
+    render(<HtmlArtifactPreviewSurface html="   " title="common.html_preview" emptyText="No content" />)
 
     expect(screen.getByText('No content')).toBeInTheDocument()
     expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()
