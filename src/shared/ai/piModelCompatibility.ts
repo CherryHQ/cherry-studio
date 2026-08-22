@@ -95,10 +95,33 @@ export function mapEndpointToPiApi(
  * `resolveEffectiveEndpoint`'s endpoint selection (kept pure here so the
  * renderer, which has no main-only resolver, can reuse it).
  */
+/**
+ * Chat endpoints to consider for a model, in preference order: the model's
+ * declared endpoints first, then the gateway route, then the provider default.
+ */
+function candidateEndpointTypes(provider: Provider, model: Model): EndpointType[] {
+  const candidates: EndpointType[] = [...(model.endpointTypes ?? [])]
+  const gateway = resolveGatewayChatRoute(provider, model)?.endpointType
+  if (gateway) candidates.push(gateway)
+  if (provider.defaultChatEndpoint) candidates.push(provider.defaultChatEndpoint)
+  return [...new Set(candidates)]
+}
+
+/**
+ * The effective chat endpoint the pi runtime uses. Preference order is kept,
+ * but a declared endpoint with no pi protocol no longer hides a later declared
+ * endpoint that has one (#19184): the model's first endpoint is used when it
+ * maps, else the first declared endpoint that does, else the first candidate.
+ */
 function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
-  )
+  const candidates = candidateEndpointTypes(provider, model)
+  if (candidates.length === 0) return undefined
+  for (const candidate of candidates) {
+    if (mapEndpointToPiApi(candidate, provider.endpointConfigs?.[candidate]?.adapterFamily) !== undefined) {
+      return candidate
+    }
+  }
+  return candidates[0]
 }
 
 /** Resolve the pi `api` family for a Cherry provider+model, or `undefined` if unsupported. */
