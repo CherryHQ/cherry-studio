@@ -472,4 +472,44 @@ describe('CherryCloudService', () => {
     expect(headers.get('Idempotency-Key')).toMatch(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
     expect(headers.get('Cherry-Body-SHA256')).toBe('f24394a04116608ee41330b7fd6511ff8e44f65e29f6cfc44bb7c8393de7e5ea')
   })
+
+  it('revokes the current Product Session before clearing the local login', async () => {
+    restoreSignedInState()
+    mocks.netFetch.mockResolvedValueOnce(new Response(null, { status: 204 }))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
+
+    const [url, init] = mocks.netFetch.mock.calls[0]
+    const headers = new Headers(init.headers)
+    expect(url).toBe('http://127.0.0.1:8084/api/v1/product-sessions/current')
+    expect(init.method).toBe('DELETE')
+    expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
+    expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
+    expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
+    expect(mocks.writeFile).toHaveBeenCalledOnce()
+  })
+
+  it('finishes local logout when the current Product Session is already invalid', async () => {
+    restoreSignedInState()
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.writeFile).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the local login when remote Product Session revocation fails', async () => {
+    restoreSignedInState()
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 503))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await expect(service.revokeCurrentSession()).rejects.toThrow('Cherry Cloud logout failed (503)')
+
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(mocks.writeFile).not.toHaveBeenCalled()
+  })
 })

@@ -6419,6 +6419,8 @@
       "cherry_cloud": {
         "logged_in": "已登入",
         "login": "使用 Cherry Studio 帳號登入",
+        "logout": "登出",
+        "logout_failed": "無法登出，請重試。",
         "sign_in_failed": "登入失敗，請重試。",
         "signing_in": "等待瀏覽器授權…"
       },

@@ -6419,6 +6419,8 @@
       "cherry_cloud": {
         "logged_in": "Sesión iniciada",
         "login": "Iniciar sesión con la cuenta de Cherry Studio",
+        "logout": "Cerrar sesión",
+        "logout_failed": "No se pudo cerrar sesión. Inténtalo de nuevo.",
         "sign_in_failed": "Error al iniciar sesión. Inténtalo de nuevo.",
         "signing_in": "Esperando la autorización del navegador…"
       },

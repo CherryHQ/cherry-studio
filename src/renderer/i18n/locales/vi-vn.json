@@ -6419,6 +6419,8 @@
       "cherry_cloud": {
         "logged_in": "Đã đăng nhập",
         "login": "Đăng nhập bằng tài khoản Cherry Studio",
+        "logout": "Đăng xuất",
+        "logout_failed": "Không thể đăng xuất. Vui lòng thử lại.",
         "sign_in_failed": "Đăng nhập thất bại. Vui lòng thử lại.",
         "signing_in": "Đang chờ xác thực trên trình duyệt…"
       },

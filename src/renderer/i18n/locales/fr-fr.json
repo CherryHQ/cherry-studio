@@ -6419,6 +6419,8 @@
       "cherry_cloud": {
         "logged_in": "Connecté",
         "login": "Se connecter avec un compte Cherry Studio",
+        "logout": "Se déconnecter",
+        "logout_failed": "Impossible de se déconnecter. Réessayez.",
         "sign_in_failed": "Échec de la connexion. Réessayez.",
         "signing_in": "En attente de l’autorisation du navigateur…"
       },

@@ -12,6 +12,7 @@ export type CherryCloudStatus = z.infer<typeof cherryCloudStatusSchema>
 export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.login.start': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
+  'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.models.sync': defineRoute({
     input: z.void(),
     output: z.strictObject({ modelCount: z.number().int().nonnegative() })

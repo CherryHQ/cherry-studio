@@ -6419,6 +6419,8 @@
       "cherry_cloud": {
         "logged_in": "ログイン済み",
         "login": "Cherry Studio アカウントでログイン",
+        "logout": "ログアウト",
+        "logout_failed": "ログアウトできませんでした。もう一度お試しください。",
         "sign_in_failed": "ログインに失敗しました。もう一度お試しください。",
         "signing_in": "ブラウザでの認証を待っています…"
       },

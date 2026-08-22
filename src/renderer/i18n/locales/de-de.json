@@ -6419,6 +6419,8 @@
       "cherry_cloud": {
         "logged_in": "Angemeldet",
         "login": "Mit Cherry-Studio-Konto anmelden",
+        "logout": "Abmelden",
+        "logout_failed": "Abmeldung fehlgeschlagen. Bitte erneut versuchen.",
         "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
         "signing_in": "Warten auf Browser-Autorisierung…"
       },

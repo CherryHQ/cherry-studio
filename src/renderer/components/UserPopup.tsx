@@ -41,6 +41,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
   const [cloudStatus, setCloudStatus] = useState<CherryCloudStatus | null>(null)
   const [isStartingLogin, setIsStartingLogin] = useState(false)
+  const [isRevokingSession, setIsRevokingSession] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
   const avatar = useAvatar()
@@ -131,6 +132,17 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     }
   }
 
+  const handleCloudLogout = async () => {
+    setIsRevokingSession(true)
+    try {
+      setCloudStatus(await ipcApi.request('cherry_cloud.session.revoke'))
+    } catch {
+      toast.error(t('settings.provider.cherry_cloud.logout_failed'))
+    } finally {
+      setIsRevokingSession(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[300px] gap-0 p-0 sm:max-w-[300px]">
@@ -214,17 +226,26 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         </RowFlex>
         <RowFlex className="border-border-subtle border-t px-5 py-4">
           {cloudStatus?.phase === 'signed-in' ? (
-            <div
-              role="status"
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-success-border bg-success-subtle px-3 py-2 text-success-subtle-foreground text-xs">
-              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-success" />
-              <ColFlex className="min-w-0 items-center leading-tight">
-                {cloudStatus.displayName ? (
-                  <span className="max-w-full truncate font-medium">{cloudStatus.displayName}</span>
-                ) : null}
-                <span>{t('settings.provider.cherry_cloud.logged_in')}</span>
-              </ColFlex>
-            </div>
+            <ColFlex className="w-full gap-2">
+              <div
+                role="status"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-success-border bg-success-subtle px-3 py-2 text-success-subtle-foreground text-xs">
+                <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-success" />
+                <ColFlex className="min-w-0 items-center leading-tight">
+                  {cloudStatus.displayName ? (
+                    <span className="max-w-full truncate font-medium">{cloudStatus.displayName}</span>
+                  ) : null}
+                  <span>{t('settings.provider.cherry_cloud.logged_in')}</span>
+                </ColFlex>
+              </div>
+              <Button
+                className="w-full"
+                loading={isRevokingSession}
+                onClick={() => void handleCloudLogout()}
+                variant="destructive">
+                {t('settings.provider.cherry_cloud.logout')}
+              </Button>
+            </ColFlex>
           ) : (
             <Button
               className="w-full"
