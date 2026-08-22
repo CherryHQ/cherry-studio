@@ -1141,6 +1141,46 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks[0].type).toBe('quote')
     expect(plainText(blocks[0].quote.children[0].paragraph.rich_text)).toContain('[!NOTE]')
   })
+
+  it('converts an alert nested inside a plain quote while the outer quote stays a quote', () => {
+    const blocks = toBlocks('> outer\n> > [!NOTE]\n> > inner')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('quote')
+    const innerCallout = blocks[0].quote.children.find((child: any) => child.type === 'callout')
+    expect(innerCallout).toBeDefined()
+    expect(innerCallout.callout.icon.emoji).toBe('💡')
+    expect(plainText(innerCallout.callout.rich_text)).toBe('inner')
+  })
+
+  it('keeps a plain quote nested inside an alert as a quote within the callout', () => {
+    const blocks = toBlocks('> [!TIP]\n> tip text\n> > plain inner')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('callout')
+    expect(plainText(blocks[0].callout.rich_text)).toBe('tip text')
+    const nested = blocks[0].callout.children.find((child: any) => child.type === 'quote')
+    expect(nested).toBeDefined()
+    expect(plainText(nested.quote.children[0].paragraph.rich_text)).toBe('plain inner')
+  })
+
+  it('keeps flag order across interleaved plain and alert quotes', () => {
+    const blocks = toBlocks('> plain one\n\n> [!WARNING]\n> careful\n\n> plain two')
+
+    expect(blocks).toHaveLength(3)
+    expect(blocks[0].type).toBe('quote')
+    expect(blocks[1].type).toBe('callout')
+    expect(blocks[1].callout.icon.emoji).toBe('⚠️')
+    expect(blocks[2].type).toBe('quote')
+  })
+
+  it('converts an alert with body on the marker line', () => {
+    const blocks = toBlocks('> [!NOTE] inline body')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('callout')
+    expect(plainText(blocks[0].callout.rich_text)).toBe(' inline body')
+  })
 })
 
 describe('Notion export alert callout wiring', () => {

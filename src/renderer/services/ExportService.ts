@@ -557,12 +557,14 @@ const isAlertQuoteNode = (quote: Blockquote): boolean => {
   return firstNode?.type === 'text' && ALERT_MARKER_RE.test(firstNode.value)
 }
 
-// One flag per source blockquote in document order (parents before children),
-// consumed in the same order while rewriting martian's quote blocks.
+// One flag per source blockquote in document order, consumed in the same order below.
+// The visitor must not return a value — visit treats numbers as index moves.
 const collectAlertQuoteFlags = (markdown: string): boolean[] => {
   const flags: boolean[] = []
   const tree = unified().use(remarkParse).parse(markdown)
-  visit(tree, 'blockquote', (node) => flags.push(isAlertQuoteNode(node)))
+  visit(tree, 'blockquote', (node) => {
+    flags.push(isAlertQuoteNode(node))
+  })
   return flags
 }
 
