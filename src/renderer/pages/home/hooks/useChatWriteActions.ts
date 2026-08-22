@@ -2,7 +2,7 @@
  * Build the `ChatWriteActions` bag passed down through context.
  *
  * Everything here is a write-side handler (delete / edit / regenerate /
- * resend / fork / setActiveNode / clearTopic) that:
+ * resend / fork / setActiveNode) that:
  *   1. seeds the optimistic branch-response cache and/or mutates
  *      `useChat.state.messages`,
  *   2. fires the DataApi mutation trigger (from `useBranchCacheOps`),
@@ -14,11 +14,11 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
@@ -73,6 +73,7 @@ function getInheritedTurnOptions(
 function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
   return {
     ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
+    ...(turnOptions?.serviceTier !== undefined && { serviceTier: turnOptions.serviceTier }),
     ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
   }
 }
@@ -119,14 +120,12 @@ export function useChatWriteActions(params: Params): Result {
     seedOptimisticBranch,
     seedReservedMessages: seedMessagesCache,
     rollbackBranch,
-    clearBranchCache,
     deleteMessageTrigger,
     deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
     createMessageTrigger,
-    setActiveNodeTrigger,
-    clearTopicMessagesTrigger
+    setActiveNodeTrigger
   } = cache
   const startNewContextPromiseRef = useRef<Promise<void> | null>(null)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
@@ -195,18 +194,6 @@ export function useChatWriteActions(params: Params): Result {
     uiMessages
   ])
   const canStartNewContext = Boolean(activeNodeId) && !startNewContextBlocked && !isStartingNewContext
-
-  const handleClearTopicMessages = useCallback(async () => {
-    await clearBranchCache()
-    try {
-      const result = await clearTopicMessagesTrigger({ params: { topicId: topic.id } })
-      invalidateCachedMessageUiStates(result.deletedIds)
-      logger.info('Cleared all messages', { topicId: topic.id, count: result.deletedIds.length })
-    } catch (err) {
-      await rollbackBranch()
-      throw err
-    }
-  }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
   const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
     (id: string) => {
@@ -542,7 +529,6 @@ export function useChatWriteActions(params: Params): Result {
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: stop,
-      clearTopicMessages: handleClearTopicMessages,
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
@@ -558,7 +544,6 @@ export function useChatWriteActions(params: Params): Result {
       handleDeleteMessage,
       handleDeleteMessageGroup,
       stop,
-      handleClearTopicMessages,
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,

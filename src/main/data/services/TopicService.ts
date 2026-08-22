@@ -156,6 +156,9 @@ export class TopicService {
    * unpinned-by-`orderKey` (manual/creation order), so the globally latest-active
    * topic is not guaranteed to be on it. This `lastActivityAt DESC LIMIT 1` proves global
    * latest independent of how the rail happens to page.
+   *
+   * An optional `assistantId` narrows the scan to one assistant's topics — used by
+   * per-assistant sidebar entries to resume that assistant's last conversation.
    */
   getLatestActive(query: LatestTopicQuery = {}): Topic | null {
     const db = application.get('DbService').getDb()

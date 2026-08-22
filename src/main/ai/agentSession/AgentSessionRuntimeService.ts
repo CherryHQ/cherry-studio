@@ -42,7 +42,12 @@ import {
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
-import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  parseUniqueModelId,
+  type ServiceTierSelection,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
@@ -51,7 +56,6 @@ import { v7 as uuidv7 } from 'uuid'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
-import { type DispatchDecision, toolApprovalRegistry } from '../runtime/toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
@@ -69,7 +73,8 @@ import {
   type StreamPausedResult,
   TraceFlushListener
 } from '../streamManager'
-import type { InProcessUsageContext } from '../types'
+import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
+import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   type AgentSessionRuntimeConnectionTarget,
   type AgentSessionRuntimeLaunchTarget,
@@ -130,6 +135,7 @@ export interface BeginAgentSessionTurnInput {
   agentType: string
   modelId: UniqueModelId
   reasoningEffort?: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
   fastMode?: boolean
   assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
@@ -182,6 +188,7 @@ type AgentSessionTurn = {
   /** Whether this initial turn owns the session's one automatic AI naming attempt. */
   shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
+  serviceTier: ServiceTierSelection
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   abortController: AbortController
@@ -193,6 +200,7 @@ type AgentSessionTurn = {
 type PendingAgentSessionTurn = {
   message: AgentSessionMessageEntity
   reasoningEffort: ReasoningEffortOption
+  serviceTier: ServiceTierSelection
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   /** The message arrived mid-turn (steer) — the drained turn wraps it in a system-reminder. */
@@ -223,6 +231,7 @@ type SteerContinuationReservation = {
 type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
+  serviceTier: ServiceTierSelection
   fastMode: boolean
 }
 
@@ -307,6 +316,8 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
+  private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
+  public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
   private readonly _onTurnTerminal = new Emitter<AgentSessionTurnTerminalEvent>()
   readonly onTurnTerminal: Event<AgentSessionTurnTerminalEvent> = this._onTurnTerminal.event
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
@@ -464,6 +475,7 @@ export class AgentSessionRuntimeService extends BaseService {
       messageSnapshot,
       shouldAutoName: input.shouldAutoName === true,
       reasoningEffort: input.reasoningEffort ?? 'default',
+      serviceTier: input.serviceTier ?? 'standard',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
       abortController: new AbortController(),
@@ -792,6 +804,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless?: boolean
       messageSnapshot?: MessageSnapshot
       reasoningEffort?: ReasoningEffortOption
+      serviceTier?: ServiceTierSelection
       fastMode?: boolean
     } = {}
   ): void {
@@ -804,6 +817,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const headless = opts.headless === true
     const messageSnapshot = opts.messageSnapshot ? structuredClone(opts.messageSnapshot) : undefined
     const reasoningEffort = opts.reasoningEffort ?? 'default'
+    const serviceTier = opts.serviceTier ?? 'standard'
     const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? []
     const fastMode = opts.fastMode === true
 
@@ -818,6 +832,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const canRedirectOnCurrentConfig =
       turn?.modelId === entry.modelId &&
       turn.reasoningEffort === reasoningEffort &&
+      turn.serviceTier === serviceTier &&
       turn.fastMode === fastMode &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, turn.knowledgeBaseIds),
@@ -848,6 +863,7 @@ export class AgentSessionRuntimeService extends BaseService {
       turn: {
         message,
         reasoningEffort,
+        serviceTier,
         knowledgeBaseIds,
         fastMode,
         steer: true,
@@ -1321,6 +1337,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
     await this.closeAll()
     try {
@@ -1370,10 +1387,17 @@ export class AgentSessionRuntimeService extends BaseService {
       ? {
           modelId: turn.modelId,
           reasoningEffort: turn.reasoningEffort,
+          serviceTier: turn.serviceTier,
           knowledgeBaseIds: turn.knowledgeBaseIds,
           fastMode: turn.fastMode
         }
-      : { modelId: entry.modelId, reasoningEffort: 'default', knowledgeBaseIds: [], fastMode: false }
+      : {
+          modelId: entry.modelId,
+          reasoningEffort: 'default',
+          serviceTier: 'standard',
+          knowledgeBaseIds: [],
+          fastMode: false
+        }
   }
 
   private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
@@ -1382,6 +1406,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return (
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
+      current.serviceTier === target.serviceTier &&
       current.fastMode === target.fastMode &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, current.knowledgeBaseIds),
@@ -1517,6 +1542,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: entry.agentId,
       modelId: target.modelId,
       reasoningEffort: target.reasoningEffort,
+      serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
@@ -1629,6 +1655,7 @@ export class AgentSessionRuntimeService extends BaseService {
             turn: {
               message: input.message,
               reasoningEffort: this.currentTurn(entry)?.reasoningEffort ?? 'default',
+              serviceTier: this.currentTurn(entry)?.serviceTier ?? 'standard',
               knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
               fastMode: this.currentTurn(entry)?.fastMode ?? false,
               steer: true,
@@ -2255,6 +2282,11 @@ export class AgentSessionRuntimeService extends BaseService {
         },
         { publishDataChange: true }
       )
+      this._onApprovalRequested.fire({
+        topicId: entry.topicId,
+        approvalId: request.approvalId,
+        requestedAt: Date.now()
+      })
     } catch (error) {
       logger.error('Failed to persist background tool approval request', {
         sessionId: entry.sessionId,
@@ -2468,7 +2500,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
-    const { message: nextMessage, reasoningEffort, knowledgeBaseIds, fastMode = false } = pendingTurn
+    const { message: nextMessage, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode = false } = pendingTurn
 
     // A queued follow-up can outlive the agent's model: deleting the model nulls `agent.model` via the FK
     // (`onDelete: 'set null'`) without emitting an agent update, so `applyAgentModelUpdate` never ran and
@@ -2539,6 +2571,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: entry.modelId,
       messageSnapshot,
       reasoningEffort,
+      serviceTier,
       knowledgeBaseIds,
       fastMode,
       abortController: new AbortController(),
@@ -2566,6 +2599,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messageId: assistantMessageId,
         messages,
         reasoningEffort,
+        serviceTier,
         ...(fastMode ? { fastMode: true } : {}),
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
@@ -2643,6 +2677,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messageId: turn.assistantMessageId,
         messages,
         reasoningEffort: turn.reasoningEffort,
+        serviceTier: turn.serviceTier,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId: turn.turnId }
       },
       abortController: turn.abortController,
@@ -2668,7 +2703,7 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
-    const { modelId, knowledgeBaseIds, fastMode } = this.connectionTarget(entry)
+    const { modelId, serviceTier, knowledgeBaseIds, fastMode } = this.connectionTarget(entry)
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
@@ -2702,6 +2737,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage: syntheticMessage,
       modelId,
       reasoningEffort: 'default',
+      serviceTier,
       knowledgeBaseIds,
       fastMode,
       // Pre-admitted: the connected runtime started this generation, so `admitTurn` must not send.
@@ -2739,6 +2775,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messageId: assistantMessageId,
         messages,
         reasoningEffort: 'default',
+        serviceTier,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: receiveOnlyTurn.abortController,
@@ -2763,6 +2800,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const reservation = transition.reservation
     const modelId = transition.sourceTurn.modelId
     const reasoningEffort = transition.sourceTurn.reasoningEffort
+    const serviceTier = transition.sourceTurn.serviceTier
     const fastMode = transition.sourceTurn.fastMode
     const steerMessage = transition.inputs[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
     // A2 opens no connection, so it must report the scope the still-streaming SDK query actually
@@ -2812,6 +2850,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId,
       messageSnapshot,
       reasoningEffort,
+      serviceTier,
       knowledgeBaseIds,
       fastMode,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
@@ -2850,6 +2889,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messageId: assistantMessageId,
         messages,
         reasoningEffort,
+        serviceTier,
         ...(fastMode ? { fastMode: true } : {}),
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },

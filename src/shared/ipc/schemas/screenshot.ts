@@ -102,6 +102,15 @@ export const screenshotRequestSchemas = {
    */
   'screenshot.overlay_ready': defineRoute({ input: z.object({ mediaId: z.string() }), output: z.void() }),
   /**
+   * The text-annotation editor opened (`true`) or closed (`false`) on the calling overlay.
+   *
+   * macOS only in effect. The IME candidate window is placed at a fixed, low window level
+   * for a Chromium client, so an overlay sitting above the Dock and menu bar covers the
+   * candidates completely — text can be composed but nothing can be chosen. Main drops
+   * this overlay below that level while the editor is open and restores it on close.
+   */
+  'screenshot.text_editing': defineRoute({ input: z.object({ editing: z.boolean() }), output: z.void() }),
+  /**
    * OCR a region of the frozen capture. Cropping happens in main so the full-size
    * image never crosses the process boundary.
    *

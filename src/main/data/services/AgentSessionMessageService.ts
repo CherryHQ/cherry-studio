@@ -547,13 +547,16 @@ export class AgentSessionMessageService {
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
 
       const updatedAt = Date.now()
+      // PATCH callers send partial data (usually just parts); shallow-merge so
+      // omitted keys like main-authoritative turnOptions survive the update.
+      const mergedData = { ...existing.data, ...dto.data }
       const [updated] = tx
         .update(sessionMessagesTable)
-        .set({ data: dto.data, updatedAt })
+        .set({ data: mergedData, updatedAt })
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
-      replaceAgentSessionMessageFileRefsTx(tx, messageId, dto.data)
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, mergedData)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })

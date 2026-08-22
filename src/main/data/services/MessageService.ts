@@ -1482,7 +1482,9 @@ export class MessageService {
       // Build update object
       const updates: Partial<typeof messageTable.$inferInsert> = {}
 
-      if (dto.data !== undefined) updates.data = dto.data
+      // PATCH callers send partial data (usually just parts); shallow-merge so
+      // omitted keys like main-authoritative turnOptions survive the update.
+      if (dto.data !== undefined) updates.data = { ...existing.data, ...dto.data }
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       let activityTransitionAt: number | null = null
@@ -1500,8 +1502,8 @@ export class MessageService {
       }
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
-      if (dto.data !== undefined) {
-        replaceChatMessageFileRefsTx(tx, id, dto.data)
+      if (updates.data !== undefined) {
+        replaceChatMessageFileRefsTx(tx, id, updates.data)
       }
       if (activityTransitionAt !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, existingRow.topicId, activityTransitionAt)
@@ -2071,7 +2073,7 @@ export class MessageService {
    * so the single-root invariant holds — and clears `activeNodeId`.
    */
   clearTopicMessages(topicId: string): { deletedIds: string[] } {
-    return application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       const rootId = this.getRootMessageIdTx(tx, topicId)
 
       const rows = tx
@@ -2092,6 +2094,24 @@ export class MessageService {
       logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
       return { deletedIds }
     })
+
+    if (result.deletedIds.length > 0) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'membership',
+          routeParams: { topicId },
+          entityIds: result.deletedIds
+        },
+        { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: result.deletedIds },
+        { endpoint: '/messages/:id', entityIds: result.deletedIds },
+        { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+        { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] },
+        { endpoint: '/topics/latest' }
+      ])
+    }
+
+    return result
   }
 
   /**

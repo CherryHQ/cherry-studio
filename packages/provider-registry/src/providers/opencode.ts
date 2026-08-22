@@ -3,7 +3,7 @@ import type { ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
-import { modeWire } from './wires'
+import { modeWire, openaiResponsesSummaryWire } from './wires'
 
 const fixedSupport: ReasoningSupport = { controls: [] }
 
@@ -27,6 +27,9 @@ const qwenBudgetWire: ReasoningWireProfile = {
 const chatFixedModels = [
   'glm-5',
   'glm-5-1',
+  // GLM-5.3 reached opencode's listing without a zhipu catalog entry: pin the wire it serves so it
+  // can't silently fall back, and claim no effort knobs until the contract is known.
+  'glm-5-3',
   'kimi-k2-5',
   'kimi-k2-6',
   'kimi-k2-7-code',
@@ -86,6 +89,13 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
       'openai-responses': { support: effortSupport(['none', 'low', 'medium', 'high', 'xhigh', 'max']) }
     }
   },
+  {
+    modelId: 'muse-spark-1-2-contributor',
+    endpointTypes: ['openai-responses' as const],
+    reasoningContracts: {
+      'openai-responses': { support: effortSupport(['minimal', 'low', 'medium', 'high', 'xhigh']) }
+    }
+  },
   ...anthropicFixedModels.map((modelId) => ({
     modelId,
     endpointTypes: ['anthropic-messages' as const],
@@ -134,7 +144,7 @@ export default defineProvider({
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://opencode.ai/zen/go/v1',
-      reasoningFormat: { type: 'openai-responses' }
+      reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
   metadata: {
