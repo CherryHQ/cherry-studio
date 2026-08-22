@@ -410,16 +410,18 @@ interface TabCapabilities {
 
 /**
  * Single source of truth for what a tab can do, derived from its zone and the
- * tab counts. Normal tabs can always be closed/pinned/detached; if the last tab
- * closes, TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs
- * can be closed via the context menu (no inline X), and the batch close actions
- * only ever clear the normal zone — pinned tabs are exempt as close *targets*,
- * matching browser convention. Reordering is per-zone. `normalIndex` is the
- * tab's position within the normal zone — required to offer "close tabs to the
- * right"; for a pinned tab every normal tab counts as being to its right.
+ * tab counts. Normal tabs can always be closed/detached; restorable tabs can also
+ * be pinned. Transient mini-app tabs cannot be restored from the persistent pinned
+ * store, so pinning is deliberately unavailable for them. If the last tab closes,
+ * TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs can be
+ * closed via the context menu (no inline X), and the batch close actions only ever
+ * clear the normal zone — pinned tabs are exempt as close *targets*, matching
+ * browser convention. Reordering is per-zone. `normalIndex` is the tab's position
+ * within the normal zone — required to offer "close tabs to the right"; for a
+ * pinned tab every normal tab counts as being to its right.
  */
 export function getTabCapabilities(
-  tab: Pick<Tab, 'id' | 'isPinned'>,
+  tab: Pick<Tab, 'id' | 'isPinned' | 'metadata'>,
   ctx: { pinnedCount: number; normalCount: number; canDetach: boolean; normalIndex?: number }
 ): TabCapabilities {
   const detach = ctx.canDetach
@@ -439,7 +441,7 @@ export function getTabCapabilities(
   return {
     menu: true,
     reorder: hasSiblings,
-    togglePin: true,
+    togglePin: tab.metadata?.transientMiniApp !== true,
     detach,
     close: true,
     closeOthers: hasSiblings,

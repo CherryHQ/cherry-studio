@@ -142,6 +142,19 @@ function toPipxRegistryUrl(indexUrl: string): string {
   return `${indexUrl.replace(/\/+$/, '')}/{}/`
 }
 
+/** Comparable base name for a shim or bin file — Windows carries an extension and ignores case. */
+function toShimStem(file: string): string {
+  return isWin ? path.basename(file, path.extname(file)).toLowerCase() : file
+}
+
+/** Whether a shim file is present and executable, by the platform's rules. */
+function isExecutableShim(shimPath: string): Promise<boolean> {
+  return fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK).then(
+    () => true,
+    () => false
+  )
+}
+
 function isPathWithin(root: string, candidate: string): boolean {
   const normalizedRoot = isWin ? path.resolve(root).toLowerCase() : path.resolve(root)
   const normalizedCandidate = isWin ? path.resolve(candidate).toLowerCase() : path.resolve(candidate)
@@ -498,19 +511,14 @@ export class BinaryManager extends BaseService {
         if (!activeEntry) {
           // Installed artifacts are not an applied recipe. A leftover shim counts
           // as runnable only when mise itself can still resolve its target.
-          const resolved = (await hasExecutableCandidateShim(shimPath)) && (await this.resolveManagedBinaryPath(name))
+          const runnable = await this.resolveRunnableShim(name, tool)
           return {
             application: { status: 'broken', ...(version ? { version } : {}) },
-            ...(resolved ? { mise: { path: shimPath, ...(version ? { version } : {}) } } : {})
+            ...(runnable ? { mise: { path: runnable.path, ...(version ? { version } : {}) } } : {})
           }
         }
-        try {
-          await fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
-        } catch {
-          return { application: { status: 'broken', ...(version ? { version } : {}) } }
-        }
-        const resolved = await this.resolveManagedBinaryPath(name)
-        if (!resolved) {
+        const runnable = await this.resolveRunnableShim(name, tool)
+        if (!runnable) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         // The active entry proves the exact recipe is installed; the shim must also
@@ -518,19 +526,12 @@ export class BinaryManager extends BaseService {
         // backend entry in the isolated env. Otherwise `applied` would grant
         // Update/Uninstall authority over a foreign provider. When mise omits
         // install_path, fall back to the runnable-only check above.
-        if (typeof activeEntry.install_path === 'string') {
-          try {
-            const canonicalInstallPath = await fsp.realpath(activeEntry.install_path)
-            if (!isPathWithin(canonicalInstallPath, resolved)) {
-              return { application: { status: 'broken', ...(version ? { version } : {}) } }
-            }
-          } catch {
-            return { application: { status: 'broken', ...(version ? { version } : {}) } }
-          }
+        if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) {
+          return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         return {
           application: { status: 'applied', ...(version ? { version } : {}) },
-          mise: { path: shimPath, ...(version ? { version } : {}) }
+          mise: { path: runnable.path, ...(version ? { version } : {}) }
         }
       }
 
@@ -619,13 +620,12 @@ export class BinaryManager extends BaseService {
 
     const names = new Set([...definitions.keys(), ...bundledNames, ...Object.keys(operations)])
     const shimsDir = getBinaryShimsDir()
-    const shimNames = new Set<string>()
+    const shimNames = new Map<string, string>()
     try {
       for (const entry of await fsp.readdir(shimsDir, { withFileTypes: true })) {
         if (!entry.isFile() && !entry.isSymbolicLink()) continue
-        const extension = path.extname(entry.name).toLowerCase()
-        if (isWin && !['.exe', '.cmd', '.bat'].includes(extension)) continue
-        shimNames.add(isWin ? path.basename(entry.name, extension).toLowerCase() : entry.name)
+        if (isWin && !['.exe', '.cmd', '.bat'].includes(path.extname(entry.name).toLowerCase())) continue
+        shimNames.set(toShimStem(entry.name), path.join(shimsDir, entry.name))
       }
     } catch {
       // A fresh profile has no shims directory until its first managed install.
@@ -644,13 +644,43 @@ export class BinaryManager extends BaseService {
       )
     }
 
+    // An applied recipe whose bins are not named after it (core:rust exposes
+    // rustc/cargo) has no eponymous shim. Ask mise for its bins — only for those
+    // names, so the common case keeps costing one listing and no backend call.
+    const shimlessTools = [...names].filter((name) => {
+      const tool = definitions.get(name)?.tool
+      return (
+        tool !== undefined &&
+        !(name in bundled) &&
+        !shimNames.has(toShimStem(name)) &&
+        installedFor(tool)?.some((entry) => entry.active) === true
+      )
+    })
+    const exposedNames = new Set(
+      (
+        await Promise.all(
+          shimlessTools.map(async (name) => {
+            const bins = await this.resolveToolBinNames(definitions.get(name)!.tool)
+            const shims = bins.flatMap((bin) => {
+              const shimPath = shimNames.get(toShimStem(bin))
+              return shimPath ? [shimPath] : []
+            })
+            // Same permission bar the snapshot predicate applies: a present but
+            // non-executable shim is not a runnable path.
+            const executable = await Promise.all(shims.map((shimPath) => isExecutableShim(shimPath)))
+            return executable.some(Boolean) ? name : null
+          })
+        )
+      ).filter((name): name is string => name !== null)
+    )
+
     const entries = [...names].map((name): ManagedCliInventoryEntry => {
       const definition = definitions.get(name)
       const installs = definition ? installedFor(definition.tool) : undefined
       const active = installs?.find((entry) => entry.active)
       const version = bundled[name] ?? active?.version ?? installs?.at(-1)?.version
-      const canonicalName = isWin ? name.toLowerCase() : name
-      const runnable = name in bundled || (active !== undefined && shimNames.has(canonicalName))
+      const runnable =
+        name in bundled || (active !== undefined && (shimNames.has(toShimStem(name)) || exposedNames.has(name)))
       const operation = operations[name]
       const statusRules: ReadonlyArray<readonly [matches: boolean, status: ManagedCliStatus]> = [
         [operation?.status === 'installing', 'installing'],
@@ -964,8 +994,84 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  private async isManagedBinaryReady(toolName: string): Promise<boolean> {
-    return (await this.resolveManagedBinaryPath(toolName)) !== null
+  /**
+   * The executables a recipe exposes, by name. A tool name is not always one of
+   * them: `core:rust` ships rustc/cargo and no `rust`, so a name-keyed
+   * `mise which` reports a successful install as unusable. An uninstalled recipe
+   * yields none.
+   */
+  private async resolveToolBinNames(tool: string): Promise<string[]> {
+    try {
+      const { stdout } = await this.runMise(['bin-paths', tool, '--json'])
+      const parsed: unknown = JSON.parse(stdout)
+      if (!Array.isArray(parsed)) return []
+      return parsed.flatMap((entry) =>
+        entry && typeof (entry as { name?: unknown }).name === 'string' ? [(entry as { name: string }).name] : []
+      )
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * The shim proving a recipe is runnable now, and the install target it resolves
+   * to. The tool's own name is tried first; failing that, each executable the
+   * recipe exposes must clear the same bar — a shim on Cherry's PATH whose target
+   * `mise which --tool` still resolves for THIS recipe. So a recipe with no
+   * eponymous bin stays verifiable, while a lost shim or an unresolvable target
+   * stays unproven. Callers own the surrounding install facts: that an active
+   * entry exists, and that the target belongs to it.
+   */
+  private async resolveRunnableShim(name: string, tool: string): Promise<{ path: string; canonical: string } | null> {
+    const shimsDir = getBinaryShimsDir()
+    const ownShim = path.join(shimsDir, getBinaryName(name))
+    if (await isExecutableShim(ownShim)) {
+      const canonical = await this.resolveManagedBinaryPath(name)
+      return canonical ? { path: ownShim, canonical } : null
+    }
+
+    const shims = new Map<string, string>()
+    try {
+      for (const entry of await fsp.readdir(shimsDir)) shims.set(toShimStem(entry), path.join(shimsDir, entry))
+    } catch {
+      // A fresh profile has no shims directory until its first managed install.
+      return null
+    }
+    for (const binary of await this.resolveToolBinNames(tool)) {
+      const shimPath = shims.get(toShimStem(binary))
+      // A shim file that is present but not executable is not a runnable path,
+      // exactly as for the tool's own name.
+      if (!shimPath || !(await isExecutableShim(shimPath))) continue
+      const resolved = await this.resolveMiseBinaryForTool(binary, tool)
+      if (resolved) return { path: shimPath, canonical: resolved.canonicalPath }
+    }
+    return null
+  }
+
+  /** Whether a resolved target belongs to the recipe's own active install. */
+  private async isWithinInstall(entry: MiseInstallEntry, canonical: string): Promise<boolean> {
+    // When mise omits install_path there is nothing to attribute against, so the
+    // runnable proof stands on its own.
+    if (typeof entry.install_path !== 'string') return true
+    try {
+      return isPathWithin(await fsp.realpath(entry.install_path), canonical)
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Whether a recipe is applied AND runnable: an active install entry, a proven
+   * shim, and a target inside that entry's install. The per-recipe counterpart of
+   * the snapshot derivation, which reads the same facts from its batched listing.
+   */
+  private async isRecipeRunnable(name: string, tool: string): Promise<boolean> {
+    const { stdout } = await this.runMise(['ls', '--json', tool])
+    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const activeEntry = entries.find((entry) => entry.active)
+    if (!activeEntry) return false
+    const runnable = await this.resolveRunnableShim(name, tool)
+    return runnable !== null && (await this.isWithinInstall(activeEntry, runnable.canonical))
   }
 
   private async resolveMiseBinaryForTool(
@@ -1229,7 +1335,10 @@ export class BinaryManager extends BaseService {
     definitions: CustomToolDefinition[]
   ): Promise<void> {
     const isRuntime = isRuntimeDependency(definition.tool)
-    const runtimeReady = isRuntime && (await this.isManagedBinaryReady(definition.name))
+    // Adoption stays deliberately looser than the post-install gate: it only asks
+    // whether the runtime runs today, and `getInstalledVersion` below decides
+    // which version that is.
+    const runtimeReady = isRuntime && (await this.resolveRunnableShim(definition.name, definition.tool)) !== null
     const currentRuntimeVersion = runtimeReady ? await this.getInstalledVersion(definition.tool) : undefined
     const desiredRuntimeVersion = targetVersion ?? definition.requestedVersion
     const normalizedDesiredRuntimeVersion = desiredRuntimeVersion ? semverValid(desiredRuntimeVersion) : null
@@ -1244,7 +1353,7 @@ export class BinaryManager extends BaseService {
     // installWithMise resolves the installed version as verification that mise
     // actually applied the request; the value itself is not consumed.
     await this.installWithMise(definition, targetVersion, definitions)
-    if (!(await this.isManagedBinaryReady(definition.name))) {
+    if (!(await this.isRecipeRunnable(definition.name, definition.tool))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
     }
 
@@ -1260,7 +1369,7 @@ export class BinaryManager extends BaseService {
         return
       }
       await this.runMise(['reshim'])
-      if (!(await this.isManagedBinaryReady(definition.name))) {
+      if (!(await this.isRecipeRunnable(definition.name, definition.tool))) {
         throw new Error(`Tool not runnable after pruning obsolete versions: ${definition.name}`)
       }
     }

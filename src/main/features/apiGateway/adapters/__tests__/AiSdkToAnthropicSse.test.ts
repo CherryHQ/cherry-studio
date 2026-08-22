@@ -320,6 +320,59 @@ describe('AiSdkToAnthropicSse', () => {
       })
       expect(thinkingBlocks.length).toBe(2)
     })
+
+    it('forwards the upstream signature as a signature_delta before the block closes', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        { type: 'reasoning-start', id: 'reason_1' },
+        { type: 'reasoning-delta', id: 'reason_1', delta: 'Thinking...' },
+        // @ai-sdk/anthropic delivers the signature on an empty-delta chunk's metadata.
+        { type: 'reasoning-delta', id: 'reason_1', delta: '', providerMetadata: { anthropic: { signature: 'sig_1' } } },
+        { type: 'reasoning-end', id: 'reason_1' },
+        createFinish()
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+
+      const signatureIndex = events.findIndex(
+        (e) => e.type === 'content_block_delta' && e.delta.type === 'signature_delta' && e.delta.signature === 'sig_1'
+      )
+      const stopIndex = events.findIndex((e) => e.type === 'content_block_stop')
+      expect(signatureIndex).toBeGreaterThan(-1)
+      expect(signatureIndex).toBeLessThan(stopIndex)
+    })
+
+    it('captures a signature carried only on reasoning-end and uses it in the non-streaming response', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        { type: 'reasoning-start', id: 'reason_1' },
+        { type: 'reasoning-delta', id: 'reason_1', delta: 'hmm' },
+        { type: 'reasoning-end', id: 'reason_1', providerMetadata: { anthropic: { signature: 'sig_end' } } },
+        createFinish()
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+      expect(events.some((e) => e.type === 'content_block_delta' && e.delta.type === 'signature_delta')).toBe(true)
+
+      const response = adapter.buildNonStreamingResponse()
+      expect(response.content).toEqual([{ type: 'thinking', thinking: 'hmm', signature: 'sig_end' }])
+    })
+
+    it('does not emit signature_delta when the upstream provides no signature', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        { type: 'reasoning-start', id: 'reason_1' },
+        { type: 'reasoning-delta', id: 'reason_1', delta: 'hmm' },
+        { type: 'reasoning-end', id: 'reason_1' },
+        createFinish()
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+      expect(events.some((e) => e.type === 'content_block_delta' && e.delta.type === 'signature_delta')).toBe(false)
+    })
   })
 
   describe('Finish Reasons', () => {

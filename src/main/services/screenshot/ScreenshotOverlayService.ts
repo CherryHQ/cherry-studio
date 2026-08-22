@@ -351,7 +351,7 @@ export class ScreenshotOverlayService extends BaseService {
     if (!this.isSessionOverlay(windowId)) return
     const window = application.get('WindowManager').getWindow(windowId)
     if (!window || window.isDestroyed()) return
-    window.focus()
+    makeKeyWindow(window)
   }
 
   /**
@@ -559,7 +559,7 @@ export class ScreenshotOverlayService extends BaseService {
       if (generation !== this.sessionGeneration) return
       if (window.isDestroyed()) return
       window.setOpacity(1)
-      if (isCursorDisplay) window.focus()
+      if (isCursorDisplay) makeKeyWindow(window)
     }
 
     const timer = setTimeout(() => {
@@ -631,7 +631,7 @@ export class ScreenshotOverlayService extends BaseService {
       window.setOpacity(0)
       // The active overlay must become the key window again or Esc and the next drag
       // land nowhere; the others stay unfocused, as at session start.
-      if (windowId === this.activeOverlayWindowId) window.show()
+      if (windowId === this.activeOverlayWindowId) makeKeyWindow(window)
       else window.showInactive()
       // No handshake here: the image was decoded before the dialog opened.
       window.setOpacity(1)
@@ -708,6 +708,19 @@ export class ScreenshotOverlayService extends BaseService {
       defaultId: 0
     })
   }
+}
+
+/**
+ * Make an already-visible overlay the keyboard target.
+ *
+ * On macOS the overlay is a non-activating panel and a capture normally starts with
+ * the app in the background, where `focus()` makes the panel key for an instant
+ * before AppKit takes it back — leaving Esc and the next drag nowhere to land.
+ * `show()` keeps it key, and skips app activation for a panel just as `focus()` does.
+ */
+function makeKeyWindow(window: BrowserWindow): void {
+  if (isMac) window.show()
+  else window.focus()
 }
 
 /**

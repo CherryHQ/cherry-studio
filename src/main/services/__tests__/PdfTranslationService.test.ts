@@ -25,6 +25,8 @@ vi.mock('@application', () => ({
       if (key === 'feature.pdf_translation.temp') return filename ? path.join(TEST_ROOT, filename) : TEST_ROOT
       if (key === 'feature.pdf_translation.babeldoc') return path.join(TEST_ROOT, 'runtime')
       if (key === 'feature.binary.data') return path.join(TEST_ROOT, 'binary')
+      if (key === 'feature.binary.data.isolated.rustup') return path.join(TEST_ROOT, 'binary', 'rustup')
+      if (key === 'feature.binary.data.isolated.cargo') return path.join(TEST_ROOT, 'binary', 'cargo')
       throw new Error(`Unexpected path key: ${key}`)
     })
   }
@@ -136,7 +138,7 @@ describe('PdfTranslationService', () => {
       'babeldoc-stream': {
         name: 'babeldoc-stream',
         availability: { source: 'mise', path: MANAGED_BINARY },
-        application: { status: 'applied', version: '0.6.4.post2' }
+        application: { status: 'applied', version: '0.6.4.post3' }
       }
     })
     apiGateway.acquireLease.mockResolvedValue(undefined)

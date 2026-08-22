@@ -19,8 +19,8 @@ describe('ProviderService.update', () => {
       name: 'OpenAI',
       orderKey: 'a0',
       providerSettings: {
-        serviceTier: 'auto',
-        verbosity: 'low'
+        timeout: 30,
+        rateLimit: 5
       }
     })
 
@@ -29,7 +29,7 @@ describe('ProviderService.update', () => {
 
     const updated = providerService.update('openai', {
       providerSettings: {
-        summaryText: 'detailed'
+        apiVersion: '2026-01-01'
       }
     })
 
@@ -40,16 +40,16 @@ describe('ProviderService.update', () => {
     // toEqual locks the exact shape so a future DEFAULT_PROVIDER_SETTINGS
     // leak into the row would immediately fail this test.
     expect(updated.settings).toEqual({
-      serviceTier: 'auto',
-      verbosity: 'low',
-      summaryText: 'detailed'
+      timeout: 30,
+      rateLimit: 5,
+      apiVersion: '2026-01-01'
     })
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
     expect(row.providerSettings).toEqual({
-      serviceTier: 'auto',
-      verbosity: 'low',
-      summaryText: 'detailed'
+      timeout: 30,
+      rateLimit: 5,
+      apiVersion: '2026-01-01'
     })
   })
 
@@ -62,11 +62,11 @@ describe('ProviderService.update', () => {
     })
 
     providerService.update('p-null', {
-      providerSettings: { serviceTier: 'auto' }
+      providerSettings: { timeout: 30 }
     })
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-null'))
-    expect(row.providerSettings).toEqual({ serviceTier: 'auto' })
+    expect(row.providerSettings).toEqual({ timeout: 30 })
   })
 
   it('treats {} patch as a no-op for providerSettings', async () => {
@@ -74,31 +74,13 @@ describe('ProviderService.update', () => {
       providerId: 'p-noop',
       name: 'P',
       orderKey: 'a0',
-      providerSettings: { serviceTier: 'auto' }
+      providerSettings: { timeout: 30 }
     })
 
     providerService.update('p-noop', { providerSettings: {} })
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-noop'))
-    expect(row.providerSettings).toEqual({ serviceTier: 'auto' })
-  })
-
-  it('persists an explicit null override over a stored value (PATCH clear marker)', async () => {
-    await dbh.db.insert(userProviderTable).values({
-      providerId: 'p-null-override',
-      name: 'P',
-      orderKey: 'a0',
-      providerSettings: { summaryText: 'auto' }
-    })
-
-    providerService.update('p-null-override', { providerSettings: { summaryText: null } })
-
-    const [row] = await dbh.db
-      .select()
-      .from(userProviderTable)
-      .where(eq(userProviderTable.providerId, 'p-null-override'))
-    // null wins over the stored 'auto' and is persisted as the explicit clear marker (not stripped).
-    expect(row.providerSettings).toEqual({ summaryText: null })
+    expect(row.providerSettings).toEqual({ timeout: 30 })
   })
 
   it('drops a key when the patch sets it to undefined (reset-to-default)', async () => {
@@ -106,20 +88,20 @@ describe('ProviderService.update', () => {
       providerId: 'p-undef',
       name: 'P',
       orderKey: 'a0',
-      providerSettings: { serviceTier: 'auto', summaryText: 'detailed' }
+      providerSettings: { timeout: 30, rateLimit: 5 }
     })
 
-    providerService.update('p-undef', { providerSettings: { summaryText: undefined } })
+    providerService.update('p-undef', { providerSettings: { rateLimit: undefined } })
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-undef'))
     // undefined overwrites the stored value in the merge, then the JSON write drops the key entirely.
-    expect(row.providerSettings).toEqual({ serviceTier: 'auto' })
+    expect(row.providerSettings).toEqual({ timeout: 30 })
   })
 
   it('throws notFound when providerId does not exist', async () => {
     let err: unknown
     try {
-      providerService.update('missing', { providerSettings: { serviceTier: 'auto' } })
+      providerService.update('missing', { providerSettings: { timeout: 30 } })
     } catch (e) {
       err = e
     }
@@ -168,8 +150,8 @@ describe('ProviderService.update', () => {
     withWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn(dbh.db))
 
     try {
-      providerService.update('p-concurrent', { providerSettings: { serviceTier: 'auto' } })
-      providerService.update('p-concurrent', { providerSettings: { verbosity: 'low' } })
+      providerService.update('p-concurrent', { providerSettings: { timeout: 30 } })
+      providerService.update('p-concurrent', { providerSettings: { rateLimit: 5 } })
     } finally {
       // Restore the default passthrough so the override doesn't leak into other tests.
       withWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn(dbh.db))
@@ -177,6 +159,6 @@ describe('ProviderService.update', () => {
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-concurrent'))
     // Both keys survive — neither PATCH read a stale row and clobbered the other.
-    expect(row.providerSettings).toEqual({ serviceTier: 'auto', verbosity: 'low' })
+    expect(row.providerSettings).toEqual({ timeout: 30, rateLimit: 5 })
   })
 })

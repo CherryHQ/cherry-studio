@@ -13,7 +13,7 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
@@ -51,6 +51,7 @@ export type ValidatedAgentDispatch = {
   agentName: string
   uniqueModelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
+  serviceTier: ServiceTierSelection
   fastMode?: boolean
   headless: boolean
   messageSnapshot: MessageSnapshot
@@ -135,6 +136,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentName: agent.name,
       uniqueModelId,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
+      serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: req.headless === true,
       messageSnapshot: {
@@ -228,6 +230,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         agentType: validated.agentType,
         modelId: validated.uniqueModelId,
         reasoningEffort: validated.reasoningEffort,
+        serviceTier: validated.serviceTier,
         fastMode: validated.fastMode,
         assistantMessageId,
         userMessage,
@@ -257,6 +260,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             ],
             messageId: assistantMessageId,
             reasoningEffort: validated.reasoningEffort,
+            serviceTier: validated.serviceTier,
             fastMode: validated.fastMode,
             runtime: { kind: 'agent-session', sessionId: validated.sessionId, turnId: runtime.turnId }
           },
@@ -296,6 +300,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         headless: validated.headless,
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,
+        serviceTier: validated.serviceTier,
         fastMode: validated.fastMode
       })
 
