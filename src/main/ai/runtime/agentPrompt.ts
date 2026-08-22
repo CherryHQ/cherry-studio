@@ -110,7 +110,7 @@ ${instructions}
 </agent_instructions>`
 }
 
-function resolveAgentLanguage(agent: AgentEntity): string | null {
+export function resolveEffectiveAgentLanguage(agent: AgentEntity): string | null {
   const perAgent = agent.configuration?.language as string | undefined
   if (typeof perAgent === 'string' && perAgent.trim() !== '') {
     if (perAgent === 'auto') return null
@@ -125,9 +125,13 @@ function resolveAgentLanguage(agent: AgentEntity): string | null {
   return null
 }
 
+function resolveAgentLanguage(agent: AgentEntity): string | null {
+  return resolveEffectiveAgentLanguage(agent)
+}
+
 function getLanguageInstruction(agent: AgentEntity): string {
   const language = resolveAgentLanguage(agent)
   if (!language) return ''
   const displayName = languageEnglishNameMap[language as LanguageVarious] ?? language
-  return `Respond in ${displayName}.`
+  return `By default, respond in ${displayName}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
 }

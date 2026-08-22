@@ -484,7 +484,7 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
     expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
     // Default agent.language is 'auto' — no language constraint is injected (decoupled from app.language)
-    expect(appendedSystemPrompt()).not.toContain('Respond in')
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
   })
 
   it('injects global agent language when agent.language is set', async () => {
@@ -492,7 +492,7 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection(input).start()
 
-    expect(appendedSystemPrompt()).toContain('Respond in English.')
+    expect(appendedSystemPrompt()).toContain('By default, respond in English.')
   })
 
   it('per-agent language overrides the global default', async () => {
@@ -506,8 +506,8 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection(input).start()
 
-    expect(appendedSystemPrompt()).toContain('Respond in Thai.')
-    expect(appendedSystemPrompt()).not.toContain('Respond in English.')
+    expect(appendedSystemPrompt()).toContain('By default, respond in Thai.')
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in English.')
   })
 
   it('per-agent language set to auto suppresses the global language', async () => {
@@ -521,7 +521,7 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection(input).start()
 
-    expect(appendedSystemPrompt()).not.toContain('Respond in')
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
   })
 
   it('uses Cherry network transport and preserves provider request environment', async () => {

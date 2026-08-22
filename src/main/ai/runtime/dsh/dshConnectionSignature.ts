@@ -32,6 +32,21 @@ function stableValue(value: unknown): unknown {
   )
 }
 
+function resolveEffectiveAgentLanguage(agent: AgentEntity): string | null {
+  const perAgent = agent.configuration?.language as string | undefined
+  if (typeof perAgent === 'string' && perAgent.trim() !== '') {
+    if (perAgent === 'auto') return null
+    return perAgent
+  }
+  try {
+    const global = application.get('PreferenceService').get('agent.language') as unknown as string | null
+    if (typeof global === 'string' && global.trim() !== '' && global !== 'auto') return global
+  } catch {
+    // PreferenceService unavailable in some test harnesses
+  }
+  return null
+}
+
 export interface DshConnectionSnapshot {
   agent: AgentEntity
   session: AgentSessionEntity
@@ -52,6 +67,8 @@ export class DshInvalidConnectionSnapshotError extends Error {}
  * Capture every reconcilable fact consumed while constructing a dsh connection.
  * The live permission gate (permission_mode, disabledTools) is excluded — it is
  * hot-patched over the bridge, never spawn-frozen.
+ * The effective agent language is a rebuild fact: changing it rebuilds the
+ * connection so the new language instruction is baked into the next prompt.
  */
 export async function captureDshConnectionSnapshot(
   sessionId: string,
@@ -106,6 +123,7 @@ export async function captureDshConnectionSnapshot(
           linkedChannel,
           notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
+          effectiveLanguage: resolveEffectiveAgentLanguage(agent),
           // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
           // the warm connection (claude's credentialsFingerprint parity); null on native routes.
           gatewayCredentials:
