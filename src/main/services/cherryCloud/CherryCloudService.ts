@@ -27,43 +27,15 @@ import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature,
 import { CherryCloudLoopbackCallback } from './loopbackCallback'
 
 const logger = loggerService.withContext('CherryCloudService')
-const DEFAULT_API_ORIGIN = 'http://127.0.0.1:8080'
+const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
 const SESSION_FILE_MODE = 0o600
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_MODEL_GROUP = 'Cherry Cloud'
 const EMPTY_BODY = new Uint8Array()
 
-function isLoopbackHttp(url: URL): boolean {
-  return (
-    url.protocol === 'http:' &&
-    (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]')
-  )
-}
-
 function resolveApiOrigin(): string {
-  const raw = process.env.CHERRY_CLOUD_API_ORIGIN?.trim() || DEFAULT_API_ORIGIN
-  const url = new URL(raw)
-  const isLocalHttp = isLoopbackHttp(url)
-
-  if (url.protocol !== 'https:' && !isLocalHttp) {
-    throw new Error('Cherry Cloud API origin must use HTTPS or a local HTTP address')
-  }
-  if (url.username || url.password || url.search || url.hash) {
-    throw new Error('Cherry Cloud API origin must not include credentials, query, or fragment')
-  }
-
-  return url.toString().replace(/\/$/, '')
-}
-
-function shouldUseLoopbackCallback(): boolean {
-  const configured = process.env.CHERRY_CLOUD_LOOPBACK_CALLBACK?.trim()
-  if (!configured || configured === 'false') return false
-  if (configured !== 'true') throw new Error('CHERRY_CLOUD_LOOPBACK_CALLBACK must be true or false')
-  if (app.isPackaged) throw new Error('Cherry Cloud loopback callbacks are only available in development')
-  if (!isLoopbackHttp(new URL(resolveApiOrigin()))) {
-    throw new Error('Cherry Cloud loopback callbacks require a local HTTP backend')
-  }
-  return true
+  if (app.isPackaged) throw new Error('Cherry Cloud production API origin is not configured')
+  return DEVELOPMENT_API_ORIGIN
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
@@ -146,7 +118,7 @@ export class CherryCloudService extends BaseService {
 
     const device = this.storedState.device ?? createDeviceKeyPair()
     const secrets = createAuthorizationSecrets()
-    const loopbackCallback = shouldUseLoopbackCallback() ? await this.openLoopbackCallback() : null
+    const loopbackCallback = app.isPackaged ? null : await this.openLoopbackCallback()
     let pending: NonNullable<StoredCherryCloudState['pending']> | null = null
 
     try {

@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  appIsPackaged: false,
   broadcast: vi.fn(),
   loopbackOpen: vi.fn(),
   loopbackReceiver: {
@@ -39,7 +40,12 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('electron', () => ({
-  app: { getVersion: () => '2.1.0', isPackaged: false },
+  app: {
+    getVersion: () => '2.1.0',
+    get isPackaged() {
+      return mocks.appIsPackaged
+    }
+  },
   net: { fetch: mocks.netFetch },
   safeStorage: {
     isEncryptionAvailable: () => true,
@@ -112,7 +118,7 @@ function exchangeResponse() {
 function authorizationResponse() {
   return {
     authorization_id: authorizationId,
-    authorization_url: `http://localhost:8080/desktop/authorize?authorization_id=${authorizationId}`,
+    authorization_url: `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`,
     expires_at: '2030-01-02T03:14:05Z'
   }
 }
@@ -142,6 +148,7 @@ describe('CherryCloudService', () => {
   beforeEach(() => {
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
+    mocks.appIsPackaged = false
     mocks.storedBytes = null
     mocks.modelList.mockReturnValue([
       { id: 'cherryai::qwen', providerId: 'cherryai', apiModelId: 'qwen', name: 'Qwen', group: 'Qwen' }
@@ -150,10 +157,7 @@ describe('CherryCloudService', () => {
     mocks.modelBulkUpdate.mockReturnValue([])
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
-    vi.stubEnv('CHERRY_CLOUD_LOOPBACK_CALLBACK', 'false')
   })
-
-  afterEach(() => vi.unstubAllEnvs())
 
   it('creates a desktop authorization, exchanges its callback, and restores the signed-in account', async () => {
     mocks.netFetch
@@ -166,11 +170,11 @@ describe('CherryCloudService', () => {
 
     expect(await service.startLogin()).toEqual({ phase: 'authorizing', displayName: null })
     expect(mocks.openExternal).toHaveBeenCalledWith(
-      `http://localhost:8080/desktop/authorize?authorization_id=${authorizationId}`
+      `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`
     )
 
     const createRequest = mocks.netFetch.mock.calls[0]
-    expect(createRequest[0]).toBe('http://127.0.0.1:8080/api/v1/desktop/authorizations')
+    expect(createRequest[0]).toBe('http://127.0.0.1:8084/api/v1/desktop/authorizations')
     const createBody = JSON.parse(createRequest[1].body as string)
     expect(createBody).toMatchObject({
       code_challenge_method: 'S256',
@@ -180,9 +184,10 @@ describe('CherryCloudService', () => {
     expect(createBody.state).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(createBody.code_challenge).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(createBody.device_public_key).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(createBody.callback_port).toBeUndefined()
+    expect(createBody.callback_port).toBe(49152)
 
-    await service.handleCallback(
+    const callback = mocks.loopbackOpen.mock.calls[0][0] as (url: URL) => Promise<void>
+    await callback(
       new URL(
         `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
@@ -190,7 +195,7 @@ describe('CherryCloudService', () => {
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
 
     const exchangeRequest = mocks.netFetch.mock.calls[1]
-    expect(exchangeRequest[0]).toBe(`http://127.0.0.1:8080/api/v1/desktop/authorizations/${authorizationId}/exchange`)
+    expect(exchangeRequest[0]).toBe(`http://127.0.0.1:8084/api/v1/desktop/authorizations/${authorizationId}/exchange`)
     const exchangeBody = JSON.parse(exchangeRequest[1].body as string)
     expect(exchangeBody).toMatchObject({ state: createBody.state, handoff_code: token('D') })
     expect(exchangeBody.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
@@ -203,27 +208,14 @@ describe('CherryCloudService', () => {
     expect(await restored.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
-  it('uses an ephemeral loopback callback for local development', async () => {
-    vi.stubEnv('CHERRY_CLOUD_LOOPBACK_CALLBACK', 'true')
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-
+  it('fails closed in packaged builds until the production origin is configured', async () => {
+    mocks.appIsPackaged = true
     const service = new CherryCloudService()
     await service._doInit()
-    await service.startLogin()
 
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
-    expect(createBody.callback_port).toBe(49152)
-    expect(mocks.loopbackReceiver.setExpiresAt).toHaveBeenCalledWith('2030-01-02T03:14:05Z')
-
-    const callback = mocks.loopbackOpen.mock.calls[0][0] as (url: URL) => Promise<void>
-    await callback(
-      new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
-      )
-    )
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    await expect(service.startLogin()).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
+    expect(mocks.loopbackOpen).not.toHaveBeenCalled()
+    expect(mocks.netFetch).not.toHaveBeenCalled()
   })
 
   it('reports an unavailable login service when the backend cannot be reached', async () => {
