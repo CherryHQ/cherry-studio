@@ -260,6 +260,85 @@ describe('InputNumber', () => {
     expect(onValueChange).toHaveBeenLastCalledWith(null)
   })
 
+  it('steps by step in the step own precision', async () => {
+    const user = userEvent.setup()
+    render(<Controlled initial={0.2} step={0.1} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.keyboard('{ArrowUp}')
+    expect(input).toHaveValue('0.3')
+
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    expect(input).toHaveValue('0.1')
+  })
+
+  it('stops stepping at the bounds instead of walking past them', async () => {
+    const user = userEvent.setup()
+    render(<Controlled initial={9.9} min={0} max={10} step={0.1} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}')
+    expect(input).toHaveValue('10')
+
+    await user.clear(input)
+    await user.type(input, '0.1')
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
+    expect(input).toHaveValue('0')
+  })
+
+  it('steps an empty field up from min rather than from zero', async () => {
+    const user = userEvent.setup()
+    render(<Controlled min={5} max={20} step={1} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.keyboard('{ArrowUp}')
+
+    expect(input).toHaveValue('6')
+  })
+
+  it('reports a step like a keystroke and settles it only when focus leaves', async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    const onBlur = vi.fn()
+    render(<InputNumber aria-label="amount" value={3} step={2} onValueChange={onValueChange} onBlur={onBlur} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.keyboard('{ArrowUp}')
+    expect(onValueChange).toHaveBeenLastCalledWith(5)
+    expect(onBlur).not.toHaveBeenCalled()
+
+    await user.tab()
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(5)
+  })
+
+  it('exposes its range and current value to assistive tech', async () => {
+    const user = userEvent.setup()
+    render(<Controlled initial={4} min={0} max={20} step={1} />)
+
+    const input = screen.getByRole('spinbutton', { name: 'amount' })
+    expect(input).toHaveAttribute('aria-valuemin', '0')
+    expect(input).toHaveAttribute('aria-valuemax', '20')
+    expect(input).toHaveAttribute('aria-valuenow', '4')
+
+    await user.clear(input)
+    expect(input).not.toHaveAttribute('aria-valuenow')
+
+    await user.type(input, '7')
+    expect(input).toHaveAttribute('aria-valuenow', '7')
+  })
+
+  it('omits the bounds it was not given', () => {
+    render(<InputNumber aria-label="amount" value={1} onValueChange={vi.fn()} />)
+
+    const input = screen.getByRole('spinbutton', { name: 'amount' })
+    expect(input).not.toHaveAttribute('aria-valuemin')
+    expect(input).not.toHaveAttribute('aria-valuemax')
+  })
+
   it('lets className override the default height', () => {
     render(<InputNumber aria-label="amount" className="h-8 rounded-lg" value={1} onValueChange={vi.fn()} />)
 
