@@ -125,6 +125,17 @@ export class ScreenshotOverlayService extends BaseService {
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
   private renderersReady = new Set<WindowId>()
 
+  /**
+   * Snap targets pushed before their overlay reported ready, kept for one repeat.
+   *
+   * The enumeration usually outlives the overlays, but not always — few windows or a
+   * failed enumeration resolves it in microtasks. That push can miss: a cold renderer
+   * has not subscribed yet, and a pooled one clears the previous session's targets on
+   * new init data, which would wipe it. Either way hover-to-window snapping is gone
+   * for the whole capture, silently, so the push is repeated at the ready handshake.
+   */
+  private pendingSnapTargets = new Map<WindowId, DetectedWindow[]>()
+
   /** Timings of the live session. Null unless CS_DIAGNOSTICS is set. */
   private trace: CaptureTrace | null = null
 
@@ -494,6 +505,11 @@ export class ScreenshotOverlayService extends BaseService {
   public markOverlayReady(windowId: WindowId, mediaId: string): void {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return
     this.renderersReady.add(windowId)
+    const targets = this.pendingSnapTargets.get(windowId)
+    if (targets) {
+      this.pendingSnapTargets.delete(windowId)
+      application.get('IpcApiService').send(windowId, 'screenshot.snap_targets', { windows: targets })
+    }
     this.pendingReveals.get(windowId)?.reveal()
     this.traceReady()
   }
@@ -551,9 +567,11 @@ export class ScreenshotOverlayService extends BaseService {
 
     const ipcApiService = application.get('IpcApiService')
     for (const { windowId, display } of overlays) {
-      ipcApiService.send(windowId, 'screenshot.snap_targets', {
-        windows: projectSnapCandidates(display, snapCandidates, primaryScaleFactor)
-      })
+      const windows = projectSnapCandidates(display, snapCandidates, primaryScaleFactor)
+      ipcApiService.send(windowId, 'screenshot.snap_targets', { windows })
+      // This push is best-effort: an overlay that has not reported ready may not have
+      // subscribed yet, or may still clear it as stale. Repeat it once it has.
+      if (!this.renderersReady.has(windowId)) this.pendingSnapTargets.set(windowId, windows)
     }
   }
 
@@ -720,6 +738,7 @@ export class ScreenshotOverlayService extends BaseService {
     // Per-session: a recycled overlay that painted last time has to earn it again, or
     // the next session's never-painted window would have no Escape rescue.
     this.renderersReady.clear()
+    this.pendingSnapTargets.clear()
 
     // Explicit, not left to pool release: an overlay whose session ended mid-edit would
     // otherwise come back at the text editor's level and never cover the Dock again.
