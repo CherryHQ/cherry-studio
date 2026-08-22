@@ -10,6 +10,7 @@
  * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
+import { loggerService } from '@logger'
 import { type MigrationExportFileWriteMode, MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 import { Dexie, type IndexableType } from 'dexie'
@@ -18,6 +19,7 @@ import { Dexie, type IndexableType } from 'dexie'
 const DEXIE_DB_NAME = 'CherryStudio'
 const DEXIE_EXPORT_PAGE_SIZE = 100
 const DEXIE_EXPORT_CHUNK_CHAR_LIMIT = 1024 * 1024
+const logger = loggerService.withContext('DexieExporter')
 
 // Required tables that must exist
 const REQUIRED_TABLES = [
@@ -29,6 +31,16 @@ const REQUIRED_TABLES = [
 
 // Optional tables that may not exist in older versions
 const OPTIONAL_TABLES = ['settings', 'translate_history', 'quick_phrases', 'translate_languages']
+
+/** Chromium's text for a large value whose backing file is gone; Dexie re-wraps it out of DOMException. */
+const LOST_LARGE_VALUE = 'Failed to read large IndexedDB value'
+
+// Two shapes for the same lost backing file: a NotReadableError DOMException, or an
+// UnknownError carrying the text above — matched by shape since neither type survives Dexie.
+function isIrrecoverableRecord(error: unknown): boolean {
+  const { name, message } = Object(error) as { name?: unknown; message?: unknown }
+  return name === 'NotReadableError' || (typeof message === 'string' && message.includes(LOST_LARGE_VALUE))
+}
 
 class JsonExportWriter {
   private pending = ''
@@ -204,7 +216,16 @@ export class DexieExporter {
         const primaryKey = primaryKeys[index]
         // Keep only one complete record in the renderer heap. A page of topics
         // can contain enough embedded messages to exhaust it when bulk-loaded.
-        const record = await table.get(primaryKey)
+        let record: Record<string, unknown> | undefined
+        try {
+          record = await table.get(primaryKey)
+        } catch (error) {
+          if (isIrrecoverableRecord(error)) {
+            logger.warn('Skipping irrecoverable Dexie record', { tableName, primaryKey: String(primaryKey) })
+            continue
+          }
+          throw this.createRecordExportError(tableName, primaryKey, error)
+        }
 
         if (record === undefined) {
           throw this.createRecordExportError(tableName, primaryKey, new Error('Record missing from IndexedDB page'))

@@ -170,14 +170,7 @@ function createProvider(overrides: Partial<DataProvider> = {}): DataProvider {
     defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     apiKeys: [{ id: 'key-1', label: 'Primary', isEnabled: true }],
     authType: 'api-key',
-    apiFeatures: {
-      arrayContent: true,
-      streamOptions: true,
-      developerRole: false,
-      serviceTier: false,
-      verbosity: false,
-      reportsActualCost: false
-    },
+    reportsActualCost: false,
     settings: {},
     isEnabled: true,
     ...overrides
@@ -381,7 +374,7 @@ describe('OpenClawService gateway status state machine', () => {
       expect(sanitized).not.toContain('bearer-sensitive-value')
       expect(sanitized).not.toContain(basicSecret)
       expect(sanitized).not.toContain(customSecret)
-      expect(sanitized).toContain('[REDACTED]')
+      expect(sanitized).toContain('<redacted>')
       expect(sanitized.length).toBeLessThanOrEqual(2000)
     })
 

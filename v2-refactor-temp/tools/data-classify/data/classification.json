@@ -850,8 +850,8 @@
         },
         {
           "originalKey": "sendMessageShortcut",
-          "type": "PreferenceTypes.SendMessageShortcut",
-          "defaultValue": "Enter",
+          "type": "PreferenceTypes.ComposerShortcut",
+          "defaultValue": "VALUE: ['Enter']",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.send_message_shortcut"
@@ -2688,7 +2688,7 @@
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2697,8 +2697,8 @@
                 "enabled": true
               },
               "originalKey": "clear_topic",
-              "status": "deleted",
-              "targetKey": null,
+              "status": "classified",
+              "targetKey": "shortcut.topic.clear_messages",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {

@@ -106,6 +106,162 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    const insert = sqlite.prepare(
+      `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
+       VALUES (?, ?, 'stdio', 'npx', ?, 1, ?, ?)`
+    )
+    insert.run('55555555-5555-7555-8555-555555555555', 'hand-added', 'manual', now, now)
+    insert.run('66666666-6666-7666-8666-666666666666', 'from-protocol', 'protocol', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT name, install_source FROM mcp_server ORDER BY name').all()).toEqual([
+      { name: 'from-protocol', install_source: 'protocol' },
+      { name: 'hand-added', install_source: 'manual' }
+    ])
+    // The whole point of the migration: install_mcp_server writes this value, so
+    // without it every AI-assisted install fails at insert time.
+    expect(() =>
+      insert.run('77777777-7777-7777-8777-777777777777', 'ai-installed', 'ai_assisted', now, now)
+    ).not.toThrow()
+    expect(() => insert.run('88888888-8888-7888-8888-888888888888', 'bogus', 'whatever', now, now)).toThrow()
+  })
+
+  it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
+    const now = Date.now()
+    const insert = sqlite.prepare(
+      `INSERT INTO user_provider
+        (provider_id, name, endpoint_configs, default_chat_endpoint, api_features, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    insert.run(
+      'chat-relay',
+      'Chat Relay',
+      JSON.stringify({ 'openai-chat-completions': { baseUrl: 'https://chat.example/v1' } }),
+      'openai-chat-completions',
+      JSON.stringify({ streamOptions: false, developerRole: true, arrayContent: false }),
+      'a0',
+      now,
+      now
+    )
+    insert.run(
+      'responses-relay',
+      'Responses Relay',
+      null,
+      'openai-responses',
+      JSON.stringify({ streamOptions: false, developerRole: false }),
+      'a1',
+      now,
+      now
+    )
+    insert.run(
+      'anthropic-relay',
+      'Anthropic Relay',
+      null,
+      'anthropic-messages',
+      JSON.stringify({ streamOptions: false, developerRole: true }),
+      'a2',
+      now,
+      now
+    )
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite
+      .prepare('SELECT provider_id, endpoint_configs FROM user_provider ORDER BY order_key')
+      .all() as Array<{ provider_id: string; endpoint_configs: string | null }>
+    expect(
+      rows.map((row) => [row.provider_id, row.endpoint_configs ? JSON.parse(row.endpoint_configs) : null])
+    ).toEqual([
+      [
+        'chat-relay',
+        {
+          'openai-chat-completions': {
+            baseUrl: 'https://chat.example/v1',
+            dialect: { streamOptions: false, developerRole: true }
+          }
+        }
+      ],
+      ['responses-relay', { 'openai-responses': { dialect: { developerRole: false } } }],
+      ['anthropic-relay', null]
+    ])
+    const columns = sqlite.pragma('table_info(user_provider)') as Array<{ name: string }>
+    expect(columns.some(({ name }) => name === 'api_features')).toBe(false)
+  })
+
+  it('quarantines legacy channel sessions without changing conversation history', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_rare_vertigo'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent
+           (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agent-channel-migration', 'claude-code', 'Agent', '', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace
+           (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-channel-migration', 'Workspace', '/tmp/channel-migration', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    for (const [index, sessionId] of ['session-shared', 'session-unique'].entries()) {
+      sqlite
+        .prepare(
+          `INSERT INTO agent_session
+             (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+           VALUES (?, 'agent-channel-migration', ?, 'workspace-channel-migration', ?, ?, ?, ?)`
+        )
+        .run(sessionId, sessionId, `a${index}`, now, now, now)
+      sqlite
+        .prepare(
+          `INSERT INTO agent_session_message
+             (id, session_id, role, data, status, created_at, updated_at)
+           VALUES (?, ?, 'user', '{"parts":[{"type":"text","text":"private history"}]}', 'success', ?, ?)`
+        )
+        .run(`message-${index}`, sessionId, now, now)
+    }
+
+    const insertChannel = sqlite.prepare(
+      `INSERT INTO agent_channel
+         (id, type, name, agent_id, session_id, workspace, config, created_at, updated_at)
+       VALUES (?, 'feishu', ?, 'agent-channel-migration', ?, '{"type":"system"}', '{}', ?, ?)`
+    )
+    insertChannel.run('channel-stale', 'Stale', 'session-shared', now, now - 10)
+    insertChannel.run('channel-recent', 'Recent', 'session-shared', now, now)
+    insertChannel.run('channel-unique', 'Unique', 'session-unique', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(
+      sqlite
+        .prepare(
+          `SELECT session_id, channel_id, conversation_id, is_active
+           FROM agent_channel_session ORDER BY session_id`
+        )
+        .all()
+    ).toEqual([
+      {
+        session_id: 'session-shared',
+        channel_id: 'channel-recent',
+        conversation_id: null,
+        is_active: 0
+      },
+      {
+        session_id: 'session-unique',
+        channel_id: 'channel-unique',
+        conversation_id: null,
+        is_active: 0
+      }
+    ])
+    expect(sqlite.prepare('SELECT count(*) AS count FROM agent_session_message').get()).toEqual({ count: 2 })
+  })
+
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0004_fresh_roland_deschain'))
     seedBaselineRows()
@@ -173,6 +329,8 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills durable refs for existing agent-session attachments', () => {
+    // The backfill shipped in 0006. Pin its baseline explicitly so a later schema migration does
+    // not move the seed after the backfill and silently stop testing the populated upgrade path.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0006_mean_morg'))
     const now = Date.now()
     const fileEntryId = '77777777-7777-7777-8777-777777777777'
@@ -230,6 +388,40 @@ describe('applyMigrations over a populated database', () => {
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ file_entry_id: fileEntryId, source_id: messageId, role: 'attachment' })
     expect(refs[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('enables existing skills globally without changing per-agent preferences', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_abnormal_may_parker'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agent-skill-migrate', 'claude-code', 'Agent', '', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_global_skill
+          (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
+         VALUES ('skill-migrate', 'Skill', 'skill', 'local', '[]', 'hash', 0, ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_skill (agent_id, skill_id, is_enabled, created_at, updated_at)
+         VALUES ('agent-skill-migrate', 'skill-migrate', 1, ?, ?)`
+      )
+      .run(now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT is_enabled FROM agent_global_skill WHERE id = 'skill-migrate'`).get()).toEqual({
+      is_enabled: 1
+    })
+    expect(sqlite.prepare(`SELECT is_enabled FROM agent_skill WHERE skill_id = 'skill-migrate'`).get()).toEqual({
+      is_enabled: 1
+    })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
@@ -324,7 +516,10 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills conversation activity from message phases without losing populated rows', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    // Pinned to the 0007 backfill migration: the default tip baseline would drift
+    // forward past it once a later migration exists, and the NOT NULL
+    // last_activity_at recreate would reject the seed rows below.
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0007_flimsy_mentor'))
 
     sqlite
       .prepare(

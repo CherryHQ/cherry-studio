@@ -1119,6 +1119,55 @@ describe('ModelService.list — registry enrichment', () => {
     expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
   })
 
+  it('hydrates missing limits and pricing when a custom model later gains a registry match', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'future-model', {
+        presetModelId: null,
+        name: 'Future Model',
+        contextWindow: null,
+        maxInputTokens: null,
+        maxOutputTokens: 4096,
+        pricing: null
+      })
+    )
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'future-model',
+        name: 'Future Model (registry)',
+        contextWindow: 128_000,
+        maxInputTokens: 120_000,
+        maxOutputTokens: 16_384,
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      },
+      registryOverride: {
+        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 }
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(model).toMatchObject({
+      presetModelId: null,
+      name: 'Future Model',
+      contextWindow: 256_000,
+      maxInputTokens: 120_000,
+      maxOutputTokens: 4096,
+      pricing: {
+        input: { perMillionTokens: 5 },
+        output: { perMillionTokens: 15 }
+      }
+    })
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
   it('refreshes every registry-owned field while preserving row identity and status', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(

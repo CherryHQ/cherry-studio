@@ -7,7 +7,7 @@
  */
 
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
-import { UniqueModelIdSchema } from '@shared/data/types/model'
+import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
@@ -39,7 +39,7 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
-export const AGENT_TYPES = ['claude-code', 'pi'] as const
+export const AGENT_TYPES = ['claude-code', 'pi', 'dsh'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
@@ -50,6 +50,7 @@ export const AgentConfigurationSchema = z
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
+    service_tier: ServiceTierSelectionSchema.optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
@@ -255,20 +256,6 @@ export const ListAgentsQuerySchema = z.strictObject({
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 
-export const DeleteAgentQuerySchema = z.strictObject({
-  /**
-   * Delete the agent's sessions in the same main-process transaction.
-   * Omitted/false preserves the historical "delete agent only" behavior.
-   */
-  deleteSessions: z.boolean().optional()
-})
-export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
-
-export interface DeleteAgentResult {
-  deleted: boolean
-  deletedSessionIds?: string[]
-}
-
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -282,7 +269,7 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get, update, or delete a specific agent */
+  /** Get or update a specific agent. Deletion is a mixed DB/runtime command on IpcApi. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
@@ -292,11 +279,6 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
-    }
-    DELETE: {
-      params: { agentId: string }
-      query?: DeleteAgentQueryParams
-      response: DeleteAgentResult
     }
   }
 

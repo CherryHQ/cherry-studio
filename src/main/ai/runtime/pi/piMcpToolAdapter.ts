@@ -13,10 +13,13 @@ import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 const logger = loggerService.withContext('PiMcpToolAdapter')
 type PiToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
 
+/** MCP keeps result schemas separately from tool-call parameters. Preserve that distinction for code-mode declarations. */
+export type PiMcpToolDefinition = ToolDefinition & { outputSchema?: unknown }
+
 class PiMcpToolIdentityError extends Error {}
 
 export interface PiMcpToolBridge {
-  tools: ToolDefinition[]
+  tools: PiMcpToolDefinition[]
   close(): Promise<void>
 }
 
@@ -49,7 +52,7 @@ export async function warmMcpToolCatalogs(mcpIds: readonly string[]): Promise<vo
 /** Adapt every MCP server assembled for the session into Pi custom tools over an in-memory transport. */
 export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpServer>): Promise<PiMcpToolBridge> {
   const clients: Client[] = []
-  const tools: ToolDefinition[] = []
+  const tools: PiMcpToolDefinition[] = []
 
   for (const [serverId, server] of Object.entries(servers)) {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -87,12 +90,13 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
   }
 }
 
-function toPiToolDefinition(serverName: string, tool: Tool, client: Client): ToolDefinition {
+function toPiToolDefinition(serverName: string, tool: Tool, client: Client): PiMcpToolDefinition {
   return {
     name: buildPiMcpToolName(serverName, tool.name),
     label: tool.name,
     description: tool.description ?? '',
     parameters: tool.inputSchema as ToolDefinition['parameters'],
+    ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
     async execute(_toolCallId, params, signal) {
       const result = (await client.callTool(
         { name: tool.name, arguments: params as Record<string, unknown> },
@@ -102,7 +106,7 @@ function toPiToolDefinition(serverName: string, tool: Tool, client: Client): Too
       if (result.isError) throw new Error(joinErrorText(result.content))
       return {
         content: result.content.map(toPiContent),
-        details: result.structuredContent
+        details: result.structuredContent ?? null
       }
     }
   }

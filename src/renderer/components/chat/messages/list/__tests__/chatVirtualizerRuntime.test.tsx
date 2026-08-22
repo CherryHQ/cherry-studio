@@ -3263,4 +3263,118 @@ describe('useChatVirtualizerRuntime', () => {
       raf.restore()
     }
   })
+
+  it('suppresses reassertFreeze during fresh keyboard intent so arrow-key scroll lands without jitter', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+    let now = 1_000
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      // Enter reading mode — the viewport freezes at scrollTop 500.
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+      expect(scrollTop).toBe(500)
+
+      // Simulate keydown intent (markUserInput) and an arrow-key scroll landing
+      // before the ResizeObserver fires.
+      now = 1_010
+      act(() => {
+        runtime!.markUserInput()
+        // The browser scrolled — but the ResizeObserver hasn't fired yet.
+        scrollTop = 460
+      })
+
+      // ResizeObserver fires while the intent is still fresh. The snap-back
+      // must be suppressed so the native scroll can land.
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(460)
+
+      // onScroll fires and claims the gesture.
+      act(() => runtime!.scrollerProps.onScroll(460))
+      act(() => runtime!.scrollerProps.onScrollEnd())
+
+      // After gesture settles, the viewport freezes at the new resting position.
+      // beginUserScrollGesture consumed the pre-scroll intent, so reassertFreeze
+      // runs and snaps scrollTop to the anchor captured at scrollend (460).
+      scrollTop = 470
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(460)
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it('treats a later resize as programmatic when keydown intent expires without a scroll', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+    // Advance time past the intent window after markUserInput fires so
+    // hasRecentUserScrollIntent() returns false when the ResizeObserver runs.
+    let now = 1_000
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      let scrollHeight = 2000
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      // Enter reading mode — the viewport freezes at scrollTop 500.
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+      expect(scrollTop).toBe(500)
+
+      // keydown intent fires but no scroll follows.
+      now = 1_010
+      act(() => runtime!.markUserInput())
+
+      // The intent window passes — advance time beyond the 250 ms grace period.
+      now = 1_000_000
+      // A content resize now fires — this must be treated as programmatic
+      // (reassertFreeze must run), not suppressed.
+      scrollTop = 560
+      scrollHeight = 2200
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      // reassertFreeze runs (intent expired) and snaps to the frozen anchor
+      // target. The anchor was captured at scrollTop 500 with offsetInItem 500
+      // (getItemOffset(0) = 0 from the default mock handle), so the target is
+      // 500 — what matters is that scrollTop was reset from the programmatic
+      // 560, proving reassertFreeze was not suppressed.
+      expect(scrollTop).toBe(500)
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
 })

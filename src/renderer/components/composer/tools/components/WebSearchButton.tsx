@@ -43,7 +43,11 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
-  const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const {
+    defaultFetchUrlsProvider,
+    defaultSearchKeywordsProvider,
+    isLoading: isLoadingWebSearchProviders
+  } = useWebSearchProviders()
   const [clientToolsPreferred] = usePreference('chat.web_search.client_tools_preferred')
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
@@ -72,7 +76,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       : undefined
   const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
   const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
-  const isDisabled = Boolean(disabledReason)
+  const isDisabled = isLoadingWebSearchProviders || Boolean(disabledReason)
 
   const onClick = useCallback(
     async (restoreFocus?: () => void) => {
