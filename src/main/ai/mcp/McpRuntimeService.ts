@@ -121,10 +121,19 @@ const OAUTH_CALLBACK_TIMEOUT_MS = 60_000
 // Fast-path grace window before surfacing pending-auth and letting other servers continue.
 const OAUTH_GRACE_MS = 8_000
 
-class OAuthPendingAuthError extends Error {
+class OAuthFlowControlError extends Error {}
+
+class OAuthPendingAuthError extends OAuthFlowControlError {
   constructor(message: string) {
     super(message)
     this.name = 'OAuthPendingAuthError'
+  }
+}
+
+class OAuthCancelledError extends OAuthFlowControlError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'OAuthCancelledError'
   }
 }
 
@@ -191,14 +200,17 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
-  // Cancel functions for in-flight background OAuth listeners, keyed by server id.
-  // Called on server stop, removal, or restart to prevent a stale listener from
-  // racing a fresh connect attempt.
-  private pendingOAuthListeners: Map<string, () => void> = new Map()
-  private pendingOAuthCompletions = new Set<Promise<void>>()
+  // Cancel callback waits per server. Stops, removals, and restarts use them
+  // to prevent stale OAuth attempts from racing fresh connections.
+  private pendingOAuthListeners = new Map<string, Set<() => Promise<void>>>()
+  private pendingOAuthCompletions = new Map<string, Set<Promise<void>>>()
+  private oauthCancellationGenerations = new Map<string, number>()
   // In-flight liveness probes, deduped per server key. Deliberately separate from
   // pendingClients: removeServer awaits that map, and it must not wait out a ping.
   private pendingProbes: Map<string, Promise<Client | undefined>> = new Map()
+  // Invalidates OAuth auto-restarts that began before the latest explicit stop.
+  private serverStopGenerations = new Map<string, number>()
+  private stoppingServerIds = new Map<string, number>()
   // Ids removed this run (ids are never reused). Guards the delete-vs-reconnect race:
   // a late connect must self-close instead of re-caching a client nothing would ever close.
   private removedServerIds = new Set<string>()
@@ -220,18 +232,23 @@ export class McpRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.stopping = false
+    this.serverStopGenerations.clear()
+    this.stoppingServerIds.clear()
+    this.oauthCancellationGenerations.clear()
     this.oauthShutdownController = new AbortController()
   }
 
   protected async onStop(): Promise<void> {
     this.stopping = true
     this.oauthShutdownController.abort(new Error('MCP runtime is stopping'))
-    for (const cancel of this.pendingOAuthListeners.values()) {
-      cancel()
-    }
+    const cancellations = [...this.pendingOAuthListeners.values()].flatMap((pending) =>
+      [...pending].map((cancel) => cancel())
+    )
     this.pendingOAuthListeners.clear()
     this.abortActiveToolCalls()
-    await Promise.allSettled(this.pendingOAuthCompletions)
+    await Promise.allSettled(cancellations)
+    const completions = [...this.pendingOAuthCompletions.values()].flatMap((pending) => [...pending])
+    await Promise.allSettled(completions)
     this.pendingOAuthCompletions.clear()
     await this.waitForPendingClients()
     await this.closeAllClients()
@@ -246,6 +263,10 @@ export class McpRuntimeService extends BaseService {
 
   public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
     if (this.stopping || this.isStopped || this.isDestroyed) {
+      return
+    }
+
+    if (this.stoppingServerIds.has(serverId) && state !== 'disabled') {
       return
     }
 
@@ -381,6 +402,10 @@ export class McpRuntimeService extends BaseService {
       throw new Error(`MCP server ${server.name} has been removed`)
     }
 
+    if (this.stoppingServerIds.has(server.id)) {
+      throw new Error(`MCP server ${server.name} is stopping`)
+    }
+
     if (!server.isActive) {
       this.setServerStatus(server.id, 'disabled')
       throw new Error(`MCP server ${server.name} is disabled`)
@@ -507,22 +532,27 @@ export class McpRuntimeService extends BaseService {
     try {
       await this.connectWithFallback({ client, server, sdk, authProvider, createServerTransport })
 
-      this.emitServerLog(server, {
-        timestamp: Date.now(),
-        level: 'info',
-        message: 'Server connected',
-        source: 'client'
-      })
-
       if (this.stopping || this.isStopped || this.isDestroyed) {
         await client.close()
         throw new Error('MCP runtime is stopping')
+      }
+
+      if (this.stoppingServerIds.has(server.id)) {
+        await client.close()
+        throw new Error(`MCP server ${server.name} was stopped during connect`)
       }
 
       if (this.removedServerIds.has(server.id)) {
         await client.close()
         throw new Error(`MCP server ${server.name} was removed during connect`)
       }
+
+      this.emitServerLog(server, {
+        timestamp: Date.now(),
+        level: 'info',
+        message: 'Server connected',
+        source: 'client'
+      })
 
       // Store the new client in the cache
       this.clients.set(serverKey, client)
@@ -543,7 +573,7 @@ export class McpRuntimeService extends BaseService {
       })
       return client
     } catch (error) {
-      if (!(error instanceof OAuthPendingAuthError)) {
+      if (!(error instanceof OAuthFlowControlError)) {
         this.setServerStatus(server.id, 'error', error)
       }
       getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
@@ -604,14 +634,21 @@ export class McpRuntimeService extends BaseService {
           (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
         ) {
           logger.debug(`Authentication required for server: ${server.name}`)
-          await this.finishOAuth({
-            client,
-            server,
-            transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
-            authProvider,
-            createServerTransport,
-            typeOverride: candidateType
-          })
+          try {
+            await this.finishOAuth({
+              client,
+              server,
+              transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
+              authProvider,
+              createServerTransport,
+              typeOverride: candidateType
+            })
+          } catch (oauthError) {
+            if (!(oauthError instanceof OAuthPendingAuthError)) {
+              await client.close().catch(() => undefined)
+            }
+            throw oauthError
+          }
           return
         }
         lastError = error
@@ -651,6 +688,21 @@ export class McpRuntimeService extends BaseService {
     typeOverride?: McpServerType
   }): Promise<void> {
     getServerLogger(server).debug(`Starting OAuth flow`)
+    const shutdownSignal = this.oauthShutdownController.signal
+    const stopGeneration = this.serverStopGenerations.get(server.id) ?? 0
+    const cancellationGeneration = await this.cancelPendingOAuthListener(server.id)
+    if (
+      (this.oauthCancellationGenerations.get(server.id) ?? 0) !== cancellationGeneration ||
+      (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration ||
+      shutdownSignal.aborted ||
+      this.stopping ||
+      this.isStopped ||
+      this.isDestroyed ||
+      this.stoppingServerIds.has(server.id) ||
+      this.removedServerIds.has(server.id)
+    ) {
+      throw new OAuthCancelledError(`OAuth attempt for MCP server ${server.name} was cancelled`)
+    }
     const events = new EventEmitter()
     const callbackServer = new CallBackServer({
       port: authProvider.config.callbackPort,
@@ -664,27 +716,82 @@ export class McpRuntimeService extends BaseService {
     // background — when the code eventually arrives the server auto-reconnects.
     let graceExpired = false
     let authCode: string | undefined
-    const shutdownSignal = this.oauthShutdownController.signal
-    try {
-      authCode = await callbackServer.waitForAuthCode(OAUTH_GRACE_MS, shutdownSignal)
-    } catch (graceError) {
+    let callbackServerClose: Promise<void> | undefined
+    const closeCallbackServer = () => (callbackServerClose ??= callbackServer.close().catch(() => undefined))
+    const graceAbortController = new AbortController()
+    const getCancellationError = (): OAuthCancelledError | undefined => {
       if (shutdownSignal.aborted) {
-        await callbackServer.close()
-        throw shutdownSignal.reason instanceof Error ? shutdownSignal.reason : new Error('MCP runtime is stopping')
+        const message =
+          shutdownSignal.reason instanceof Error ? shutdownSignal.reason.message : 'MCP runtime is stopping'
+        return new OAuthCancelledError(message)
+      }
+      if ((this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration) {
+        return new OAuthCancelledError(`MCP server ${server.name} was stopped`)
+      }
+      if (this.removedServerIds.has(server.id)) {
+        return new OAuthCancelledError(`MCP server ${server.name} was removed`)
+      }
+      if (this.stoppingServerIds.has(server.id)) {
+        return new OAuthCancelledError(`MCP server ${server.name} is stopping`)
+      }
+      if (graceAbortController.signal.aborted) {
+        const message =
+          graceAbortController.signal.reason instanceof Error
+            ? graceAbortController.signal.reason.message
+            : `OAuth attempt for MCP server ${server.name} was cancelled`
+        return new OAuthCancelledError(message)
+      }
+      return undefined
+    }
+    const throwIfCancelled = () => {
+      const error = getCancellationError()
+      if (error) throw error
+    }
+    const cancelGraceWait = async () => {
+      graceAbortController.abort(new Error(`OAuth attempt for MCP server ${server.name} was cancelled`))
+      await closeCallbackServer()
+    }
+    this.registerPendingOAuthListener(server.id, cancelGraceWait)
+    try {
+      const graceSignal = AbortSignal.any([shutdownSignal, graceAbortController.signal])
+      authCode = await callbackServer.waitForAuthCode(OAUTH_GRACE_MS, graceSignal)
+    } catch (graceError) {
+      if (
+        shutdownSignal.aborted ||
+        graceAbortController.signal.aborted ||
+        (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration ||
+        this.stoppingServerIds.has(server.id) ||
+        this.removedServerIds.has(server.id)
+      ) {
+        await closeCallbackServer()
+        throw getCancellationError() ?? new OAuthCancelledError('OAuth callback wait was cancelled')
       } else if (graceError instanceof OAuthCallbackTimeoutError) {
         graceExpired = true
       } else {
-        void callbackServer.close()
+        await closeCallbackServer()
         getServerLogger(server).error(`OAuth authentication failed`, graceError as Error)
         throw new Error(
           `OAuth authentication failed: ${graceError instanceof Error ? graceError.message : String(graceError)}`
         )
       }
+    } finally {
+      this.unregisterPendingOAuthListener(server.id, cancelGraceWait)
+    }
+
+    if (
+      shutdownSignal.aborted ||
+      graceAbortController.signal.aborted ||
+      (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration ||
+      this.stoppingServerIds.has(server.id) ||
+      this.removedServerIds.has(server.id)
+    ) {
+      await closeCallbackServer()
+      throw getCancellationError() ?? new OAuthCancelledError('OAuth callback wait was cancelled')
     }
 
     if (graceExpired) {
       if (this.stopping || this.isStopped || this.isDestroyed) {
-        void callbackServer.close()
+        await closeCallbackServer()
         throw new Error('MCP runtime is stopping')
       }
 
@@ -697,27 +804,34 @@ export class McpRuntimeService extends BaseService {
           `or open MCP settings and re-enable the server to retry.`
       )
       this.setServerStatus(server.id, 'pending-auth', pendingError)
-      this.scheduleBackgroundOAuthCompletion({ server, transport, callbackServer })
+      await this.scheduleBackgroundOAuthCompletion({ client, server, transport, callbackServer, stopGeneration })
       throw pendingError
     }
 
     // Code arrived within the grace window — complete the flow inline.
     try {
       await transport.finishAuth(authCode!)
+      throwIfCancelled()
       getServerLogger(server).debug(`OAuth flow completed`)
 
       // The 401 left its transport installed on the client, and the SDK refuses a second
       // connect until it is cleared — close before retrying, as the fallback path does.
       await client.close().catch(() => undefined)
-      await client.connect(await createServerTransport(typeOverride))
+      throwIfCancelled()
+      const authenticatedTransport = await createServerTransport(typeOverride)
+      throwIfCancelled()
+      await client.connect(authenticatedTransport)
+      throwIfCancelled()
       getServerLogger(server).debug(`Successfully authenticated`)
     } catch (finishError) {
+      const cancellationError = getCancellationError()
+      if (cancellationError) throw cancellationError
       getServerLogger(server).error(`OAuth authentication failed`, finishError as Error)
       throw new Error(
         `OAuth authentication failed: ${finishError instanceof Error ? finishError.message : String(finishError)}`
       )
     } finally {
-      void callbackServer.close()
+      await closeCallbackServer()
     }
   }
 
@@ -727,65 +841,140 @@ export class McpRuntimeService extends BaseService {
    * `restartServer`, `stopServer`, and `removeServer` can abort the listener and
    * close the port before starting a new connection attempt.
    */
-  private scheduleBackgroundOAuthCompletion({
+  private async scheduleBackgroundOAuthCompletion({
+    client,
     server,
     transport,
-    callbackServer
+    callbackServer,
+    stopGeneration
   }: {
+    client: Client
     server: McpServer
     transport: SSEClientTransport | StreamableHTTPClientTransport
     callbackServer: CallBackServer
-  }): void {
-    this.cancelPendingOAuthListener(server.id)
+    stopGeneration: number
+  }): Promise<void> {
+    const cancellationGeneration = await this.cancelPendingOAuthListener(server.id)
+
+    if (
+      (this.oauthCancellationGenerations.get(server.id) ?? 0) !== cancellationGeneration ||
+      this.stopping ||
+      this.isStopped ||
+      this.isDestroyed ||
+      this.oauthShutdownController.signal.aborted ||
+      this.stoppingServerIds.has(server.id) ||
+      this.removedServerIds.has(server.id) ||
+      (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration
+    ) {
+      await callbackServer.close().catch(() => undefined)
+      throw new OAuthCancelledError(`OAuth completion for MCP server ${server.name} was cancelled`)
+    }
 
     let active = true
+    let clientClose: Promise<void> | undefined
+    let callbackServerClose: Promise<void> | undefined
+    const closeClient = () => (clientClose ??= client.close().catch(() => undefined))
+    const closeCallbackServer = () => (callbackServerClose ??= callbackServer.close().catch(() => undefined))
+    const wasStopped = () => (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration
     const abortController = new AbortController()
-    const cancel = () => {
-      if (!active) return
-      active = false
-      abortController.abort()
-      void callbackServer.close()
+    const finishAuthUnlessCancelled = (authCode: string) =>
+      new Promise<void>((resolve, reject) => {
+        const onAbort = () => {
+          abortController.signal.removeEventListener('abort', onAbort)
+          reject(abortController.signal.reason ?? new OAuthCancelledError('OAuth completion was cancelled'))
+        }
+        abortController.signal.addEventListener('abort', onAbort, { once: true })
+        if (abortController.signal.aborted) {
+          onAbort()
+          return
+        }
+        void transport.finishAuth(authCode).then(
+          () => {
+            abortController.signal.removeEventListener('abort', onAbort)
+            resolve()
+          },
+          (error) => {
+            abortController.signal.removeEventListener('abort', onAbort)
+            reject(error)
+          }
+        )
+      })
+    const cancel = async () => {
+      if (active) {
+        active = false
+        abortController.abort()
+      }
+      await Promise.all([closeClient(), closeCallbackServer()])
     }
-    this.pendingOAuthListeners.set(server.id, cancel)
+    this.registerPendingOAuthListener(server.id, cancel)
 
     const remaining = OAUTH_CALLBACK_TIMEOUT_MS - OAUTH_GRACE_MS
     const completion = callbackServer
       .waitForAuthCode(remaining, abortController.signal)
       .then(async (authCode) => {
-        if (!active || this.stopping) return
+        if (!active || this.stopping || wasStopped()) return
         getServerLogger(server).debug(`Background OAuth listener received auth code — completing auth`)
         try {
-          await transport.finishAuth(authCode)
-          if (!active || this.stopping) return
+          await finishAuthUnlessCancelled(authCode)
+          await Promise.all([closeClient(), closeCallbackServer()])
+          if (!active || this.stopping || wasStopped()) return
           getServerLogger(server).info(`OAuth token stored; triggering automatic server reconnect`)
-          await this.restartServer(server.id)
+          await this.restartServerIfCurrent(server.id, stopGeneration)
         } catch (err) {
-          if (!active || this.stopping) return
+          if (!active || this.stopping || wasStopped()) return
           getServerLogger(server).error(`Background OAuth completion failed`, err as Error)
           this.setServerStatus(server.id, 'error', err)
         }
       })
       .catch((err) => {
-        if (!active || this.stopping) return
+        if (!active || this.stopping || wasStopped()) return
         getServerLogger(server).warn(`Background OAuth listener expired without receiving a code`, {
           err: String(err)
         })
       })
-      .finally(() => {
-        this.pendingOAuthCompletions.delete(completion)
-        if (this.pendingOAuthListeners.get(server.id) === cancel) {
-          this.pendingOAuthListeners.delete(server.id)
+      .finally(async () => {
+        await Promise.all([closeClient(), closeCallbackServer()])
+        const pending = this.pendingOAuthCompletions.get(server.id)
+        pending?.delete(completion)
+        if (pending?.size === 0) {
+          this.pendingOAuthCompletions.delete(server.id)
         }
-        if (active) void callbackServer.close()
+        this.unregisterPendingOAuthListener(server.id, cancel)
       })
-    this.pendingOAuthCompletions.add(completion)
+    const pending = this.pendingOAuthCompletions.get(server.id) ?? new Set()
+    pending.add(completion)
+    this.pendingOAuthCompletions.set(server.id, pending)
   }
 
-  private cancelPendingOAuthListener(serverId: string): void {
-    const cancel = this.pendingOAuthListeners.get(serverId)
-    if (cancel) {
-      cancel()
+  private async cancelPendingOAuthListener(serverId: string): Promise<number> {
+    const generation = (this.oauthCancellationGenerations.get(serverId) ?? 0) + 1
+    this.oauthCancellationGenerations.set(serverId, generation)
+    const pending = this.pendingOAuthListeners.get(serverId)
+    if (pending) {
       this.pendingOAuthListeners.delete(serverId)
+      await Promise.allSettled([...pending].map((cancel) => cancel()))
+    }
+    return generation
+  }
+
+  private registerPendingOAuthListener(serverId: string, cancel: () => Promise<void>): void {
+    const pending = this.pendingOAuthListeners.get(serverId) ?? new Set()
+    pending.add(cancel)
+    this.pendingOAuthListeners.set(serverId, pending)
+  }
+
+  private unregisterPendingOAuthListener(serverId: string, cancel: () => Promise<void>): void {
+    const pending = this.pendingOAuthListeners.get(serverId)
+    pending?.delete(cancel)
+    if (pending?.size === 0) {
+      this.pendingOAuthListeners.delete(serverId)
+    }
+  }
+
+  private async waitForPendingOAuthCompletions(serverId: string): Promise<void> {
+    const pending = this.pendingOAuthCompletions.get(serverId)
+    if (pending) {
+      await Promise.allSettled([...pending])
     }
   }
 
@@ -952,19 +1141,31 @@ export class McpRuntimeService extends BaseService {
 
   async stopServer(serverId: string) {
     const server = this.getServerById(serverId)
-    this.cancelPendingOAuthListener(serverId)
-    getServerLogger(server).debug(`Stopping server`)
-    this.emitServerLog(server, {
-      timestamp: Date.now(),
-      level: 'info',
-      message: 'Stopping server',
-      source: 'client'
-    })
+    this.stoppingServerIds.set(serverId, (this.stoppingServerIds.get(serverId) ?? 0) + 1)
+    this.serverStopGenerations.set(serverId, (this.serverStopGenerations.get(serverId) ?? 0) + 1)
     try {
+      await this.cancelPendingOAuthListener(serverId)
+      await this.waitForPendingOAuthCompletions(serverId)
+      getServerLogger(server).debug(`Stopping server`)
+      this.emitServerLog(server, {
+        timestamp: Date.now(),
+        level: 'info',
+        message: 'Stopping server',
+        source: 'client'
+      })
       await this.closeClientsForServer(server.id)
     } finally {
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'disabled')
+      try {
+        application.get('McpCatalogService').clearSharedToolsCache(server.id)
+        this.setServerStatus(server.id, 'disabled')
+      } finally {
+        const remainingStops = (this.stoppingServerIds.get(serverId) ?? 1) - 1
+        if (remainingStops === 0) {
+          this.stoppingServerIds.delete(serverId)
+        } else {
+          this.stoppingServerIds.set(serverId, remainingStops)
+        }
+      }
     }
   }
 
@@ -996,8 +1197,10 @@ export class McpRuntimeService extends BaseService {
 
   private async doRemoveServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
+    this.serverStopGenerations.set(serverId, (this.serverStopGenerations.get(serverId) ?? 0) + 1)
     this.removedServerIds.add(serverId)
-    this.cancelPendingOAuthListener(serverId)
+    await this.cancelPendingOAuthListener(serverId)
+    await this.waitForPendingOAuthCompletions(serverId)
     let rowDeleted = false
     try {
       await this.closeClientsForServer(server.id)
@@ -1068,10 +1271,26 @@ export class McpRuntimeService extends BaseService {
   }
 
   async restartServer(serverId: string) {
+    const restartGeneration = (this.serverStopGenerations.get(serverId) ?? 0) + 1
+    this.serverStopGenerations.set(serverId, restartGeneration)
+    return this.restartServerIfCurrent(serverId, restartGeneration, true)
+  }
+
+  private async restartServerIfCurrent(
+    serverId: string,
+    expectedStopGeneration: number,
+    waitForOAuthCompletions = false
+  ) {
     const server = this.getServerById(serverId)
+    const wasStopped = () => (this.serverStopGenerations.get(serverId) ?? 0) !== expectedStopGeneration
+    if (wasStopped()) return
     // Cancel any background OAuth listener before reconnecting so the old callback
     // server releases its port and does not race the fresh connect attempt.
-    this.cancelPendingOAuthListener(serverId)
+    await this.cancelPendingOAuthListener(serverId)
+    if (waitForOAuthCompletions) {
+      await this.waitForPendingOAuthCompletions(serverId)
+    }
+    if (wasStopped()) return
     getServerLogger(server).debug(`Restarting server`)
     this.emitServerLog(server, {
       timestamp: Date.now(),
@@ -1080,6 +1299,7 @@ export class McpRuntimeService extends BaseService {
       source: 'client'
     })
     await this.closeClientsForServer(server.id)
+    if (wasStopped()) return
     // Clear caches before restarting to ensure fresh data. Drop the shared
     // `mcp.tools.<serverId>` cache too: `McpCatalogService.listTools` is cache-only, so a
     // restart that fails (e.g. a bad new config) must not leave the old config's tools
@@ -1088,9 +1308,12 @@ export class McpRuntimeService extends BaseService {
     application.get('McpCatalogService').clearSharedToolsCache(server.id)
     try {
       await this.getOrCreateClient(server)
+      if (wasStopped()) return
       await application.get('McpCatalogService').refreshTools(server.id)
+      if (wasStopped()) return
     } catch (error) {
-      if (!(error instanceof OAuthPendingAuthError)) {
+      if (wasStopped()) return
+      if (!(error instanceof OAuthFlowControlError)) {
         this.setServerStatus(server.id, 'error', error)
       }
       throw error
@@ -1125,6 +1348,10 @@ export class McpRuntimeService extends BaseService {
         data: redactDeep(error),
         source: 'connectivity'
       })
+      if (error instanceof OAuthFlowControlError) {
+        application.get('McpCatalogService').clearSharedToolsCache(server.id)
+        return false
+      }
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
       const serverKey = this.getServerKey(server)
       await this.closeClient(serverKey)

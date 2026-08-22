@@ -18,6 +18,7 @@ export class OAuthCallbackTimeoutError extends Error {
 export class CallBackServer {
   private server: Promise<http.Server>
   private events: EventEmitter
+  private closePromise?: Promise<void>
 
   constructor(options: OAuthCallbackServerOptions) {
     const { port, path, events } = options
@@ -119,9 +120,23 @@ export class CallBackServer {
     return this.server
   }
 
-  async close() {
-    const server = await this.server.catch(() => undefined)
-    server?.close()
+  close(): Promise<void> {
+    if (!this.closePromise) {
+      this.closePromise = this.server.then(
+        (server) =>
+          new Promise<void>((resolve, reject) => {
+            server.close((error) => {
+              if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+                reject(error)
+              } else {
+                resolve()
+              }
+            })
+          }),
+        () => undefined
+      )
+    }
+    return this.closePromise
   }
 
   /**

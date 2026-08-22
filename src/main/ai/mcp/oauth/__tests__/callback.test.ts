@@ -6,7 +6,9 @@ import { CallBackServer, OAuthCallbackTimeoutError } from '../callback'
 
 class TestCallBackServer extends CallBackServer {
   override initialize(): Promise<http.Server> {
-    return Promise.resolve({ close: vi.fn() } as unknown as http.Server)
+    return Promise.resolve({
+      close: vi.fn((callback?: (error?: Error) => void) => callback?.())
+    } as unknown as http.Server)
   }
 }
 
@@ -78,5 +80,30 @@ describe('CallBackServer.waitForAuthCode', () => {
 
     await assertion
     expect(events.listenerCount('auth-code-received')).toBe(0)
+  })
+
+  it('waits for server closure and closes only once', async () => {
+    let finishClose!: () => void
+    const close = vi.fn((callback: (error?: Error) => void) => {
+      finishClose = () => callback()
+    })
+    const callbackServer = new (class extends CallBackServer {
+      override initialize(): Promise<http.Server> {
+        return Promise.resolve({ close } as unknown as http.Server)
+      }
+    })({ port: 0, path: '/oauth/callback', events })
+
+    const firstClose = callbackServer.close()
+    const secondClose = callbackServer.close()
+    let closed = false
+    void firstClose.then(() => {
+      closed = true
+    })
+
+    await vi.waitFor(() => expect(close).toHaveBeenCalledTimes(1))
+    expect(closed).toBe(false)
+    finishClose()
+
+    await expect(Promise.all([firstClose, secondClose])).resolves.toEqual([undefined, undefined])
   })
 })
