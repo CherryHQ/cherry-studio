@@ -1,7 +1,6 @@
 /** A foreign window projected into one display's overlay coordinate space (DIP). */
 export interface DetectedWindow {
   title: string
-  appName: string
   x: number
   y: number
   width: number
@@ -24,8 +23,6 @@ export interface ScreenshotInitData {
     height: number
     scaleFactor: number
   }
-  /** Foreign windows overlapping this display, for hover-to-snap. */
-  windows: DetectedWindow[]
   /** Whether the overlay should run OCR once a selection settles. */
   autoOcr: boolean
   /** Whether the OCR model is on disk; false disables the OCR affordance. */

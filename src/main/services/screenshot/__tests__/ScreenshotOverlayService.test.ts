@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import type * as NodeFs from 'node:fs'
 
 import { WindowType } from '@main/core/window/types'
+import type { DetectedWindow } from '@shared/types/screenshot'
 import type { Display } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,13 +20,15 @@ vi.mock('@main/core/platform', () => platform)
 const capture = vi.hoisted(() => ({
   captureAllMonitors: vi.fn(),
   listMonitors: vi.fn(),
-  listWindows: vi.fn(),
   getScreenCapturePermissionStatus: vi.fn(),
   requestScreenCapturePermission: vi.fn(),
   openScreenCaptureSettings: vi.fn()
 }))
 vi.mock('../screenCapture', () => capture)
 vi.mock('@main/utils/screenCapturePermission', () => capture)
+
+const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
+vi.mock('../windowEnumerator', () => enumerator)
 
 const localModel = vi.hoisted(() => ({ isLocalModelReady: vi.fn(() => true) }))
 vi.mock('@main/services/localModel', () => localModel)
@@ -229,7 +232,6 @@ const makeCapture = (width = 1920, height = 1080): CaptureResult => ({
 const makeWindowInfo = (over: Partial<RawWindowInfo> = {}): RawWindowInfo => ({
   pid: 4242,
   title: 'Notes',
-  appName: 'Notes',
   x: 10,
   y: 20,
   width: 400,
@@ -249,6 +251,44 @@ const initDataOf = (id: string) => {
   const call = [...container.openCalls].reverse().find((c) => c.id === id)
   return call?.args.initData
 }
+
+/**
+ * Hold the enumeration open, so a test can assert what the capture path does while
+ * it is still running. Returns the release, which also flushes the resulting push.
+ */
+const holdEnumeration = (windows: RawWindowInfo[]) => {
+  let release!: () => void
+  enumerator.listWindowsOffThread.mockReturnValue(
+    new Promise<RawWindowInfo[]>((resolve) => {
+      release = () => resolve(windows)
+    })
+  )
+  return async () => {
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+  }
+}
+
+/** Let the already-resolved enumeration reach the overlays. */
+const settleSnapTargets = () => vi.advanceTimersByTimeAsync(0)
+
+/** Every overlay that was told to drop its selection, in order. */
+const resetOverlayTargets = (): string[] =>
+  container.ipcApiService.send.mock.calls
+    .filter((call) => call[1] === 'screenshot.reset_overlay')
+    .map((call) => call[0])
+
+/** Every snap-target push one overlay received, in order, as title lists. */
+const snapTargetPushesTo = (id: string): string[][] =>
+  container.ipcApiService.send.mock.calls
+    .filter((call) => call[0] === id && call[1] === 'screenshot.snap_targets')
+    .map((call) => call[2].windows.map((w: DetectedWindow) => w.title))
+
+/** The snap targets last pushed to one overlay, or undefined if it never got any. */
+const snapTargetsOf = (id: string): DetectedWindow[] | undefined =>
+  [...container.ipcApiService.send.mock.calls]
+    .reverse()
+    .find((call) => call[0] === id && call[1] === 'screenshot.snap_targets')?.[2].windows
 
 const startService = () => {
   service = new ScreenshotOverlayService()
@@ -312,7 +352,7 @@ describe('ScreenshotOverlayService', () => {
     container.preferences.set('feature.screenshot.enabled', true)
     container.preferences.set('feature.screenshot.auto_ocr', true)
     capture.getScreenCapturePermissionStatus.mockReturnValue('authorized')
-    capture.listWindows.mockReturnValue([])
+    enumerator.listWindowsOffThread.mockResolvedValue([])
     capture.listMonitors.mockReturnValue([])
     capture.captureAllMonitors.mockReturnValue(new Map())
     localModel.isLocalModelReady.mockReturnValue(true)
@@ -532,8 +572,7 @@ describe('ScreenshotOverlayService', () => {
       service.markOverlayActive('overlay-0-0')
       service.markOverlayActive('overlay-1920-0')
 
-      expect(container.ipcApiService.send).toHaveBeenCalledTimes(1)
-      expect(container.ipcApiService.send).toHaveBeenCalledWith('overlay-0-0', 'screenshot.reset_overlay', undefined)
+      expect(resetOverlayTargets()).toEqual(['overlay-0-0'])
     })
 
     it('does not reset the active overlay when the same one re-reports activity', async () => {
@@ -543,7 +582,7 @@ describe('ScreenshotOverlayService', () => {
       service.markOverlayActive('overlay-0-0')
       service.markOverlayActive('overlay-0-0')
 
-      expect(container.ipcApiService.send).not.toHaveBeenCalled()
+      expect(resetOverlayTargets()).toEqual([])
     })
   })
 
@@ -623,29 +662,114 @@ describe('ScreenshotOverlayService', () => {
   })
 
   describe('hit-test list', () => {
+    it('opens every overlay without waiting for the enumeration', async () => {
+      // The whole point: enumeration costs hundreds of milliseconds, and blocking the
+      // overlays on it put that squarely on the shortcut's critical path.
+      electron.displays = [makeDisplay(1, 0, 0), makeDisplay(2, 1920, 0)]
+      electron.cursorDisplay = electron.displays[0]
+      capture.captureAllMonitors.mockReturnValue(
+        new Map([
+          [1, makeCapture()],
+          [2, makeCapture()]
+        ])
+      )
+      const release = holdEnumeration([
+        makeWindowInfo({ title: 'OnLeft' }),
+        makeWindowInfo({ title: 'OnRight', x: 2000, y: 20 })
+      ])
+
+      await service.startCapture()
+
+      expect(container.openCalls.map((c) => c.id)).toEqual(['overlay-0-0', 'overlay-1920-0'])
+      expect(snapTargetsOf('overlay-0-0')).toBeUndefined()
+
+      await release()
+
+      expect(snapTargetsOf('overlay-0-0')?.map((w) => w.title)).toEqual(['OnLeft'])
+      expect(snapTargetsOf('overlay-1920-0')?.map((w) => w.title)).toEqual(['OnRight'])
+    })
+
+    it('starts the enumeration before the capture, so the two overlap', async () => {
+      // Sequencing it after the capture would add its cost to the session instead of
+      // hiding it behind the PNG encode.
+      singleDisplaySetup()
+      let enumeratedDuringCapture = false
+      capture.captureAllMonitors.mockImplementation(async () => {
+        enumeratedDuringCapture = enumerator.listWindowsOffThread.mock.calls.length > 0
+        return new Map([[1, makeCapture()]])
+      })
+      enumerator.listWindowsOffThread.mockResolvedValue([])
+
+      await service.startCapture()
+
+      expect(enumeratedDuringCapture).toBe(true)
+    })
+
+    it('drops targets belonging to a session that ended before the enumeration finished', async () => {
+      // A pooled overlay is only hidden, so its renderer would apply these to a
+      // capture it no longer shows.
+      singleDisplaySetup()
+      const release = holdEnumeration([makeWindowInfo({ title: 'Visible' })])
+
+      await service.startCapture()
+      service.dismiss()
+      await release()
+
+      expect(snapTargetsOf('overlay-0-0')).toBeUndefined()
+    })
+
+    it('pushes the targets again when they landed before the overlay reported ready', async () => {
+      // The enumeration can beat the renderer: a cold one has not subscribed yet, and a
+      // pooled one clears the previous session's targets on new init data. Either drops
+      // that push, and hover-to-window snapping is gone for the whole capture.
+      singleDisplaySetup()
+      enumerator.listWindowsOffThread.mockResolvedValue([makeWindowInfo({ title: 'Visible' })])
+
+      await service.startCapture()
+      await settleSnapTargets()
+      expect(snapTargetPushesTo('overlay-0-0')).toEqual([['Visible']])
+
+      service.markOverlayReady('overlay-0-0', initDataOf('overlay-0-0').mediaId)
+
+      expect(snapTargetPushesTo('overlay-0-0')).toEqual([['Visible'], ['Visible']])
+    })
+
+    it('does not repeat the push to an overlay that was ready before the targets landed', async () => {
+      singleDisplaySetup()
+      const release = holdEnumeration([makeWindowInfo({ title: 'Visible' })])
+
+      await service.startCapture()
+      service.markOverlayReady('overlay-0-0', initDataOf('overlay-0-0').mediaId)
+      await release()
+
+      expect(snapTargetPushesTo('overlay-0-0')).toEqual([['Visible']])
+    })
+
     it('excludes our own windows and minimized windows from the hit-test list', async () => {
       singleDisplaySetup()
-      capture.listWindows.mockReturnValue([
+      enumerator.listWindowsOffThread.mockResolvedValue([
         makeWindowInfo({ title: 'Our own window', pid: process.pid }),
         makeWindowInfo({ title: 'Minimized', isMinimized: true }),
         makeWindowInfo({ title: 'Visible' })
       ])
 
       await service.startCapture()
+      await settleSnapTargets()
 
-      expect(initDataOf('overlay-0-0').windows.map((w: { title: string }) => w.title)).toEqual(['Visible'])
+      expect(snapTargetsOf('overlay-0-0')?.map((w) => w.title)).toEqual(['Visible'])
     })
 
     it('drops the macOS Dock overlay by title, never by its localized owner name', async () => {
       singleDisplaySetup()
-      capture.listWindows.mockReturnValue([
-        makeWindowInfo({ title: 'Dock', appName: '程序坞', x: 0, y: 0, width: 1920, height: 1080 }),
+      enumerator.listWindowsOffThread.mockResolvedValue([
+        makeWindowInfo({ title: 'Dock', x: 0, y: 0, width: 1920, height: 1080 }),
         makeWindowInfo({ title: 'Visible' })
       ])
 
       await service.startCapture()
+      await settleSnapTargets()
 
-      expect(initDataOf('overlay-0-0').windows.map((w: { title: string }) => w.title)).toEqual(['Visible'])
+      expect(snapTargetsOf('overlay-0-0')?.map((w) => w.title)).toEqual(['Visible'])
     })
 
     it('keeps a window titled Dock off macOS', async () => {
@@ -654,28 +778,28 @@ describe('ScreenshotOverlayService', () => {
       platform.isMac = false
       platform.isWin = true
       singleDisplaySetup()
-      capture.listWindows.mockReturnValue([makeWindowInfo({ title: 'Dock' })])
+      enumerator.listWindowsOffThread.mockResolvedValue([makeWindowInfo({ title: 'Dock' })])
 
       await service.startCapture()
+      await settleSnapTargets()
 
-      expect(initDataOf('overlay-0-0').windows.map((w: { title: string }) => w.title)).toEqual(['Dock'])
+      expect(snapTargetsOf('overlay-0-0')?.map((w) => w.title)).toEqual(['Dock'])
     })
 
     it('clips windows to the display, drops non-overlapping ones and edge slivers', async () => {
       electron.displays = [makeDisplay(1, 100, 100, 800, 600)]
       electron.cursorDisplay = electron.displays[0]
       capture.captureAllMonitors.mockReturnValue(new Map([[1, makeCapture(800, 600)]]))
-      capture.listWindows.mockReturnValue([
+      enumerator.listWindowsOffThread.mockResolvedValue([
         makeWindowInfo({ title: 'Partial', x: 0, y: 150, width: 250, height: 100 }),
         makeWindowInfo({ title: 'Outside', x: 1000, y: 1000, width: 100, height: 100 }),
         makeWindowInfo({ title: 'EdgeLine', x: 100, y: 100, width: 1, height: 600 })
       ])
 
       await service.startCapture()
+      await settleSnapTargets()
 
-      expect(initDataOf('overlay-100-100').windows).toEqual([
-        { title: 'Partial', appName: 'Notes', x: 0, y: 50, width: 150, height: 100 }
-      ])
+      expect(snapTargetsOf('overlay-100-100')).toEqual([{ title: 'Partial', x: 0, y: 50, width: 150, height: 100 }])
     })
 
     it('converts window rects with each display own scale factor on Windows', async () => {
@@ -691,18 +815,17 @@ describe('ScreenshotOverlayService', () => {
           [2, makeCapture()]
         ])
       )
-      capture.listWindows.mockReturnValue([
+      enumerator.listWindowsOffThread.mockResolvedValue([
         makeWindowInfo({ title: 'OnPrimary', x: 300, y: 150, width: 600, height: 450 }),
         makeWindowInfo({ title: 'OnSecondary', x: 3000, y: 100, width: 400, height: 300 })
       ])
 
       await service.startCapture()
+      await settleSnapTargets()
 
-      expect(initDataOf('overlay-0-0').windows).toEqual([
-        { title: 'OnPrimary', appName: 'Notes', x: 200, y: 100, width: 400, height: 300 }
-      ])
-      expect(initDataOf('overlay-1920-0').windows).toEqual([
-        { title: 'OnSecondary', appName: 'Notes', x: 120, y: 100, width: 400, height: 300 }
+      expect(snapTargetsOf('overlay-0-0')).toEqual([{ title: 'OnPrimary', x: 200, y: 100, width: 400, height: 300 }])
+      expect(snapTargetsOf('overlay-1920-0')).toEqual([
+        { title: 'OnSecondary', x: 120, y: 100, width: 400, height: 300 }
       ])
     })
   })
@@ -1229,7 +1352,7 @@ describe('ScreenshotOverlayService', () => {
       // Hovering must only redirect the keyboard: routing it through
       // markOverlayActive would wipe the selection the user is still building.
       expect(fakeWindow('overlay-1920-0').show).toHaveBeenCalled()
-      expect(container.ipcApiService.send).not.toHaveBeenCalled()
+      expect(resetOverlayTargets()).toEqual([])
       expect(service.isActiveOverlay('overlay-0-0')).toBe(true)
     })
 
