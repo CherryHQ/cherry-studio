@@ -89,7 +89,7 @@ function TierPriceField({
           value={value === '' ? null : Number(value)}
           placeholder={optional ? t('models.price.use_input_price') : '0.00'}
           className={drawerClasses.input}
-          onChange={(next) => onChange(field, next === null ? '' : String(next))}
+          onValueChange={(next) => onChange(field, next === null ? '' : String(next))}
           onBlur={(next) => onCommit(field, next === null ? '' : String(next))}
         />
         <span className={drawerClasses.valueSuffix}>
@@ -183,7 +183,7 @@ function ModelPricingTierFields({
             value={tier.minInputTokens === '' ? null : Number(tier.minInputTokens)}
             placeholder="0"
             className={drawerClasses.input}
-            onChange={(value) => onChange(tierIndex, 'minInputTokens', value === null ? '' : String(value))}
+            onValueChange={(value) => onChange(tierIndex, 'minInputTokens', value === null ? '' : String(value))}
             onBlur={(value) => onCommit(tierIndex, 'minInputTokens', value === null ? '' : String(value))}
           />
         </ProviderField>

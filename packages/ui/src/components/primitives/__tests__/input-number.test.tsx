@@ -11,7 +11,7 @@ import { InputNumber, type InputNumberProps } from '../input-number'
 
 function Controlled({ initial = null, ...props }: Partial<InputNumberProps> & { initial?: number | null }) {
   const [value, setValue] = useState<number | null>(initial)
-  return <InputNumber aria-label="amount" value={value} onChange={setValue} {...props} />
+  return <InputNumber aria-label="amount" value={value} onValueChange={setValue} {...props} />
 }
 
 describe('InputNumber', () => {
@@ -78,68 +78,76 @@ describe('InputNumber', () => {
 
   it('reports null for an emptied field', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<InputNumber aria-label="amount" min={0} value={42} onChange={onChange} />)
+    const onValueChange = vi.fn()
+    render(<InputNumber aria-label="amount" min={0} value={42} onValueChange={onValueChange} />)
 
     await user.clear(screen.getByLabelText('amount'))
 
-    expect(onChange).toHaveBeenLastCalledWith(null)
+    expect(onValueChange).toHaveBeenLastCalledWith(null)
   })
 
-  it('keeps onChange per-keystroke and onBlur once', async () => {
+  it('reports each value as it forms, and settles once', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
+    const onValueChange = vi.fn()
     const onBlur = vi.fn()
-    render(<InputNumber aria-label="amount" min={0} value={null} onChange={onChange} onBlur={onBlur} />)
+    render(<InputNumber aria-label="amount" min={0} value={null} onValueChange={onValueChange} onBlur={onBlur} />)
 
     await user.type(screen.getByLabelText('amount'), '42')
-    expect(onChange.mock.calls).toEqual([[4], [42]])
+    expect(onValueChange.mock.calls).toEqual([[4], [42]])
     expect(onBlur).not.toHaveBeenCalled()
 
     await user.tab()
     expect(onBlur).toHaveBeenCalledExactlyOnceWith(42)
   })
 
-  it('reports the raw value to onChange and the normalized one to onBlur', async () => {
+  it('reports the raw value to onValueChange and the normalized one to onBlur', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
+    const onValueChange = vi.fn()
     const onBlur = vi.fn()
     render(
-      <InputNumber aria-label="amount" min={10} max={99} step={1} value={null} onChange={onChange} onBlur={onBlur} />
+      <InputNumber
+        aria-label="amount"
+        min={10}
+        max={99}
+        step={1}
+        value={null}
+        onValueChange={onValueChange}
+        onBlur={onBlur}
+      />
     )
 
     await user.type(screen.getByLabelText('amount'), '5')
     // Not clamped yet: doing so mid-edit would make "50" unreachable.
-    expect(onChange).toHaveBeenLastCalledWith(5)
+    expect(onValueChange).toHaveBeenLastCalledWith(5)
 
     await user.tab()
     expect(onBlur).toHaveBeenCalledExactlyOnceWith(10)
   })
 
   it('follows an external value change while unfocused', () => {
-    const { rerender } = render(<InputNumber aria-label="amount" value={1} onChange={vi.fn()} />)
+    const { rerender } = render(<InputNumber aria-label="amount" value={1} onValueChange={vi.fn()} />)
     expect(screen.getByLabelText('amount')).toHaveValue('1')
 
-    rerender(<InputNumber aria-label="amount" value={7} onChange={vi.fn()} />)
+    rerender(<InputNumber aria-label="amount" value={7} onValueChange={vi.fn()} />)
 
     expect(screen.getByLabelText('amount')).toHaveValue('7')
   })
 
   it('does not overwrite what is being typed when the value changes externally', async () => {
     const user = userEvent.setup()
-    const { rerender } = render(<InputNumber aria-label="amount" min={0} value={1} onChange={vi.fn()} />)
+    const { rerender } = render(<InputNumber aria-label="amount" min={0} value={1} onValueChange={vi.fn()} />)
 
     const input = screen.getByLabelText('amount')
     await user.clear(input)
     await user.type(input, '12')
 
-    rerender(<InputNumber aria-label="amount" min={0} value={99} onChange={vi.fn()} />)
+    rerender(<InputNumber aria-label="amount" min={0} value={99} onValueChange={vi.fn()} />)
 
     expect(input).toHaveValue('12')
   })
 
   it('renders no spinner and keeps the Input invalid styling', () => {
-    render(<InputNumber aria-label="amount" aria-invalid value={1} onChange={vi.fn()} />)
+    render(<InputNumber aria-label="amount" aria-invalid value={1} onValueChange={vi.fn()} />)
 
     const input = screen.getByLabelText('amount')
     expect(input).toHaveAttribute('type', 'text')
@@ -160,15 +168,15 @@ describe('InputNumber', () => {
 
   it('rejects a pasted value it cannot parse rather than filtering it', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<InputNumber aria-label="amount" value={12} onChange={onChange} />)
+    const onValueChange = vi.fn()
+    render(<InputNumber aria-label="amount" value={12} onValueChange={onValueChange} />)
 
     const input = screen.getByLabelText('amount')
     await user.click(input)
     await user.paste('3 000')
 
     expect(input).toHaveValue('12')
-    expect(onChange).not.toHaveBeenCalled()
+    expect(onValueChange).not.toHaveBeenCalled()
   })
 
   it('discards the edit on Escape and commits the restored value', async () => {
@@ -205,7 +213,7 @@ describe('InputNumber', () => {
   it('takes the group control slot so InputGroup can style and focus it', () => {
     render(
       <InputGroup>
-        <InputGroupInputNumber aria-label="amount" value={30} onChange={vi.fn()} />
+        <InputGroupInputNumber aria-label="amount" value={30} onValueChange={vi.fn()} />
       </InputGroup>
     )
 
@@ -214,8 +222,21 @@ describe('InputNumber', () => {
     expect(input.className).toContain('border-0')
   })
 
+  it('reports null only for an emptied field, not for a prefix that is not a value yet', async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    render(<InputNumber aria-label="amount" value={null} onValueChange={onValueChange} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.type(input, '1e-6')
+    expect(onValueChange.mock.calls.map(([value]) => value)).toEqual([1, 1e-6])
+
+    await user.clear(input)
+    expect(onValueChange).toHaveBeenLastCalledWith(null)
+  })
+
   it('lets className override the default height', () => {
-    render(<InputNumber aria-label="amount" className="h-8 rounded-lg" value={1} onChange={vi.fn()} />)
+    render(<InputNumber aria-label="amount" className="h-8 rounded-lg" value={1} onValueChange={vi.fn()} />)
 
     expect(screen.getByLabelText('amount').className).toContain('h-8')
   })

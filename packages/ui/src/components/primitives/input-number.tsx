@@ -16,8 +16,8 @@ import { Input } from './input'
  * on" — and the meaning is the caller's: persist it, ignore it, diff it against
  * something else. But the field renders `value`, never its own result, so the
  * normalized value reaches the screen only once the caller routes it back.
- * `onChange` never normalizes, which makes `onBlur` the callback nearly every
- * caller needs.
+ * `onValueChange` never normalizes, which makes `onBlur` the callback nearly
+ * every caller needs.
  *
  * Both callbacks take the value, not the DOM event: the raw `FocusEvent` would
  * be misleading here anyway, since `event.target.value` at that point is still
@@ -27,12 +27,17 @@ interface InputNumberProps
   extends Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode' | 'value' | 'onChange' | 'onBlur' | 'size'> {
   value: number | null
   /**
-   * Fires on every keystroke, with the value as typed — parsed but NOT
-   * normalized, because clamping mid-edit would trap the caret below `min`
-   * (typing `50` into a `min={10}` field would stop at the first `5`).
-   * Use it for live coupling: a slider that tracks the field, form state, etc.
+   * Fires when the text becomes a value, un-normalized — clamping mid-edit would
+   * trap the caret below `min` (typing `50` into a `min={10}` field would stop
+   * at the first `5`). Use it for live coupling: form state, a slider, etc.
+   *
+   * Deliberately not `onChange`: it stays silent while the text is on its way to
+   * being a value — `"-"`, `"1e"`, `"1e-"` — so it is not one event per
+   * keystroke. Those are not empty either, and calling them `null` would make a
+   * caller that substitutes a default write that default mid-keystroke. Only an
+   * emptied field is `null`.
    */
-  onChange?: (value: number | null) => void
+  onValueChange?: (value: number | null) => void
   /** Fires on blur/Enter with the normalized value; route it back into `value` to render it. */
   onBlur?: (value: number | null) => void
   /** Also decides whether a minus sign can be typed: omitted or negative allows it. */
@@ -80,7 +85,7 @@ function parse(raw: string, min?: number, max?: number, step?: number): number |
 
 function InputNumber({
   value,
-  onChange,
+  onValueChange,
   min,
   max,
   step,
@@ -106,7 +111,15 @@ function InputNumber({
     // not change, so returning here is what drops the rejected input.
     if (!isTypable(next, min)) return
     setDraft(next)
-    onChange?.(next === '' || !Number.isFinite(Number(next)) ? null : Number(next))
+    const parsed = Number(next)
+    // A viable prefix like `"-"` or `"1e"` is not yet a value, and reporting it
+    // as `null` would make callers that map null to a default write that default
+    // mid-gesture. Only an emptied field is `null`.
+    if (next === '') {
+      onValueChange?.(null)
+    } else if (Number.isFinite(parsed)) {
+      onValueChange?.(parsed)
+    }
   }
 
   const handleBlur = () => {

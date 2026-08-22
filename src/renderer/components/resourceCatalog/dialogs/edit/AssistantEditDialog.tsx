@@ -1199,7 +1199,7 @@ function CustomParameterRow({
               // number, including negatives and fractions.
               <InputNumber
                 value={typeof param.value === 'number' ? param.value : null}
-                onChange={(value) => onValueChange(value ?? 0)}
+                onValueChange={(value) => onValueChange(value ?? 0)}
               />
             ) : null}
             {param.type === 'boolean' ? (

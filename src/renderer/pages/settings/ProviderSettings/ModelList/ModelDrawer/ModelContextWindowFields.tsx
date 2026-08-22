@@ -53,7 +53,7 @@ export function ModelContextWindowFields({
           value={contextWindow === '' ? null : Number(contextWindow)}
           placeholder={t('settings.models.add.context_window.placeholder')}
           className={drawerClasses.input}
-          onChange={(value) => onContextWindowChange(value === null ? '' : String(value))}
+          onValueChange={(value) => onContextWindowChange(value === null ? '' : String(value))}
           onBlur={settle(onContextWindowChange, onContextWindowCommit)}
         />
       </ProviderField>
@@ -69,7 +69,7 @@ export function ModelContextWindowFields({
           value={maxInputTokens === '' ? null : Number(maxInputTokens)}
           placeholder={t('settings.models.add.max_input_tokens.placeholder')}
           className={drawerClasses.input}
-          onChange={(value) => onMaxInputTokensChange(value === null ? '' : String(value))}
+          onValueChange={(value) => onMaxInputTokensChange(value === null ? '' : String(value))}
           onBlur={settle(onMaxInputTokensChange, onMaxInputTokensCommit)}
         />
       </ProviderField>
@@ -85,7 +85,7 @@ export function ModelContextWindowFields({
           value={maxOutputTokens === '' ? null : Number(maxOutputTokens)}
           placeholder={t('settings.models.add.max_output_tokens.placeholder')}
           className={drawerClasses.input}
-          onChange={(value) => onMaxOutputTokensChange(value === null ? '' : String(value))}
+          onValueChange={(value) => onMaxOutputTokensChange(value === null ? '' : String(value))}
           onBlur={settle(onMaxOutputTokensChange, onMaxOutputTokensCommit)}
         />
       </ProviderField>

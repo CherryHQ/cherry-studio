@@ -24,7 +24,7 @@ export const Integer: Story = {
     const [value, setValue] = useState<number | null>(10)
     return (
       <div className="flex items-center gap-3">
-        <InputNumber className="w-40" min={1} max={99} step={1} value={value} onChange={setValue} />
+        <InputNumber className="w-40" min={1} max={99} step={1} value={value} onValueChange={setValue} />
         <span className="text-muted-foreground text-sm">Value: {value ?? 'null'}</span>
       </div>
     )
@@ -36,7 +36,7 @@ export const Decimal: Story = {
     const [value, setValue] = useState<number | null>(1.5)
     return (
       <div className="flex items-center gap-3">
-        <InputNumber className="w-40" min={0} step={0.1} value={value} onChange={setValue} />
+        <InputNumber className="w-40" min={0} step={0.1} value={value} onValueChange={setValue} />
         <span className="text-muted-foreground text-sm">Value: {value ?? 'null'}</span>
       </div>
     )
@@ -48,7 +48,7 @@ export const Signed: Story = {
     const [value, setValue] = useState<number | null>(-0.5)
     return (
       <div className="flex items-center gap-3">
-        <InputNumber className="w-40" step={0.1} value={value} onChange={setValue} />
+        <InputNumber className="w-40" step={0.1} value={value} onValueChange={setValue} />
         <span className="text-muted-foreground text-sm">Value: {value ?? 'null'}</span>
       </div>
     )
@@ -60,7 +60,7 @@ export const InGroup: Story = {
     const [value, setValue] = useState<number | null>(30)
     return (
       <InputGroup className="w-40">
-        <InputGroupInputNumber min={0} step={5} value={value} onChange={setValue} />
+        <InputGroupInputNumber min={0} step={5} value={value} onValueChange={setValue} />
         <InputGroupAddon align="inline-end">
           <InputGroupText>minutes</InputGroupText>
         </InputGroupAddon>
