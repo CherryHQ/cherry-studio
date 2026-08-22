@@ -598,7 +598,9 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   )
 
   // Held Shift+Arrow repeats keydown; committing on key release keeps the parent off the per-repeat render path.
-  const handleKeyUp = useCallback(() => {
+  // Also runs on blur: losing focus mid-extend means the keyup never arrives here, which would otherwise strand
+  // the parent on the pre-extend selection while the grid keeps showing the extended one.
+  const commitPendingKeySelection = useCallback(() => {
     if (!pendingKeyCommitRef.current) return
     pendingKeyCommitRef.current = false
     commitSelection(selectionRef.current)
@@ -661,23 +663,30 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     [applySelection, cellAtPointer, sheet.colCount, sheet.rowCount]
   )
 
+  // Every pointer termination commits what the grid is already showing. pointerdown moves the visual selection
+  // without committing, so a path that returns without committing leaves the parent holding the previous
+  // selection while the grid shows the new one. Committing here also makes the trailing click redundant rather
+  // than load-bearing — the grid captures the pointer, so that click's target is not the cell it started on.
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current
       if (!drag || drag.pointerId !== e.pointerId) return
       dragRef.current = null
       e.currentTarget.releasePointerCapture?.(e.pointerId)
-      if (!drag.extended) return
-      // The click synthesized after the release would otherwise collapse the range back to its end cell.
       suppressClickRef.current = true
       commitSelection(drag.selection)
     },
     [commitSelection]
   )
 
+  // A cancelled pointer (lost capture, gesture taken over by the OS) still leaves the extended selection on
+  // screen, so it commits like a release rather than abandoning the parent on the pre-drag selection.
   const handlePointerCancel = useCallback(() => {
+    const drag = dragRef.current
+    if (!drag) return
     dragRef.current = null
-  }, [])
+    commitSelection(drag.selection)
+  }, [commitSelection])
 
   const handleClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!suppressClickRef.current) return
@@ -707,7 +716,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       className="relative h-full w-full overflow-auto bg-background"
       onScroll={handleScroll}
       onKeyDown={handleKeyDown}
-      onKeyUp={handleKeyUp}
+      onKeyUp={commitPendingKeySelection}
+      onBlur={commitPendingKeySelection}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
