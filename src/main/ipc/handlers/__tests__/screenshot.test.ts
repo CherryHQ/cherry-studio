@@ -155,6 +155,14 @@ describe('screenshotHandlers', () => {
       expect(overlayService.startCapture).toHaveBeenCalledOnce()
     })
 
+    it('hands the caller through so the result can be announced back to it', async () => {
+      // The sender is how commit() finds the window waiting to attach the capture;
+      // dropping it here turns the composer's screenshot button into a no-op.
+      await screenshotHandlers['screenshot.capture'](undefined, ctx('quick-assistant'))
+
+      expect(overlayService.startCapture).toHaveBeenCalledWith('quick-assistant')
+    })
+
     it('reports a failed capture to the caller instead of dropping it', async () => {
       overlayService.startCapture.mockRejectedValueOnce(new Error('capture backend is gone'))
 

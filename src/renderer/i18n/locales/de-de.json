@@ -1090,6 +1090,8 @@
         "title": "Ressourcen"
       },
       "restore": "Wiederherstellen",
+      "screenshot": "Screenshot",
+      "screenshot_attach_failed": "Screenshot in die Zwischenablage kopiert, konnte aber nicht angehängt werden – füge ihn stattdessen in die Nachricht ein",
       "send": "Senden",
       "send_failed": "Nachricht konnte nicht gesendet werden",
       "slash_commands": {
@@ -4196,17 +4198,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Zwischenablage ist leer"
-    },
-    "feature": {
-      "chat": "Diese Frage beantworten",
-      "explanation": "Erklärung",
-      "summary": "Zusammenfassung",
-      "translate": "Textübersetzung"
+    "control_bar": {
+      "open_in_main": "Im Hauptfenster öffnen",
+      "save_failed": "Diese Unterhaltung konnte nicht gespeichert werden",
+      "save_topic": "Als Thema speichern",
+      "saved": "Gespeichert"
     },
     "footer": {
-      "backspace_clear": "Backspace zum Löschen",
       "copy_last_message": "C zum Kopieren",
       "esc": "ESC zum {{action}}",
       "esc_back": "Zurück",
@@ -4215,8 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "{{model}} um Hilfe fragen...",
-        "title": "Was möchten Sie mit dem folgenden Text tun"
+        "empty": "Frag irgendwas …"
       }
     },
     "tooltip": {
@@ -6234,9 +6231,7 @@
       "provider_key_confirm_title": "API-Schlüssel für {{provider}} hinzufügen",
       "provider_name": "Anbietername",
       "quick_assistant_default_tag": "Standard",
-      "quick_assistant_response_settings": "Antworteinstellungen",
       "quick_assistant_selection": "Assistent auswählen",
-      "quick_assistant_usage_method": "Verwendungsart",
       "quick_model": {
         "description": "Modell für einfache Aufgaben wie Themenbenennung und Keyword-Extraktion",
         "label": "Schnellmodell",
@@ -6689,7 +6684,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Klicken auf Tray-Symbol zum Starten",
       "enable_quick_assistant": "Schnellassistent aktivieren",
-      "read_clipboard_at_startup": "Zwischenablage beim Start lesen",
       "title": "Schnellassistent",
       "use_shortcut_to_show": "Rechtsklick auf Tray-Icon oder Shortcut zum Starten"
     },

@@ -22,6 +22,7 @@ import {
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
+import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
@@ -146,6 +147,9 @@ export interface ChatContextUsageSource {
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
+  /** Which tool set the toolbar offers. Defaults to Chat; specialized scopes can
+   *  inherit or extend it through the tool registry. */
+  scope?: ComposerToolScope
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -321,7 +325,16 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
             renderChatComposerContextControls({ ...props, useMentionedModelSelector: true }, inputAdapter, placement)
           }
         />
-      )
+      ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) => (
+    <>
+      {renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)}
+      {renderChatComposerContextControls({ ...props, useMentionedModelSelector: true }, inputAdapter, {
+        side: 'top',
+        iconOnly: true
+      })}
+    </>
+  )
 })
 
 const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
@@ -377,9 +390,10 @@ type ChatComposerRootProps = ChatComposerProps &
     deferQuickPanel?: boolean
   }
 
-type ChatPlacementPresentationProps =
-  | { externalContextControls: true; compactWhenSingleLine?: boolean }
-  | { externalContextControls?: false; compactWhenSingleLine?: never }
+type ChatPlacementPresentationProps = {
+  externalContextControls?: boolean
+  compactWhenSingleLine?: boolean
+}
 type ChatPlacementHomeProps = Omit<ChatComposerProps, 'externalContextControls'> & ChatPlacementPresentationProps
 type ChatPlacementDockedProps = Omit<ChatComposerProps, 'externalContextControls' | 'onDraftAssistantChange'> &
   ChatPlacementPresentationProps
@@ -390,6 +404,7 @@ type ChatPlacementComposerProps =
 const ChatComposerRoot = ({
   topic,
   contextUsage,
+  scope = TopicType.Chat,
   scopeKey,
   topicId,
   assistantId,
@@ -445,6 +460,7 @@ const ChatComposerRoot = ({
         }}>
         {resolvedScopeKey ? (
           <ChatComposerInner
+            scope={scope}
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             contextUsage={contextUsage}
@@ -485,6 +501,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'>, Ch
 }
 
 const ChatComposerInner = ({
+  scope = TopicType.Chat,
   scopeKey,
   topicId,
   contextUsage,
@@ -510,7 +527,6 @@ const ChatComposerInner = ({
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
-  const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
@@ -540,7 +556,10 @@ const ChatComposerInner = ({
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
     customizePanelItem
-  } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
+    // Quick Assistant inherits Chat tools but adds screenshot and keeps its own defaults/order.
+  } = useComposerToolbarPinnedTools(
+    scope === 'quick-assistant' ? 'quick_assistant.input.toolbar.pinned_tools' : 'chat.input.toolbar.pinned_tools'
+  )
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
@@ -1182,7 +1201,9 @@ const ChatComposerInner = ({
     stopEditing()
   }, [restoreSavedDraft, staleEditingMessage, stopEditing])
 
-  const placeholderText = t('chat.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) })
+  const placeholderText = t(config.placeholderKey ?? 'chat.input.placeholder', {
+    key: getComposerShortcutLabel(sendMessageShortcut)
+  })
 
   const tokens = useMemo(
     () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
@@ -1736,7 +1757,7 @@ const ChatComposerInner = ({
       unifiedPanelControl?: ComposerUnifiedPanelControl
     }) => (
       <ComposerToolbarShortcuts
-        scope={TopicType.Chat}
+        scope={scope}
         pinnedIds={pinnedToolIds}
         onPinnedIdsChange={setPinnedToolIds}
         onResetPinnedIds={resetPinnedToolIds}
@@ -1755,6 +1776,7 @@ const ChatComposerInner = ({
       pinnedToolIds,
       pinnedToolsAtDefault,
       resetPinnedToolIds,
+      scope,
       setCustomizeToolbarOpen,
       setPinnedToolIds,
       toolbarCustomTools

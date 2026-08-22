@@ -17,6 +17,9 @@ export type ComposerToolScope = TopicType | 'quick-assistant' | 'painting'
 export interface ComposerToolScopeConfig {
   enableQuickPanel?: boolean
   enableDragDrop?: boolean
+  inheritedToolScopes?: readonly ComposerToolScope[]
+  /** Overrides `chat.input.placeholder` where that string is too long for the surface. */
+  placeholderKey?: string
 }
 
 type ReadableKeys<T> = {

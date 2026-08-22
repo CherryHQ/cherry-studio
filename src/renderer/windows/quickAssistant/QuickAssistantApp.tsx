@@ -1,13 +1,14 @@
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 
-import HomeWindow from './home/HomeWindow'
+import QuickAssistantView from './QuickAssistantView'
 
 // Headless runtime leaf inside the providers: this window's language + custom-CSS
 // owners (moved out of HomeWindow's business logic). No dayjs sync — this light window
@@ -46,7 +47,10 @@ function QuickAssistantApp(): React.ReactElement {
               boundary) keep running. This window has no TabRouter, so unlike
               main/subWindow it can't rely on the per-tab RouteErrorFallback here. */}
           <ErrorBoundary>
-            <HomeWindow />
+            {/* The composer's "/" and "@" panels render through this host. */}
+            <QuickPanelProvider>
+              <QuickAssistantView />
+            </QuickPanelProvider>
           </ErrorBoundary>
           <PopupHost />
           <ToastHost />

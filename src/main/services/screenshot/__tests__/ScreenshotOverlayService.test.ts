@@ -880,6 +880,55 @@ describe('ScreenshotOverlayService', () => {
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
 
+    it('tells the window that started the capture the clipboard is ready', async () => {
+      singleDisplaySetup()
+      await service.startCapture('quick-assistant')
+
+      service.commit({ pngBytes: PNG_BYTES })
+
+      expect(container.ipcApiService.send).toHaveBeenCalledWith('quick-assistant', 'screenshot.captured', undefined)
+    })
+
+    it('notifies nobody when the capture came from the global shortcut', async () => {
+      singleDisplaySetup()
+      await service.startCapture()
+
+      service.commit({ pngBytes: PNG_BYTES })
+
+      expect(container.ipcApiService.send).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'screenshot.captured',
+        expect.anything()
+      )
+    })
+
+    it('does not announce a result the clipboard never received', async () => {
+      singleDisplaySetup()
+      await service.startCapture('quick-assistant')
+      electron.nativeImage.createFromBuffer.mockReturnValueOnce({ isEmpty: () => true })
+
+      service.commit({ pngBytes: new Uint8Array([1, 2]) })
+
+      // The requester reads the image back off the clipboard, so announcing here would
+      // attach whatever the user happened to have copied earlier.
+      expect(container.ipcApiService.send).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'screenshot.captured',
+        expect.anything()
+      )
+    })
+
+    it('reports the session as active only while the overlays are up', async () => {
+      singleDisplaySetup()
+      expect(service.isSessionActive()).toBe(false)
+
+      await service.startCapture('quick-assistant')
+      expect(service.isSessionActive()).toBe(true)
+
+      service.commit({ pngBytes: PNG_BYTES })
+      expect(service.isSessionActive()).toBe(false)
+    })
+
     it('still dismisses the overlays when the clipboard write throws', async () => {
       singleDisplaySetup()
       await service.startCapture()

@@ -23,6 +23,7 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import type { Topic as TemporaryTopic } from '@shared/data/types/topic'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -49,6 +50,8 @@ export interface UseTemporaryTopicOptions {
 export interface UseTemporaryTopicResult {
   /** Null until the temporary topic is created on Main. */
   topicId: string | null
+  /** The leased topic entity, for consumers that render it (name, timestamps). */
+  topic: TemporaryTopic | null
   /** True once `topicId` is available. */
   ready: boolean
   /** Drop the current topic and lease a fresh one. No-op when disabled. */
@@ -59,7 +62,8 @@ export interface UseTemporaryTopicResult {
 
 export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTemporaryTopicResult {
   const { assistantId, enabled = assistantId !== undefined } = options
-  const [topicId, setTopicId] = useState<string | null>(null)
+  const [topic, setTopic] = useState<TemporaryTopic | null>(null)
+  const topicId = topic?.id ?? null
   /** Bumped by `reset()` to force the effect to re-run and allocate a new topic. */
   const [epoch, setEpoch] = useState(0)
   /**
@@ -70,7 +74,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
   useEffect(() => {
     if (!enabled) {
-      setTopicId(null)
+      setTopic(null)
       return
     }
 
@@ -80,16 +84,16 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
     void dataApiService
       .post('/temporary/topics', { body })
-      .then((topic) => {
-        activeIdRef.current = topic.id
+      .then((created) => {
+        activeIdRef.current = created.id
         if (cancelled) {
-          void dataApiService.delete(`/temporary/topics/${topic.id}`).catch((err) => {
+          void dataApiService.delete(`/temporary/topics/${created.id}`).catch((err) => {
             logger.warn('Failed to cleanup racing temporary topic', err as Error)
           })
           return
         }
-        setTopicId(topic.id)
-        logger.debug('Leased temporary topic', { topicId: topic.id, assistantId, epoch })
+        setTopic(created)
+        logger.debug('Leased temporary topic', { topicId: created.id, assistantId, epoch })
       })
       .catch((err) => {
         logger.error('Failed to create temporary topic', err as Error)
@@ -97,7 +101,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
     return () => {
       cancelled = true
-      setTopicId(null)
+      setTopic(null)
       const idToCleanup = activeIdRef.current
       activeIdRef.current = null
       if (idToCleanup) {
@@ -115,9 +119,10 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
   const persist = useCallback(async (initialName?: string) => {
     const id = activeIdRef.current
     if (!id) return
-    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
-    // Clear before unmount so cleanup skips the now-pointless DELETE.
+    // Release the id before the request, not after: an unmount or reset() while the
+    // POST is in flight would otherwise DELETE the topic out from under it.
     activeIdRef.current = null
+    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
     logger.debug('Persisted temporary topic', { topicId: id })
 
     const trimmed = initialName?.trim()
@@ -135,5 +140,5 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     }
   }, [])
 
-  return { topicId, ready: topicId !== null, reset, persist }
+  return { topicId, topic, ready: topicId !== null, reset, persist }
 }

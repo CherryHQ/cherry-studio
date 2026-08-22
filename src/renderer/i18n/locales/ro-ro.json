@@ -1090,6 +1090,8 @@
         "title": "Fișiere și sesiuni"
       },
       "restore": "Restaurare",
+      "screenshot": "Captură de ecran",
+      "screenshot_attach_failed": "Captura de ecran a fost copiată în clipboard, dar nu a putut fi atașată — lipește-o în mesaj",
       "send": "Trimite",
       "send_failed": "Nu s-a putut trimite mesajul",
       "slash_commands": {
@@ -4196,17 +4198,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Clipboardul este gol"
-    },
-    "feature": {
-      "chat": "Răspunde la această întrebare",
-      "explanation": "Explicație",
-      "summary": "Rezumat conținut",
-      "translate": "Traducere text"
+    "control_bar": {
+      "open_in_main": "Deschide în fereastra principală",
+      "save_failed": "Această conversație nu a putut fi salvată",
+      "save_topic": "Salvează ca subiect",
+      "saved": "Salvat"
     },
     "footer": {
-      "backspace_clear": "Backspace pentru a șterge",
       "copy_last_message": "Apasă C pentru a copia",
       "esc": "ESC pentru a {{action}}",
       "esc_back": "reveni",
@@ -4215,8 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Cere ajutor de la {{model}}...",
-        "title": "Ce vrei să faci cu acest text?"
+        "empty": "Întreabă orice…"
       }
     },
     "tooltip": {
@@ -6234,9 +6231,7 @@
       "provider_key_confirm_title": "Adaugă cheia API pentru {{provider}}",
       "provider_name": "Nume furnizor",
       "quick_assistant_default_tag": "Implicit",
-      "quick_assistant_response_settings": "Setări de răspuns",
       "quick_assistant_selection": "Selectează asistent",
-      "quick_assistant_usage_method": "Metodă de utilizare",
       "quick_model": {
         "description": "Model folosit pentru sarcini simple, cum ar fi numirea subiectelor și extragerea cuvintelor cheie",
         "label": "Model rapid",
@@ -6689,7 +6684,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Fă clic pe pictograma din zona de notificare pentru a începe",
       "enable_quick_assistant": "Activează Asistentul rapid",
-      "read_clipboard_at_startup": "Citește clipboardul la pornire",
       "title": "Asistent rapid",
       "use_shortcut_to_show": "Clic dreapta pe pictograma din zona de notificare sau folosește comenzile rapide pentru a începe"
     },

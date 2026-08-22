@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next'
-import { FileSearch, Globe, Image, Paperclip, Pointer, Zap } from 'lucide-react'
+import { Crop, FileSearch, Globe, Image, Paperclip, Pointer, Zap } from 'lucide-react'
 
+import { isComposerToolVisibleInScope } from './registry'
 import { type ComposerToolScope, type ToolComposerToolbarContribution, TopicType } from './types'
 
 interface ComposerToolbarManifestDefinition {
@@ -57,6 +58,17 @@ export const KNOWLEDGE_BASE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition 
   visibleInScopes: [TopicType.Chat, TopicType.Session]
 }
 
+export const SCREENSHOT_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
+  toolbar: {
+    id: 'screenshot',
+    kind: 'command',
+    order: 50,
+    icon: <Crop size={18} />
+  },
+  label: (t) => t('chat.input.screenshot'),
+  visibleInScopes: ['quick-assistant']
+}
+
 export const QUICK_PHRASES_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
   toolbar: {
     id: 'quick-phrases',
@@ -84,6 +96,7 @@ const COMPOSER_TOOLBAR_MANIFESTS: ComposerToolbarManifestDefinition[] = [
   GENERATE_IMAGE_TOOLBAR_MANIFEST,
   WEB_SEARCH_TOOLBAR_MANIFEST,
   KNOWLEDGE_BASE_TOOLBAR_MANIFEST,
+  SCREENSHOT_TOOLBAR_MANIFEST,
   QUICK_PHRASES_TOOLBAR_MANIFEST,
   PERMISSION_MODE_TOOLBAR_MANIFEST
 ]
@@ -96,7 +109,7 @@ export const getComposerToolbarManifestsForScope = (
   scope: ComposerToolScope,
   t: TFunction
 ): ComposerToolbarManifest[] =>
-  COMPOSER_TOOLBAR_MANIFESTS.filter((manifest) => manifest.visibleInScopes.includes(scope))
+  COMPOSER_TOOLBAR_MANIFESTS.filter((manifest) => isComposerToolVisibleInScope(manifest.visibleInScopes, scope))
     .map((manifest) => ({
       ...manifest.toolbar,
       label: manifest.label(t)

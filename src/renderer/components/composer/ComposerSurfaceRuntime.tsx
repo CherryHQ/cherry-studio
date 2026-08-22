@@ -2163,6 +2163,7 @@ export default function ComposerSurfaceRuntime({
       </div>
     </div>
   ) : null
+  const visibleBelowControls = isCompact ? undefined : belowControls
   const inputbarElement = (
     <div
       id="inputbar"
@@ -2172,7 +2173,7 @@ export default function ComposerSurfaceRuntime({
       className={cn(
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
         isCompact || editingState ? 'pt-0' : 'pt-2',
-        belowControls ? 'mb-0.5' : 'mb-3',
+        visibleBelowControls ? 'mb-0.5' : 'mb-3',
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
           "border-2 border-success border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-success/[0.03] before:content-['']",
@@ -2302,11 +2303,11 @@ export default function ComposerSurfaceRuntime({
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}>
-          {belowControls ? (
+          {visibleBelowControls ? (
             <div className="mb-6 rounded-[20px] bg-muted/45 pb-1.5 dark:bg-muted/25">
               {queueContent}
               {inputbarStack}
-              <div className="min-w-0 overflow-hidden px-2 pt-0.5">{belowControls}</div>
+              <div className="min-w-0 overflow-hidden px-2 pt-0.5">{visibleBelowControls}</div>
             </div>
           ) : (
             <>

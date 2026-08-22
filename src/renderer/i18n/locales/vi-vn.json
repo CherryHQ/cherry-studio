@@ -1090,6 +1090,8 @@
         "title": "Tài nguyên"
       },
       "restore": "Khôi phục",
+      "screenshot": "Ảnh chụp màn hình",
+      "screenshot_attach_failed": "Ảnh chụp màn hình đã được sao chép vào bảng nhớ tạm nhưng không thể đính kèm — hãy dán vào tin nhắn",
       "send": "Gửi",
       "send_failed": "Không gửi được tin nhắn",
       "slash_commands": {
@@ -4196,17 +4198,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Khay nhớp trống"
-    },
-    "feature": {
-      "chat": "Trả lời câu hỏi này",
-      "explanation": "Giải thích",
-      "summary": "Tóm tắt nội dung",
-      "translate": "Dịch văn bản"
+    "control_bar": {
+      "open_in_main": "Mở trong cửa sổ chính",
+      "save_failed": "Không thể lưu cuộc trò chuyện này",
+      "save_topic": "Lưu thành chủ đề",
+      "saved": "Đã lưu"
     },
     "footer": {
-      "backspace_clear": "Nhấn Backspace để xóa",
       "copy_last_message": "Nhấn C để sao chép",
       "esc": "ESC để {{action}}",
       "esc_back": "trả về",
@@ -4215,8 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Hỏi {{model}} để được giúp đỡ...",
-        "title": "Bạn muốn làm gì với văn bản này?"
+        "empty": "Hỏi bất cứ điều gì…"
       }
     },
     "tooltip": {
@@ -6234,9 +6231,7 @@
       "provider_key_confirm_title": "Thêm khóa API cho {{provider}}",
       "provider_name": "Tên nhà cung cấp",
       "quick_assistant_default_tag": "Mặc định",
-      "quick_assistant_response_settings": "Cài đặt phản hồi",
       "quick_assistant_selection": "Chọn Trợ lý",
-      "quick_assistant_usage_method": "Phương thức sử dụng",
       "quick_model": {
         "description": "Mô hình được sử dụng cho các tác vụ đơn giản như đặt tên chủ đề và trích xuất từ khóa",
         "label": "Mô hình Nhanh",
@@ -6689,7 +6684,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Nhấp vào biểu tượng khay để bắt đầu",
       "enable_quick_assistant": "Bật Trợ lý Nhanh",
-      "read_clipboard_at_startup": "Đọc clipboard khi khởi động",
       "title": "Trợ lý Nhanh",
       "use_shortcut_to_show": "Nhấp chuột phải vào biểu tượng khay hoặc sử dụng phím tắt để bắt đầu"
     },

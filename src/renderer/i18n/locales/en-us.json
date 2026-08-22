@@ -1090,6 +1090,8 @@
         "title": "Resources & Sessions"
       },
       "restore": "Restore",
+      "screenshot": "Screenshot",
+      "screenshot_attach_failed": "Screenshot copied to the clipboard, but it could not be attached — paste it into the message instead",
       "send": "Send",
       "send_failed": "Failed to send message",
       "slash_commands": {
@@ -4196,17 +4198,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "Clipboard is empty"
-    },
-    "feature": {
-      "chat": "Answer this question",
-      "explanation": "Explanation",
-      "summary": "Content summary",
-      "translate": "Text translation"
+    "control_bar": {
+      "open_in_main": "Open in main window",
+      "save_failed": "Could not save this conversation",
+      "save_topic": "Save as topic",
+      "saved": "Saved"
     },
     "footer": {
-      "backspace_clear": "Backspace to clear",
       "copy_last_message": "Press C to copy",
       "esc": "ESC to {{action}}",
       "esc_back": "return",
@@ -4215,8 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Ask {{model}} for help...",
-        "title": "What do you want to do with this text?"
+        "empty": "Ask anything…"
       }
     },
     "tooltip": {
@@ -6234,9 +6231,7 @@
       "provider_key_confirm_title": "Add {{provider}} API Key",
       "provider_name": "Provider Name",
       "quick_assistant_default_tag": "Default",
-      "quick_assistant_response_settings": "Response Settings",
       "quick_assistant_selection": "Select Assistant",
-      "quick_assistant_usage_method": "Usage Method",
       "quick_model": {
         "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",
@@ -6689,7 +6684,6 @@
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
       "enable_quick_assistant": "Enable Quick Assistant",
-      "read_clipboard_at_startup": "Read clipboard at startup",
       "title": "Quick Assistant",
       "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
     },

@@ -1090,6 +1090,8 @@
         "title": "檔案與工作階段"
       },
       "restore": "還原",
+      "screenshot": "截圖",
+      "screenshot_attach_failed": "截圖已複製到剪貼簿，但未能加入附件，請直接貼上到訊息中",
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "slash_commands": {
@@ -4196,17 +4198,13 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "clipboard": {
-      "empty": "剪貼簿為空"
-    },
-    "feature": {
-      "chat": "回答此問題",
-      "explanation": "解釋說明",
-      "summary": "內容摘要",
-      "translate": "文字翻譯"
+    "control_bar": {
+      "open_in_main": "在主視窗開啟",
+      "save_failed": "無法儲存此對話",
+      "save_topic": "儲存為對話",
+      "saved": "已儲存"
     },
     "footer": {
-      "backspace_clear": "按 Backspace 清空",
       "copy_last_message": "按 C 鍵複製",
       "esc": "按 ESC {{action}}",
       "esc_back": "返回",
@@ -4215,8 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "詢問 {{model}} 取得幫助...",
-        "title": "你想對下方文字做什麼"
+        "empty": "問點什麼…"
       }
     },
     "tooltip": {
@@ -6234,9 +6231,7 @@
       "provider_key_confirm_title": "為 {{provider}} 新增 API 金鑰",
       "provider_name": "供應商名稱",
       "quick_assistant_default_tag": "預設",
-      "quick_assistant_response_settings": "回應設定",
       "quick_assistant_selection": "選擇助理",
-      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "用於對話命名、搜尋關鍵字提煉等簡單任務的模型",
         "label": "快速模型",
@@ -6689,7 +6684,6 @@
     "quickAssistant": {
       "click_tray_to_show": "點選系統匣圖示啟動",
       "enable_quick_assistant": "啟用快速助理",
-      "read_clipboard_at_startup": "啟動時讀取剪貼簿",
       "title": "快速助理",
       "use_shortcut_to_show": "在系統匣圖示上按一下滑鼠右鍵，或使用快捷鍵啟動"
     },
