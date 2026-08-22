@@ -5,7 +5,6 @@ import {
   VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX,
   VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE
 } from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
-import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
   injectHtmlPreviewHeadElement
@@ -14,8 +13,6 @@ import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
 import { memo, type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react'
-
-export type { HtmlArtifactKind }
 
 export const SCROLL_ACTIVATION_DELAY_MS = 300
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
@@ -27,12 +24,14 @@ type HtmlArtifactBridgeMessage =
       value: number
     }
 
-/** True when the surface must use the hardened webview tier: a whole `document` whose active
- *  content (scripts/embeds) requires consent. `fragment` sources and inert documents always
- *  stay in the script-less frame. Defaults to `document` so a missing classification fails
- *  closed (mirrors `HtmlArtifactViewProps.kind`). */
-export function htmlArtifactPreviewRequiresInteractive(html: string, kind: HtmlArtifactKind = 'document'): boolean {
-  return kind === 'document' && htmlArtifactRequiresUserConsent(html)
+/** True when the surface must use the hardened webview tier: the content itself is active
+ *  (scripts/embeds), regardless of fragment/document classification. Only mount this
+ *  surface after explicit user consent — opening the popup IS the consent — so an active
+ *  fragment keeps its interactivity there too. Non-consented inline surfaces keep
+ *  fragments script-less instead (see HtmlArtifactView's kind-gated inline tier).
+ *  Fail-closed: a content-parse error reports active. */
+export function htmlArtifactPreviewRequiresInteractive(html: string): boolean {
+  return htmlArtifactRequiresUserConsent(html)
 }
 
 function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDelay: number): string {
@@ -275,19 +274,18 @@ export const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
 /**
  * Two-tier preview surface for model-generated HTML.
  *
- * - `fragment` sources and inert documents render in the script-less same-origin frame
+ * - inert content (no scripts/embeds) renders in the script-less same-origin frame
  *   (safe by construction: no scripts run, so `parent.api` is unreachable).
- * - a `document` whose active content requires consent renders in the hardened
- *   `<webview>` partition instead — scripts run, but without the preload bridge.
+ * - active content — fragment or document — renders in the hardened `<webview>`
+ *   partition instead: scripts run, but without the preload bridge.
  *
- * Callers embedding this in the page must gate the interactive tier behind their own
- * consent surface (see `HtmlArtifactConsentCard`); opening a full-screen popup is itself
- * the explicit viewing action and may use this directly.
+ * Consent contract: this surface grants the interactive tier on its own, so only mount
+ * it after an explicit user action — opening the popup IS the consent. Non-consented
+ * inline surfaces must keep fragments script-less (HtmlArtifactView's kind-gated tier).
  */
 export const HtmlArtifactPreviewSurface = memo(function HtmlArtifactPreviewSurface({
   html,
   title,
-  kind = 'document',
   zoom = 100,
   iframeRef,
   emptyText,
@@ -296,14 +294,13 @@ export const HtmlArtifactPreviewSurface = memo(function HtmlArtifactPreviewSurfa
 }: {
   html: string
   title: string
-  kind?: HtmlArtifactKind
   zoom?: number
   iframeRef?: RefObject<HTMLIFrameElement | null>
   emptyText?: string
   forwardBoundaryWheel?: boolean
   onHeightChange?: (height: number) => void
 }) {
-  if (htmlArtifactPreviewRequiresInteractive(html, kind)) {
+  if (htmlArtifactPreviewRequiresInteractive(html)) {
     return (
       <InteractiveHtmlPreview
         html={html}
