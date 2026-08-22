@@ -410,6 +410,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   return (
     <div
+      data-ui="part:code-block"
       className={cn(
         'code-block relative w-full min-w-0 overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',

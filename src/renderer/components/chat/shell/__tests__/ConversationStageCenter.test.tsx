@@ -4,9 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ConversationStageCenter from '../ConversationStageCenter'
 
-const optionalPresentationState = vi.hoisted(() => ({
-  value: undefined as { presentationMaximized: boolean } | undefined
-}))
+const rightPanelPresentationMock = vi.hoisted(() => ({ elevated: false, maximized: false }))
 
 interface MockStageProps {
   placement: string
@@ -30,16 +28,19 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 }))
 
 vi.mock('../../panes/Shell', () => ({
-  useOptionalRightPanelState: () => optionalPresentationState.value
+  useRightPanelComposerElevated: () => rightPanelPresentationMock.elevated,
+  useRightPanelPresentationMaximized: () => rightPanelPresentationMock.maximized
 }))
 
 describe('ConversationStageCenter', () => {
   beforeEach(() => {
-    optionalPresentationState.value = undefined
+    rightPanelPresentationMock.maximized = false
+    rightPanelPresentationMock.elevated = false
   })
 
   it('forwards stage content and maximized presentation state', () => {
-    optionalPresentationState.value = { presentationMaximized: true }
+    rightPanelPresentationMock.maximized = true
+    rightPanelPresentationMock.elevated = true
 
     render(<ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />)
 
@@ -50,9 +51,19 @@ describe('ConversationStageCenter', () => {
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
   })
 
-  it('uses effective presentation state while maximized intent is temporarily hidden', () => {
-    optionalPresentationState.value = { presentationMaximized: false }
+  it('keeps the composer lifted while a restore is still uncovering the chat', () => {
+    // The restore drops the maximized presentation at the click but the pane covers the centre
+    // until its phase ends: the chat comes back now, the composer may not sink behind the pane yet.
+    rightPanelPresentationMock.maximized = false
+    rightPanelPresentationMock.elevated = true
 
+    render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
+
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'true')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'true')
+  })
+
+  it('uses effective presentation state while maximized intent is temporarily hidden', () => {
     render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
 
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'false')

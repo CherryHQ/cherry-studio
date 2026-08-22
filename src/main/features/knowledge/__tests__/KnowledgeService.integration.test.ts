@@ -14,13 +14,16 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getIndexStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
-  getIndexStoreMock: vi.fn(),
-  deleteStoreMock: vi.fn(),
-  enqueueMock: vi.fn(),
-  listMock: vi.fn(),
-  registerHandlerMock: vi.fn()
-}))
+const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
+  () => ({
+    getIndexStoreMock: vi.fn(),
+    deleteStoreMock: vi.fn(),
+    enqueueMock: vi.fn(),
+    enqueueTxMock: vi.fn(),
+    listMock: vi.fn(),
+    registerHandlerMock: vi.fn()
+  })
+)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -29,6 +32,7 @@ vi.mock('@application', async () => {
       cancel: vi.fn(),
       cancelMany: vi.fn(),
       enqueue: enqueueMock,
+      enqueueTx: enqueueTxMock,
       list: listMock,
       registerHandler: registerHandlerMock
     },
@@ -69,6 +73,7 @@ describe('KnowledgeService integration', () => {
     getIndexStoreMock.mockResolvedValue({})
     deleteStoreMock.mockResolvedValue(undefined)
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+    enqueueTxMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     listMock.mockResolvedValue([])
 
     const [providerOrderKey, embeddingModelOrderKey] = generateOrderKeySequence(2)
@@ -114,7 +119,7 @@ describe('KnowledgeService integration', () => {
         groupId: null,
         type: 'note',
         data: { source: 'source-root', content: 'root content' },
-        status: 'idle',
+        status: 'processing',
         error: null
       },
       {
@@ -123,7 +128,7 @@ describe('KnowledgeService integration', () => {
         groupId: SOURCE_ROOT_ITEM_ID,
         type: 'note',
         data: { source: 'source-child', content: 'child content' },
-        status: 'idle',
+        status: 'processing',
         error: null
       }
     ])
@@ -178,7 +183,7 @@ describe('KnowledgeService integration', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: restoredBase.id, itemId: restoredItems[0].id, parentJobId: null },
+      { baseId: restoredBase.id, itemId: restoredItems[0].id },
       {
         idempotencyKey: `knowledge:${restoredBase.id}:${restoredItems[0].id}:index`,
         queue: `base.${restoredBase.id}`,
@@ -202,6 +207,21 @@ describe('KnowledgeService integration', () => {
       .from(knowledgeItemTable)
       .where(isNull(knowledgeItemTable.groupId))
     expect(ungroupedRestoredItems.some((item) => item.baseId === restoredBase.id)).toBe(true)
+  })
+
+  it('rolls back the deleting status when enqueueTx fails inside deleteItems', async () => {
+    const service = new KnowledgeService()
+    enqueueTxMock.mockImplementationOnce(() => {
+      throw new Error('enqueue failed')
+    })
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [SOURCE_ROOT_ITEM_ID])).rejects.toThrow('enqueue failed')
+
+    const [rootRow] = await dbh.db
+      .select()
+      .from(knowledgeItemTable)
+      .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
+    expect(rootRow.status).toBe('processing')
   })
 
   describe('addItems conflict resolution', () => {
@@ -237,6 +257,12 @@ describe('KnowledgeService integration', () => {
     const noteInput = (content: string) => ({
       type: 'note' as const,
       data: { source: content.split('\n')[0], content }
+    })
+
+    // A note drafted in the dialog carries a title independent of its body, so the two can differ.
+    const titledNoteInput = (title: string, content: string) => ({
+      type: 'note' as const,
+      data: { source: title, content }
     })
 
     const baseRows = () =>
@@ -276,6 +302,65 @@ describe('KnowledgeService integration', () => {
       expect(rows).toHaveLength(1)
       expect(rows[0].id).not.toBe(EXISTING_NOTE_ID)
       expect((rows[0].data as { content: string }).content).toBe('Doc A\nreplacement body')
+    })
+
+    it('does not collide when the titles differ, even though both bodies open with the same line', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [titledNoteInput('Doc B', 'Doc A\nnew body')], 'detect')
+
+      expect(result).toEqual({ status: 'added' })
+      expect(await baseRows()).toHaveLength(2)
+    })
+
+    it('replace leaves a differently-titled note alone even when both bodies open with the same line', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(
+        COMPLETED_BASE_ID,
+        [titledNoteInput('Doc B', 'Doc A\nreplacement body')],
+        'replace'
+      )
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(2)
+      // The whole point: "Doc A" must survive being told to replace "Doc B".
+      expect(rows.some((row) => row.id === EXISTING_NOTE_ID)).toBe(true)
+    })
+
+    it('collides on a shared title even when the bodies open with different lines', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(
+        COMPLETED_BASE_ID,
+        [titledNoteInput('Doc A', 'a totally different opening line\nbody')],
+        'detect'
+      )
+
+      expect(result).toEqual({ status: 'conflicts', conflicts: [{ type: 'note', title: 'Doc A' }] })
+      expect(await baseRows()).toHaveLength(1)
+    })
+
+    it('replace purges the same-titled note even though the bodies open with different lines', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      // `detect` and `replace` read different halves of the resolution, so reporting the collision
+      // does not prove the purge targets the right row.
+      const result = await service.addItems(
+        COMPLETED_BASE_ID,
+        [titledNoteInput('Doc A', 'a totally different opening line\nreplacement body')],
+        'replace'
+      )
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).not.toBe(EXISTING_NOTE_ID)
     })
 
     it('defaults to rename (keep all) when no strategy is given, adding alongside the existing item', async () => {

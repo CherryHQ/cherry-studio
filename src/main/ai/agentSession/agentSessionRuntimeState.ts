@@ -22,6 +22,7 @@ export type AgentSessionRuntimeLaunchState =
 export interface AgentSessionRuntimeConnectionTarget {
   modelId: string
   reasoningEffort: string
+  serviceTier: string
   knowledgeBaseIds: readonly string[]
 }
 
@@ -786,11 +787,12 @@ export function isAgentSessionRuntimeBusy<TTurn, TPendingTurn, TReservation>(
 export function willAgentSessionRuntimeContinue<TTurn, TPendingTurn, TReservation>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
 ): boolean {
+  const hasDeferredTurn = state.execution.kind === 'autonomous-turn' && state.execution.deferredTurn !== undefined
   return (
     isAgentSessionRuntimeCompacting(state) ||
     state.queue.length > 0 ||
     state.launch.kind !== 'idle' ||
     state.execution.kind === 'steer-transition' ||
-    state.execution.kind === 'autonomous-turn'
+    hasDeferredTurn
   )
 }

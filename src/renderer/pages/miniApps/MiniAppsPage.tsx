@@ -44,7 +44,10 @@ const MiniAppsPage: FC = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col text-foreground" onContextMenu={handleContextMenu}>
+    <div
+      data-ui="mini-apps.view"
+      className="flex h-full min-h-0 flex-1 flex-col text-foreground"
+      onContextMenu={handleContextMenu}>
       <Navbar>
         <NavbarCenter className="border-r-0">{t('miniApp.title')}</NavbarCenter>
       </Navbar>

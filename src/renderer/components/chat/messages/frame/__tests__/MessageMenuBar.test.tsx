@@ -64,6 +64,7 @@ const topic = {
   id: 'topic-1',
   assistantId: 'assistant-1',
   name: 'Topic',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages: []
@@ -133,7 +134,6 @@ describe('MessageMenuBar', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}
@@ -142,13 +142,13 @@ describe('MessageMenuBar', () => {
     )
 
     expect(container.querySelector('.message-tokens')).toBeNull()
+    expect(container.querySelector('[data-ui~="part:message-actions"]')).not.toBeNull()
   })
 
   it('shows assistant token usage in the bubble footer toolbar', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}

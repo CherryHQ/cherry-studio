@@ -4,13 +4,13 @@
  * ## Layout
  *
  * This topic holds the main-process FS/path primitives, each reached through
- * this single barrel (naming-conventions.md §6.4 / main-process-architecture.md
+ * this single barrel (naming-conventions.md §6.4 / architecture/main-process.md
  * §2.1) — consumers import `from '@main/utils/file'`, never a sub-path:
  *
  * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
  *   `move`, `remove`, `hash`, `download`, …).
  * - `./metadata` — content-derived classification (`getFileType(path)`,
- *   `mimeToExt`).
+ *   `isTextByContent`, `mimeToExt`).
  * - `./path` — path predicates (`isPathInside`, `isSameOrInside`, `canWrite`, …).
  * - `./pathStatus` — `getPathStatus` + its result types.
  * - `./shell` — OS open / reveal (`open`, `showInFolder`).
@@ -66,6 +66,7 @@ export {
   lstat,
   mkdir,
   move,
+  openReadableFileSnapshot,
   type PathReadability,
   PathStaleVersionError,
   type PathVersion,
@@ -76,6 +77,7 @@ export {
   type PreparedAtomicWriteState,
   probeReadable,
   read,
+  type ReadableFileSnapshot,
   readChunk,
   realpath,
   remove,
@@ -84,7 +86,7 @@ export {
   stat,
   write
 } from './fs'
-export { decodeTextBufferIfText, getFileType, mimeToExt } from './metadata'
-export { canWrite, isNotEmptyDir, isPathInside, isSameOrInside, resolvePath } from './path'
+export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
+export { canWrite, isNotEmptyDir, isOutsidePath, isPathInside, isSameOrInside, resolvePath } from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

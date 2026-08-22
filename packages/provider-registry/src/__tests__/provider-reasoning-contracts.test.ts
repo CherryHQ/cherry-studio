@@ -15,44 +15,82 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
-  it('maps DeepSeek V4 Flash reasoning to the official effort vocabulary', () => {
-    const contracts = override('deepseek', 'deepseek-v4-flash').reasoningContracts
-    const responsesWire = contracts?.['openai-responses']?.wire
-    expect(responsesWire?.off?.operations).toEqual([
-      { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+  // DeepSeek publishes one effort table for both V4 SKUs (thinking_mode guide), so Flash and Pro
+  // must not drift apart — and neither may send `xhigh` verbatim, which DeepSeek degrades to `high`.
+  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])(
+    'maps %s reasoning to the official effort vocabulary',
+    (modelId) => {
+      const contracts = override('deepseek', modelId).reasoningContracts
+      const responsesWire = contracts?.['openai-responses']?.wire
+      expect(responsesWire?.off?.operations).toEqual([
+        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+      ])
+      expect(responsesWire?.auto?.effortMap).toEqual({
+        auto: 'high',
+        minimal: 'low',
+        low: 'low',
+        medium: 'high',
+        xhigh: 'max'
+      })
+      expect(responsesWire?.effort).toMatchObject({
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+      })
+      expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
+        operations: [
+          { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+          { target: 'reasoning_effort', value: { source: 'effort' } }
+        ],
+        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+      })
+    }
+  )
+
+  // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle
+  // models with no per-model override). The @ai-sdk/deepseek schema only accepts thinking.type
+  // 'enabled' | 'disabled', so auto must never serialize the literal 'auto' (issue #18270).
+  it('maps the generic DeepSeek auto mode to thinking.type enabled', () => {
+    const wire = provider('deepseek').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+    expect(wire?.auto?.operations).toEqual([
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }
     ])
-    expect(responsesWire?.auto?.effortMap).toEqual({
-      auto: 'high',
-      minimal: 'low',
-      low: 'low',
-      medium: 'high',
-      xhigh: 'max'
-    })
-    expect(responsesWire?.effort).toMatchObject({
-      operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
-      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-    })
-    expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
-      operations: [
-        { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-        { target: 'reasoning_effort', value: { source: 'effort' } }
-      ],
-      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-    })
+    expect(wire?.off?.operations).toEqual([
+      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }
+    ])
+    expect(wire?.effort?.operations).toEqual([
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }
+    ])
   })
 
-  it('keeps DeepSeek V4 Pro low efforts mapped to high', () => {
-    const wire = override('deepseek', 'deepseek-v4-pro').reasoningContracts?.['openai-chat-completions']?.wire
-    expect(wire?.effort?.effortMap).toEqual({
-      minimal: 'high',
-      low: 'high',
-      medium: 'high',
-      xhigh: 'max'
-    })
+  it('binds CherryIN DeepSeek reasoning to a currently served API identity', () => {
+    const deepSeekOverrides = provider('cherryin').overrides?.filter(({ modelId }) => modelId?.startsWith('deepseek'))
+
+    expect(deepSeekOverrides?.map(({ apiModelId, modelId }) => ({ apiModelId, modelId }))).toEqual([
+      { apiModelId: 'deepseek/deepseek-v3.2', modelId: 'deepseek-v3-2' }
+    ])
   })
 
-  it.each(['anthropic', 'aws-bedrock'])('keeps Claude Opus 4.5 on budget thinking for %s', (providerId) => {
-    const contract = override(providerId, 'claude-opus-4-5').reasoningContracts?.['anthropic-messages']
+  it('uses CherryIN extra_body thinking controls for the served DeepSeek V3.2 model', () => {
+    const wire = provider('cherryin').overrides?.find(({ apiModelId }) => apiModelId === 'deepseek/deepseek-v3.2')
+      ?.reasoningContracts?.['openai-chat-completions']?.wire
+
+    expect(wire?.off?.operations).toEqual([
+      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'disabled' } }
+    ])
+    expect(wire?.auto?.operations).toEqual([
+      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'enabled' } }
+    ])
+    expect(wire?.effort?.operations).toEqual([
+      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'enabled' } }
+    ])
+  })
+
+  // Bedrock keeps a hand-pinned contract: its budget wire is in bedrock's own
+  // `reasoningConfig.*` namespace, so it isn't the shared anthropic dialect.
+  // The first-party anthropic pin is gone — Opus 4.5 now reaches the same wire
+  // through `wireDialect: 'budget'` (locked in reasoning-dialect.test.ts).
+  it('keeps Claude Opus 4.5 on budget thinking for aws-bedrock', () => {
+    const contract = override('aws-bedrock', 'claude-opus-4-5').reasoningContracts?.['anthropic-messages']
     expect(contract?.wire?.effort).toMatchObject({
       budget: expect.any(Object),
       operations: expect.arrayContaining([expect.objectContaining({ value: { source: 'budget' } })])
@@ -115,6 +153,19 @@ describe('provider reasoning contracts', () => {
       false
     )
   })
+
+  // No provider hand-pins a Gemini dialect any more — it comes from the model's
+  // declared `wireDialect`, so a new google-generate-content gateway cannot get
+  // it wrong by omission. Coverage lives in reasoning-dialect.test.ts.
+  it.each(['gemini', 'cherryin', 'new-api', 'vertexai'])(
+    'declares no per-model Gemini dialect contract for %s',
+    (providerId) => {
+      const pinned = provider(providerId).overrides?.filter(
+        (entry) => entry.reasoningContracts?.['google-generate-content']
+      )
+      expect(pinned ?? []).toEqual([])
+    }
+  )
 
   it('nests Poe custom reasoning parameters under extra_body', () => {
     expect(

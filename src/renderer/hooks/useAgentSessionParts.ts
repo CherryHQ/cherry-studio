@@ -10,13 +10,15 @@
  * messages. Row fields carry identity, role, status, and timestamps.
  */
 
-import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
-import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
+import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useMemo, useRef } from 'react'
+
+import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
 const PAGE_SIZE = 50
 
@@ -38,6 +40,7 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   if (row.modelId) metadata.modelId = row.modelId
   if (row.messageSnapshot) metadata.messageSnapshot = row.messageSnapshot
   if (row.stats) metadata.stats = row.stats
+  if (row.delivery) metadata.delivery = row.delivery
 
   return {
     id: row.id,
@@ -65,6 +68,7 @@ function reservedUIMessageToAgentSessionMessage(
     messageSnapshot: metadata.messageSnapshot ?? null,
     stats: metadata.stats ?? null,
     runtimeResumeToken: null,
+    delivery: metadata.delivery ?? null,
     createdAt,
     updatedAt: createdAt
   }
@@ -73,33 +77,50 @@ function reservedUIMessageToAgentSessionMessage(
 export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
-  const flowParts = useSharedCacheValue(AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId || 'disabled'))
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
-  const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
-    params: { sessionId },
-    // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
-    query: { deferToolOutputs: true },
-    limit: PAGE_SIZE,
-    enabled,
-    swrOptions: {
-      keepPreviousData: false,
-      ...(!fetchOnMount && {
-        revalidateIfStale: false,
-        revalidateOnMount: false
-      })
+  const { pages, isLoading, hasNext, loadNext, mutate } = useConversationHistoryQuery(
+    '/agent-sessions/:sessionId/messages',
+    {
+      params: { sessionId },
+      // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
+      query: { deferToolOutputs: true },
+      limit: PAGE_SIZE,
+      enabled,
+      swrOptions: {
+        keepPreviousData: false,
+        ...(!fetchOnMount && {
+          revalidateIfStale: false,
+          revalidateOnMount: false
+        })
+      }
     }
-  })
+  )
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
   })
-  useDataChange('/agent-sessions/:sessionId/messages', () => {
-    if (enabled) void mutate()
-  })
+  useDataChange(
+    '/agent-sessions/:sessionId/messages',
+    () => {
+      if (enabled) void mutate()
+    },
+    { routeParams: { sessionId } }
+  )
 
   // Server returns each page newest-first (DESC) and the cursor walks older.
   // MessageVirtualList expects chronological-asc (oldest first), so reverse both
   // axes: oldest page first, and within each page reverse to ASC.
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
+  const loadedMessageIds = useMemo(() => (enabled ? rows.map((row) => row.id) : []), [enabled, rows])
+  const flowPartsKeys = useMemo(
+    () => loadedMessageIds.map((messageId) => AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId, messageId)),
+    [loadedMessageIds, sessionId]
+  )
+  const selectFlowParts = useCallback(
+    (values: readonly (CherryMessagePart[] | undefined)[]) =>
+      Object.fromEntries(loadedMessageIds.map((messageId, index) => [messageId, values[index]])),
+    [loadedMessageIds]
+  )
+  const flowParts = useSharedCacheSelector(flowPartsKeys, selectFlowParts)
 
   const messageProjectionRef = useRef<
     | {
@@ -120,7 +141,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       const previousById = previousProjection?.ownerToken === projectionOwnerToken ? previousProjection.byId : undefined
       const nextById = new Map<string, CachedAgentSessionMessage>()
       const nextMessages = sourceRows.map((row) => {
-        const liveParts = flowParts?.[row.id]
+        const liveParts = flowParts[row.id]
         const cached = previousById?.get(row.id)
         if (
           cached?.sessionId === row.sessionId &&

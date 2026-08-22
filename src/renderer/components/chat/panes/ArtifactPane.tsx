@@ -5,10 +5,8 @@ import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
-import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
-import { FinderIcon } from '@renderer/components/icons/SvgIcon'
+import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import {
   FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
   type FileEditSession
@@ -17,11 +15,9 @@ import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
-import { buildEditorUrl } from '@renderer/utils/editor'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
-import { isMac, isWin } from '@renderer/utils/platform'
-import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { AlertCircle, ArrowLeft, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -34,8 +30,12 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { type ArtifactPaneFileSelection, getArtifactPaneSelectionPath, WORKSPACE_ROOT_ID } from './artifactPanePath'
-import OpenExternalAppButton from './OpenExternalAppButton'
-import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
+import {
+  type ArtifactFileTreeErrorKind,
+  type ArtifactFileTreeModel,
+  isSelectableFileNode,
+  useArtifactFileTreeModel
+} from './useArtifactFileTreeModel'
 
 // Re-exported from their home modules so existing imports of these from
 // `ArtifactPane` keep working.
@@ -47,6 +47,17 @@ export {
 } from './artifactPanePath'
 
 const logger = loggerService.withContext('ArtifactPane')
+
+const ARTIFACT_FILE_TREE_ERROR_KEYS = {
+  invalid_path: {
+    description: 'agent.preview_pane.tree_error.invalid_path.description',
+    title: 'agent.preview_pane.tree_error.invalid_path.title'
+  },
+  load_error: {
+    description: 'agent.preview_pane.tree_error.load_error.description',
+    title: 'agent.preview_pane.tree_error.load_error.title'
+  }
+} as const satisfies Record<ArtifactFileTreeErrorKind, { description: string; title: string }>
 
 export interface ArtifactPaneProps {
   workspacePath?: string
@@ -80,10 +91,6 @@ function getPreviewFileTitle(filePath: string): string {
 function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id: string }): string | null {
   if (!workspacePath) return null
   return node.id === WORKSPACE_ROOT_ID ? workspacePath : joinPath(workspacePath, node.id)
-}
-
-function renderFileManagerIcon(): ReactNode {
-  return isMac ? <FinderIcon className="size-4" /> : <FolderOpen size={16} />
 }
 
 interface ArtifactPaneViewBaseProps {
@@ -140,7 +147,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   } = props
   const { t } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
-  const { data: externalApps } = useExternalApps({ enabled: true })
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
@@ -151,30 +157,33 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const { refresh, reloadExpandedDirectories } = model
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
+  const previewSelectionWorkspacePath = previewFileSelection?.workspacePath
+  const parsedPreviewWorkspacePath = useMemo(
+    () => (previewSelectionWorkspacePath ? AbsoluteFilePathSchema.safeParse(previewSelectionWorkspacePath) : null),
+    [previewSelectionWorkspacePath]
+  )
+  const hasInvalidPreviewSelection = Boolean(previewFileSelection && !parsedPreviewWorkspacePath?.success)
+  const validPreviewFileSelection = parsedPreviewWorkspacePath?.success ? previewFileSelection : null
+  const effectiveTreeErrorKind: ArtifactFileTreeErrorKind | undefined = hasInvalidPreviewSelection
+    ? 'invalid_path'
+    : model.errorKind
+  const treeErrorKeys = effectiveTreeErrorKind ? ARTIFACT_FILE_TREE_ERROR_KEYS[effectiveTreeErrorKind] : undefined
+  const hasInvalidWorkspacePath = effectiveTreeErrorKind === 'invalid_path'
   const overlaySelection = useMemo(
     () =>
-      previewFileSelection
-        ? previewFileSelection
-        : workspacePath && selectedFile
+      validPreviewFileSelection
+        ? validPreviewFileSelection
+        : workspacePath && !hasInvalidWorkspacePath && selectedFile
           ? { workspacePath, filePath: selectedFile }
           : null,
-    [previewFileSelection, selectedFile, workspacePath]
+    [hasInvalidWorkspacePath, selectedFile, validPreviewFileSelection, workspacePath]
   )
   const overlayWorkspacePath = overlaySelection?.workspacePath
   const overlayFilePath = overlaySelection?.filePath
-  const previewWorkspacePath = overlayWorkspacePath ?? workspacePath
+  const previewWorkspacePath = overlayWorkspacePath ?? (hasInvalidWorkspacePath ? undefined : workspacePath)
   const previewFilePath = overlayFilePath ?? selectedFile
   const previewKey = `${previewWorkspacePath ?? ''}\0${previewFilePath ?? ''}`
   const previousPreviewKeyRef = useRef(previewKey)
-  const availableEditors = useMemo(
-    () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],
-    [externalApps]
-  )
-  const fileManagerName = useMemo(() => {
-    if (isMac) return t('agent.session.file_manager.finder')
-    if (isWin) return t('agent.session.file_manager.file_explorer')
-    return t('agent.session.file_manager.files')
-  }, [t])
 
   const handleSelectedChange = useCallback(
     (id: string | null) => {
@@ -295,77 +304,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [handleClosePreview]
   )
 
-  const openPath = useCallback(
-    async (path: string) => {
-      try {
-        await window.api.file.openPath(path)
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
-      }
-    },
-    [t]
-  )
-
-  const showInFolder = useCallback(
-    async (path: string) => {
-      try {
-        await window.api.file.showInFolder(path)
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
-      }
-    },
-    [t]
-  )
-
   const getFileTreeMenuItems = useCallback(
-    (node: FileTreeNode): readonly CommandContextMenuExtraItem[] => {
+    (node: FileTreeNode): Promise<readonly CommandContextMenuExtraItem[]> => {
       const targetPath = getFileTreeNodeTargetPath(workspacePath, node)
-      if (!targetPath) return []
-
-      if (node.kind === 'file') {
-        return [
-          {
-            type: 'item',
-            id: 'open-default-app',
-            label: t('agent.preview_pane.default_app'),
-            icon: <FileText size={16} />,
-            onSelect: () => void openPath(targetPath)
-          },
-          {
-            type: 'item',
-            id: 'show-in-folder',
-            label: fileManagerName,
-            icon: renderFileManagerIcon(),
-            onSelect: () => void showInFolder(targetPath)
-          },
-          ...availableEditors.map<CommandContextMenuExtraItem>((app) => ({
-            type: 'item',
-            id: `open-editor-${app.id}`,
-            label: app.name,
-            icon: getEditorIcon(app),
-            onSelect: () => window.open(buildEditorUrl(app, targetPath))
-          }))
-        ]
-      }
-
-      return [
-        {
-          type: 'item',
-          id: 'open-file-manager',
-          label: fileManagerName,
-          icon: renderFileManagerIcon(),
-          onSelect: () => void openPath(targetPath)
-        },
-        ...availableEditors.map<CommandContextMenuExtraItem>((app) => ({
-          type: 'item',
-          id: `open-editor-${app.id}`,
-          label: app.name,
-          icon: getEditorIcon(app),
-          onSelect: () => window.open(buildEditorUrl(app, targetPath))
-        }))
-      ]
+      if (!targetPath) return Promise.resolve([])
+      return loadOpenTargetMenuItems({ targetPath, pathKind: node.kind === 'file' ? 'file' : 'directory', t })
     },
-    [availableEditors, fileManagerName, openPath, showInFolder, t, workspacePath]
+    [t, workspacePath]
   )
 
   // Memoized so the file-tree element below keeps its identity across the
@@ -392,10 +337,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       props.headerVariant === 'pane' ? undefined : (
         <div className="flex shrink-0 items-center gap-1">
           {refreshButton}
-          {workspacePath ? <OpenExternalAppButton workdir={workspacePath} /> : null}
+          {workspacePath && !hasInvalidWorkspacePath ? (
+            <OpenTargetButton targetPath={workspacePath} pathKind="directory" />
+          ) : null}
         </div>
       ),
-    [props.headerVariant, refreshButton, workspacePath]
+    [hasInvalidWorkspacePath, props.headerVariant, refreshButton, workspacePath]
   )
 
   const handleEditorModeChange = useCallback(
@@ -491,7 +438,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           ) : null}
           {previewWorkspacePath ? (
             <>
-              <OpenExternalAppButton workdir={previewWorkspacePath} filePath={overlaySelection?.filePath} />
+              <OpenTargetButton
+                targetPath={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : previewWorkspacePath}
+                pathKind={overlaySelection ? 'file' : 'directory'}
+              />
               {refreshButton}
               <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
             </>
@@ -514,7 +464,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
 
     const overlayActions = (
       <>
-        <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+        <OpenTargetButton targetPath={getArtifactPaneSelectionPath(overlaySelection)} pathKind="file" />
         {refreshButton}
         <Tooltip content={t('agent.preview_pane.close')} delay={800}>
           <Button
@@ -603,7 +553,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Button>
           </div>
         )}
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden [&:has(.cm-editor)]:pb-[var(--chat-composer-inset,0px)]">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
             <CodeEditor
               key={previewKey}
@@ -652,8 +602,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           getMenuItems={getFileTreeMenuItems}
           emptyState={
             <div className="px-2 py-3 text-muted-foreground text-xs">
-              {model.error
-                ? t('common.error')
+              {treeErrorKeys
+                ? t(treeErrorKeys.title)
                 : trimmedFileSearch
                   ? t('agent.preview_pane.no_search_results')
                   : workspacePath
@@ -668,7 +618,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       model.filteredTree,
       model.effectiveExpandedIds,
       model.setExpandedIds,
-      model.error,
+      treeErrorKeys,
       selectedFile,
       handleSelectedChange,
       enableFileSearch,
@@ -700,7 +650,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     )
   }
 
-  if (model.error && !overlaySelection) {
+  if (treeErrorKeys && !overlaySelection) {
     return (
       <div
         ref={artifactPaneRef}
@@ -709,7 +659,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           maximized && 'rounded-lg border border-border-subtle shadow-sm'
         )}>
         {paneHeader}
-        <EmptyState icon={AlertCircle} title={t('common.error')} description={model.error.message} />
+        <EmptyState icon={AlertCircle} title={t(treeErrorKeys.title)} description={t(treeErrorKeys.description)} />
       </div>
     )
   }
@@ -724,7 +674,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       {paneHeader}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
-          <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div
+            data-artifact-file-tree-scroll-region
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--chat-composer-inset,0px)]">
             {fileTreeContent}
           </div>
         </aside>

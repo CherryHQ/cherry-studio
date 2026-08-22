@@ -1,3 +1,5 @@
+import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
+import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
@@ -239,12 +241,48 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
+    expect(screen.getByText('BabelDOC Stream')).toBeInTheDocument()
+  })
+
+  it('renders the BabelDOC preset with its bundled image icon (not the fallback glyph)', async () => {
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('BabelDOC Stream')).closest<HTMLElement>('[role="listitem"]')
+    expect(card).not.toBeNull()
+    // BabelDOC has no iconify mark, so it must resolve to the bundled PNG — dropping the `name`
+    // prop would silently fall back to the Terminal glyph and this src would disappear.
+    const icon = card!.querySelector('img')
+    expect(icon?.getAttribute('src')).toBe(babeldocIcon)
   })
 
   it('gives the public icon-only dependency actions accessible names', async () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByLabelText('settings.dependencies.checkUpdates')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.dependencies.installSettings.title')).toBeInTheDocument()
+  })
+
+  // A name-only install lets main resolve `latest`, which a lagging PyPI mirror
+  // answers with a build Cherry's progress parser predates — flagged outdated by
+  // the very next availability check, at the cost of a second full download.
+  it('installs the BabelDOC Stream dependency at its pinned version, never latest', async () => {
+    setSnapshots({
+      'babeldoc-stream': {
+        name: 'babeldoc-stream',
+        application: { status: 'absent' },
+        availability: { source: 'none' }
+      }
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('BabelDOC Stream')).closest('[role="listitem"]') as HTMLElement
+
+    fireEvent.click(within(card).getByRole('button', { name: 'settings.mcp.install' }))
+
+    await waitFor(() =>
+      expect(ipcMocks.installTool).toHaveBeenCalledWith({
+        name: 'babeldoc-stream',
+        targetVersion: BABELDOC_MINIMUM_VERSION
+      })
+    )
   })
 
   it('keeps a system preset display-only, never shadowing it with a managed copy', async () => {
@@ -479,11 +517,13 @@ describe('EnvironmentDependencies', () => {
   it('excludes Code CLI snapshots from the dependency grid', async () => {
     setSnapshots({
       claude: miseSnapshot('claude', 'claude'),
+      pi: miseSnapshot('pi', 'npm:@earendil-works/pi-coding-agent'),
       'some-agent': miseSnapshot('some-agent', 'npm:some-agent')
     })
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('some-agent')).toBeInTheDocument()
     expect(screen.queryByText('claude')).not.toBeInTheDocument()
+    expect(screen.queryByText('pi')).not.toBeInTheDocument()
   })
 
   it('uses latest versions for exactly applied tools regardless of a custom definition', async () => {

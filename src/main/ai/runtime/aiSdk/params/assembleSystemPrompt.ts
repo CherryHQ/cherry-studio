@@ -38,6 +38,11 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
     sections.push(getDeferredToolsSystemPrompt(deferredEntries))
   }
 
+  // No persisted-output section here: that protocol is taught in-band — the
+  // marker itself carries the retrieval line (getVFSOffloadReminder) and the
+  // fs_read tool description carries the paging + coverage contract — so
+  // conversations that never truncate pay nothing for it.
+
   if (hasCitableTools) {
     sections.push(CITATIONS_SYSTEM_PROMPT)
   }

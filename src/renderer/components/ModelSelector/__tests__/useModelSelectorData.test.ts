@@ -34,7 +34,7 @@ function makeProvider(id: string, overrides: Partial<Provider> = {}): Provider {
     name: `name(${id})`,
     apiKeys: [],
     authType: 'apiKey',
-    apiFeatures: {} as Provider['apiFeatures'],
+    reportsActualCost: false,
     settings: {} as Provider['settings'],
     isEnabled: true,
     ...overrides
@@ -102,16 +102,26 @@ beforeEach(() => {
 })
 
 describe('useModelSelectorData', () => {
-  it('uses enabled model and provider queries without overriding focus revalidation', () => {
+  it('passes the selector activation state to every catalog query', () => {
     wireDeps({
       providers: [makeProvider('openai')],
       models: [makeModel('gpt-4', 'openai')]
     })
 
-    renderHook(() => useModelSelectorData({ searchText: '' }))
+    const { rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useModelSelectorData({ enabled, searchText: '' }),
+      { initialProps: { enabled: false } }
+    )
 
-    expect(mockUseProviders).toHaveBeenCalledWith({ enabled: true })
-    expect(mockUseModels).toHaveBeenCalledWith({ enabled: true })
+    expect(mockUseProviders).toHaveBeenLastCalledWith({ enabled: true }, { enabled: false })
+    expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: false })
+    expect(mockUsePins).toHaveBeenLastCalledWith('model', { enabled: false })
+
+    rerender({ enabled: true })
+
+    expect(mockUseProviders).toHaveBeenLastCalledWith({ enabled: true }, { enabled: true })
+    expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: true })
+    expect(mockUsePins).toHaveBeenLastCalledWith('model', { enabled: true })
   })
 
   it('groups models under known providers and drops orphan models', () => {
@@ -322,5 +332,23 @@ describe('useModelSelectorData', () => {
     expect(byModelId.get('openai::variant-a')?.showIdentifier).toBe(true)
     expect(byModelId.get('openai::variant-b')?.showIdentifier).toBe(true)
     expect(byModelId.get('openai::unique')?.showIdentifier).toBe(false)
+  })
+
+  it('marks matching model names from different providers for disambiguation', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider('anthropic')],
+      models: [
+        makeModel('gpt-4', 'openai', { name: 'Shared model' }),
+        makeModel('claude-alias', 'anthropic', { name: 'Shared model' })
+      ]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+    const byModelId = new Map<string, ModelSelectorModelItem>(
+      result.current.modelItems.map((item) => [item.modelId, item])
+    )
+
+    expect(byModelId.get('openai::gpt-4')?.showIdentifier).toBe(true)
+    expect(byModelId.get('anthropic::claude-alias')?.showIdentifier).toBe(true)
   })
 })

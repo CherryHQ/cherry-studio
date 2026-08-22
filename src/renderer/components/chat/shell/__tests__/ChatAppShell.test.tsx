@@ -1,6 +1,7 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,6 +47,7 @@ interface RightPanelStateMockValue {
   userOpenSeq?: number
 }
 
+const composerElevatedMock = vi.hoisted(() => ({ current: false }))
 const rightPanelStateMock = vi.hoisted(() => ({
   current: undefined as RightPanelStateMockValue | undefined
 }))
@@ -67,7 +69,8 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 }))
 
 vi.mock('../../panes/Shell', () => ({
-  useOptionalRightPanelState: () => rightPanelStateMock.current
+  useOptionalRightPanelState: () => rightPanelStateMock.current,
+  useRightPanelComposerElevated: () => composerElevatedMock.current
 }))
 
 type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
@@ -104,6 +107,7 @@ vi.mock('motion/react', () => {
 describe('ChatAppShell', () => {
   beforeEach(() => {
     rightPanelStateMock.current = undefined
+    composerElevatedMock.current = false
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       value: 1200,
@@ -158,6 +162,7 @@ describe('ChatAppShell', () => {
     expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))
     expect(chatMain).toContainElement(screen.getByTestId('main'))
     expect(chatMain).toHaveClass('relative')
+    expect(chatMain?.getAttribute('data-ui')?.split(/\s+/)).toContain('part:conversation-main')
 
     const sidePanelHost = container.querySelector('[data-chat-side-panel-host]')
     expect(sidePanelHost).not.toBeNull()
@@ -194,18 +199,27 @@ describe('ChatAppShell', () => {
     expect(overlayHost?.parentElement).toBe(chatMain?.parentElement)
   })
 
-  it('releases the center stacking context while the right panel is maximized', () => {
-    rightPanelStateMock.current = { layoutAnimationPending: false, presentationMaximized: true }
+  it.each([
+    ['the pane is maximized', true, true],
+    // A restore drops `presentationMaximized` at the click while the pane keeps covering the
+    // centre; re-trapping the composer here would sink it behind the pane for the whole retraction.
+    ['the pane is still retracting', false, true],
+    ['the pane is docked', false, false]
+  ] as const)('releases the center stacking context while %s: %s', (_label, presentationMaximized, elevated) => {
+    rightPanelStateMock.current = { layoutAnimationPending: false, presentationMaximized }
+    composerElevatedMock.current = elevated
 
     const { container } = render(
       <ChatAppShell centerClassName="transform-[translateZ(0)]" main={<div data-testid="main" />} />
     )
+    const center = container.querySelector('[data-chat-app-shell-center]')
 
-    expect(container.querySelector('[data-chat-app-shell-center]')).toHaveClass(
-      'transform-[translateZ(0)]',
-      '!transform-none',
-      '!will-change-auto'
-    )
+    expect(center).toHaveClass('transform-[translateZ(0)]')
+    if (elevated) {
+      expect(center).toHaveClass('!transform-none', '!will-change-auto')
+    } else {
+      expect(center).not.toHaveClass('!transform-none')
+    }
   })
 
   it('keeps the pane mounted when keyed center content changes', () => {
@@ -251,6 +265,51 @@ describe('ChatAppShell', () => {
     expect(screen.queryByText('topic 1 content')).not.toBeInTheDocument()
     expect(screen.getByText('topic 2 content')).toBeInTheDocument()
     expect(paneMounts).toEqual(['mounted'])
+  })
+
+  it('keeps pane state while it is collapsed and reopened', async () => {
+    const user = userEvent.setup()
+
+    function Pane() {
+      const [query, setQuery] = useState('')
+
+      return <input aria-label="Pane query" value={query} onChange={(event) => setQuery(event.target.value)} />
+    }
+
+    const { container, rerender } = render(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
+
+    await user.type(screen.getByRole('textbox', { name: 'Pane query' }), 'persisted')
+
+    rerender(<ChatAppShell pane={<Pane />} paneOpen={false} centerContent={<div />} />)
+
+    const navigationPane = container.querySelector('[data-ui~="part:conversation-navigation"]')
+    expect(navigationPane).toHaveAttribute('aria-hidden', 'true')
+    expect(navigationPane).toHaveAttribute('inert')
+    expect(screen.getByLabelText('Pane query')).toHaveValue('persisted')
+
+    rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
+
+    expect(screen.getByRole('textbox', { name: 'Pane query' })).toHaveValue('persisted')
+  })
+
+  it('defers mounting a pane that has never been opened', () => {
+    const { rerender } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen={false} centerContent={<div />} />)
+
+    expect(screen.queryByText('topics')).not.toBeInTheDocument()
+
+    rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen centerContent={<div />} />)
+
+    expect(screen.getByText('topics')).toBeInTheDocument()
+  })
+
+  it('mounts the pane only in the selected position', () => {
+    const { rerender } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen panePosition="left" centerContent={<div />} />
+    )
+
+    rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen panePosition="right" centerContent={<div />} />)
+
+    expect(screen.getAllByText('topics')).toHaveLength(1)
   })
 
   it('drives the left resource pane width from persist cache', () => {

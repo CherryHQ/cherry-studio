@@ -1,5 +1,14 @@
 import { defineProvider } from './types'
 
+const webFetchModels = [
+  'claude-opus-4',
+  'claude-sonnet-4',
+  'claude-haiku-4',
+  'claude-3-5-haiku',
+  'claude-3-5-sonnet',
+  'claude-3-7-sonnet'
+]
+
 /**
  * Models that need an explicit 1M-context twin, paired with their catalog name.
  *
@@ -52,6 +61,9 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
   },
+  // url-context only, no web-search: web_fetch is free while web_search bills
+  // per use, which the subscription OAuth credential cannot be charged for.
+  serverTools: [{ id: 'url-context', modelScope: 'model-dependent', modelIdPrefixes: webFetchModels }],
   metadata: {
     website: {
       official: 'https://www.anthropic.com/claude-code',

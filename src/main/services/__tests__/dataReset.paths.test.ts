@@ -21,7 +21,8 @@ vi.mock('electron', () => ({
       }
     }),
     getAppPath: vi.fn(() => '/mock/app'),
-    isPackaged: false
+    isPackaged: false,
+    setAppLogsPath: vi.fn()
   },
   dialog: { showErrorBox: vi.fn() }
 }))

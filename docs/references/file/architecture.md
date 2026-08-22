@@ -1,1126 +1,257 @@
+---
+description: Current file-domain boundaries, shared types, renderer transports, and business-reference ownership
+sources:
+  - src/main/services/file
+  - src/main/ipc/handlers/file.ts
+  - src/main/data/api/handlers/files.ts
+  - src/shared/data/types/file.ts
+  - src/shared/ipc/schemas/file.ts
+---
+
 # File Module Architecture
 
-> **SoT scope** — **this document** owns: module boundaries, type system (`FileHandle` / `FileEntry` / `FileInfo`), IPC / DataApi contracts, layered architecture (no-FS-side-effect vs FS-side-effect paths), business-service integration, and service lifecycle assignment. FileManager **internal implementation** (storage layout, version detection, atomic writes, recycle bin, reference cleanup, watcher internals, orphan sweep, DanglingCache state machine) lives in [`file-manager-architecture.md`](./file-manager-architecture.md). In case of conflict, the layer ownership above decides: positioning / contract → this document, implementation → the other.
->
-> **Contract stability**: the JSDoc, type signatures, and behavioral tables in this document (and `file-manager-architecture.md`) are **binding commitments** for the implementation — not provisional notes. When implementation reveals a contract that cannot be honored (a cleanup semantic that collides with reality, an error-type that needs expanding, a signature shape that doesn't fit), the required workflow is: **(1) open a PR revising the contract doc first**, with justification in the PR description; **(2) land that doc revision**; **(3) implement against the updated contract**. Do not ship an implementation that silently diverges from the doc — the cost of doc revision is minutes, the cost of hidden divergence compounds indefinitely.
->
-> Related documents:
->
-> - `docs/references/file/file-manager-architecture.md` — FileManager submodule design (FileEntry model, origin semantics, atomic writes, version detection, DirectoryWatcher, AI SDK integration)
-> - `docs/references/file/directory-tree.md` — DirectoryTreeBuilder primitive design (in-memory tree + chokidar watcher + .gitignore coordination, `DirectoryTreeManager` lifecycle service, `File_Tree*` IPC contract, renderer-side `useDirectoryTree` hook)
+The file domain has two independent runtime capabilities:
 
----
+- `FileManager` manages persistent `FileEntry` records and entry-owned file operations.
+- `DirectoryTreeManager` manages live, in-memory directory mirrors for renderer consumers.
+
+They share filesystem utilities and the watcher primitive, but a directory tree does not create
+`FileEntry` rows and a `FileEntry` does not join a directory tree automatically.
+
+This document describes the current module boundary. FileManager implementation details live in
+[FileManager Architecture](./file-manager-architecture.md), and the tree protocol lives in
+[Directory Tree Architecture](./directory-tree.md).
 
 ## 1. Module Scope
 
-### 1.0 Core Principle
+The current implementation is split across four layers:
 
-> **FileManager manages files introduced via explicit calls to `createInternalEntry` / `ensureExternalEntry`**—files exist as one of two origins: `internal` (Cherry owns the content) or `external` (records a path reference only). Which origin the caller chooses is a business-layer decision; FileManager makes no assumptions about it.
+| Layer | Current owner | Responsibility |
+|---|---|---|
+| Persistent data | `src/main/data/` | `file_entry`, source-owned reference tables, repositories, and SQL-only DataApi handlers |
+| File services | `src/main/services/file/` | Entry lifecycle/content operations, dangling-state cache, orphan cleanup, directory watcher, and directory trees |
+| Shared contracts | `src/shared/data/types/file.ts`, `src/shared/types/file/`, `src/shared/ipc/schemas/file.ts` | File entities, handles, filesystem shapes, and IpcApi schemas |
+| Renderer adapters | `src/renderer/` | DataApi queries, IpcApi requests, legacy preload calls, and live tree mirrors |
 
-### 1.0.1 Semantics of Origin
+`src/main/utils/file/` contains general main-process filesystem primitives. Code outside the file
+domain may use those primitives directly for paths it owns. Files stored as internal `FileEntry`
+content must be mutated through FileManager so the DB row, hash, size, and caches stay coherent.
 
-The `origin` field on a FileEntry defines content ownership, with two values:
+### 1.1 Managed Entries
 
-- **`internal`**: Cherry owns the file content, physically stored at `{userData}/Data/Files/{id}.{ext}`. The caller hands a Buffer/Stream/source file to FileManager, which copies and takes ownership. `name` / `ext` / `size` are authoritative on the row (atomic writes keep DB and FS in sync).
-- **`external`**: Cherry only records an absolute path reference on the user's side, does not copy content, and does not own the file. `name` / `ext` on the row are pure projections of `externalPath` (basename / extname); `size` is **not stored** (always `null`) — live value is obtained via File IPC `getMetadata`. File availability and content changes are determined by the user side.
+Every `FileEntry` has one of two origins:
 
-Which origin to pick is the **caller's** decision; FileManager makes no assumption about the business layer.
+- `internal`: Cherry owns the bytes under `application.getPath('feature.files.data', filename)`.
+  The row stores authoritative `name`, `ext`, `size`, and a nullable `contentHash`.
+- `external`: Cherry stores a canonical absolute path but does not own the bytes. The row derives
+  `name` and `ext` from that path and stores neither size nor content hash. Call File IPC for live
+  metadata.
 
-### 1.0.2 Best-effort Semantics for External
-
-An external entry is a persistent record that "the caller expressed the intent to reference this path at some point in time"—analogous to the "best-effort external reference" seen in tools like codex. It does not guarantee the file remains stable, nor that the content matches what it was when first referenced. Cherry does not actively mirror FS changes; instead, FS changes naturally surface as "reading new content next time" or "the entry turns dangling".
-
-### 1.1 What the File Module Includes
-
-The File IPC adapter lives outside `src/main/services/file/` (`src/main/ipc/handlers/file.ts`) but is part of the file-module boundary: it owns renderer transport and `FileHandle` dispatch, depends on FileManager for entry-aware operations, and depends on `services/file/utils/*` for file-module path-arm helpers. It must not import `node:fs` directly.
-
-```
-File Module (src/main/services/file/)
-│
-├── index.ts              ← module barrel; exports FileManager, public types, and
-│                           selected file-module helpers (internals stay hidden)
-│
-├── FileManager.ts        ← lifecycle runtime service + public facade for FileEntry ops
-│     │                     public methods are thin delegates to internal/*; owns versionCache
-│     │                     does not own the File IPC architecture
-│     ├── FileEntry lifecycle (create-or-upsert / write / trash / restore / rename / copy / permanentDelete)
-│     ├── Version detection & concurrency control (read / writeIfUnchanged / withTempCopy)
-│     ├── Metadata & system ops (getMetadata / open / showInFolder)
-│     └── Electron dialog (showOpenDialog / showSaveDialog)
-│
-├── internal/             ← private implementation, not re-exported by index.ts; external imports forbidden
-│     │                     every pure function explicitly receives FileManagerDeps
-│     │                     (fileEntryService / fileRefService / danglingCache / versionCache)
-│     ├── deps.ts               — FileManagerDeps type
-│     ├── dispatch.ts           — dispatchHandle (temporary home while legacy
-│     │                            FileManager IPC handlers still exist; final
-│     │                            ownership is the File IPC adapter layer)
-│     ├── entry/
-│     │    ├── create.ts        — createInternal / ensureExternal
-│     │    ├── lifecycle.ts     — trash / restore / permanentDelete + batches
-│     │    ├── rename.ts
-│     │    └── copy.ts
-│     ├── content/
-│     │    ├── read.ts          — entry-aware read / createReadStream
-│     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream
-│     │    └── hash.ts          — getContentHash / getVersion
-│     ├── system/
-│     │    ├── shell.ts         — open / showInFolder
-│     │    └── tempCopy.ts      — withTempCopy
-│     └── orphanSweep.ts        — FS-level orphan sweep
-│
-│
-├── utils/                ← file-module path/API helpers (not raw FS primitives)
-│     ├── content.ts            — consistent path read + path conditional write
-│     ├── pathResolver.ts       — FileEntry → physical AbsoluteFilePath resolution
-│     └── metadata.ts           — path-arm PhysicalFileMetadata projection for File IPC dispatch
-│
-├── versionCache.ts       ← LRU type definition; instance held as private field on FileManager
-│
-├── danglingCache.ts (singleton)
-│     ├── check(entry): DanglingState — query in-memory / cold-path stat
-│     ├── onFsEvent(path, state) — receives watcher events
-│     ├── Reverse index Map<path, Set<entryId>> (populated from DB at file_module startup)
-│     └── Queried by File IPC handlers; automatically wired by the watcher factory
-│
-├── watcher/
-│     └── DirectoryWatcher (not a service, a generic FS monitoring primitive)
-│         ↳ factory createDirectoryWatcher() auto-wires events into danglingCache
-│
-└── tree/                    ← second top-level primitive, parallel to FileManager
-      │                       SoT: docs/references/file/directory-tree.md
-      ├── builder.ts         ← DirectoryTreeBuilder: in-memory TreeDirRoot
-      │                        mirror + chokidar watcher + initial ripgrep scan
-      ├── DirectoryTreeManager.ts  ← @Injectable WhenReady service;
-      │                        owns the File_Tree* IPC contract; dedupes
-      │                        builders by (rootPath, options) across treeIds
-      ├── search.ts          ← listDirectory: ripgrep + optional fuzzy match
-      ├── gitignore.ts       ← .gitignore parsing shared by ripgrep --ignore-file
-      │                        and chokidar's ignored predicate
-      └── index.ts           ← barrel: createDirectoryTree + DirectoryTreeBuilder
-
-Pure FS primitives (src/main/utils/file/) — shared raw FS primitives, open to the entire main process
-├── fs.ts         — basic FS: read / write / stat / copy / move / remove
-│                   atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream
-│                   version: statVersion / contentHash (XXH3-64, tagged `xxh3-64:{hex}`)
-├── shell.ts      — system ops: open / showInFolder
-├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir
-├── metadata.ts   — type detection: getFileType / isTextFile / mimeToExt
-├── search.ts     — directory search: listDirectory (ripgrep + fuzzy matching)
-├── legacyFile.ts — shared legacy helpers (`getFileType(ext)` / `sanitizeFilename` / `getAllFiles` / `pathExists` / …); planned to be split into the modules above over time
-└── index.ts      — barrel: re-exports `./legacyFile` so cross-module callers can `import from '@main/utils/file'`
-
-Data Module dependencies (src/main/data/)
-├── FileEntryService (data repository, pure DB) — file_entry table
-├── FileRefService (read facade) — aggregates all persistent source refs
-└── DataApi Handler (files.ts) — SQL-first read endpoints; no FS access, no main-side resolvers
-```
-
-**Implementation status**:
-
-- **`FileUploadService` — manual implementation ahead of AI SDK stable.** Provider-specific file uploads (OpenAI Files API, Gemini, etc.) are a real, currently-unmet need; the existing `FileServiceManager` (`src/main/services/remotefile/`) already implements per-provider upload but is wired as an ad-hoc v1 IPC layer rather than a lifecycle service. **No longer deferred** — we will refactor `FileServiceManager` into a proper `FileUploadService` lifecycle service ahead of the Vercel AI SDK Files Upload API stabilising. Concrete design (interface, table schema, IPC surface, whether `file_upload` table + `FileUploadRepository` ship in the same PR or split out) is **TBD**; when the AI SDK ships its stable Files API the manual implementation should converge toward `file-manager-architecture.md §9`. AI SDK reference: [`uploadFile`](https://ai-sdk.dev/v7/docs/reference/ai-sdk-core/upload-file).
+Creation is intentionally asymmetric: `createInternalEntry` always creates a new entry, while
+`ensureExternalEntry` reuses an existing canonical-path entry when possible.
 
 ### 1.2 FileManager's Position Within the Module
 
-The file module has **two top-level primitives** — `FileManager` and `DirectoryTreeBuilder` — sitting alongside the shared infrastructure (File IPC adapters, file-module utils, DanglingCache, DirectoryWatcher, FS primitives). Neither subsumes the other; they manage **orthogonal resource concerns**:
+`FileManager` is a `WhenReady` lifecycle service resolved with
+`application.get('FileManager')`. Its public methods take `FileEntryId`; it does not accept a
+`FileHandle` or own renderer routing. The IpcApi adapter in `src/main/ipc/handlers/file.ts`
+dispatches handle-based requests to either FileManager or a path helper.
 
-- **FileManager** is the **sole public entry point for the FileEntry management system** — responsible for the full lifecycle and content operations of `FileEntry` (DB row + content bytes). Its public API only accepts entry-scoped inputs such as `FileEntryId` plus create/upsert params. It exposes `runSweep()` as an on-demand "report everything" entry point; the FS half of that sweep **also runs unattended** from the idle cleanup tick (`fileSweepTick`, weekly floor), so orphan-blob reclamation does not depend on a caller. "Sole public entry" here is scoped to **FileEntry management**, not the file module as a whole — see File IPC and DirectoryTreeBuilder below.
-- **FileManager is a facade, not a God class** — business methods are delegated to private pure-function modules. The class itself owns only lifecycle, entry orchestration, and instance-scoped caches. It does **not** own renderer transport or `FileHandle.kind` dispatch; those belong to the File IPC adapter layer. Implementation mechanics (deps passing, module layout, extension rules) live in [FileManager Architecture §1.6](./file-manager-architecture.md) — this document stays at the positioning layer.
-- **File IPC adapters** (`src/main/ipc/handlers/file.ts`) own renderer-facing File IPC routes. They validate request schemas, dispatch `FileHandle` routes, and delegate entry branches to FileManager and path branches to helpers implemented under `src/main/services/file/utils/*` and re-exported by `@main/services/file`. They must not import `node:fs` directly.
-- **DirectoryTreeBuilder** is the **second top-level primitive**, parallel to FileManager. It manages in-memory tree mirrors + chokidar watchers for arbitrary directories (Notes workspace, future ArtifactPane, …). It is **not** DB-backed — every tree is rebuilt from disk on `File_TreeCreate`. Its IPC surface (`File_TreeCreate` / `File_TreeDispose` / `File_TreeMutation`) is owned by the `DirectoryTreeManager` lifecycle service. SoT: [directory-tree.md](./directory-tree.md). The two primitives observe the same paths independently — a directory can be watched (tree) without its contents being entered (entries), and vice versa.
-- **DanglingCache** is a file_module singleton—maintains the `'present' | 'missing'` state of external entries, pushed by watcher events, with cold-path stat as a fallback, and served to the renderer via File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi).
-- **DirectoryWatcher** is a generic FS primitive, **not a lifecycle service**; business modules (such as a future NoteService) new/dispose instances themselves via the `createDirectoryWatcher()` factory; the factory internally wires events into DanglingCache. `DirectoryTreeBuilder` is one of its consumers.
-- **File-module path/API helpers** live under `src/main/services/file/utils/`. They are higher-level than raw FS primitives and encode file-module semantics (for example, path-arm metadata projection or FileEntry path resolution). FileManager and File IPC adapters may both depend on them; selected outside-facing helpers are re-exported by `@main/services/file` to preserve the barrel boundary.
-- **Raw FS / path primitives** live under `src/main/utils/file/` (imported as `@main/utils/file/fs`, `@main/utils/file/path`, etc.). They do not depend on the entry system and are open to the entire main process. Main modules may use `services/file/utils`, `@main/utils/file/*`, or direct `node:fs` depending on the abstraction level they need; File IPC adapters specifically use the first two and never import `node:fs` directly.
+`DirectoryTreeManager` is a separate `WhenReady` service. It owns builders, consumers, and the
+`file.tree.mutation` stream. `DirectoryTreeBuilder` uses the generic watcher in
+`src/main/services/file/watcher.ts`, but neither tree class depends on the file-entry database.
 
-#### Public / Private Boundaries
-
-| Location | Visibility | Access |
-|---|---|---|
-| File IPC adapter (`src/main/ipc/handlers/file.ts`) | **Renderer transport boundary** | Routes `ipcApi.request('file.*')` calls; delegates entry branches to FileManager and path branches to `src/main/services/file/utils/*`. No direct `node:fs` imports. |
-| `FileManager` class + public types | **Entire main process** | Resolve the runtime instance via `application.get('FileManager')`; import public types from `@main/services/file` |
-| `src/main/services/file/utils/*` | **File-module implementation** | File-module path/API helpers. Outside callers use only the selected helpers re-exported by `@main/services/file`; no deep imports. |
-| `DirectoryTreeManager` + `DirectoryTreeBuilder` factory | **Entire main process** (renderer via IPC) | Renderer: `window.api.tree.create/dispose/onMutation`. Main: `application.get('DirectoryTreeManager')` or `createDirectoryTree` from `@main/services/file/tree`. |
-| Raw FS primitives (`@main/utils/file/{fs,metadata,path,search,shell}`) | **Entire main process** | Shared convenience wrappers over file / shell operations (BootConfig, MCP oauth, etc. can use directly). Shared legacy helpers (`getFileType(ext)`, `sanitizeFilename`, etc.) are barrel-exported from `@main/utils/file` itself. |
-| Direct `node:fs` imports | **Entire main process** | Allowed when a module deliberately needs raw Node FS APIs not covered by a shared helper. Do not use direct FS writes for FileEntry-backed paths. |
-| `watcher/` (`createDirectoryWatcher` factory) | **Entire main process** | Business services call this when they need to watch external directories |
-| `danglingCache` | **Internal to file-module** | External callers read it via File IPC `getDanglingState` / `batchGetDanglingStates`; never imported directly, never exposed via DataApi |
-| `internal/*` | **File module implementation only** | FileManager owns most imports. Temporary exception: File IPC adapters may import `internal/dispatch.ts` while legacy FileManager IPC handlers still exist. Move `dispatchHandle` to the IPC adapter layer once FileManager no longer registers any IPC handlers. Do not make `internal/*` a general business-service surface. |
-
-Boundary enforcement: `src/main/services/file/index.ts` re-exports only reviewed public helpers. General `internal/*` and `utils/*` implementation remains unreachable through `@main/services/file`; ESLint's `barrel/closed` rule rejects deep imports.
+`FileEntryService` and `FileRefService` are synchronous, direct-import data services. The former is
+the `file_entry` repository; the latter is a read-only projection across business-owned reference
+tables.
 
 ### 1.3 Out of Scope
 
-The following categories are **not** managed by the File Module (no FileEntry is produced):
+FileManager is not a registry for every path the application touches. Examples that stay with
+their owning domain include notes and agent workspace trees, logs, caches, backup archives,
+configuration files, OCR intermediates, and other temporary artifacts. Such modules may use
+`src/main/utils/file/`, their own lifecycle service, or `DirectoryTreeManager` without creating a
+`FileEntry`.
 
-| Category | Owner | Why it's not managed by FileManager |
-|---|---|---|
-| Notes file tree (files browsed/edited inside the Notes app) | Notes module (FS-first) | Notes has its own notes dir storage and external editor compatibility; **not mirrored wholesale into FileEntry**. Tree state itself is provided by `DirectoryTreeBuilder` ([directory-tree.md](./directory-tree.md)) — a separate top-level primitive — not by FileManager. Notes joins the tree with sparse renderer-side state (`noteTable` overlays for starred / metadata). |
-| Knowledge base vector index | KnowledgeService | Auto-generated derived data, not a user file |
-| MCP server configuration | MCP module | System/user configuration, not user-uploaded files |
-| Preference / BootConfig | Config module | Application state |
-| Log files | LoggerService | Auto-generated |
-| Backup / export files | Corresponding business | Business-generated artifacts in transit |
-| Agent workspace files | AgentService | Agent-produced at runtime |
-| OCR / PDF pagination intermediates | Business module / `os.tmpdir` | Temporary computational artifacts |
-| Real-time sync mirror of external directories | Business module assembles with DirectoryWatcher | File_module does not do bidirectional DB-FS sync |
-
-**Note**: The table above is the boundary for "certain business data does not enter FileManager", not "certain file types don't enter". The same physical file can simultaneously belong to an FS-first business domain AND an external FileEntry (the latter is merely a reference to that path)—these are not mutually exclusive.
-
-These modules manage their own files and may use `node:fs` or `@main/utils/file/*` directly; they are not bound by the FileManager of the file module.
-
----
+Provider upload state is also outside this module today. There is no `file_upload` table or
+`FileUploadService` in the current file domain; upload behavior remains with the feature or provider
+that performs it.
 
 ## 2. Type System: Reference vs Data Shape
 
-### 2.1 Two Layers of File Types
+### 2.1 Current Type Locations
 
-The file module organizes its types along two layers — the **reference layer** (how a call site names the target file when crossing a boundary) and the **data-shape layer** (what the handler receives after resolving that reference):
+| Contract | Location |
+|---|---|
+| `FileEntry`, `FileEntryId`, `FileHandle`, `FileRef`, `DanglingState` | `src/shared/data/types/file.ts` |
+| `AbsoluteFilePath`, `FileVersion`, `PhysicalFileMetadata`, directory-listing types | `src/shared/types/file/common.ts` |
+| `FileInfo` | `src/shared/types/file/info.ts` |
+| Handle factories, path brands, URL helpers, tree classes and DTOs | `src/shared/utils/file/` |
+| IpcApi file request/event schemas | `src/shared/ipc/schemas/file.ts` |
 
-```
-                    Entry-referenced                   Path-referenced
-                    ────────────────                   ────────────────
-Reference layer     FileEntryHandle                    FilePathHandle
-(across boundaries) { kind: 'entry', entryId }         { kind: 'path', path }
-                          │                                  │
-                          ▼ FileManager.getEntry             ▼ fs.stat + projection
-Data-shape layer    FileEntry                          FileInfo
-(after resolution)  { id, origin, name, ext,           { path, name, ext, size,
-                      size, deletedAt, ... }             mime, type, modifiedAt, ... }
-```
-
-Picking a handle variant is a **call-site choice of reference form**, not a statement about the file itself. Crucially, **the two axes are orthogonal**:
-
-- **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache updates); `FilePathHandle` bypasses FileEntry state coordination and delegates to the file-module path helper, which then uses the underlying FS primitive.
-- **Content ownership** (`FileEntry.origin`, not visible in the handle): `internal` means Cherry owns `{userData}/Data/Files/{id}.{ext}`; `external` means Cherry only records a reference to a user-owned path.
-
-The **same physical external file** can therefore be reached by either handle variant. A `FileEntryHandle` to its entry goes through the entry-aware code path (dangling updates, version cache, identity-tracked operations); a `FilePathHandle` to the same absolute path goes through pure FS. Picking one is a matter of which subsystem the caller wants in the loop — not a property of the file.
+`src/shared/types/file/ipc.ts` is the deprecated legacy preload contract. It intentionally carries
+migration-era declarations and is not authoritative for routes already defined in
+`src/shared/ipc/schemas/file.ts`.
 
 ### 2.2 `FileHandle`: the Polymorphic Reference
 
-`FileHandle = FileEntryHandle | FilePathHandle` (see [`src/shared/data/types/file.ts`](../../../src/shared/data/types/file.ts)) is the first-class reference type crossing the IPC boundary. Every IPC method that makes sense regardless of which subsystem is in the loop accepts a `FileHandle`; handlers dispatch internally on `handle.kind`. See §3.3 for the full dispatch table.
+`FileHandle` selects how one operation reaches a file:
 
-Use `FileHandle` whenever a signature does not *inherently* require an entry row (e.g. anything that isn't a lifecycle op on a FileEntry).
+```typescript
+type FileHandle =
+  | { kind: 'entry'; entryId: FileEntryId }
+  | { kind: 'path'; path: AbsoluteFilePath }
+```
+
+An entry handle routes through FileManager and participates in entry semantics. A path handle
+routes to a path-level helper and does not register or resolve a `FileEntry`. The same physical
+file can therefore be addressed by either form with different ownership and side effects.
 
 ### 2.3 `FileEntry` vs `FileInfo`
 
-Once a handle is dispatched, the handler works with either a `FileEntry` (the DB row identified by an entryId) or a `FileInfo` (a live descriptor produced from a path). They are the two "data shapes" of a file:
+| Shape | Identity | Source | Freshness |
+|---|---|---|---|
+| `FileEntry` | `id` | SQLite row | Persistent snapshot constrained by `origin` |
+| `FileInfo` | absolute `path` | Filesystem projection | Live at construction time |
 
-| Aspect         | `FileEntry`                                                | `FileInfo`                                                |
-|----------------|------------------------------------------------------------|-----------------------------------------------------------|
-| Role           | DB row identified by `id`                                  | Live descriptor identified by `path`                      |
-| Identity field | `id` (UUID — v7 from `uuidPrimaryKeyOrdered`, v4 preserved from v1 migration) | `path` (absolute filesystem path)                         |
-| Liveness       | Persistent record — identity + stable projections only     | Live view — re-read from `fs.stat`                        |
-| Lifecycle      | Persistent; trash/restore (internal-origin only)           | Transient — per-call descriptor                           |
-| Produced by    | `createInternalEntry` / `ensureExternalEntry` / DataApi    | `fs.stat(path)` / `toFileInfo(entry)`                    |
-| Typical use    | FileManager ops, UI management panels, ref association creation | Pure content processors (OCR, hashing, tokenization)      |
-
-**Field overlap is inherent, not redundant**: `name`, `ext`, `type` (and `mime` / `size` on `FileInfo`) describe a file regardless of whether an entry row exists for it. What distinguishes the two types is the *surrounding* fields and the *liveness* of the shared ones:
-
-- **`FileEntry` has identity fields** `FileInfo` lacks: `id`, `origin`, `externalPath`, `deletedAt`.
-- **`FileInfo` has live fields** `FileEntry` lacks: `path` (derived, never stored on `FileEntry`), `modifiedAt`, and a live `size`.
-- **`FileEntry.size` is origin-gated**. For `origin='internal'` it is an authoritative byte count (kept in sync by atomic writes). For `origin='external'` it is **always `null`** — external files may change outside Cherry at any time, so no DB snapshot is stored. Consumers that need a live value for an external entry call File IPC `getMetadata(handle)` / `batchGetMetadata({ items })`, which runs `fs.stat` on demand. This eliminates the "is this snapshot current?" question at the type level rather than at call sites.
-- **`FileEntry.name` / `FileEntry.ext` never drift**. For internal they are user-editable SoT; for external they are pure projections of `externalPath` (basename / extname) and therefore stable as long as the entry itself exists.
-
-**Projection is one-way**. `FileEntry → FileInfo` is always possible via `toFileInfo(entry)` (async — performs `fs.stat` plus path resolution based on `origin`, which is also how the live `size` is materialized for external). The reverse is **not a type conversion**: it is a state change, and requires explicit registration through `FileManager.createInternalEntry` or `ensureExternalEntry`. The Zod brand on `FileEntrySchema` enforces this — arbitrary object literals cannot satisfy the `FileEntry` type.
+`FileEntry` is a branded discriminated union. Fields that do not apply to an origin are absent
+from its business object even though the flat DB row stores `NULL` in those columns. `FileInfo` is
+a branded live descriptor and has no persistent identity. `toFileInfo(entry)` performs the
+one-way entry-to-live projection; registering a path requires an explicit FileManager creation
+call.
 
 ### 2.4 Signature Selection Guide
 
-Default to the narrowest type that covers the need. "When in doubt, `FileHandle`" for cross-boundary calls, and "when in doubt, `FileInfo`" for leaf content processors.
+- Use `FileEntryId` for entry lifecycle, persistent references, and main-side FileManager calls.
+- Use `FileHandle` at a boundary that deliberately supports both registered entries and arbitrary
+  paths. Dispatch it in the adapter, not inside business logic.
+- Use `AbsoluteFilePath` for an operation owned by a filesystem-first module.
+- Use `FileInfo` for a live descriptor returned to a leaf consumer, not as a substitute for entry
+  identity.
+- Use `DirectoryTreeOptions` and the shared tree classes for live hierarchical views; do not derive
+  them from `FileEntry` rows.
 
-| What the consumer needs                                                                    | Signature                                |
-|--------------------------------------------------------------------------------------------|------------------------------------------|
-| Doesn't care which subsystem is in the loop; just operates on a file                       | `FileHandle` ⭐ default for IPC          |
-| Only to call a FileManager lifecycle op (trash, restore, permanentDelete, …)               | `FileEntryId`                            |
-| Only to hand a path to an ops-level FS function                                            | `AbsoluteFilePath`                               |
-| The entry row's fields (UI management panel, origin-aware rendering, ref creation)         | `FileEntry`                              |
-| A resolved on-disk descriptor for pure content processing                                  | `FileInfo` (typically a return type)     |
+## 3. Renderer Boundaries
 
-Anti-patterns to avoid:
+### 3.1 DataApi: SQL-only Reads
 
-- **Requiring `FileEntry` when only `path` or `size` is read** — this couples the caller to the entry system. Accept `FileHandle` (and dispatch), or accept `FileInfo` (and have the caller project).
-- **Returning a value typed `FileEntry` whose contract is "might or might not be registered"** — use `FileHandle` or an explicit variant instead.
-- **Synthesising a `FileEntry` from a `FileInfo`** — registration must go through sanctioned FileManager methods; the Zod brand is specifically there to prevent this.
+`src/main/data/api/handlers/files.ts` exposes the current `/files/*` read surface:
 
----
+- paginated entries and individual entries;
+- exact content-hash candidates and entry statistics;
+- batched reference counts;
+- references by entry or business source.
 
-## 3. IPC Design
+These handlers do not touch the filesystem, resolve physical paths, or query `DanglingCache`.
+Renderer views compose those SQL results with File IPC only when they need live state.
 
-### 3.1 Design Motivation
+### 3.2 IpcApi: Filesystem-backed Operations
 
-The renderer needs a unified entry point for file operations (a single `read` can read both FileEntry and an external path), but inside the main process, entry management (DB + FS coordination) and pure path operations (FS directly) are two very different responsibilities.
+`src/shared/ipc/schemas/file.ts` and `src/main/ipc/handlers/file.ts` own the migrated routes. They
+currently cover binary reads, optimistic writes, metadata, path and dangling-state batches,
+internal-entry batch creation, trash operations, rename, open/reveal, and the directory-tree
+protocol.
 
-Solution: **File IPC adapter + handler-level dispatch**. The renderer-facing adapter (`src/main/ipc/handlers/file.ts`) owns route validation and dispatch; each handler delegates to different implementations based on target type. Entry branches call FileManager; path branches call file-module path/API helpers in `src/main/services/file/utils/*`. The adapter does not import `node:fs` directly.
+The adapter uses `dispatchHandle` for routes that support both handle kinds:
 
-### 3.2 Handler Dispatch
-
+```text
+FileEntryHandle -> FileManager entry method
+FilePathHandle  -> path helper under src/main/services/file/
 ```
-Renderer
-  → IpcApi route (`src/main/ipc/handlers/file.ts`)
-    ├── target: FileEntryId / FileEntryHandle → FileManager method (entry coordination)
-    └── target: FilePathHandle                → services/file/utils/* (file-module path API)
-```
 
-Other services in the main process can call FileManager, `src/main/services/file/utils/*`, `@main/utils/file/*`, or direct `node:fs` as needed, without going through IPC. The "no direct `node:fs`" rule is specific to the File IPC adapter layer.
+Path mutations are guarded against targeting FileManager's managed storage.
 
-### 3.3 IPC Method Categories
+### 3.3 Legacy Preload Surface
 
-> **Current wiring status.** New renderer-facing File IPC lives in IpcApi
-> routes declared in `src/shared/ipc/schemas/file.ts` and handled by
-> `src/main/ipc/handlers/file.ts`. The routes currently registered are:
-> `file.read`, `file.write_if_unchanged`, `file.batch_get_metadata`,
-> `file.batch_get_physical_paths`,
-> `file.batch_get_dangling_states`, `file.batch_create_internal_entries`,
-> `file.batch_trash`, `file.batch_restore`, `file.batch_permanent_delete`,
-> `file.empty_trash`, `file.rename`, `file.open`, and `file.show_in_folder`. Legacy
-> `IpcChannel.File_*` routes are compatibility-only for remaining preload
-> consumers (notably singular metadata / path helpers) and MUST NOT be used by
-> new renderer code. The tables below describe the logical File IPC surface;
-> the IpcApi schema registry is the source of truth for routes wired today.
+The migration is incomplete. `FileManager.registerIpcHandlers()` still registers legacy channels
+for single internal/external creation, physical-path lookup, permanent deletion, and `runSweep`.
+`src/main/ipc.ts` still registers `listDirectory` and `listDirectoryEntries`. Existing renderer
+consumers reach these through `window.api.file`.
 
-`file.read` accepts a generic `FileHandle` plus a strict binary cost-mode union:
-`{ mode: 'full', encoding: 'binary' }` reads the complete file, while
-`{ mode: 'range', offset, length }` performs a positioned read capped at 4 MiB.
-Both modes return the standard `{ content, mime, version }`
-`ReadResult<Uint8Array>`, so a range consumer can reject chunks from different
-file versions.
-`file.write_if_unchanged` is the path-only conditional-write route used by the
-artifact editor. It accepts only `path`, `data`, and `expectedVersion`, returns
-the new `FileVersion`, and maps `PathStaleVersionError` to the renderer-visible
-`FILE_STALE_VERSION` code. Its error data is
-`{ expected: FileVersion, current: FileVersion }`; the target file remains
-untouched and the caller decides how to present or resolve the conflict.
+New file routes should use IpcApi. When changing an existing route, first check whether its live
+contract is in `src/shared/ipc/schemas/file.ts` or is still one of the legacy handlers; do not infer
+runtime behavior from the deprecated `FileIpcApi` interface.
 
-Generic operations that can act on any file (FileEntry or arbitrary path)
-**accept a `FileHandle` tagged union** (`{ kind: 'entry', entryId }` or
-`{ kind: 'path', path }`). File IPC handlers dispatch by `handle.kind` to FileManager
-(entry branch) or file-module path helpers (path branch). The tables below
-describe that logical surface, including routes that are not wired yet.
+### 3.4 External Entry Operations
 
-**Operations that accept FileHandle (entry + path branches unified)**:
+External entries are best-effort references to user-owned paths:
 
-| Method | Description | entry, internal-origin | entry, external-origin | path |
-|---|---|---|---|---|
-| `read` (full / range) | Read complete content or a positioned byte range (range permits short reads at EOF) | read(userDataPath) | read(externalPath) (live) | read(path) |
-| `getMetadata` | Live physical metadata (`fs.stat`) — batch variant `batchGetMetadata` accepts caller-keyed `FileHandle` items | resolve + stat | stat(externalPath) — **sole live-size source for external** | path metadata projection via `services/file/utils/metadata` |
-| `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | statVersion |
-| `getContentHash` | XXH3-64 (tagged `xxh3-64:{hex}`) | read userData + hash | read externalPath + hash | contentHash |
-| `write` | Atomic write | atomic → userData + DB size update | atomic → externalPath (explicit user edit; no DB size column to touch) | atomic → path |
-| `writeIfUnchanged` | Optimistic concurrent write | same as write plus version check | same | same (caller must getVersion first) |
-| `permanentDelete` | Delete entry | unlink userData + delete from DB | **delete from DB only** (physical file untouched; path-level deletion remains available via a `FilePathHandle` to `remove`) | remove(path) |
-| `rename` | Rename | pure DB (UUID path unchanged) | fs.rename + DB update (name + externalPath) | rename(path, newPath) |
-| `copy` | Copy to a new internal-origin entry | read source + create new internal | read source external + create new internal | read path + create new internal |
-| `open` / `showInFolder` | System ops | resolve + shell | resolve + shell | shell |
+- reads and explicit writes operate on the current bytes at `externalPath`;
+- `rename(id, newName)` renames the physical file within its current parent and updates the row;
+- `trash` and `restore` reject external entries;
+- `permanentDelete(id)` removes only the row and leaves the user's file on disk;
+- missing paths are reported through `DanglingState`, not treated as permission to delete the row.
 
-**Operations accepting only FileEntryId (meaningful only when you already hold an entry id)**:
+UI copy must distinguish removing an external reference from deleting an internal managed file or
+an arbitrary path on disk.
 
-| Method | Description |
+## 4. Layer Ownership
+
+| Need | Owner |
 |---|---|
-| `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/Data/Files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
-| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first validates the path shape via `AbsoluteFilePathSchema` (shape-only, no rewrite), then `ensureExternalEntry` canonicalizes it to the byte-faithful lexical form via the `canonicalizeFilePath()` factory (see `canonicalize.ts`) before matching; reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
-| `trash` / `restore` | Soft delete based on deletedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK); passing an external id throws. |
-| `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
-| `batchPermanentDelete` | Batch version of `permanentDelete`. |
-| `withTempCopy` | Copy isolation for calling third-party libraries |
-| `getDanglingState` / `batchGetDanglingStates` | Query external-origin entry presence (FS-backed via DanglingCache; cold miss triggers a single `fs.stat`). Internal-origin entries always `'present'`. |
-| `getPhysicalPath` / `batchGetPhysicalPaths` | Resolve absolute path for a FileEntry (main-side `resolvePhysicalPath`). Intended for agent context / drag-drop / subprocess spawn. Also the input to `toSafeFileUrl` for `<img src>` / `<video src>` rendering. |
-| `batchGetMetadata` | Batch version of `getMetadata` — list-page flows MUST use this over `Promise.all(handles.map(handle => getMetadata(handle)))`. Handler parallelises metadata reads internally; single IPC round-trip. Input is `{ items: Array<{ key: string; handle: FileHandle }> }`, so callers pick a stable merge key (Files page uses `FileEntryId`). Returns `Record<key, PhysicalFileMetadata \| null>` — `null` marks per-item stat failure (missing / permission), caller falls back to "—". |
-
-**How to obtain dangling state / absolute path / live size**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. Dangling state via `getDanglingState` / `batchGetDanglingStates`, path via `getPhysicalPath` / `batchGetPhysicalPaths`, live `size` / `mtime` via `getMetadata` / `batchGetMetadata`. Any flow iterating over >1 file MUST reach for the batch form to avoid N+1 IPC. DataApi's SQL-only boundary is documented in §4.1.1.
-
-**How to obtain a `file://` URL for rendering**: compose it in-process from the `AbsoluteFilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
-
-**Operations accepting only AbsoluteFilePath**:
-
-| Method | Description |
-|---|---|
-| `select` | Electron file picker dialog |
-| `save` | Electron save dialog + write file |
-| `listDirectory` | Scan any directory contents |
-| `isNotEmptyDir` | Check whether a directory is non-empty |
-
-### 3.4 Operational Semantics for External Files
-
-**Impact of Cherry's operations on external files**:
-
-| User action | Physical external file |
-|---|---|
-| Trash from Cherry | **Not applicable** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK) |
-| Restore from Cherry | **Not applicable** — external-origin entries are never trashed |
-| permanentDelete from Cherry (entry-level) | **Untouched** — only the DB row is deleted; the physical file remains on disk |
-| write / writeIfUnchanged from Cherry | **Overwritten** (atomic write) |
-| Rename from Cherry | **Physically renamed** (the external filename also changes) |
-| `remove(path)` (from `@main/utils/file/fs`) via `FilePathHandle` (path-level) | **Deleted** — this is a deliberate path-level operation, not coupled to any file_entry row |
-
-**Key principles**:
-- Cherry does not perform automatic / watcher-driven external file modifications
-- Cherry does perform user-explicitly-requested external file modifications (save, rename)
-- **Entry-level deletion (`permanentDelete` on an external file_entry) does NOT touch the physical file** — this decouples "remove from Cherry's tracking" from "destroy on disk". If a user truly wants to delete the physical file, they invoke the path-level `remove(path)` (from `@main/utils/file/fs`, via a `FilePathHandle`) explicitly, which is not bound to any entry row.
-- External entry lifecycle is monotonic (Active → Deleted), with no Trashed state — "remove entry from Cherry's view" always means clearing the DB row + cascading persistent file association rows
-- **Cherry does not track external file rename/move**—when a file is moved outside of Cherry, the corresponding entry becomes dangling (best-effort semantics); the caller must proactively call `ensureExternalEntry` on the new path to establish a new reference (upsert by path; reuses existing entry if hit)
-
-Similar to VS Code's behavior model for open files: it changes when you tell it to, without modifying behind the scenes; if you change the file externally, it won't auto-follow.
-
-**UX labeling convention for `permanentDelete` (product contract)**:
-
-The IPC method name `permanentDelete` is polymorphic on handle/origin and does not translate literally to user-facing copy. The three branches have materially different user-observable effects; UI surfaces MUST choose the label at the call site based on `(handle.kind, entry.origin)`:
-
-| Call site | User-facing label | Confirmation copy |
-|---|---|---|
-| entry handle, `origin = 'internal'` | "Permanently delete" / "永久删除" | "This file will be permanently deleted from your library and from disk. This action cannot be undone." |
-| entry handle, `origin = 'external'` | "**Remove from library**" / "从库中移除" | "Cherry will stop tracking this file. The file on disk is not affected; it will remain where it is." |
-| path handle | "Delete file" / "删除文件" | "This file will be permanently removed from disk. This action cannot be undone." |
-
-The internal and path branches are **true destructive actions** (red button, clear warning). The external-entry branch is an **un-tracking** operation — the user's file is not touched. Presenting it with "permanent delete" language creates two classic bug paths:
-
-1. User expects disk deletion → later finds the file still in Finder/Explorer → files a bug report
-2. User hesitates or avoids the action fearing data loss → accumulates dangling library entries they actually want removed
-
-**Enforcement**: convention-only, verified at PR review. The IPC method name is intentionally kept polymorphic (preserves §3.2's "unified entry + kind dispatch" design); what varies is the UI copy around the call — product layer owns that.
-
-**UI convention for dangling external entries**:
-
-FilesPage and similar user-facing **list surfaces** SHOULD keep external entries with `DanglingState === 'missing'` visible with an explicit "missing" marker and a non-destructive "Remove from library" action. There is no automatic dangling-entry cleanup; hiding missing rows would leave users with no obvious way to inspect or remove stale library records.
-
-**Reference-oriented surfaces**: when a specific message's attachment list, a painting's source/output files, or any other view that consumes FileManager refs shows entries, dangling rows MUST remain visible (with a "file missing" marker). Hiding them would silently suppress the "your attached file is gone" signal the user needs in order to act — re-attach, remove the reference, etc.
-
-### 3.5 AI SDK Integration
-
-**AI SDK upload-related** → FileUploadService methods. The service itself is no longer deferred (see §1.1 — it will be refactored out of `FileServiceManager` ahead of the AI SDK stabilising); the method shapes below are the **AI-SDK-aligned target** the manual implementation should converge toward once the SDK ships:
-
-| Method                              | Description                      |
-| ----------------------------------- | -------------------------------- |
-| `ensureUploaded(entryId, provider)` | upload-if-needed                 |
-| `buildProviderReference(entryId)`   | Build SharedV4ProviderReference  |
-| `invalidate(entryId)`               | Clear cache (on content change)  |
-
-### 3.6 Mutation Propagation to Renderer (deferred — lands in Phase 2)
-
-> **Status**: design only. Nothing in Phase 1 implements this surface — the
-> three typed events, the `useFileManagerEventsBinding()` hook, the
-> `WindowManager` broadcast wiring, and the queryKey-prefix dispatch table
-> are all Phase 2 deliverables. Sibling `file-manager-architecture.md §1.6.8`
-> tags the matching emission slot `(deferred)` consistently. Renderers
-> requiring freshness in Phase 1 rely on React Query's natural `staleTime`
-> refresh — the same fallback the section opening describes as "brittle"
-> below.
-
-Every main-side mutation that changes an entry's DB row, a file's physical content, or the dangling state of an external path invalidates zero or more renderer-side React Query caches. Manual per-caller invalidation is brittle — if any business caller forgets to invalidate after `rename`/`write`/`permanentDelete`, the UI shows stale data for up to the `staleTime` window.
-
-**Design**: FileManager owns entry-state mutation events; the renderer transport belongs to the File IPC / IpcApi layer. Mutation methods fire in-process `Event<T>` after a successful commit; a File IPC event bridge (not FileManager's route registration) subscribes to those events plus `DanglingCache.onDanglingStateChanged` and forwards each via `IpcApiService` / `WindowManager` to live renderer windows. Transport stays out of FileManager; FileManager remains the runtime entry service.
-
-**Event contract** (three independent typed events — see [`file-manager-architecture.md §1.6.8`](./file-manager-architecture.md#168-event-emission--broadcast) for emission timing within each mutation):
-
-| Event | Fired when | Payload | QueryKey **prefixes** to invalidate |
-|---|---|---|---|
-| `onEntryRowChanged` | `createInternalEntry` / `ensureExternalEntry` / `update` / `rename` / `trash` / `restore` / `permanentDelete` (and batch variants) commit successfully | `{ kind: 'created' \| 'updated' \| 'deleted', id: FileEntryId, origin: FileEntryOrigin }` | `['fileManager', 'entry']`, `['fileManager', 'entries']`, `['fileManager', 'stats']`, `['fileManager', 'refCounts']`, `['fileManager', 'physicalPath']` |
-| `onEntryContentChanged` | `write` / `writeIfUnchanged` / `createWriteStream` commit completes | `{ id: FileEntryId, version: FileVersion }` | `['fileManager', 'metadata']`, `['fileManager', 'version']`, `['fileManager', 'contentHash']` |
-| `onDanglingStateChanged` | `DanglingCache` transitions an entry's state (watcher event / cold `fs.stat` observation / explicit `ops` observation) | `{ id: FileEntryId, state: 'present' \| 'missing' }` | `['fileManager', 'dangling']` |
-
-Three separate events, not a discriminated union: invalidation targets per event are disjoint enough that renderer-side dispatch should be `event type → queryKey prefix`, not `payload field → queryKey`. Adding a new event type (e.g. `onUploadStateChanged` when AI SDK lands) costs one handler in the renderer binding.
-
-**QueryKey convention** — required shape for every React Query cache that shadows file-manager state:
-
-| Singular queryKey | Batch queryKey | Shadows |
-|---|---|---|
-| `['fileManager', 'entry', id]` | — | DataApi `GET /files/entries/:id` |
-| — | `['fileManager', 'entries', ...filters]` | DataApi `GET /files/entries` (list; no singular form) |
-| — | `['fileManager', 'stats', ...filters]` | DataApi `GET /files/entries/stats` (aggregate counts; no singular form) |
-| — | `['fileManager', 'refCounts', sortedIds]` | DataApi `GET /files/entries/ref-counts` (batch-only endpoint) |
-| `['fileManager', 'metadata', id]` | `['fileManager', 'metadata', 'batch', sortedIds]` | File IPC `getMetadata` / `batchGetMetadata` |
-| `['fileManager', 'version', id]` | — | File IPC `getVersion` (no batch variant) |
-| `['fileManager', 'contentHash', id]` | — | File IPC `getContentHash` (no batch variant) |
-| `['fileManager', 'dangling', id]` | `['fileManager', 'dangling', 'batch', sortedIds]` | File IPC `getDanglingState` / `batchGetDanglingStates` |
-| `['fileManager', 'physicalPath', id]` | `['fileManager', 'physicalPath', 'batch', sortedIds]` | File IPC `getPhysicalPath` / `batchGetPhysicalPaths` |
-
-**Convention rules**:
-
-1. **Fixed namespace**: every key starts with `['fileManager', <kind>, ...]`. `<kind>` names the resource (one of the second-element values above). Deviating requires a paired update to this table and the renderer binding hook.
-2. **Singular = id as third element**: `['fileManager', <kind>, id]`. This is the canonical form — most renderer hooks produce keys in this shape.
-3. **Batch = `'batch'` marker + sorted id array as fourth element**: `['fileManager', <kind>, 'batch', sortedIds]`. Always sort ids before keying (lexicographic by `FileEntryId` string) so equivalent batches share a cache entry regardless of input order.
-4. **Filter / compound keys append after the third element**: `['fileManager', 'entries', { origin: 'external' }]`. Filters are structured objects, not positional arguments — React Query hashes them structurally.
-
-**Invalidation semantics — prefix-based, uniformly**:
-
-The broadcast binding invalidates at the `['fileManager', <kind>]` prefix (second-element depth), which hits **both singular and batch variants** under that kind. Invalidating `['fileManager', 'metadata']` refreshes every cache under that kind — singular per-id, batch-of-ids, anything keyed off it — regardless of the specific id reported by the event.
-
-This is intentionally coarse: a `write` on entry X invalidates entry Y's metadata cache too. The cost is one extra refetch per unrelated cache; React Query's query-level dedup keeps the network cost bounded, and desktop-scale apps have tens of caches, not thousands. The benefit is that dispatch is one `invalidateQueries` call per kind, and batch caches are automatically covered.
-
-If a future hot spot needs precision (e.g. a view renders 500 independent metadata queries and over-invalidation measurably hurts), upgrade that specific dispatch to predicate-based matching:
-
-```typescript
-queryClient.invalidateQueries({
-  predicate: (q) =>
-    q.queryKey[0] === 'fileManager' &&
-    q.queryKey[1] === 'metadata' &&
-    (q.queryKey[2] === id || (Array.isArray(q.queryKey[3]) && q.queryKey[3].includes(id)))
-})
-```
-
-Predicate-based invalidation is an optimization; prefix-based is the default.
-
-**Delivery semantics — best-effort fire-and-forget**:
-
-- **No delivery guarantee**: renderer windows unmounted / starting up / crashed during broadcast lose events. `staleTime ≤ 5min` contract (§4.1.1) is the backstop — lost events mean caches refresh on their natural cadence rather than instantly.
-- **No ordering guarantee**: multiple events for the same id may arrive out of order. `queryClient.invalidateQueries` is idempotent, repeated invalidations are benign.
-- **Emit cannot roll back commit**: broadcasts fire after the DB transaction commits; if `windowManager.broadcast` throws, the mutation return value is unaffected — the data is durable, only the notification is lost.
-
-**Renderer integration**: a single hook `useFileManagerEventsBinding()` installed once at the application root. It subscribes to the preload-exposed `onFileManagerEvent(listener)` bridge and dispatches each event to `queryClient.invalidateQueries({ queryKey: [...] })` per the dispatch table. Idempotent mounting — if the hook mounts twice, it de-duplicates listeners.
-
-**Design boundary**: events carry **identity + minimal state-change info, never the post-mutation data itself**. Renderers always refetch through the established query/IPC surface — events are invalidation signals, not data pushes. This keeps channel payload bounded and lets React Query manage freshness policy per consumer.
-
----
-
-## 4. Layered Architecture
-
-### 4.1 No-FS-Side-Effect Path (DataApi)
-
-FileEntryService / FileRefService are data services under `src/main/data/services/`, following the project's existing DataApi layered pattern. They **are not standalone lifecycle services**, but are exposed to the Renderer through the DataApiService bridge. FileRefService is a read facade over persistent association tables.
-
-(`FileUploadRepository` is deferred along with FileUploadService.)
-
-```
-Renderer                              Main
-+------------------+           +---------------------------------+
-| useQuery()       |           | DataApiService (bridge)         |
-| useMutation()    |--DataApi--+   |                             |
-| (React hooks)    |           |   v                             |
-+------------------+           | Handler (files.ts)              |
-                               |   |                             |
-                               |   v                             |
-                               | FileEntryService (repository)   |
-                               | FileRefService  (read facade)   |
-                               |   |                             |
-                               |   v                             |
-                               | DB association refs             |
-                               +---------------------------------+
-```
-
-Services inside the main process may directly import and call the data repositories, without going through the DataApi handler.
-
-DataApi endpoints (read-only, SQL-only, fixed-shape):
-
-| Endpoint                         | Method | Purpose                                                                 |
-| -------------------------------- | ------ | ----------------------------------------------------------------------- |
-| `/files/entries`                 | GET    | FileEntry list (supports origin / trashed / time-range filters). Fixed shape. |
-| `/files/entries/:id`             | GET    | Single entry lookup. Fixed shape.                                       |
-| `/files/entries/ref-counts`      | GET    | Ref-count aggregation for a batch of entry ids (association tables). |
-| `/files/entries/stats`           | GET    | Aggregate entry counts for sidebar/footer stats (pure SQL aggregation). |
-| `/files/entries/:id/refs`        | GET    | All references to a file.                                               |
-| `/files/refs`                    | GET    | All files referenced by a business object (`?sourceType=…&sourceId=…`). |
-
-> **DataApi vs File IPC decision criteria (strict boundary)**:
-> - **DataApi** = **pure data read queries only**. Handlers MUST NOT touch FS, MUST NOT call main-side resolvers (`resolvePhysicalPath`), and MUST NOT consult runtime caches such as `danglingCache` or `versionCache`. The response shape is **fixed per endpoint**.
-> - **File IPC** = everything else. All mutations (create / rename / delete / move / write / trash), **and** every read that needs FS IO or main-side computation (content read, dangling probe, path resolution, dialogs, streams, `open`).
->
-> Rule of thumb: if a handler must call anything outside the Drizzle / `@db/*` surface to answer the request, it belongs in IPC. If two callers want the same data in different shapes, the answer is **two endpoints**, not one endpoint with a flag.
-
-**List queries for external entries**: DataApi returns the DB row directly — identity (`id`, `origin`, `externalPath`), stable projections (`name`, `ext`), timestamps, `deletedAt`. External rows carry `size: null` by design (no snapshot stored). Consumers needing **live `size` / `mtime`** call File IPC `getMetadata(handle)` / `batchGetMetadata({ items })`; those needing only **whether the file currently exists** (dangling) call File IPC `getDanglingState` / `batchGetDanglingStates`.
-
-### 4.1.1 DataApi Boundary: SQL-Only, Fixed Shape
-
-DataApi handlers are strictly SQL-backed. A handler:
-
-- MUST NOT read or `stat` the filesystem
-- MUST NOT call main-side resolvers (`resolvePhysicalPath`, etc.)
-- MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`)
-- MUST return a fixed shape per endpoint
-
-The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROUP BY / COUNT), because that stays in the DB layer.
-
-**Enrichments that require FS IO or main-side compute** are served by File IPC (or an in-process pure helper), never by DataApi:
-
-| Capability                                   | Call site                                                               | Kind                                                    |
-|----------------------------------------------|-------------------------------------------------------------------------|---------------------------------------------------------|
-| Ref counts per entry                         | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)                  |
-| Dangling / presence state                    | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)         |
-| Absolute physical path                       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                               |
-| `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/utils/file/url`), composed in-process from the `AbsoluteFilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
-| Live `size` / `mtime` for external           | File IPC `getMetadata(handle)` (single) / `batchGetMetadata({ items })` (list-page flows) | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design; batch variant is mandatory when iterating (§3.3) |
-
-**Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Keeping FS / compute side effects on File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
-
-**Composition in the renderer**: fetch the entry list via DataApi, then call the relevant batch IPC method(s) with the retrieved ids. Wrap the two-step pattern in a dedicated hook (e.g. `useEntriesWithPresence`) so components stay declarative. Current FilesPage wiring is a transitional implementation that composes batch IPC enrichments with local state; before enabling the §3.6 invalidation bridge, migrate those enrichments to the queryKey shapes below (or update this table and the binding together).
-
-**Staleness contract for dangling (best-effort)**: `dangling` is an FS-observed time-varying value — the watcher may not cover every path, and a file may be externally deleted right after a cache hit. Consumers of `getDanglingState` / `batchGetDanglingStates` MUST allow a natural refresh lifecycle (React Query `staleTime` ≤ 5min, or explicit refetch after a user action). **Do not** cache the result with `staleTime: Infinity` — that equates to the contradictory "I want dangling but refuse to re-check". For user-triggered refresh, invalidate the presence query (the refetch re-runs the IPC, which repopulates the cache via a cold `fs.stat`).
-
-**Safety conventions for raw path / URL**:
-
-- **`getPhysicalPath` — NOT intended for**: caching as a stable identifier (storage layout may change); string-concat into shell commands without independent sanitization; bypassing FileManager for writes. Use `entry.id` when identity is all you need.
-- **`toSafeFileUrl` — scoped capability**: the danger-file wrap defends only HTML rendering contexts (`<img src>` / `<video src>` / `<embed>`), not arbitrary string concatenation. Don't compose this URL into command-line args or subprocess arguments — pass the raw `AbsoluteFilePath` from `getPhysicalPath` instead.
-- Both are bound **by convention**; the type system cannot prevent misuse of a `string`. Code review should verify each call site against the intended uses listed here.
-
-### 4.1.1.1 Main Is SoT for Path Resolution
-
-"Main as SoT for path resolution" means **authority (who defines the resolution rule)** — `resolvePhysicalPath` decides how `id + ext` are concatenated, where `userData` lives, whether the layout becomes hash-bucketed in the future, etc. The renderer consumes the string values produced by Main (via File IPC `getPhysicalPath`), but does not share authority:
-
-- When storage layout iterates on the Main side, renderer code needs zero changes
-- The renderer **holds** the string value (locality), but does not **define** the computation rules (authority)
-
-The spread of **locality** (a path string arriving in the renderer via IPC) is not the spread of **authority** (ownership of the resolution rule). The former is a natural consumption relationship; only the latter would actually tear the SoT apart.
-
-Pure **formatting** helpers built on top of an already-resolved path — `toFileUrl` (cross-platform `file://` encoding), `isDangerExt` (HTML-render danger policy), `toSafeFileUrl` (the composition used for `<img src>`) — live in the shared `@shared/utils/file/url` module and run in whichever process needs them. They consume Main's authoritative path string but carry no authority themselves; storage-layout changes in Main still don't affect them.
-
-### 4.1.2 Typical Renderer Call Flows
-
-The new pattern is **DataApi for SQL-level data + File IPC for enrichments**, composed in the renderer. Each extra enrichment = one more `useQuery` against an IPC method.
-
-```typescript
-// Shared helper used throughout: every queryKey in the 'fileManager' namespace
-// sorts its id array so equivalent batches share a cache entry (§3.6).
-const sortIds = (ids: FileEntryId[]) => [...ids].sort()
-
-// Case 1: FilesPage — list + presence + preview URL + ref counts
-//         (external rows also need live size via batchGetMetadata)
-const { data: entries } = useQuery(fileApi.listEntries, {})
-const entryIds = entries?.map(e => e.id) ?? []
-const externalIds = entries?.filter(e => e.origin === 'external').map(e => e.id) ?? []
-
-const { data: presence } = useQuery(
-  ['fileManager', 'dangling', 'batch', sortIds(entryIds)],
-  () => ipcApi.request('file.batch_get_dangling_states', { ids: entryIds }),
-  { enabled: entryIds.length > 0 }
-)
-const { data: paths } = useQuery(
-  ['fileManager', 'physicalPath', 'batch', sortIds(entryIds)],
-  () => ipcApi.request('file.batch_get_physical_paths', { ids: entryIds }),
-  { enabled: entryIds.length > 0 }
-)
-const { data: liveMeta } = useQuery(
-  ['fileManager', 'metadata', 'batch', sortIds(externalIds)],
-  () =>
-    ipcApi.request('file.batch_get_metadata', {
-      items: externalIds.map((id) => ({ key: id, handle: { kind: 'entry', entryId: id } }))
-    }),
-  { enabled: externalIds.length > 0 } // internal.size is already on the DataApi row
-)
-const { data: refCounts } = useQuery(
-  ['fileManager', 'refCounts', sortIds(entryIds)],
-  () => fileApi.refCounts({ entryIds }),
-  { enabled: entryIds.length > 0 }
-)
-// size lookup: prefer DB (internal SoT), fall back to live stat (external):
-//   const size = entry.size ?? liveMeta?.[entry.id]?.size
-// stat failures surface as `liveMeta?.[id] === null` — render "—" in that case.
-// render (URL computed in-process — no extra IPC):
-//   <img src={paths && toSafeFileUrl(paths[entry.id], entry.ext)} />
-//   dangling: presence?.[entry.id], count: refCounts?.[entry.id]
-
-// Case 2: Agent compose — list + absolute paths (same IPC as above, different consumer)
-const { data: entries } = useQuery(fileApi.listEntries, { ids: selectedFileIds })
-const { data: paths } = useQuery(
-  ['fileManager', 'physicalPath', 'batch', sortIds(selectedFileIds)],
-  () => ipcApi.request('file.batch_get_physical_paths', { ids: selectedFileIds })
-)
-const filePaths = selectedFileIds.map(id => paths?.[id]).filter(Boolean).join('\n')
-
-// Case 3: Simple chat attachment list — no enrichment needed
-const { data: entries } = useQuery(fileApi.listEntries, { origin: 'internal' })
-```
-
-**Anti-pattern — N+1 IPC**: DO NOT write `Promise.all(handles.map(handle => ipcApi.request('file.get_metadata', { handle })))` (once singular metadata is migrated) or the equivalent singular calls for dangling state / physical path. Every singular IPC is an independent `ipcMain.handle` round-trip (~0.1ms overhead each); 1000-entry list pages pay >100ms purely in IPC overhead before any `fs.stat` runs. The batch variants run one IPC + `Promise.all`-parallelised handler work — constant round-trip cost.
-
-Benefits of the split:
-
-- **DataApi is predictable**: one SQL query per endpoint, deterministic cost, cache-friendly
-- **Enrichment cost is explicit** at the call site — every FS/compute hop has a visible `useQuery` next to it
-- **Mutations uniformly go through IPC**, cleanly separating "view data" from "change data"
-- **Renderer is unaware of internal storage layout**; main-side storage changes don't propagate
-
-For patterns that recur across components, encapsulate the composition in a hook (e.g. `useEntriesWithPresence(filter)`) so callers stay declarative.
-
-### 4.2 FS-Side-Effect Path (File IPC)
-
-All FS-involving renderer operations go through File IPC / IpcApi routes and **do not go through DataApi**.
-
-```
-Renderer                          Main
-+---------------+           +-------------------------------------------+
-| ipcApi.request|           | IpcApiService / IpcRouter                 |
-| ('file.*')    |---IPC---->|   |                                       |
-|               |           |   v                                       |
-|               |           | File IPC adapter                          |
-|               |           | src/main/ipc/handlers/file.ts             |
-|               |           |   | validates schemas + dispatches handles  |
-|               |           |   |                                       |
-|               |           |   +-- entry branch --> FileManager        |
-|               |           |   |                    (runtime service)    |
-|               |           |   |                                       |
-|               |           |   +-- path branch ---> services/file/utils|
-|               |           |                        (file-module API)  |
-+---------------+           +-------------------------------------------+
-```
-
-The File IPC adapter is a transport/dispatch layer. It may depend on FileManager and `src/main/services/file/utils/*`, but it must not directly import `node:fs`.
-
-### 4.3 Layer Ownership for FS Interactions
-
-```
-+-------------------------------------------------------------------------+
-| File IPC adapter  (src/main/ipc/handlers/file.ts)                       |
-|                                                                         |
-| Role: renderer route validation + FileHandle dispatch                   |
-| FS:   no direct node:fs; delegates path arms to services/file/utils     |
-| DB:   none directly; entry arms delegate to FileManager                 |
-+-------------------------------------------------------------------------+
-| FileManager  (Lifecycle Service, WhenReady phase)                       |
-|                                                                         |
-| Role: FileEntry runtime service: entry coordination, lifecycle, dialog  |
-| FS:   delegates through file-module helpers / raw FS primitives         |
-| DB:   delegates to FileEntryService and FileRefService read/counts      |
-|       maintains in-memory LRU version cache                             |
-| Own:  Electron dialog API (showOpenDialog/showSaveDialog)               |
-+-------------------------------------------------------------------------+
-| On-demand Orphan Sweep                                                  |
-|                                                                         |
-| Role: explicit cleanup of internal UUID files + *.tmp-<uuid> residues   |
-|       plus orphan-entry reporting                                       |
-| Trigger: FS half runs unattended (fileSweepTick, weekly floor);         |
-|          runSweep() via IPC is the on-demand full report                |
-+-------------------------------------------------------------------------+
-| services/file/utils/*  (file-module path/API helpers)                   |
-|                                                                         |
-| Role: higher-level path-arm helpers with file-module semantics          |
-| Examples: resolvePhysicalPath, getMetadataByPath                        |
-| FS:   may delegate to @main/utils/file/*; no DB lifecycle ownership     |
-+-------------------------------------------------------------------------+
-| DanglingCache  (file_module singleton, not lifecycle)                   |
-|                                                                         |
-| Role: track external entry presence state (present/missing/unknown)     |
-| State: Map<entryId, DanglingState> + reverse index Map<path, entryIds>  |
-| Updates: watcher events (auto-wired), ops observations, cold-path stat  |
-| Queried by: File IPC getDanglingState / batchGetDanglingStates          |
-+-------------------------------------------------------------------------+
-| DirectoryWatcher  (NOT lifecycle -- consumable primitive)               |
-|                                                                         |
-| Role: chokidar wrapper with optional rename detection                   |
-| Factory: createDirectoryWatcher() auto-wires events into DanglingCache  |
-| Used by: business modules that need directory monitoring                |
-+-------------------------------------------------------------------------+
-| @main/utils/file/*  (shared raw FS helpers)                             |
-|                                                                         |
-| Role: reusable path / file / shell helpers for modules that want them   |
-| FS:   path-based, no entry/DB awareness                                 |
-| DB:   none                                                              |
-| Note: not the sole allowed FS access path for the main process          |
-+-------------------------------------------------------------------------+
-| FileEntryService / FileRefService  (data services, not lifecycle)       |
-|                                                                         |
-| Role: entry CRUD + ref read/count aggregation, exposed via DataApi       |
-| FS:   none                                                              |
-+-------------------------------------------------------------------------+
-```
-
-### 4.4 Responsibility Boundaries Summary
-
-| Layer                    | Type            | Touches DB     | Touches FS              | Touches Electron API      | Exposed to Renderer |
-| ------------------------ | --------------- | -------------- | ----------------------- | ------------------------- | ------------------- |
-| **File IPC adapter**     | IpcApi handler  | No direct DB   | No direct `node:fs`     | No                        | Yes (IpcApi)        |
-| **FileManager**          | lifecycle       | via repository | via helpers/primitives  | dialog                    | Indirect (via IPC)  |
-| **services/file/utils**  | file-module helpers | No lifecycle DB | via raw helpers when needed | No                    | No                  |
-| **DanglingCache**        | singleton       | read-only once at startup | cache + helper-backed probes | No              | Indirect (via File IPC) |
-| **DirectoryWatcher**     | primitive class | No             | Indirect (chokidar)     | No                        | No (used by business modules) |
-| **`@main/utils/file/*`** | shared helpers  | No             | Yes                     | shell (open/showInFolder) | No                  |
-| **direct `node:fs`**     | raw platform API | No            | Yes                     | No                        | No                  |
-| **FileEntryService**     | data repository | Yes (direct)   | No                      | No                        | Yes (via DataApi)   |
-| **FileRefService**       | read facade     | Yes (direct)   | No              | No                        | Yes (via DataApi reads) |
-**Core principles**:
-
-- **File IPC adapter owns renderer transport and dispatch**—it depends on FileManager for entry arms and `services/file/utils/*` for path arms; it does not directly import `node:fs`.
-- **FileManager is the sole entry point for FileEntry operations**—it resolves entry ids, coordinates DB (via repository) + FS helpers, and owns runtime caches. It does not own the File IPC route layer.
-- **Raw FS access is not globally centralized**—main modules may choose `services/file/utils/*`, `@main/utils/file/*`, or direct `node:fs` based on the abstraction level they need. The review gate is narrower: do not bypass FileManager for writes to FileEntry-backed paths.
-- **The Renderer never operates on the FS directly**; all FS operations are delegated to Main via IPC.
-
----
+| Query stored entry/ref data | DataApi / data services |
+| Create or mutate a `FileEntry` | FileManager |
+| Read or mutate a handle from renderer | File IpcApi adapter |
+| Use a raw path in a main-owned workflow | `src/main/utils/file/` or a narrow file-domain helper |
+| Track a live directory hierarchy | DirectoryTreeManager / `useDirectoryTree` |
+| Track external-entry presence | DanglingCache through FileManager/File IPC |
+
+The authoritative physical path of an internal entry is resolved in main from the application path
+registry. Renderer code may consume a returned path for display, drag-and-drop, or a subprocess,
+but must not reconstruct the managed-storage layout.
 
 ## 5. Business Service Integration
 
-### 5.1 Interaction Overview
+### 5.1 Persistent References
 
-```
-+- Renderer --------------------------------------------------------+
-|                                                                   |
-|  useQuery('/files/...')        ipcApi.request('file.*')           |
-|           |                                    |                  |
-+-----------|------------------------------------|------------------+
-            | DataApi (no fs side effect)        | File IPC / IpcApi
-            |                                    |
-+===========|====================================|==================+
-|  Main     |                                    |                  |
-|  Process  v                                    v                  |
-|                                                                   |
-|  +-----------------------------------------------------------+    |
-|  | File IPC adapter (src/main/ipc/handlers/file.ts)          |    |
-|  |  validates schemas                                        |    |
-|  |  dispatches FileHandle                                    |    |
-|  |    entry arm -> FileManager                               |    |
-|  |    path arm  -> services/file/utils/*                     |    |
-|  |  no direct node:fs imports                                |    |
-|  +-----------------------------------------------------------+    |
-|                                                                   |
-|  Lifecycle Services                                               |
-|  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   |
-|  +-----------------------------------------------------------+    |
-|  | FileManager                                               |    |
-|  |  -- entry ops --                                          |    |
-|  |  createInternalEntry / ensureExternalEntry (upsert by path)|   |
-|  |  trash / restore / rename / copy / permDelete             |    |
-|  |  read / write / writeIfUnchanged / withTempCopy           |    |
-|  |                                                           |    |
-|  |  -- version / live metadata --                            |    |
-|  |  getVersion / getContentHash / getMetadata                |    |
-|  |                                                           |    |
-|  |  -- Electron dialog --                                    |    |
-|  |  showOpenDialog / showSaveDialog                          |    |
-|  |                                                           |    |
-|  |  in-memory: LRU version cache                             |    |
-|  |                                                           |    |
-|  |  -- Orphan Sweep --                                       |    |
-|  |  FS half: fileSweepTick (idle, weekly floor)              |    |
-|  |  Full report: runSweep() on demand via IPC                |    |
-|  +-----------------------------------------------------------+    |
-|                                                                   |
-|  +-----------------------------------------------------------+    |
-|  | services/file/utils/*                                     |    |
-|  |  pathResolver.ts / metadata.ts                            |    |
-|  |  file-module path/API semantics for FileManager + IPC     |    |
-|  +-----------------------------------------------------------+    |
-|                                                                   |
-|  +-----------------------------------------------------------+    |
-|  | DanglingCache (singleton)                                 |    |
-|  |  check(entry) → DanglingState                             |    |
-|  |  onFsEvent(path, 'present' | 'missing')                   |    |
-|  |  state: Map<entryId, DanglingState>                       |    |
-|  |  reverse index: Map<path, Set<entryId>>                   |    |
-|  |  populated on startup from DB (all external — external    |    |
-|  |  entries cannot be trashed)                               |    |
-|  |  updated by watcher events / ops observations             |    |
-|  +-----------------------------------------------------------+    |
-|                                                                   |
-|  +-----------------------------------------------------------+    |
-|  | @main/utils/file/*  (shared raw FS helpers)               |    |
-|  |  fs.ts / shell.ts / path.ts / metadata.ts / search.ts     |    |
-|  |  pure path-based helpers, open to main modules            |    |
-|  +-----------------------------------------------------------+    |
-|                                                                   |
-|  Data Repositories (via DataApiService bridge to Renderer)        |
-|  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   |
-|  +-----------------------------------------------------------+    |
-|  | FileEntryService (data repository, DB only)               |    |
-|  |  getById / list / create / update / delete                |    |
-|  +-----------------------------------------------------------+    |
-|  +-----------------------------------------------------------+    |
-|  | FileRefService (read facade)                              |    |
-|  |  findByEntryId / findBySource / countByEntryIds           |    |
-|  +-----------------------------------------------------------+    |
-|                                                                   |
-|  Business Services (examples — each module chooses its own       |
-|   origin and ref conventions)                                     |
-|  +---------------+ +------------------+                           |
-|  | MessageService| | PaintingService |   ...                     |
-|  +---+-----------+ +------+-----------+                           |
-|      |   |                |   |                                   |
-|      read/write          read/write                               |
-|      ref mgmt            ref mgmt                                 |
-|      (may use            (may use                                 |
-|       DirectoryWatcher)   DirectoryWatcher)                       |
-|                                                                   |
-|  On-demand cleanup (inside FileManager.runSweep)                  |
-|  +---------------------------------------------------------+      |
-|  | DB orphan sweep                                         |      |
-|  |  reports active file_entry rows with zero refs          |      |
-|  +---------------------------------------------------------+      |
-+===================================================================+
-```
+Persistent business domains own their association tables, foreign keys, and writes. Current source
+tables are registered in `persistentFileRefTablesBySourceType` in
+`src/main/data/db/schemas/fileRelations.ts`. `FileRefService` only aggregates them for reads,
+reference counts, and cleanup decisions.
 
-**Key data flows**:
+Source deletion should cascade its association rows. Multi-write business operations use the
+owning service's synchronous `withWriteTx` flow so the source row and its file refs commit together.
 
-- **Renderer → Main (read, SQL-backed data)**: DataApi → Handler → FileEntryService → DB (pure SQL; no FS, no resolvers)
-- **Renderer → Main (read, FS / compute-backed enrichment)**: File IPC → adapter dispatch → FileManager for entry arms, `services/file/utils/*` for path arms. `file://` URL composition happens in-process on top of the returned path via the shared `toSafeFileUrl` helper — no dedicated IPC.
-- **Renderer → Main (write)**: File IPC → FileManager (entry operations coordinate DB + FS helpers/primitives)
-- **Business Service → file data**: pure DB operations call data repositories directly; FileEntry operations go through FileManager; path-only needs can use `services/file/utils/*`, `@main/utils/file/*`, or direct `node:fs` as appropriate
-- **External directory monitoring**: business services create instances via the `createDirectoryWatcher()` factory and subscribe to the events they care about; the factory internally injects events into DanglingCache (business unaware)
+### 5.2 Adding a New Reference Source
 
-### 5.2 Touchpoints for Business Services
+When a new persistent business object references files:
 
-Business services interact with the file module through three channels:
+1. Add a source-owned association table with foreign keys to both the source row and `file_entry`.
+2. Add the source type and `FileRef` variant in `src/shared/data/types/file.ts`.
+3. Register the table in `persistentFileRefTablesBySourceType`.
+4. Extend every exhaustive mapping in `FileRefService` and its tests.
+5. Write refs through the owning business service, preferably in the source write transaction.
 
-- **No-FS-side-effect operations** → import data repositories directly for entry queries (`fileEntryService`) and cross-source ref reads (`fileRefService`); persistent ref writes belong to the owning business service's association table.
-- **FS-involving operations** (read/write file content, create/delete entry) → **FileManager**.
-- **External directory monitoring** (if needed) → call the `createDirectoryWatcher()` factory (provided by file_module); the factory auto-wires events into DanglingCache; the business only subscribes to events it cares about.
+This registration also feeds the anti-join used by manual-orphan reporting and automatic entry
+cleanup. A separate file-domain write API is not needed.
 
-#### (1) Persistent Business Refs — Owned by Business Services
+For filesystem access, business services may use `src/main/utils/file/` on paths their own domain
+owns. They must not point those helpers at internal FileManager storage: doing so bypasses managed
+size/hash updates, the content-write lock, and cache invalidation. Use FileManager for any mutation
+identified by `FileEntryId`.
 
-When a persistent business object owns files, model that relationship with a dedicated association table, not a polymorphic `file_ref` repository. The table should FK to both `file_entry` and the owning source row, with `ON DELETE CASCADE` on both sides.
+## 6. Lifecycle
 
-Current examples:
+Both `FileManager` and `DirectoryTreeManager` are registered in
+`src/main/core/application/serviceRegistry.ts` at `Phase.WhenReady`.
 
-- `chat_message_file_ref` is owned by chat/topic/message flows (`TopicService` copies rows when duplicating message paths; migrators backfill rows directly).
-- `painting_file_ref` is owned by `PaintingService` (`create`/`update` write rows directly; source deletion relies on FK cascade).
-- `job_file_ref` is owned by `JobService.addFileRefsTx` (tx-scoped, so `AiService.generateImageViaJob` composes it into the same transaction as `JobManager.enqueueTx`; the async image job's `delete_when_unreferenced` inputs then stay referenced for its lifetime, and terminal-row pruning cascades them away — see [file-entry-cleanup.md §5.1](./file-entry-cleanup.md#51-candidate-query)).
+- FileManager initializes the external-entry reverse index, registers remaining legacy handlers,
+  registers content-hash backfill work, and starts its cleanup interval.
+- DirectoryTreeManager creates resources on demand and closes consumers, builders, watchers, and
+  WebContents listeners during shutdown.
 
-`FileRefService` does **not** create/copy/replace persistent refs. It is the cross-source read facade used by DataApi and sweep (`findByEntryId`, `findBySource`, `countByEntryIds`).
+Production code resolves either service through `application.get(...)`; direct construction is a
+test seam.
 
-#### (2) Developer Checklist for Adding a New sourceType
+## 7. Source Map
 
-To avoid the governance pitfall of "added a sourceType but forgot to wire up some step", follow the order below when adding a new variant (every step is required):
-
-| Step | Location | Action | Enforcement |
-|---|---|---|---|
-| 1 | `src/shared/data/types/file/ref/<name>.ts` | Create the variant file: declare `xxxSourceType` / `xxxRoles` / `xxxRefFields` + `xxxFileRefSchema = createRefSchema(...)` | Code review |
-| 2 | `src/shared/data/types/file/ref/index.ts` | Add the variant to `allSourceTypes` (type aggregation) + `FileRefSchema` discriminated union | Type system narrow failure |
-| 3 | `src/main/data/db/schemas/*` | Add the dedicated FK-constrained association table | Migration + schema tests |
-| 4 | Owning business service/migrator | Write/copy/delete relationship rows directly; use FK cascade for source and `file_entry` deletion | Unit/integration tests |
-| 5 | `FileRefService` | Add the table to read/ref-count aggregation only — the registry-driven cleanup anti-join (`persistentRefAbsenceConditions`) picks it up automatically; a missing `persistentFileRefTablesBySourceType` entry fails compilation (`satisfies Record<PersistentFileRefSourceType, …>` in `fileRelations.ts`), and the vitest coverage test additionally pins that `persistentRefAbsenceConditions()` stays registry-derived rather than hand-enumerated | DataApi + sweep tests |
-
-**Design intent**:
-
-- **Ownership is local**: business services own their persistent relationship tables and update semantics.
-- **Cascade first**: when a persistent source table exists, the association table owns an FK to it and source deletion cascades automatically.
-- **Sweep is narrow**: the DB sweep is a report pass, not a generic source-deletion reconciler. It reports active entries with zero refs.
-- **There is no per-sourceType `onSourceDeleted` hook**: persistent source deletion should be modeled with FKs; business-specific cleanup belongs to the business service's own delete flow and should not be coupled to the ref facade.
-
-#### (3) Ways Business Services Access Files
-
-```
-BusinessService
-    |
-    +-- direct import (no FS side effect)
-    |   +-- fileEntryService.getById(entryId)       -> FileEntry
-    |   +-- fileEntryService.findMany(query)        -> FileEntry[]
-    |   +-- fileRefService.findByEntryId(entryId)   -> FileRef[]
-    |   +-- fileRefService.countByEntryIds(ids)     -> Map<FileEntryId, number>
-    |   +-- own *_file_ref table writes             -> persistent business refs
-    |
-    +-- via FileManager (has FS side effect)
-    |   +-- read(entryId, opts?)                    -> ReadResult
-    |   +-- write(entryId, data)                    -> FileVersion  [internal only]
-    |   +-- writeIfUnchanged(entryId, data, ver)    -> FileVersion  [internal only]
-    |   +-- withTempCopy(entryId, fn)               -> T            [for 3rd-party libs]
-    |
-    +-- fileModule.createDirectoryWatcher(opts) (optional)
-    |   +-- for monitoring external directories (NoteService etc. business)
-    |   +-- factory auto-wires events into DanglingCache
-    |
-    x-- fs.readFile / writeFile / unlink                 -> FORBIDDEN for FileEntry paths
-    x-- @main/utils/file/fs direct on FileEntry-backed paths -> FORBIDDEN (same reason)
-    x-- FilePathHandle pointing at {userData}/Data/Files/{uuid}.{ext}
-                                                   -> FORBIDDEN for writes — silently desyncs
-                                                       FileEntry.size on internal entries
-```
-
-**Why business services are forbidden from directly operating on the physical files backing a FileEntry**:
-
-- **Path opacity**: the physical path is determined by origin (internal = UUID-based; external = user-provided); business services must not assume it
-- **DB consistency (internal only)**: `FileEntry.size` is authoritative for internal rows and is kept in sync by FileManager's atomic write path. Writing the UUID-backed file directly (via `@main/utils/file/fs` or a `FilePathHandle` to `{userData}/Data/Files/...`) leaves the stored `size` stale relative to the physical file — a silent DataApi drift with no type-system guard.
-- **Cache consistency**: FileManager maintains an in-memory `versionCache`; bypassing it leaves `getVersion` returning stale `(mtime, size)` until the next write/reconcile. `writeIfUnchanged` is unaffected (it always re-stats — see [`file-manager-architecture.md §4.4`](./file-manager-architecture.md#44-lru-version-cache)), but UI surfaces that display cached mtime can show stale values.
-- **Atomicity guarantee**: writes must go through FileManager's atomic write path
-
-**Enforcement model** — this is a **convention-only constraint**: neither the type system nor `@main/utils/file/fs` runtime checks the target path against the internal-storage tree. Legitimate consumers of the primitives outside the file module (BootConfig, MCP oauth, etc.) operate on their own directories and are unaffected; the scope of the rule is specifically "do not point writes at `{userData}/Data/Files/`". Violations are caught by code review.
-
-The scope of this constraint is **physical files backing a FileEntry**. Other modules' own files (Knowledge vector index, Agent workspace, MCP config, Notes, etc.) are outside this constraint.
-
-### 5.3 Exposure Principles for Path Operations
-
-`resolvePhysicalPath` **is not exposed externally**. Business services obtain file content via two channels:
-
-1. **Buffer / Stream**: `FileManager.read` / `createReadStream` — the majority of cases
-2. **Temporary copy**: `FileManager.withTempCopy(id, fn)` — for third-party libraries that only accept a path (sharp / pdf-lib / officeparser, etc.)
-
-This guarantees that writes necessarily go through FileManager (no write-path escape at the type-system level), while providing an escape hatch for third-party libraries that strictly require a path.
-
-**Future**: AI SDK uploads will be wrapped by a standalone `FileUploadService.ensureUploaded` combining read + upload (to be introduced after the AI SDK Files API is stable).
-
----
-
-## 6. Service Lifecycle
-
-### 6.1 Startup Phase Assignment
-
-```
-Lifecycle Services:
-
-BeforeReady (parallel with app.whenReady(), no Electron API)
-+-- DbService                    -- database connection
-
-WhenReady (after app.whenReady(), Electron API available)
-+-- FileManager                  -- entry coordination + runtime caches
-      @Injectable + @ServicePhase(WhenReady)
-      (no @DependsOn in Phase 1 — DbService is BeforeReady and phase
-       ordering handles it automatically per the lifecycle decorator
-       rules; WindowManager dep lands together with the §3.6 broadcast
-       pipeline in Phase 2)
-      onInit(): awaits DanglingCache.initFromDb(), then fires the entry-cleanup
-                reaper (auto-policy reclamation) — a non-awaited startup pass
-                (`runEntryCleanup`) plus an idle-gated interval (see
-                file-entry-cleanup.md §5.5). Legacy File_* compatibility handlers
-                may still be registered here during migration, but new File IPC
-                responsibility belongs to the IpcApi adapter layer. The
-                `runSweep` umbrella is separate — it never auto-triggers; an
-                explicit caller invokes it via IPC. Its FS half is *also*
-                scheduled on its own (see below), so reclamation does not
-                depend on that caller existing.
-
-On-Demand umbrella (File_RunSweep IPC — no renderer caller today)
-+-- FileManager.runSweep -- runs two concurrent passes and returns one
-                            OrphanReport when both settle:
-                            • runFileSweep:       cleans orphan UUID files +
-                                                  *.tmp-<uuid> residues.
-                                                  ALSO runs unattended from
-                                                  FileManager.fileSweepTick —
-                                                  the idle cleanup tick, behind
-                                                  a 7-day floor. That is what
-                                                  actually reclaims orphan
-                                                  blobs in production.
-                            • runDbSweep (internal helper — NOT a separate
-                              lifecycle service, NOT scheduled):
-                              orphan-entry report
-                              per §7 Layer 3
-
-Singletons / Primitives (no lifecycle):
-+-- services/file/utils/*         -- file-module path/API helpers
-+-- @main/utils/file/*            -- shared raw FS helpers
-+-- DanglingCache                 -- file_module singleton, populated lazily
-+-- DirectoryWatcher              -- consumable class, created via factory
-
-Data Services (not lifecycle, managed by DataApiService):
-+-- FileEntryService              -- entry CRUD (pure DB)
-+-- FileRefService                -- ref reads/counts
-```
-
-**Deferred introduction (after AI SDK is stable)**:
-
-- `FileUploadService` (lifecycle service) + `FileUploadRepository`
-
-### 6.2 Startup Timeline
-
-```
-                     BeforeReady
-                          |
-                      DbService
-                          |
-                     app.whenReady()
-                          |
-                          v     WhenReady
-                     FileManager.onInit():
-                       1. await DanglingCache.initFromDb()
-                          (SELECT id, externalPath FROM file_entry
-                           WHERE origin='external'
-                           — external rows are never trashed by invariant)
-                       2. register only temporary legacy File_* compatibility
-                          handlers that have not yet moved to IpcApi
-                          (version cache constructs at field-init time;
-                           §3.6 broadcast wiring is deferred to Phase 2)
-                       3. fire the entry-cleanup reaper (auto-policy reclamation):
-                          a non-awaited `runEntryCleanup` startup pass + an
-                          idle-gated interval (file-entry-cleanup.md §5.5)
-                                   │
-                          (ready signal emitted immediately)
-                          │
-                          ▼
-                      onAllReady()
-                          │
-                          ▼ (on demand via File_RunSweep; the FS half also
-                          ▼  runs unattended from fileSweepTick)
-                 FileManager.runSweep — runs concurrently:
-                   • FS-level: UUID files not in DB → unlink,
-                     *.tmp-<uuid> → unlink
-                   • DB-level: orphan-entry report
-                 (uuid here is v4 from node:crypto.randomUUID;
-                  orphan sweep regex is version-agnostic)
-```
-
-**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). The entry-cleanup reaper (`delete_when_unreferenced` reclamation, file-entry-cleanup.md) *does* fire at startup — a non-awaited `runEntryCleanup` pass plus an idle-gated interval — but it is distinct from the `runSweep` umbrella (FS orphan unlink + `manual` orphan report). That umbrella runs only on demand via `File_RunSweep`, which has no renderer caller today — its FS half, however, is scheduled independently on the same idle tick (`fileSweepTick`, weekly floor), which is what actually reclaims orphan blobs.
-
-### 6.3 Dependency Declarations for Business Services
-
-Any business service that consumes FileManager needs `@DependsOn(FileManager)`:
-
-```
-<AnyBusinessService>
-  @DependsOn(FileManager)
-  +-- queries entries via fileEntryService (no FS side effect)
-  +-- owns persistent *_file_ref rows directly; uses fileRefService for ref reads/counts
-  +-- reads file content via FileManager (FS)
-  +-- (optional) owns DirectoryWatcher instances via the factory
-```
-
-Specific services and their dependency declarations are registered by each business module in `serviceRegistry.ts`.
-
----
-
-## 7. File Locations and Module Boundaries
-
-```
-src/main/data/                        -- data layer
-  services/
-    FileEntryService.ts               -- repository: exports fileEntryService
-    FileRefService.ts                 -- read facade: exports fileRefService
-  api/handlers/
-    files.ts                          -- DataApi handler, no FS side effect
-  db/schemas/
-    file.ts                           -- file_entry
-    fileRelations.ts                  -- chat_message_file_ref / painting_file_ref / job_file_ref
-                                      -- provider_logo_file_ref / mini_app_logo_file_ref
-
-src/main/ipc/handlers/
-  file.ts                            -- File IPC adapter: schema-validated routes,
-                                        FileHandle dispatch, no direct node:fs
-
-src/main/services/file/               -- file module
-  FileManager.ts                      -- FileEntry lifecycle/runtime service; scheduled
-                                         entry cleanup + FS sweep ticks, on-demand runSweep()
-  internal/orphanSweep.ts             -- internal helper: UUID file + *.tmp residue cleanup
-  danglingCache.ts                    -- singleton: external entry presence state
-                                         exports: check / onFsEvent / addEntry / removeEntry
-  utils/
-    content.ts                        -- consistent path read + path conditional write
-    pathResolver.ts                   -- FileEntry path resolution
-    metadata.ts                       -- path-arm PhysicalFileMetadata projection
-  watcher/
-    DirectoryWatcher.ts               -- chokidar wrapper primitive
-    factory.ts                        -- createDirectoryWatcher() — auto-wires danglingCache
-    index.ts                          -- barrel export
-
-src/main/utils/file/                  -- shared raw FS helpers, open to the entire main process
-  index.ts                            -- barrel; re-exports `./legacyFile`
-  fs.ts                               -- read / write / stat / copy / move / remove
-                                         atomicWriteFile / atomicWriteIfUnchanged
-                                         createAtomicWriteStream
-                                         statVersion / contentHash (XXH3-64)
-  shell.ts                            -- open / showInFolder
-  path.ts                             -- resolvePath / isPathInside / canWrite / isNotEmptyDir
-  metadata.ts                         -- getFileType / isTextFile / mimeToExt
-  search.ts                           -- listDirectory (ripgrep + fuzzy matching)
-  legacyFile.ts                       -- shared helpers: getFileType(ext) / sanitizeFilename / getAllFiles / pathExists / …
-```
-
----
-
-## 8. Constraints and Limitations
-
-- **External entry is a best-effort reference**: no guarantee the file remains stable, no guarantee content matches the reference-time content. Equivalent to "the user expressed intent to reference this path at some point" semantics in tools like codex
-- **External entry path is globally unique**: at most one row per `externalPath` at any time, regardless of any state (SQLite global unique index on `externalPath`; internal rows have `externalPath = null` and are exempt, since SQLite treats multiple NULLs as distinct). `ensureExternalEntry` is therefore a pure upsert by path — reuse if an entry exists, otherwise insert; no "restore" branch is possible because external entries cannot be trashed.
-- **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR deletedAt IS NULL)` (`fe_external_no_delete`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
-- **External entries allow explicit user edits**: `write` / `writeIfUnchanged` / `createWriteStream` / `rename` take effect on external (delegated to ops' atomic write / fs.rename), triggered by explicit user action. Cherry does **not** perform automatic / watcher-driven external file modifications
-- **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans persistent association refs; the physical file is left untouched. Path-level deletion remains available via `remove(path)` (from `@main/utils/file/fs`, reached through a `FilePathHandle`), which is a separate explicit call not bound to any entry id.
-- **Cherry does not track rename/move of external files**: an external rename turns the entry dangling; the user must re-@ to establish a new reference
-- **External entry DB row carries no `size`**: `size` is `null` on every external row by design (enforced by `fe_size_internal_only` CHECK). `name` / `ext` are pure projections of `externalPath` and do not drift. Live `size` / `mtime` are served by File IPC `getMetadata(handle)` / `batchGetMetadata({ items })`; DataApi never exposes them.
-- **Dangling state exposed via DanglingCache + File IPC query methods** (`getDanglingState` / `batchGetDanglingStates`); never exposed via DataApi: not persisted to DB; watcher events + cold-path stat push updates
-- **Physical paths are not persisted**: internal is derived from `application.getPath('feature.files.data', ...)`; external is read from the `externalPath` column
-- **Persistent FileRef associations are FK-constrained**: each business source owns its `*_file_ref` table with cascades to `file_entry` and the source row.
-- **File Module does not do directory import / bidirectional sync**: business modules implement this with DirectoryWatcher + their own mapping tables
-- **File Module does not start any chokidar watcher**: watcher lifecycles are managed by business modules; when created via the factory, DanglingCache is automatically wired
-
----
-
-## 9. Extension Points
-
-| Extension direction                     | Integration path                                                                                |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| AI provider uploads                     | Refactor `FileServiceManager` into a lifecycle `FileUploadService` ahead of AI SDK stable (see §1.1); add `file_upload` table additively when persistence is needed; FileEntry structure unchanged |
-| New business reference source           | Add a shared ref variant, a dedicated FK-constrained association table, owning-service writes, and FileRefService read/ref-count aggregation              |
-| Business module needs to watch external dir | Obtain an instance via `createDirectoryWatcher()` factory; subscribe to events; DanglingCache auto-syncs |
-| Dangling reactivity (real-time push to renderer) | Currently pull-based via File IPC `getDanglingState` + React Query refresh; future could push state changes over IPC so renderer invalidates presence queries on DanglingCache events |
-| Cross-device file sync                  | Out of file_module scope; solved by the application layer or external sync tools (Drive/Dropbox) |
-| Full-text search                        | `@main/utils/file/search` provides ripgrep-based scanning; persistent indexes managed by businesses like Knowledge |
+| Area | Source |
+|---|---|
+| Entry and ref types | `src/shared/data/types/file.ts` |
+| Filesystem value types | `src/shared/types/file/` |
+| IpcApi contract | `src/shared/ipc/schemas/file.ts` |
+| IpcApi handlers | `src/main/ipc/handlers/file.ts` |
+| DataApi contract and handlers | `src/shared/data/api/schemas/files.ts`, `src/main/data/api/handlers/files.ts` |
+| FileManager facade and internals | `src/main/services/file/` |
+| General main-process filesystem helpers | `src/main/utils/file/` |
+| Directory tree renderer mirror | `src/renderer/hooks/useDirectoryTree.ts` |

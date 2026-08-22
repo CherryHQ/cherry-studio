@@ -11,6 +11,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -18,10 +19,7 @@ import {
   backupToNutstore,
   checkConnection,
   createDirectory,
-  getNutstoreSyncState,
-  restoreFromNutstore,
-  startNutstoreAutoSync,
-  stopNutstoreAutoSync
+  restoreFromNutstore
 } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -40,7 +38,7 @@ const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const nutstoreSyncState = getNutstoreSyncState()
+  const nutstoreSyncState = useBackupSyncState('nutstore')
 
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
@@ -96,7 +94,7 @@ const NutstoreSettings: FC = () => {
     if (confirmedLogout) {
       void setNutstoreToken('')
       void setNutstorePath('')
-      void setNutstoreAutoSync(false)
+      await setNutstoreAutoSync(false)
       setNutstoreUsername('')
     }
   }, [setNutstorePath, setNutstoreToken, setNutstoreAutoSync, t])
@@ -128,10 +126,8 @@ const NutstoreSettings: FC = () => {
     await setNutstoreSyncInterval(value)
     if (value === 0) {
       await setNutstoreAutoSync(false)
-      stopNutstoreAutoSync()
     } else {
       await setNutstoreAutoSync(true)
-      void startNutstoreAutoSync()
     }
   }
 

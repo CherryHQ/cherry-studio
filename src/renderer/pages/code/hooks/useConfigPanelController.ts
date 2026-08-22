@@ -1,9 +1,9 @@
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,7 +29,6 @@ const logger = loggerService.withContext('useConfigPanelController')
 interface UseConfigPanelControllerOptions {
   selectedCliTool: CodeCli
   toolName: string
-  isToolInstalled: boolean
   currentProviderId: string | null
   providerConfigs: Record<string, CliProviderConfig>
   upsertProviderConfig: (
@@ -42,6 +41,9 @@ interface UseConfigPanelControllerOptions {
   makeModelFilter: (providerId: string) => (model: Model) => boolean
   /** Synthetic Cherry gateway bundle (null when the gateway config is unavailable). */
   apiGatewayProvider?: ApiGatewayProviderBundle | null
+  gatewayModelsById?: Map<UniqueModelId, Model>
+  /** True while either query backing `gatewayModelsById` is still in flight. */
+  isGatewayModelsLoading?: boolean
 }
 
 interface ConfigPanelController {
@@ -55,7 +57,6 @@ interface ConfigPanelController {
 export function useConfigPanelController({
   selectedCliTool,
   toolName,
-  isToolInstalled,
   currentProviderId,
   providerConfigs,
   upsertProviderConfig,
@@ -63,7 +64,9 @@ export function useConfigPanelController({
   setCurrentProvider,
   setCurrentCliConfigConnection,
   makeModelFilter,
-  apiGatewayProvider
+  apiGatewayProvider,
+  gatewayModelsById,
+  isGatewayModelsLoading
 }: UseConfigPanelControllerOptions): ConfigPanelController {
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
@@ -125,13 +128,30 @@ export function useConfigPanelController({
       }
 
       const shouldEnableAfterSave = pendingEnableProviderIdRef.current === editingProvider.id
-      const resolvedCliConfigContext = resolveCliConfigApplyContext(selectedCliTool, editingProvider.id, {
-        modelId,
-        config: sanitizedConfig ?? providerConfigs[editingProvider.id]?.config
-      })
+      const resolvedCliConfigContext = resolveCliConfigApplyContext(
+        selectedCliTool,
+        editingProvider.id,
+        {
+          modelId,
+          config: sanitizedConfig ?? providerConfigs[editingProvider.id]?.config
+        },
+        isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined
+      )
       const cliConfigModelId = values.cliConfigModelId ?? resolvedCliConfigContext?.modelId
       const writePrimaryModel = values.writePrimaryModel ?? resolvedCliConfigContext?.writePrimaryModel
+      if (isApiGatewayProviderId(editingProvider.id) && writePrimaryModel === false && !cliConfigModelId) {
+        throw new Error('Cannot resolve the detailed gateway model')
+      }
       const shouldApplyCliConfig = currentProviderId === editingProvider.id || shouldEnableAfterSave
+      // Preference and the external CLI files are one user-visible config. The active provider owns
+      // the current files, so with nothing addressing a model the write below is skipped and
+      // persisting anyway would strand the files on their previous contents (e.g. flipping Claude's
+      // detailed mode back to common without picking a model). Reject instead of half-saving.
+      // Only the active provider is at risk: any other provider owns no files to diverge from, and
+      // an enable-on-save that resolves no model simply leaves it disabled with its params stored.
+      if (currentProviderId === editingProvider.id && !cliConfigModelId) {
+        throw new Error('Cannot apply a CLI config without a model')
+      }
       const previousProviderConfig = providerConfigs[editingProvider.id]
       let providerConfigPersisted = false
       if (hasModelValue || hasConfigValue) {
@@ -142,6 +162,11 @@ export function useConfigPanelController({
         providerConfigPersisted = true
       }
       logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
+      if (selectedCliTool === CodeCli.DEEPSEEK_HARNESS) {
+        if (shouldEnableAfterSave) await setCurrentProvider(editingProvider.id)
+        setCurrentCliConfigConnection(null)
+        return
+      }
       if (!cliConfigModelId || !shouldApplyCliConfig) return
 
       try {
@@ -194,20 +219,14 @@ export function useConfigPanelController({
       deleteProviderConfig,
       setCurrentProvider,
       setCurrentCliConfigConnection,
-      resolveGatewayWriteContext
+      resolveGatewayWriteContext,
+      gatewayModelsById
     ]
   )
 
   const handleToggleCurrent = useCallback(
     (provider: Provider) => {
       const isEnabling = currentProviderId !== provider.id
-      // Enabling injects config into the CLI's own files, which is meaningless until the CLI is
-      // installed — nudge the user to install it instead of marking a provider "enabled" that can
-      // never launch. Disabling (scrubbing config) stays allowed regardless.
-      if (isEnabling && !isToolInstalled) {
-        toast.error(t('code.install_tool_first', { toolName }))
-        return
-      }
       // Ignore a re-entrant toggle for the same tool while its config write/clear is still running.
       if (inFlightToolsRef.current.has(selectedCliTool)) return
       inFlightToolsRef.current.add(selectedCliTool)
@@ -237,9 +256,11 @@ export function useConfigPanelController({
         }
         if (!isEnabling) {
           try {
-            await clearCliConfig({ cliTool: selectedCliTool })
-            // Only clear the active selection after the scrub succeeded; otherwise the UI would show the
-            // provider disabled while the CLI config/credential files still retain its managed credentials.
+            if (selectedCliTool !== CodeCli.DEEPSEEK_HARNESS) {
+              await clearCliConfig({ cliTool: selectedCliTool })
+            }
+            // Only clear the active selection after any required scrub succeeds; otherwise the UI could show
+            // a file-configured provider disabled while its CLI files still retain managed credentials.
             await setCurrentProvider(null)
             setCurrentCliConfigConnection(null)
           } catch (err) {
@@ -252,7 +273,12 @@ export function useConfigPanelController({
         // Ensure the provider has a model before injecting. If none is saved,
         // open configuration so the user chooses explicitly.
         const cfg = providerConfigs[provider.id]
-        const cliConfigContext = resolveCliConfigApplyContext(selectedCliTool, provider.id, cfg)
+        const cliConfigContext = resolveCliConfigApplyContext(
+          selectedCliTool,
+          provider.id,
+          cfg,
+          isApiGatewayProviderId(provider.id) ? gatewayModelsById : undefined
+        )
         if (cfg?.modelId && !parseConfiguredModelId(cfg.modelId) && !cliConfigContext) {
           await upsertProviderConfig(provider.id, { modelId: null })
           pendingEnableProviderIdRef.current = provider.id
@@ -263,6 +289,17 @@ export function useConfigPanelController({
         if (!cliConfigContext) {
           pendingEnableProviderIdRef.current = provider.id
           setEditingProvider(provider)
+          return
+        }
+
+        if (selectedCliTool === CodeCli.DEEPSEEK_HARNESS) {
+          try {
+            await setCurrentProvider(provider.id)
+            setCurrentCliConfigConnection(null)
+          } catch (err) {
+            logger.error('Failed to select DeepSeek Harness provider:', err as Error)
+            toast.error(t('code.apply_failed'))
+          }
           return
         }
 
@@ -295,13 +332,12 @@ export function useConfigPanelController({
     [
       currentProviderId,
       selectedCliTool,
-      toolName,
-      isToolInstalled,
       providerConfigs,
       upsertProviderConfig,
       setCurrentProvider,
       setCurrentCliConfigConnection,
       resolveGatewayWriteContext,
+      gatewayModelsById,
       t
     ]
   )
@@ -357,6 +393,8 @@ export function useConfigPanelController({
               isApiGatewayProviderId(editingProvider.id) && apiGatewayProvider
                 ? { provider: apiGatewayProvider.provider, apiKey: apiGatewayProvider.apiKey ?? '' }
                 : undefined,
+            gatewayModels: isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined,
+            isGatewayModelsLoading: isApiGatewayProviderId(editingProvider.id) ? isGatewayModelsLoading : false,
             onSubmit: handlePanelSubmit
           }
         : undefined,

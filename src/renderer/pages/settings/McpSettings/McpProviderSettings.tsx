@@ -65,9 +65,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
     (value: string) => {
       setToken(value)
       // Auto-save token when user types
-      if (value.trim()) {
-        provider.saveToken(value)
-      }
+      provider.saveToken(value)
     },
     [provider]
   )

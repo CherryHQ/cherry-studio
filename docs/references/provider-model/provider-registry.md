@@ -1,3 +1,12 @@
+---
+description: How preset provider and model registry data is loaded, normalized, seeded, and merged with user data
+sources:
+  - packages/provider-registry
+  - src/main/data/services/ProviderRegistryService.ts
+  - src/main/data/services/ModelService.ts
+  - src/main/data/db/seeding
+---
+
 # Provider & Model Registry System
 
 This document describes how Cherry Studio loads, parses, and merges provider/model preset data with user data.

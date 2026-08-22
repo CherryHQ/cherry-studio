@@ -1,12 +1,11 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
-import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MessageStats } from '@shared/data/types/message'
 import type { FC } from 'react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMessageListActions } from '../MessageListProvider'
+import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import { getMessageModelTokensPerSecond } from './messagePerformance'
 import MessageTokenDetailsCard from './MessageTokenDetailsCard'
@@ -42,7 +41,7 @@ function AssistantMessageTokens({
   const [showAllDetails, setShowAllDetails] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const contentId = useId()
-  const messageKind = isAgentSessionTopicId(message.topicId) ? 'agent-session' : 'chat'
+  const messageKind = useMessageListMeta().aiUsageMessageKind ?? 'chat'
   const { pages, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
     enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
     query: {

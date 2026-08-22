@@ -15,6 +15,7 @@ import {
   SafeExtSchema,
   UrlStringSchema
 } from '@shared/types/file'
+import { type CreateTreeIpcResult, DirectoryTreeOptionsSchema, type TreeMutationPushPayload } from '@shared/utils/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -104,6 +105,8 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
   items: z.array(createInternalEntryInputSchema).min(1).max(FILE_IPC_MAX_BATCH_CREATE_ITEMS)
 })
 
+const treeIdSchema = z.string().min(1)
+
 /**
  * File IPC schemas — filesystem-backed FileManager operations.
  *
@@ -139,5 +142,42 @@ export const fileRequestSchemas = {
     output: FileEntrySchema
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
-  'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() })
+  'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
+
+  // DirectoryTreeBuilder primitive. `create` returns the snapshot with its revision;
+  // `activate` releases the buffered mutations once the renderer mirror is listening.
+  // See docs/references/file/directory-tree.md.
+  'file.tree.create': defineRoute({
+    input: z.strictObject({ rootPath: AbsoluteFilePathSchema, options: DirectoryTreeOptionsSchema.optional() }),
+    // Output schemas are not parsed at runtime, and `SerializedTreeNode` is recursive —
+    // mirror it as a type instead of hand-writing a `z.lazy` shape nobody validates.
+    output: z.custom<CreateTreeIpcResult>()
+  }),
+  'file.tree.activate': defineRoute({
+    input: z.strictObject({ treeId: treeIdSchema, revision: z.int().nonnegative() }),
+    output: z.boolean()
+  }),
+  'file.tree.dispose': defineRoute({ input: z.strictObject({ treeId: treeIdSchema }), output: z.void() }),
+  // Rename in place only. A destination *name* rather than a path is what the
+  // primitive can actually honour: `TreeNode.path` repoints a basename inside the
+  // node's existing parent and cannot re-attach it elsewhere, so a cross-parent
+  // move would desync the child map from the path index. `SafeNameSchema` rejects
+  // separators, making that input unexpressible instead of merely rejected.
+  'file.tree.rename': defineRoute({
+    input: z.strictObject({
+      treeId: treeIdSchema,
+      oldPath: AbsoluteFilePathSchema,
+      newName: SafeNameSchema
+    }),
+    output: z.boolean()
+  })
+}
+
+/**
+ * Class-B topic stream: the manager `send`s each mutation straight to the owning
+ * window's WebContents rather than broadcasting, so a tree only costs the windows
+ * that asked for it. Consumers filter by `treeId` (the channel is shared).
+ */
+export type FileEventSchemas = {
+  'file.tree.mutation': TreeMutationPushPayload
 }

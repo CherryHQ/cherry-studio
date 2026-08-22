@@ -26,7 +26,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -58,7 +58,7 @@ export const resourceDialogHeaderClassName =
   'flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3.5 pr-12'
 export const resourceDialogTitleClassName = 'truncate text-sm'
 
-export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
+export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId' | 'contextCompressModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
 
 export type EditDialogBaseProps = {
@@ -278,11 +278,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery('/knowledge-bases', {
-    query: { limit: 100 },
-    swrOptions: { revalidateOnFocus: true }
-  })
-  const bases = useMemo(() => data?.items ?? [], [data])
+  const { bases, isLoading } = useKnowledgeBases({ revalidateOnFocus: true })
   const fieldName = 'knowledgeBaseIds' as Path<TValues>
   const watchedValue = useWatch({ control: form.control, name: fieldName })
   const value = useMemo(() => (watchedValue ?? []) as string[], [watchedValue])
@@ -676,6 +672,7 @@ export function CompactModelField({
   label,
   description,
   allowClear = false,
+  emptyLabel,
   filter,
   portalContainer,
   modelLabels,
@@ -690,6 +687,8 @@ export function CompactModelField({
   label: string
   description?: string
   allowClear?: boolean
+  /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
+  emptyLabel?: string
   filter?: (model: Model) => boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
@@ -709,6 +708,7 @@ export function CompactModelField({
   const displayLabel =
     selectedModel?.name ??
     (labelFromState && labelFromState !== selectorValue ? labelFromState : parsedModelId?.modelId) ??
+    emptyLabel ??
     t('library.config.basic.model_pick')
   const triggerModel =
     selectedModel ??
