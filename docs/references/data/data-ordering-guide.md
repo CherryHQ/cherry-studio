@@ -108,7 +108,14 @@ function PinList() {
 
 // Non-`id` primary key (e.g. miniapp.appId):
 useReorder('/mini-apps', { idKey: 'appId' })
+
+// Parameterized collection — params resolve both cache and mutation paths:
+useReorder('/prompt-bindings/:targetType/:targetId', {
+  params: { targetType: 'assistant', targetId: assistantId }
+})
 ```
+
+`id` is reserved for the reordered item (`/:id/order`), so parameterized collection paths must use distinct parent parameter names such as `targetId` or `providerId`.
 
 Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly. `useReorder` reads the items list from the cache by auto-detecting flat arrays and `{ items }`-shaped objects; see §4.3 for nested shapes.
 
@@ -347,7 +354,9 @@ Pure-function helpers `assignOrderKeysInSequence` / `assignOrderKeysByScope` sta
 - **DB column**: `order_key` (SQL) / `orderKey` (TS), always `TEXT NOT NULL`. No nullable variants.
 - **Type names**: every order-related export prefixed with `Order` (`OrderRequest`, `OrderRequestSchema`, `OrderBatchRequest`, `OrderBatchRequestSchema`, `OrderEndpoints`). No `Sort*` / `Position*` / `Rank*` aliases — the `Order` prefix is what keeps `_endpointHelpers.ts` classifiable as it grows.
 
-**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, nested ordering URLs like `/parents/:parentId/items/:id/order`.
+Parameterized segments are allowed when they define the scope of the resource's canonical collection route. For example, the canonical collection `/prompt-bindings/:targetType/:targetId` produces `/prompt-bindings/:targetType/:targetId/:id/order`.
+
+**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, or an ad hoc nested ordering URL like `/parents/:parentId/items/:id/order` when the resource already has a canonical collection route.
 
 ---
 
