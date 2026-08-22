@@ -2756,6 +2756,7 @@
         "custom_params": "Пользовательские параметры",
         "custom_params_add": "Добавить параметр",
         "custom_params_name": "Имя параметра",
+        "custom_params_value": "Значение параметра",
         "default_value": "Модель по умолчанию",
         "field": {
           "context_compress_enabled": {

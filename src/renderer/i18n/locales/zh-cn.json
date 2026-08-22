@@ -2756,6 +2756,7 @@
         "custom_params": "自定义参数",
         "custom_params_add": "添加参数",
         "custom_params_name": "参数名",
+        "custom_params_value": "参数值",
         "default_value": "模型默认",
         "field": {
           "context_compress_enabled": {

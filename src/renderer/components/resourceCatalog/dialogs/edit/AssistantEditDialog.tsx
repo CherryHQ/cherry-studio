@@ -1162,6 +1162,9 @@ function CustomParameterRow({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
+  const parameterValueLabel = param.name.trim()
+    ? `${t('library.config.basic.custom_params_value')}: ${param.name.trim()}`
+    : t('library.config.basic.custom_params_value')
   const jsonString =
     param.type === 'json'
       ? typeof param.value === 'string'
@@ -1204,6 +1207,7 @@ function CustomParameterRow({
             {param.type === 'number' ? (
               <Input
                 type="number"
+                aria-label={parameterValueLabel}
                 value={String(param.value)}
                 onChange={(event) => {
                   const parsed = parseFloat(event.target.value)
@@ -1223,7 +1227,11 @@ function CustomParameterRow({
               </Select>
             ) : null}
             {param.type === 'string' ? (
-              <Input value={String(param.value)} onChange={(event) => onValueChange(event.target.value)} />
+              <Input
+                aria-label={parameterValueLabel}
+                value={String(param.value)}
+                onChange={(event) => onValueChange(event.target.value)}
+              />
             ) : null}
           </div>
         ) : null}

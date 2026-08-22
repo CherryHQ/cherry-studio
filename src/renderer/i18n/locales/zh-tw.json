@@ -2756,6 +2756,7 @@
         "custom_params": "自訂參數",
         "custom_params_add": "新增參數",
         "custom_params_name": "參數名稱",
+        "custom_params_value": "參數值",
         "default_value": "模型預設",
         "field": {
           "context_compress_enabled": {

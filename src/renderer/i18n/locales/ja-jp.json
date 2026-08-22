@@ -2756,6 +2756,7 @@
         "custom_params": "カスタムパラメータ",
         "custom_params_add": "パラメータを追加",
         "custom_params_name": "パラメータ名",
+        "custom_params_value": "パラメータ値",
         "default_value": "モデル デフォルト",
         "field": {
           "context_compress_enabled": {

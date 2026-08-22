@@ -2756,6 +2756,7 @@
         "custom_params": "Προσαρμοσμένες παράμετροι",
         "custom_params_add": "Προσθήκη παραμέτρου",
         "custom_params_name": "Όνομα παραμέτρου",
+        "custom_params_value": "Τιμή παραμέτρου",
         "default_value": "Προεπιλεγμένο μοντέλο",
         "field": {
           "context_compress_enabled": {

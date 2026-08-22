@@ -2756,6 +2756,7 @@
         "custom_params": "Paramètres personnalisés",
         "custom_params_add": "Ajouter le paramètre",
         "custom_params_name": "Nom du paramètre",
+        "custom_params_value": "Valeur du paramètre",
         "default_value": "Modèle par défaut",
         "field": {
           "context_compress_enabled": {
