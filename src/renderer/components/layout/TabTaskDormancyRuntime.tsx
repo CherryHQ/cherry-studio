@@ -1,7 +1,5 @@
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
-import { useTranslateSessionRuntimeStatus } from '@renderer/hooks/translate'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { getTranslateSessionIdForTab } from '@renderer/utils/navigationWorkspace'
 import { classifyTurn } from '@shared/ai/transport'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { NavigationLayout } from '@shared/data/preference/preferenceTypes'
@@ -36,10 +34,8 @@ export function TabTaskDormancyRuntime({
 }): null {
   const topicId = useMemo(() => getConversationTopicId(tab.url), [tab.url])
   const statusEntry = useSharedCacheValue(`topic.stream.statuses.${topicId ?? INACTIVE_TOPIC_ID}` as const)
-  const translateRuntime = useTranslateSessionRuntimeStatus(getTranslateSessionIdForTab(tab))
   const flags = classifyTurn(statusEntry?.status)
-  const preventDormancy =
-    flags.isTurnActive || (statusEntry?.awaitingApprovalAnchors.length ?? 0) > 0 || translateRuntime.isTranslating
+  const preventDormancy = flags.isTurnActive || (statusEntry?.awaitingApprovalAnchors.length ?? 0) > 0
 
   useEffect(() => {
     // Sidebar owns app-level aggregation because a hidden conversation inside

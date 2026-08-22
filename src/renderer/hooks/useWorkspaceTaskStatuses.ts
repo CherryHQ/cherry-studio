@@ -1,5 +1,4 @@
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
-import { useTranslateWorkspaceRuntimeStatus } from '@renderer/hooks/translate'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -72,19 +71,17 @@ function aggregateWorkspaceStatuses(index: TopicStatusSnapshotIndex): {
   }
 }
 
-/** Main-owned conversation state plus the window-owned Translate runtime, grouped by Sidebar app. */
+/** Main-owned conversation state grouped by Sidebar app. */
 export function useWorkspaceTaskStatuses(): ReadonlyMap<SidebarAppId, WorkspaceTaskStatus> {
   const statusIndex = useSharedCacheValue(TOPIC_STATUS_INDEX_CACHE_KEY) ?? EMPTY_STATUS_INDEX
   const { assistantStatus, agentStatus } = useMemo(() => aggregateWorkspaceStatuses(statusIndex), [statusIndex])
-  const translateStatus: WorkspaceTaskStatus = useTranslateWorkspaceRuntimeStatus()
 
   return useMemo(
     () =>
       new Map<SidebarAppId, WorkspaceTaskStatus>([
         ['assistants', assistantStatus],
-        ['agents', agentStatus],
-        ['translate', translateStatus]
+        ['agents', agentStatus]
       ]),
-    [agentStatus, assistantStatus, translateStatus]
+    [agentStatus, assistantStatus]
   )
 }

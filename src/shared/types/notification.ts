@@ -1,15 +1,9 @@
 import type { ConversationNavigationTarget } from './navigation'
 
 export type NotificationType = 'progress' | 'success' | 'error' | 'warning' | 'info' | 'action'
-export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'translate' | 'update'
+export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'update'
 
 export const CONVERSATION_NOTIFICATION_ACTION_KEY = 'conversation.open'
-export const TRANSLATE_NOTIFICATION_ACTION_KEY = 'translate.open'
-
-export interface TranslateNotificationTarget {
-  sessionId?: string
-  historyId?: string
-}
 
 export interface Notification<T = any> {
   /** 通知唯一标识 */

@@ -166,12 +166,6 @@ export type UseCacheSchema = {
   'translate.detecting': boolean
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
-  /** Per-workspace translate input; the tab id is the window-level session id. */
-  'translate.session.input.${sessionId}': string
-  /** Per-workspace translate output. */
-  'translate.session.output.${sessionId}': string
-  /** Per-workspace language detection state. */
-  'translate.session.detecting.${sessionId}': boolean
 
   // Painting in-flight generation state, keyed by paintingId. Survives page
   // navigation so the spinner reappears when the user returns mid-run.
@@ -265,9 +259,6 @@ export const DefaultUseCache: UseCacheSchema = {
     isTranslating: false,
     abortKey: null
   },
-  'translate.session.input.${sessionId}': '',
-  'translate.session.output.${sessionId}': '',
-  'translate.session.detecting.${sessionId}': false,
 
   'painting.generation.${paintingId}': null,
 

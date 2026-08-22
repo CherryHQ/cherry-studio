@@ -64,7 +64,6 @@ const modelSelectorMock = vi.hoisted(() => vi.fn())
 const languageBarMock = vi.hoisted(() => vi.fn())
 const translateInputPaneMock = vi.hoisted(() => vi.fn())
 const exportContentToNotesMock = vi.hoisted(() => vi.fn())
-const notifyTranslateCompletionMock = vi.hoisted(() => vi.fn())
 const pdfViewMock = vi.hoisted(() => vi.fn())
 const pdfHandleMock = vi.hoisted(() => ({ cancel: vi.fn(), start: vi.fn() }))
 const historyFilesMock = vi.hoisted(() => ({
@@ -73,11 +72,6 @@ const historyFilesMock = vi.hoisted(() => ({
     target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
   } as TranslationFiles
 }))
-const historyRestoreMock = vi.hoisted(() => ({
-  get: vi.fn(),
-  loadFiles: vi.fn()
-}))
-const tabMock = vi.hoisted(() => ({ id: null as string | null, isActive: true, url: '/app/translate' }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -118,30 +112,10 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
-vi.mock('@renderer/services/notification', () => ({
-  notifyTranslateCompletion: notifyTranslateCompletionMock
-}))
-
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     shikiMarkdownIt: vi.fn().mockResolvedValue('')
   })
-}))
-
-vi.mock('@renderer/hooks/tab', () => ({
-  useCurrentTab: () => (tabMock.id ? { id: tabMock.id, url: tabMock.url } : undefined),
-  useCurrentTabId: () => tabMock.id,
-  useIsActiveTab: () => tabMock.isActive
-}))
-
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: { get: historyRestoreMock.get }
-}))
-
-vi.mock('../translationFiles', () => ({
-  isPdfTranslation: (history: { kind: string; sourceText: string; targetText: string }) =>
-    history.kind === 'file' && history.sourceText.endsWith('.pdf') && history.targetText.endsWith('.pdf'),
-  loadTranslationFiles: historyRestoreMock.loadFiles
 }))
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
@@ -460,21 +434,15 @@ vi.mock('../pdf/PdfTranslationView', () => {
   return { default: MockPdfTranslationView }
 })
 
-import { translateSessionManager } from '@renderer/services/TranslateSessionManager'
-
 import TranslatePage from '../TranslatePage'
 
 describe('TranslatePage', () => {
   beforeEach(() => {
-    translateSessionManager.clear()
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.setCacheValue('translate.input', '')
     MockUseCacheUtils.setCacheValue('translate.output', '')
     MockUseCacheUtils.setCacheValue('translate.detecting', false)
-    tabMock.id = null
-    tabMock.isActive = true
-    tabMock.url = '/app/translate'
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': null,
       'feature.translate.page.source_language': 'auto',
@@ -548,8 +516,6 @@ describe('TranslatePage', () => {
       source: { entryId: 'entry-source', path: '/tmp/paper.pdf' as AbsoluteFilePath },
       target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
     }
-    historyRestoreMock.get.mockReset()
-    historyRestoreMock.loadFiles.mockReset()
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -589,103 +555,6 @@ describe('TranslatePage', () => {
     expect(inputSection?.parentElement).toHaveClass('grid-cols-2', 'grid-rows-1')
     expect(outputSection).toHaveClass('border-l')
     expect(outputSection).not.toHaveClass('border-t')
-  })
-
-  it('keeps text input isolated by the translation workspace session id', () => {
-    MockUseCacheUtils.setCacheValue('translate.session.input.translate-tab-1', 'First workspace')
-    MockUseCacheUtils.setCacheValue('translate.session.input.translate-tab-2', 'Second workspace')
-    tabMock.id = 'translate-tab-1'
-
-    const firstWorkspace = render(<TranslatePage />)
-    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('First workspace')
-    firstWorkspace.unmount()
-
-    tabMock.id = 'translate-tab-2'
-    render(<TranslatePage />)
-    const secondInput = screen.getByLabelText('translate.input.placeholder')
-    expect(secondInput).toHaveValue('Second workspace')
-
-    fireEvent.change(secondInput, { target: { value: 'Updated second workspace' } })
-    expect(MockUseCacheUtils.getCacheValue('translate.session.input.translate-tab-1')).toBe('First workspace')
-    expect(MockUseCacheUtils.getCacheValue('translate.session.input.translate-tab-2')).toBe('Updated second workspace')
-  })
-
-  it('reconnects a recreated tab to the translate session named by its route', () => {
-    MockUseCacheUtils.setCacheValue('translate.session.input.closed-session', 'Completed translation input')
-    tabMock.id = 'recreated-tab'
-    tabMock.url = '/app/translate?sessionId=closed-session'
-
-    render(<TranslatePage />)
-
-    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('Completed translation input')
-  })
-
-  it('restores a completed PDF result named by the notification route', async () => {
-    const history = {
-      id: '019606a0-0000-7000-8000-000000000003',
-      kind: 'file' as const,
-      sourceText: 'paper.pdf',
-      targetText: 'paper.zh-CN.pdf',
-      sourceLanguage: 'en-us' as const,
-      targetLanguage: 'zh-cn' as const,
-      star: false,
-      createdAt: '2026-08-22T00:00:00.000Z',
-      updatedAt: '2026-08-22T00:00:00.000Z'
-    }
-    tabMock.id = 'translate-tab-1'
-    tabMock.url = `/app/translate?sessionId=translate-tab-1&historyId=${history.id}`
-    historyRestoreMock.get.mockResolvedValue(history)
-    historyRestoreMock.loadFiles.mockResolvedValue(historyFilesMock.files)
-
-    render(<TranslatePage />)
-
-    await waitFor(() => expect(historyRestoreMock.loadFiles).toHaveBeenCalledWith(history.id))
-    await waitFor(() =>
-      expect(pdfViewMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          file: { name: 'paper.pdf', path: '/tmp/paper.pdf' },
-          restoredOutput: { fileName: 'paper.zh-CN.pdf', outputPath: '/tmp/files/entry-target.pdf' },
-          sessionId: 'translate-tab-1'
-        })
-      )
-    )
-  })
-
-  it('restores a completed text result named by the notification route', async () => {
-    const history = {
-      id: '019606a0-0000-7000-8000-000000000004',
-      kind: 'text' as const,
-      sourceText: 'hello',
-      targetText: '你好',
-      sourceLanguage: 'en-us' as const,
-      targetLanguage: 'zh-cn' as const,
-      star: false,
-      createdAt: '2026-08-22T00:00:00.000Z',
-      updatedAt: '2026-08-22T00:00:00.000Z'
-    }
-    tabMock.id = 'recreated-tab'
-    tabMock.url = `/app/translate?sessionId=closed-session&historyId=${history.id}`
-    historyRestoreMock.get.mockResolvedValue(history)
-
-    render(<TranslatePage />)
-
-    await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.session.input.closed-session')).toBe('hello'))
-    expect(MockUseCacheUtils.getCacheValue('translate.session.output.closed-session')).toBe('你好')
-    expect(historyRestoreMock.loadFiles).not.toHaveBeenCalled()
-  })
-
-  it('restores the active PDF file when its translation workspace remounts', async () => {
-    const file = { name: 'paper.pdf', path: '/tmp/paper.pdf' as AbsoluteFilePath }
-    tabMock.id = 'translate-tab-1'
-    translateSessionManager.preparePdf('translate-tab-1', file)
-    translateSessionManager.beginPdf('translate-tab-1', 'pdf-job-1', file, 'zh-cn', vi.fn())
-
-    render(<TranslatePage />)
-
-    await waitFor(() =>
-      expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
-    )
-    expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument()
   })
 
   it('exports the trimmed current translation result to notes using the first translated line as title', async () => {
@@ -1709,11 +1578,7 @@ describe('TranslatePage', () => {
         targetLanguage: 'en-us'
       })
     )
-    expect(notifyTranslateCompletionMock).toHaveBeenCalledWith({
-      sessionId: undefined,
-      title: 'translate.complete',
-      message: 'zh-cn → en-us'
-    })
+    expect(toast.success).toHaveBeenCalledWith('translate.complete')
 
     const autoCopyCallback = translateCoreMock.setTimeoutTimer.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
     expect(autoCopyCallback).toBeTypeOf('function')
@@ -1722,29 +1587,6 @@ describe('TranslatePage', () => {
     })
 
     expect(clipboardWriteTextMock).toHaveBeenCalledWith('translated text')
-  })
-
-  it('links a completed text notification to its persisted history result', async () => {
-    tabMock.id = 'translate-tab-1'
-    translateCoreMock.addHistory.mockResolvedValue({ id: 'history-1' })
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'feature.translate.model_id': 'openai::gpt-4.1',
-      'feature.translate.page.source_language': 'zh-cn'
-    })
-
-    const { rerender } = render(<TranslatePage />)
-    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
-    rerender(<TranslatePage />)
-    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-
-    await waitFor(() =>
-      expect(notifyTranslateCompletionMock).toHaveBeenCalledWith({
-        sessionId: 'translate-tab-1',
-        historyId: 'history-1',
-        title: 'translate.complete',
-        message: 'zh-cn → en-us'
-      })
-    )
   })
 
   it('keeps the current target language when reusing history with a null target language', async () => {

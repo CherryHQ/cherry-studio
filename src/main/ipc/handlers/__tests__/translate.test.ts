@@ -49,11 +49,7 @@ describe('translateHandlers', () => {
       onStage('preparing')
       onStage('translating')
       onProgress({ stage: 'translating', stageProgress: 18, overallProgress: 42 })
-      return {
-        fileName: 'paper.zh-CN.mono.pdf',
-        outputPath: '/tmp/job/paper.zh-CN.mono.pdf',
-        historyId: '019606a0-0000-7000-8000-000000000003'
-      }
+      return { fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' }
     })
     const request = {
       jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
@@ -65,8 +61,7 @@ describe('translateHandlers', () => {
 
     await expect(translateHandlers['translate.pdf.start'](request, { senderId: 'w1' })).resolves.toEqual({
       fileName: 'paper.zh-CN.mono.pdf',
-      outputPath: '/tmp/job/paper.zh-CN.mono.pdf',
-      historyId: '019606a0-0000-7000-8000-000000000003'
+      outputPath: '/tmp/job/paper.zh-CN.mono.pdf'
     })
     expect(ipcSendMock).toHaveBeenNthCalledWith(1, 'w1', 'translate.pdf.stage', {
       jobId: request.jobId,

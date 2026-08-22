@@ -1,6 +1,5 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
-import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -10,16 +9,7 @@ import { loggerService } from '@logger'
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
-import { useCurrentTab, useIsActiveTab } from '@renderer/hooks/tab'
-import {
-  detectLanguageOrUnknown,
-  markTranslateWorkspaceRuntimeSeen,
-  useDetectLang,
-  usePdfTranslationSessionRuntime,
-  useTranslate,
-  useTranslateHistory,
-  useTranslateWorkspaceRuntimeStatus
-} from '@renderer/hooks/translate'
+import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -31,9 +21,7 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { exportContentToNotes } from '@renderer/services/ExportService'
-import { notifyTranslateCompletion } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
-import { translateSessionManager } from '@renderer/services/TranslateSessionManager'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
@@ -79,7 +67,7 @@ import type {
   PdfTranslationStatus
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
-import { isPdfTranslation, loadTranslationFiles, type TranslationFiles } from './translationFiles'
+import type { TranslationFiles } from './translationFiles'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -219,21 +207,6 @@ const OcrJobWatcher: FC<{
 
 const TranslatePage: FC = () => {
   const { t } = useTranslation()
-  const currentTab = useCurrentTab()
-  const currentTabUrl = currentTab?.url
-  const routeTarget = useMemo<{ historyId?: string; sessionId?: string }>(() => {
-    if (!currentTabUrl) return {}
-    const target = new URL(currentTabUrl, 'app://cherry')
-    return {
-      historyId: target.searchParams.get('historyId') ?? undefined,
-      sessionId: target.searchParams.get('sessionId') ?? undefined
-    }
-  }, [currentTabUrl])
-  const translateSessionId = routeTarget.sessionId ?? currentTab?.id
-  const notificationHistoryId = routeTarget.historyId
-  const pdfSessionRuntime = usePdfTranslationSessionRuntime(translateSessionId)
-  const isActiveTab = useIsActiveTab()
-  const translateWorkspaceStatus = useTranslateWorkspaceRuntimeStatus()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
@@ -250,51 +223,20 @@ const TranslatePage: FC = () => {
   const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
   const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
 
-  const translateInputKey = translateSessionId
-    ? (`translate.session.input.${translateSessionId}` as const)
-    : ('translate.input' as const)
-  const translateOutputKey = translateSessionId
-    ? (`translate.session.output.${translateSessionId}` as const)
-    : ('translate.output' as const)
-  const translateDetectingKey = translateSessionId
-    ? (`translate.session.detecting.${translateSessionId}` as const)
-    : ('translate.detecting' as const)
-  const [translateInput, setTranslateInput] = useCache(translateInputKey)
-  const [translateOutput, setTranslateOutput] = useCache(translateOutputKey)
-  const [isDetecting, setIsDetecting] = useCache(translateDetectingKey)
+  const [translateInput, setTranslateInput] = useCache('translate.input')
+  const [translateOutput, setTranslateOutput] = useCache('translate.output')
+  const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
-  const translatePageMountedRef = useRef(true)
-  useEffect(() => {
-    translatePageMountedRef.current = true
-    return () => {
-      translatePageMountedRef.current = false
-    }
-  }, [])
-  const handleTranslationResponse = useCallback(
-    (text: string, isComplete: boolean) => {
-      if (translatePageMountedRef.current) {
-        smoothUpdate(text, isComplete)
-      } else {
-        setTranslateOutput(text)
-      }
-    },
-    [setTranslateOutput, smoothUpdate]
-  )
 
   const {
     translate: runTranslate,
     isTranslating,
     cancel
   } = useTranslate({
-    sessionId: translateSessionId,
     loggerContext: 'TranslatePage',
-    onResponse: handleTranslationResponse
+    onResponse: smoothUpdate
   })
-
-  useEffect(() => {
-    if (isActiveTab && !isTranslating) markTranslateWorkspaceRuntimeSeen()
-  }, [isActiveTab, isTranslating, translateWorkspaceStatus])
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
@@ -303,14 +245,10 @@ const TranslatePage: FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
-  const [localPdfFile, setLocalPdfFile] = useState<PdfTranslationFile | null>(null)
-  const pdfFile = translateSessionId ? pdfSessionRuntime.file : localPdfFile
+  const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(null)
   /** Set only when reopening a finished translation from history; `key` remounts the view. */
   const [restoredPdf, setRestoredPdf] = useState<{ output: PdfTranslationOutput; key: string } | null>(null)
-  const [localPdfStatus, setLocalPdfStatus] = useState<PdfTranslationStatus>({ phase: 'idle', running: false })
-  const pdfStatus = translateSessionId
-    ? { phase: pdfSessionRuntime.phase, running: pdfSessionRuntime.activeJobId !== null }
-    : localPdfStatus
+  const [pdfStatus, setPdfStatus] = useState<PdfTranslationStatus>({ phase: 'idle', running: false })
   const [pdfHandleReady, setPdfHandleReady] = useState(false)
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
   const [pdfTextOcrRequired, setPdfTextOcrRequired] = useState(false)
@@ -348,18 +286,14 @@ const TranslatePage: FC = () => {
     pdfTextFallbackStartedRef.current = false
     prePdfOutputRef.current = null
     setPdfHandleReady(false)
-    setLocalPdfStatus({ phase: 'idle', running: false })
+    setPdfStatus({ phase: 'idle', running: false })
     setPdfTextFallbackActive(false)
     setPdfTextOcrRequired(false)
     setIsPdfTextExtracting(false)
     setIsProcessing(false)
-    if (translateSessionId) {
-      translateSessionManager.resetPdf(translateSessionId)
-    } else {
-      setLocalPdfFile(null)
-    }
+    setPdfFile(null)
     setRestoredPdf(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput, translateSessionId])
+  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -444,6 +378,8 @@ const TranslatePage: FC = () => {
       if (!translated) {
         return
       }
+      toast.success(t('translate.complete'))
+
       if (autoCopy) {
         setTimeoutTimer(
           'auto-copy',
@@ -459,25 +395,14 @@ const TranslatePage: FC = () => {
         )
       }
 
-      let historyId: string | undefined
-      try {
-        const history = await addHistory({
-          sourceText: rawText,
-          targetText: translated,
-          sourceLanguage: actualSourceLanguage,
-          targetLanguage: actualTargetLanguage
-        })
-        historyId = history?.id
-      } finally {
-        notifyTranslateCompletion({
-          sessionId: translateSessionId,
-          ...(historyId ? { historyId } : {}),
-          title: t('translate.complete'),
-          message: `${actualSourceLanguage} → ${actualTargetLanguage}`
-        })
-      }
+      await addHistory({
+        sourceText: rawText,
+        targetText: translated,
+        sourceLanguage: actualSourceLanguage,
+        targetLanguage: actualTargetLanguage
+      })
     },
-    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t, translateSessionId]
+    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
   )
 
   const translateTextContent = useCallback(
@@ -610,11 +535,7 @@ const TranslatePage: FC = () => {
 
   const onAbort = useCallback(() => {
     if (pdfStatus.running) {
-      if (pdfHandleRef.current) {
-        pdfHandleRef.current.cancel()
-      } else {
-        cancel()
-      }
+      pdfHandleRef.current?.cancel()
     } else if (isTranslating) {
       cancel()
     } else {
@@ -662,11 +583,8 @@ const TranslatePage: FC = () => {
           return
         }
         resetPdfMode()
-        const file = { name: history.sourceText, path: files.source.path }
-        const output = { outputPath: files.target.path, fileName: history.targetText }
-        if (translateSessionId) translateSessionManager.preparePdf(translateSessionId, file, output)
-        setRestoredPdf({ output, key: history.id })
-        setLocalPdfFile(file)
+        setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
+        setPdfFile({ name: history.sourceText, path: files.source.path })
       } else {
         resetPdfMode()
         setTranslateInput(history.sourceText)
@@ -685,32 +603,9 @@ const TranslatePage: FC = () => {
       setTranslateInput,
       setTranslateOutput,
       t,
-      targetLanguage,
-      translateSessionId
+      targetLanguage
     ]
   )
-
-  const restoredNotificationHistoryIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!notificationHistoryId || restoredNotificationHistoryIdRef.current === notificationHistoryId) return
-
-    restoredNotificationHistoryIdRef.current = notificationHistoryId
-    let cancelled = false
-    void dataApiService
-      .get(`/translate/histories/${encodeURIComponent(notificationHistoryId)}`)
-      .then(async (history) => {
-        const files = isPdfTranslation(history) ? await loadTranslationFiles(history.id) : undefined
-        if (!cancelled) onHistoryItemClick(history, files)
-      })
-      .catch((error) => {
-        logger.error('Failed to restore translation from notification', error as Error)
-        if (!cancelled) toast.error(t('translate.history.error.load'))
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [notificationHistoryId, onHistoryItemClick, t])
 
   const inputScrollHandler = useMemo(
     () => createInputScrollHandler(inputScrollRef, outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
@@ -839,9 +734,7 @@ const TranslatePage: FC = () => {
         setPdfTextFallbackActive(false)
         setPdfTextOcrRequired(false)
         setIsPdfTextExtracting(false)
-        const selectedPdf = { name: file.name, path: AbsoluteFilePathSchema.parse(file.path) }
-        if (translateSessionId) translateSessionManager.preparePdf(translateSessionId, selectedPdf)
-        setLocalPdfFile(selectedPdf)
+        setPdfFile({ name: file.name, path: AbsoluteFilePathSchema.parse(file.path) })
         return
       }
 
@@ -852,7 +745,7 @@ const TranslatePage: FC = () => {
         await readFile(file)
       }
     },
-    [readFile, resetPdfMode, startOcr, t, translateOutput, translateSessionId]
+    [readFile, resetPdfMode, startOcr, t, translateOutput]
   )
 
   const handleSelectFile = useCallback(async () => {
@@ -975,7 +868,7 @@ const TranslatePage: FC = () => {
     setPdfHandleReady(handle !== null)
   }, [])
 
-  const handlePdfStatusChange = useCallback((status: PdfTranslationStatus) => setLocalPdfStatus(status), [])
+  const handlePdfStatusChange = useCallback((status: PdfTranslationStatus) => setPdfStatus(status), [])
 
   const pdfModelReady =
     babelDoc.availability === 'available'
@@ -1129,7 +1022,6 @@ const TranslatePage: FC = () => {
             <PdfTranslationView
               key={restoredPdf?.key ?? pdfFile.path}
               file={pdfFile}
-              sessionId={translateSessionId}
               restoredOutput={restoredPdf?.output}
               modelId={isSelectedPdfModelRoutable ? selectedModelId : undefined}
               sourceLangCode={sourceLanguage}

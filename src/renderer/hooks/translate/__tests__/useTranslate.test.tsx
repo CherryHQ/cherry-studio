@@ -31,9 +31,8 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 import { toast } from '@renderer/services/toast'
-import { translateSessionManager } from '@renderer/services/TranslateSessionManager'
 
-import { setTranslateSessionRuntimeStatus, useTranslate } from '../useTranslate'
+import { useTranslate } from '../useTranslate'
 
 const TARGET = {
   langCode: parseTranslateLangCode('en-us'),
@@ -48,7 +47,6 @@ const TARGET = {
 let loggerErrorSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
-  translateSessionManager.clear()
   vi.clearAllMocks()
   isAbortErrorMock.mockReturnValue(false)
   translateTextMock.mockReset()
@@ -73,16 +71,6 @@ function pendingTranslateText() {
 }
 
 describe('useTranslate', () => {
-  it('exposes window-owned PDF work through the same translation session state', () => {
-    const { result } = renderHook(() => useTranslate({ sessionId: 'pdf-session' }))
-
-    act(() => setTranslateSessionRuntimeStatus('pdf-session', 'running'))
-    expect(result.current.isTranslating).toBe(true)
-
-    act(() => setTranslateSessionRuntimeStatus('pdf-session', 'completed'))
-    expect(result.current.isTranslating).toBe(false)
-  })
-
   describe('happy path', () => {
     it('returns the resolved text and toggles isTranslating around the call', async () => {
       translateTextMock.mockResolvedValueOnce('Hello world')
@@ -158,7 +146,7 @@ describe('useTranslate', () => {
       expect(handedSignal.aborted).toBe(true)
     })
 
-    it('aborts the previous signal when a new translate() supersedes', async () => {
+    it('aborts the previous signal when a new translate() supersedes', () => {
       pendingTranslateText()
       translateTextMock.mockResolvedValueOnce('second')
 
@@ -170,8 +158,8 @@ describe('useTranslate', () => {
       const firstSignal = translateTextMock.mock.calls[0][3] as AbortSignal
       expect(firstSignal.aborted).toBe(false)
 
-      await act(async () => {
-        await result.current.translate('two', TARGET)
+      act(() => {
+        void result.current.translate('two', TARGET)
       })
 
       expect(firstSignal.aborted).toBe(true)
@@ -426,34 +414,6 @@ describe('useTranslate', () => {
 
       onResponseFromService?.('late chunk after unmount', true)
       expect(onResponse).not.toHaveBeenCalled()
-    })
-
-    it('keeps an explicit workspace session running across unmount and reconnects on remount', async () => {
-      const pending = pendingTranslateText()
-      const onResponse = vi.fn()
-      const first = renderHook(() => useTranslate({ sessionId: 'translate-tab-a', onResponse }))
-
-      let translation!: Promise<string | undefined>
-      act(() => {
-        translation = first.result.current.translate('源', TARGET)
-      })
-      const signal = translateTextMock.mock.calls[0][3] as AbortSignal
-      expect(first.result.current.isTranslating).toBe(true)
-
-      first.unmount()
-      expect(signal.aborted).toBe(false)
-
-      const reconnected = renderHook(() => useTranslate({ sessionId: 'translate-tab-a' }))
-      expect(reconnected.result.current.isTranslating).toBe(true)
-
-      let translated: string | undefined
-      await act(async () => {
-        pending.resolve('kept alive')
-        translated = await translation
-      })
-
-      expect(translated).toBe('kept alive')
-      expect(reconnected.result.current.isTranslating).toBe(false)
     })
   })
 })

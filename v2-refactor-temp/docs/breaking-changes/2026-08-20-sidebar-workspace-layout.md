@@ -20,4 +20,4 @@ Nothing — automatic. Choose Sidebar or Tabs in Settings → Appearance to opt 
 
 ## Notes for release manager
 
-Mention that Sidebar + Tabs remains the default for upgrade compatibility. Running Chat, Agent, and translation work continues across app switches and layout changes. Settings, file previews, and release notes use a focused page with a Back action in Sidebar-only and Tabs-only; the combined layout retains the previous ordinary-tab behavior.
+Mention that Sidebar + Tabs remains the default for upgrade compatibility. Running Chat and Agent work continues across app switches and layout changes. Settings, file previews, and release notes use a focused page with a Back action in Sidebar-only and Tabs-only; the combined layout retains the previous ordinary-tab behavior.

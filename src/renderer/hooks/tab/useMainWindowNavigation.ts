@@ -2,7 +2,6 @@ import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
-import { getTranslateSessionIdForTab } from '@renderer/utils/navigationWorkspace'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { useCallback, useEffect, useRef } from 'react'
@@ -100,7 +99,7 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  */
 export function useMainWindowNavigation() {
   const openSettingsRoute = useOpenSettingsRoute()
-  const { attachTab, openRoute, setActiveTab, tabs, updateTab } = useTabs()
+  const { attachTab, openRoute } = useTabs()
   const initData = useWindowInitData<MainWindowInitData>()
   const handledNavigationRequestIdRef = useRef<number | null>(null)
 
@@ -111,26 +110,9 @@ export function useMainWindowNavigation() {
         return
       }
 
-      const target = new URL(to, 'app://cherry')
-      const translateSessionId = target.pathname === '/app/translate' ? target.searchParams.get('sessionId') : undefined
-      if (translateSessionId) {
-        const translateHistoryId = target.searchParams.get('historyId')
-        const translateTab = tabs.find((tab) => getTranslateSessionIdForTab(tab) === translateSessionId)
-        if (translateTab) {
-          if (translateHistoryId && translateTab.url !== to) {
-            updateTab(translateTab.id, { url: to, lastAccessTime: Date.now() })
-          }
-          setActiveTab(translateTab.id)
-          return
-        }
-        const sessionIdIsOccupied = tabs.some((tab) => tab.id === translateSessionId)
-        openRoute(to, sessionIdIsOccupied ? { forceNew: true } : { id: translateSessionId, forceNew: true })
-        return
-      }
-
       openRoute(to)
     },
-    [openRoute, openSettingsRoute, setActiveTab, tabs, updateTab]
+    [openRoute, openSettingsRoute]
   )
 
   useIpcOn('navigation.open_route_requested', ({ to }) => handleRoute(to))

@@ -13,8 +13,8 @@
  *     `if (result)` to gate success-side effects.
  *   - Non-abort errors are always logged via `loggerService`; the toast and
  *     the rethrow are opt-out via `options`.
- *   - Unmounting aborts component-owned calls. Calls with an explicit
- *     `sessionId` are window-owned and can reconnect after a remount.
+ *   - Unmounting the host component aborts any in-flight translation so
+ *     stale completions don't run state setters on a dead tree.
  *
  * Callers that need rich rendering can use `onResponse` to mirror the streamed
  * accumulated text into their own view state.
@@ -22,19 +22,11 @@
 
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
-import {
-  IDLE_PDF_TRANSLATION_SESSION_SNAPSHOT,
-  IDLE_TRANSLATE_SESSION_SNAPSHOT,
-  type PdfTranslationSessionSnapshot,
-  translateSessionManager,
-  type TranslateSessionRuntimeSnapshot,
-  type TranslateSessionRuntimeStatus
-} from '@renderer/services/TranslateSessionManager'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
@@ -54,11 +46,6 @@ function localizeTranslateError(error: unknown, t: (key: string) => string): unk
 }
 
 export interface UseTranslateOptions {
-  /**
-   * Stable window-level session id. When set, the submitted translation keeps
-   * running if its page unmounts and a remount reconnects to the same state.
-   */
-  sessionId?: string
   /** Default: true. Set false to suppress the default error toast. */
   showErrorToast?: boolean
   /** Default: 'translate.error.failed'. i18n key used as the toast prefix. */
@@ -86,70 +73,9 @@ export interface UseTranslateResult {
   cancel: () => void
 }
 
-/** Publish a non-text translation task into the same window-owned session runtime. */
-export function setTranslateSessionRuntimeStatus(
-  sessionId: string | undefined,
-  status: TranslateSessionRuntimeStatus
-): void {
-  if (!sessionId) return
-  translateSessionManager.setStatus(sessionId, status)
-}
-
-/** Aggregate state for the Translate Sidebar entry. */
-export function useTranslateWorkspaceRuntimeStatus(): TranslateSessionRuntimeStatus {
-  return useSyncExternalStore(
-    useCallback((listener) => translateSessionManager.subscribeWorkspace(listener), []),
-    () => translateSessionManager.getWorkspaceStatus(),
-    () => translateSessionManager.getWorkspaceStatus()
-  )
-}
-
-/** Runtime state for one translate workspace/tab. */
-export function useTranslateSessionRuntimeStatus(sessionId?: string): TranslateSessionRuntimeSnapshot {
-  return useSyncExternalStore(
-    useCallback(
-      (listener) => {
-        if (!sessionId) return () => undefined
-        return translateSessionManager.subscribeSession(sessionId, listener)
-      },
-      [sessionId]
-    ),
-    useCallback(
-      () => (sessionId ? translateSessionManager.getSessionSnapshot(sessionId) : IDLE_TRANSLATE_SESSION_SNAPSHOT),
-      [sessionId]
-    ),
-    () => IDLE_TRANSLATE_SESSION_SNAPSHOT
-  )
-}
-
-/** Layout-preserving PDF state for one window-owned translation session. */
-export function usePdfTranslationSessionRuntime(sessionId?: string): PdfTranslationSessionSnapshot {
-  return useSyncExternalStore(
-    useCallback(
-      (listener) => {
-        if (!sessionId) return () => undefined
-        return translateSessionManager.subscribePdfSession(sessionId, listener)
-      },
-      [sessionId]
-    ),
-    useCallback(
-      () => (sessionId ? translateSessionManager.getPdfSnapshot(sessionId) : IDLE_PDF_TRANSLATION_SESSION_SNAPSHOT),
-      [sessionId]
-    ),
-    () => IDLE_PDF_TRANSLATION_SESSION_SNAPSHOT
-  )
-}
-
-/** Clear terminal Translate indicators after the workspace is brought forward. */
-export function markTranslateWorkspaceRuntimeSeen(): void {
-  translateSessionManager.markWorkspaceSeen()
-}
-
 export function useTranslate(options?: UseTranslateOptions): UseTranslateResult {
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const sessionId = options?.sessionId
-  const sessionSnapshot = useTranslateSessionRuntimeStatus(sessionId)
 
   const optionsRef = useRef(options)
   useEffect(() => {
@@ -166,10 +92,6 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
   const activeControllerRef = useRef<AbortController | null>(null)
 
   const cancel = useCallback(() => {
-    if (sessionId) {
-      translateSessionManager.cancel(sessionId)
-      return
-    }
     if (!activeAbortKeyRef.current) return
     // Clear the ref first so the in-flight translate's continuation sees
     // "you've been cancelled" and discards its result even if the abort
@@ -178,46 +100,10 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
     activeControllerRef.current?.abort()
     activeControllerRef.current = null
     setIsTranslating(false)
-  }, [sessionId])
+  }, [])
 
   const translate = useCallback<UseTranslateResult['translate']>(
     async (text, targetLanguage) => {
-      if (sessionId) {
-        const controller = new AbortController()
-        const abortKey = uuid()
-        translateSessionManager.beginText(sessionId, abortKey, controller)
-
-        const opts = optionsRef.current
-        const onResponse = opts?.onResponse
-        const guardedOnResponse = onResponse
-          ? (chunkText: string, isComplete: boolean) => {
-              if (!translateSessionManager.isTextActive(sessionId, abortKey)) return
-              onResponse(chunkText, isComplete)
-            }
-          : undefined
-        const wasSuperseded = () => !translateSessionManager.isTextActive(sessionId, abortKey)
-
-        try {
-          const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
-          if (wasSuperseded()) return undefined
-          translateSessionManager.setTextStatus(sessionId, abortKey, 'completed')
-          return result
-        } catch (error) {
-          if (wasSuperseded() || isAbortError(error)) return undefined
-          const showErrorToast = opts?.showErrorToast ?? true
-          const errorPrefixI18nKey = opts?.errorPrefixI18nKey ?? 'translate.error.failed'
-          loggerService.withContext(opts?.loggerContext ?? 'useTranslate').error('Translation failed', error as Error)
-          if (showErrorToast) {
-            toast.error(formatErrorMessageWithPrefix(localizeTranslateError(error, t), t(errorPrefixI18nKey)))
-          }
-          translateSessionManager.setTextStatus(sessionId, abortKey, 'error')
-          if (opts?.rethrowError) throw error
-          return undefined
-        } finally {
-          translateSessionManager.finishText(sessionId, abortKey)
-        }
-      }
-
       // A new call supersedes any in-flight one — keeps semantics simple
       // (one translation per hook instance) and matches the existing stop-button
       // behaviour in TranslatePage.
@@ -274,19 +160,18 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
         finishIfActive()
       }
     },
-    [sessionId, t]
+    [t]
   )
 
   // On unmount: abort the active controller (propagates to main via streamAbort
   // inside translateText) and clear the marker so any late settle is discarded.
   useEffect(() => {
     return () => {
-      if (sessionId) return
       activeAbortKeyRef.current = null
       activeControllerRef.current?.abort()
       activeControllerRef.current = null
     }
-  }, [sessionId])
+  }, [])
 
-  return { translate, isTranslating: sessionId ? sessionSnapshot.isTranslating : isTranslating, cancel }
+  return { translate, isTranslating, cancel }
 }

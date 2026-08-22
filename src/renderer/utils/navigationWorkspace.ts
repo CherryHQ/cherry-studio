@@ -32,15 +32,6 @@ export function getTabWorkspaceKey(tab: Tab): NavigationWorkspaceKey | undefined
   return isNavigationWorkspaceKey(tab.workspaceKey) ? tab.workspaceKey : getWorkspaceKeyForUrl(tab.url)
 }
 
-export function getTranslateSessionIdForTab(tab: Tab): string | undefined {
-  if (getTabWorkspaceKey(tab) !== 'app:translate') return undefined
-  try {
-    return new URL(tab.url, 'app://cherry').searchParams.get('sessionId') ?? tab.id
-  } catch {
-    return tab.id
-  }
-}
-
 export function isTabVisibleInTabBar(tab: Tab): boolean {
   return tab.isTabBarVisible !== false
 }
