@@ -1063,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "Falha ao carregar a conversa referenciada",
         "no_room": "Não há espaço suficiente na mensagem para adicionar esta conversa",
+        "no_room_selection": "Não há espaço suficiente na mensagem para adicionar esta seleção",
         "session": {
           "no_results": {
             "description": "Nenhuma sessão corresponde à sua pesquisa",

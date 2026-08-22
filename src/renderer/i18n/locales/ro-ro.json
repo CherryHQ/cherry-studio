@@ -1063,6 +1063,7 @@
       "reference_panel": {
         "load_failed": "Nu s-a putut încărca conversația referențiată",
         "no_room": "Nu mai este suficient spațiu în mesaj pentru a adăuga această conversație",
+        "no_room_selection": "Nu mai este suficient spațiu în mesaj pentru a adăuga această selecție",
         "session": {
           "no_results": {
             "description": "Nicio sesiune nu corespunde căutării tale",
