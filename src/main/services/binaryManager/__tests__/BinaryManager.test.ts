@@ -2822,10 +2822,10 @@ describe('BinaryManager', () => {
     })
 
     // An older Cherry version passed `python@3.12` to `mise use`, which wrote a
-    // global selection. Cherry owns the interpreter itself now, so leaving that
-    // entry behind keeps mise resolving — and re-fetching from GitHub — a runtime
-    // nothing uses.
-    it('drops the global Python selection an older version wrote for the pipx backend', async () => {
+    // global selection Cherry no longer owns. `--no-prune` is load-bearing:
+    // without it `mise unuse` uninstalls the interpreter, and the tools that
+    // older version installed hold a `pyvenv.cfg` pointing into that directory.
+    it('drops the global Python selection an older version wrote, without uninstalling it', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
@@ -2833,7 +2833,7 @@ describe('BinaryManager', () => {
 
       await (service as any).installWithMise(BABELDOC, undefined, [])
 
-      expect(miseArgs()).toContainEqual(['unuse', '-g', 'python'])
+      expect(miseArgs()).toContainEqual(['unuse', '-g', '--no-prune', 'python'])
     })
 
     it('leaves a Python the user added as a custom tool selected', async () => {
@@ -2845,7 +2845,7 @@ describe('BinaryManager', () => {
 
       await (service as any).installWithMise(BABELDOC, undefined, [])
 
-      expect(miseArgs()).not.toContainEqual(['unuse', '-g', 'python'])
+      expect(miseArgs()).not.toContainEqual(['unuse', '-g', '--no-prune', 'python'])
     })
 
     it('keeps a BabelDOC install that succeeded when the selection cannot be dropped', async () => {

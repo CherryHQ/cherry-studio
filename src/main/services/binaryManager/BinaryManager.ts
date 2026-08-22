@@ -1210,9 +1210,12 @@ export class BinaryManager extends BaseService {
   /**
    * Drop the global Python selection older Cherry versions wrote for the pipx
    * backend. Cherry provisions the interpreter itself now, so its own leftover
-   * entry would leave mise resolving — and reinstalling — a runtime it no longer
-   * owns. Config only: nothing is uninstalled, and a selection the user made by
-   * adding Python as a custom tool stays theirs.
+   * entry leaves mise reporting a runtime it no longer owns as active. A
+   * selection the user made by adding Python as a custom tool stays theirs.
+   *
+   * `--no-prune` is what keeps this to the config file: `mise unuse` uninstalls
+   * the version too by default, and the tools an earlier version installed hold
+   * a `pyvenv.cfg` pointing straight into that install directory.
    */
   private async releaseMisePythonSelection(): Promise<void> {
     const runtimeName = RUNTIME_DEPS.pipx.split('@')[0]
@@ -1221,7 +1224,7 @@ export class BinaryManager extends BaseService {
     )
     if (userOwned) return
     try {
-      await this.runMise(['unuse', '-g', runtimeName])
+      await this.runMise(['unuse', '-g', '--no-prune', runtimeName])
     } catch (error) {
       // The tool itself installed; a leftover selection is not worth failing over.
       logger.warn('Failed to drop the legacy mise Python selection', { error: this.errorMessage(error) })
