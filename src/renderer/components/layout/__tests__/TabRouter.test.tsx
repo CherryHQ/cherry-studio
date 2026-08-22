@@ -257,6 +257,34 @@ describe('TabRouter', () => {
     expect(routerMocks.navigate).not.toHaveBeenCalled()
   })
 
+  it('keeps the onResolved subscription stable across unrelated rerenders (#19211)', () => {
+    routerMocks.subscribe.mockClear()
+    const unsub = vi.fn()
+    routerMocks.subscribe.mockReturnValueOnce(unsub)
+
+    const first = render(
+      <TabRouter
+        tab={tab('chat-tab', '/app/chat?topicId=t1', { title: 'Chat', lastAccessTime: 1, isDormant: false })}
+        isActive
+        onUrlChange={vi.fn()}
+      />
+    )
+    expect(routerMocks.subscribe).toHaveBeenCalledTimes(1)
+
+    // Unrelated shell state recreates the onUrlChange closure and re-renders
+    // with a new props object; the subscription must survive.
+    first.rerender(
+      <TabRouter
+        tab={tab('chat-tab', '/app/chat?topicId=t1', { title: 'Chat', lastAccessTime: 2, isDormant: false })}
+        isActive={false}
+        onUrlChange={vi.fn()}
+      />
+    )
+
+    expect(routerMocks.subscribe).toHaveBeenCalledTimes(1)
+    expect(unsub).not.toHaveBeenCalled()
+  })
+
   it('navigates when the tab entry URL changes externally', () => {
     const { rerender } = render(
       <TabRouter
@@ -285,5 +313,45 @@ describe('TabRouter', () => {
 
     expect(createMemoryHistory).toHaveBeenCalledTimes(1)
     expect(routerMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat?topicId=current-topic' })
+  })
+
+  it('delivers resolved navigation to the latest onUrlChange without resubscribing', () => {
+    routerMocks.subscribe.mockClear()
+    let latestListener: ((event: { toLocation: { href: string } }) => void) | undefined
+    routerMocks.subscribe.mockImplementationOnce((_event: string, listener: any) => {
+      latestListener = listener
+      return vi.fn()
+    })
+    const onUrlChange = vi.fn()
+
+    const { rerender } = render(
+      <TabRouter
+        tab={tab('chat-tab', '/app/chat?topicId=t1', { title: 'Chat', lastAccessTime: 1, isDormant: false })}
+        isActive
+        onUrlChange={onUrlChange}
+      />
+    )
+
+    // A later render replaces the closure; the still-armed subscription must
+    // call the newest one and compare against the newest tab url.
+    const laterUrlChange = vi.fn()
+    rerender(
+      <TabRouter
+        tab={tab('chat-tab', '/app/chat?topicId=t2', { title: 'Chat', lastAccessTime: 2, isDormant: false })}
+        isActive
+        onUrlChange={laterUrlChange}
+      />
+    )
+
+    expect(latestListener).toBeDefined()
+    // Different url than the latest tab url -> reported
+    latestListener!({ toLocation: { href: '/app/chat?topicId=t3' } })
+    expect(laterUrlChange).toHaveBeenCalledWith('/app/chat?topicId=t3')
+    expect(onUrlChange).not.toHaveBeenCalled()
+
+    // Same url as the latest tab url -> echo suppression still works
+    latestListener!({ toLocation: { href: '/app/chat?topicId=t2' } })
+    expect(laterUrlChange).toHaveBeenCalledTimes(1)
+    expect(routerMocks.subscribe).toHaveBeenCalledTimes(1)
   })
 })
