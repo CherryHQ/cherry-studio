@@ -420,11 +420,13 @@ export function HtmlArtifactPopupOutlet() {
         html={popupSession.html}
         onSave={popupSession.onSave}
         editable={popupSession.editable}
+        authorized
         canCapturePreview={!requiresInteractivePreview}
         renderPreview={(iframeRef) => (
           <HtmlArtifactPreviewSurface
             html={popupSession.html}
             title={popupSession.title}
+            authorized
             zoom={popupSession.zoom}
             iframeRef={iframeRef}
             forwardBoundaryWheel={false}
