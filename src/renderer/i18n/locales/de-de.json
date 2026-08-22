@@ -5669,6 +5669,10 @@
         "global": "Globale Schriftart",
         "select": "Schriftart auswählen",
         "title": "Schriftart-Einstellungen"
+      },
+      "list_position": {
+        "chat": "Position der Unterhaltungsliste",
+        "work": "Position der Aufgabenliste"
       }
     },
     "fetch": {

@@ -5669,6 +5669,10 @@
         "global": "Phông chữ Toàn cầu",
         "select": "Chọn Phông chữ",
         "title": "Cài đặt phông chữ"
+      },
+      "list_position": {
+        "chat": "Vị trí danh sách hội thoại",
+        "work": "Vị trí danh sách tác vụ"
       }
     },
     "fetch": {
