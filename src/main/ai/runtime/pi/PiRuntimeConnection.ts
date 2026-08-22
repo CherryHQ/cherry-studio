@@ -57,7 +57,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
-import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
+import { materializePiProviderStream, resolvePiProviderInjectionForSession } from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
 import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
 import {
@@ -199,7 +199,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    const injection = resolvePiProviderInjectionFromSnapshot(
+    const injection = await resolvePiProviderInjectionForSession(
+      this.input.sessionId,
       initialSnapshot.provider,
       initialSnapshot.model,
       initialSnapshot.enabledApiKeys

@@ -1,4 +1,5 @@
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -292,6 +293,32 @@ describe('useModelSelectorData', () => {
       'claude-code::claude-sonnet',
       'openai::gpt-4'
     ])
+  })
+
+  it('shows Cherry Cloud Work models only in agent selectors', () => {
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID)],
+      models: [
+        makeModel('qwen', CHERRYAI_PROVIDER_ID, { group: 'Qwen' }),
+        makeModel('deepseek-free', CHERRYAI_PROVIDER_ID, {
+          group: CHERRY_CLOUD_MODEL_GROUP,
+          contextWindow: 128_000
+        })
+      ]
+    })
+
+    const general = renderHook(() => useModelSelectorData({ searchText: '' }))
+    expect(general.result.current.modelItems.map((item) => item.modelId)).toEqual(['cherryai::qwen'])
+    general.unmount()
+
+    for (const agentType of ['claude-code', 'pi', 'dsh'] as const) {
+      const agentFilter = renderHook(() => useAgentModelFilter(agentType))
+      const agent = renderHook(() => useModelSelectorData({ searchText: '', filter: agentFilter.result.current }))
+
+      expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual(['cherryai::deepseek-free'])
+      agent.unmount()
+      agentFilter.unmount()
+    }
   })
 
   it('applies the caller filter before deriving available tags', () => {

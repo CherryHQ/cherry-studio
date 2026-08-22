@@ -55,7 +55,10 @@ export class ApiGatewayNotRunningError extends Error {
 }
 
 /** Consent, convergence, and key sequence in one place — every gateway route resolves through here. */
-export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
+export async function resolveApiGatewayRuntime(
+  sessionId: string,
+  { allowDisabled = false }: { allowDisabled?: boolean } = {}
+): Promise<{
   baseUrl: string
   apiKey: string
   stateTag: string
@@ -67,11 +70,14 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   // Ask for consent on the PERSISTED intent, never on `isRunning()`: the gateway is also briefly
   // down while binding at boot, mid-restart, or after a failed activation, and prompting the user
   // to enable a service they already enabled would be nonsense.
-  if (!config.enabled) throw new ApiGatewayNotRunningError()
+  if (!config.enabled && !allowDisabled) throw new ApiGatewayNotRunningError()
   // Consent already given, so converging is not an implicit start. `ensureRunning()` goes through
   // the same reconciler (serializing behind an in-flight transition) and throws the real bind
   // error; unlike `start()` it cannot re-persist an intent, so it can never re-enable the gateway.
-  if (!apiGatewayService.isRunning()) await apiGatewayService.ensureRunning()
+  if (!apiGatewayService.isRunning()) {
+    if (allowDisabled) throw new Error('The leased API Gateway is not running')
+    await apiGatewayService.ensureRunning()
+  }
   // Only after the checks above: this persists a freshly generated key on first use, and a failing
   // route must not leave that side effect behind.
   const apiKey = await apiGatewayService.ensureValidApiKey()

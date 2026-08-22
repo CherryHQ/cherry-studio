@@ -23,6 +23,7 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import { isCherryCloudWorkModel } from '@shared/data/presets/cherryai'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -56,6 +57,32 @@ const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set(
 
 function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
   return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
+}
+
+function cherryCloudRequestHeaders(source: Headers | undefined): Headers {
+  const headers = new Headers(source)
+  for (const name of [
+    'authorization',
+    'x-api-key',
+    'host',
+    'content-length',
+    'connection',
+    'transfer-encoding',
+    'x-cherry-agent-session-id',
+    'x-cherry-internal-usage-token',
+    'x-cherry-internal-request-token',
+    'x-cherry-fast-mode'
+  ]) {
+    headers.delete(name)
+  }
+  // Fetch Metadata headers are browser-owned. Electron's net.fetch rejects a
+  // caller-supplied `sec-fetch-mode` with net::ERR_INVALID_ARGUMENT, so let its
+  // Chromium network stack generate any applicable values for this new hop.
+  for (const name of [...headers.keys()]) {
+    if (name.startsWith('sec-fetch-')) headers.delete(name)
+  }
+  headers.set('Content-Type', 'application/json')
+  return headers
 }
 
 /**
@@ -155,6 +182,29 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const isInternalAgentRequest =
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
+
+  if (isCherryCloudWorkModel(providerId, model.group)) {
+    if (!isInternalAgentRequest) {
+      const error = asClientError(new Error('Cherry Cloud Work models are only available to internal Agent requests'))
+      error.status = 403
+      throw error
+    }
+    if (inputFormat !== 'anthropic' || outputFormat !== 'anthropic') {
+      throw asClientError(new Error('Cherry Cloud Work models require the Anthropic Messages protocol'))
+    }
+
+    logger.info('Forwarding Cherry Cloud Work request through the signed product transport', {
+      providerId,
+      modelId,
+      streaming: isStreaming
+    })
+    return application.get('CherryCloudService').authenticatedFetch('/v1/messages', {
+      method: 'POST',
+      headers: cherryCloudRequestHeaders(config.requestHeaders),
+      body: JSON.stringify({ ...(params as Record<string, unknown>), model: modelId }),
+      signal
+    })
+  }
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,

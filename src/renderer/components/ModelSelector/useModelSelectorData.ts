@@ -104,14 +104,13 @@ export function useModelSelectorData({
     [filter]
   )
 
-  // Agent-only providers (e.g. `claude-code`, login-based, no API key) are hidden
-  // from general selectors; only agent pickers (whose filter is marked) surface them.
+  // Agent-only providers are hidden from general selectors; only Agent pickers
+  // whose filter is explicitly marked may surface them.
   const includeAgentOnlyProviders = useMemo(() => modelFilterIncludesAgentOnlyProviders(filter), [filter])
 
-  // A provider whose credentials come from an external CLI login carries no API
-  // key and cannot serve a normal chat request — it is agent-only.
+  // External-CLI providers carry no credential that a normal request can use.
   const agentOnlyProviderIds = useMemo(
-    () => new Set(providers.filter(isExternalCliProvider).map((p) => p.id)),
+    () => new Set(providers.filter(isExternalCliProvider).map((provider) => provider.id)),
     [providers]
   )
 

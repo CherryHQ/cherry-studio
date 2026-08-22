@@ -64,7 +64,9 @@ export const cloudModelListSchema = z.strictObject({
   data: z.array(
     z.looseObject({
       id: z.string().min(1),
-      display_name: z.string().min(1)
+      display_name: z.string().min(1),
+      context_window: z.number().int().positive(),
+      max_output_tokens: z.number().int().positive()
     })
   )
 })

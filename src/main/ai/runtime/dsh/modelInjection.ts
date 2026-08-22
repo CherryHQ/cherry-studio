@@ -24,6 +24,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId, isGatewayRoutableModel, isReasoningModel, isVisionModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
+import { getProviderAgentGatewayPolicy } from '../../provider/agentGatewayPolicy'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
@@ -164,6 +165,13 @@ export function resolveDshInjectionApi(provider: Provider, model: Model): DshApi
   return mapEndpointToDshApi(resolvedEndpoint.endpointType, adapterFamily)
 }
 
+/** Whether DSH must use the local Gateway by provider policy or protocol fallback. */
+export function usesDshGateway(provider: Provider, model: Model): boolean {
+  return (
+    getProviderAgentGatewayPolicy(provider.id) !== undefined || resolveDshInjectionApi(provider, model) === undefined
+  )
+}
+
 /**
  * Pure mapping: build the dsh provider injection from an already-resolved
  * Cherry `Provider`, `Model`, and API key. Kept free of service/IO so it is
@@ -259,10 +267,11 @@ export function buildDshGatewayInjection(
   if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
+  const api = resolveDshInjectionApi(provider, model) ?? 'openai-completions'
   return {
     providerName: provider.id,
-    api: 'openai-completions',
-    baseUrl: formatDshBaseUrl(gateway.baseUrl, 'openai-completions'),
+    api,
+    baseUrl: formatDshBaseUrl(gateway.baseUrl, api),
     ...(Object.keys(gateway.usageHeaders).length ? { headers: gateway.usageHeaders } : {}),
     apiKey: gateway.apiKey,
     modelId,
@@ -304,8 +313,8 @@ export async function resolveDshProviderInjectionFromSnapshot(
   enabledApiKeys?: readonly ApiKeyEntry[],
   reasoningEffort: ReasoningEffortOption = 'default'
 ): Promise<DshProviderInjection> {
-  if (resolveDshInjectionApi(provider, model) === undefined) {
-    // Claude's gateway sequence: consent (ApiGatewayNotRunningError), converge, materialize key.
+  if (usesDshGateway(provider, model)) {
+    // Shared gateway sequence: consent (ApiGatewayNotRunningError), converge, materialize key.
     const gateway = await resolveApiGatewayRuntime(sessionId)
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
@@ -334,6 +343,12 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
     providerService.getByProviderId(providerId),
     modelService.getByKey(providerId, modelId)
   ])
+
+  // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
+  if (getProviderAgentGatewayPolicy(provider.id)) {
+    if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
+    return
+  }
 
   // Unsupported beats missing-credential (parity with buildDshProviderInjection).
   if (resolveDshInjectionApi(provider, model) === undefined) {

@@ -220,10 +220,6 @@ export async function resolveProviderAiSdkConfig(
     },
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
-    {
-      match: (p) => p.id === CHERRYAI_PROVIDER_ID && endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      build: withoutCredential(buildCherryCloudConfig)
-    },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
     // Local embedding runs fully in-process (transformers.js in a worker): no
     // endpoint, baseURL, or apiKey. Without this entry it falls through to the
@@ -565,21 +561,6 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
         })
         return customFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
       }
-    }
-  }
-}
-
-function buildCherryCloudConfig(ctx: BuilderContext): ProviderConfig<'anthropic'> {
-  const cherryCloud = application.get('CherryCloudService')
-  return {
-    providerId: 'anthropic',
-    endpoint: ctx.endpoint,
-    providerSettings: {
-      ...ctx.baseConfig,
-      baseURL: cherryCloud.getModelApiBaseUrl(),
-      apiKey: 'cherry-cloud-session',
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-      fetch: (input: RequestInfo | URL, init?: RequestInit) => cherryCloud.authenticatedFetch(input, init)
     }
   }
 }

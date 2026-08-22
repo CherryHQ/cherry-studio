@@ -1,4 +1,3 @@
-import { application } from '@application'
 import {
   CHERRYAI_API_BASE_URL,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -843,43 +842,6 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('CherryAI routing', () => {
-    it('routes Cloud models through the product session signed Anthropic transport', async () => {
-      const authenticatedFetch = vi.fn().mockResolvedValue(new Response('{}'))
-      vi.mocked(application.get).mockImplementationOnce(((name: string) => {
-        expect(name).toBe('CherryCloudService')
-        return {
-          authenticatedFetch,
-          getModelApiBaseUrl: () => 'https://cloud.example/v1'
-        }
-      }) as typeof application.get)
-      const provider = makeProvider({
-        id: CHERRYAI_PROVIDER_ID,
-        presetProviderId: CHERRYAI_PROVIDER_ID,
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: CHERRYAI_API_BASE_URL }
-        },
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-      })
-      const model = makeModel({
-        id: 'cherryai::deepseek-free',
-        providerId: CHERRYAI_PROVIDER_ID,
-        apiModelId: 'deepseek-free',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-      })
-
-      const config = await providerToAiSdkConfig(provider, model)
-      const settings = config.providerSettings as { baseURL: string; fetch: typeof fetch }
-      await settings.fetch('https://cloud.example/v1/messages', { method: 'POST', body: '{}' })
-
-      expect(config.providerId).toBe('anthropic')
-      expect(settings.baseURL).toBe('https://cloud.example/v1')
-      expect(authenticatedFetch).toHaveBeenCalledWith('https://cloud.example/v1/messages', {
-        method: 'POST',
-        body: '{}'
-      })
-      expect(resolveApiKeyMock).not.toHaveBeenCalled()
-    })
-
     it('uses custom fetch to sign chat completions requests', async () => {
       resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
       generateSignatureMock.mockReturnValue({
