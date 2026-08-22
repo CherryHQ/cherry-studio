@@ -82,4 +82,37 @@ describe('useManagedToolStatus', () => {
     })
     expect(result.current.status).toBe('running')
   })
+
+  it('drops the initial snapshot when an event already delivered newer state', async () => {
+    let resolveSnapshot!: (value: { status: string }) => void
+    mocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveSnapshot = resolve)))
+    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+
+    await act(async () => {
+      emit('openclaw.status_changed', { status: 'running', port: 18790 })
+    })
+    expect(result.current).toEqual({ status: 'running' })
+
+    await act(async () => {
+      resolveSnapshot({ status: 'stopped' }) // stale bootstrap reply arriving late
+    })
+    expect(result.current).toEqual({ status: 'running' })
+  })
+
+  it('retries a failed initial snapshot until it lands', async () => {
+    vi.useFakeTimers()
+    mocks.request.mockRejectedValueOnce(new Error('service not ready yet')).mockResolvedValueOnce({ status: 'running' })
+    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(result.current).toEqual({ status: 'stopped' }) // default while the snapshot fails
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(result.current).toEqual({ status: 'running' })
+    vi.useRealTimers()
+  })
 })
