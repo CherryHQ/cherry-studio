@@ -32,14 +32,14 @@ const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => 
 const babeldocInstalledSnapshot: BinaryToolSnapshot = {
   name: 'babeldoc-stream',
   availability: { source: 'mise', path: '/shims/babeldoc-stream' },
-  application: { status: 'applied', version: '0.6.4.post2' }
+  application: { status: 'applied', version: '0.6.4.post3' }
 }
 const binaryMock = vi.hoisted(() => ({
   snapshots: {
     'babeldoc-stream': {
       name: 'babeldoc-stream',
       availability: { source: 'mise', path: '/shims/babeldoc-stream' },
-      application: { status: 'applied', version: '0.6.4.post2' }
+      application: { status: 'applied', version: '0.6.4.post3' }
     }
   } as Record<string, BinaryToolSnapshot>
 }))
@@ -903,7 +903,7 @@ describe('TranslatePage', () => {
     await waitFor(() =>
       expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
         name: 'babeldoc-stream',
-        targetVersion: '0.6.4.post2'
+        targetVersion: '0.6.4.post3'
       })
     )
   })

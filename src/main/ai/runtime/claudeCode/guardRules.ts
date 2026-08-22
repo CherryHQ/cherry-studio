@@ -25,6 +25,7 @@ import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 
 import { isPathWithinAllowedRoots } from './pathContainment'
+import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
@@ -83,6 +84,13 @@ const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit 
   return { evidence: requestedPath }
 }
 
+const skillWithAbsentDependency = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  const skillName = ctx.input?.skill
+  if (typeof skillName !== 'string' || !skillName) return null
+  const { deny } = await checkSkillRuntimeDependencies(skillName, ctx.cwd, ctx.pluginDirectories)
+  return deny ? { evidence: deny } : null
+}
+
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
   const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
@@ -105,6 +113,16 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `Blocked to avoid cross-agent dependency pollution: ${hit.evidence}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
+  },
+  {
+    // The SDK forks a skill whether or not its declared subagent exists, degrading into unrelated
+    // output instead of an error. Only a provably absent dependency blocks; everything else is
+    // advisory context (see skillDependencies). Not an approval — bypassPermissions does not lift it.
+    id: 'skill-absent-dependency',
+    bypassBehavior: 'enforce',
+    match: { tool: SKILL_TOOL_NAME, when: skillWithAbsentDependency },
+    effect: 'deny',
+    reason: (hit) => hit.evidence ?? 'The skill declares a runtime dependency that is not installed.'
   },
   {
     id: 'headless-config-mutation',

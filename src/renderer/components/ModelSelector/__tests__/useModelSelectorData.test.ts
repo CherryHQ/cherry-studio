@@ -34,7 +34,7 @@ function makeProvider(id: string, overrides: Partial<Provider> = {}): Provider {
     name: `name(${id})`,
     apiKeys: [],
     authType: 'apiKey',
-    apiFeatures: {} as Provider['apiFeatures'],
+    reportsActualCost: false,
     settings: {} as Provider['settings'],
     isEnabled: true,
     ...overrides

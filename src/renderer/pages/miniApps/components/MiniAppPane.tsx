@@ -1,0 +1,160 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
+import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import type { MiniApp } from '@shared/data/types/miniApp'
+import type { WebviewTag } from 'electron'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import BeatLoader from 'react-spinners/BeatLoader'
+
+import MinimalToolbar, { type SplitMode } from './MinimalToolbar'
+import WebviewSearch from './WebviewSearch'
+
+const MINI_APP_LOADING_COLOR = 'var(--muted-foreground)'
+
+interface Props {
+  app: MiniApp
+  /** Whether this pane's toolbar offers to open the split or to close it. */
+  splitMode: SplitMode
+  /** Whether the view is currently split, so the control reads as engaged. */
+  splitActive?: boolean
+  onSplit: () => void
+  /** Whether this pane answers the host window's Find shortcut. */
+  hostShortcutEnabled?: boolean
+  /** Fired when the user interacts with this pane, so the page can track focus. */
+  onActivate?: () => void
+  className?: string
+}
+
+/**
+ * One mini app pane: toolbar, in-page search and loading mask laid over the
+ * `<webview>` that {@link MiniAppTabsPool} renders underneath. The pane itself
+ * is transparent so the pooled webview shows through.
+ */
+const MiniAppPane: FC<Props> = ({
+  app,
+  splitMode,
+  splitActive,
+  onSplit,
+  hostShortcutEnabled,
+  onActivate,
+  className
+}) => {
+  const webviewRef = useRef<WebviewTag | null>(null)
+  // Read through a ref so attaching the webview listener does not depend on a
+  // callback identity that changes every render.
+  const onActivateRef = useRef(onActivate)
+  onActivateRef.current = onActivate
+  // Seed isReady from the pool's own state, not a load event: a pane remounting
+  // over an already-loaded webview must not flash the mask, which reads as a reload.
+  const [isReady, setIsReady] = useState<boolean>(() => getWebviewLoaded(app.appId))
+  const [currentUrl, setCurrentUrl] = useState<string | null>(app.url)
+
+  const webviewCleanupRef = useRef<(() => void) | null>(null)
+
+  const detachWebview = useCallback(() => {
+    webviewCleanupRef.current?.()
+    webviewCleanupRef.current = null
+    webviewRef.current = null
+  }, [])
+
+  const attachWebview = useCallback(() => {
+    const selector = `webview[data-mini-app-id="${CSS.escape(app.appId)}"]`
+    const el = document.querySelector<WebviewTag>(selector)
+    if (!el) return false
+
+    if (webviewRef.current === el) return true // Already attached
+
+    detachWebview()
+    webviewRef.current = el
+    const handleInPageNav = (e: any) => setCurrentUrl(e.url)
+    // Clicking into the page focuses the webview element itself; that is the
+    // only signal the host gets, since events inside the guest never bubble out.
+    const handleFocus = () => onActivateRef.current?.()
+    el.addEventListener('did-navigate-in-page', handleInPageNav)
+    el.addEventListener('focus', handleFocus)
+    webviewCleanupRef.current = () => {
+      el.removeEventListener('did-navigate-in-page', handleInPageNav)
+      el.removeEventListener('focus', handleFocus)
+    }
+    return true
+  }, [app.appId, detachWebview])
+
+  useEffect(() => {
+    if (!isReady) {
+      detachWebview()
+      return
+    }
+
+    // Try immediate attachment first
+    if (attachWebview()) return detachWebview
+
+    // If not yet created, observe DOM changes (lightweight + auto-disconnect)
+    const observer = new MutationObserver(() => {
+      if (attachWebview()) {
+        observer.disconnect()
+      }
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => {
+      observer.disconnect()
+      detachWebview()
+    }
+  }, [attachWebview, detachWebview, isReady])
+
+  // Keep local readiness synchronized across load, LRU eviction, and recreation.
+  useEffect(() => {
+    const unsubscribe = onWebviewStateChange(app.appId, setIsReady)
+    setIsReady(getWebviewLoaded(app.appId))
+    return unsubscribe
+  }, [app.appId])
+
+  const handleReload = useCallback(() => {
+    if (!isReady || !getWebviewLoaded(app.appId)) return
+    const webview = webviewRef.current
+    if (!webview?.isConnected) return
+
+    setWebviewLoaded(app.appId, false)
+    setIsReady(false)
+    webview.reload()
+  }, [app.appId, isReady])
+
+  const handleOpenDevTools = useCallback(() => {
+    webviewRef.current?.openDevTools()
+  }, [])
+
+  return (
+    <div
+      className={cn('pointer-events-none relative flex h-full min-h-0 flex-col *:pointer-events-auto', className)}
+      onMouseDownCapture={onActivate}>
+      <div className="shrink-0">
+        <MinimalToolbar
+          app={app}
+          webviewRef={webviewRef}
+          // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
+          currentUrl={currentUrl}
+          onReload={handleReload}
+          onOpenDevTools={handleOpenDevTools}
+          splitMode={splitMode}
+          splitActive={splitActive}
+          onSplit={onSplit}
+        />
+      </div>
+      <WebviewSearch
+        webviewRef={webviewRef}
+        isWebviewReady={isReady}
+        appId={app.appId}
+        hostShortcutEnabled={hostShortcutEnabled}
+      />
+      {!isReady && (
+        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+          <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />
+          <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} style={{ marginTop: 12 }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default MiniAppPane

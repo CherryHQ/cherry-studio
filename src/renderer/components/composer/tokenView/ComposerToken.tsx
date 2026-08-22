@@ -86,6 +86,8 @@ interface FileComposerTokenProps extends ComposerTokenProps {
 interface ActiveComposerTokenProps extends ComposerTokenProps {
   icon: ReactNode
   colorClassName?: string
+  /** Set when a richer hover surface (NormalTooltip) wraps the chip, so the native title would double up. */
+  hideNativeTitle?: boolean
   interactionProps?: {
     role: 'link'
     tabIndex: number
@@ -202,9 +204,11 @@ function renderActiveComposerTokenElement({
   removeLabel,
   icon,
   colorClassName = 'text-primary',
+  hideNativeTitle = false,
   interactionProps
 }: ActiveComposerTokenProps) {
-  const title = token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
+  const title =
+    hideNativeTitle || token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
 
   return (
     <span
@@ -267,7 +271,8 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     openLink()
   }
 
-  return renderActiveComposerTokenElement({
+  // The chip only shows the truncated label; hover must surface the full url the label stands for.
+  const chipElement = renderActiveComposerTokenElement({
     ...props,
     className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
     icon: props.readOnly ? (
@@ -280,6 +285,7 @@ export function LinkComposerToken(props: ComposerTokenProps) {
       tokenIconByKind.link
     ),
     children: <span className="min-w-0 truncate">{link.label}</span>,
+    hideNativeTitle: true,
     interactionProps: {
       role: 'link',
       tabIndex: 0,
@@ -288,6 +294,12 @@ export function LinkComposerToken(props: ComposerTokenProps) {
       onKeyDown: handleKeyDown
     }
   })
+
+  return (
+    <NormalTooltip content={link.url} side="top" sideOffset={6} delayDuration={TOKEN_TOOLTIP_DELAY_MS}>
+      {chipElement}
+    </NormalTooltip>
+  )
 }
 
 function isComposerAttachment(value: unknown): value is ComposerAttachment {
