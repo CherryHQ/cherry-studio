@@ -14,7 +14,14 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-const item: BaseConfigItem = { type: 'customSize', key: 'customSize', validation: { minWidth: 512 } }
+// `imageGenerationToFields` always derives the pair keys from the field key.
+const item: BaseConfigItem = {
+  type: 'customSize',
+  key: 'customSize',
+  widthKey: 'customSize_width',
+  heightKey: 'customSize_height',
+  validation: { minWidth: 512 }
+}
 
 function renderSizeField(painting: Record<string, unknown>) {
   const onChange = vi.fn()
@@ -37,7 +44,7 @@ describe('SizeField', () => {
   // turned into a concrete size by touching the field.
   it.each([
     ['unset', {}],
-    ['a non-numeric leftover', { customSize_width: '' }]
+    ['a non-numeric leftover', { customSize_width: '1024' }]
   ])('shows an empty width field when the size is %s', (_case, painting) => {
     renderSizeField(painting)
 
