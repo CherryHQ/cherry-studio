@@ -1,9 +1,33 @@
 import type { ConversationIslandActivityItem, ConversationIslandSnapshot } from '@shared/types/conversationIsland'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { HTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ConversationIsland from '../ConversationIsland'
+
+type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
+  animate?: unknown
+  exit?: unknown
+  initial?: unknown
+  layout?: unknown
+  transition?: unknown
+}
+
+vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: { children: ReactNode }) => children,
+  motion: {
+    div: ({ children, animate, initial, exit: _exit, layout: _layout, transition, ...props }: MotionDivProps) => (
+      <div
+        {...props}
+        data-animate={JSON.stringify(animate)}
+        data-initial={JSON.stringify(initial)}
+        data-transition={JSON.stringify(transition)}>
+        {children}
+      </div>
+    )
+  }
+}))
 
 const mocks = vi.hoisted(() => ({
   initData: null as ConversationIslandSnapshot | null,
@@ -230,6 +254,58 @@ describe('ConversationIsland', () => {
 
     await advance(1)
     expect(expansionRequests()).toEqual([['conversation_island.set_expanded', { expanded: true }]])
+  })
+
+  it('cancels a compact dwell and blocks interaction when the exit snapshot arrives', async () => {
+    vi.useFakeTimers()
+    mocks.initData = snapshot({ secondaryCount: 1 })
+    const view = render(<ConversationIsland />)
+
+    fireEvent.pointerEnter(screen.getByRole('button'))
+    mocks.initData = snapshot({ secondaryCount: 1, exiting: true })
+    view.rerender(<ConversationIsland />)
+
+    const surface = screen.getByTestId('conversation-island-surface')
+    const motionRoot = screen.getByTestId('conversation-island-motion')
+    expect(surface).toHaveAttribute('aria-hidden', 'true')
+    expect(surface).toBeDisabled()
+    expect(motionRoot).toHaveAttribute('data-animate', JSON.stringify({ opacity: 0, scaleX: 0.96, scaleY: 0.82 }))
+    expect(motionRoot).toHaveStyle({ transformOrigin: '50% 0%' })
+
+    await advance(500)
+    expect(expansionRequests()).toEqual([])
+  })
+
+  it('disables expanded activity navigation and hover requests while exiting', async () => {
+    vi.useFakeTimers()
+    mocks.initData = expandedSnapshot()
+    const view = render(<ConversationIsland />)
+
+    fireEvent.pointerLeave(screen.getByTestId('conversation-island-surface'))
+    mocks.initData = expandedSnapshot({ exiting: true })
+    view.rerender(<ConversationIsland />)
+
+    const surface = screen.getByTestId('conversation-island-surface')
+    const buttons = screen.getAllByRole('button', { hidden: true })
+    expect(surface).toHaveAttribute('aria-hidden', 'true')
+    for (const button of buttons) expect(button).toBeDisabled()
+
+    fireEvent.click(buttons[1])
+    fireEvent.pointerEnter(surface)
+    fireEvent.pointerLeave(surface)
+    await advance(500)
+
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('makes the exit transition immediate when the snapshot reduces motion', () => {
+    mocks.initData = snapshot({ exiting: true, reducedMotion: true })
+    render(<ConversationIsland />)
+
+    expect(screen.getByTestId('conversation-island-motion')).toHaveAttribute(
+      'data-transition',
+      JSON.stringify({ duration: 0 })
+    )
   })
 
   it('does not expand a single activity and cancels a pending dwell when the pointer leaves', async () => {

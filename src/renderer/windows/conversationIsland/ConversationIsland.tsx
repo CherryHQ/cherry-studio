@@ -8,7 +8,10 @@ import type {
   ConversationIslandStateKind
 } from '@shared/types/conversationIsland'
 import { Bot, MessageCircle } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef } from 'react'
+
+import { resolveConversationIslandMotion } from './conversationIslandMotion'
 
 const logger = loggerService.withContext('ConversationIsland')
 
@@ -32,6 +35,14 @@ export default function ConversationIsland() {
   const freshReentryRef = useRef<FreshReentryState>('idle')
 
   useEffect(() => {
+    if (snapshot?.exiting) {
+      if (expandTimerRef.current !== null) clearTimeout(expandTimerRef.current)
+      if (collapseTimerRef.current !== null) clearTimeout(collapseTimerRef.current)
+      expandTimerRef.current = null
+      collapseTimerRef.current = null
+      return
+    }
+
     if (snapshot?.expanded || snapshot?.secondaryCount === 0) {
       if (expandTimerRef.current !== null) clearTimeout(expandTimerRef.current)
       expandTimerRef.current = null
@@ -40,7 +51,7 @@ export default function ConversationIsland() {
       if (collapseTimerRef.current !== null) clearTimeout(collapseTimerRef.current)
       collapseTimerRef.current = null
     }
-  }, [snapshot?.expanded, snapshot?.secondaryCount])
+  }, [snapshot?.expanded, snapshot?.exiting, snapshot?.secondaryCount])
 
   useEffect(
     () => () => {
@@ -70,6 +81,8 @@ export default function ConversationIsland() {
   }
 
   const handlePointerEnter = () => {
+    if (snapshot.exiting) return
+
     clearCollapseTimer()
 
     if (freshReentryRef.current === 'left-before-compact') {
@@ -96,6 +109,8 @@ export default function ConversationIsland() {
   }
 
   const handlePointerLeave = () => {
+    if (snapshot.exiting) return
+
     clearExpandTimer()
 
     if (freshReentryRef.current !== 'idle') {
@@ -134,6 +149,8 @@ export default function ConversationIsland() {
   )
 
   const openActivity = async (activity: ConversationIslandActivityItem) => {
+    if (snapshot.exiting) return
+
     try {
       await ipcApi.request('navigation.focus_or_open_conversation', {
         target: activity.target,
@@ -145,6 +162,8 @@ export default function ConversationIsland() {
   }
 
   const openExpandedActivity = async (activity: ConversationIslandActivityItem) => {
+    if (snapshot.exiting) return
+
     freshReentryRef.current = 'waiting-for-compact-enter'
     clearTimers()
 
@@ -157,87 +176,86 @@ export default function ConversationIsland() {
     await openActivity(activity)
   }
 
-  if (snapshot.expanded) {
-    const activities = snapshot.activities ?? []
-
-    return (
-      <div
-        data-testid="conversation-island-surface"
-        data-state={snapshot.state}
-        onPointerEnter={handlePointerEnter}
-        onPointerLeave={handlePointerLeave}
-        className={
-          usesNotchLayout
-            ? 'h-full w-full overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black text-white'
-            : 'h-full w-full overflow-hidden rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-md'
-        }>
-        {usesNotchLayout ? (
+  const activities = snapshot.activities ?? []
+  const surface = snapshot.expanded ? (
+    <div
+      data-testid="conversation-island-surface"
+      data-state={snapshot.state}
+      aria-hidden={snapshot.exiting ? true : undefined}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      className={`${
+        usesNotchLayout
+          ? 'h-full w-full overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black text-white'
+          : 'h-full w-full overflow-hidden rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-md'
+      } ${snapshot.exiting ? 'pointer-events-none' : ''}`}>
+      {usesNotchLayout ? (
+        <div
+          data-testid="notch-expanded-header"
+          className="grid h-[38px] w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] text-xs">
           <div
-            data-testid="notch-expanded-header"
-            className="grid h-[38px] w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] text-xs">
-            <div
-              data-testid="notch-expanded-leading"
-              className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
-              <ActivityIcon
-                data-testid="notch-activity-icon"
-                data-conversation-type={snapshot.target.conversationType}
-                className="size-3.5 shrink-0 text-white/70"
-                aria-hidden="true"
-              />
-              {stateIndicator(snapshot.state)}
-              <span className="min-w-0 truncate">{snapshot.statusText}</span>
-            </div>
-            <div data-testid="notch-expanded-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
-            <div
-              data-testid="notch-expanded-trailing"
-              className="flex min-w-0 items-center justify-end overflow-hidden pr-3 text-white/60">
-              <span className="min-w-0 truncate">{snapshot.activityCountText}</span>
-            </div>
+            data-testid="notch-expanded-leading"
+            className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
+            <ActivityIcon
+              data-testid="notch-activity-icon"
+              data-conversation-type={snapshot.target.conversationType}
+              className="size-3.5 shrink-0 text-white/70"
+              aria-hidden="true"
+            />
+            {stateIndicator(snapshot.state)}
+            <span className="min-w-0 truncate">{snapshot.statusText}</span>
           </div>
-        ) : null}
-        <div role="list" className="max-h-[220px] overflow-y-auto">
-          {activities.map((activity) => {
-            const isPrimary = activity.activityId === snapshot.activityId
-
-            return (
-              <div role="listitem" key={activity.activityId}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label={`${activity.statusText}: ${activity.title}`}
-                  data-state={activity.state}
-                  onClick={() => void openExpandedActivity(activity)}
-                  className={`h-11 min-h-11 w-full min-w-0 justify-start rounded-md px-3 py-0 text-xs shadow-none ${
-                    usesNotchLayout
-                      ? `${isPrimary ? 'bg-white/10 font-medium' : 'font-normal'} text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white`
-                      : `${isPrimary ? 'bg-accent font-medium' : 'font-normal'} text-popover-foreground hover:bg-accent focus-visible:bg-accent`
-                  }`}>
-                  {stateIndicator(activity.state)}
-                  <span className="shrink-0">{activity.statusText}</span>
-                  <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{activity.title}</span>
-                </Button>
-              </div>
-            )
-          })}
+          <div data-testid="notch-expanded-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
+          <div
+            data-testid="notch-expanded-trailing"
+            className="flex min-w-0 items-center justify-end overflow-hidden pr-3 text-white/60">
+            <span className="min-w-0 truncate">{snapshot.activityCountText}</span>
+          </div>
         </div>
-      </div>
-    )
-  }
+      ) : null}
+      <div role="list" className="max-h-[220px] overflow-y-auto">
+        {activities.map((activity) => {
+          const isPrimary = activity.activityId === snapshot.activityId
 
-  return (
+          return (
+            <div role="listitem" key={activity.activityId}>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={`${activity.statusText}: ${activity.title}`}
+                data-state={activity.state}
+                disabled={snapshot.exiting}
+                onClick={() => void openExpandedActivity(activity)}
+                className={`h-11 min-h-11 w-full min-w-0 justify-start rounded-md px-3 py-0 text-xs shadow-none ${
+                  usesNotchLayout
+                    ? `${isPrimary ? 'bg-white/10 font-medium' : 'font-normal'} text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white`
+                    : `${isPrimary ? 'bg-accent font-medium' : 'font-normal'} text-popover-foreground hover:bg-accent focus-visible:bg-accent`
+                }`}>
+                {stateIndicator(activity.state)}
+                <span className="shrink-0">{activity.statusText}</span>
+                <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{activity.title}</span>
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  ) : (
     <Button
       type="button"
       variant="ghost"
+      aria-hidden={snapshot.exiting ? true : undefined}
+      disabled={snapshot.exiting}
       onClick={() => void openActivity(snapshot)}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
       data-testid="conversation-island-surface"
       data-state={snapshot.state}
-      className={
+      className={`${
         usesNotchLayout
           ? 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black px-0 py-0 text-white text-xs shadow-none hover:bg-black hover:text-white focus-visible:bg-black focus-visible:text-white'
           : 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-full border border-border bg-popover/95 px-3 py-0 text-popover-foreground text-xs shadow-md backdrop-blur-xs hover:bg-accent focus-visible:bg-accent'
-      }>
+      } ${snapshot.exiting ? 'pointer-events-none' : ''}`}>
       {usesNotchLayout ? (
         <span className="grid h-full w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <span data-testid="notch-leading" className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
@@ -270,5 +288,36 @@ export default function ConversationIsland() {
         </>
       )}
     </Button>
+  )
+
+  const motionPlan = resolveConversationIslandMotion({
+    exiting: snapshot.exiting,
+    reducedMotion: snapshot.reducedMotion
+  })
+  const contentTransition = snapshot.reducedMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 224, damping: 25, mass: 1 }
+
+  return (
+    <motion.div
+      data-testid="conversation-island-motion"
+      className="h-full w-full"
+      style={{ transformOrigin: '50% 0%' }}
+      initial={motionPlan.initial}
+      animate={motionPlan.animate}
+      transition={motionPlan.transition}>
+      <AnimatePresence initial={false} mode="popLayout">
+        <motion.div
+          key={snapshot.expanded ? 'expanded' : 'compact'}
+          className="h-full w-full"
+          layout={!snapshot.reducedMotion}
+          initial={snapshot.reducedMotion ? false : { opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={snapshot.reducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
+          transition={contentTransition}>
+          {surface}
+        </motion.div>
+      </AnimatePresence>
+    </motion.div>
   )
 }
