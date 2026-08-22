@@ -579,10 +579,15 @@
       "confirmation": "確定要執行此 Claude 工具嗎？",
       "defaultDenyMessage": "使用者拒絕了該工具的權限。",
       "error": {
-        "sendFailed": "傳送您的決定失敗，請重試。"
+        "sendFailed": "傳送您的決定失敗，請重試。",
+        "stale": "該決定已無法送達：發起此提問的回合已結束。請直接傳送新訊息繼續。"
       },
       "inputPreview": "工具輸入預覽",
       "pendingBadge": "待確認",
+      "staleFallback": {
+        "intro": "回答先前的問題（原提問已失效，未能送達）：",
+        "noAnswer": "（未作答）"
+      },
       "waiting": "等待工具權限決定..."
     },
     "tools": {

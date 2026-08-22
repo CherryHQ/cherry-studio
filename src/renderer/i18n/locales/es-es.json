@@ -579,10 +579,15 @@
       "confirmation": "¿Estás seguro de que quieres ejecutar esta herramienta de Claude?",
       "defaultDenyMessage": "El usuario denegó el permiso para esta herramienta.",
       "error": {
-        "sendFailed": "No se pudo enviar tu decisión. Por favor, inténtalo de nuevo."
+        "sendFailed": "No se pudo enviar tu decisión. Por favor, inténtalo de nuevo.",
+        "stale": "Esta decisión ya no se puede entregar: el turno que hizo la pregunta ha finalizado. Envía un mensaje nuevo para continuar."
       },
       "inputPreview": "Vista previa de entrada de herramienta",
       "pendingBadge": "Pendiente",
+      "staleFallback": {
+        "intro": "Respondiendo a la pregunta anterior (no se pudo entregar su solicitud original):",
+        "noAnswer": "(sin respuesta)"
+      },
       "waiting": "Esperando la decisión de permiso de la herramienta..."
     },
     "tools": {

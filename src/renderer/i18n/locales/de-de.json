@@ -579,10 +579,15 @@
       "confirmation": "Sind Sie sicher, dass Sie dieses Claude-Tool ausführen möchten?",
       "defaultDenyMessage": "Der Benutzer hat die Berechtigung für dieses Tool verweigert.",
       "error": {
-        "sendFailed": "Ihre Entscheidung konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
+        "sendFailed": "Ihre Entscheidung konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
+        "stale": "Diese Entscheidung kann nicht mehr zugestellt werden — der Vorgang, der diese Frage gestellt hat, ist bereits beendet. Senden Sie eine neue Nachricht, um fortzufahren."
       },
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pendingBadge": "Ausstehend",
+      "staleFallback": {
+        "intro": "Antwort auf die vorherige Frage (die ursprüngliche Anfrage konnte nicht mehr zugestellt werden):",
+        "noAnswer": "(keine Antwort)"
+      },
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
     },
     "tools": {
