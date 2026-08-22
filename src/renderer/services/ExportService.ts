@@ -30,7 +30,7 @@ import {
 import type { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
-import type { Blockquote, Paragraph, Text } from 'mdast'
+import type { Blockquote } from 'mdast'
 import type { appendBlocks } from 'notion-helper'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
