@@ -17,7 +17,7 @@ describe('PageHeader', () => {
     expect(heading).toHaveTextContent('Settings')
   })
 
-  it('renders action slot to the right of the title', () => {
+  it('renders the action slot at the inline end of the title', () => {
     render(<PageHeader title="Model Service" action={<button type="button">Filter</button>} />)
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Model Service')
     expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()

@@ -1,4 +1,4 @@
-import { NormalTooltip } from '@cherrystudio/ui'
+import { NormalTooltip, type TooltipSide } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
@@ -11,7 +11,7 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   tone?: IconButtonTone
   active?: boolean
   tooltip?: ReactNode
-  tooltipSide?: 'top' | 'right' | 'bottom' | 'left'
+  tooltipSide?: TooltipSide
 }
 
 const SIZE_CLASS: Record<IconButtonSize, string> = {

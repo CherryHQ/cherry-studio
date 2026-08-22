@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { DirectionProvider } from '../direction'
 import { NormalTooltip, Tooltip, TooltipContent, TooltipRoot, TooltipTrigger } from '../tooltip'
 
 beforeAll(() => {
@@ -170,6 +171,20 @@ describe('Tooltip', () => {
         </Tooltip>
       )
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('physical placement', () => {
+    it('keeps the requested side in RTL', () => {
+      render(
+        <DirectionProvider dir="rtl">
+          <Tooltip content="right in RTL" placement="right" isOpen>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        </DirectionProvider>
+      )
+
+      expect(getTooltipContentElement('right in RTL')).toHaveAttribute('data-side', 'right')
     })
   })
 

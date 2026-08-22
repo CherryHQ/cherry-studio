@@ -18,6 +18,9 @@ overrides:
   '@codemirror/view': '6.39.16'
   '@codemirror/language': '6.12.2'
   '@codemirror/lint': '6.9.5'
+  # Must stay deduped: Radix reads direction through module-level context, so a
+  # second copy would leave our DirectionProvider invisible to Radix components.
+  '@radix-ui/react-direction': '1.1.2'
   '@lezer/common': '1.5.1'
   prosemirror-model: '1.25.9'
   prosemirror-view: '1.41.9'

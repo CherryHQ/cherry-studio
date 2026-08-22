@@ -72,7 +72,7 @@ const inputWrapperVariants = cva(['flex', 'flex-1', 'items-center', 'gap-2'], {
     },
     variant: {
       default: [],
-      button: 'border-r-[1px]',
+      button: 'border-e-[1px]',
       email: [],
       select: []
     },
@@ -156,7 +156,7 @@ const buttonLabelVariants = cva([], {
   }
 })
 
-const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-foreground'], {
+const prefixVariants = cva(['font-medium', 'border-e-[1px]', 'text-muted-foreground'], {
   variants: {
     size: {
       // TODO: semantic letter-spacing
@@ -175,7 +175,7 @@ const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-foregro
   }
 })
 
-const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-foreground', 'p-0'], {
+const selectPrefixVariants = cva(['font-medium', 'border-e-[1px]', 'text-muted-foreground', 'p-0'], {
   variants: {
     size: {
       // TODO: semantic letter-spacing
@@ -196,16 +196,16 @@ const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-f
 
 const selectTriggerVariants = cva(
   [
-    'border-none box-content pl-3 aria-expanded:border-none aria-expanded:ring-0 bg-transparent',
+    'border-none box-content ps-3 aria-expanded:border-none aria-expanded:ring-0 bg-transparent',
     '*:data-[slot=select-value]:text-foreground',
     '[&_svg]:text-secondary-foreground!'
   ],
   {
     variants: {
       size: {
-        sm: ['h-5', 'pl-6 pr-3 py-3', '*:data-[slot=select-value]:text-sm'],
-        md: ['h-5', 'pl-6 pr-3 py-[13px]'],
-        lg: ['h-6', 'pl-7 pr-4 py-3', '*:data-[slot=select-value]:text-lg']
+        sm: ['h-5', 'ps-6 pe-3 py-3', '*:data-[slot=select-value]:text-sm'],
+        md: ['h-5', 'ps-6 pe-3 py-[13px]'],
+        lg: ['h-6', 'ps-7 pe-4 py-3', '*:data-[slot=select-value]:text-lg']
       }
     }
   }

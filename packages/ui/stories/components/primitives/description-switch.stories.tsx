@@ -25,10 +25,10 @@ const meta: Meta<typeof DescriptionSwitch> = {
       control: { type: 'text' },
       description: 'Optional helper text shown below the label'
     },
-    position: {
+    controlPosition: {
       control: { type: 'select' },
-      options: ['left', 'right'],
-      description: 'Switch position relative to label'
+      options: ['start', 'end'],
+      description: 'Logical switch position relative to the label'
     },
     disabled: {
       control: { type: 'boolean' },
@@ -97,45 +97,45 @@ export const Positions: Story = {
   render: () => (
     <div className="flex w-[500px] flex-col gap-8">
       <div>
-        <h3 className="mb-4 text-sm font-semibold">Switch on Right (Default)</h3>
+        <h3 className="mb-4 text-sm font-semibold">Switch at Inline End (Default)</h3>
         <div className="flex flex-col gap-4">
           <DescriptionSwitch
             label="Email notifications"
             description="Get notified about new messages and updates"
-            position="right"
+            controlPosition="end"
           />
           <DescriptionSwitch
             label="Push notifications"
             description="Receive instant alerts on your device"
-            position="right"
+            controlPosition="end"
             defaultChecked
           />
           <DescriptionSwitch
             label="Marketing emails"
             description="Stay informed about new features and offers"
-            position="right"
+            controlPosition="end"
           />
         </div>
       </div>
 
       <div>
-        <h3 className="mb-4 text-sm font-semibold">Switch on Left</h3>
+        <h3 className="mb-4 text-sm font-semibold">Switch at Inline Start</h3>
         <div className="flex flex-col gap-4">
           <DescriptionSwitch
             label="Email notifications"
             description="Get notified about new messages and updates"
-            position="left"
+            controlPosition="start"
           />
           <DescriptionSwitch
             label="Push notifications"
             description="Receive instant alerts on your device"
-            position="left"
+            controlPosition="start"
             defaultChecked
           />
           <DescriptionSwitch
             label="Marketing emails"
             description="Stay informed about new features and offers"
-            position="left"
+            controlPosition="start"
           />
         </div>
       </div>

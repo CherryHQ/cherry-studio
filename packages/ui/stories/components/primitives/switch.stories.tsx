@@ -286,26 +286,30 @@ export const DescriptionSwitchPositions: Story = {
   render: () => (
     <div className="flex w-96 flex-col gap-6">
       <div>
-        <p className="mb-3 text-sm text-muted-foreground">Switch on Right (Default)</p>
+        <p className="mb-3 text-sm text-muted-foreground">Switch at Inline End (Default)</p>
         <div className="flex flex-col gap-4">
           <DescriptionSwitch
             label="Email notifications"
             description="Get notified about new messages"
-            position="right"
+            controlPosition="end"
           />
-          <DescriptionSwitch label="Marketing emails" description="Receive promotional content" position="right" />
+          <DescriptionSwitch label="Marketing emails" description="Receive promotional content" controlPosition="end" />
         </div>
       </div>
 
       <div>
-        <p className="mb-3 text-sm text-muted-foreground">Switch on Left</p>
+        <p className="mb-3 text-sm text-muted-foreground">Switch at Inline Start</p>
         <div className="flex flex-col gap-4">
           <DescriptionSwitch
             label="Email notifications"
             description="Get notified about new messages"
-            position="left"
+            controlPosition="start"
           />
-          <DescriptionSwitch label="Marketing emails" description="Receive promotional content" position="left" />
+          <DescriptionSwitch
+            label="Marketing emails"
+            description="Receive promotional content"
+            controlPosition="start"
+          />
         </div>
       </div>
     </div>
