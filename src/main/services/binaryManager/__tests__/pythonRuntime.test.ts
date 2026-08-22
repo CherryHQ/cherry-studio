@@ -75,34 +75,31 @@ describe('provideManagedPython', () => {
     })
 
     await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
-    const installs = uvCalls('install')
-    expect(installs).toHaveLength(1)
-    // A system interpreter is an absence, not a damaged managed install: uv is
-    // asked for a plain install so a copy it already holds is left alone.
-    expect(installs[0]?.[1]).not.toContain('--reinstall')
+    expect(uvCalls('install')).toHaveLength(1)
   })
 
-  it('reinstalls when the stored interpreter no longer runs, which a plain install would skip', async () => {
+  it('repairs a managed install that no longer runs, which a plain install would skip', async () => {
     let repaired = false
     mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
-      // uv exits successfully without doing anything when it already has the
-      // version, so only an explicit reinstall replaces the broken copy.
       if (bin === UV_BIN && args[1] === 'install') {
-        if (args.includes('--reinstall')) repaired = true
+        // uv keeps listing the version, so a plain install exits successfully
+        // without replacing the broken copy.
+        if (!args.includes('--reinstall')) return { stdout: 'Python 3.12.13 is already installed\n', stderr: '' }
+        repaired = true
         return { stdout: '', stderr: '' }
       }
-      if (bin === UV_BIN && args[1] === 'find') return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
-      if (bin === MANAGED_PYTHON) {
-        if (!repaired) throw new Error('dyld: library not loaded')
-        return { stdout: 'Python 3.12.13\n', stderr: '' }
+      // uv reports an interpreter it cannot inspect exactly as it reports an
+      // absent one, so a corrupt install is indistinguishable from no install.
+      if (bin === UV_BIN && args[1] === 'find') {
+        if (!repaired) throw new Error('Failed to inspect Python interpreter from managed installations')
+        return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
       }
+      if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
       return { stdout: '', stderr: '' }
     })
 
     await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
-    const installs = uvCalls('install')
-    expect(installs).toHaveLength(1)
-    expect(installs[0]?.[1]).toContain('--reinstall')
+    expect(uvCalls('install')).toHaveLength(1)
   })
 
   it('installs from the China mirror when in China', async () => {

@@ -46,15 +46,12 @@ async function runUv(args: string[], env: Record<string, string>, timeoutMs: num
   return stdout
 }
 
-/** A managed interpreter uv already has, and whether it actually runs. */
-type ManagedPython = { path: string; healthy: boolean }
-
 /**
- * The interpreter uv already has for `version`, or null when it has none. `uv
- * python find` is offline, so a hit costs nothing; the extra `--version` spawn is
- * what tells a working install apart from one a half-written download corrupted.
+ * The interpreter uv already has for `version`, or null when it has none that
+ * runs. `uv python find` is offline, so a hit costs nothing; the extra
+ * `--version` spawn is what keeps a half-written download from passing as usable.
  */
-async function findInstalled(version: string, env: Record<string, string>): Promise<ManagedPython | null> {
+async function findInstalled(version: string, env: Record<string, string>): Promise<string | null> {
   let pythonPath: string | undefined
   try {
     const stdout = await runUv(
@@ -79,9 +76,9 @@ async function findInstalled(version: string, env: Record<string, string>): Prom
       path: pythonPath,
       error: sanitizedCommandError(error)
     })
-    return { path: pythonPath, healthy: false }
+    return null
   }
-  return { path: pythonPath, healthy: true }
+  return pythonPath
 }
 
 /**
@@ -103,17 +100,16 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
   }
 
   const existing = await findInstalled(version, env)
-  if (existing?.healthy) return existing.path
+  if (existing) return existing
 
   await fsp.mkdir(dir, { recursive: true })
   const installArgs = [
     'python',
     'install',
     version,
-    // uv exits successfully without doing anything when it already has the
-    // version, so an install it still lists — but that no longer runs — is only
-    // repaired by asking for it again explicitly.
-    ...(existing ? ['--reinstall'] : []),
+    // Unconditional: a plain install exits successfully without doing anything
+    // whenever uv still lists the version, and a broken one is listed just the same.
+    '--reinstall',
     '--install-dir',
     dir,
     '--no-bin',
@@ -141,6 +137,6 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
   }
 
   const installed = await findInstalled(version, env)
-  if (!installed?.healthy) throw new Error(`Managed Python is not runnable after install: ${version}`)
-  return installed.path
+  if (!installed) throw new Error(`Managed Python is not runnable after install: ${version}`)
+  return installed
 }
