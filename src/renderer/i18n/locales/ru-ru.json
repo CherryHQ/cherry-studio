@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Закрыть предпросмотр",
       "code": "Код",
+      "copy_path": "Копировать путь",
+      "copy_relative_path": "Копировать относительный путь",
       "default_app": "Приложение по умолчанию",
       "edit": {
         "conflict": {

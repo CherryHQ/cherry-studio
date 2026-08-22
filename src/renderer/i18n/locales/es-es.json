@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Cerrar vista previa",
       "code": "Código",
+      "copy_path": "Copiar ruta",
+      "copy_relative_path": "Copiar ruta relativa",
       "default_app": "Aplicación predeterminada",
       "edit": {
         "conflict": {

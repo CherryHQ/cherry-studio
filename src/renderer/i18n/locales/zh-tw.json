@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "關閉預覽",
       "code": "程式碼",
+      "copy_path": "複製路徑",
+      "copy_relative_path": "複製相對路徑",
       "default_app": "預設應用程式",
       "edit": {
         "conflict": {

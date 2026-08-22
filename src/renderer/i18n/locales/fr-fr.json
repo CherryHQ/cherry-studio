@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Fermer l'aperçu",
       "code": "Code",
+      "copy_path": "Copier le chemin",
+      "copy_relative_path": "Copier le chemin relatif",
       "default_app": "Application par défaut",
       "edit": {
         "conflict": {
