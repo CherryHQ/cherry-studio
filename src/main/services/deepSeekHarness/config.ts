@@ -299,9 +299,7 @@ function renderCredentials(snapshot: FileSnapshot, credentialRef: string, creden
   // DSH 0.1.1 nests entries under `version: 1` + `refs:` and rejects unknown
   // top-level keys, including the one Cherry used to write there. Any other
   // document stays flat: pre-0.1.1 builds read it, and 0.1.1 migrates it itself.
-  const version = document.get('version')
-  const isVersioned = version === 1 || String(version) === '1'
-  if (isVersioned) {
+  if (document.get('version') === 1) {
     if (document.getIn(['refs']) == null) document.setIn(['refs'], document.createNode({}))
     // Heal files polluted by older Cherry builds that wrote managed keys at
     // top-level: DSH 0.1.1 rejects any unknown top-level key, so every stale
