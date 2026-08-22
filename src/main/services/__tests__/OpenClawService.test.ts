@@ -708,6 +708,20 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result).toEqual({ status: 'error', port: 18790 })
     })
+
+    it('discards a probe that resolves after a transition completed mid-flight', async () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      let resolveProbe!: (value: { status: string; gatewayPort: number }) => void
+      checkHealthSpy.mockImplementationOnce(() => new Promise((resolve) => (resolveProbe = resolve)))
+
+      const pending = service.getStatus()
+      ;(service as any).gatewayStatus = 'starting' // startGateway began while the probe was pending
+      resolveProbe({ status: 'healthy', gatewayPort: 18790 })
+
+      // Returns the newer authoritative state instead of reviving 'running' from the stale probe.
+      await expect(pending).resolves.toEqual({ status: 'starting', port: 18790 })
+      expect(broadcastMock).not.toHaveBeenCalled()
+    })
   })
 
   // ─── startGateway ────────────────────────────────────────────
