@@ -162,13 +162,11 @@ class BackupManager {
   async cleanupStaleTempArtifacts(): Promise<void> {
     const cutoff = Date.now() - STALE_TEMP_ARTIFACT_AGE_MS
 
-    // Best-effort boot hardening: fix a pre-existing 0755 root even when no
-    // operation runs. ENOENT (first boot) is expected; other failures surface.
-    await fs.chmod(this.backupDir, BACKUP_TEMP_DIR_MODE).catch((error) => {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.warn('[cleanupStaleTempArtifacts] Failed to restrict backup temp dir permissions', { error })
-      }
-    })
+    // Best-effort boot hardening: fix pre-existing 0755 roots even when no
+    // operation runs. Both roots live in the shared OS temp tree (S8); ENOENT
+    // (never used yet) is expected and silent.
+    await this.hardenStagingRootBestEffort(this.backupDir)
+    await this.hardenStagingRootBestEffort(application.getPath('feature.lan_transfer.temp'))
 
     try {
       const entries = await fs.readdir(this.backupDir, { withFileTypes: true })
@@ -578,6 +576,13 @@ class BackupManager {
 
       // Create output file stream
       const backupedFilePath = path.join(destinationPath, fileName)
+      // createWriteStream's mode only applies at file creation; pre-tighten an
+      // existing target so an overwrite cannot keep a looser mode (S8).
+      await fs.chmod(backupedFilePath, BACKUP_ARCHIVE_FILE_MODE).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw new Error(`Failed to restrict backup archive permissions (${backupedFilePath}): ${String(error)}`)
+        }
+      })
       const output = fs.createWriteStream(backupedFilePath, { mode: BACKUP_ARCHIVE_FILE_MODE })
 
       // Create archiver instance, enable ZIP64 support
@@ -1448,6 +1453,15 @@ class BackupManager {
     await fs.ensureDir(dir)
     await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
       throw new Error(`Failed to restrict backup staging dir permissions (${dir}): ${String(error)}`)
+    })
+  }
+
+  /** Boot-time variant: opportunistic, must never block startup (ENOENT silent). */
+  private async hardenStagingRootBestEffort(dir: string): Promise<void> {
+    await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('[cleanupStaleTempArtifacts] Failed to restrict backup staging dir permissions', { dir, error })
+      }
     })
   }
 

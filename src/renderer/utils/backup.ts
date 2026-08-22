@@ -21,8 +21,7 @@ const TLS_CERTIFICATE_FAILURE_PATTERNS = [
   'self-signed certificate',
   'self signed certificate',
   'depth_zero_self_signed_cert',
-  'self_signed_cert_in_chain',
-  'deepest certificate expiration check failed'
+  'self_signed_cert_in_chain'
 ]
 
 function isTlsCertificateFailure(error: unknown): boolean {

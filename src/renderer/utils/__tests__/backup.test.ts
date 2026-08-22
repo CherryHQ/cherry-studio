@@ -61,6 +61,11 @@ describe('getLocalizedBackupErrorMessage', () => {
     expect(
       getLocalizedBackupErrorMessage(new Error('certificate is not yet valid'), undefined, { tlsCertificateHint: true })
     ).toBe('localized:message.backup.failed')
+    expect(
+      getLocalizedBackupErrorMessage(new Error('deepest certificate expiration check failed'), undefined, {
+        tlsCertificateHint: true
+      })
+    ).toBe('localized:message.backup.failed')
   })
 
   it('does NOT give WebDAV guidance without the hint (S3/local transports must not see it)', () => {
