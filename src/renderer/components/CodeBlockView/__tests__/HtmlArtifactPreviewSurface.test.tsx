@@ -20,7 +20,7 @@ describe('htmlArtifactPreviewRequiresInteractive', () => {
 
 describe('HtmlArtifactPreviewSurface', () => {
   it('renders a script-less same-origin frame for inert fragments', () => {
-    render(<HtmlArtifactPreviewSurface html={FRAGMENT_INERT} title="common.html_preview" />)
+    render(<HtmlArtifactPreviewSurface html={FRAGMENT_INERT} title="common.html_preview" authorized />)
 
     const iframe = screen.getByTitle('common.html_preview')
     expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
@@ -30,14 +30,14 @@ describe('HtmlArtifactPreviewSurface', () => {
   })
 
   it('renders a script-less frame for inert documents', () => {
-    render(<HtmlArtifactPreviewSurface html={DOCUMENT_INERT} title="common.html_preview" />)
+    render(<HtmlArtifactPreviewSurface html={DOCUMENT_INERT} title="common.html_preview" authorized />)
 
     expect(screen.getByTitle('common.html_preview')).toHaveAttribute('sandbox', 'allow-same-origin')
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
   })
 
   it('routes active documents to the hardened webview partition, not a frame', () => {
-    render(<HtmlArtifactPreviewSurface html={DOCUMENT_WITH_SCRIPT} title="common.html_preview" />)
+    render(<HtmlArtifactPreviewSurface html={DOCUMENT_WITH_SCRIPT} title="common.html_preview" authorized />)
 
     const webview = screen.getByTestId('interactive-html-webview')
     expect(webview).toHaveAttribute('partition', 'html-artifact-preview')
@@ -46,14 +46,23 @@ describe('HtmlArtifactPreviewSurface', () => {
   })
 
   it('keeps interactive fragments interactive: active fragments also go to the webview tier', () => {
-    render(<HtmlArtifactPreviewSurface html={FRAGMENT_WITH_SCRIPT} title="common.html_preview" />)
+    render(<HtmlArtifactPreviewSurface html={FRAGMENT_WITH_SCRIPT} title="common.html_preview" authorized />)
 
     expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
     expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()
   })
 
+  it('fails closed without authorization: active content renders script-less, never the webview', () => {
+    render(<HtmlArtifactPreviewSurface html={DOCUMENT_WITH_SCRIPT} title="common.html_preview" authorized={false} />)
+
+    const iframe = screen.getByTitle('common.html_preview')
+    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(iframe?.getAttribute('sandbox')).not.toContain('allow-scripts')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+  })
+
   it('renders the empty hint instead of any frame for blank content', () => {
-    render(<HtmlArtifactPreviewSurface html="   " title="common.html_preview" emptyText="No content" />)
+    render(<HtmlArtifactPreviewSurface html="   " title="common.html_preview" authorized emptyText="No content" />)
 
     expect(screen.getByText('No content')).toBeInTheDocument()
     expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()

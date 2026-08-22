@@ -43,7 +43,16 @@ describe('HtmlArtifactsPopup', () => {
 
   it('defaults to preview and switches to read-only source', async () => {
     const user = userEvent.setup()
-    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<h1>Hello</h1>"
+        authorized
+        onClose={vi.fn()}
+      />
+    )
 
     expect(screen.getByTitle('common.html_preview')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'html_artifacts.preview' })).toBeChecked()
@@ -62,6 +71,7 @@ describe('HtmlArtifactsPopup', () => {
         editable
         title="HTML Artifacts"
         html="<h1>Hello</h1>"
+        authorized
         onClose={vi.fn()}
         onSave={vi.fn()}
       />
@@ -82,6 +92,7 @@ describe('HtmlArtifactsPopup', () => {
         html="<h1>Hello</h1>"
         canCapturePreview={false}
         renderPreview={() => <div>Custom preview</div>}
+        authorized
         onClose={vi.fn()}
       />
     )
@@ -92,7 +103,9 @@ describe('HtmlArtifactsPopup', () => {
 
   it('keeps the popup open when the overlay is clicked', () => {
     const onClose = vi.fn()
-    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={onClose} />)
+    render(
+      <HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" authorized onClose={onClose} />
+    )
     const overlay = document.querySelector('[data-slot="dialog-overlay"]')
 
     expect(overlay).toBeInTheDocument()
@@ -101,7 +114,16 @@ describe('HtmlArtifactsPopup', () => {
   })
 
   it('dismisses the capture menu after selecting a destination', () => {
-    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<h1>Hello</h1>"
+        authorized
+        onClose={vi.fn()}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.capture.label' }))
     fireEvent.click(screen.getByRole('button', { name: /html_artifacts\.capture\.to_file/ }))
 
@@ -115,6 +137,7 @@ describe('HtmlArtifactsPopup', () => {
         editable={false}
         title="HTML Artifacts"
         html="<div><h2>Hello</h2></div>"
+        authorized
         onClose={vi.fn()}
       />
     )
@@ -132,6 +155,7 @@ describe('HtmlArtifactsPopup', () => {
         editable={false}
         title="HTML Artifacts"
         html="<div><h2>Hello</h2></div>"
+        authorized
         canCapturePreview={false}
         onClose={vi.fn()}
       />
@@ -148,6 +172,7 @@ describe('HtmlArtifactsPopup', () => {
         editable={false}
         title="HTML Artifacts"
         html={'<div><canvas id="c"></canvas><script>parent.api.fs.readText("/etc/hosts")</script></div>'}
+        authorized
         onClose={vi.fn()}
       />
     )
@@ -165,6 +190,7 @@ describe('HtmlArtifactsPopup', () => {
         editable={false}
         title="HTML Artifacts"
         html={'<!doctype html><html><body><script>parent.api.fs.readText("/etc/hosts")</script></body></html>'}
+        authorized
         onClose={vi.fn()}
       />
     )

@@ -100,6 +100,10 @@ interface HtmlArtifactsPopupProps {
   html: string
   onSave?: (html: string) => void
   editable?: boolean
+  /** Explicit user authorization for the interactive preview tier. The popup can only
+   *  be opened by a user action (card click / maximize), so its callers pass true —
+   *  each call site declares that authority explicitly instead of relying on comments. */
+  authorized: boolean
   canCapturePreview?: boolean
   renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
   onClose: () => void
@@ -113,6 +117,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   html,
   onSave,
   editable = true,
+  authorized,
   canCapturePreview = true,
   renderPreview,
   onClose
@@ -205,6 +210,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         iframeRef={previewFrameRef}
         html={html}
         title={t('common.html_preview')}
+        authorized={authorized}
         emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
         forwardBoundaryWheel={false}
       />

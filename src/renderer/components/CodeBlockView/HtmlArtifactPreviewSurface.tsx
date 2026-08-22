@@ -5,6 +5,7 @@ import {
   VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX,
   VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE
 } from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
+import { loggerService } from '@logger'
 import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
   injectHtmlPreviewHeadElement
@@ -16,6 +17,8 @@ import { memo, type RefObject, useLayoutEffect, useMemo, useRef, useState } from
 
 export const SCROLL_ACTIVATION_DELAY_MS = 300
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
+
+const logger = loggerService.withContext('HtmlArtifactPreviewSurface')
 
 type HtmlArtifactBridgeMessage =
   | { type: 'height'; value: number }
@@ -288,6 +291,7 @@ export const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
 export const HtmlArtifactPreviewSurface = memo(function HtmlArtifactPreviewSurface({
   html,
   title,
+  authorized,
   zoom = 100,
   iframeRef,
   emptyText,
@@ -296,6 +300,8 @@ export const HtmlArtifactPreviewSurface = memo(function HtmlArtifactPreviewSurfa
 }: {
   html: string
   title: string
+  /** Explicit user authorization for the interactive tier — the consent gate's input. */
+  authorized: boolean
   zoom?: number
   iframeRef?: RefObject<HTMLIFrameElement | null>
   emptyText?: string
@@ -303,6 +309,10 @@ export const HtmlArtifactPreviewSurface = memo(function HtmlArtifactPreviewSurfa
   onHeightChange?: (height: number) => void
 }) {
   if (htmlArtifactPreviewRequiresInteractive(html)) {
+    if (!authorized) {
+      logger.warn('Active HTML preview rendered without authorization; falling back to the script-less frame')
+      return <StaticHtmlPreview html={html} title={title} zoom={zoom} iframeRef={iframeRef} emptyText={emptyText} />
+    }
     return (
       <InteractiveHtmlPreview
         html={html}
