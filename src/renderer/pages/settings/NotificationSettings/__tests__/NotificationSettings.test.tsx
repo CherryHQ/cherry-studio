@@ -1,4 +1,4 @@
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,5 +53,6 @@ describe('NotificationSettings Conversation Island preferences', () => {
 
     expect(screen.queryByRole('switch', { name: 'settings.notification.conversation_island.enabled' })).toBeNull()
     expect(screen.getAllByRole('switch')).toHaveLength(4)
+    expect(MockUsePreference.usePreference).not.toHaveBeenCalledWith('feature.conversation_island.enabled')
   })
 })

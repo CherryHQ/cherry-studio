@@ -14,6 +14,25 @@ import { isMac } from '@renderer/utils/platform'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+const ConversationIslandSetting: FC = () => {
+  const { t } = useTranslation()
+  const [enabled, setEnabled] = usePreference('feature.conversation_island.enabled')
+
+  return (
+    <>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.notification.conversation_island.enabled')}</SettingRowTitle>
+        <Switch
+          aria-label={t('settings.notification.conversation_island.enabled')}
+          checked={enabled}
+          onCheckedChange={(value) => void setEnabled(value)}
+        />
+      </SettingRow>
+    </>
+  )
+}
+
 const NotificationSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -24,7 +43,6 @@ const NotificationSettings: FC = () => {
     knowledge: 'app.notification.knowledge.enabled',
     update: 'app.notification.update.enabled'
   })
-  const [conversationIslandEnabled, setConversationIslandEnabled] = usePreference('feature.conversation_island.enabled')
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
     void setNotificationSettings({ [type]: value })
@@ -74,19 +92,7 @@ const NotificationSettings: FC = () => {
             onCheckedChange={(v) => handleNotificationChange('update', v)}
           />
         </SettingRow>
-        {isMac && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.notification.conversation_island.enabled')}</SettingRowTitle>
-              <Switch
-                aria-label={t('settings.notification.conversation_island.enabled')}
-                checked={conversationIslandEnabled}
-                onCheckedChange={(enabled) => void setConversationIslandEnabled(enabled)}
-              />
-            </SettingRow>
-          </>
-        )}
+        {isMac && <ConversationIslandSetting />}
       </SettingGroup>
     </SettingsContentColumn>
   )
