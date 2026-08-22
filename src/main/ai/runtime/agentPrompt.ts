@@ -81,13 +81,13 @@ export async function buildAgentRuntimePrompt({
 
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
+    getLanguageInstruction(),
     parts.context,
     workspaceInstructions,
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
     parts.base.kind === 'custom' ? customBaseContext : undefined,
     citationsGuidance,
-    REPORT_ARTIFACTS_PROMPT,
-    getLanguageInstruction()
+    REPORT_ARTIFACTS_PROMPT
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -107,5 +107,7 @@ ${instructions}
 
 function getLanguageInstruction(): string {
   const englishName = languageEnglishNameMap[getAppLanguage()]
-  return englishName ? `IMPORTANT: You must respond in ${englishName}.` : ''
+  return englishName
+    ? `By default, respond in ${englishName}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
+    : ''
 }
