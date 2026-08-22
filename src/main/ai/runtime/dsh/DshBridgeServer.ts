@@ -21,9 +21,9 @@ import type {
 } from '@cherrystudio/dsh-bridge'
 import type { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { loggerService } from '@logger'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'

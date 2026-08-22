@@ -13,7 +13,11 @@ import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
-import { ClaudeCodeProcessManager, ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode'
+import {
+  ClaudeCodeProcessManager,
+  ClaudeCodeSessionStateService,
+  ClaudeCodeWarmQueryManager
+} from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
@@ -28,7 +32,7 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
-import { BinaryManager } from '@main/services/BinaryManager'
+import { BinaryManager } from '@main/services/binaryManager'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
@@ -46,6 +50,7 @@ import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
+import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryUpdaterService'
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
@@ -138,6 +143,7 @@ export const services = {
   ChannelManager,
   AiService,
   ClaudeCodeWarmQueryManager,
+  ClaudeCodeSessionStateService,
   AiStreamManager,
   EmbeddingInferenceService,
   OcrInferenceService,
@@ -146,6 +152,7 @@ export const services = {
   ApiGatewayService,
   AppUpdaterService,
   AutoBackupService,
+  ProviderRegistryUpdaterService,
   SchedulerService,
   JobManager
 } as const

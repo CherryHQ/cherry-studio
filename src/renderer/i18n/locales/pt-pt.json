@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
             "title": "Acesso total",
-            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação.",
-            "warning_pi": "Perigoso — não é pedida confirmação para nada, exceto para ferramentas desativadas, incluindo eliminação de ficheiros e acesso à rede."
+            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação."
           },
           "default": {
             "description": "Pergunta antes de editar ficheiros ou executar comandos.",
@@ -452,7 +451,20 @@
       "fast": "Rápido",
       "faster": "Mais rápido",
       "label": "Velocidade",
+      "service_tier": {
+        "auto": "Automático",
+        "fast": "Rápido",
+        "flex": "Flexível",
+        "label": "Nível de serviço",
+        "standard": "Padrão"
+      },
       "smarter": "Mais inteligente",
+      "summary": {
+        "auto": "Automático",
+        "concise": "Conciso",
+        "detailed": "Detalhado",
+        "label": "Resumo do raciocínio"
+      },
       "title": "Configurações de resposta"
     },
     "tasks": {
@@ -1020,6 +1032,9 @@
       "mcp_prompts": {
         "description": "Inserir um prompt publicado por um servidor MCP",
         "empty": "Nenhum prompt MCP disponível",
+        "fill_arguments": "Preencher argumentos do prompt",
+        "fill_arguments_description": "Forneça os valores deste prompt antes de o inserir",
+        "insert": "Inserir",
         "insert_failed": "Falha ao inserir o prompt",
         "title": "Prompts MCP"
       },
@@ -3001,7 +3016,7 @@
       "empty_title": "Pesquisar competências",
       "github_empty_description": "Cole a ligação para um ficheiro SKILL.md de uma skill, por exemplo github.com/proprietário/repositório/blob/main/skills/minha-skill/SKILL.md",
       "github_empty_title": "Instalar do GitHub",
-      "github_url_invalid": "Cole uma ligação do GitHub que termine com SKILL.md",
+      "github_url_invalid": "Cole uma ligação do GitHub suportada que aponte diretamente para um ficheiro SKILL.md",
       "github_url_label": "URL GitHub SKILL.md",
       "github_url_placeholder": "Ligação GitHub que termina em /SKILL.md",
       "no_results_description": "Experimente outra palavra-chave ou importe um ficheiro ZIP local ou uma pasta.",
@@ -3491,6 +3506,12 @@
         "title": "Ocultar"
       }
     },
+    "split": {
+      "already_open": "Já apresentada no outro painel",
+      "choose": "Escolha uma miniaplicação para mostrar ao lado",
+      "close": "Fechar visualização dividida",
+      "open": "Visualização dividida"
+    },
     "title": "Pequena aplicação",
     "unpin_failed": "Falha ao desafixar o miniaplicação",
     "update_partial_failure": "{{failed}} de {{total}} atualizações falharam"
@@ -3602,6 +3623,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Ir para as definições de modelos",
     "provider_settings": "Ir para as configurações do fornecedor"
   },
   "notes": {
@@ -4521,6 +4543,10 @@
         "custom": "Função personalizada",
         "delete_confirm": "Tem a certeza de que pretende eliminar esta função personalizada?",
         "drag_hint": "Arraste para reordenar, mova para cima para ativar a função ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Utilizado por Explicar, Resumir, Melhorar e por ações personalizadas que usam o modelo predefinido.",
+          "translate_description": "Utilizado para gerar traduções. A deteção automática do idioma também pode utilizar o modelo rápido."
+        },
         "reset": {
           "button": "Redefinir",
           "confirm": "Tem a certeza de que pretende redefinir para as funções padrão? As funções personalizadas não serão eliminadas.",
@@ -6208,8 +6234,9 @@
       "provider_key_confirm_title": "Adicionar chave API para {{provider}}",
       "provider_name": "Nome do Fornecedor",
       "quick_assistant_default_tag": "Padrão",
-      "quick_assistant_model": "Modelo do Assistente Rápido",
+      "quick_assistant_response_settings": "Definições de resposta",
       "quick_assistant_selection": "Selecionar Assistente",
+      "quick_assistant_usage_method": "Método de utilização",
       "quick_model": {
         "description": "Modelo utilizado para executar tarefas simples, como nomeação de tópicos, extração de palavras-chave de busca, entre outras.",
         "label": "Modelo rápido",
@@ -6261,22 +6288,57 @@
     },
     "prompts": {
       "add": "Adicionar Prompt",
+      "binding": {
+        "bind": "Associar prompt",
+        "manageTargets": "Gerir destinos de {{title}}",
+        "noLinked": "Nenhum prompt associado",
+        "noMore": "Não há mais prompts disponíveis",
+        "noTargets": "Nenhum destino disponível",
+        "remove": "Remover o prompt {{title}}",
+        "search": "Pesquisar prompts",
+        "searchTargets": "Pesquisar assistentes ou agentes",
+        "tabTitle": "Prompts",
+        "targetCount": "{{count}} destinos",
+        "targets": "Disponível para",
+        "unassigned": "Não atribuído"
+      },
       "contentLabel": "Conteúdo",
-      "contentPlaceholder": "Introduza o conteúdo do prompt. Suporta ${variables}; prima Tab para saltar entre variáveis. Exemplo:\nAjude-me a planear uma rota de ${from} para ${to} e envie-a para ${email}.",
+      "contentPlaceholder": "Introduza o conteúdo do prompt",
       "delete": "Eliminar Prompt",
       "deleteConfirm": "O prompt será eliminado permanentemente. Continuar?",
+      "deleteGlobalConfirm": "Isto remove-o de todos os contextos e não pode ser anulado.",
+      "deleteRestrictedConfirm": "Isto remove-o de todos os contextos associados e não pode ser anulado.",
+      "deleteSharedConfirm": "Isto remove-o de {{count}} contextos associados e não pode ser anulado.",
       "edit": "Editar Prompt",
       "errors": {
+        "bindFailed": "Falha ao associar o prompt",
         "createFailed": "Falha ao criar prompt",
         "deleteFailed": "Falha ao eliminar prompt",
+        "loadBindingsFailed": "Falha ao carregar os destinos disponíveis",
         "loadFailed": "Falha ao carregar prompts",
+        "reorderFailed": "Falha ao reordenar prompts",
+        "unbindFailed": "Falha ao desassociar o prompt",
         "updateFailed": "Falha ao atualizar o prompt"
       },
       "manage": "Gerir Prompts",
+      "noPrompts": "Nenhum prompt",
+      "reorder": "Arraste {{title}} para reordenar",
+      "searchPlaceholder": "Pesquisar títulos ou conteúdo de prompts",
       "title": "Gestão de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduza o título do prompt",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Global",
+          "label": "Usar globalmente"
+        },
+        "makeGlobalConfirmDescription": "Tornar este prompt global mantém-no disponível em todo o lado, mas remove permanentemente as suas {{count}} associações de contexto e a respetiva ordem. Continuar?",
+        "makeGlobalConfirmTitle": "Tornar o prompt global?",
+        "restricted": {
+          "badge": "Selecionado"
+        }
+      }
     },
     "provider": {
       "add": {
@@ -6318,10 +6380,6 @@
             "token_threshold": "Limite de Token de Cache",
             "token_threshold_help": "Mensagens que excederem essa contagem de tokens serão armazenadas em cache. Defina como 0 para desativar o cache."
           },
-          "array_content": {
-            "help": "O fornecedor suporta que o campo content da mensagem seja do tipo array?",
-            "label": "suporta o formato de matriz do conteúdo da mensagem"
-          },
           "developer_role": {
             "help": "O fornecedor suporta mensagens com role: \"developer\"?",
             "label": "Mensagem de suporte ao programador"
@@ -6331,17 +6389,13 @@
             "label": "Apoiar enable_thinking"
           },
           "label": "Definições da API",
-          "service_tier": {
-            "help": "Se o fornecedor suporta a configuração do parâmetro service_tier. Quando ativado, este parâmetro pode ser ajustado nas definições do nível de serviço na página de conversa. (Apenas para modelos OpenAI)",
-            "label": "Suporta service_tier"
+          "reasoning_summary": {
+            "help": "Envia reasoning.summary para este endpoint Responses. Ative apenas se o servidor aceitar este parâmetro da OpenAI.",
+            "label": "Suportar resumo do raciocínio"
           },
           "stream_options": {
             "help": "O fornecedor suporta o parâmetro stream_options?",
             "label": "suporta stream_options"
-          },
-          "verbosity": {
-            "help": "Se o fornecedor suporta o parâmetro de verbosidade",
-            "label": "Suportar verbosidade"
           }
         },
         "url": {
@@ -7070,9 +7124,8 @@
       "explore": {
         "analysis": "Análise",
         "chart": "Gráfico",
-        "clearDate": "Limpar filtro de data",
-        "drilldownTitle": "Detalhamento de {{date}}",
         "entries": "Pedidos",
+        "granularity": "Granularidade",
         "groupBy": "Agrupar por",
         "loadMore": "Carregar mais",
         "loading": "A carregar...",
@@ -7082,7 +7135,6 @@
         "noEntries": "Sem entradas",
         "noEntriesDescription": "Experimente uma janela mais ampla ou um fornecedor diferente.",
         "rollup": "Agregação",
-        "selectedDate": "Data selecionada: {{date}}",
         "shareLabel": "Partilhar",
         "title": "Explorar",
         "top": "Topo",
@@ -7096,7 +7148,6 @@
         "source": "Assistente / Agente"
       },
       "heatmap": {
-        "ariaDate": "Uso em {{date}}",
         "title": "Atividade diária"
       },
       "metric": {

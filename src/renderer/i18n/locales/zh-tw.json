@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。",
-            "warning_pi": "危險 — 除已停用工具外，所有操作均不會詢問，包含檔案刪除與網路存取。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
           },
           "default": {
             "description": "編輯檔案或執行命令前詢問。",
@@ -452,7 +451,20 @@
       "fast": "快速",
       "faster": "更快",
       "label": "速度",
+      "service_tier": {
+        "auto": "自動",
+        "fast": "快速",
+        "flex": "彈性",
+        "label": "服務檔位",
+        "standard": "標準"
+      },
       "smarter": "更聰明",
+      "summary": {
+        "auto": "自動",
+        "concise": "簡潔",
+        "detailed": "詳細",
+        "label": "思考摘要"
+      },
       "title": "回應設定"
     },
     "tasks": {
@@ -1020,6 +1032,9 @@
       "mcp_prompts": {
         "description": "插入 MCP 伺服器提供的提示詞",
         "empty": "沒有可用的 MCP 提示詞",
+        "fill_arguments": "填寫提示詞參數",
+        "fill_arguments_description": "插入前請先填寫此提示詞所需的參數",
+        "insert": "插入",
         "insert_failed": "提示詞插入失敗",
         "title": "MCP 提示詞"
       },
@@ -3001,7 +3016,7 @@
       "empty_title": "搜尋技能",
       "github_empty_description": "請貼上技能的 SKILL.md 檔案連結，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "從 GitHub 安裝",
-      "github_url_invalid": "請貼上以 SKILL.md 結尾的 GitHub 連結",
+      "github_url_invalid": "請貼上受支援且直接指向 SKILL.md 檔案的 GitHub 連結",
       "github_url_label": "GitHub SKILL.md 連結",
       "github_url_placeholder": "GitHub 連結，以 /SKILL.md 結尾",
       "no_results_description": "請嘗試其他關鍵字，或從本機匯入 ZIP 檔或資料夾。",
@@ -3491,6 +3506,12 @@
         "title": "隱藏"
       }
     },
+    "split": {
+      "already_open": "已顯示在另一側",
+      "choose": "選擇要並排顯示的小程式",
+      "close": "關閉分割檢視",
+      "open": "分割檢視"
+    },
     "title": "小程式",
     "unpin_failed": "取消固定小程式失敗",
     "update_partial_failure": "{{total}} 個更新中有 {{failed}} 個失敗"
@@ -3602,6 +3623,7 @@
     }
   },
   "navigate": {
+    "model_settings": "前往模型設定",
     "provider_settings": "前往供應商設定頁面"
   },
   "notes": {
@@ -4521,6 +4543,10 @@
         "custom": "自訂功能",
         "delete_confirm": "確定要刪除這個自訂功能嗎？",
         "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "用於「解釋」、「總結」、「潤飾」及使用預設模型的自訂功能。",
+          "translate_description": "用於產生翻譯結果；自動語言偵測也可能使用快速模型。"
+        },
         "reset": {
           "button": "重設",
           "confirm": "確定要重設為預設功能嗎？自訂功能不會被刪除。",
@@ -6208,8 +6234,9 @@
       "provider_key_confirm_title": "為 {{provider}} 新增 API 金鑰",
       "provider_name": "供應商名稱",
       "quick_assistant_default_tag": "預設",
-      "quick_assistant_model": "快速助理模型",
+      "quick_assistant_response_settings": "回應設定",
       "quick_assistant_selection": "選擇助理",
+      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "用於對話命名、搜尋關鍵字提煉等簡單任務的模型",
         "label": "快速模型",
@@ -6261,22 +6288,57 @@
     },
     "prompts": {
       "add": "新增提示詞",
+      "binding": {
+        "bind": "關聯提示詞",
+        "manageTargets": "管理「{{title}}」的適用對象",
+        "noLinked": "暫未關聯快捷提示詞",
+        "noMore": "沒有更多可用的提示詞",
+        "noTargets": "沒有可用的適用對象",
+        "remove": "移除快捷提示詞「{{title}}」",
+        "search": "搜尋提示詞",
+        "searchTargets": "搜尋助理或代理",
+        "tabTitle": "快捷提示詞",
+        "targetCount": "{{count}} 個適用對象",
+        "targets": "適用於",
+        "unassigned": "未指定"
+      },
       "contentLabel": "內容",
-      "contentPlaceholder": "輸入提示詞內容。支援 ${variables}；按 Tab 可在變數間快速跳轉。例如：\n請幫我規劃從 ${from} 到 ${to} 的路線，並傳送至 ${email}。",
+      "contentPlaceholder": "輸入提示詞內容",
       "delete": "刪除提示詞",
       "deleteConfirm": "刪除提示詞後將無法復原，是否繼續？",
+      "deleteGlobalConfirm": "這會從所有上下文中移除，且無法復原。",
+      "deleteRestrictedConfirm": "這會從所有已關聯的上下文中移除，且無法復原。",
+      "deleteSharedConfirm": "這會從 {{count}} 個已關聯的上下文中移除，且無法復原。",
       "edit": "編輯提示詞",
       "errors": {
+        "bindFailed": "關聯提示詞失敗",
         "createFailed": "建立提示詞失敗",
         "deleteFailed": "刪除提示詞失敗",
+        "loadBindingsFailed": "載入可用對象失敗",
         "loadFailed": "載入提示詞失敗",
+        "reorderFailed": "調整提示詞順序失敗",
+        "unbindFailed": "取消關聯提示詞失敗",
         "updateFailed": "更新提示詞失敗"
       },
       "manage": "管理提示詞",
+      "noPrompts": "暫無提示詞",
+      "reorder": "拖曳以重新排序「{{title}}」",
+      "searchPlaceholder": "搜尋提示詞標題或內容",
       "title": "提示詞管理",
       "titleLabel": "標題",
       "titlePlaceholder": "請輸入提示詞標題",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "全域",
+          "label": "全域使用"
+        },
+        "makeGlobalConfirmDescription": "改為全域後，該提示詞仍可在所有地方使用，但會永久移除其 {{count}} 個上下文關聯及其排序。是否繼續？",
+        "makeGlobalConfirmTitle": "將提示詞改為全域？",
+        "restricted": {
+          "badge": "已選取"
+        }
+      }
     },
     "provider": {
       "add": {
@@ -6318,10 +6380,6 @@
             "token_threshold": "快取 Token 閾值",
             "token_threshold_help": "超過此 Token 數量的訊息將被快取。設為 0 可停用快取。"
           },
-          "array_content": {
-            "help": "該供應商是否支援 message 的 content 欄位為 array 類型",
-            "label": "支援陣列格式的 message content"
-          },
           "developer_role": {
             "help": "該供應商是否支援 role: \"developer\" 的訊息",
             "label": "支援開發人員訊息"
@@ -6331,17 +6389,13 @@
             "label": "支援 enable_thinking"
           },
           "label": "API 設定",
-          "service_tier": {
-            "help": "該供應商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",
-            "label": "支援 service_tier"
+          "reasoning_summary": {
+            "help": "向此 Responses 端點傳送 reasoning.summary。請僅在伺服器接受此 OpenAI 參數時啟用。",
+            "label": "支援思考摘要"
           },
           "stream_options": {
             "help": "該供應商是否支援 stream_options 參數",
             "label": "支援 stream_options"
-          },
-          "verbosity": {
-            "help": "供應商是否支援詳細程度參數",
-            "label": "支援 verbosity"
           }
         },
         "url": {
@@ -7070,9 +7124,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "圖表",
-        "clearDate": "清除日期篩選",
-        "drilldownTitle": "{{date}} 明細",
         "entries": "請求",
+        "granularity": "粒度",
         "groupBy": "群組依據",
         "loadMore": "載入更多",
         "loading": "載入中...",
@@ -7082,7 +7135,6 @@
         "noEntries": "尚無記錄",
         "noEntriesDescription": "請嘗試較長的時間範圍或其他供應商。",
         "rollup": "彙總",
-        "selectedDate": "選定日期：{{date}}",
         "shareLabel": "佔比",
         "title": "探索",
         "top": "Top",
@@ -7096,7 +7148,6 @@
         "source": "助理 / Agent"
       },
       "heatmap": {
-        "ariaDate": "{{date}} 的用量",
         "title": "每日活動"
       },
       "metric": {
