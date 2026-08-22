@@ -1,7 +1,9 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import * as fs from 'node:fs'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -390,6 +392,232 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       await expect(
         evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions', interaction: HEADLESS }))
       ).resolves.toMatchObject({ effect: 'deny', ruleId: 'non-bypassable-approval' })
+    })
+  })
+
+  describe('user-data-sqlite-write', () => {
+    let root: string
+    let homePath: string
+    let userDataPath: string
+    let databaseFile: string
+    let systemWorkspace: string
+
+    beforeAll(async () => {
+      root = await mkdtemp(path.join(os.tmpdir(), 'sqlite-guard-'))
+      homePath = path.join(root, 'home')
+      userDataPath = path.join(homePath, 'Library', 'Application Support', 'CherryStudio')
+      databaseFile = path.join(userDataPath, 'Data', 'cherrystudio.sqlite')
+      systemWorkspace = path.join(userDataPath, 'Data', 'Agents', 'system', '2026-08-20', 'session-1')
+      await mkdir(systemWorkspace, { recursive: true })
+      await writeFile(databaseFile, '')
+
+      vi.mocked(application.getPath).mockImplementation((key, filename) => {
+        const resolvedPath =
+          key === 'app.userdata'
+            ? userDataPath
+            : key === 'app.database.file'
+              ? databaseFile
+              : key === 'sys.home'
+                ? homePath
+                : `/mock/${key}`
+        return filename ? path.join(resolvedPath, filename) : resolvedPath
+      })
+    })
+
+    afterAll(async () => {
+      vi.mocked(application.getPath).mockImplementation((key, filename) =>
+        filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+      )
+      await rm(root, { recursive: true, force: true })
+    })
+
+    it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+      'denies direct database writes under %s',
+      async (mode) => {
+        const decision = await evaluate(
+          makeCtx({
+            toolName: 'Write',
+            permissionMode: mode,
+            cwd: systemWorkspace,
+            input: { file_path: databaseFile }
+          })
+        )
+        expect(decision).toEqual({
+          effect: 'deny',
+          reason:
+            'Direct writes to SQLite files inside Cherry Studio user data are blocked. Use Cherry Studio APIs instead.',
+          ruleId: 'user-data-sqlite-write'
+        })
+      }
+    )
+
+    it('covers structured write tools, legacy .db files, and SQLite sidecars', async () => {
+      const cases = [
+        ['Edit', 'file_path', path.join(userDataPath, 'Data', 'KnowledgeBase', 'vectors.sqlite-wal')],
+        ['MultiEdit', 'file_path', path.join(userDataPath, 'Data', 'agents.db')],
+        ['NotebookEdit', 'notebook_path', path.join(userDataPath, 'Data', 'notebooks.sqlite-shm')]
+      ] as const
+
+      for (const [toolName, pathField, requestedPath] of cases) {
+        await expect(
+          evaluate(makeCtx({ toolName, cwd: systemWorkspace, input: { [pathField]: requestedPath } }))
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+      }
+    })
+
+    it.each([';', '|', '&'])('recognizes a quoted Bash path followed by %s', async (operator) => {
+      const knowledgeDatabase = path.join(userDataPath, 'Data', 'KnowledgeBase', 'knowledge.sqlite')
+      await expect(
+        evaluate(
+          makeCtx({
+            cwd: systemWorkspace,
+            input: { command: `sqlite3 "${knowledgeDatabase}" ${operator} echo done` }
+          })
+        )
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+    })
+
+    it('resolves Bash paths from the current directory and tracks cd', async () => {
+      await mkdir(path.join(userDataPath, 'Data', 'KnowledgeBase'), { recursive: true })
+      const relativeDatabase = path.join('..', '..', '..', '..', 'cherrystudio.sqlite')
+      const homeRelativeDatabase = path.join(
+        'Library',
+        'Application Support',
+        'CherryStudio',
+        'Data',
+        'cherrystudio.sqlite'
+      )
+      const commands = [
+        { cwd: systemWorkspace, command: `sqlite3 ${relativeDatabase}` },
+        { cwd: homePath, command: `sqlite3 "${homeRelativeDatabase}"` },
+        {
+          cwd: systemWorkspace,
+          command: 'cd "$HOME/Library/Application Support/CherryStudio/Data" && sqlite3 cherrystudio.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command: 'cd "$HOME/Library/Application Support/CherryStudio/Data/KnowledgeBase" && sqlite3 knowledge.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command: 'cd -- "$HOME/Library/Application Support/CherryStudio/Data" && sqlite3 cherrystudio.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command:
+            'cd -P -- "$HOME/Library/Application Support/CherryStudio/Data/KnowledgeBase" && sqlite3 knowledge.sqlite'
+        }
+      ]
+
+      for (const { cwd, command } of commands) {
+        await expect(evaluate(makeCtx({ cwd, input: { command } }))).resolves.toMatchObject({
+          effect: 'deny',
+          ruleId: 'user-data-sqlite-write'
+        })
+      }
+    })
+
+    it('allows workspace-local SQLite files and does not turn reads into writes', async () => {
+      const workspaceSqlite = path.join(systemWorkspace, 'artifact.sqlite')
+      const workspaceDb = path.join(systemWorkspace, 'artifact.db')
+
+      await expect(
+        evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: workspaceSqlite } }))
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ toolName: 'Edit', cwd: systemWorkspace, input: { file_path: workspaceDb } }))
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ cwd: systemWorkspace, input: { command: 'sqlite3 artifact.sqlite "vacuum"' } }))
+      ).resolves.toBeUndefined()
+
+      const readDecision = await evaluate(
+        makeCtx({ toolName: 'Read', cwd: systemWorkspace, input: { file_path: databaseFile } })
+      )
+      expect(readDecision?.ruleId).toBe('workspace-escape')
+      expect(readDecision?.effect).toBe('ask')
+    })
+
+    it.runIf(process.platform !== 'win32')('denies extensionless aliases to the live database', async () => {
+      const linkedDatabase = path.join(systemWorkspace, 'live-database')
+      await symlink(databaseFile, linkedDatabase)
+
+      await expect(
+        evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: linkedDatabase } }))
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+      await expect(
+        evaluate(makeCtx({ cwd: systemWorkspace, input: { command: `sqlite3 "${linkedDatabase}" "vacuum"` } }))
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+    })
+
+    it.runIf(process.platform !== 'win32')(
+      'resolves parent traversal after following a directory symlink',
+      async () => {
+        const protectedDirectory = path.join(userDataPath, 'Data', 'KnowledgeBase')
+        const nestedDirectory = path.join(protectedDirectory, 'nested')
+        const linkedDirectory = path.join(systemWorkspace, 'knowledge-link')
+        await mkdir(nestedDirectory, { recursive: true })
+        await symlink(nestedDirectory, linkedDirectory)
+        const traversedDatabase = `${linkedDirectory}${path.sep}..${path.sep}escaped.sqlite`
+
+        await expect(
+          evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: traversedDatabase } }))
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+      }
+    )
+
+    it.runIf(process.platform !== 'win32')('follows dangling symlinks before classifying a write target', async () => {
+      const protectedDirectory = path.join(userDataPath, 'Data', 'KnowledgeBase')
+      const protectedTarget = path.join(protectedDirectory, 'created.sqlite')
+      const protectedLink = path.join(systemWorkspace, 'protected-alias.sqlite')
+      const workspaceTarget = path.join(systemWorkspace, 'created.sqlite')
+      const workspaceLink = path.join(systemWorkspace, 'workspace-alias.sqlite')
+      await mkdir(protectedDirectory, { recursive: true })
+      await symlink(protectedTarget, protectedLink)
+      await symlink(workspaceTarget, workspaceLink)
+
+      await expect(
+        evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: protectedLink } }))
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+      await expect(
+        evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: workspaceLink } }))
+      ).resolves.toBeUndefined()
+    })
+
+    it.runIf(process.platform !== 'win32')('fails closed for cyclic symlinks', async () => {
+      const cyclicLink = path.join(systemWorkspace, 'loop.sqlite')
+      await symlink(path.basename(cyclicLink), cyclicLink)
+      const readlink = fs.promises.readlink.bind(fs.promises)
+      let readlinkCalls = 0
+      const readlinkSpy = vi.spyOn(fs.promises, 'readlink').mockImplementation(async (target) => {
+        readlinkCalls++
+        if (readlinkCalls > 4) throw new Error('symlink traversal did not terminate')
+        return readlink(target)
+      })
+
+      try {
+        await expect(
+          evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: cyclicLink } }))
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+        expect(readlinkCalls).toBeLessThanOrEqual(4)
+
+        const callsBeforeAbort = readlinkCalls
+        const controller = new AbortController()
+        controller.abort()
+        await expect(
+          evaluate(
+            makeCtx({
+              toolName: 'Write',
+              cwd: systemWorkspace,
+              input: { file_path: cyclicLink },
+              signal: controller.signal
+            })
+          )
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+        expect(readlinkCalls).toBe(callsBeforeAbort)
+      } finally {
+        readlinkSpy.mockRestore()
+      }
     })
   })
 

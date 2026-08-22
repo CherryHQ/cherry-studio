@@ -12,6 +12,7 @@
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
+import { application } from '@application'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import {
   findBuiltinToolPolicy,
@@ -24,7 +25,7 @@ import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApp
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 
-import { isPathWithinAllowedRoots } from './pathContainment'
+import { commandReferencesUserDataSqlite, isPathWithinAllowedRoots, isUserDataSqlitePath } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
@@ -45,6 +46,12 @@ export const WORKSPACE_PATH_FIELDS = {
   Grep: 'path',
   NotebookEdit: 'notebook_path',
   Read: 'file_path',
+  Write: 'file_path'
+} as const
+const SQLITE_WRITE_PATH_FIELDS = {
+  Edit: 'file_path',
+  MultiEdit: 'file_path',
+  NotebookEdit: 'notebook_path',
   Write: 'file_path'
 } as const
 
@@ -68,6 +75,38 @@ const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
   return reason ? { evidence: reason } : null
 }
 
+const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  if (ctx.toolName === 'Bash') {
+    const command = bashCommand(ctx)
+    if (!command) return null
+    return (await commandReferencesUserDataSqlite(
+      command,
+      ctx.cwd,
+      application.getPath('app.userdata'),
+      application.getPath('app.database.file'),
+      application.getPath('sys.home'),
+      ctx.signal
+    ))
+      ? {}
+      : null
+  }
+
+  const pathField = SQLITE_WRITE_PATH_FIELDS[ctx.toolName as keyof typeof SQLITE_WRITE_PATH_FIELDS]
+  if (!pathField) return null
+  const requestedPath = ctx.input?.[pathField]
+  if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
+  return (await isUserDataSqlitePath(
+    requestedPath,
+    ctx.cwd,
+    application.getPath('app.userdata'),
+    application.getPath('app.database.file'),
+    application.getPath('sys.home'),
+    ctx.signal
+  ))
+    ? {}
+    : null
+}
+
 const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
   const action = typeof ctx.input?.action === 'string' ? ctx.input.action : ''
   return HEADLESS_CONFIG_MUTATION_ACTIONS.has(action) ? {} : null
@@ -80,7 +119,7 @@ const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit 
   // Glob/Grep intentionally omit `path` to search from cwd. Let the SDK validate missing or
   // malformed required fields for the other tools rather than duplicating their schemas here.
   if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
-  if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath)) return null
+  if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath, ctx.signal)) return null
   return { evidence: requestedPath }
 }
 
@@ -103,6 +142,13 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
+  },
+  {
+    id: 'user-data-sqlite-write',
+    bypassBehavior: 'enforce',
+    match: { when: userDataSqliteWrite },
+    effect: 'deny',
+    reason: 'Direct writes to SQLite files inside Cherry Studio user data are blocked. Use Cherry Studio APIs instead.'
   },
   {
     // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this

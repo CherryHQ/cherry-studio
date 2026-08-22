@@ -36,6 +36,7 @@ export interface ToolGuardContext {
   readonly pluginDirectories: ReadonlyMap<string, string>
   readonly cwd: string
   readonly agentDataPath: string
+  readonly signal?: AbortSignal
   readonly interaction: ToolGuardInteractionState
   /** Live disabled predicate; returns false when no snapshot is bound (canUseTool fails closed). */
   readonly isDisabled: (toolName: string) => boolean
