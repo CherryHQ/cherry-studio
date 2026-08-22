@@ -129,6 +129,7 @@ export const PROVIDER_ICON_LOADERS = {
   qiniu: () => import('./qiniu').then(({ QiniuIcon }) => QiniuIcon),
   querit: () => import('./querit').then(({ QueritIcon }) => QueritIcon),
   qwen: () => import('./qwen').then(({ QwenIcon }) => QwenIcon),
+  qwencloud: () => import('./qwencloud').then(({ QwencloudIcon }) => QwencloudIcon),
   'radeon-cloud': () => import('./radeon-cloud').then(({ RadeonCloudIcon }) => RadeonCloudIcon),
   recraft: () => import('./recraft').then(({ RecraftIcon }) => RecraftIcon),
   relace: () => import('./relace').then(({ RelaceIcon }) => RelaceIcon),
