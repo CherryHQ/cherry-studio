@@ -1,5 +1,5 @@
+import type { CodeEditorHandles } from '@cherrystudio/ui'
 import type { ActionTool } from '@renderer/components/ActionTools'
-import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { useSaveTool } from '@renderer/components/CodeToolbar/hooks/useSaveTool'
 import { act, renderHook } from '@testing-library/react'
 import { useState } from 'react'

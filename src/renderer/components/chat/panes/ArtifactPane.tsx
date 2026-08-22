@@ -14,7 +14,7 @@ import {
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
-import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { AlertCircle, ArrowLeft, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
@@ -558,7 +558,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             <CodeEditor
               key={previewKey}
               value={fileSession.draft}
-              language={getLanguageByFilePath(overlaySelection.filePath)}
+              language={getFileExtension(overlaySelection.filePath)}
               theme={activeCmTheme}
               onChange={(content) => fileSession.setDraft(content)}
               height="100%"

@@ -1,8 +1,7 @@
-import { EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/ActionIconButton'
-import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
@@ -22,9 +21,7 @@ const logger = loggerService.withContext('NotesEditor')
 // `handleImagePaste` pins those entries with `cleanupPolicy: 'manual'` for exactly this path.
 const DISABLED_RICH_EDITOR_COMMANDS = ['image', 'inlineMath'] as const
 
-const CodeEditor = lazy(() =>
-  import('@renderer/components/CodeEditor').then((module) => ({ default: module.CodeEditor }))
-)
+const CodeEditor = lazy(() => import('@cherrystudio/ui/components/composites/code-editor'))
 const RichEditor = lazy(() => import('@renderer/components/RichEditor/RichEditor'))
 
 export function NotesEditorLoading({ label }: { label: string }) {
@@ -116,9 +113,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     height="100%"
                     theme={activeCmTheme}
                     fontSize={settings.fontSize}
-                    style={{
-                      height: '100%'
-                    }}
                   />
                 </div>
               ) : (
