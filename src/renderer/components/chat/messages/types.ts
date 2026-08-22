@@ -1,7 +1,7 @@
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
-import type { Citation } from '@renderer/types/message'
+import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
@@ -26,12 +26,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
 import type { ReactNode } from 'react'
 
-export interface MessageUiState {
-  foldSelected?: boolean
-  multiModelMessageStyle?: string
-  useful?: boolean
-  disclosures?: Record<string, boolean>
-}
+export type { MessageUiState } from '@renderer/types/message'
 
 export interface MessageListSelectionState {
   enabled: boolean

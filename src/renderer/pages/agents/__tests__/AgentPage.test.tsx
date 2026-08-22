@@ -2098,7 +2098,7 @@ describe('AgentPage', () => {
   })
 
   it('writes locate state into the current tab for a global-search session message', async () => {
-    render(<AgentPage />)
+    const { rerender } = render(<AgentPage />)
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
@@ -2111,12 +2111,14 @@ describe('AgentPage', () => {
     })
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    rerender(<AgentPage />)
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
   })
 
   it('cancels a pending message locate when the user selects another session', async () => {
     const user = userEvent.setup()
-    render(<AgentPage />)
+    const { rerender } = render(<AgentPage />)
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
@@ -2127,6 +2129,8 @@ describe('AgentPage', () => {
     act(() => {
       sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
     })
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    rerender(<AgentPage />)
     await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open'))
 
     await user.click(screen.getByRole('button', { name: 'Select session next' }))
@@ -2135,12 +2139,42 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
+  it('drops a pending message locate when the route swaps the session underneath', async () => {
+    const { rerender } = render(<AgentPage />)
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
+    })
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    rerender(<AgentPage />)
+    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open'))
+
+    agentPageMocks.routeSearch = { sessionId: 'session-external' }
+    activeSessionMocks.session = {
+      id: 'session-external',
+      agentId: 'agent-a',
+      name: 'External session',
+      workspaceId: agentPageMocks.workspace.id,
+      workspace: agentPageMocks.workspace
+    }
+    rerender(<AgentPage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-external'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+  })
+
   it('waits for file-navigation confirmation before applying a global-search session jump', async () => {
     let pendingTransition: (() => void) | undefined
     agentPageMocks.fileNavigationRequest.mockImplementation((transition) => {
       pendingTransition = transition
     })
-    render(<AgentPage />)
+    const { rerender } = render(<AgentPage />)
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
@@ -2158,6 +2192,8 @@ describe('AgentPage', () => {
     act(() => pendingTransition?.())
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    rerender(<AgentPage />)
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
   })
 
@@ -2406,7 +2442,7 @@ describe('AgentPage', () => {
     )
   })
 
-  it('keeps the new tab session identity while the previous session remains visible', async () => {
+  it('does not expose the previous session while the new route session is loading', async () => {
     agentPageMocks.routeSearch = { sessionId: 'session-1' }
     activeSessionMocks.session = {
       id: 'session-1',
@@ -2430,7 +2466,7 @@ describe('AgentPage', () => {
     rerender(<AgentPage />)
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-2'))
-    expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
+    expect(screen.getByTestId('active-session')).toHaveTextContent('')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
       expect.objectContaining({ appId: 'agents', preserveVisuals: true })

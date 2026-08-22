@@ -28,6 +28,7 @@ import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssist
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
+import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -42,7 +43,7 @@ import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Chat from './Chat'
@@ -81,7 +82,6 @@ const HomePage: FC = () => {
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
-  const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [panePosition, setPanePosition] = usePreference('topic.tab.position')
@@ -190,7 +190,7 @@ const HomePage: FC = () => {
     [isMessageOnlyView, navigate]
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     ownerFallbackRequestIdRef.current += 1
     setActiveTopicIdState(routeActiveTopicId)
     return () => {
@@ -237,7 +237,10 @@ const HomePage: FC = () => {
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
   const visibleTopic = isMessageOnlyView
     ? routeTopic
-    : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
+    : (activeTopic ??
+      (isActiveTopicLoading && lastVisibleTopicRef.current?.id === activeTopicId
+        ? lastVisibleTopicRef.current
+        : undefined))
   const requestComposerFocus = useComposerFocusRequest(visibleTopic?.id)
   const resourceConversationKey = useMemo(() => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
@@ -337,9 +340,13 @@ const HomePage: FC = () => {
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
-  // While the bound topic is still loading (or the visible entity intentionally lags behind a
-  // selection), keep the tab's stored title/icon instead of stamping a stale or generic one.
+  // While the bound topic is still loading, keep the tab's stored title/icon instead of stamping
+  // a generic one.
   const targetTopicId = isMessageOnlyView ? routeTopicId : (activeTopicId ?? undefined)
+  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+    activeConversationId: targetTopicId,
+    visibleConversationId: visibleTopic?.id
+  })
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
   useTabSelfVisuals({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
@@ -368,11 +375,11 @@ const HomePage: FC = () => {
   const setActiveTopicAndCloseResourceView = useCallback(
     (topic: Topic) => {
       closeSurface()
-      setPendingLocateMessageId(undefined)
+      clearLocate()
       setActiveTopic(topic)
       return true
     },
-    [closeSurface, setActiveTopic]
+    [clearLocate, closeSurface, setActiveTopic]
   )
   const clearActiveTopicAndCloseResourceView = useCallback(() => {
     closeSurface()
@@ -534,7 +541,7 @@ const HomePage: FC = () => {
       closeSurface()
       if (!setActiveTopicAndCloseResourceView(topic)) return
       setShellPaneOpen(true)
-      setPendingLocateMessageId(messageId)
+      if (messageId) requestLocate(topic.id, messageId)
       topicRevealRequestIdRef.current += 1
       setTopicRevealRequest({
         clearFilters: true,
@@ -543,7 +550,7 @@ const HomePage: FC = () => {
         requestId: topicRevealRequestIdRef.current
       })
     },
-    [closeSurface, setActiveTopicAndCloseResourceView, setShellPaneOpen]
+    [closeSurface, requestLocate, setActiveTopicAndCloseResourceView, setShellPaneOpen]
   )
   const closeHistoryRecords = useCallback(() => {
     closeSurface()
@@ -588,9 +595,7 @@ const HomePage: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/topic state without resubscribing.
   }, [currentTabId])
 
-  const handleLocateMessageHandled = useCallback(() => {
-    setPendingLocateMessageId(undefined)
-  }, [])
+  const handleLocateMessageHandled = clearLocate
   const resourceCenter = useMemo(
     () =>
       activeResourceKind
@@ -792,7 +797,7 @@ const HomePage: FC = () => {
             showResourceListControls={!isMessageOnlyView}
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
-            locateMessageId={pendingLocateMessageId}
+            locateMessageId={locateMessageId}
             onLocateMessageHandled={handleLocateMessageHandled}
             resourcePaneCount={topicResourcePaneCount}
           />

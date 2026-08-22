@@ -106,6 +106,93 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    const insert = sqlite.prepare(
+      `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
+       VALUES (?, ?, 'stdio', 'npx', ?, 1, ?, ?)`
+    )
+    insert.run('55555555-5555-7555-8555-555555555555', 'hand-added', 'manual', now, now)
+    insert.run('66666666-6666-7666-8666-666666666666', 'from-protocol', 'protocol', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT name, install_source FROM mcp_server ORDER BY name').all()).toEqual([
+      { name: 'from-protocol', install_source: 'protocol' },
+      { name: 'hand-added', install_source: 'manual' }
+    ])
+    // The whole point of the migration: install_mcp_server writes this value, so
+    // without it every AI-assisted install fails at insert time.
+    expect(() =>
+      insert.run('77777777-7777-7777-8777-777777777777', 'ai-installed', 'ai_assisted', now, now)
+    ).not.toThrow()
+    expect(() => insert.run('88888888-8888-7888-8888-888888888888', 'bogus', 'whatever', now, now)).toThrow()
+  })
+
+  it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
+    const now = Date.now()
+    const insert = sqlite.prepare(
+      `INSERT INTO user_provider
+        (provider_id, name, endpoint_configs, default_chat_endpoint, api_features, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    insert.run(
+      'chat-relay',
+      'Chat Relay',
+      JSON.stringify({ 'openai-chat-completions': { baseUrl: 'https://chat.example/v1' } }),
+      'openai-chat-completions',
+      JSON.stringify({ streamOptions: false, developerRole: true, arrayContent: false }),
+      'a0',
+      now,
+      now
+    )
+    insert.run(
+      'responses-relay',
+      'Responses Relay',
+      null,
+      'openai-responses',
+      JSON.stringify({ streamOptions: false, developerRole: false }),
+      'a1',
+      now,
+      now
+    )
+    insert.run(
+      'anthropic-relay',
+      'Anthropic Relay',
+      null,
+      'anthropic-messages',
+      JSON.stringify({ streamOptions: false, developerRole: true }),
+      'a2',
+      now,
+      now
+    )
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite
+      .prepare('SELECT provider_id, endpoint_configs FROM user_provider ORDER BY order_key')
+      .all() as Array<{ provider_id: string; endpoint_configs: string | null }>
+    expect(
+      rows.map((row) => [row.provider_id, row.endpoint_configs ? JSON.parse(row.endpoint_configs) : null])
+    ).toEqual([
+      [
+        'chat-relay',
+        {
+          'openai-chat-completions': {
+            baseUrl: 'https://chat.example/v1',
+            dialect: { streamOptions: false, developerRole: true }
+          }
+        }
+      ],
+      ['responses-relay', { 'openai-responses': { dialect: { developerRole: false } } }],
+      ['anthropic-relay', null]
+    ])
+    const columns = sqlite.pragma('table_info(user_provider)') as Array<{ name: string }>
+    expect(columns.some(({ name }) => name === 'api_features')).toBe(false)
+  })
+
   it('quarantines legacy channel sessions without changing conversation history', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_rare_vertigo'))
     const now = Date.now()
@@ -429,6 +516,9 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills conversation activity from message phases without losing populated rows', () => {
+    // Pinned to the 0007 backfill migration: the default tip baseline would drift
+    // forward past it once a later migration exists, and the NOT NULL
+    // last_activity_at recreate would reject the seed rows below.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0007_flimsy_mentor'))
 
     sqlite
