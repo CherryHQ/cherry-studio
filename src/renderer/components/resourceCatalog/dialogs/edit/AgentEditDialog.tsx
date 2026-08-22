@@ -768,7 +768,11 @@ function HeartbeatSettingsField({
                   step={1}
                   className="h-9 w-full"
                   value={field.value || null}
-                  onBlur={(v) => field.onChange(typeof v === 'number' ? v : 0)}
+                  // Emptying the field is how you retype the interval, not how you
+                  // turn the heartbeat off — the switch above does that.
+                  onBlur={(v) => {
+                    if (v !== null) field.onChange(v)
+                  }}
                 />
               </FormControl>
               <FormMessage className="col-start-2" />

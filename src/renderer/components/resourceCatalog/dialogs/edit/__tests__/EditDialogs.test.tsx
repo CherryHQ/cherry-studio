@@ -1088,6 +1088,20 @@ describe('edit dialogs', () => {
     )
   })
 
+  // The heartbeat is turned off by its switch, so an emptied interval is a retype,
+  // not a value — a persisted 0 would be a heartbeat interval of zero minutes.
+  it('does not persist a zero heartbeat interval when the field is cleared', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    const field = screen.getByLabelText('Heartbeat interval')
+    await user.clear(field)
+    await user.tab()
+
+    expect(field).toHaveValue('30')
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
   it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
     const props = { open: true, onOpenChange: vi.fn() }
     const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)
