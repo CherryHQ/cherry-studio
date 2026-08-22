@@ -471,6 +471,53 @@ describe('SpreadsheetFilePreview', () => {
     expect(anchors).not.toContainEqual({ format: 'xlsx', sheet: 'Notes', range: 'A3' })
   })
 
+  it('keeps the text of a range whose leading cells are blank', () => {
+    const model = modelWithoutCharts()
+    const sheet = model.sheets[0]
+    // A block of empty cells far larger than the character budget, with real text after it. The separators
+    // around blank cells collapse during normalization, so charging the budget for them would truncate the
+    // scan before reaching the text and leave an empty excerpt.
+    sheet.rowCount = 5000
+    sheet.colCount = 1
+    sheet.cells = { '4001:1': { text: 'text after the blanks', styleId: 0 } }
+    mocks.rangeSelection = { range: 'A1:A5000', rect: { top: 1, left: 1, bottom: 5000, right: 1 } }
+    setWorkbookState({ status: 'ready', model })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+
+    const reference = onSelectionReference.mock.lastCall?.[0] as SelectionReference
+    expect(reference.excerpt).toBe('text after the blanks')
+  })
+
+  it('emits a merged range once, at its master, instead of repeating it per covered cell', () => {
+    const model = modelWithoutCharts()
+    const sheet = model.sheets[0]
+    sheet.rowCount = 2
+    sheet.colCount = 3
+    // ExcelJS reports a merged range's value through every cell it covers, so the sparse table holds the
+    // master's text at all four coordinates of A1:B2.
+    sheet.cells = {
+      '1:1': { text: 'merged title', styleId: 0 },
+      '1:2': { text: 'merged title', styleId: 0 },
+      '2:1': { text: 'merged title', styleId: 0 },
+      '2:2': { text: 'merged title', styleId: 0 },
+      '1:3': { text: 'tail', styleId: 0 }
+    }
+    sheet.merges = [{ top: 1, left: 1, bottom: 2, right: 2 }]
+    mocks.rangeSelection = { range: 'A1:C2', rect: { top: 1, left: 1, bottom: 2, right: 3 } }
+    setWorkbookState({ status: 'ready', model })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+
+    const reference = onSelectionReference.mock.lastCall?.[0] as SelectionReference
+    expect(reference.excerpt.match(/merged title/g)).toHaveLength(1)
+    expect(reference.excerpt).toBe('merged title tail')
+  })
+
   it('bounds the excerpt scan for a whole-sheet selection instead of walking every empty coordinate', () => {
     const model = modelWithoutCharts()
     // A "select all" on a large sheet: the rect is dense (100M coordinates) even though the cell table is sparse.

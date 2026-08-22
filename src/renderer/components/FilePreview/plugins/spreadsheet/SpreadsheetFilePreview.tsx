@@ -13,7 +13,7 @@ import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import type { ChartRenderer } from './charts/ChartRenderer'
 import type { CellRangeRect } from './gridLayout'
-import type { ChartModel, SheetRenderModel, WorkbookRenderModel } from './renderModel'
+import type { ChartModel, MergeRange, SheetRenderModel, WorkbookRenderModel } from './renderModel'
 import { SpreadsheetFilePreviewToolbar } from './SpreadsheetFilePreviewToolbar'
 import { useXlsxWorkbook, XLSX_PREVIEW_MAX_SIZE_BYTES } from './useXlsxWorkbook'
 import type { SelectedCellInfo } from './XlsxGrid'
@@ -58,19 +58,38 @@ const EXCERPT_MAX_SCAN_CELLS = 50_000
  * Plain-text snapshot of a selected range: tab-separated cells, newline-separated rows.
  * Both budgets are checked while scanning — building the full text first and truncating afterwards is what makes a
  * full-column selection hang. createSelectionReference does the exact normalization and truncation.
+ *
+ * Only text that survives normalization counts against the character budget: separators around blank cells collapse
+ * away, so charging for them would let a run of empty cells exhaust the budget and normalize down to an empty
+ * excerpt. The scan cap stays separate — it is what bounds the walk over a sparse selection.
+ *
+ * ExcelJS reports a merged range's value through every cell it covers, so each range is emitted once, at its master.
+ * Merges are swept row by row rather than searched per cell, keeping the walk linear in the scan cap.
  */
 const buildRangeExcerpt = (sheet: SheetRenderModel, rect: CellRangeRect): string => {
+  const intersecting = sheet.merges
+    .filter((m) => m.top <= rect.bottom && m.bottom >= rect.top && m.left <= rect.right && m.right >= rect.left)
+    .sort((a, b) => a.top - b.top)
+
   const lines: string[] = []
   let length = 0
   let scanned = 0
+  let nextMerge = 0
+  let active: MergeRange[] = []
+
   for (let row = rect.top; row <= rect.bottom; row++) {
+    while (nextMerge < intersecting.length && intersecting[nextMerge].top <= row) active.push(intersecting[nextMerge++])
+    if (active.length > 0) active = active.filter((merge) => merge.bottom >= row)
+
     const values: string[] = []
     for (let col = rect.left; col <= rect.right; col++) {
       if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
       scanned++
-      const text = sheet.cells[`${row}:${col}`]?.text ?? ''
+      const covering = active.find((merge) => merge.left <= col && merge.right >= col)
+      const isMergeFollower = covering !== undefined && (covering.top !== row || covering.left !== col)
+      const text = isMergeFollower ? '' : (sheet.cells[`${row}:${col}`]?.text ?? '')
       values.push(text)
-      length += text.length + 1
+      if (text.length > 0) length += text.length + 1
     }
     lines.push(values.join('\t'))
     if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
