@@ -221,6 +221,48 @@ describe('InputNumber', () => {
     expect(onBlur).toHaveBeenCalledExactlyOnceWith(7)
   })
 
+  it('restores the value the edit started from for callers that write on every change', async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+
+    function LiveCoupled() {
+      const [value, setValue] = useState<number | null>(7)
+      return (
+        <InputNumber
+          aria-label="amount"
+          value={value}
+          onValueChange={(next) => {
+            onValueChange(next)
+            setValue(next)
+          }}
+        />
+      )
+    }
+    render(<LiveCoupled />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.type(input, '89')
+    expect(input).toHaveValue('789')
+
+    await user.keyboard('{Escape}')
+    expect(input).toHaveValue('7')
+    expect(onValueChange).toHaveBeenLastCalledWith(7)
+  })
+
+  it('keeps Escape from reaching window, which would exit fullscreen', async () => {
+    const user = userEvent.setup()
+    const onWindowKeyDown = vi.fn()
+    window.addEventListener('keydown', onWindowKeyDown)
+    render(<InputNumber aria-label="amount" value={7} />)
+
+    await user.click(screen.getByLabelText('amount'))
+    await user.keyboard('{Escape}')
+    window.removeEventListener('keydown', onWindowKeyDown)
+
+    expect(onWindowKeyDown.mock.calls.map(([event]) => event.key)).not.toContain('Escape')
+  })
+
   it('warns and settles on min when the range is empty', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const user = userEvent.setup()

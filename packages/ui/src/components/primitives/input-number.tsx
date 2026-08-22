@@ -40,6 +40,11 @@ import { Input } from './input'
  * way to know a bound exists until the silent clamp on blur moves their number.
  * The wheel is deliberately left alone: over a `type="text"` field it scrolls
  * the page, which is what someone scrolling past a form means.
+ *
+ * Escape discards the edit and stops there. It restores what the edit started
+ * from — reported through `onValueChange`, since a live-coupled caller has
+ * already been told the typed value — and does not bubble, because the app exits
+ * fullscreen on any Escape reaching `window` and this one is already spent.
  */
 interface InputNumberProps
   extends Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode' | 'value' | 'onChange' | 'onBlur' | 'size'> {
@@ -138,6 +143,9 @@ function InputNumber({
   // directly, so there is no second copy of it to keep in sync.
   const [draft, setDraft] = React.useState<string | null>(null)
   const text = draft ?? format(value)
+  // What the current edit started from. `value` has already moved for callers that
+  // write on every `onValueChange`, so Escape cannot restore from the prop.
+  const preEdit = React.useRef<number | null>(null)
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.value
@@ -166,8 +174,12 @@ function InputNumber({
       event.currentTarget.blur()
     }
     // Discards the edit. Focus stays, so the restored value is what later commits.
+    // Swallowed so it stops at the React root: the app exits fullscreen on any
+    // Escape that reaches `window`, and this one is spent discarding the edit.
     if (event.key === 'Escape') {
-      setDraft(format(value))
+      event.stopPropagation()
+      setDraft(format(preEdit.current))
+      onValueChange?.(preEdit.current)
     }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       // Without this the caret jumps to the end of the text instead.
@@ -192,6 +204,7 @@ function InputNumber({
       value={text}
       className={cn(sizeClasses[size], className)}
       onFocus={(event) => {
+        preEdit.current = value
         setDraft(format(value))
         onFocus?.(event)
       }}
