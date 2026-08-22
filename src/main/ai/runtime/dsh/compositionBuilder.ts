@@ -12,7 +12,7 @@
  */
 import { pathToFileURL } from 'node:url'
 
-import { type BridgePermissionMode, resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
+import { type BridgePermissionMode, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import type { DshApi } from '@shared/ai/dshModelCompatibility'
@@ -22,7 +22,7 @@ import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
 
 /** Resolve a composition plugin specifier to its packaged on-disk entry. */
 export function resolveDshPluginPath(specifier: string): string {
-  return toAsarUnpackedPath(resolveDshRuntimeEntry(specifier))
+  return toAsarUnpackedPath(resolveBundledDshRuntimeEntry(specifier))
 }
 
 /** Convert a plugin entry path into the URL form required by Node's ESM loader. */
