@@ -2,12 +2,34 @@ export const PLATFORMS = ['macos', 'windows'] as const
 export const RUN_MODES = ['branch', 'tag'] as const
 export const CASE_STATUSES = ['pending', 'running', 'passed', 'failed', 'blocked', 'not_applicable'] as const
 export const EVIDENCE_KINDS = ['file', 'process', 'restart', 'screenshot', 'ui'] as const
+export const TASK_IDS = [
+  'startup-smoke',
+  'cherryin-chat',
+  'custom-provider-chat',
+  'custom-assistant',
+  'quick-assistant',
+  'selection-assistant',
+  'knowledge-import',
+  'knowledge-qa',
+  'everything-mcp',
+  'agent-ppt',
+  'skill-import',
+  'claude-agent-runtime',
+  'pi-runtime',
+  'deepseek-harness-runtime',
+  'image-generation',
+  'translation',
+  'mini-app',
+  'code-cli',
+  'openclaw',
+  'notes'
+] as const
 
 export type Platform = (typeof PLATFORMS)[number]
 export type RunMode = (typeof RUN_MODES)[number]
 export type CaseStatus = (typeof CASE_STATUSES)[number]
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number]
-export type SuiteId = `suite-${1 | 2 | 3 | 4 | 5 | 6}`
+export type TaskId = (typeof TASK_IDS)[number]
 export type TestProfile = 'authenticated' | 'clean'
 
 export interface EvidenceRequirement {
@@ -19,7 +41,7 @@ export interface EvidenceRequirement {
 export interface RegressionCase {
   id: string
   title: string
-  suite: SuiteId
+  task: TaskId
   profile: TestProfile
   modes: RunMode[]
   requiredCapabilities?: string[]

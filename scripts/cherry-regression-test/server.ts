@@ -6,7 +6,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import * as z from 'zod'
 
-import { getRegressionCase, REGRESSION_CASES, SUITE_IDS } from './cases'
+import { getRegressionCase, REGRESSION_CASES } from './cases'
 import { CONFIG_REFS, getSensitiveConfigValues, loadTestConfig } from './config'
 import { type InteractionRequest, type LocatorDescriptor, RegressionController, type WindowScope } from './controller'
 import type { FileEvidenceOptions } from './file-evidence'
@@ -17,7 +17,7 @@ import { listOwnedProcessIds } from './process-evidence'
 import { createRedactor } from './redaction'
 import { addEvidence, beginCase, completeCase, readRun, writeRun } from './state'
 import { chooseNativeFile, openExternalText, sendSystemHotkey } from './system-automation'
-import type { EvidenceRecord, Platform, SuiteId } from './types'
+import { type EvidenceRecord, type Platform, TASK_IDS, type TaskId } from './types'
 
 const locatorSchema = z.object({
   scope: z.enum(['any', 'main', 'quick-assistant', 'selection-assistant']).optional(),
@@ -94,13 +94,13 @@ const toolDefinitions = [
   {
     name: 'get-run-context',
     description:
-      'Read this suite, case contracts, fixture paths, capability results, and current statuses. Never returns secrets.',
+      'Read this task, case contracts, fixture paths, capability results, and current statuses. Never returns secrets.',
     inputSchema: { type: 'object', additionalProperties: false }
   },
   {
     name: 'begin-case',
     description:
-      'Start one case in this suite and switch Cherry Studio to its isolated profile. Capability-blocked cases are closed automatically.',
+      'Start one case in this task and switch Cherry Studio to its isolated profile. Capability-blocked cases are closed automatically.',
     inputSchema: {
       type: 'object',
       properties: { caseId: { type: 'string' } },
@@ -201,8 +201,8 @@ function requiredEnvironment(name: string): string {
 }
 
 const runDirectory = requiredEnvironment('CHERRY_TEST_RUN_DIR')
-const suite = requiredEnvironment('CHERRY_TEST_SUITE') as SuiteId
-if (!SUITE_IDS.includes(suite)) throw new Error(`Invalid Cherry regression suite: ${suite}`)
+const task = requiredEnvironment('CHERRY_TEST_TASK') as TaskId
+if (!TASK_IDS.includes(task)) throw new Error(`Invalid Cherry regression task: ${task}`)
 
 const paths = getRunPaths(runDirectory)
 const config = loadTestConfig()
@@ -214,7 +214,7 @@ const restartBaselines = new Map<string, number>()
 function log(event: string, details: unknown): void {
   appendFileSync(
     `${paths.logs}/driver.ndjson`,
-    `${JSON.stringify(redact({ at: new Date().toISOString(), details, event, suite }))}\n`,
+    `${JSON.stringify(redact({ at: new Date().toISOString(), details, event, task }))}\n`,
     { mode: 0o600 }
   )
 }
@@ -226,9 +226,9 @@ function response(value: unknown, isError = false) {
   }
 }
 
-function assertSuiteCase(caseId: string) {
+function assertTaskCase(caseId: string) {
   const testCase = getRegressionCase(caseId)
-  if (testCase.suite !== suite) throw new Error(`${caseId} belongs to ${testCase.suite}, not ${suite}`)
+  if (testCase.task !== task) throw new Error(`${caseId} belongs to ${testCase.task}, not ${task}`)
   return testCase
 }
 
@@ -357,7 +357,7 @@ function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
 }
 
 async function recordMachineEvidence(input: z.infer<typeof evidenceSchema>): Promise<EvidenceRecord> {
-  const testCase = assertSuiteCase(input.caseId)
+  const testCase = assertTaskCase(input.caseId)
   requireRunningCase(input.caseId)
   const requirement = testCase.evidence.find(({ id }) => id === input.evidenceId)
   if (!requirement) throw new Error(`${input.evidenceId} is not declared for ${input.caseId}`)
@@ -497,8 +497,8 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
         fixtures,
         installation,
         metadata: run.metadata,
-        suite,
-        cases: REGRESSION_CASES.filter((testCase) => testCase.suite === suite).map((testCase) => ({
+        task,
+        cases: REGRESSION_CASES.filter((testCase) => testCase.task === task).map((testCase) => ({
           ...testCase,
           result: run.cases[testCase.id]
         })),
@@ -508,7 +508,7 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
     }
     case 'begin-case': {
       const { caseId } = z.object({ caseId: z.string().min(1) }).parse(rawArguments)
-      const testCase = assertSuiteCase(caseId)
+      const testCase = assertTaskCase(caseId)
       let run = readRun(paths.runState)
       const existing = run.cases[caseId]
       if (existing.status !== 'pending' && existing.status !== 'running') {
@@ -581,7 +581,7 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
           summary: z.string().min(1)
         })
         .parse(rawArguments)
-      assertSuiteCase(input.caseId)
+      assertTaskCase(input.caseId)
       requireRunningCase(input.caseId)
       const run = completeCase(readRun(paths.runState), input.caseId, input.status, input.summary)
       writeRun(paths.runState, run)

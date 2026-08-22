@@ -12,7 +12,7 @@ vi.mock('node:child_process', async (importOriginal) => ({
   execFileSync: execFileSyncMock
 }))
 
-import { type AppRecord, stopOwnedApp } from '../lifecycle'
+import { type AppRecord, ensureProfile, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 afterEach(() => {
@@ -21,6 +21,41 @@ afterEach(() => {
 })
 
 describe('owned application lifecycle', () => {
+  it('reuses a live application when the requested profile already matches', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-lifecycle-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    const record: AppRecord = {
+      schemaVersion: 1,
+      ownership: 'agent',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'clean',
+      runKey: 'test-run',
+      targetRoot: '/tmp/target-app',
+      command: 'pnpm',
+      args: ['debug'],
+      cwd: '/tmp/target-app',
+      runnerPid: 42_000,
+      electronPid: 42_001,
+      cdpPort: 9222,
+      targetUrl: 'http://127.0.0.1:9222',
+      logPath: join(paths.logs, 'electron.log'),
+      startedAt: '2026-08-22T00:00:00.000Z',
+      restartCount: 0
+    }
+    writeFileSync(paths.appRecord, JSON.stringify(record))
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+
+    try {
+      await expect(ensureProfile(paths, 'clean')).resolves.toEqual(record)
+      expect(execFileSyncMock).not.toHaveBeenCalled()
+    } finally {
+      rmSync(directory, { force: true, recursive: true })
+    }
+  })
+
   it('force terminates the verified Windows process tree', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-lifecycle-'))
     const paths = getRunPaths(directory)

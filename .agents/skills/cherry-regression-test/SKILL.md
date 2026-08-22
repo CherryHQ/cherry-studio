@@ -1,6 +1,6 @@
 ---
 name: cherry-regression-test
-description: Run Cherry Studio critical-path system regression suites through the repository-owned CI driver. Use for full regression, release acceptance, development-branch system validation, or a named cherry-regression-test suite on GitHub-hosted macOS and Windows runners.
+description: Run Cherry Studio critical-path system regression tasks through the repository-owned CI driver. Use for full regression, release acceptance, development-branch system validation, or a named cherry-regression-test task on GitHub-hosted macOS and Windows runners.
 ---
 
 # Cherry Regression Test
@@ -11,9 +11,9 @@ instance, clean and authenticated profiles, fixtures, process lifecycle, and
 evidence files. Do not start, stop, or inspect Electron through Bash or generic
 desktop tools.
 
-## Execute the assigned suite
+## Execute the assigned task
 
-1. Call `get-run-context`. Work only on the returned suite and its cases, in
+1. Call `get-run-context`. Work only on the returned task and its cases, in
    listed order. Skip cases already marked `not_applicable` or complete.
 2. Call `begin-case`. If it returns `blocked`, do not simulate the missing
    capability and move to the next case.
@@ -40,5 +40,5 @@ desktop tools.
    only after all declared machine evidence passes.
 
 At the end, call `get-run-context` again and make sure every applicable case in
-the assigned suite is `passed`, `failed`, or `blocked`. Do not modify source
+the assigned task is `passed`, `failed`, or `blocked`. Do not modify source
 files, test definitions, fixtures, run state, or reports.

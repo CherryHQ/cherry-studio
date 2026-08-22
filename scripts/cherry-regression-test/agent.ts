@@ -20,7 +20,7 @@ export function assertAgentPreflightOutput(output: string, marker: string): void
   if (result.result?.trim() !== marker) throw new Error('Agent preflight returned an unexpected response')
 }
 
-export function assertAgentSuiteOutput(output: string): void {
+export function assertAgentTaskOutput(output: string): void {
   const result = parseAgentOutput(output)
-  if (result.is_error !== false) throw new Error('Test agent suite returned an error result')
+  if (result.is_error !== false) throw new Error('Test agent task returned an error result')
 }

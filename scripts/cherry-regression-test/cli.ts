@@ -2,19 +2,18 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { assertAgentPreflightOutput, assertAgentSuiteOutput } from './agent'
+import { assertAgentPreflightOutput, assertAgentTaskOutput } from './agent'
 import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
-import { SUITE_IDS } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
 import { createFixtures } from './fixtures'
 import { installReleaseArtifact, launchApp, stopOwnedApp } from './lifecycle'
-import { ensureRunDirectories, getRunPaths, isPathInside } from './paths'
+import { ensureRunDirectories, getRunPaths } from './paths'
 import { createRedactor } from './redaction'
 import { parseRemoteRefs, resolveTrustedRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
 import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
-import { PLATFORMS, type RegressionRun, RUN_MODES } from './types'
+import { PLATFORMS, type RegressionRun, RUN_MODES, TASK_IDS, type TaskId } from './types'
 
 const AGENT_ALLOWED_TOOLS = [
   'Read',
@@ -31,6 +30,23 @@ const AGENT_ALLOWED_TOOLS = [
 ] as const
 
 const AGENT_DISALLOWED_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent'] as const
+
+const HEAVY_AGENT_TASKS = new Set<TaskId>([
+  'agent-ppt',
+  'claude-agent-runtime',
+  'pi-runtime',
+  'deepseek-harness-runtime',
+  'image-generation',
+  'translation',
+  'code-cli',
+  'openclaw'
+])
+
+function agentTaskLimits(task: TaskId): { maxTurns: number; timeoutMinutes: number } {
+  if (task === 'startup-smoke') return { maxTurns: 12, timeoutMinutes: 8 }
+  if (HEAVY_AGENT_TASKS.has(task)) return { maxTurns: 70, timeoutMinutes: 18 }
+  return { maxTurns: 50, timeoutMinutes: 13 }
+}
 
 function argument(name: string, required = true): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
@@ -120,20 +136,21 @@ async function preflightCommand(): Promise<void> {
   process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
 }
 
-async function agentSettingsCommand(): Promise<void> {
+async function prepareAgentSettingsCommand(): Promise<void> {
   const paths = runDirectory()
-  const suite = oneOf(argument('suite') ?? '', SUITE_IDS, 'suite')
   const config = loadTestConfig()
-  const output = resolve(argument('output') ?? '')
-  if (!isPathInside(paths.root, output)) throw new Error('Agent settings must stay inside the run directory')
   const environment = Object.fromEntries(REQUIRED_CONFIG.map((name) => [name, process.env[name]]))
-  writeFileSync(
-    output,
-    `${JSON.stringify({ env: { ...environment, CHERRY_TEST_RUN_DIR: paths.root, CHERRY_TEST_SUITE: suite } }, null, 2)}\n`,
-    { mode: 0o600 }
-  )
+  const outputs = TASK_IDS.map((task) => {
+    const output = join(paths.root, `claude-settings-${task}.json`)
+    writeFileSync(
+      output,
+      `${JSON.stringify({ env: { ...environment, CHERRY_TEST_RUN_DIR: paths.root, CHERRY_TEST_TASK: task } }, null, 2)}\n`,
+      { mode: 0o600 }
+    )
+    return output
+  })
   const redacted = createRedactor(getSensitiveConfigValues(config))
-  process.stdout.write(`${JSON.stringify(redacted({ output, suite }))}\n`)
+  process.stdout.write(`${JSON.stringify(redacted({ outputs, tasks: TASK_IDS }))}\n`)
 }
 
 async function agentPreflightCommand(): Promise<void> {
@@ -188,13 +205,13 @@ async function agentPreflightCommand(): Promise<void> {
   process.stdout.write('Test agent preflight passed\n')
 }
 
-async function runAgentSuiteCommand(): Promise<void> {
+async function runAgentTaskCommand(): Promise<void> {
   const paths = runDirectory()
-  const suite = oneOf(argument('suite') ?? '', SUITE_IDS, 'suite')
+  const task = oneOf(argument('task') ?? '', TASK_IDS, 'task')
   const claudePath = resolve(argument('claude-path') ?? '')
-  const settingsPath = join(paths.root, `claude-settings-${suite}.json`)
+  const settingsPath = join(paths.root, `claude-settings-${task}.json`)
   const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as { env?: Record<string, string | undefined> }
-  if (!settings.env) throw new Error(`Agent settings are missing environment values for ${suite}`)
+  if (!settings.env) throw new Error(`Agent settings are missing environment values for ${task}`)
 
   const config = loadTestConfig(settings.env)
   const skillInstructions = readFileSync(resolve('.agents/skills/cherry-regression-test/SKILL.md'), 'utf8')
@@ -212,7 +229,7 @@ async function runAgentSuiteCommand(): Promise<void> {
       }
     }
   })
-  const startupOnly = suite === 'suite-1'
+  const limits = agentTaskLimits(task)
   const result = spawnSync(
     claudePath,
     [
@@ -221,7 +238,7 @@ async function runAgentSuiteCommand(): Promise<void> {
       '--model',
       config.customProvider.chatModel,
       '--max-turns',
-      startupOnly ? '12' : '180',
+      String(limits.maxTurns),
       '--output-format',
       'json',
       '--no-session-persistence',
@@ -238,19 +255,19 @@ async function runAgentSuiteCommand(): Promise<void> {
       AGENT_DISALLOWED_TOOLS.join(','),
       '--permission-mode',
       'dontAsk',
-      `Run suite ${suite}. Use only the CI MCP workflow for application control and evidence. Finish every applicable case with its actual status.`
+      `Run task ${task}. Use only the CI MCP workflow for application control and evidence. Finish every applicable case with its actual status.`
     ],
     {
       cwd: process.cwd(),
       encoding: 'utf8',
       env: environment,
       maxBuffer: 100 * 1024 * 1024,
-      timeout: (startupOnly ? 8 : 45) * 60_000
+      timeout: limits.timeoutMinutes * 60_000
     }
   )
   const redact = createRedactor(getSensitiveConfigValues(config))
   writeFileSync(
-    join(paths.logs, `agent-${suite}.json`),
+    join(paths.logs, `agent-${task}.json`),
     `${JSON.stringify(
       redact({
         error: result.error?.message,
@@ -265,10 +282,10 @@ async function runAgentSuiteCommand(): Promise<void> {
     { mode: 0o600 }
   )
   if (result.error || result.status !== 0) {
-    throw new Error(`Test agent failed for ${suite}; inspect the redacted platform evidence`)
+    throw new Error(`Test agent failed for ${task}; inspect the redacted platform evidence`)
   }
-  assertAgentSuiteOutput(result.stdout)
-  process.stdout.write(`Test agent completed ${suite}\n`)
+  assertAgentTaskOutput(result.stdout)
+  process.stdout.write(`Test agent completed ${task}\n`)
 }
 
 async function releaseCommand(): Promise<void> {
@@ -315,7 +332,6 @@ async function releaseCommand(): Promise<void> {
 async function launchCommand(): Promise<void> {
   const paths = runDirectory()
   const run = readRun(paths.runState)
-  const profile = run.metadata.mode === 'tag' ? 'clean' : 'authenticated'
   const targetRoot = argument('target-root') ?? ''
   const runKey = sanitizeRunKey(
     argument('run-key', false) ??
@@ -324,7 +340,7 @@ async function launchCommand(): Promise<void> {
   await launchApp(paths, {
     mode: run.metadata.mode,
     platform: run.metadata.platform,
-    profile,
+    profile: 'clean',
     runKey,
     targetRoot
   })
@@ -374,11 +390,12 @@ async function aggregateGateCommand(): Promise<void> {
 
 async function cleanupCommand(): Promise<void> {
   const paths = runDirectory()
+  const settingsFiles = new Set(TASK_IDS.map((task) => `claude-settings-${task}.json`))
   try {
     await stopOwnedApp(paths)
   } finally {
     for (const entry of readdirSync(paths.root, { withFileTypes: true })) {
-      if (entry.isFile() && /^claude-settings-suite-[1-6]\.json$/.test(entry.name)) {
+      if (entry.isFile() && settingsFiles.has(entry.name)) {
         rmSync(join(paths.root, entry.name))
       }
     }
@@ -397,14 +414,14 @@ async function main(): Promise<void> {
     case 'preflight':
       await preflightCommand()
       break
-    case 'agent-settings':
-      await agentSettingsCommand()
+    case 'prepare-agent-settings':
+      await prepareAgentSettingsCommand()
       break
     case 'agent-preflight':
       await agentPreflightCommand()
       break
-    case 'run-agent-suite':
-      await runAgentSuiteCommand()
+    case 'run-agent-task':
+      await runAgentTaskCommand()
       break
     case 'release':
       await releaseCommand()

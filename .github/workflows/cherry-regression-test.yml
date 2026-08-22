@@ -85,6 +85,8 @@ jobs:
       contents: read
     env:
       TARGET_DIR: ${{ github.workspace }}/target-app
+      MCP_TIMEOUT: "30000"
+      MCP_TOOL_TIMEOUT: "240000"
     steps:
       - name: Check out workflow control plane
         uses: actions/checkout@v6
@@ -211,90 +213,248 @@ jobs:
           CHERRY_TEST_CHERRYIN_IMAGE2_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE2_MODEL }}
           CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: |
-          for suite in suite-{1..6}; do
-            pnpm exec tsx scripts/cherry-regression-test/cli.ts agent-settings \
-              --run-dir "$RUN_DIR" \
-              --suite "$suite" \
-              --output "$RUN_DIR/claude-settings-$suite.json"
-          done
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts prepare-agent-settings
+          --run-dir "$RUN_DIR"
 
-      - name: Run suite 1 — app startup smoke test
+      - name: Run task 01 — app startup smoke
         continue-on-error: true
         timeout-minutes: 10
         shell: bash
         env:
-          MCP_TIMEOUT: "30000"
-          MCP_TOOL_TIMEOUT: "240000"
+          REGRESSION_TASK: startup-smoke
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
-          --suite suite-1
+          --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run suite 2 — models and assistant interactions
+      - name: Run task 02 — CherryIN chat
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 15
         shell: bash
         env:
-          MCP_TIMEOUT: "30000"
-          MCP_TOOL_TIMEOUT: "240000"
+          REGRESSION_TASK: cherryin-chat
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
-          --suite suite-2
+          --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run suite 3 — knowledge and MCP
+      - name: Run task 03 — custom provider chat
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 15
         shell: bash
         env:
-          MCP_TIMEOUT: "30000"
-          MCP_TOOL_TIMEOUT: "240000"
+          REGRESSION_TASK: custom-provider-chat
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
-          --suite suite-3
+          --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run suite 4 — Agent runtimes
+      - name: Run task 04 — custom assistant
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 15
         shell: bash
         env:
-          MCP_TIMEOUT: "30000"
-          MCP_TOOL_TIMEOUT: "240000"
+          REGRESSION_TASK: custom-assistant
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
-          --suite suite-4
+          --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run suite 5 — image and translation
+      - name: Run task 05 — quick assistant
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 15
         shell: bash
         env:
-          MCP_TIMEOUT: "30000"
-          MCP_TOOL_TIMEOUT: "240000"
+          REGRESSION_TASK: quick-assistant
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
-          --suite suite-5
+          --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run suite 6 — mini apps, code, and notes
+      - name: Run task 06 — selection assistant
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 15
         shell: bash
         env:
-          MCP_TIMEOUT: "30000"
-          MCP_TOOL_TIMEOUT: "240000"
+          REGRESSION_TASK: selection-assistant
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-suite
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
-          --suite suite-6
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 07 — knowledge import
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: knowledge-import
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 08 — knowledge Q&A
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: knowledge-qa
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 09 — Everything MCP
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: everything-mcp
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 10 — Agent PPT
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: agent-ppt
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 11 — Skill import
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: skill-import
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 12 — Claude Agent runtime
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: claude-agent-runtime
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 13 — Pi runtime
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: pi-runtime
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 14 — DeepSeek Harness runtime
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: deepseek-harness-runtime
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 15 — image generation
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: image-generation
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 16 — translation
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: translation
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 17 — mini app
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: mini-app
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 18 — Claude Code and Codex
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: code-cli
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 19 — OpenClaw
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: openclaw
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 20 — notes
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          REGRESSION_TASK: notes
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Finalize platform report

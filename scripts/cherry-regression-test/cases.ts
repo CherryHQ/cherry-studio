@@ -1,6 +1,4 @@
-import type { EvidenceKind, EvidenceRequirement, RegressionCase, SuiteId } from './types'
-
-export const SUITE_IDS: SuiteId[] = ['suite-1', 'suite-2', 'suite-3', 'suite-4', 'suite-5', 'suite-6']
+import type { EvidenceKind, EvidenceRequirement, RegressionCase } from './types'
 
 function requirement(id: string, kind: EvidenceKind, description: string): EvidenceRequirement {
   return { id, kind, description }
@@ -14,7 +12,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'S-01',
     title: '应用启动冒烟测试',
-    suite: 'suite-1',
+    task: 'startup-smoke',
     profile: 'clean',
     modes: ['branch', 'tag'],
     steps: ['Launch with an empty profile and wait for the main window to render visible application content.'],
@@ -27,7 +25,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'M-01',
     title: '登录 CherryIN 并完成聊天',
-    suite: 'suite-2',
+    task: 'cherryin-chat',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -51,7 +49,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'M-02',
     title: '配置自定义服务商并完成聊天',
-    suite: 'suite-2',
+    task: 'custom-provider-chat',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -76,7 +74,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'C-01',
     title: '创建自定义助手并聊天',
-    suite: 'suite-2',
+    task: 'custom-assistant',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -95,7 +93,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'C-02',
     title: '使用快捷助手完成全局问答',
-    suite: 'suite-2',
+    task: 'quick-assistant',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     requiredCapabilities: ['globalShortcut'],
@@ -120,7 +118,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'C-03',
     title: '使用划词助手处理跨应用选中文本',
-    suite: 'suite-2',
+    task: 'selection-assistant',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     requiredCapabilities: ['externalSelection'],
@@ -145,7 +143,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'K-01',
     title: '创建知识库并导入多个文件',
-    suite: 'suite-3',
+    task: 'knowledge-import',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -164,7 +162,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'K-02',
     title: '基于知识库问答并验证引用',
-    suite: 'suite-3',
+    task: 'knowledge-qa',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -183,7 +181,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'MCP-01',
     title: '创建并使用 Everything MCP',
-    suite: 'suite-3',
+    task: 'everything-mcp',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     requiredCapabilities: ['npx'],
@@ -204,7 +202,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'A-01',
     title: '默认 Agent 完成 PPT 任务',
-    suite: 'suite-4',
+    task: 'agent-ppt',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -222,7 +220,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'A-02',
     title: '从文件夹导入 Skill 并验证生效',
-    suite: 'suite-4',
+    task: 'skill-import',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -239,7 +237,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'A-03',
     title: 'Claude Agent Runtime',
-    suite: 'suite-4',
+    task: 'claude-agent-runtime',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -259,7 +257,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'A-04',
     title: 'Pi Runtime',
-    suite: 'suite-4',
+    task: 'pi-runtime',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -277,7 +275,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'A-05',
     title: 'DeepSeek Harness Runtime',
-    suite: 'suite-4',
+    task: 'deepseek-harness-runtime',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -295,7 +293,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'P-01',
     title: '使用 Gemini 模型生成图片',
-    suite: 'suite-5',
+    task: 'image-generation',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -313,7 +311,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'P-02',
     title: '使用 Image 2 模型生成图片',
-    suite: 'suite-5',
+    task: 'image-generation',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -331,7 +329,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'T-01',
     title: '文本翻译',
-    suite: 'suite-5',
+    task: 'translation',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -350,7 +348,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'T-02',
     title: 'PDF 文件翻译',
-    suite: 'suite-5',
+    task: 'translation',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     requiredCapabilities: ['systemFilePicker'],
@@ -370,7 +368,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'APP-01',
     title: '打开小程序',
-    suite: 'suite-6',
+    task: 'mini-app',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: ['Open a preset Mini App, wait for its main content, navigate away, and return.'],
@@ -384,7 +382,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'CODE-01',
     title: '启动 Claude Code',
-    suite: 'suite-6',
+    task: 'code-cli',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: ['Open Code, select Claude Code, choose the test directory, and start its terminal.'],
@@ -398,7 +396,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'CODE-02',
     title: '启动 Codex',
-    suite: 'suite-6',
+    task: 'code-cli',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: ['Open Code, select Codex, choose the test directory, and start its terminal.'],
@@ -412,7 +410,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'CODE-03',
     title: '启动 OpenClaw',
-    suite: 'suite-6',
+    task: 'openclaw',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: ['Configure OpenClaw, start its Gateway, open Dashboard, then stop Gateway.'],
@@ -427,7 +425,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'N-01',
     title: '创建和保存笔记',
-    suite: 'suite-6',
+    task: 'notes',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
