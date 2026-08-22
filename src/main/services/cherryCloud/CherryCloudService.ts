@@ -85,11 +85,15 @@ export class CherryCloudService extends BaseService {
   private cloudState = emptyState()
   private loginPromise: Promise<CherryCloudStatus> | null = null
   private refreshPromise: Promise<ProductSession> | null = null
-  private modelSyncPromise: Promise<{ modelCount: number }> | null = null
+  private modelSyncPromise: {
+    generation: number
+    promise: Promise<{ modelCount: number }>
+  } | null = null
   private agentGatewayLeasePromise: Promise<void> | null = null
   private hasAgentGatewayLease = false
   private sessionGeneration = 0
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
+  private pendingExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private exchangePromise: {
     authorizationId: string
     state: string
@@ -100,6 +104,7 @@ export class CherryCloudService extends BaseService {
     this.registerDisposable(() => {
       this.loopbackCallback?.dispose()
       this.loopbackCallback = null
+      this.clearPendingExpiryTimer()
     })
     await this.restoreSession()
   }
@@ -154,6 +159,7 @@ export class CherryCloudService extends BaseService {
         expiresAt: created.expires_at
       }
       this.cloudState = { ...this.cloudState, device, pending }
+      this.schedulePendingExpiry(pending)
       this.emitStatus()
 
       await shell.openExternal(created.authorization_url)
@@ -236,21 +242,26 @@ export class CherryCloudService extends BaseService {
       )
 
       const tokenSet = exchanged.token_set
+      const session = {
+        accessToken: tokenSet.access_token,
+        accessExpiresAt: accessExpiresAt(tokenSet.expires_in),
+        refreshToken: tokenSet.refresh_token,
+        sessionId: tokenSet.session_id,
+        sessionExpiresAt: Date.parse(tokenSet.session_expires_at),
+        deviceId: exchanged.account.device.id,
+        accountId: exchanged.account.account.id,
+        displayName: exchanged.account.account.display_name ?? null
+      }
+      const device = this.cloudState.device
+      if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
+
+      this.persistSession(device, session)
+      this.clearPendingExpiryTimer()
       this.cloudState = {
         ...this.cloudState,
         pending: null,
-        session: {
-          accessToken: tokenSet.access_token,
-          accessExpiresAt: accessExpiresAt(tokenSet.expires_in),
-          refreshToken: tokenSet.refresh_token,
-          sessionId: tokenSet.session_id,
-          sessionExpiresAt: Date.parse(tokenSet.session_expires_at),
-          deviceId: exchanged.account.device.id,
-          accountId: exchanged.account.account.id,
-          displayName: exchanged.account.account.display_name ?? null
-        }
+        session
       }
-      this.persistSession()
       this.emitStatus()
       void this.syncFreeModels().catch((error) => {
         logger.warn('Cherry Cloud model sync failed after login', {
@@ -267,8 +278,35 @@ export class CherryCloudService extends BaseService {
     const current = this.cloudState.pending
     if (!current || current.authorizationId !== pending.authorizationId || current.state !== pending.state) return
 
+    this.clearPendingExpiryTimer()
     this.cloudState = { ...this.cloudState, pending: null }
     this.emitStatus()
+  }
+
+  private schedulePendingExpiry(pending: PendingAuthorization): void {
+    this.clearPendingExpiryTimer()
+    const remaining = Date.parse(pending.expiresAt) - Date.now()
+    const timer = setTimeout(
+      () => {
+        if (this.cloudState.pending !== pending) return
+        if (Date.parse(pending.expiresAt) > Date.now()) {
+          this.schedulePendingExpiry(pending)
+          return
+        }
+        this.loopbackCallback?.dispose()
+        this.loopbackCallback = null
+        this.clearPendingAuthorization(pending)
+      },
+      Math.max(0, Math.min(remaining, 2_147_483_647))
+    )
+    timer.unref()
+    this.pendingExpiryTimer = timer
+  }
+
+  private clearPendingExpiryTimer(): void {
+    if (!this.pendingExpiryTimer) return
+    clearTimeout(this.pendingExpiryTimer)
+    this.pendingExpiryTimer = null
   }
 
   private currentStatus(): CherryCloudStatus {
@@ -286,9 +324,11 @@ export class CherryCloudService extends BaseService {
   }
 
   public async syncFreeModels(): Promise<{ modelCount: number }> {
-    if (this.modelSyncPromise) return this.modelSyncPromise
+    await this.pruneExpiredState()
+    const generation = this.sessionGeneration
+    if (this.modelSyncPromise?.generation === generation) return this.modelSyncPromise.promise
 
-    const sync = this.syncFreeModelsOnce()
+    const sync = this.syncFreeModelsOnce(generation)
       .catch((error) => {
         logger.warn('Cherry Cloud free model sync failed', {
           reason: error instanceof Error ? error.message : String(error)
@@ -296,19 +336,17 @@ export class CherryCloudService extends BaseService {
         throw error
       })
       .finally(() => {
-        if (this.modelSyncPromise === sync) this.modelSyncPromise = null
+        if (this.modelSyncPromise?.promise === sync) this.modelSyncPromise = null
       })
-    this.modelSyncPromise = sync
+    this.modelSyncPromise = { generation, promise: sync }
     return sync
   }
 
-  private async syncFreeModelsOnce(): Promise<{ modelCount: number }> {
-    await this.pruneExpiredState()
+  private async syncFreeModelsOnce(sessionGeneration: number): Promise<{ modelCount: number }> {
     if (!this.cloudState.session) {
       this.reconcileFreeModels([])
       return { modelCount: 0 }
     }
-    const sessionGeneration = this.sessionGeneration
 
     const [account, catalog] = await Promise.all([
       this.getAuthenticatedJson('/api/v1/account', accountSnapshotSchema),
@@ -501,8 +539,21 @@ export class CherryCloudService extends BaseService {
     if (this.cloudState.session !== session) {
       throw new Error('Cherry Cloud session changed while refresh was in progress')
     }
+    const device = this.cloudState.device
+    if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
+    try {
+      this.persistSession(device, next)
+    } catch (error) {
+      try {
+        await this.clearSession(session)
+      } catch (clearError) {
+        logger.warn('Cherry Cloud Session cleanup failed after persistence failure', {
+          reason: clearError instanceof Error ? clearError.message : String(clearError)
+        })
+      }
+      throw error
+    }
     this.cloudState = { ...this.cloudState, session: next }
-    this.persistSession()
     return next
   }
 
@@ -512,10 +563,16 @@ export class CherryCloudService extends BaseService {
 
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
-    cherryCloudSessionService.clear()
+    let persistenceError: unknown
+    try {
+      cherryCloudSessionService.clear()
+    } catch (error) {
+      persistenceError = error
+    }
     await this.releaseAgentGatewayLease()
     this.reconcileFreeModels([])
     this.emitStatus()
+    if (persistenceError) throw persistenceError
   }
 
   private async releaseAgentGatewayLease(): Promise<void> {
@@ -579,19 +636,10 @@ export class CherryCloudService extends BaseService {
 
   private async pruneExpiredState(): Promise<void> {
     const now = Date.now()
-    const pendingExpired = this.cloudState.pending && Date.parse(this.cloudState.pending.expiresAt) <= now
-    const sessionExpired = this.cloudState.session && this.cloudState.session.sessionExpiresAt <= now
-    if (!pendingExpired && !sessionExpired) return
-
-    this.cloudState = {
-      ...this.cloudState,
-      pending: pendingExpired ? null : this.cloudState.pending,
-      session: sessionExpired ? null : this.cloudState.session
-    }
-    if (sessionExpired) this.sessionGeneration += 1
-    if (sessionExpired) cherryCloudSessionService.clear()
-    if (sessionExpired) await this.releaseAgentGatewayLease()
-    this.emitStatus()
+    const pending = this.cloudState.pending
+    const session = this.cloudState.session
+    if (pending && Date.parse(pending.expiresAt) <= now) this.clearPendingAuthorization(pending)
+    if (session && session.sessionExpiresAt <= now) await this.clearSession(session)
   }
 
   private async restoreSession(): Promise<void> {
@@ -615,10 +663,7 @@ export class CherryCloudService extends BaseService {
     await this.pruneExpiredState()
   }
 
-  private persistSession(): void {
-    const { device, session } = this.cloudState
-    if (!device || !session) return
-
+  private persistSession(device: CherryCloudDevice, session: ProductSession): void {
     cherryCloudSessionService.replace({
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
