@@ -30,11 +30,11 @@ describe('prepareWindow', () => {
     expect(initI18nMock).toHaveBeenCalledTimes(1)
   })
 
-  it('exposes the DataApi DevTools control surface synchronously, before any awaited warm-up', () => {
+  it('loads the DataApi DevTools control surface before window preparation completes', async () => {
     const pending = prepareWindow({ preference: 'all' })
 
-    expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1)
-    return pending
+    await vi.waitFor(() => expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1))
+    await pending
   })
 
   it('resolves only after both i18n and the preference warm-up complete', async () => {

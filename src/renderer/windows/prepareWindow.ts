@@ -1,5 +1,4 @@
 import { preferenceService } from '@data/PreferenceService'
-import { DataApiDevtools } from '@data/utils/dataApiDevtools'
 import { initI18n } from '@renderer/i18n/resolver'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
@@ -17,13 +16,14 @@ interface PrepareWindowOptions {
  * to defaults plus lazy per-key self-heal in `usePreference`.
  */
 export async function prepareWindow(options: PrepareWindowOptions): Promise<void> {
-  // Window-scoped dev bootstrap: expose the DataApi DevTools control surface
-  // before the first render (and thus the first DataApi request) so payload
-  // capture can be enabled before any event is recorded. No-op in production.
-  DataApiDevtools.exposeControlSurface()
+  // Keep the full recorder out of production bundles while still installing it
+  // before the first development render (and thus the first DataApi request).
+  const devtoolsReady = import.meta.env.DEV
+    ? import('@data/utils/dataApiDevtools').then(({ DataApiDevtools }) => DataApiDevtools.exposeControlSurface())
+    : Promise.resolve()
 
   const preferencesWarm =
     options.preference === 'all' ? preferenceService.preloadAll() : preferenceService.preload(options.preference)
 
-  await Promise.all([initI18n(), preferencesWarm])
+  await Promise.all([devtoolsReady, initI18n(), preferencesWarm])
 }

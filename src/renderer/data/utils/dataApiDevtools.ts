@@ -1,6 +1,8 @@
 import { isDev } from '@renderer/utils/platform'
 import type { DataResponse, HttpMethod } from '@shared/data/api/types'
 
+import { dataApiInstrumentationService } from './DataApiInstrumentationService'
+
 type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'
 
 interface DataApiDevtoolsOptions {
@@ -236,6 +238,8 @@ function installGlobal(): void {
 }
 
 function exposeControlSurface(): void {
+  if (!isEnabled()) return
+  dataApiInstrumentationService.install(DataApiDevtools)
   installGlobal()
 }
 
@@ -334,6 +338,7 @@ export const dataApiDevtoolsTesting = {
   reset: () => {
     options = { ...DEFAULT_OPTIONS }
     clearEvents()
+    dataApiInstrumentationService.reset()
     if (typeof window !== 'undefined') {
       delete window.__CHERRY_DATA_API_DEVTOOLS__
     }
