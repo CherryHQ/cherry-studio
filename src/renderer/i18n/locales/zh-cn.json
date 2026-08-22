@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "API 密钥已重新生成",
   "apiGateway.messages.notEnabled": "请先启动网关，再通过此地址连接。",
+  "apiGateway.messages.portInvalid": "请输入 {{min}} 到 {{max}} 之间的端口。",
   "apiGateway.messages.restartError": "重启 API 网关失败：",
   "apiGateway.messages.restartFailed": "API 网关重启失败：",
   "apiGateway.messages.restartSuccess": "API 网关重启成功",

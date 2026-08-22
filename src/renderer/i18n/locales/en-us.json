@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "API Key regenerated",
   "apiGateway.messages.notEnabled": "Start the gateway before connecting to this address.",
+  "apiGateway.messages.portInvalid": "Enter a port between {{min}} and {{max}}.",
   "apiGateway.messages.restartError": "Failed to restart API Gateway: ",
   "apiGateway.messages.restartFailed": "API Gateway restart failed: ",
   "apiGateway.messages.restartSuccess": "API Gateway restarted successfully",

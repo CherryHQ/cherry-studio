@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "API キーが再生成されました",
   "apiGateway.messages.notEnabled": "APIサーバーが有効になっていません。",
+  "apiGateway.messages.portInvalid": "{{min}} から {{max}} の間のポートを入力してください。",
   "apiGateway.messages.restartError": "API サーバーの再起動に失敗しました：",
   "apiGateway.messages.restartFailed": "API サーバーの再起動に失敗しました：",
   "apiGateway.messages.restartSuccess": "API サーバーが正常に再起動されました",

@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "Το κλειδί API αναδημιουργήθηκε",
   "apiGateway.messages.notEnabled": "Ο διακομιστής API δεν είναι ενεργοποιημένος.",
+  "apiGateway.messages.portInvalid": "Εισαγάγετε μια θύρα μεταξύ {{min}} και {{max}}.",
   "apiGateway.messages.restartError": "Αποτυχία επανεκκίνησης του Διακομιστή API: ",
   "apiGateway.messages.restartFailed": "Η επανεκκίνηση του Διακομιστή API απέτυχε: ",
   "apiGateway.messages.restartSuccess": "Ο διακομιστής API επανεκκινήθηκε επιτυχώς",

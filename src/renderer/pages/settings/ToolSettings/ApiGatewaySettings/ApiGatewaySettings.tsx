@@ -33,6 +33,9 @@ const API_SERVER_DEFAULTS = {
   PORT: 23333
 }
 
+const PORT_MIN = 1000
+const PORT_MAX = 65535
+
 const ApiGatewaySettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -79,8 +82,14 @@ const ApiGatewaySettings: FC = () => {
     toast.success(t('apiGateway.messages.apiKeyRegenerated'))
   }
 
+  // A port is an identifier, not a magnitude, so the field is given no `min`/`max`
+  // to clamp against: 999 must be refused, not silently turned into 1000.
   const handlePortChange = (value: number | null) => {
-    void setApiGatewayConfig({ port: value ?? API_SERVER_DEFAULTS.PORT })
+    if (value === null || value < PORT_MIN || value > PORT_MAX) {
+      toast.error(t('apiGateway.messages.portInvalid', { min: PORT_MIN, max: PORT_MAX }))
+      return
+    }
+    void setApiGatewayConfig({ port: value })
   }
 
   const openApiDocs = () => {
@@ -185,8 +194,6 @@ const ApiGatewaySettings: FC = () => {
                 <InputNumber
                   className="mt-2 w-full font-mono text-xs tabular-nums"
                   aria-label={t('apiGateway.fields.port.label')}
-                  min={1000}
-                  max={65535}
                   step={1}
                   value={serverPort}
                   onBlur={handlePortChange}

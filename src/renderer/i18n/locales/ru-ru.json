@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "API ключ перегенерирован",
   "apiGateway.messages.notEnabled": "Запустите шлюз перед подключением к этому адресу.",
+  "apiGateway.messages.portInvalid": "Введите порт от {{min}} до {{max}}.",
   "apiGateway.messages.restartError": "Не удалось перезапустить API сервер: ",
   "apiGateway.messages.restartFailed": "Перезапуск API сервера не удался: ",
   "apiGateway.messages.restartSuccess": "API сервер успешно перезапущен",

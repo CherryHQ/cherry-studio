@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -79,22 +80,58 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+const gatewayState = () => ({
+  apiGatewayConfig: {
+    host: '127.0.0.1',
+    port: 23333,
+    apiKey: 'cs-sk-test-key',
+    enabled: false
+  },
+  apiGatewayRunning: false,
+  apiGatewayLoading: false,
+  startApiGateway: vi.fn(),
+  stopApiGateway: vi.fn(),
+  restartApiGateway: vi.fn(),
+  setApiGatewayConfig: vi.fn()
+})
+
 describe('ApiGatewaySettings', () => {
   beforeEach(() => {
-    useApiGatewayMock.mockReturnValue({
-      apiGatewayConfig: {
-        host: '127.0.0.1',
-        port: 23333,
-        apiKey: 'cs-sk-test-key',
-        enabled: false
-      },
-      apiGatewayRunning: false,
-      apiGatewayLoading: false,
-      startApiGateway: vi.fn(),
-      stopApiGateway: vi.fn(),
-      restartApiGateway: vi.fn(),
-      setApiGatewayConfig: vi.fn()
-    })
+    vi.clearAllMocks()
+    useApiGatewayMock.mockReturnValue(gatewayState())
+  })
+
+  // A port is an identifier: an out-of-range one has to be refused and explained,
+  // not quietly rounded into range the way a magnitude would be.
+  it.each([
+    ['999', 'below the minimum'],
+    ['70000', 'above the maximum'],
+    ['', 'empty']
+  ])('refuses the port %s (%s) and says why', (value) => {
+    const setApiGatewayConfig = vi.fn()
+    useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
+    render(<ApiGatewaySettings />)
+
+    const field = screen.getByLabelText('apiGateway.fields.port.label')
+    fireEvent.change(field, { target: { value } })
+    fireEvent.blur(field)
+
+    expect(setApiGatewayConfig).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('apiGateway.messages.portInvalid')
+    expect(field).toHaveValue('23333')
+  })
+
+  it('applies a port inside the allowed range', () => {
+    const setApiGatewayConfig = vi.fn()
+    useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
+    render(<ApiGatewaySettings />)
+
+    const field = screen.getByLabelText('apiGateway.fields.port.label')
+    fireEvent.change(field, { target: { value: '8080' } })
+    fireEvent.blur(field)
+
+    expect(setApiGatewayConfig).toHaveBeenCalledWith({ port: 8080 })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('protects the API key and authorization header by default', () => {

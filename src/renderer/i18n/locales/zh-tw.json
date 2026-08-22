@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "API 金鑰已重新產生",
   "apiGateway.messages.notEnabled": "請先啟動閘道，再連線至此位址。",
+  "apiGateway.messages.portInvalid": "請輸入 {{min}} 到 {{max}} 之間的連接埠。",
   "apiGateway.messages.restartError": "重新啟動 API 閘道失敗：",
   "apiGateway.messages.restartFailed": "API 閘道重新啟動失敗：",
   "apiGateway.messages.restartSuccess": "API 閘道重新啟動成功",

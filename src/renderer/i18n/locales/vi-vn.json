@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "Khóa API đã được tạo lại",
   "apiGateway.messages.notEnabled": "Máy chủ API chưa được kích hoạt.",
+  "apiGateway.messages.portInvalid": "Nhập một cổng từ {{min}} đến {{max}}.",
   "apiGateway.messages.restartError": "Không khởi động lại được Máy chủ API:",
   "apiGateway.messages.restartFailed": "Khởi động lại Máy chủ API không thành công:",
   "apiGateway.messages.restartSuccess": "Máy chủ API đã khởi động lại thành công",
