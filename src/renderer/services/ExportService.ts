@@ -30,7 +30,11 @@ import {
 import type { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
+import type { Blockquote, Paragraph, Text } from 'mdast'
 import type { appendBlocks } from 'notion-helper'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
 
 const logger = loggerService.withContext('ExportService')
 
@@ -540,8 +544,30 @@ const UNKNOWN_ALERT_CALLOUT = { emoji: '📝', color: 'gray_background' }
 const stripLeadingNewline = (segment: any): any =>
   segment?.text ? { ...segment, text: { ...segment.text, content: segment.text.content.replace(/^\n/, '') } } : segment
 
+// Detect alert quotes on the source mdast, mirroring the live renderer
+// (remark-github-blockquote-alert): the marker must lead the quote's first
+// paragraph as a plain text node. Source-level detection keeps provenance that
+// martian strips (raw HTML like <code>[!NOTE]</code> becomes plain text).
+const isAlertQuoteNode = (quote: Blockquote): boolean => {
+  const firstChild = quote.children?.[0]
+  if (firstChild?.type !== 'paragraph') {
+    return false
+  }
+  const firstNode = (firstChild as Paragraph).children?.[0]
+  return firstNode?.type === 'text' && ALERT_MARKER_RE.test((firstNode as Text).value)
+}
+
+// One flag per source blockquote in document order (parents before children),
+// consumed in the same order while rewriting martian's quote blocks.
+const collectAlertQuoteFlags = (markdown: string): boolean[] => {
+  const flags: boolean[] = []
+  const tree = unified().use(remarkParse).parse(markdown)
+  visit(tree, 'blockquote', (node) => flags.push(isAlertQuoteNode(node)))
+  return flags
+}
+
 // Drop the marker from the paragraph's rich text segments; marker may share a segment
-// with the body or occupy its own (e.g. bolded marker).
+// with the body or occupy its own (e.g. marker-only paragraph).
 const stripAlertMarker = (segments: any[], markerLength: number): any[] => {
   const [first, ...rest] = segments
   const remainder = first.text.content.slice(markerLength).replace(/^\n/, '')
@@ -551,7 +577,10 @@ const stripAlertMarker = (segments: any[], markerLength: number): any[] => {
   return rest.length > 0 ? [stripLeadingNewline(rest[0]), ...rest.slice(1)] : []
 }
 
-const quoteToCallout = (block: any): any => {
+const quoteToCallout = (block: any, isAlert: boolean): any => {
+  if (!isAlert) {
+    return block
+  }
   const firstChild = block.quote?.children?.[0]
   if (firstChild?.type !== 'paragraph') {
     return block
@@ -576,23 +605,27 @@ const quoteToCallout = (block: any): any => {
 
 // Rewrite GitHub-style alert quotes ("> [!TYPE]") in martian output into native
 // Notion callout blocks; plain quotes are left untouched.
-export const rewriteAlertQuotesToCallouts = (blocks: any[]): any[] => {
+export const rewriteAlertQuotesToCallouts = (blocks: any[], markdown: string): any[] => {
+  const alertFlags = collectAlertQuoteFlags(markdown)
+  let quoteIndex = 0
   const rewriteBlock = (block: any): any => {
     if (!block?.type) {
       return block
     }
-    const payload = block[block.type]
-    const current = Array.isArray(payload?.children)
-      ? { ...block, [block.type]: { ...payload, children: payload.children.map(rewriteBlock) } }
-      : block
-    return current.type === 'quote' ? quoteToCallout(current) : current
+    // Consume the flag before recursing so nested quotes align with the
+    // source AST's document order (parents before children).
+    const rewritten = block.type === 'quote' ? quoteToCallout(block, alertFlags[quoteIndex++] === true) : block
+    const payload = rewritten[rewritten.type]
+    return Array.isArray(payload?.children)
+      ? { ...rewritten, [rewritten.type]: { ...payload, children: payload.children.map(rewriteBlock) } }
+      : rewritten
   }
   return blocks.map(rewriteBlock)
 }
 
 const convertMarkdownToNotionBlocks = async (markdown: string): Promise<any[]> => {
   const { markdownToBlocks } = await loadNotionDependencies()
-  return rewriteAlertQuotesToCallouts(markdownToBlocks(markdown))
+  return rewriteAlertQuotesToCallouts(markdownToBlocks(markdown), markdown)
 }
 
 const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<any[]> => {
@@ -606,7 +639,7 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
     const processedContent = thinkingContent.replace(/<br\s*\/?>/g, '\n')
 
     // 使用 markdownToBlocks 处理思维链内容
-    const childrenBlocks = rewriteAlertQuotesToCallouts(markdownToBlocks(processedContent))
+    const childrenBlocks = rewriteAlertQuotesToCallouts(markdownToBlocks(processedContent), processedContent)
 
     return [
       {
