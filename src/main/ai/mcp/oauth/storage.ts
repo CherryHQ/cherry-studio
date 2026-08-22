@@ -48,15 +48,15 @@ export class JsonFileStorage implements IOAuthStorage {
 
   private async writeStorage(data: OAuthStorageData): Promise<void> {
     try {
-      // Ensure directory exists
-      await fs.mkdir(path.dirname(this.filePath), { recursive: true })
+      // Ensure directory exists; owner-only since it holds OAuth tokens
+      await fs.mkdir(path.dirname(this.filePath), { recursive: true, mode: 0o700 })
 
       // Update timestamp
       data.lastUpdated = Date.now()
 
-      // Write file atomically
+      // Write file atomically, readable only by the owner (tokens + client secret)
       const tempPath = `${this.filePath}.tmp`
-      await fs.writeFile(tempPath, JSON.stringify(data, null, 2))
+      await fs.writeFile(tempPath, JSON.stringify(data, null, 2), { mode: 0o600 })
       await fs.rename(tempPath, this.filePath)
 
       // Update cache
