@@ -27,6 +27,14 @@ function renderSlider(item: Partial<BaseConfigItem>, painting: Record<string, un
 }
 
 describe('PaintingFieldRenderer slider input', () => {
+  // `role="spinbutton"` announces a value and a range; with no name it is a number
+  // with no subject, and nothing else in the suite would notice the name going.
+  it('names the slider companion field', () => {
+    renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
+
+    expect(screen.getByRole('spinbutton')).toHaveAccessibleName()
+  })
+
   it('accepts a fractional value when the field step is fractional', async () => {
     const user = userEvent.setup()
     const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })

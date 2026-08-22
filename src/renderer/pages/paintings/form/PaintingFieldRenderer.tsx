@@ -87,6 +87,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             onValueChange={(values) => onChange({ [fieldKey]: values[0] })}
           />
           <InputNumber
+            aria-label={item.title ? t(item.title) : fieldKey}
             className="w-20"
             min={min}
             max={max}

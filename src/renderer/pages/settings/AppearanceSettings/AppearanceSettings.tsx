@@ -547,6 +547,7 @@ const AppearanceSettings: FC = () => {
               </Flex>
               <InputNumber
                 size="small"
+                aria-label={t('chat.settings.code_execution.timeout_minutes.label')}
                 className="w-20 text-sm"
                 min={1}
                 max={60}
