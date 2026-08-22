@@ -4923,6 +4923,12 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "both": "Implicit",
+        "sidebar": "Bară laterală",
+        "tabs": "File",
+        "title": "Aspect de navigare"
+      },
       "title": "Aspect"
     },
     "assistant": {

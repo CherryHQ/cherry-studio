@@ -4923,6 +4923,12 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "both": "Προεπιλογή",
+        "sidebar": "Πλευρική γραμμή",
+        "tabs": "Καρτέλες",
+        "title": "Διάταξη πλοήγησης"
+      },
       "title": "Εμφάνιση"
     },
     "assistant": {

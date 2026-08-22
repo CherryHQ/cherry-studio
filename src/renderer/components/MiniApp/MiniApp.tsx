@@ -54,7 +54,7 @@ const MiniApp: FC<Props> = ({
     removeCustomMiniApp
   } = useMiniApps()
   const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
-  const { openTab } = useTabs()
+  const { closeWorkspace, navigationLayout, openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
@@ -122,6 +122,7 @@ const MiniApp: FC<Props> = ({
 
   const handleToggleSidebarFavorite = () => {
     toggleMiniApp(app.appId)
+    if (isSidebarFavorite && navigationLayout === 'sidebar') closeWorkspace(`mini-app:${app.appId}`)
   }
 
   const handleHide = () => {

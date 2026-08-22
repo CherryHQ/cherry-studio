@@ -4923,6 +4923,12 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "both": "Par défaut",
+        "sidebar": "Barre latérale",
+        "tabs": "Onglets",
+        "title": "Disposition de navigation"
+      },
       "title": "Apparence"
     },
     "assistant": {

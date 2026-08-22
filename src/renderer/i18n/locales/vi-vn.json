@@ -4923,6 +4923,12 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "both": "Mặc định",
+        "sidebar": "Thanh bên",
+        "tabs": "Thẻ",
+        "title": "Bố cục điều hướng"
+      },
       "title": "Vẻ ngoài"
     },
     "assistant": {

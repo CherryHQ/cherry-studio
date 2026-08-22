@@ -1,6 +1,11 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
+import {
+  type ActiveExecution,
+  TOPIC_STATUS_INDEX_CACHE_KEY,
+  type TopicStatusSnapshotEntry,
+  type TopicStreamStatus
+} from '@shared/ai/transport'
 
 import type { ActiveStream, ConversationCompletedEvent } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
@@ -17,6 +22,8 @@ export function createChatStreamLifecycle(
   onConversationCompleted: (event: ConversationCompletedEvent) => void
 ): StreamLifecycle {
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
+    if (stream.taskStatusBroadcastSuppressed) return undefined
+
     const completedAt = status === 'done' ? Date.now() : undefined
     try {
       const activeExecutions: ActiveExecution[] = []
@@ -39,13 +46,27 @@ export function createChatStreamLifecycle(
       const key = `topic.stream.statuses.${stream.topicId}` as const
       const prev = cacheService.getShared(key)
       const lastCompletedAt = completedAt ?? prev?.lastCompletedAt
-      cacheService.setShared(key, {
+      const entry: TopicStatusSnapshotEntry = {
         status,
         turnId: stream.turnId,
         activeExecutions,
         awaitingApprovalAnchors,
         lastCompletedAt
-      })
+      }
+      cacheService.setShared(key, entry)
+
+      if (stream.isPersistentConversation) {
+        const index = cacheService.getShared(TOPIC_STATUS_INDEX_CACHE_KEY) ?? {}
+        if (status === 'aborted') {
+          if (stream.topicId in index) {
+            const nextIndex = { ...index }
+            delete nextIndex[stream.topicId]
+            cacheService.setShared(TOPIC_STATUS_INDEX_CACHE_KEY, nextIndex)
+          }
+        } else {
+          cacheService.setShared(TOPIC_STATUS_INDEX_CACHE_KEY, { ...index, [stream.topicId]: entry })
+        }
+      }
     } catch (error) {
       // Stream registration/execution is the commit point. Cache convergence is observational and
       // must not turn a successfully started stream into a failed IPC response.

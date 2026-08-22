@@ -4923,6 +4923,12 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "both": "По умолчанию",
+        "sidebar": "Боковая панель",
+        "tabs": "Вкладки",
+        "title": "Макет навигации"
+      },
       "title": "Внешний вид"
     },
     "assistant": {

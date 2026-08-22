@@ -11,7 +11,7 @@ import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser, SidebarVisibleLayout } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
@@ -26,6 +26,7 @@ export interface SidebarProps {
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
+  fixedAction?: (layout: SidebarVisibleLayout) => React.ReactNode
   onHoverChange?: (visible: boolean) => void
   onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
@@ -46,6 +47,7 @@ export function Sidebar({
   searchLabel = '',
   extensionsLabel = '',
   actions,
+  fixedAction,
   onHoverChange,
   onResizePreview,
   onSearchClick,
@@ -181,8 +183,13 @@ export function Sidebar({
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
+          <div data-slot="sidebar-navigation" className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
             <SidebarList layout="full" {...listProps} />
+            {fixedAction && (
+              <div data-slot="sidebar-fixed-action" className="px-3 py-1">
+                {fixedAction('full')}
+              </div>
+            )}
           </div>
 
           {showFooter && (
@@ -269,8 +276,15 @@ export function Sidebar({
         ))}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
+      <div data-slot="sidebar-navigation" className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
         <SidebarList layout={layout} {...listProps} />
+        {fixedAction && (
+          <div
+            data-slot="sidebar-fixed-action"
+            className={cn('py-1 [-webkit-app-region:no-drag]', layout === 'full' ? 'px-3' : 'flex justify-center')}>
+            {fixedAction(layout)}
+          </div>
+        )}
       </div>
 
       {/* Footer */}

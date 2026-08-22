@@ -4923,6 +4923,12 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "both": "預設",
+        "sidebar": "側邊欄",
+        "tabs": "多分頁",
+        "title": "導覽版面配置"
+      },
       "title": "外觀"
     },
     "assistant": {

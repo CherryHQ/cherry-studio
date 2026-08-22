@@ -4923,6 +4923,12 @@
       }
     },
     "appearance": {
+      "navigation_layout": {
+        "both": "デフォルト",
+        "sidebar": "サイドバー",
+        "tabs": "タブ",
+        "title": "ナビゲーションレイアウト"
+      },
       "title": "外観"
     },
     "assistant": {
