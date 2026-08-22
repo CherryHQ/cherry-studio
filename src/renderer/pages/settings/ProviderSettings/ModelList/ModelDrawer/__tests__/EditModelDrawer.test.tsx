@@ -171,11 +171,58 @@ function makeTieredPricingModel(): Model {
 
 const modelWithFullPricing = makePricingModel({ cacheReadPrice: 0.3 })
 
-describe('EditModelDrawer pricing', () => {
+describe('EditModelDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcRequest.mockResolvedValue(undefined)
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+  })
+
+  it('autosaves the settled positive minimum instead of an invalid zero', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...makePricingModel(),
+      contextWindow: 128_000,
+      maxInputTokens: 64_000,
+      maxOutputTokens: 8_000
+    }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    const contextWindow = screen.getByLabelText('settings.models.add.context_window.label')
+    expect(contextWindow).toHaveValue('128000')
+
+    await user.clear(contextWindow)
+    await user.type(contextWindow, '0')
+    await user.tab()
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ contextWindow: 1 }))
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('maxInputTokens')
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('maxOutputTokens')
+  })
+
+  it('maps a cleared token limit to null without changing the other numeric limits', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...makePricingModel(),
+      contextWindow: 128_000,
+      maxInputTokens: 64_000,
+      maxOutputTokens: 8_000
+    }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    const maxOutputTokens = screen.getByLabelText('settings.models.add.max_output_tokens.label')
+    await user.clear(maxOutputTokens)
+    await user.tab()
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        maxOutputTokens: null
+      })
+    )
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('contextWindow')
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('maxInputTokens')
   })
 
   it('keeps every pricing tier untouched when an unrelated field is edited', async () => {

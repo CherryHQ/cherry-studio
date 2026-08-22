@@ -5,55 +5,55 @@ import { useTranslation } from 'react-i18next'
 
 interface TokenLimitPreset {
   label: string
-  value: string
+  value: number
 }
 
 const CONTEXT_WINDOW_PRESETS: readonly TokenLimitPreset[] = [
-  { label: '128K', value: '128000' },
-  { label: '200K', value: '200000' },
-  { label: '256K', value: '262144' },
-  { label: '400K', value: '400000' },
-  { label: '512K', value: '524288' },
-  { label: '1M', value: '1000000' }
+  { label: '128K', value: 128000 },
+  { label: '200K', value: 200000 },
+  { label: '256K', value: 262144 },
+  { label: '400K', value: 400000 },
+  { label: '512K', value: 524288 },
+  { label: '1M', value: 1000000 }
 ]
 
 const MAX_INPUT_TOKEN_PRESETS: readonly TokenLimitPreset[] = [
-  { label: '128K', value: '128000' },
-  { label: '200K', value: '200000' },
-  { label: '256K', value: '256000' },
-  { label: '512K', value: '512000' },
-  { label: '1M', value: '1000000' }
+  { label: '128K', value: 128000 },
+  { label: '200K', value: 200000 },
+  { label: '256K', value: 256000 },
+  { label: '512K', value: 512000 },
+  { label: '1M', value: 1000000 }
 ]
 
 const MAX_OUTPUT_TOKEN_PRESETS: readonly TokenLimitPreset[] = [
-  { label: '16K', value: '16384' },
-  { label: '32K', value: '32768' },
-  { label: '64K', value: '65536' },
-  { label: '128K', value: '128000' },
-  { label: '256K', value: '256000' }
+  { label: '16K', value: 16384 },
+  { label: '32K', value: 32768 },
+  { label: '64K', value: 65536 },
+  { label: '128K', value: 128000 },
+  { label: '256K', value: 256000 }
 ]
 
 interface ModelContextWindowFieldsProps {
-  contextWindow: string
-  maxInputTokens: string
-  maxOutputTokens: string
-  onContextWindowChange: (value: string) => void
+  contextWindow: number | null
+  maxInputTokens: number | null
+  maxOutputTokens: number | null
+  onContextWindowChange: (value: number | null) => void
   /** Optional: the normalized value always reaches `onContextWindowChange` first. */
-  onContextWindowCommit?: (value: string) => void
-  onMaxInputTokensChange: (value: string) => void
-  onMaxInputTokensCommit?: (value: string) => void
-  onMaxOutputTokensChange: (value: string) => void
-  onMaxOutputTokensCommit?: (value: string) => void
+  onContextWindowCommit?: (value: number | null) => void
+  onMaxInputTokensChange: (value: number | null) => void
+  onMaxInputTokensCommit?: (value: number | null) => void
+  onMaxOutputTokensChange: (value: number | null) => void
+  onMaxOutputTokensCommit?: (value: number | null) => void
 }
 
 interface TokenLimitFieldProps {
   title: string
   presetsLabel: string
-  value: string
+  value: number | null
   placeholder: string
   presets: readonly TokenLimitPreset[]
-  onChange: (value: string) => void
-  onCommit?: (value: string) => void
+  onChange: (value: number | null) => void
+  onCommit?: (value: number | null) => void
 }
 
 function TokenLimitField({
@@ -65,17 +65,9 @@ function TokenLimitField({
   onChange,
   onCommit
 }: TokenLimitFieldProps) {
-  const selectPreset = (presetValue: string) => {
-    onChange(presetValue)
-    onCommit?.(presetValue)
-  }
-
-  // `InputNumber` renders `value`, not its own normalized result, so the settled
-  // value has to go back through `onChange` or the field keeps showing what was typed.
   const settle = (settled: number | null) => {
-    const next = settled === null ? '' : String(settled)
-    onChange(next)
-    onCommit?.(next)
+    onChange(settled)
+    onCommit?.(settled)
   }
 
   return (
@@ -85,7 +77,7 @@ function TokenLimitField({
           const active = value === preset.value
 
           return (
-            <Tooltip key={preset.value} content={preset.value}>
+            <Tooltip key={preset.value} content={String(preset.value)}>
               <Button
                 type="button"
                 variant={active ? 'secondary' : 'outline'}
@@ -93,7 +85,7 @@ function TokenLimitField({
                 aria-label={`${title}: ${preset.label} (${preset.value})`}
                 aria-pressed={active}
                 className="rounded-full"
-                onClick={() => selectPreset(preset.value)}>
+                onClick={() => settle(preset.value)}>
                 {preset.label}
               </Button>
             </Tooltip>
@@ -104,10 +96,10 @@ function TokenLimitField({
         min={1}
         step={1}
         aria-label={title}
-        value={value === '' ? null : Number(value)}
+        value={value}
         placeholder={placeholder}
         className={drawerClasses.input}
-        onValueChange={(next) => onChange(next === null ? '' : String(next))}
+        onValueChange={onChange}
         onBlur={settle}
       />
     </ProviderField>
