@@ -316,12 +316,12 @@ async function materializeIdentityEntry(sourcePath: string, destinationPath: str
 }
 
 async function copyIdentityEntry(sourcePath: string, destinationPath: string): Promise<CopyEntryResult | undefined> {
-  const sourceSnapshot = await identityCopySourceSnapshot(sourcePath)
+  const sourceSnapshot = await identityCopySnapshot(sourcePath)
   if (!sourceSnapshot) return undefined
 
-  const existingDestination = await filesystemEntrySnapshot(destinationPath)
+  const existingDestination = await identityCopySnapshot(destinationPath)
   if (existingDestination) {
-    if (existingDestination.fingerprint !== sourceSnapshot.copiedFingerprint) {
+    if (existingDestination.copiedFingerprint !== sourceSnapshot.copiedFingerprint) {
       throw new Error(`Legacy Agent identity destination conflict: ${destinationPath}`)
     }
     logger.info('Reusing identical identity entry created after migration target cleanup', {
@@ -343,15 +343,15 @@ async function copyIdentityEntry(sourcePath: string, destinationPath: string): P
       throw new Error(`Legacy Agent identity changed while being copied: ${sourcePath}`)
     }
 
-    const stagingSnapshot = await requiredFilesystemEntrySnapshot(stagingPath)
-    if (stagingSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+    const stagingSnapshot = await requiredIdentityCopySnapshot(stagingPath)
+    if (stagingSnapshot.copiedFingerprint !== sourceSnapshot.copiedFingerprint) {
       throw new Error(`Legacy Agent identity copy verification failed: ${sourcePath}`)
     }
 
     const racedDestinationStat = await lstatIfExists(destinationPath)
     if (racedDestinationStat) {
-      const racedDestinationSnapshot = await requiredFilesystemEntrySnapshot(destinationPath)
-      if (racedDestinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+      const racedDestinationSnapshot = await identityCopySnapshot(destinationPath)
+      if (racedDestinationSnapshot?.copiedFingerprint !== sourceSnapshot.copiedFingerprint) {
         throw new Error(`Legacy Agent identity destination conflict: ${destinationPath}`)
       }
       logger.info('Reusing identical identity entry from an earlier migration attempt', {
@@ -367,8 +367,11 @@ async function copyIdentityEntry(sourcePath: string, destinationPath: string): P
       try {
         await publishStagedWorkspaceEntry(stagingPath, destinationPath)
       } catch (error) {
-        const racedDestinationSnapshot = await filesystemEntrySnapshot(destinationPath)
-        if (!racedDestinationSnapshot || racedDestinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+        const racedDestinationSnapshot = await identityCopySnapshot(destinationPath)
+        if (
+          !racedDestinationSnapshot ||
+          racedDestinationSnapshot.copiedFingerprint !== sourceSnapshot.copiedFingerprint
+        ) {
           throw error
         }
         return {
@@ -1114,18 +1117,28 @@ async function filesystemEntryStatsWithQueue(
   return { fileCount, byteCount }
 }
 
-async function identityCopySourceSnapshot(targetPath: string): Promise<CopySourceSnapshot | undefined> {
+// `materializeIdentityEntry` reproduces only regular files and directories, so
+// every other entry has to stay out of the fingerprint as well.
+function isCopyableIdentityStat(targetStat: BigIntStats): boolean {
+  return targetStat.isFile() || targetStat.isDirectory()
+}
+
+/**
+ * Fingerprint an identity tree as it looks once copied. Both sides of an
+ * identity copy go through this so the source, the private staging tree and an
+ * existing destination stay comparable.
+ */
+async function identityCopySnapshot(targetPath: string): Promise<CopySourceSnapshot | undefined> {
   const targetStat = await lstatBigIntIfExists(targetPath)
   if (!targetStat) return undefined
 
-  const kind = filesystemEntryKind(targetStat)
-  const copiedHash = createHash('sha256')
-
-  if (kind === 'symlink') {
-    logger.warn('Skipping identity symlink while snapshotting Agent migration source', { targetPath })
+  if (!isCopyableIdentityStat(targetStat)) {
+    logger.warn('Skipping identity entry that cannot be copied during Agent migration', { targetPath })
     return undefined
   }
 
+  const kind = targetStat.isFile() ? 'file' : 'directory'
+  const copiedHash = createHash('sha256')
   updateFingerprintField(copiedHash, kind)
   let fileCount = 0
   let byteCount = 0
@@ -1140,10 +1153,10 @@ async function identityCopySourceSnapshot(targetPath: string): Promise<CopySourc
     entries.sort()
     for (const entry of entries) {
       const childPath = path.join(targetPath, entry)
-      const childSnapshot = await identityCopySourceSnapshot(childPath)
+      const childSnapshot = await identityCopySnapshot(childPath)
       if (!childSnapshot) {
         const childStat = await lstatBigIntIfExists(childPath)
-        if (childStat?.isSymbolicLink()) continue
+        if (childStat && !isCopyableIdentityStat(childStat)) continue
         throw new Error(`Legacy Agent identity source changed while being scanned: ${childPath}`)
       }
       updateFingerprintField(copiedHash, entry)
@@ -1158,6 +1171,14 @@ async function identityCopySourceSnapshot(targetPath: string): Promise<CopySourc
     fileCount,
     byteCount
   }
+}
+
+async function requiredIdentityCopySnapshot(targetPath: string): Promise<CopySourceSnapshot> {
+  const snapshot = await identityCopySnapshot(targetPath)
+  if (!snapshot) {
+    throw new Error(`Agent migration fingerprint source disappeared: ${targetPath}`)
+  }
+  return snapshot
 }
 
 async function workspaceSourceSnapshot(sourcePath: string): Promise<WorkspaceSourceSnapshot | undefined> {

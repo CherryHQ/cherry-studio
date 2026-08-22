@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import type * as FsPromises from 'node:fs/promises'
 import {
   access,
@@ -730,6 +731,66 @@ describe('agentsFilesystemMigration', () => {
       'workspace content'
     )
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'keeps migrating when an Agent target that is also its own legacy workspace holds an identity symlink',
+    async () => {
+      const { tempRoot, agentsDataRoot } = await createFixture()
+      const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+      await mkdir(path.join(agentDataPath, 'memory'), { recursive: true })
+      await writeFile(path.join(agentDataPath, 'SOUL.md'), 'legacy soul')
+      await writeFile(path.join(agentDataPath, 'memory', 'JOURNAL.jsonl'), '{"note":"kept"}\n')
+      await writeFile(path.join(tempRoot, 'shared-fact.md'), 'shared knowledge')
+      await symlink(path.join(tempRoot, 'shared-fact.md'), path.join(agentDataPath, 'memory', 'FACT.md'))
+
+      const externalSession = sessionPlan(agentsDataRoot, agentDataPath, {
+        sourceSessionId: 'session_external',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+        managed: false
+      })
+
+      await expect(
+        stageLegacyAgentFiles({
+          agentsDataRoot,
+          agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+          sessions: [externalSession]
+        })
+      ).resolves.toEqual({ skippedTargetCount: 0 })
+
+      expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+      expect(await readFile(path.join(agentDataPath, 'memory', 'JOURNAL.jsonl'), 'utf8')).toBe('{"note":"kept"}\n')
+      expect((await lstat(path.join(agentDataPath, 'memory', 'FACT.md'))).isSymbolicLink()).toBe(true)
+    }
+  )
+
+  it.runIf(process.platform !== 'win32')(
+    'migrates the rest of an identity directory that holds an entry which cannot be copied',
+    async () => {
+      const { agentsDataRoot, legacyWorkspace } = await createFixture()
+      await mkdir(path.join(legacyWorkspace, 'memory'), { recursive: true })
+      await writeFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'remember this')
+      execFileSync('mkfifo', [path.join(legacyWorkspace, 'memory', 'agent-memory.pipe')])
+
+      const session = sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: 'session_latest',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [session]
+      })
+
+      const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+      expect(await readFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf8')).toBe('remember this')
+      await expect(access(path.join(agentDataPath, 'memory', 'agent-memory.pipe'))).rejects.toThrow()
+    }
+  )
 
   it('copies the shared workspace content only into the most recently active managed session', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
