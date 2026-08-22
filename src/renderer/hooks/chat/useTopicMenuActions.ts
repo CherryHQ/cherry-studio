@@ -20,6 +20,16 @@ import { useCallback, useMemo } from 'react'
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
 
+/**
+ * Image-mode choice for Markdown exports, asked here in the hook layer because
+ * services must stay free of component imports (renderer-architecture §2).
+ * Cancelling the popup resolves null and aborts the export.
+ */
+const chooseImageExportMode = async (imageCount: number) => {
+  const { default: MarkdownImageExportPopup } = await import('@renderer/components/MarkdownImageExportPopup')
+  return MarkdownImageExportPopup.show({ imageCount })
+}
+
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions
   isActiveInCurrentTab: boolean
@@ -83,11 +93,11 @@ export function createTopicActionContext({
     },
     onExportMarkdown: async (topic) => {
       const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
-      return exportTopicAsMarkdown(topic)
+      return exportTopicAsMarkdown(topic, false, undefined, chooseImageExportMode)
     },
     onExportMarkdownReason: async (topic) => {
       const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
-      return exportTopicAsMarkdown(topic, true)
+      return exportTopicAsMarkdown(topic, true, undefined, chooseImageExportMode)
     },
     onExportNotion: async (topic) => {
       const { exportTopicToNotion } = await import('@renderer/services/ExportService')

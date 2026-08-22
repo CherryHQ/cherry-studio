@@ -23,6 +23,16 @@ interface MessageExportActionParams {
   topicName?: string
 }
 
+/**
+ * Image-mode choice for Markdown exports, asked here in the hook layer because
+ * services must stay free of component imports (renderer-architecture §2).
+ * Cancelling the popup resolves null and aborts the export.
+ */
+const chooseImageExportMode = async (imageCount: number) => {
+  const { default: MarkdownImageExportPopup } = await import('@renderer/components/MarkdownImageExportPopup')
+  return MarkdownImageExportPopup.show({ imageCount })
+}
+
 export function useMessageExportActions({ topicName }: MessageExportActionParams): MessageExportActions {
   const { notesPath } = useNotesSettings()
 
@@ -45,7 +55,7 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
 
   const exportMessageAsMarkdown = useCallback(async (message: MessageExportView, includeReasoning?: boolean) => {
     const { exportMessageAsMarkdown: exportMessageAsMarkdownFile } = await import('@renderer/services/ExportService')
-    return exportMessageAsMarkdownFile(message, includeReasoning)
+    return exportMessageAsMarkdownFile(message, includeReasoning, undefined, chooseImageExportMode)
   }, [])
 
   const exportToNotes = useCallback(

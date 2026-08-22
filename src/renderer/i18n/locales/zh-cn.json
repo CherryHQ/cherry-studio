@@ -1376,6 +1376,17 @@
         "failed": "导出失败",
         "image": "导出为图片",
         "image_exporting_keep_page": "导出图片中，请不要离开该页面",
+        "image_mode": {
+          "cancel_hint": "取消将放弃本次导出",
+          "count": "本次导出包含 {{count}} 张图片",
+          "embed": "内嵌到文件（默认）",
+          "folder": "导出为图片文件夹",
+          "none": "不含图片",
+          "skipped": "已跳过 {{count}} 张图片（无法获取或读取）",
+          "skipped_embed": "已跳过 {{count}} 张图片（超过 10 MiB 或无法读取）",
+          "title": "导出图片",
+          "write_failed": "{{count}} 张图片写入失败"
+        },
         "image_saved": "图片保存成功",
         "joplin": "导出到 Joplin",
         "md": {

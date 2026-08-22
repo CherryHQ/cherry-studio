@@ -32,6 +32,14 @@ import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
 import type { appendBlocks } from 'notion-helper'
 
+import {
+  collectExportableImages,
+  type ImageExportMode,
+  type PendingImageWrite,
+  serializeMessagesWithImages,
+  writeImageAssets
+} from './markdownImageExport'
+
 const logger = loggerService.withContext('ExportService')
 
 let notionDependenciesPromise: Promise<{
@@ -233,7 +241,8 @@ const createBaseMarkdown = async (
   message: ExportableMessage,
   includeReasoning: boolean = false,
   excludeCitations: boolean = false,
-  normalizeCitations: boolean = true
+  normalizeCitations: boolean = true,
+  rawContentOverride?: string
 ): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
   const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
   const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
@@ -271,7 +280,13 @@ const createBaseMarkdown = async (
     }
   }
 
-  const rawContent = getComposerTextFromMessage(message, getMainTextContent(message))
+  // Image-bearing exports pass an interleaved text+image serialization here (already
+  // composer-token processed) and bypass the shared extraction — user messages would
+  // otherwise have their parts text re-extracted, dropping the images again.
+  const rawContent =
+    rawContentOverride !== undefined
+      ? rawContentOverride
+      : getComposerTextFromMessage(message, getMainTextContent(message))
   // Tool-derived citations live as `[cite:id]` markers in the text with no persisted
   // reference metadata, so resolve them to plain `[N]` here — otherwise the internal
   // marker leaks into the export and the sources list comes back empty. Messages that
@@ -324,7 +339,11 @@ export async function getMessageTitle(message: ExportableMessage, length = 30): 
   return title
 }
 
-export const messageToMarkdown = async (message: ExportableMessage, excludeCitations?: boolean): Promise<string> => {
+export const messageToMarkdown = async (
+  message: ExportableMessage,
+  excludeCitations?: boolean,
+  rawContentOverride?: string
+): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
     standardizeCitationsInExport: 'data.export.markdown.standardize_citations'
@@ -334,14 +353,16 @@ export const messageToMarkdown = async (message: ExportableMessage, excludeCitat
     message,
     false,
     shouldExcludeCitations,
-    standardizeCitationsInExport
+    standardizeCitationsInExport,
+    rawContentOverride
   )
   return [titleSection, '', contentSection, citation].join('\n')
 }
 
 export const messageToMarkdownWithReasoning = async (
   message: ExportableMessage,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  rawContentOverride?: string
 ): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
@@ -352,7 +373,8 @@ export const messageToMarkdownWithReasoning = async (
     message,
     true,
     shouldExcludeCitations,
-    standardizeCitationsInExport
+    standardizeCitationsInExport,
+    rawContentOverride
   )
   return [titleSection, '', reasoningSection, contentSection, citation].join('\n')
 }
@@ -360,24 +382,30 @@ export const messageToMarkdownWithReasoning = async (
 export const messagesToMarkdown = async (
   messages: ExportableMessage[],
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  rawContentOverrides?: Map<string, string>
 ): Promise<string> => {
   const converter = exportReasoning ? messageToMarkdownWithReasoning : messageToMarkdown
-  const markdowns = await Promise.all(messages.map((message) => converter(message, excludeCitations)))
+  const markdowns = await Promise.all(
+    messages.map((message) => converter(message, excludeCitations, rawContentOverrides?.get(message.id)))
+  )
   return markdowns.join('\n---\n')
 }
 
 export const topicToMarkdown = async (
   topic: Topic,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  rawContentOverrides?: Map<string, string>
 ): Promise<string> => {
   const topicName = `# ${topic.name}`
 
   const messages = await getTopicMessages(topic.id)
 
   if (messages && messages.length > 0) {
-    return topicName + '\n\n' + (await messagesToMarkdown(messages, exportReasoning, excludeCitations))
+    return (
+      topicName + '\n\n' + (await messagesToMarkdown(messages, exportReasoning, excludeCitations, rawContentOverrides))
+    )
   }
 
   return topicName
@@ -432,10 +460,65 @@ export const exportMarkdownContentAsFile = async (title: string, markdown: strin
   }
 }
 
+/** Containing directory of a saved file path, tolerating both path separators. */
+const dirOf = (filePath: string): string => {
+  const idx = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+  return idx > 0 ? filePath.slice(0, idx) : filePath
+}
+
+/**
+ * UI decision injected by the hook entry points (services must not import
+ * components or render UI — renderer-architecture §2). Returning null aborts.
+ */
+export type ImageModeChooser = (imageCount: number) => Promise<ImageExportMode | null>
+
+/**
+ * Image-mode gate for Markdown file exports: collect images, ask the user how to
+ * carry them via the injected chooser (only consulted when images exist), then
+ * serialize when a carrying mode is chosen. Returns null when the user cancels —
+ * the caller aborts without any file write.
+ */
+const buildMarkdownWithImages = async (
+  messages: ExportableMessage[],
+  build: (rawContentOverrides?: Map<string, string>) => Promise<string>,
+  chooseImageMode?: ImageModeChooser
+): Promise<{ markdown: string; pendingWrites: PendingImageWrite[] } | null> => {
+  const { refs, unresolvedCount } = await collectExportableImages(messages)
+  if (refs.length === 0) {
+    if (unresolvedCount > 0) {
+      toast.warning(i18n.t('chat.topics.export.image_mode.skipped', { count: unresolvedCount }))
+    }
+    return { markdown: await build(), pendingWrites: [] }
+  }
+  const mode = (await chooseImageMode?.(refs.length)) ?? null
+  if (mode === null || mode === 'none') {
+    return mode === null ? null : { markdown: await build(), pendingWrites: [] }
+  }
+  const { overrides, pendingWrites, skippedCount } = await serializeMessagesWithImages(messages, mode, refs)
+  const totalSkipped = skippedCount + unresolvedCount
+  if (totalSkipped > 0) {
+    // Embed mode skips oversized OR unreadable images; folder mode has no size
+    // cap, so its skips (and collection failures) are purely availability.
+    const key =
+      mode === 'embed' ? 'chat.topics.export.image_mode.skipped_embed' : 'chat.topics.export.image_mode.skipped'
+    toast.warning(i18n.t(key, { count: totalSkipped }))
+  }
+  return { markdown: await build(overrides), pendingWrites }
+}
+
+/** Folder mode: write image assets next to the .md; failures warn but keep the .md. */
+const exportImageAssets = async (dirPath: string, pendingWrites: PendingImageWrite[]): Promise<void> => {
+  const failedCount = await writeImageAssets(dirPath, pendingWrites)
+  if (failedCount > 0) {
+    toast.warning(i18n.t('chat.topics.export.image_mode.write_failed', { count: failedCount }))
+  }
+}
+
 export const exportTopicAsMarkdown = async (
   topic: Topic,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
@@ -448,9 +531,16 @@ export const exportTopicAsMarkdown = async (
   if (!markdownExportPath) {
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
-      const markdown = await topicToMarkdown(topic, exportReasoning, excludeCitations)
-      const result = await window.api.file.save(fileName, markdown)
+      const messages = await getTopicMessages(topic.id)
+      const built = await buildMarkdownWithImages(
+        messages ?? [],
+        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides),
+        chooseImageMode
+      )
+      if (!built) return
+      const result = await window.api.file.save(fileName, built.markdown)
       if (result) {
+        await exportImageAssets(dirOf(result), built.pendingWrites)
         toast.success(i18n.t('message.success.markdown.export.specified'))
       }
     } catch (error: any) {
@@ -463,8 +553,15 @@ export const exportTopicAsMarkdown = async (
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
-      const markdown = await topicToMarkdown(topic, exportReasoning, excludeCitations)
-      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      const messages = await getTopicMessages(topic.id)
+      const built = await buildMarkdownWithImages(
+        messages ?? [],
+        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides),
+        chooseImageMode
+      )
+      if (!built) return
+      await window.api.file.write(markdownExportPath + '/' + fileName, built.markdown)
+      await exportImageAssets(markdownExportPath, built.pendingWrites)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       toast.error(i18n.t('message.error.markdown.export.preconf'))
@@ -478,7 +575,8 @@ export const exportTopicAsMarkdown = async (
 export const exportMessageAsMarkdown = async (
   message: ExportableMessage,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
@@ -487,16 +585,23 @@ export const exportMessageAsMarkdown = async (
 
   setExportingState(true)
 
+  const buildWithOverrides = async (overrides?: Map<string, string>): Promise<string> => {
+    const rawContentOverride = overrides?.get(message.id)
+    return exportReasoning
+      ? await messageToMarkdownWithReasoning(message, excludeCitations, rawContentOverride)
+      : await messageToMarkdown(message, excludeCitations, rawContentOverride)
+  }
+
   const markdownExportPath = await preferenceService.get('data.export.markdown.path')
   if (!markdownExportPath) {
     try {
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + '.md'
-      const markdown = exportReasoning
-        ? await messageToMarkdownWithReasoning(message, excludeCitations)
-        : await messageToMarkdown(message, excludeCitations)
-      const result = await window.api.file.save(fileName, markdown)
+      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
+      if (!built) return
+      const result = await window.api.file.save(fileName, built.markdown)
       if (result) {
+        await exportImageAssets(dirOf(result), built.pendingWrites)
         toast.success(i18n.t('message.success.markdown.export.specified'))
       }
     } catch (error: any) {
@@ -510,10 +615,10 @@ export const exportMessageAsMarkdown = async (
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      const markdown = exportReasoning
-        ? await messageToMarkdownWithReasoning(message, excludeCitations)
-        : await messageToMarkdown(message, excludeCitations)
-      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
+      if (!built) return
+      await window.api.file.write(markdownExportPath + '/' + fileName, built.markdown)
+      await exportImageAssets(markdownExportPath, built.pendingWrites)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       toast.error(i18n.t('message.error.markdown.export.preconf'))
