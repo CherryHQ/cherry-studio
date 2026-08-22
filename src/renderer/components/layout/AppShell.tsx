@@ -4,8 +4,13 @@ import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
+import { translateSessionManager } from '@renderer/services/TranslateSessionManager'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
-import { getTabWorkspaceKey, getWorkspaceKeyForUrl } from '@renderer/utils/navigationWorkspace'
+import {
+  getTabWorkspaceKey,
+  getTranslateSessionIdForTab,
+  getWorkspaceKeyForUrl
+} from '@renderer/utils/navigationWorkspace'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -70,6 +75,14 @@ export const AppShell = () => {
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
   const hasMiniAppTab = tabs.some((tab) => miniAppIdFromTabUrl(tab.url) !== null)
   const hadMiniAppTabRef = useRef(hasMiniAppTab)
+  const translateSessionIds = useMemo(
+    () => new Set(tabs.flatMap((tab) => getTranslateSessionIdForTab(tab) ?? [])),
+    [tabs]
+  )
+
+  useEffect(() => {
+    translateSessionManager.setReferencedSessionIds(translateSessionIds)
+  }, [translateSessionIds])
 
   // Split state is window-wide and does not follow the last mini-app tab out, so
   // the next mini app would open into a stale split with its app still pooled.

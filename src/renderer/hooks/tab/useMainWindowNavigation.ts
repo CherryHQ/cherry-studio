@@ -2,7 +2,7 @@ import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
-import { getTabWorkspaceKey } from '@renderer/utils/navigationWorkspace'
+import { getTranslateSessionIdForTab } from '@renderer/utils/navigationWorkspace'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { useCallback, useEffect, useRef } from 'react'
@@ -115,9 +115,7 @@ export function useMainWindowNavigation() {
       const translateSessionId = target.pathname === '/app/translate' ? target.searchParams.get('sessionId') : undefined
       if (translateSessionId) {
         const translateHistoryId = target.searchParams.get('historyId')
-        const translateTab = tabs.find(
-          (tab) => tab.id === translateSessionId && getTabWorkspaceKey(tab) === 'app:translate'
-        )
+        const translateTab = tabs.find((tab) => getTranslateSessionIdForTab(tab) === translateSessionId)
         if (translateTab) {
           if (translateHistoryId && translateTab.url !== to) {
             updateTab(translateTab.id, { url: to, lastAccessTime: Date.now() })
@@ -125,7 +123,8 @@ export function useMainWindowNavigation() {
           setActiveTab(translateTab.id)
           return
         }
-        openRoute(to, { id: translateSessionId, forceNew: true })
+        const sessionIdIsOccupied = tabs.some((tab) => tab.id === translateSessionId)
+        openRoute(to, sessionIdIsOccupied ? { forceNew: true } : { id: translateSessionId, forceNew: true })
         return
       }
 

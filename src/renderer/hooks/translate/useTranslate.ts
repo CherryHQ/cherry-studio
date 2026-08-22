@@ -22,6 +22,14 @@
 
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
+import {
+  IDLE_PDF_TRANSLATION_SESSION_SNAPSHOT,
+  IDLE_TRANSLATE_SESSION_SNAPSHOT,
+  type PdfTranslationSessionSnapshot,
+  translateSessionManager,
+  type TranslateSessionRuntimeSnapshot,
+  type TranslateSessionRuntimeStatus
+} from '@renderer/services/TranslateSessionManager'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -78,94 +86,21 @@ export interface UseTranslateResult {
   cancel: () => void
 }
 
-export type TranslateSessionRuntimeStatus = 'completed' | 'error' | 'idle' | 'running'
-
-interface TranslateSessionRuntimeSnapshot {
-  isTranslating: boolean
-  status: TranslateSessionRuntimeStatus
-}
-
-interface TranslateSessionRuntime {
-  snapshot: TranslateSessionRuntimeSnapshot
-  activeAbortKey: string | null
-  controller: AbortController | null
-  listeners: Set<() => void>
-}
-
-const IDLE_TRANSLATE_SESSION_SNAPSHOT: TranslateSessionRuntimeSnapshot = {
-  isTranslating: false,
-  status: 'idle'
-}
-const translateSessionRuntimes = new Map<string, TranslateSessionRuntime>()
-const translateWorkspaceListeners = new Set<() => void>()
-let translateWorkspaceStatus: TranslateSessionRuntimeStatus = 'idle'
-
-const TRANSLATE_STATUS_PRIORITY: Record<TranslateSessionRuntimeStatus, number> = {
-  idle: 0,
-  completed: 1,
-  running: 2,
-  error: 3
-}
-
-function getTranslateSessionRuntime(sessionId: string): TranslateSessionRuntime {
-  let runtime = translateSessionRuntimes.get(sessionId)
-  if (!runtime) {
-    runtime = {
-      snapshot: IDLE_TRANSLATE_SESSION_SNAPSHOT,
-      activeAbortKey: null,
-      controller: null,
-      listeners: new Set()
-    }
-    translateSessionRuntimes.set(sessionId, runtime)
-  }
-  return runtime
-}
-
-function refreshTranslateWorkspaceStatus(): void {
-  let nextStatus: TranslateSessionRuntimeStatus = 'idle'
-  for (const runtime of translateSessionRuntimes.values()) {
-    if (TRANSLATE_STATUS_PRIORITY[runtime.snapshot.status] > TRANSLATE_STATUS_PRIORITY[nextStatus]) {
-      nextStatus = runtime.snapshot.status
-    }
-  }
-  if (nextStatus === translateWorkspaceStatus) return
-  translateWorkspaceStatus = nextStatus
-  for (const listener of translateWorkspaceListeners) listener()
-}
-
-function updateTranslateSessionRuntime(
-  runtime: TranslateSessionRuntime,
-  snapshot: TranslateSessionRuntimeSnapshot
-): void {
-  if (runtime.snapshot.isTranslating === snapshot.isTranslating && runtime.snapshot.status === snapshot.status) {
-    return
-  }
-  runtime.snapshot = snapshot
-  for (const listener of runtime.listeners) listener()
-  refreshTranslateWorkspaceStatus()
-}
-
 /** Publish a non-text translation task into the same window-owned session runtime. */
 export function setTranslateSessionRuntimeStatus(
   sessionId: string | undefined,
   status: TranslateSessionRuntimeStatus
 ): void {
   if (!sessionId) return
-  updateTranslateSessionRuntime(getTranslateSessionRuntime(sessionId), {
-    isTranslating: status === 'running',
-    status
-  })
+  translateSessionManager.setStatus(sessionId, status)
 }
 
 /** Aggregate state for the Translate Sidebar entry. */
 export function useTranslateWorkspaceRuntimeStatus(): TranslateSessionRuntimeStatus {
   return useSyncExternalStore(
-    useCallback((listener) => {
-      translateWorkspaceListeners.add(listener)
-      return () => translateWorkspaceListeners.delete(listener)
-    }, []),
-    () => translateWorkspaceStatus,
-    () => translateWorkspaceStatus
+    useCallback((listener) => translateSessionManager.subscribeWorkspace(listener), []),
+    () => translateSessionManager.getWorkspaceStatus(),
+    () => translateSessionManager.getWorkspaceStatus()
   )
 }
 
@@ -175,26 +110,39 @@ export function useTranslateSessionRuntimeStatus(sessionId?: string): TranslateS
     useCallback(
       (listener) => {
         if (!sessionId) return () => undefined
-        const runtime = getTranslateSessionRuntime(sessionId)
-        runtime.listeners.add(listener)
-        return () => runtime.listeners.delete(listener)
+        return translateSessionManager.subscribeSession(sessionId, listener)
       },
       [sessionId]
     ),
     useCallback(
-      () => (sessionId ? getTranslateSessionRuntime(sessionId).snapshot : IDLE_TRANSLATE_SESSION_SNAPSHOT),
+      () => (sessionId ? translateSessionManager.getSessionSnapshot(sessionId) : IDLE_TRANSLATE_SESSION_SNAPSHOT),
       [sessionId]
     ),
     () => IDLE_TRANSLATE_SESSION_SNAPSHOT
   )
 }
 
+/** Layout-preserving PDF state for one window-owned translation session. */
+export function usePdfTranslationSessionRuntime(sessionId?: string): PdfTranslationSessionSnapshot {
+  return useSyncExternalStore(
+    useCallback(
+      (listener) => {
+        if (!sessionId) return () => undefined
+        return translateSessionManager.subscribePdfSession(sessionId, listener)
+      },
+      [sessionId]
+    ),
+    useCallback(
+      () => (sessionId ? translateSessionManager.getPdfSnapshot(sessionId) : IDLE_PDF_TRANSLATION_SESSION_SNAPSHOT),
+      [sessionId]
+    ),
+    () => IDLE_PDF_TRANSLATION_SESSION_SNAPSHOT
+  )
+}
+
 /** Clear terminal Translate indicators after the workspace is brought forward. */
 export function markTranslateWorkspaceRuntimeSeen(): void {
-  for (const runtime of translateSessionRuntimes.values()) {
-    if (runtime.snapshot.isTranslating || runtime.snapshot.status === 'idle') continue
-    updateTranslateSessionRuntime(runtime, IDLE_TRANSLATE_SESSION_SNAPSHOT)
-  }
+  translateSessionManager.markWorkspaceSeen()
 }
 
 export function useTranslate(options?: UseTranslateOptions): UseTranslateResult {
@@ -219,12 +167,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
 
   const cancel = useCallback(() => {
     if (sessionId) {
-      const runtime = getTranslateSessionRuntime(sessionId)
-      if (!runtime.activeAbortKey) return
-      runtime.activeAbortKey = null
-      runtime.controller?.abort()
-      runtime.controller = null
-      updateTranslateSessionRuntime(runtime, IDLE_TRANSLATE_SESSION_SNAPSHOT)
+      translateSessionManager.cancel(sessionId)
       return
     }
     if (!activeAbortKeyRef.current) return
@@ -240,28 +183,24 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
   const translate = useCallback<UseTranslateResult['translate']>(
     async (text, targetLanguage) => {
       if (sessionId) {
-        const runtime = getTranslateSessionRuntime(sessionId)
-        runtime.controller?.abort()
         const controller = new AbortController()
         const abortKey = uuid()
-        runtime.controller = controller
-        runtime.activeAbortKey = abortKey
-        updateTranslateSessionRuntime(runtime, { isTranslating: true, status: 'running' })
+        translateSessionManager.beginText(sessionId, abortKey, controller)
 
         const opts = optionsRef.current
         const onResponse = opts?.onResponse
         const guardedOnResponse = onResponse
           ? (chunkText: string, isComplete: boolean) => {
-              if (runtime.activeAbortKey !== abortKey) return
+              if (!translateSessionManager.isTextActive(sessionId, abortKey)) return
               onResponse(chunkText, isComplete)
             }
           : undefined
-        const wasSuperseded = () => runtime.activeAbortKey !== abortKey
+        const wasSuperseded = () => !translateSessionManager.isTextActive(sessionId, abortKey)
 
         try {
           const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
           if (wasSuperseded()) return undefined
-          updateTranslateSessionRuntime(runtime, { isTranslating: true, status: 'completed' })
+          translateSessionManager.setTextStatus(sessionId, abortKey, 'completed')
           return result
         } catch (error) {
           if (wasSuperseded() || isAbortError(error)) return undefined
@@ -271,18 +210,11 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
           if (showErrorToast) {
             toast.error(formatErrorMessageWithPrefix(localizeTranslateError(error, t), t(errorPrefixI18nKey)))
           }
-          updateTranslateSessionRuntime(runtime, { isTranslating: true, status: 'error' })
+          translateSessionManager.setTextStatus(sessionId, abortKey, 'error')
           if (opts?.rethrowError) throw error
           return undefined
         } finally {
-          if (runtime.activeAbortKey === abortKey) {
-            runtime.activeAbortKey = null
-            runtime.controller = null
-            updateTranslateSessionRuntime(runtime, {
-              isTranslating: false,
-              status: runtime.snapshot.status
-            })
-          }
+          translateSessionManager.finishText(sessionId, abortKey)
         }
       }
 

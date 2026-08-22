@@ -460,10 +460,13 @@ vi.mock('../pdf/PdfTranslationView', () => {
   return { default: MockPdfTranslationView }
 })
 
+import { translateSessionManager } from '@renderer/services/TranslateSessionManager'
+
 import TranslatePage from '../TranslatePage'
 
 describe('TranslatePage', () => {
   beforeEach(() => {
+    translateSessionManager.clear()
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.setCacheValue('translate.input', '')
@@ -646,6 +649,43 @@ describe('TranslatePage', () => {
         })
       )
     )
+  })
+
+  it('restores a completed text result named by the notification route', async () => {
+    const history = {
+      id: '019606a0-0000-7000-8000-000000000004',
+      kind: 'text' as const,
+      sourceText: 'hello',
+      targetText: '你好',
+      sourceLanguage: 'en-us' as const,
+      targetLanguage: 'zh-cn' as const,
+      star: false,
+      createdAt: '2026-08-22T00:00:00.000Z',
+      updatedAt: '2026-08-22T00:00:00.000Z'
+    }
+    tabMock.id = 'recreated-tab'
+    tabMock.url = `/app/translate?sessionId=closed-session&historyId=${history.id}`
+    historyRestoreMock.get.mockResolvedValue(history)
+
+    render(<TranslatePage />)
+
+    await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.session.input.closed-session')).toBe('hello'))
+    expect(MockUseCacheUtils.getCacheValue('translate.session.output.closed-session')).toBe('你好')
+    expect(historyRestoreMock.loadFiles).not.toHaveBeenCalled()
+  })
+
+  it('restores the active PDF file when its translation workspace remounts', async () => {
+    const file = { name: 'paper.pdf', path: '/tmp/paper.pdf' as AbsoluteFilePath }
+    tabMock.id = 'translate-tab-1'
+    translateSessionManager.preparePdf('translate-tab-1', file)
+    translateSessionManager.beginPdf('translate-tab-1', 'pdf-job-1', file, 'zh-cn', vi.fn())
+
+    render(<TranslatePage />)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
+    )
+    expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument()
   })
 
   it('exports the trimmed current translation result to notes using the first translated line as title', async () => {
@@ -1682,6 +1722,29 @@ describe('TranslatePage', () => {
     })
 
     expect(clipboardWriteTextMock).toHaveBeenCalledWith('translated text')
+  })
+
+  it('links a completed text notification to its persisted history result', async () => {
+    tabMock.id = 'translate-tab-1'
+    translateCoreMock.addHistory.mockResolvedValue({ id: 'history-1' })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(notifyTranslateCompletionMock).toHaveBeenCalledWith({
+        sessionId: 'translate-tab-1',
+        historyId: 'history-1',
+        title: 'translate.complete',
+        message: 'zh-cn → en-us'
+      })
+    )
   })
 
   it('keeps the current target language when reusing history with a null target language', async () => {

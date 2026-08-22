@@ -1,3 +1,4 @@
+import { translateSessionManager } from '@renderer/services/TranslateSessionManager'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { PdfTranslationProgress } from '@shared/ipc/schemas/translate'
@@ -40,6 +41,7 @@ vi.mock('@renderer/components/FilePreview', () => ({
 
 describe('PdfTranslationView', () => {
   beforeEach(() => {
+    translateSessionManager.clear()
     vi.clearAllMocks()
     mocks.invalidateCache.mockResolvedValue(undefined)
     mockUseInvalidateCache.mockReturnValue(mocks.invalidateCache)
@@ -359,6 +361,49 @@ describe('PdfTranslationView', () => {
         historyId: '019606a0-0000-7000-8000-000000000003'
       })
     )
+  })
+
+  it('reconnects to a session-owned PDF job and can cancel it after remount', async () => {
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'translate.pdf.start') return new Promise(() => {})
+      return Promise.resolve(undefined)
+    })
+    let handle: PdfTranslationHandle | null = null
+    const renderView = () =>
+      render(
+        <PdfTranslationView
+          file={{ name: 'paper.pdf', path: PAPER_PATH }}
+          sessionId="translate-tab-1"
+          modelId="openai::gpt-4.1"
+          sourceLangCode="en-us"
+          babelDocAvailability="available"
+          babelDocInstalling={false}
+          onClose={vi.fn()}
+          onHandleChange={(next) => {
+            handle = next
+          }}
+          onStatusChange={vi.fn()}
+          onInstallBabelDoc={vi.fn()}
+          onBabelDocUnavailable={vi.fn()}
+        />
+      )
+
+    const firstView = renderView()
+    await waitFor(() => expect(handle).not.toBeNull())
+    act(() => handle!.start('zh-cn'))
+    await waitFor(() => expect(screen.getByText('translate.pdf.progress.preparing')).toBeInTheDocument())
+
+    firstView.unmount()
+    handle = null
+    renderView()
+
+    await waitFor(() => expect(handle).not.toBeNull())
+    expect(screen.getByText('translate.pdf.progress.preparing')).toBeInTheDocument()
+    act(() => handle!.cancel())
+
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('translate.pdf.cancel', {
+      jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2'
+    })
   })
 
   it('mounts straight into the side-by-side result when reopened from history', () => {

@@ -3,17 +3,24 @@ import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { LoadingState } from '@renderer/components/chat/primitives'
 import { FilePreview } from '@renderer/components/FilePreview'
-import { setTranslateSessionRuntimeStatus } from '@renderer/hooks/translate'
+import { usePdfTranslationSessionRuntime } from '@renderer/hooks/translate'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { notifyTranslateCompletion } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
+import {
+  type PdfTranslationSessionFile,
+  type PdfTranslationSessionOutput,
+  type PdfTranslationSessionPhase,
+  type PdfTranslationSessionProgress,
+  translateSessionManager
+} from '@renderer/services/TranslateSessionManager'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { uuid } from '@renderer/utils/uuid'
 import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
-import type { PdfTranslationProgressStage, PdfTranslationStage } from '@shared/ipc/schemas/translate'
+import type { PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { TFunction } from 'i18next'
 import { AlertCircle, Download, Languages, X } from 'lucide-react'
@@ -25,12 +32,8 @@ import { saveTranslationFileAs } from '../translationFiles'
 
 const logger = loggerService.withContext('PdfTranslationView')
 
-export interface PdfTranslationFile {
-  name: string
-  path: AbsoluteFilePath
-}
-
-type PdfTranslationPhase = PdfTranslationStage | 'idle' | 'success' | 'error'
+export type PdfTranslationFile = PdfTranslationSessionFile
+export type PdfTranslationPhase = PdfTranslationSessionPhase
 
 export interface PdfTranslationStatus {
   phase: PdfTranslationPhase
@@ -71,16 +74,8 @@ interface PdfTranslationViewProps {
 }
 
 /** A finished translation: where the managed PDF lives and what to call it in "save as". */
-export interface PdfTranslationOutput {
-  outputPath: AbsoluteFilePath
-  fileName: string
-}
-
-interface PdfTranslationUiProgress {
-  stage: PdfTranslationProgressStage
-  stageProgress: number | null
-  overallProgress: number
-}
+export type PdfTranslationOutput = PdfTranslationSessionOutput
+type PdfTranslationUiProgress = PdfTranslationSessionProgress
 
 type PdfTranslationResultState =
   | { type: 'output'; outputPath: AbsoluteFilePath; fileName: string }
@@ -192,36 +187,56 @@ const PdfTranslationView = ({
 }: PdfTranslationViewProps) => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
-  const [phase, setPhase] = useState<PdfTranslationPhase>(() => (restoredOutput ? 'success' : 'idle'))
-  const [output, setOutput] = useState<PdfTranslationOutput | null>(() => restoredOutput ?? null)
-  const [error, setError] = useState<Error | null>(null)
-  const [progress, setProgress] = useState<PdfTranslationUiProgress | null>(null)
+  const sessionRuntime = usePdfTranslationSessionRuntime(sessionId)
+  const [localPhase, setLocalPhase] = useState<PdfTranslationPhase>(() => (restoredOutput ? 'success' : 'idle'))
+  const [localOutput, setLocalOutput] = useState<PdfTranslationOutput | null>(() => restoredOutput ?? null)
+  const [localError, setLocalError] = useState<Error | null>(null)
+  const [localProgress, setLocalProgress] = useState<PdfTranslationUiProgress | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
+  const phase = sessionId ? sessionRuntime.phase : localPhase
+  const output = sessionId ? sessionRuntime.output : localOutput
+  const error = sessionId ? sessionRuntime.error : localError
+  const progress = sessionId ? sessionRuntime.progress : localProgress
+
+  useEffect(() => {
+    if (!sessionId) return
+    translateSessionManager.preparePdf(sessionId, file, restoredOutput ?? null)
+  }, [file, restoredOutput, sessionId])
 
   const cancel = useCallback(() => {
+    if (sessionId) {
+      translateSessionManager.cancel(sessionId)
+      return
+    }
     const jobId = activeJobIdRef.current
     if (!jobId) return
     activeJobIdRef.current = null
-    setPhase('idle')
-    setProgress(null)
-    setTranslateSessionRuntimeStatus(sessionId, 'idle')
+    setLocalPhase('idle')
+    setLocalProgress(null)
     requestCancel(jobId, 'Failed to cancel PDF translation')
   }, [sessionId])
 
   const start = useCallback(
     (targetLangCode: TranslateLangCode) => {
-      if (!modelId || activeJobIdRef.current) return
+      const activeJobId = sessionId
+        ? translateSessionManager.getPdfSnapshot(sessionId).activeJobId
+        : activeJobIdRef.current
+      if (!modelId || activeJobId) return
 
       const jobId = uuid()
-      activeJobIdRef.current = jobId
-      // Drop the previous result: it outranks the running phase in `getResultState`,
-      // so leaving it would pin the pane to the stale PDF for the whole new run. The
-      // artifact itself stays — it is a history entry now, not scratch output.
-      setOutput(null)
-      setError(null)
-      setProgress(null)
-      setPhase('preparing')
-      setTranslateSessionRuntimeStatus(sessionId, 'running')
+      if (sessionId) {
+        translateSessionManager.beginPdf(sessionId, jobId, file, targetLangCode, () =>
+          requestCancel(jobId, 'Failed to cancel PDF translation')
+        )
+      } else {
+        activeJobIdRef.current = jobId
+        // Drop the previous result: it outranks the running phase in `getResultState`,
+        // so leaving it would pin the pane to the stale PDF for the whole new run.
+        setLocalOutput(null)
+        setLocalError(null)
+        setLocalProgress(null)
+        setLocalPhase('preparing')
+      }
 
       void ipcApi
         .request('translate.pdf.start', {
@@ -239,12 +254,15 @@ const PdfTranslationView = ({
           })
           // Superseded by a newer run (or by a cancel): its result is a legitimate history
           // entry, it just is not what this pane should show.
-          if (activeJobIdRef.current !== jobId) return
-          activeJobIdRef.current = null
-          setTranslateSessionRuntimeStatus(sessionId, 'completed')
-          setOutput(result)
-          setProgress(null)
-          setPhase('success')
+          if (sessionId) {
+            if (!translateSessionManager.completePdf(sessionId, jobId, result)) return
+          } else {
+            if (activeJobIdRef.current !== jobId) return
+            activeJobIdRef.current = null
+            setLocalOutput(result)
+            setLocalProgress(null)
+            setLocalPhase('success')
+          }
           notifyTranslateCompletion({
             sessionId,
             historyId: result.historyId,
@@ -253,10 +271,16 @@ const PdfTranslationView = ({
           })
         })
         .catch((cause) => {
-          if (activeJobIdRef.current !== jobId) return
-          activeJobIdRef.current = null
-          setTranslateSessionRuntimeStatus(sessionId, 'error')
           const normalized = cause instanceof Error ? cause : new Error(String(cause))
+          if (sessionId) {
+            if (!translateSessionManager.failPdf(sessionId, jobId, normalized)) return
+          } else {
+            if (activeJobIdRef.current !== jobId) return
+            activeJobIdRef.current = null
+            setLocalError(normalized)
+            setLocalProgress(null)
+            setLocalPhase('error')
+          }
           if (
             normalized instanceof IpcError &&
             (normalized.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED ||
@@ -264,23 +288,29 @@ const PdfTranslationView = ({
           ) {
             onBabelDocUnavailable()
           }
-          setError(normalized)
-          setProgress(null)
-          setPhase('error')
         })
     },
-    [file.name, file.path, invalidate, modelId, onBabelDocUnavailable, sessionId, sourceLangCode, t]
+    [file, invalidate, modelId, onBabelDocUnavailable, sessionId, sourceLangCode, t]
   )
 
   useIpcOn('translate.pdf.stage', ({ jobId, stage }) => {
-    if (activeJobIdRef.current === jobId) setPhase(stage)
+    if (sessionId) {
+      translateSessionManager.updatePdfStage(sessionId, jobId, stage)
+    } else if (activeJobIdRef.current === jobId) {
+      setLocalPhase(stage)
+    }
   })
   useIpcOn('translate.pdf.progress', ({ jobId, stage, stageProgress, overallProgress }) => {
+    const nextProgress = { stage, stageProgress, overallProgress }
+    if (sessionId) {
+      translateSessionManager.updatePdfProgress(sessionId, jobId, nextProgress)
+      return
+    }
     if (activeJobIdRef.current !== jobId) return
-    setPhase('translating')
-    setProgress((current) => {
+    setLocalPhase('translating')
+    setLocalProgress((current) => {
       if (current && overallProgress < current.overallProgress) return current
-      return { stage, stageProgress, overallProgress }
+      return nextProgress
     })
   })
 

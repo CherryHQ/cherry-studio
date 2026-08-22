@@ -265,7 +265,8 @@ function WorkspaceControls() {
     openRoute,
     setActiveTab,
     tabBarTabs,
-    tabs
+    tabs,
+    updateTab
   } = useTabsContext()
 
   return (
@@ -281,6 +282,9 @@ function WorkspaceControls() {
       </button>
       <button type="button" onClick={() => setActiveTab('home')}>
         Activate home workspace
+      </button>
+      <button type="button" onClick={() => updateTab(activeTabId, { url: '/app/agents' })}>
+        Rewrite active route
       </button>
       <button type="button" onClick={closeFocusedRoute}>
         Close focused
@@ -471,6 +475,21 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('home'))
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/settings/appearance')
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/app/release-notes')
+  })
+
+  it('keeps workspace identity aligned when legacy navigation rewrites a tab route', async () => {
+    navigationLayout = 'both'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rewrite active route' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('home:app:agents:/app/agents'))
   })
 
   it('keeps one mounted workspace per app in sidebar layout', async () => {

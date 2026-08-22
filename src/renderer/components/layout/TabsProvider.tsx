@@ -380,10 +380,15 @@ export function TabsProvider({
       const tab = tabs.find((t) => t.id === id)
       if (!tab) return
 
+      const resolvedUpdates =
+        updates.url !== undefined && !Object.prototype.hasOwnProperty.call(updates, 'workspaceKey')
+          ? { ...updates, workspaceKey: getWorkspaceKeyForUrl(updates.url) }
+          : updates
+
       if (storesPinned(tab)) {
-        setPinnedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+        setPinnedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...resolvedUpdates } : t)))
       } else {
-        setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+        setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...resolvedUpdates } : t)))
       }
     },
     [tabs, setPinnedTabs, storesPinned]

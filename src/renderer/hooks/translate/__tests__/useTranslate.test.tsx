@@ -31,6 +31,7 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 import { toast } from '@renderer/services/toast'
+import { translateSessionManager } from '@renderer/services/TranslateSessionManager'
 
 import { setTranslateSessionRuntimeStatus, useTranslate } from '../useTranslate'
 
@@ -47,6 +48,7 @@ const TARGET = {
 let loggerErrorSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
+  translateSessionManager.clear()
   vi.clearAllMocks()
   isAbortErrorMock.mockReturnValue(false)
   translateTextMock.mockReset()

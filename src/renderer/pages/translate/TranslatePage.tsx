@@ -15,6 +15,7 @@ import {
   detectLanguageOrUnknown,
   markTranslateWorkspaceRuntimeSeen,
   useDetectLang,
+  usePdfTranslationSessionRuntime,
   useTranslate,
   useTranslateHistory,
   useTranslateWorkspaceRuntimeStatus
@@ -32,6 +33,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { exportContentToNotes } from '@renderer/services/ExportService'
 import { notifyTranslateCompletion } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
+import { translateSessionManager } from '@renderer/services/TranslateSessionManager'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
@@ -229,6 +231,7 @@ const TranslatePage: FC = () => {
   }, [currentTabUrl])
   const translateSessionId = routeTarget.sessionId ?? currentTab?.id
   const notificationHistoryId = routeTarget.historyId
+  const pdfSessionRuntime = usePdfTranslationSessionRuntime(translateSessionId)
   const isActiveTab = useIsActiveTab()
   const translateWorkspaceStatus = useTranslateWorkspaceRuntimeStatus()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
@@ -300,10 +303,14 @@ const TranslatePage: FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
-  const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(null)
+  const [localPdfFile, setLocalPdfFile] = useState<PdfTranslationFile | null>(null)
+  const pdfFile = translateSessionId ? pdfSessionRuntime.file : localPdfFile
   /** Set only when reopening a finished translation from history; `key` remounts the view. */
   const [restoredPdf, setRestoredPdf] = useState<{ output: PdfTranslationOutput; key: string } | null>(null)
-  const [pdfStatus, setPdfStatus] = useState<PdfTranslationStatus>({ phase: 'idle', running: false })
+  const [localPdfStatus, setLocalPdfStatus] = useState<PdfTranslationStatus>({ phase: 'idle', running: false })
+  const pdfStatus = translateSessionId
+    ? { phase: pdfSessionRuntime.phase, running: pdfSessionRuntime.activeJobId !== null }
+    : localPdfStatus
   const [pdfHandleReady, setPdfHandleReady] = useState(false)
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
   const [pdfTextOcrRequired, setPdfTextOcrRequired] = useState(false)
@@ -341,14 +348,18 @@ const TranslatePage: FC = () => {
     pdfTextFallbackStartedRef.current = false
     prePdfOutputRef.current = null
     setPdfHandleReady(false)
-    setPdfStatus({ phase: 'idle', running: false })
+    setLocalPdfStatus({ phase: 'idle', running: false })
     setPdfTextFallbackActive(false)
     setPdfTextOcrRequired(false)
     setIsPdfTextExtracting(false)
     setIsProcessing(false)
-    setPdfFile(null)
+    if (translateSessionId) {
+      translateSessionManager.resetPdf(translateSessionId)
+    } else {
+      setLocalPdfFile(null)
+    }
     setRestoredPdf(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
+  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput, translateSessionId])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -433,12 +444,6 @@ const TranslatePage: FC = () => {
       if (!translated) {
         return
       }
-      notifyTranslateCompletion({
-        sessionId: translateSessionId,
-        title: t('translate.complete'),
-        message: `${actualSourceLanguage} → ${actualTargetLanguage}`
-      })
-
       if (autoCopy) {
         setTimeoutTimer(
           'auto-copy',
@@ -454,12 +459,23 @@ const TranslatePage: FC = () => {
         )
       }
 
-      await addHistory({
-        sourceText: rawText,
-        targetText: translated,
-        sourceLanguage: actualSourceLanguage,
-        targetLanguage: actualTargetLanguage
-      })
+      let historyId: string | undefined
+      try {
+        const history = await addHistory({
+          sourceText: rawText,
+          targetText: translated,
+          sourceLanguage: actualSourceLanguage,
+          targetLanguage: actualTargetLanguage
+        })
+        historyId = history?.id
+      } finally {
+        notifyTranslateCompletion({
+          sessionId: translateSessionId,
+          ...(historyId ? { historyId } : {}),
+          title: t('translate.complete'),
+          message: `${actualSourceLanguage} → ${actualTargetLanguage}`
+        })
+      }
     },
     [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t, translateSessionId]
   )
@@ -594,7 +610,11 @@ const TranslatePage: FC = () => {
 
   const onAbort = useCallback(() => {
     if (pdfStatus.running) {
-      pdfHandleRef.current?.cancel()
+      if (pdfHandleRef.current) {
+        pdfHandleRef.current.cancel()
+      } else {
+        cancel()
+      }
     } else if (isTranslating) {
       cancel()
     } else {
@@ -642,8 +662,11 @@ const TranslatePage: FC = () => {
           return
         }
         resetPdfMode()
-        setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
-        setPdfFile({ name: history.sourceText, path: files.source.path })
+        const file = { name: history.sourceText, path: files.source.path }
+        const output = { outputPath: files.target.path, fileName: history.targetText }
+        if (translateSessionId) translateSessionManager.preparePdf(translateSessionId, file, output)
+        setRestoredPdf({ output, key: history.id })
+        setLocalPdfFile(file)
       } else {
         resetPdfMode()
         setTranslateInput(history.sourceText)
@@ -662,7 +685,8 @@ const TranslatePage: FC = () => {
       setTranslateInput,
       setTranslateOutput,
       t,
-      targetLanguage
+      targetLanguage,
+      translateSessionId
     ]
   )
 
@@ -675,13 +699,12 @@ const TranslatePage: FC = () => {
     void dataApiService
       .get(`/translate/histories/${encodeURIComponent(notificationHistoryId)}`)
       .then(async (history) => {
-        if (!isPdfTranslation(history)) return
-        const files = await loadTranslationFiles(history.id)
+        const files = isPdfTranslation(history) ? await loadTranslationFiles(history.id) : undefined
         if (!cancelled) onHistoryItemClick(history, files)
       })
       .catch((error) => {
-        logger.error('Failed to restore PDF translation from notification', error as Error)
-        if (!cancelled) toast.error(t('translate.history.file.unavailable'))
+        logger.error('Failed to restore translation from notification', error as Error)
+        if (!cancelled) toast.error(t('translate.history.error.load'))
       })
 
     return () => {
@@ -816,7 +839,9 @@ const TranslatePage: FC = () => {
         setPdfTextFallbackActive(false)
         setPdfTextOcrRequired(false)
         setIsPdfTextExtracting(false)
-        setPdfFile({ name: file.name, path: AbsoluteFilePathSchema.parse(file.path) })
+        const selectedPdf = { name: file.name, path: AbsoluteFilePathSchema.parse(file.path) }
+        if (translateSessionId) translateSessionManager.preparePdf(translateSessionId, selectedPdf)
+        setLocalPdfFile(selectedPdf)
         return
       }
 
@@ -827,7 +852,7 @@ const TranslatePage: FC = () => {
         await readFile(file)
       }
     },
-    [readFile, resetPdfMode, startOcr, t, translateOutput]
+    [readFile, resetPdfMode, startOcr, t, translateOutput, translateSessionId]
   )
 
   const handleSelectFile = useCallback(async () => {
@@ -950,7 +975,7 @@ const TranslatePage: FC = () => {
     setPdfHandleReady(handle !== null)
   }, [])
 
-  const handlePdfStatusChange = useCallback((status: PdfTranslationStatus) => setPdfStatus(status), [])
+  const handlePdfStatusChange = useCallback((status: PdfTranslationStatus) => setLocalPdfStatus(status), [])
 
   const pdfModelReady =
     babelDoc.availability === 'available'
