@@ -24,7 +24,13 @@ export function selectionToDocxAnchor(selection: Selection): { anchor: DocumentA
   const range = selection.getRangeAt(0)
   const startNode = range.startContainer
   const startElement = startNode.nodeType === Node.ELEMENT_NODE ? (startNode as Element) : startNode.parentElement
-  const paragraphElement = startElement?.closest<HTMLElement>('[data-docx-index]')
+  // Resolve the innermost paragraph and require the ordinal on that exact element. Unnumbered
+  // paragraphs nest inside numbered ones — docx-preview parses `w:txbxContent` through
+  // `parseBodyElements` without a part, so a text box's paragraphs carry no ordinal while the
+  // body paragraph wrapping the shape does. Matching `[data-docx-index]` directly would skip
+  // past the text box and anchor the selection to the outer paragraph, which a later edit
+  // would then replace instead of the text the user actually selected.
+  const paragraphElement = startElement?.closest<HTMLElement>('p')
   if (!paragraphElement || paragraphElement.dataset.docxPart !== 'body') return null
 
   const paragraph = Number(paragraphElement.dataset.docxIndex)
