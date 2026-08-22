@@ -9229,6 +9229,33 @@
       "providerId": "dmxapi"
     },
     {
+      "apiModelId": "dots3-note-prev",
+      "capabilities": {
+        "remove": ["audio-recognition", "video-recognition"]
+      },
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
+      "modelId": "dots-3-note-preview",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": true
+        }
+      },
+      "providerId": "dots",
+      "reason": "Dots transport currently verifies text and image input only"
+    },
+    {
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-r1",
       "providerId": "doubao"
@@ -21975,6 +22002,14 @@
     },
     {
       "apiModelId": "dots-studio/dots-3-note-preview:free",
+      "capabilities": {
+        "add": ["structured-output"],
+        "remove": ["audio-recognition", "video-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 512000
+      },
       "modelId": "dots-3-note-preview",
       "name": "Dots3-Note Preview (free)",
       "pricing": {
@@ -21988,6 +22023,7 @@
         }
       },
       "providerId": "openrouter",
+      "reason": "OpenRouter exposes structured output with text/image input and a 512K context window",
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
@@ -36907,5 +36943,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "317a75a018875010"
+  "version": "d8f380aeb7ef5e0a"
 }

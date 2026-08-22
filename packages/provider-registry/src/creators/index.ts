@@ -20,6 +20,7 @@ import bytedance from './bytedance'
 import cogito from './cogito'
 import cohere from './cohere'
 import deepseek from './deepseek'
+import dots_studio from './dots-studio'
 import elevenlabs from './elevenlabs'
 import google from './google'
 import ideogram from './ideogram'
@@ -80,6 +81,7 @@ export const CREATORS: Creator[] = [
   cogito,
   cohere,
   deepseek,
+  dots_studio,
   elevenlabs,
   google,
   ideogram,

@@ -12,7 +12,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DOTS_API_KEY_HEADER } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
@@ -33,8 +33,10 @@ import {
   isExternalCliProvider,
   isOllamaProvider,
   isSupportFastMode,
+  matchesPreset,
   OLLAMA_PLACEHOLDER_AUTH_TOKEN
 } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
@@ -788,10 +790,18 @@ async function resolveClaudeCodeRuntimeRoute(
       const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
       const runtimeApiKey =
         resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+      const providerAuthHeaders =
+        runtimeApiKey && matchesPreset(primaryProvider, SystemProviderIds.dots)
+          ? { [DOTS_API_KEY_HEADER]: runtimeApiKey }
+          : undefined
       return {
         ...facts,
         apiKey: runtimeApiKey,
-        customHeaders: mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider)),
+        customHeaders: mergeAnthropicCustomHeaders(
+          defaultAppHeaders(),
+          getExtraHeaders(primaryProvider),
+          providerAuthHeaders
+        ),
         usageCapture: {
           owner: 'agent-sdk',
           credentialReceipt: resolvedApiKey.apiKeySelection,

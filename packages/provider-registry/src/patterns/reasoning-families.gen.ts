@@ -139,6 +139,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'deepseek-chat' },
   { pattern: 'deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?(?:-[\\w]+)*(?=$|[:/])' },
   { pattern: 'deepseek-v3\\.2-speciale' },
+  // dots-studio
+  { pattern: '^dots-3-note-preview$', toggle: true },
   // google
   { pattern: '^gemini-2', wireDialect: 'budget', template: true },
   { pattern: '^gemini-omni', wireDialect: 'budget', template: true },

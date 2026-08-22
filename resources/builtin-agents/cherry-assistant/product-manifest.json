@@ -448,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "d4aebe86a12ca8f8",
-    "count": 61,
+    "version": "600ea02c6805abea",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
@@ -482,6 +482,10 @@
       {
         "id": "deepseek",
         "name": "deepseek"
+      },
+      {
+        "id": "dots",
+        "name": "Dots Studio"
       },
       {
         "id": "alayanew",

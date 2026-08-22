@@ -7,6 +7,7 @@
 import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
+import { DOTS_API_KEY_HEADER } from '@main/ai/constants'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
@@ -219,6 +220,12 @@ export async function resolveProviderAiSdkConfig(
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
+    // Dots documents `api-key` for both its OpenAI-compatible and Anthropic endpoints.
+    // Normalize each SDK's default auth header at the provider boundary.
+    {
+      match: (p) => matchesPreset(p, SystemProviderIds.dots),
+      build: withSelectedApiKey(buildDotsConfig)
+    },
     // Local embedding runs fully in-process (transformers.js in a worker): no
     // endpoint, baseURL, or apiKey. Without this entry it falls through to the
     // openai-compatible builder, which hands ai-core an empty baseURL and throws
@@ -789,6 +796,30 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
+}
+
+function buildDotsConfig(ctx: BuilderContext): ProviderConfig {
+  const config =
+    ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
+  const settings = config.providerSettings as {
+    apiKey?: string
+    fetch?: typeof customFetch
+    headers?: Record<string, string | undefined>
+  }
+
+  if (ctx.aiSdkProviderId === 'anthropic') {
+    settings.fetch = (input, init) => {
+      const headers = new Headers(init?.headers)
+      headers.delete('x-api-key')
+      headers.set(DOTS_API_KEY_HEADER, ctx.baseConfig.apiKey)
+      return customFetch(input, { ...init, headers })
+    }
+    return config
+  }
+
+  delete settings.apiKey
+  settings.headers = { ...settings.headers, [DOTS_API_KEY_HEADER]: ctx.baseConfig.apiKey }
+  return config
 }
 
 function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {

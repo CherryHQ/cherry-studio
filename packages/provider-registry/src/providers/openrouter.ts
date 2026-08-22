@@ -68,5 +68,21 @@ export default defineProvider({
       official: 'https://openrouter.ai/'
     }
   },
-  modelsDevProvider: 'openrouter'
+  modelsDevProvider: 'openrouter',
+  overrides: [
+    {
+      modelId: 'dots-3-note-preview',
+      name: 'Dots3-Note Preview (free)',
+      capabilities: {
+        add: ['structured-output'],
+        remove: ['audio-recognition', 'video-recognition']
+      },
+      inputModalities: ['text', 'image'],
+      limits: { contextWindow: 512_000 },
+      reasoningContracts: {
+        'openai-chat-completions': { support: { controls: [] } }
+      },
+      reason: 'OpenRouter exposes structured output with text/image input and a 512K context window'
+    }
+  ]
 })

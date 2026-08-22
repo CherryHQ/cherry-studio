@@ -7804,6 +7804,37 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "video-recognition"],
+      "contextWindow": 524288,
+      "description": "Dots3-Note Preview is an open-weight multimodal mixture-of-experts model with 16B active parameters out of 280B total, built for reasoning, tool use, coding, agent workflows, and long-context understanding.",
+      "family": "dots3",
+      "id": "dots-3-note-preview",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "metadata": {},
+      "name": "Dots3-Note Preview",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "dots-studio",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
       "capabilities": ["audio-generation"],
       "id": "elevenlabs-music",
       "inputModalities": ["text"],
@@ -21584,5 +21615,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "90f2173cfa6525a2"
+  "version": "41b3c8abcd4dbbbf"
 }

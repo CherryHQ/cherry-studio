@@ -324,6 +324,108 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Dots Studio - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://note3-prev-api.askdiandian.com",
+          "reasoningFormat": {
+            "type": "anthropic",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "adaptive"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "effortMap": {
+                  "minimal": "low"
+                },
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "adaptive"
+                    }
+                  },
+                  {
+                    "target": "effort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://note3-prev-api.askdiandian.com",
+          "dialect": {
+            "streamOptions": false
+          },
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.enable_thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.enable_thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "dots",
+      "metadata": {
+        "website": {
+          "apiKey": "https://dots.ai/platform/apikeys",
+          "docs": "https://dots.ai/platform/docs",
+          "models": "https://huggingface.co/dots-studio/dots3-note-prev",
+          "official": "https://dots.ai/"
+        }
+      },
+      "modelListSource": "registry",
+      "name": "Dots Studio"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "AlayaNew - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -2410,5 +2512,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "d4aebe86a12ca8f8"
+  "version": "600ea02c6805abea"
 }

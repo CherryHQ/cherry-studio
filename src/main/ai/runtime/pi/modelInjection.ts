@@ -15,6 +15,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+import { DOTS_API_KEY_HEADER } from '@main/ai/constants'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { hasKnownPiContextWindow, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
@@ -31,11 +32,13 @@ import {
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { getRawModelId } from '@shared/utils/model'
-import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
+import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import type { AgentSessionUsageCapture } from '../types'
+import { withApiKeyHeaderStream } from './piAnthropicAuth'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
 import { loadPiAiStreamFns, withTransportStream } from './piTransportStream'
@@ -103,6 +106,8 @@ export interface PiProviderInjection {
   transportAdapter?: ProviderTransportAdapter
   /** Provider-specific environment consumed by pi-ai's request implementation. */
   requestEnvironment?: Record<string, string>
+  /** Remap pi auth to this provider-specific API-key header at call time. */
+  apiKeyHeader?: string
   /** Frozen attribution selected together with the credential used by this connection. */
   usageCapture: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>
 }
@@ -114,9 +119,15 @@ export async function materializePiProviderStream(injection: PiProviderInjection
 }> {
   const providerConfig = injection.transportAdapter
     ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
-    : injection.providerName === 'cherryin' && injection.api === 'anthropic-messages'
-      ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
-      : injection.providerConfig
+    : injection.apiKeyHeader
+      ? withApiKeyHeaderStream(
+          injection.providerConfig,
+          injection.apiKeyHeader,
+          await loadPiApiStreamSimple(injection.api)
+        )
+      : injection.providerName === 'cherryin' && injection.api === 'anthropic-messages'
+        ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
+        : injection.providerConfig
   return {
     providerConfig,
     streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
@@ -203,6 +214,7 @@ export function buildPiProviderInjection(
       ]
     },
     ...(transportAdapter ? { transportAdapter } : {}),
+    ...(matchesPreset(provider, SystemProviderIds.dots) ? { apiKeyHeader: DOTS_API_KEY_HEADER } : {}),
     ...(api === 'azure-openai-responses' && provider.settings?.apiVersion?.trim()
       ? { requestEnvironment: { AZURE_OPENAI_API_VERSION: provider.settings.apiVersion.trim() } }
       : {})
@@ -330,6 +342,10 @@ function buildPiModelConfig(
     // developer-role support from the endpoint URL.
     ...(api === 'openai-completions' || api === 'openai-responses'
       ? { compat: { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole } }
+      : {}),
+    // Dots documents adaptive thinking for Messages; pi otherwise defaults compatible models to budget thinking.
+    ...(api === 'anthropic-messages' && matchesPreset(provider, SystemProviderIds.dots)
+      ? { compat: { forceAdaptiveThinking: true } }
       : {}),
     // CherryIN requires replaying its thinking block even when the compatible endpoint omits a signature delta.
     ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})

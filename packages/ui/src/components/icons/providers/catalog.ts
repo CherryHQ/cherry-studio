@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-08-10T12:29:08.885Z
- * Total icons: 158
+ * Generated at: 2026-08-15T10:18:24.426Z
+ * Total icons: 159
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -52,6 +52,7 @@ import { DmxapiIcon } from './dmxapi'
 import { Doc2xIcon } from './doc2x'
 import { DolaIcon } from './dola'
 import { DolphinAiIcon } from './dolphin-ai'
+import { DotsIcon } from './dots'
 import { DoubaoIcon } from './doubao'
 import { DuckIcon } from './duck'
 import { ElevenlabsIcon } from './elevenlabs'
@@ -213,6 +214,7 @@ export const PROVIDER_ICON_CATALOG = {
   doc2x: Doc2xIcon,
   dola: DolaIcon,
   'dolphin-ai': DolphinAiIcon,
+  dots: DotsIcon,
   doubao: DoubaoIcon,
   duck: DuckIcon,
   elevenlabs: ElevenlabsIcon,

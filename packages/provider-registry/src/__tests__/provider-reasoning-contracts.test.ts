@@ -141,6 +141,54 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'thinking_budget', value: { source: 'literal', value: 0 } }])
   })
 
+  it('uses the documented Dots OpenAI-compatible and Anthropic protocol contracts', () => {
+    const dots = provider('dots')
+
+    expect(dots.endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire).toMatchObject({
+      off: {
+        operations: [{ target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: false } }]
+      },
+      auto: {
+        operations: [{ target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true } }]
+      }
+    })
+    expect(dots.endpointConfigs?.['anthropic-messages']).toMatchObject({
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://note3-prev-api.askdiandian.com'
+    })
+    expect(dots.endpointConfigs?.['anthropic-messages']?.reasoningFormat).toEqual({
+      type: 'anthropic',
+      wire: {
+        off: {
+          operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }]
+        },
+        auto: {
+          operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }]
+        },
+        effort: {
+          operations: [
+            { target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } },
+            { target: 'effort', value: { source: 'effort' } }
+          ],
+          effortMap: { minimal: 'low' }
+        }
+      }
+    })
+    expect(override('dots', 'dots-3-note-preview')).toMatchObject({
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      parameterSupport: {
+        temperature: { supported: true },
+        topP: { supported: true },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+  })
+
   it.each([
     'glm-5-2',
     'minimax-m2-7',
