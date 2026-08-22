@@ -66,7 +66,16 @@ interface InputNumberProps
    * emptied field is `null`.
    */
   onValueChange?: (value: number | null) => void
-  /** Fires on blur/Enter with the normalized value; route it back into `value` to render it. */
+  /**
+   * Fires on blur/Enter with the normalized value; route it back into `value` to render it.
+   *
+   * Nearly every caller wants this one: it is the only callback that normalizes,
+   * so without it `min`/`max`/`step` never reach a committed value. Skipping it
+   * therefore means not caring what those bounds do — and the check for that is
+   * that none of the three is declared. Declaring `min`/`max` and skipping this
+   * is worse than decorative: they still publish an `aria` range that nothing
+   * enforces.
+   */
   onBlur?: (value: number | null) => void
   /** The floor a committed or stepped value is clamped up to, negatives included. Also published as `aria-valuemin`. */
   min?: number
