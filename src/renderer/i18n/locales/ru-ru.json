@@ -6227,6 +6227,7 @@
       "painting_model": "Модель живописи",
       "painting_model_description": "Модель, используемая для генерации изображений",
       "provider_id": "ID провайдера",
+      "provider_import_auto_sync": "После подтверждения модели будут синхронизированы автоматически, а провайдер будет включён.",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
       "provider_key_add_failed_by_invalid_data": "Не удалось добавить API-ключ провайдера: неверный формат данных",
       "provider_key_added": "API ключ для {{provider}} успешно добавлен",

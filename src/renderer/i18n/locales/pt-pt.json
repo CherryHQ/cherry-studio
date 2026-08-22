@@ -6227,6 +6227,7 @@
       "painting_model": "Modelo de Pintura",
       "painting_model_description": "Modelo utilizado para geração de imagens",
       "provider_id": "ID do Fornecedor",
+      "provider_import_auto_sync": "Após a confirmação, os modelos serão sincronizados automaticamente e o fornecedor será ativado.",
       "provider_key_add_confirm": "Deseja adicionar uma chave API para {{provider}}?",
       "provider_key_add_failed_by_invalid_data": "Falha ao adicionar chave API do fornecedor: formato de dados inválido",
       "provider_key_added": "Chave API adicionada com sucesso para {{provider}}",

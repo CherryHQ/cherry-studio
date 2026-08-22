@@ -6227,6 +6227,7 @@
       "painting_model": "Μοντέλο Ζωγραφικής",
       "painting_model_description": "Μοντέλο που χρησιμοποιείται για τη δημιουργία εικόνων",
       "provider_id": "Αναγνωριστικό Παρόχου",
+      "provider_import_auto_sync": "Μετά την επιβεβαίωση, τα μοντέλα θα συγχρονιστούν αυτόματα και ο πάροχος θα ενεργοποιηθεί.",
       "provider_key_add_confirm": "Θέλετε να προσθέσετε κλειδί API για τον {{provider}};",
       "provider_key_add_failed_by_invalid_data": "Η προσθήκη κλειδιού API παρόχου απέτυχε, λάθος μορφή δεδομένων",
       "provider_key_added": "Επιτυχής προσθήκη κλειδιού API για τον {{provider}}",
