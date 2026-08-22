@@ -2,7 +2,7 @@ import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
-import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
@@ -383,6 +383,60 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
   const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
 
+  // Right-click menu for the opened-file header ("tab"): the same external
+  // open targets as the file-tree rows, plus tab actions (edit/preview toggle,
+  // refresh, close).
+  const getOverlayMenuItems = useCallback(async (): Promise<readonly CommandContextMenuExtraItem[]> => {
+    if (!overlaySelection) return []
+    const targetPath = getArtifactPaneSelectionPath(overlaySelection)
+    const openTargetItems: readonly CommandContextMenuExtraItem[] = await loadOpenTargetMenuItems({
+      targetPath,
+      pathKind: 'file',
+      t
+    })
+    const tabActionItems: CommandContextMenuExtraItem[] = [
+      ...(canEditSelection
+        ? [
+            {
+              type: 'item' as const,
+              id: 'artifact-pane.overlay.toggle-edit-mode',
+              label: modeActionLabel,
+              icon: <ModeActionIcon size={14} />,
+              enabled: !editorLoading,
+              onSelect: () => handleEditorModeChange(nextEditorMode)
+            }
+          ]
+        : []),
+      {
+        type: 'item' as const,
+        id: 'artifact-pane.overlay.refresh',
+        label: t('agent.preview_pane.refresh'),
+        icon: <RotateCw size={14} />,
+        onSelect: handleRefresh
+      },
+      { type: 'separator' },
+      {
+        type: 'item' as const,
+        id: 'artifact-pane.overlay.close',
+        label: t('agent.preview_pane.close'),
+        icon: <X size={14} />,
+        onSelect: handleClosePreview
+      }
+    ]
+    return [...openTargetItems, ...(openTargetItems.length ? [{ type: 'separator' } as const] : []), ...tabActionItems]
+  }, [
+    canEditSelection,
+    editorLoading,
+    handleClosePreview,
+    handleEditorModeChange,
+    handleRefresh,
+    ModeActionIcon,
+    modeActionLabel,
+    nextEditorMode,
+    overlaySelection,
+    t
+  ])
+
   const paneHeader =
     props.headerVariant === 'pane' ? (
       <div
@@ -403,12 +457,20 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Tooltip>
           ) : null}
           <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
-            <div
-              data-testid="artifact-pane-header-title"
-              className="min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm"
-              title={overlaySelection?.filePath}>
-              {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
-            </div>
+            <CommandContextMenu
+              location="webcontents.context"
+              disabled={!overlaySelection}
+              getExtraItems={getOverlayMenuItems}>
+              <div
+                data-testid="artifact-pane-header-title"
+                className={cn(
+                  'min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm',
+                  overlaySelection && 'cursor-context-menu'
+                )}
+                title={overlaySelection?.filePath}>
+                {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
+              </div>
+            </CommandContextMenu>
             {overlaySelection && isEditDirty ? (
               <span
                 className="size-1.5 shrink-0 rounded-full bg-warning"
@@ -490,7 +552,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {props.headerVariant === 'pane' ? null : (
           <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
-              <span className="truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
+              <CommandContextMenu location="webcontents.context" getExtraItems={getOverlayMenuItems}>
+                <span className="cursor-context-menu truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
+              </CommandContextMenu>
               {isEditDirty && (
                 <span
                   className="size-1.5 shrink-0 rounded-full bg-warning"
