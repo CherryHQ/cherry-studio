@@ -119,6 +119,38 @@ describe('CodeBlock', () => {
       expect(mocks.CodeBlockView).not.toHaveBeenCalled()
     })
 
+    it('should render streamed inline code whose children are animate spans', () => {
+      // Streaming wraps inline-code text in [data-sd-animate] spans, so the
+      // renderer receives element children. Regression guard for
+      // "children?.includes is not a function" — the component must treat
+      // non-string children as renderable content, not text to analyse.
+      render(<CodeBlock {...defaultProps} className={undefined} children={<span data-sd-animate="true">npm i</span>} />)
+
+      expect(screen.getByText('npm i').tagName).toBe('SPAN')
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+    })
+
+    it('should render streamed multi-word inline code as a span array', () => {
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className={undefined}
+          children={[
+            <span key="1" data-sd-animate="true">
+              npm
+            </span>,
+            ' ',
+            <span key="2" data-sd-animate="true">
+              i
+            </span>
+          ]}
+        />
+      )
+
+      expect(screen.getByText('npm').tagName).toBe('SPAN')
+      expect(screen.getByText('i', { exact: false }).tagName).toBe('SPAN')
+    })
+
     it('should render without a message list provider', () => {
       mocks.messageListActions = undefined
 

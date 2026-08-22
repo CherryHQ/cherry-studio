@@ -82,7 +82,7 @@ patchedDependencies:
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
-  streamdown@2.5.0: f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f
+  streamdown@2.5.0: e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
 
 importers:
@@ -1121,7 +1121,7 @@ importers:
         version: 1.9.1
       streamdown:
         specifier: ^2.5.0
-        version: 2.5.0(patch_hash=f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 2.5.0(patch_hash=e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       strict-url-sanitise:
         specifier: ^0.0.1
         version: 0.0.1
@@ -1963,7 +1963,7 @@ importers:
         version: 2.0.1
       streamdown:
         specifier: ^2.5.0
-        version: 2.5.0(patch_hash=f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 2.5.0(patch_hash=e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       tailwind-merge:
         specifier: ^2.5.5
         version: 2.6.1
@@ -10935,6 +10935,7 @@ packages:
   eslint@9.39.2:
     resolution: {integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -10945,6 +10946,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -12148,6 +12150,7 @@ packages:
 
   koffi@3.1.4:
     resolution: {integrity: sha512-KHX39XIg7afe8ds+0MHPoLiKR9dCzsVK4oAmBUSaeJlcX0xur22f15C2DILbZ6GJ9eyqC+e6Sb1cTG7M17z+Tg==}
+    deprecated: Unstable Windows builds
 
   kuler@2.0.0:
     resolution: {integrity: sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==}
@@ -30555,7 +30558,7 @@ snapshots:
     dependencies:
       stream-chain: 2.2.5
 
-  streamdown@2.5.0(patch_hash=f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  streamdown@2.5.0(patch_hash=e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       clsx: 2.1.1
       hast-util-to-jsx-runtime: 2.3.6
