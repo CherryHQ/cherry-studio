@@ -91,9 +91,9 @@ patchedDependencies:
   ppu-paddle-ocr@6.0.0: patches/ppu-paddle-ocr@6.0.0.patch
   '@ai-sdk/react@3.0.187': patches/@ai-sdk__react@3.0.187.patch
   '@streamdown/code@1.1.1': patches/@streamdown__code@1.1.1.patch
-  # Version-pinned: the patch edits a content-hashed dist chunk, so bumping
-  # streamdown silently drops it — re-derive the hunk (animate skip set +
-  # immutable children splice) against the new dist and update the key.
+  # Version-pinned: the hunk edits a content-hashed dist chunk. A version bump
+  # hard-fails install until the key is updated and the hunk is re-derived
+  # against the new dist (ERR_PNPM_UNUSED_PATCH / ERR_PNPM_PATCH_FAILED).
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
 
