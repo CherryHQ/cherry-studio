@@ -136,10 +136,14 @@ describe('getPathComparisonKey', () => {
     expect(getPathComparisonKey('/workspace/a\\b.txt')).not.toBe(getPathComparisonKey('/workspace/a/b.txt'))
   })
 
-  it('leaves an un-canonicalizable UNC path spelled as it came in', async () => {
+  // Regression for https://github.com/CherryHQ/cherry-studio/issues/18631: the
+  // listing side spells a share separator-normalized while drag-and-drop carries
+  // the OS spelling — the fallback fold must make both key identically, or the
+  // same folder inserts twice.
+  it('dedups the two spellings of an un-canonicalizable UNC path', async () => {
     const { getPathComparisonKey } = await loadWithPlatform(LINUX)
 
-    expect(getPathComparisonKey('\\\\server\\share\\a.txt')).toBe('\\\\server\\share\\a.txt')
+    expect(getPathComparisonKey('\\\\server\\share\\docs')).toBe(getPathComparisonKey('//server/share/docs'))
   })
 
   it('falls back to the raw value for input that is not an absolute path', async () => {

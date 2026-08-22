@@ -49,7 +49,7 @@ const isWindowsDrivePath = (path: string) => /^[A-Za-z]:[/\\]/.test(path)
  *   inside `canonicalizeFilePath` is arguably the real defect, but that function
  *   produces the persisted `file_entry.externalPath` key and changing its output
  *   requires a paired migration — see its "Rule-evolution discipline". Tracked
- *   in #17429.)
+ *   in #18207.)
  *
  * These are predicates, not parsers: a path we cannot canonicalize is simply not
  * provably the same as, or inside, anything. So degrade to `null` rather than

@@ -62,6 +62,7 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { toPathKey } from '@renderer/utils/path'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -198,15 +199,28 @@ const buildAccessiblePathFilePart = (
 /**
  * `AgentWorkspacePathSchema` only guarantees a non-empty string, so the stored
  * workspace path is asserted to be an absolute filesystem path here, before it
- * reaches the path helpers. A malformed one yields no accessible paths, which
- * degrades to inlining attachments instead of referencing them — still correct,
- * just less efficient.
+ * reaches the path helpers. A malformed — or un-canonicalizable — one yields no
+ * accessible paths, degrading attachments from `file://` references to base64
+ * inlining: a behavioural difference (the model gets a storage copy at a
+ * different path), not merely an efficiency loss, so each rejection logs.
  */
 const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[] => {
   if (!workspacePath) return []
   const parsed = AbsoluteFilePathSchema.safeParse(workspacePath)
   if (!parsed.success) {
     logger.warn('Ignoring agent workspace path that is not an absolute filesystem path', { path: workspacePath })
+    return []
+  }
+  // A UNC workspace passes the shape check but has no canonical form, so every
+  // containment test against it returns false and attachments would silently
+  // degrade to base64 inlining. Reject it by the same standard the path
+  // primitives use (`toPathKey === null`) so the degradation is diagnosable.
+  // See https://github.com/CherryHQ/cherry-studio/issues/18631
+  if (toPathKey(parsed.data) === null) {
+    logger.warn(
+      'Ignoring agent workspace path that has no canonical form (UNC); attachments will be inlined as base64',
+      { path: workspacePath }
+    )
     return []
   }
   return [parsed.data]
