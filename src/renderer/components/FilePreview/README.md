@@ -199,8 +199,12 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
-- Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture); consumers reject
-  stale references via `isSelectionReferenceStale` instead of silently re-anchoring.
+- Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture). A reference
+  travels into the conversation as message text, so the consumer that acts on it is the `office-transform` skill:
+  it compares `fileStamp` against the file's current size and mtime and asks the user to re-select, never
+  silently re-anchoring. `isSelectionReferenceStale` is that rule's executable definition — the skill's Python
+  side mirrors it, the same way it mirrors `normalizeSelectionText` — and is what an in-app consumer would call.
+  Nothing in the renderer performs this check today, because no renderer code consumes a reference.
 
 ## File I/O, States, and Errors
 
