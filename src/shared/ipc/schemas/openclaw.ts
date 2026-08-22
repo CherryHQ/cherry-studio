@@ -39,5 +39,5 @@ export const openclawRequestSchemas = {
 // ── Event schemas ──
 export type OpenClawEventSchemas = {
   /** Fired on every gateway-status transition (incl. probe-detected external gateways). */
-  'openclaw.status_changed': { status: z.infer<typeof openclawStatusSchema>; port: number }
+  'openclaw.status_changed': { status: z.infer<typeof openclawStatusSchema> }
 }

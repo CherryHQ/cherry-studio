@@ -123,7 +123,7 @@ describe('useOpenClawGatewayController', () => {
 
     // Running state arrives as a main-pushed event, not a local write.
     await act(async () => {
-      emit('openclaw.status_changed', { status: 'running', port: 18888 })
+      emit('openclaw.status_changed', { status: 'running' })
     })
     expect(result.current.running).toBe(true)
   })

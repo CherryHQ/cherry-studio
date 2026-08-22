@@ -54,7 +54,7 @@ describe('useManagedToolStatus', () => {
     await waitFor(() => expect(result.current).toEqual({ status: 'starting' }))
 
     await act(async () => {
-      emit('openclaw.status_changed', { status: 'running', port: 18790 })
+      emit('openclaw.status_changed', { status: 'running' })
     })
     expect(result.current).toEqual({ status: 'running' })
   })
@@ -78,7 +78,7 @@ describe('useManagedToolStatus', () => {
     expect(result.current).toEqual({ status: 'stopped' })
 
     await act(async () => {
-      emit('openclaw.status_changed', { status: 'running', port: 18790 })
+      emit('openclaw.status_changed', { status: 'running' })
     })
     expect(result.current.status).toBe('running')
   })
@@ -89,7 +89,7 @@ describe('useManagedToolStatus', () => {
     const { result } = renderHook(() => useManagedToolStatus('openclaw'))
 
     await act(async () => {
-      emit('openclaw.status_changed', { status: 'running', port: 18790 })
+      emit('openclaw.status_changed', { status: 'running' })
     })
     expect(result.current).toEqual({ status: 'running' })
 
