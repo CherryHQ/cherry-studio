@@ -28,7 +28,8 @@ import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
+import { controlValue } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
 import { resolveOptions } from '../form/resolveOptions'
@@ -59,8 +60,17 @@ const SUMMARY_TYPES = new Set<BaseConfigItem['type']>([
   'styleToggle'
 ])
 
+type SummaryConfigItem = Extract<
+  BaseConfigItem,
+  { type: 'select' | 'sizeChips' | 'slider' | 'radio' | 'iconRadio' | 'styleToggle' }
+>
+
+function isSummaryConfigItem(item: BaseConfigItem): item is SummaryConfigItem {
+  return SUMMARY_TYPES.has(item.type)
+}
+
 function formatSummaryValue(
-  item: BaseConfigItem,
+  item: SummaryConfigItem,
   value: unknown,
   params: PaintingData['params'],
   translate: (key: string) => string
@@ -70,16 +80,19 @@ function formatSummaryValue(
     if (value === 'custom') {
       const w = params?.customSize_width
       const h = params?.customSize_height
-      return w && h ? `${String(w)}×${String(h)}` : undefined
+      const width = controlValue(w)
+      const height = controlValue(h)
+      return width && height ? `${width}×${height}` : undefined
     }
     // Localize the selected option (e.g. `auto` → `自动`) the same way the chips
     // and the artboard prompt bar do, instead of formatting the raw enum.
-    return sizeOptionLabel(item, String(value), params, translate)
+    return isOptionsConfigItem(item) ? sizeOptionLabel(item, controlValue(value), params, translate) : undefined
   }
-  if (item.type === 'slider') return String(value)
+  if (item.type === 'slider') return controlValue(value)
   // Option-based: show the selected option's localized label.
-  const match = resolveOptions(item, params ?? {}, translate).find((opt) => String(opt.value) === String(value))
-  return match?.label ?? String(value)
+  const formattedValue = controlValue(value)
+  const match = resolveOptions(item, params ?? {}, translate).find((opt) => controlValue(opt.value) === formattedValue)
+  return match?.label ?? formattedValue
 }
 
 /**
@@ -95,7 +108,7 @@ function paramsSummary(
 ): string {
   const parts: string[] = []
   for (const item of items) {
-    if (!item.key || !SUMMARY_TYPES.has(item.type)) continue
+    if (!isSummaryConfigItem(item)) continue
     if (item.condition && !item.condition(params ?? {})) continue
     const value = params?.[item.key] ?? item.initialValue
     if (value === undefined || value === null || value === '') continue
