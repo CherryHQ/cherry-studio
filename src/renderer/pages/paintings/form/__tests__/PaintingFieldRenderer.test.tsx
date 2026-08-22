@@ -63,14 +63,16 @@ describe('PaintingFieldRenderer slider input', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('rejects letters typed into the field', async () => {
+  // Clearing to retype settles as `null`, which is not a value the slider can
+  // hold: writing it would drop the field to `min`.
+  it('writes nothing when the field is cleared and left empty', async () => {
     const user = userEvent.setup()
-    renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
+    const onChange = renderSlider({ min: 1, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
     const input = screen.getByRole('spinbutton')
     await user.clear(input)
-    await user.type(input, '1a2')
+    await user.tab()
 
-    expect(input).toHaveValue('12')
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
