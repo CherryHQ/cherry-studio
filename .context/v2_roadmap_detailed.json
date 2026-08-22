@@ -1,65 +1,56 @@
 {
-  "generated_at": "2026-08-20T18:00:00Z",
+  "generated_at": "2026-08-22T17:00:00Z",
   "v2_branch_open_prs": 0,
-  "v2_branch_note": "No open PRs targeting v2 base branch as of 2026-08-20. All active development on main.",
+  "v2_branch_note": "No open PRs targeting v2 base branch as of 2026-08-22. All active development on main.",
   "v2_related_open_issues": [
     {
       "number": 9011,
       "title": "显示推理 tokens 数量 (Show reasoning token count)",
       "labels": ["feature", "v2", "blocked-v2"],
       "created_at": "2025-08-09",
-      "age_days": 376,
-      "comments": 4,
+      "age_days": 378,
       "status": "Blocked — waiting on v2 APIs"
     }
   ],
   "recently_shipped_signals": {
-    "version": "v2.0.7",
-    "note": "Issue #18857 references v2.0.7 as causing config errors — recent release shipped Aug 17-18",
-    "known_user_friction": "Migration from v1.9.x to v2.0.x breaking configs; users requesting downgrade path; UX regressions in editing, streaming, and metrics"
+    "version": "v2.0.8",
+    "note": "Issue #19116 reports v2.0.8 bundle missing two known fixes. Release may need hotfix v2.0.8.1.",
+    "known_user_friction": "DSH integration broken (#19152); agent heartbeat regression (#19203); stream deadloop on tool_calls in thinking (#19188); model connectivity false-negatives on reasoning_effort (#19171)"
   },
   "active_pr_sprint_today": {
-    "theme": "Performance isolation + launchpad refresh",
-    "prs_open_today": [
-      {"number": 19069, "title": "fix(code-style): isolate theme catalog updates", "author": "DeJeune"},
-      {"number": 19060, "title": "fix(quote): route message quotes to the originating window", "author": "NatsUIJM"},
-      {"number": 19059, "title": "feat(launchpad): refresh built-in app icons", "author": "SiinXu"}
+    "theme": "Performance isolation + Provider expansion + Agent stability",
+    "notable_prs_open": [
+      {"number": 19213, "title": "feat(provider): add QwenCloud provider (international DashScope)", "author": "evelyn-jialin-zhang"},
+      {"number": 19212, "title": "fix(subagent-resume): route continued subagent content to its thread", "author": "AtomsH4"},
+      {"number": 19204, "title": "feat(cherry-cloud): add desktop login and managed Work access", "author": "SiinXu"},
+      {"number": 19056, "title": "feat(file-preview): office suite selection producers and composition", "author": "ousugo"},
+      {"number": 18933, "title": "perf(screenshot): make capture overlay appear immediately", "author": "EurFelux"}
     ],
     "performance_issues_filed_today": [
-      {"number": 19068, "title": "Remove dead per-group flow navigation listeners"},
-      {"number": 19067, "title": "Isolate code-style theme catalog updates"},
-      {"number": 19066, "title": "Stabilize mini-app pool callbacks"},
-      {"number": 19065, "title": "Lazy-load Agent session image export runtime"},
-      {"number": 19064, "title": "Lazy-load closed composer editor dialogs"}
+      {"number": 19211, "title": "Keep retained TabRouter subscriptions stable"},
+      {"number": 19209, "title": "Isolate per-message selection subscriptions"},
+      {"number": 19208, "title": "Lazy-load CodeMirror from read-only chat Markdown"},
+      {"number": 19140, "title": "Isolate tab-state side effects from page roots"},
+      {"number": 19141, "title": "Stabilize callbacks passed to virtualized file views"}
     ],
-    "note": "Performance sprint continues from yesterday (DeJeune lead). 5 performance issues filed today with associated PR #19069 already open."
+    "note": "Performance sprint continues (DeJeune lead). QwenCloud provider PR opens new model access. Agent stability bugs are the top concern."
   },
   "roadmap_planned_items": [
-    {"number": 6403, "title": "Multi-Window", "labels": ["planned", "Dev Team", "ui-ux"], "age_days": 454},
-    {"number": 6405, "title": "Assistant and Topic Interaction Refactoring", "labels": ["planned", "Dev Team"], "age_days": 454},
-    {"number": 18984, "title": "Traceable Knowledge Base Citations", "labels": ["planned", "feature", "rag", "internal-team"], "age_days": 0, "created_today": true},
-    {"number": 18980, "title": "Conversation and Agent Session Archive", "labels": ["planned", "feature", "internal-team"], "age_days": 0, "created_today": true},
-    {"number": 18976, "title": "Unified Context and Token Usage Breakdown", "labels": ["planned", "feature", "internal-team"], "age_days": 0, "created_today": true},
-    {"number": 18968, "title": "Privacy-safe Structured Model Diagnostics", "labels": ["planned", "feature", "models", "internal-team"], "age_days": 0, "created_today": true},
-    {"number": 18965, "title": "User-provided Reasons When Rejecting Tool Calls", "labels": ["planned", "feature", "assistant", "internal-team"], "age_days": 0, "created_today": true, "comments": 1},
-    {"number": 18960, "title": "Agent Stall Detection and User Intervention", "labels": ["planned", "feature", "assistant", "internal-team"], "age_days": 0, "created_today": true},
-    {"number": 18989, "title": "Explainable Skill Review Before Installation", "labels": ["planned", "feature", "internal-team"], "age_days": 0, "created_today": true},
-    {"number": 19002, "title": "Agent Session Import with Compatibility Preview", "labels": ["planned", "feature", "data", "internal-team"], "age_days": 0, "created_today": true},
-    {"number": 16172, "title": "Improve knowledge base retrieval (hybrid search / reranking)", "labels": ["feature", "rag", "prd", "internal-team"], "age_days": 63},
-    {"number": 16173, "title": "Knowledge base — hide inline reference/citation markers", "labels": ["feature", "rag", "ui-ux", "prd", "internal-team"], "age_days": 63},
-    {"number": 16124, "title": "Built-In Browser Pane (Open & Browse Web Pages In-App)", "labels": ["feature", "ui-ux", "agent", "prd", "internal-team"], "age_days": 64},
-    {"number": 14899, "title": "Unified Notification Center", "labels": ["planned", "p1", "feature", "ui-ux"], "age_days": 105}
+    {"number": 18984, "title": "Traceable Knowledge Base Citations", "labels": ["planned", "feature", "rag", "internal-team"], "age_days": 2},
+    {"number": 18980, "title": "Conversation and Agent Session Archive", "labels": ["planned", "feature", "internal-team"], "age_days": 2},
+    {"number": 18989, "title": "Explainable Skill Review Before Installation", "labels": ["planned", "feature", "internal-team"], "age_days": 2},
+    {"number": 18976, "title": "Unified Context and Token Usage Breakdown", "labels": ["planned", "feature", "internal-team"], "age_days": 2},
+    {"number": 18968, "title": "Privacy-safe Structured Model Diagnostics", "labels": ["planned", "feature", "models", "internal-team"], "age_days": 2},
+    {"number": 18965, "title": "User-provided Reasons When Rejecting Tool Calls", "labels": ["planned", "feature", "assistant", "internal-team"], "age_days": 2},
+    {"number": 18960, "title": "Agent Stall Detection and User Intervention", "labels": ["planned", "feature", "assistant", "internal-team"], "age_days": 2},
+    {"number": 16658, "title": "Background Agent Task Recovery After Process Restart", "labels": ["planned", "feature", "assistant", "internal-team"], "age_days": 51},
+    {"number": 6403, "title": "Multi-Window", "labels": ["planned", "Dev Team", "ui-ux"], "age_days": 456},
+    {"number": 6405, "title": "Assistant and Topic Interaction Refactoring", "labels": ["planned", "Dev Team"], "age_days": 456}
   ],
-  "internal_team_issues_filed_today": {
-    "count": 18,
-    "note": "Large batch of internal-team tagged feature/planned issues filed Aug 20 — likely a product planning sync: agent memory, migration, skills, knowledge, model diagnostics, etc.",
-    "categories": [
-      "Agent capability (stall detection, tool rejection, plans, permission modes)",
-      "Knowledge base (citations, format preflight, chunk exclusion)",
-      "Data/migration (session import, selective restore, migration checkpoints)",
-      "Model/provider (diagnostics, model-check evidence, import/migration)",
-      "Skills (cancellable install, explainable review)",
-      "Observability (context breakdown, Code Mate per-request)"
-    ]
-  }
+  "internal_team_backlog_size": 48,
+  "new_internal_team_issues_today": [
+    {"number": 19192, "title": "[Task]: Extract Preference schema generation from v2-refactor-temp", "author": "EurFelux"},
+    {"number": 19165, "title": "Drop the numeric-string form state around InputNumber call sites", "author": "EurFelux"},
+    {"number": 19166, "title": "Make BaseConfigItem a discriminated union so painting fields are typed", "author": "EurFelux"}
+  ]
 }

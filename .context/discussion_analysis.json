@@ -1,22 +1,38 @@
 {
-  "generated_at": "2026-08-20T18:00:00Z",
+  "generated_at": "2026-08-22T17:00:00Z",
   "note": "Discussions fetched from open issues with discussion label; GitHub Discussions GraphQL API not available in this session.",
   "discussion_issues_in_sample": [
+    {
+      "number": 19182,
+      "title": "agent",
+      "labels": ["needs-more-info", "help wanted", "discussion"],
+      "created_at": "2026-08-22",
+      "comments": 0,
+      "sentiment": "unclear — vague title, needs triage"
+    },
+    {
+      "number": 17271,
+      "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
+      "labels": ["help wanted", "discussion", "rag", "assistant", "inactive"],
+      "created_at": "2026-07-22",
+      "comments": 1,
+      "sentiment": "negative — agent + RAG integration gap; marked inactive"
+    },
+    {
+      "number": 16010,
+      "title": "[Discussion]: Which models are supported by the agent, what is the logic, my models are not in the list",
+      "labels": ["help wanted", "discussion", "models", "inactive"],
+      "created_at": "2026-06-12",
+      "comments": 3,
+      "sentiment": "confusion — model compatibility UI lacks explanation; now partially addressed by #19184"
+    },
     {
       "number": 18857,
       "title": "[Discussion]: v2.0.7 completely unusable — all configs showing errors, request to downgrade",
       "labels": ["help wanted", "discussion"],
       "created_at": "2026-08-18",
       "comments": 2,
-      "sentiment": "negative — user friction with v2 migration"
-    },
-    {
-      "number": 18792,
-      "title": "[Discussion]: Conversation title always New Conversation when auto-rename disabled",
-      "labels": ["help wanted", "discussion"],
-      "created_at": "2026-08-18",
-      "comments": 0,
-      "sentiment": "UX request"
+      "sentiment": "negative — v2 migration friction remains a recurring theme"
     },
     {
       "number": 18788,
@@ -24,76 +40,19 @@
       "labels": ["help wanted", "discussion", "models"],
       "created_at": "2026-08-18",
       "comments": 6,
-      "sentiment": "transparency concern — active community discussion"
-    },
-    {
-      "number": 18740,
-      "title": "[Discussion]: Tool-approval card should render above input box instead of replacing composer",
-      "labels": ["help wanted", "discussion", "ui-ux"],
-      "created_at": "2026-08-17",
-      "comments": 1,
-      "sentiment": "UX design discussion"
-    },
-    {
-      "number": 18589,
-      "title": "[Discussion]: Too much reverse optimization",
-      "labels": ["help wanted", "discussion", "ui-ux"],
-      "created_at": "2026-08-14",
-      "comments": 2,
-      "sentiment": "negative — community pushback on v2 UX regressions"
-    },
-    {
-      "number": 18474,
-      "title": "[Discussion]: Code blocks no longer rendered during streaming",
-      "labels": ["help wanted", "discussion", "ui-ux"],
-      "created_at": "2026-08-12",
-      "comments": 1,
-      "sentiment": "regression report — UX degradation vs v1"
-    },
-    {
-      "number": 18363,
-      "title": "[Discussion]: AiStreamManager 状态机身份与 ownership 结构问题",
-      "labels": ["help wanted", "discussion"],
-      "created_at": "2026-08-11",
-      "comments": 1,
-      "sentiment": "technical debt discussion — architectural issue"
-    },
-    {
-      "number": 18327,
-      "title": "[Discussion]: Token/s generation speed and TTFT display missing since v2.0",
-      "labels": ["help wanted", "discussion", "ui-ux"],
-      "created_at": "2026-08-10",
-      "comments": 0,
-      "sentiment": "feature regression — users miss v1 metrics visibility"
-    },
-    {
-      "number": 18299,
-      "title": "[Discussion]: Why can't v2.x modify an answer while v1.9.x can?",
-      "labels": ["help wanted", "discussion"],
-      "created_at": "2026-08-10",
-      "comments": 1,
-      "sentiment": "negative — capability regression vs v1"
+      "sentiment": "transparency concern — active community discussion on built-in provider"
     }
   ],
-  "themes": [
-    "v2 migration friction — configs broken, downgrade requests, UX regressions vs v1",
-    "Cherry model provider transparency — community expects disclosure on built-in provider",
-    "UX design for agent tool approval flow — card placement and interaction model",
-    "Performance and rendering regressions — code blocks, streaming, scroll speed",
-    "Feature parity gaps vs v1 — message editing, token/s display, context flexibility",
-    "Architectural debt — AiStreamManager ownership, stale terminal callbacks"
+  "recurring_themes": [
+    "Agent runtime instability (stream stops, heartbeat regression, dead loops)",
+    "DSH/CodeMate integration broken by credentials injection",
+    "Model compatibility UI — silent filtering without user-facing reason",
+    "v2 migration friction — users requesting v1 downgrade or rollback",
+    "Performance regressions in chat rendering with large token counts"
   ],
-  "sentiment_summary": {
-    "negative_or_concern": 6,
-    "neutral_or_request": 2,
-    "technical_discussion": 1,
-    "trend": "Community sentiment toward v2 is mixed-to-negative; primary pain is v2 regression vs v1 feature parity and config stability"
-  },
-  "action_items": [
-    "Address #18857 and #18589 — v2 regression reports are generating user frustration; document known issues or ship fixes",
-    "Respond to #18788 — community expects transparency around built-in Cherry provider (6 comments, growing)",
-    "Investigate #18327 and #18299 — token/s display and message editing are visible v1→v2 regressions",
-    "Track #18474 — streaming code block rendering regression is a common complaint",
-    "Schedule architectural review for #18363 — AiStreamManager state machine ownership affects stream correctness"
-  ]
+  "community_top_engagement": [
+    {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 368, "labels": ["assistant"]},
+    {"number": 18432, "title": "Proposal: upgrade DashScope provider to QwenCloud", "comments": 2, "labels": ["models"]}
+  ],
+  "sentiment_summary": "Mixed-negative. Agent reliability issues dominate today's reports. Performance work (DeJeune) is visible and positive. QwenCloud provider expansion well-received internally. DSH integration regressions are the most urgent user-facing pain."
 }

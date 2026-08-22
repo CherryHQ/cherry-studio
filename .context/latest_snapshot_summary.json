@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-21T17:00:00Z",
-  "open_issues_total": 913,
-  "open_issues_delta_24h": 1,
+  "generated_at": "2026-08-22T17:00:00Z",
+  "open_issues_total": 920,
+  "open_issues_delta_24h": 7,
   "open_prs_total": 100,
   "p1_issues": [
     {
@@ -9,7 +9,7 @@
       "title": "[Feature]: Unified Notification Center",
       "labels": ["planned", "p1", "feature", "ui-ux"],
       "created_at": "2026-05-07",
-      "age_days": 106,
+      "age_days": 107,
       "comments": 0,
       "status": "Zombie"
     },
@@ -18,7 +18,7 @@
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["p1", "models"],
       "created_at": "2026-03-18",
-      "age_days": 156,
+      "age_days": 157,
       "comments": 8,
       "status": "Zombie"
     },
@@ -27,148 +27,148 @@
       "title": "[Bug]: Azure OpenAI AI_APICallError Resource not found (responses API)",
       "labels": ["p1", "models"],
       "created_at": "2026-03-04",
-      "age_days": 170,
+      "age_days": 171,
       "comments": 1,
       "status": "Zombie"
     }
   ],
   "needs_triage_count": 34,
   "inactive_stale_count": 63,
-  "bug_labeled_count": 17,
+  "bug_labeled_count": 18,
   "label_distribution_top15": {
-    "internal-team": 45,
-    "assistant": 32,
-    "feature": 28,
+    "internal-team": 48,
+    "feature": 36,
     "needs-triage": 34,
-    "models": 22,
-    "rag": 18,
-    "ui-ux": 25,
-    "performance": 14,
-    "mcp": 12,
-    "data": 12,
+    "assistant": 33,
+    "models": 23,
+    "ui-ux": 26,
+    "rag": 19,
+    "performance": 17,
     "inactive": 63,
-    "bug": 17,
+    "data": 13,
+    "bug": 18,
+    "mcp": 12,
+    "planned": 13,
     "needs-repro": 8,
-    "connectivity": 7,
-    "planned": 12
+    "connectivity": 8
   },
-  "new_issues_today_aug21": [
+  "new_issues_today_aug22": [
     {
-      "number": 19133,
-      "title": "[Bug]: dsh 类型智能体模型下拉列表静默过滤自定义模型（context_window 为空且无任何 UI 提示）",
-      "labels": ["models"],
+      "number": 19203,
+      "title": "[Bug]: Agent heartbeat interval no longer schedules anything — ensureHeartbeatTask was dropped in the JobManager migration",
+      "labels": [],
+      "severity": "high"
+    },
+    {
+      "number": 19211,
+      "title": "[Bug]: Keep retained TabRouter subscriptions stable",
+      "labels": ["performance"],
       "severity": "medium"
     },
     {
-      "number": 19130,
-      "title": "[Feature]: 希望恢复旧版的侧边栏"助手"/"话题"独立的方式",
-      "labels": ["assistant"],
+      "number": 19209,
+      "title": "[Bug]: Isolate per-message selection subscriptions",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19208,
+      "title": "[Bug]: Lazy-load CodeMirror from read-only chat Markdown",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19188,
+      "title": "[Bug]: Agent output stops mid-generation — model emits tool_calls as plain text in thinking then end_turn",
+      "labels": [],
+      "severity": "high"
+    },
+    {
+      "number": 19184,
+      "title": "Agent model picker silently hides compatible models for Pi/DSH runtimes (unknown contextWindow, no filter reason shown)",
+      "labels": ["assistant", "models"],
+      "severity": "medium"
+    },
+    {
+      "number": 19171,
+      "title": "Model connectivity check hardcodes reasoning_effort: \"none\", causing detection failure",
+      "labels": ["connectivity", "models"],
+      "severity": "medium"
+    },
+    {
+      "number": 19167,
+      "title": "Feature Request: Native support for deploying offline GGUF models with llama.cpp",
+      "labels": ["models"],
       "severity": "low"
     },
     {
-      "number": 19127,
-      "title": "[Bug]: Missing Thai UI option causes getLanguageInstruction() to force English responses, overriding Thai persona prompts",
-      "labels": ["assistant"],
-      "severity": "medium"
-    },
-    {
-      "number": 19124,
-      "title": "[Bug]: ClaudeCodeResultError - API Error 400 litellm.BadRequestError: System message must be at the beginning",
-      "labels": ["models"],
-      "severity": "high"
-    },
-    {
-      "number": 19121,
-      "title": "[Bug]: 自动生成对话名失败 Invalid JSON response (thinking 块缺 signature)",
-      "labels": [],
-      "severity": "medium"
-    },
-    {
-      "number": 19119,
-      "title": "[Bug]: 手动中断 Agent 回复后立即重新生成，返回空流(11ms/$0)或流卡死，界面报"无响应"",
-      "labels": ["assistant"],
-      "severity": "high"
-    },
-    {
-      "number": 19117,
-      "title": "[Bug]: DSH `v0.1.1-rc.1` refuse to launch due to Cherry Env injection in `.credentials.yaml`",
-      "labels": ["mcp"],
-      "severity": "high"
-    },
-    {
-      "number": 19116,
-      "title": "[Bug]: v2.0.8 shipped bundle is missing fixes present in its own tag — #18702 response_format retry and #18121 reasoning_content not applied",
-      "labels": ["needs-triage"],
-      "severity": "critical"
+      "number": 19164,
+      "title": "[Bug]: Custom parameter value inputs have no accessible name",
+      "labels": ["bug", "ui-ux"],
+      "severity": "low"
     }
   ],
   "critical_bugs_needing_attention": [
     {
-      "number": 19116,
-      "title": "v2.0.8 bundle missing fixes — response_format retry and reasoning_content regressions",
-      "severity": "critical",
-      "reason": "Release QA gap: two known fixes are in the tag but absent from the shipped bundle. Affects all v2.0.8 users."
+      "number": 19203,
+      "title": "Agent heartbeat interval no longer schedules anything — ensureHeartbeatTask dropped in JobManager migration",
+      "severity": "high",
+      "reason": "Silent regression: agent background tasks (health checks, timeouts) never fire. Affects all agent sessions. Likely introduced during JobManager refactor."
     },
     {
-      "number": 19117,
-      "title": "DSH v0.1.1-rc.1 refuses to launch due to Cherry Env injection in .credentials.yaml",
+      "number": 19188,
+      "title": "Agent output stops mid-generation — tool_calls emitted as plain text in thinking block",
       "severity": "high",
-      "reason": "DSH integration broken out of the box for all users on rc.1; Cherry should pass --no-env or skip credentials injection."
+      "reason": "Dead-loop: model sends tool_calls in thinking text, parser does not detect them, injects 'no visible output' repeatedly. Unrecoverable without manual stop."
     },
     {
       "number": 19119,
-      "title": "Agent stream stuck / empty after manual interrupt + immediate regenerate",
+      "title": "Agent stream stuck/empty after manual interrupt + immediate regenerate",
       "severity": "high",
-      "reason": "Reproducible race: stopping then immediately regenerating yields empty or frozen stream, UI shows 'no response'."
+      "reason": "Reproducible race on stop+regenerate: empty stream (11ms/$0) or frozen UI. Active, assigned."
     },
     {
-      "number": 19048,
-      "title": "MCP OAuth hard-blocks startup for 300s (hardcoded timeout)",
+      "number": 19152,
+      "title": "dsh startup fails — CHERRY_STUDIO_CODEMATE_*_API_KEY written to .credentials.yaml top-level",
       "severity": "high",
-      "reason": "All users with incomplete MCP OAuth face a 300s startup freeze. Already assigned."
+      "reason": "DSH integration broken for all users; Cherry injects env keys into credentials.yaml where dsh expects only known top-level keys."
     },
     {
-      "number": 19061,
-      "title": "Launch on boot IPC never invoked on Windows",
-      "severity": "high",
-      "reason": "Silent regression — user toggle appears to work but Windows Run entry is never updated."
+      "number": 19116,
+      "title": "v2.0.8 bundle missing #18702 and #18121 fixes (response_format retry + reasoning_content)",
+      "severity": "critical",
+      "reason": "Release QA gap confirmed: two known fixes absent from shipped bundle. Affects all v2.0.8 users."
     },
     {
       "number": 18800,
       "title": "Agent modifies its own database causing data corruption",
       "severity": "critical",
-      "reason": "Data corruption; agent unable to load properly after self-modification."
-    },
-    {
-      "number": 18643,
-      "title": "Agent runtime + Ollama: all tool calls return 500",
-      "severity": "high",
-      "reason": "Breaks all Ollama agent tool usage; active discussion ongoing."
+      "reason": "Data corruption; agent unable to load after self-modification."
     }
   ],
   "pr_summary": {
     "total_open": 100,
-    "targeting_main": 93,
+    "targeting_main": 96,
     "targeting_v2": 0,
-    "oldest_open_pr": {"number": 18693, "created_at": "2026-08-16"},
+    "draft_prs": 10,
     "newest_open_prs": [
-      {"number": 19137, "title": "fix(settings): default settings entries to the general page"},
-      {"number": 19136, "title": "fix(chat-markdown): repair literal autolinks that swallow emphasis markers"},
-      {"number": 19132, "title": "test(agents-migration): fix flaky high-fan-out copy test on Windows CI"},
-      {"number": 19131, "title": "fix(deepseek-harness): write the versioned dsh credentials layout"},
-      {"number": 19129, "title": "refactor(ui): consolidate numeric entry into an InputNumber primitive"}
+      {"number": 19213, "title": "feat(provider): add QwenCloud provider (international DashScope)"},
+      {"number": 19212, "title": "fix(subagent-resume): route continued subagent content to its thread"},
+      {"number": 19204, "title": "feat(cherry-cloud): add desktop login and managed Work access"},
+      {"number": 19056, "title": "feat(file-preview): office suite selection producers and composition"},
+      {"number": 18933, "title": "perf(screenshot): make capture overlay appear immediately"}
     ]
   },
   "v2_branch_summary": {
     "open_prs_targeting_v2": 0,
-    "note": "All active PRs are targeting main. No open PRs against the v2 branch as of 2026-08-21."
+    "note": "All active PRs target main. No open PRs against v2 branch as of 2026-08-22."
   },
   "issue_health": {
-    "total_open": 913,
-    "active_updated_7d": 850,
+    "total_open": 920,
+    "active_updated_7d": 857,
     "aging_8_to_30d": 63,
     "stale_inactive_labeled": 63,
     "zombie_p1_unresolved": 3,
-    "uncategorized_no_label_pct": "approx 10%"
+    "uncategorized_no_label_pct": "approx 12%"
   }
 }
