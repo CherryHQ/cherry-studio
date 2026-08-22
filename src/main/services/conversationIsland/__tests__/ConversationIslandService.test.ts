@@ -404,6 +404,49 @@ describe('ConversationIslandService', () => {
     })
   })
 
+  it('publishes an exit snapshot and closes after 180 ms when normal activity exhausts', async () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+
+    emitActivity(null, 200)
+
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-1', exiting: true })
+    expect(services.windowManager.close).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(179)
+    expect(services.windowManager.close).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
+  })
+
+  it('cancels exit and reuses the window when a new activity arrives', async () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-1')
+    emitActivity(null, 200, 'topic-1')
+
+    emitActivity('pending', 250, 'topic-2')
+
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-2', exiting: false })
+    expect(services.windowManager.open).toHaveBeenCalledOnce()
+
+    await vi.advanceTimersByTimeAsync(180)
+    expect(services.windowManager.close).not.toHaveBeenCalled()
+  })
+
+  it('closes immediately when normal activity exhausts with reduced motion', () => {
+    mocks.prefersReducedMotion = true
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+
+    emitActivity(null, 200)
+
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-1', exiting: false, reducedMotion: true })
+    expect(services.windowManager.pushInitData).not.toHaveBeenCalled()
+    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('shows live approval anchors as awaiting confirmation', () => {
     changePreference('feature.conversation_island.enabled', true)
     vi.setSystemTime(100)
@@ -459,16 +502,19 @@ describe('ConversationIslandService', () => {
     emitActivity('pending', 300, 'topic-1', 'assistant', 'turn-2')
 
     expect(mocks.resolveName).toHaveBeenCalledTimes(2)
-    expect(services.windowManager.open.mock.lastCall?.[1]).toMatchObject({
-      initData: { title: 'Renamed conversation' }
-    })
+    expect(latestSnapshot()).toMatchObject({ title: 'Renamed conversation' })
   })
 
-  it('destroys terminal windows at their exact TTL and removes aborted activity immediately', async () => {
+  it('expires terminal activities at their exact TTL, then dismisses after activity exhaustion', async () => {
     changePreference('feature.conversation_island.enabled', true)
 
     emitActivity('done', 100)
     await vi.advanceTimersByTimeAsync(3_999)
+    expect(services.windowManager.close).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-1', state: 'done', exiting: true })
+    expect(services.windowManager.close).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(179)
     expect(services.windowManager.close).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(services.windowManager.close).toHaveBeenCalledTimes(1)
@@ -477,10 +523,20 @@ describe('ConversationIslandService', () => {
     await vi.advanceTimersByTimeAsync(5_999)
     expect(services.windowManager.close).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1)
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-error', state: 'error', exiting: true })
+    expect(services.windowManager.close).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(179)
+    expect(services.windowManager.close).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
     expect(services.windowManager.close).toHaveBeenCalledTimes(2)
 
     emitActivity('pending', 12_000, 'topic-abort')
     emitActivity('aborted', 12_100, 'topic-abort')
+    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-abort', state: 'pending', exiting: true })
+    expect(services.windowManager.close).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(179)
+    expect(services.windowManager.close).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
     expect(services.windowManager.close).toHaveBeenCalledTimes(3)
   })
 
@@ -836,7 +892,9 @@ describe('ConversationIslandService', () => {
       return new Promise(() => {})
     })
     changePreference('feature.conversation_island.enabled', true)
-    emitActivity('done', 100)
+    emitActivity('pending', 100)
+    emitActivity(null, 200)
+    expect(services.windowManager.close).not.toHaveBeenCalled()
 
     await service._doStop()
 
@@ -848,7 +906,7 @@ describe('ConversationIslandService', () => {
     expect(mocks.screenListeners.size === 0 || [...mocks.screenListeners.values()].every((set) => set.size === 0)).toBe(
       true
     )
-    expect(services.windowManager.close).toHaveBeenCalled()
+    expect(services.windowManager.close).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
   })
 })

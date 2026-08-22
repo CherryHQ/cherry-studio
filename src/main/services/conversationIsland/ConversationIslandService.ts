@@ -43,6 +43,7 @@ import {
 
 const logger = loggerService.withContext('Conversation Island')
 const TOPIC_STATUS_PREFIX = 'topic.stream.statuses.'
+const EXIT_ANIMATION_MS = 180
 
 interface ConversationActivityChangedEvent {
   topicId: string
@@ -112,6 +113,8 @@ export class ConversationIslandService extends BaseService {
   private windowId: string | null = null
   private positionedWindowId: string | null = null
   private expiryTimer: ReturnType<typeof setTimeout> | null = null
+  private exitTimer: ReturnType<typeof setTimeout> | null = null
+  private lastSnapshot: ConversationIslandSnapshot | null = null
   private probeController: AbortController | null = null
   private screenCleanup: (() => void) | null = null
   private powerResumeSubscription: Disposable | null = null
@@ -127,9 +130,11 @@ export class ConversationIslandService extends BaseService {
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.ConversationIsland, ({ id }) => {
         if (this.windowId === id) {
+          this.clearExitTimer()
           this.windowId = null
           this.positionedWindowId = null
           this.expandedState = null
+          this.lastSnapshot = null
         }
       })
     )
@@ -405,7 +410,7 @@ export class ConversationIslandService extends BaseService {
     const selection = selectPrimaryActivity(this.activities, now)
     this.pruneTitleCache()
     if (!selection.primary) {
-      this.closeIslandWindow()
+      this.beginExit()
       this.clearExpiryTimer()
       return
     }
@@ -470,6 +475,7 @@ export class ConversationIslandService extends BaseService {
   }
 
   private showOrUpdateWindow(snapshot: ConversationIslandSnapshot, bounds: Rectangle): void {
+    this.cancelExit()
     const windowManager = application.get('WindowManager')
 
     if (this.windowId && !windowManager.pushInitData(this.windowId, snapshot)) this.windowId = null
@@ -483,6 +489,7 @@ export class ConversationIslandService extends BaseService {
       this.positionedWindowId = this.windowId
     }
     window.showInactive()
+    this.lastSnapshot = snapshot
   }
 
   private scheduleNextExpiry(now: number): void {
@@ -517,11 +524,51 @@ export class ConversationIslandService extends BaseService {
     this.expiryTimer = null
   }
 
+  private clearExitTimer(): void {
+    if (!this.exitTimer) return
+    clearTimeout(this.exitTimer)
+    this.exitTimer = null
+  }
+
+  private beginExit(): void {
+    const windowId = this.windowId
+    const snapshot = this.lastSnapshot
+    if (!windowId || !snapshot || snapshot.reducedMotion) {
+      this.closeIslandWindow()
+      return
+    }
+
+    const windowManager = application.get('WindowManager')
+    const window = windowManager.getWindow(windowId)
+    if (!window || window.isDestroyed()) {
+      this.closeIslandWindow()
+      return
+    }
+    if (this.exitTimer) return
+    if (!windowManager.pushInitData(windowId, { ...snapshot, exiting: true })) {
+      this.closeIslandWindow()
+      return
+    }
+
+    this.exitTimer = setTimeout(() => {
+      this.exitTimer = null
+      if (this.windowId === windowId) this.closeIslandWindow()
+    }, EXIT_ANIMATION_MS)
+    this.exitTimer.unref()
+  }
+
+  private cancelExit(): void {
+    this.clearExitTimer()
+  }
+
   private closeIslandWindow(): void {
-    if (!this.windowId) return
+    this.clearExitTimer()
+    this.lastSnapshot = null
+    this.positionedWindowId = null
+    this.expandedState = null
     const windowId = this.windowId
     this.windowId = null
-    this.positionedWindowId = null
+    if (!windowId) return
     try {
       application.get('WindowManager').close(windowId)
     } catch (error) {
