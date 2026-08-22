@@ -12,6 +12,22 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe('Tabs density', () => {
+  it('applies one size to the list and triggers', () => {
+    render(
+      <Tabs defaultValue="first" size="sm">
+        <TabsList>
+          <TabsTrigger value="first">First</TabsTrigger>
+          <TabsTrigger value="second">Second</TabsTrigger>
+        </TabsList>
+      </Tabs>
+    )
+
+    expect(screen.getByRole('tablist')).toHaveAttribute('data-size', 'sm')
+    expect(screen.getByRole('tab', { name: 'First' })).toHaveAttribute('data-size', 'sm')
+  })
+})
+
 describe('Tabs workflow variant', () => {
   it('marks the active trigger with bold + underline styles', () => {
     render(

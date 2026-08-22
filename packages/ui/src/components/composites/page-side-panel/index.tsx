@@ -75,6 +75,56 @@ function PageSidePanel({
     [onClose]
   )
 
+  const handlePanelKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Escape') {
+        handleClose(event)
+        return
+      }
+      if (event.key !== 'Tab' || !panelRef.current) return
+
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => {
+        if (
+          element.tabIndex < 0 ||
+          (element instanceof HTMLInputElement && element.type === 'hidden') ||
+          element.closest('[hidden], [aria-hidden="true"], [inert]')
+        ) {
+          return false
+        }
+
+        for (let current: HTMLElement | null = element; current && current !== panelRef.current; ) {
+          const style = window.getComputedStyle(current)
+          if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+            return false
+          }
+          current = current.parentElement
+        }
+
+        return true
+      })
+      if (focusable.length === 0) {
+        event.preventDefault()
+        panelRef.current.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && (document.activeElement === panelRef.current || document.activeElement === first)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    },
+    [handleClose]
+  )
+
   useEffect(() => {
     if (open) {
       closedByPointerDownRef.current = false
@@ -109,9 +159,7 @@ function PageSidePanel({
             aria-modal="true"
             aria-labelledby={headerContent ? headerId : undefined}
             tabIndex={-1}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') handleClose(e)
-            }}
+            onKeyDown={handlePanelKeyDown}
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: side === 'right' ? '100%' : '-100%' }}

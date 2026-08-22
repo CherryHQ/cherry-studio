@@ -36,4 +36,12 @@ describe('MenuItem', () => {
     const item = screen.getByTestId('menu-item')
     expect(item).not.toHaveAttribute('data-active')
   })
+
+  it('preserves the icon stroke width supplied by the caller', () => {
+    render(<MenuItem label="Settings" icon={<svg data-testid="menu-icon" strokeWidth={1.6} />} />)
+
+    const icon = screen.getByTestId('menu-icon')
+    expect(icon).toHaveAttribute('stroke-width', '1.6')
+    expect(icon.parentElement?.className).not.toContain('stroke-width')
+  })
 })

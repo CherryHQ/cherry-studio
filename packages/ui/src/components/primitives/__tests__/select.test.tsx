@@ -45,6 +45,19 @@ describe('SelectContent', () => {
     const trigger = screen.getByRole('combobox', { name: 'Mode' })
     expect(trigger).toHaveClass('focus-visible:border-primary')
     expect(trigger).not.toHaveClass('aria-expanded:border-primary')
+    expect(trigger).toHaveAttribute('data-size', 'default')
+  })
+
+  it('exposes an explicit large trigger density', () => {
+    render(
+      <Select defaultValue="alpha">
+        <SelectTrigger aria-label="Mode" size="lg">
+          <SelectValue />
+        </SelectTrigger>
+      </Select>
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Mode' })).toHaveAttribute('data-size', 'lg')
   })
 
   it('opens and closes without controlled open props', async () => {

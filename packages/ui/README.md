@@ -336,9 +336,10 @@ The Shadcn-compatible native input primitive.
 
 **Props:**
 
-- accepts standard React input props, including native `type`, `value`, and event-based `onChange`
+- accepts standard React input props, including `type`, `value`, and event-based `onChange`
+- `size`: `sm` (32px) | `default` (36px) | `lg` (40px)
 - use `aria-invalid` for invalid-state styling
-- use `className` for supported layout composition
+- use `className` for width and surrounding layout composition, not control density
 
 ## Hooks
 
