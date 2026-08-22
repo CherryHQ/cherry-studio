@@ -144,8 +144,8 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
           aria-label={t('library.config.prompt.insert_variable')}
           onClick={handleInsertVariable}
           disabled={isSaving}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border-subtle p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-          <BracesVariableIcon size={10} />
+          className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+          <BracesVariableIcon className="size-3" />
         </Button>
       </Tooltip>
     </>
