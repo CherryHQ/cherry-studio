@@ -55,6 +55,19 @@ export function isMcpErrorMessage(message: string): boolean {
   )
 }
 
+export function isProxyErrorMessage(message: string): boolean {
+  const msg = message.toLowerCase().replace(/_/g, ' ')
+
+  return (
+    msg.includes('err proxy') ||
+    msg.includes('proxy connection') ||
+    msg.includes('proxy response') ||
+    msg.includes('proxy error') ||
+    msg.includes('proxy refused') ||
+    msg.includes('connection to proxies')
+  )
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   if (!error) {
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
@@ -224,7 +237,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   // Proxy / SSL certificate errors
   if (
-    msg.includes('proxy') ||
+    isProxyErrorMessage(msg) ||
     msg.includes('socks') ||
     msg.includes('certificate') ||
     msg.includes('self-signed') ||
