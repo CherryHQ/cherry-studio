@@ -6793,6 +6793,7 @@
       },
       "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
+      "cycle_reasoning_effort": "Cycle Reasoning Effort",
       "edit_last_user_message": "Edit Last User Message",
       "empty": "No shortcuts are available in this group",
       "exit_fullscreen": "Exit Fullscreen",

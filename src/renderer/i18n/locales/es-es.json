@@ -6793,6 +6793,7 @@
       },
       "conflict_with": "Ya utilizado por \"{{name}}\"",
       "copy_last_message": "Copiar el último mensaje",
+      "cycle_reasoning_effort": "Cambiar el esfuerzo de razonamiento",
       "edit_last_user_message": "Editar último mensaje de usuario",
       "empty": "No hay accesos directos disponibles en este grupo",
       "exit_fullscreen": "Salir de pantalla completa",

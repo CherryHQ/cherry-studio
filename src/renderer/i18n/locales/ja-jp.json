@@ -6793,6 +6793,7 @@
       },
       "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
+      "cycle_reasoning_effort": "推論強度を切り替える",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
       "empty": "このグループには利用可能なショートカットはありません",
       "exit_fullscreen": "フルスクリーンを終了",

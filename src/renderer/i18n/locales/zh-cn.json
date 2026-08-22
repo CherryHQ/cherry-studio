@@ -6793,6 +6793,7 @@
       },
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "复制上一条消息",
+      "cycle_reasoning_effort": "循环切换推理强度",
       "edit_last_user_message": "编辑最后一条用户消息",
       "empty": "当前分组下没有可显示的快捷键",
       "exit_fullscreen": "退出全屏",

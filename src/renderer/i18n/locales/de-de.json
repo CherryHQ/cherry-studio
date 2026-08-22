@@ -6793,6 +6793,7 @@
       },
       "conflict_with": "Bereits von \"{{name}}\" verwendet",
       "copy_last_message": "Letzte Nachricht kopieren",
+      "cycle_reasoning_effort": "Denkaufwand wechseln",
       "edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
       "empty": "In dieser Gruppe sind keine Verknüpfungen verfügbar.",
       "exit_fullscreen": "Vollbildmodus beenden",

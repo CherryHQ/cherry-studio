@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   ComposerSpeedControl,
+  getNextComposerReasoningEffort,
   resolveComposerReasoningEffort,
   resolveComposerServiceTier
 } from '../ComposerSpeedControl'
@@ -133,6 +134,15 @@ function ControlledServiceTier({ model, initialTier }: { model: Model; initialTi
 }
 
 describe('ComposerSpeedControl UI', () => {
+  it('cycles declared reasoning efforts in display order and wraps to Default', () => {
+    expect(getNextComposerReasoningEffort(codexModel, 'default')).toBe('none')
+    expect(getNextComposerReasoningEffort(codexModel, 'max')).toBe('default')
+  })
+
+  it('does not cycle when the model has no selectable reasoning effort', () => {
+    expect(getNextComposerReasoningEffort({ ...codexModel, reasoning: undefined }, 'default')).toBeUndefined()
+  })
+
   it('preserves a stored Default for a multi-tier slider model', () => {
     expect(resolveComposerReasoningEffort(codexModel, 'default')).toBe('default')
   })
