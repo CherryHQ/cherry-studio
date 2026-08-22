@@ -17,9 +17,9 @@ const mocks = vi.hoisted(() => ({
   openExternal: vi.fn(),
   acquireGatewayLease: vi.fn(),
   releaseGatewayLease: vi.fn(),
-  safeStorageBackend: 'gnome_libsecret',
-  storedBytes: null as Uint8Array | null,
-  writeFile: vi.fn()
+  savedSession: null as Record<string, unknown> | null,
+  sessionClear: vi.fn(),
+  sessionReplace: vi.fn()
 }))
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notifyDataChange }))
@@ -32,6 +32,20 @@ vi.mock('@data/services/ModelService', () => ({
   }
 }))
 
+vi.mock('@data/services/CherryCloudSessionService', () => ({
+  cherryCloudSessionService: {
+    get: () => mocks.savedSession,
+    replace: (session: Record<string, unknown>) => {
+      mocks.savedSession = structuredClone(session)
+      mocks.sessionReplace(session)
+    },
+    clear: () => {
+      mocks.savedSession = null
+      mocks.sessionClear()
+    }
+  }
+}))
+
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
@@ -40,8 +54,7 @@ vi.mock('@application', () => ({
         return { acquireLease: mocks.acquireGatewayLease, releaseLease: mocks.releaseGatewayLease }
       }
       throw new Error(`Unexpected service: ${name}`)
-    },
-    getPath: () => '/mock/cherry-cloud-session.enc'
+    }
   }
 }))
 
@@ -53,15 +66,6 @@ vi.mock('electron', () => ({
     }
   },
   net: { fetch: mocks.netFetch },
-  safeStorage: {
-    isEncryptionAvailable: () => true,
-    getSelectedStorageBackend: () => mocks.safeStorageBackend,
-    encryptString: (value: string) => Buffer.from(value).map((byte) => byte ^ 0xff),
-    decryptString: (value: Buffer) =>
-      Buffer.from(value)
-        .map((byte) => byte ^ 0xff)
-        .toString()
-  },
   shell: { openExternal: mocks.openExternal }
 }))
 
@@ -69,24 +73,7 @@ vi.mock('../loopbackCallback', () => ({
   CherryCloudLoopbackCallback: { open: mocks.loopbackOpen }
 }))
 
-vi.mock('node:fs/promises', () => ({
-  readFile: vi.fn(async () => {
-    if (mocks.storedBytes) return Buffer.from(mocks.storedBytes)
-    const error = new Error('missing') as NodeJS.ErrnoException
-    error.code = 'ENOENT'
-    throw error
-  })
-}))
-
-vi.mock('@main/utils/file', () => ({
-  atomicWriteFile: vi.fn(async (_path: string, data: Uint8Array) => {
-    mocks.storedBytes = new Uint8Array(data)
-    mocks.writeFile(data)
-  })
-}))
-
 import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
-import { createDeviceKeyPair } from '../crypto'
 
 const authorizationId = '00000000-0000-4000-8000-000000000001'
 const sessionId = '00000000-0000-4000-8000-000000000010'
@@ -149,12 +136,12 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function exchangeResponse() {
+function exchangeResponse(expiresIn = 600) {
   return {
     token_set: {
       token_type: 'Bearer',
       access_token: token('F'),
-      expires_in: 600,
+      expires_in: expiresIn,
       refresh_token: token('G'),
       session_id: sessionId,
       session_expires_at: '2030-02-01T03:04:05Z'
@@ -178,25 +165,29 @@ function authorizationResponse() {
   }
 }
 
-function restoreSignedInState(accessExpiresAt = '2030-01-02T03:14:05Z') {
-  const device = createDeviceKeyPair()
-  const stored = {
-    version: 1,
-    device,
-    pending: null,
-    session: {
-      accessToken: token('F'),
-      accessExpiresAt,
-      refreshToken: token('G'),
-      sessionId,
-      sessionExpiresAt: '2030-02-01T03:04:05Z',
-      deviceId,
-      accountId,
-      displayName: 'Sora'
-    }
-  }
-  mocks.storedBytes = Buffer.from(JSON.stringify(stored)).map((byte) => byte ^ 0xff)
-  return device
+async function createSignedInService(): Promise<CherryCloudService> {
+  mocks.netFetch
+    .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
+    .mockResolvedValueOnce(jsonResponse({ ...freeAccountSnapshot, entitlements: [] }))
+    .mockResolvedValueOnce(jsonResponse({ data: [] }))
+
+  const service = new CherryCloudService()
+  await service._doInit()
+  await service.startLogin()
+  const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+  await service.handleCallback(
+    new URL(
+      `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+    )
+  )
+  await service.syncFreeModels()
+  mocks.netFetch.mockReset()
+  mocks.broadcast.mockClear()
+  mocks.modelCreate.mockClear()
+  mocks.modelBulkUpdate.mockClear()
+  mocks.notifyDataChange.mockClear()
+  return service
 }
 
 describe('CherryCloudService', () => {
@@ -204,8 +195,7 @@ describe('CherryCloudService', () => {
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
     mocks.appIsPackaged = false
-    mocks.safeStorageBackend = 'gnome_libsecret'
-    mocks.storedBytes = null
+    mocks.savedSession = null
     mocks.modelList.mockReturnValue([
       { id: 'cherryai::qwen', providerId: 'cherryai', apiModelId: 'qwen', name: 'Qwen', group: 'Qwen' }
     ])
@@ -216,16 +206,19 @@ describe('CherryCloudService', () => {
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
   })
 
-  it('creates a desktop authorization, exchanges its callback, and restores the signed-in account', async () => {
+  it('persists the signed-in account across service restarts', async () => {
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
       .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
+      .mockResolvedValueOnce(jsonResponse({ ...freeAccountSnapshot, entitlements: [] }))
+      .mockResolvedValueOnce(jsonResponse({ data: [] }))
 
     const service = new CherryCloudService()
     await service._doInit()
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
 
     expect(await service.startLogin()).toEqual({ phase: 'authorizing', displayName: null })
+    expect(mocks.savedSession).toBeNull()
     expect(mocks.openExternal).toHaveBeenCalledWith(
       `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`
     )
@@ -256,45 +249,12 @@ describe('CherryCloudService', () => {
     const exchangeBody = JSON.parse(exchangeRequest[1].body as string)
     expect(exchangeBody).toMatchObject({ state: createBody.state, handoff_code: token('D') })
     expect(exchangeBody.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(mocks.writeFile).toHaveBeenCalled()
-    expect(Buffer.from(mocks.storedBytes!).toString()).not.toContain(token('F'))
+    await service.syncFreeModels()
 
     CherryCloudService.resetInstances()
-    const restored = new CherryCloudService()
-    await restored._doInit()
-    expect(await restored.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-  })
-
-  it('refuses Linux basic_text storage without restoring or persisting credentials', async () => {
-    restoreSignedInState()
-    mocks.safeStorageBackend = 'basic_text'
-    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
-
-    try {
-      const service = new CherryCloudService()
-      await service._doInit()
-
-      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-      await expect(service.startLogin()).rejects.toThrow('Secure credential storage is unavailable')
-      expect(mocks.netFetch).not.toHaveBeenCalled()
-      expect(mocks.writeFile).not.toHaveBeenCalled()
-    } finally {
-      platform.mockRestore()
-    }
-  })
-
-  it('restores credentials from a Linux secret-service backend', async () => {
-    restoreSignedInState()
-    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
-
-    try {
-      const service = new CherryCloudService()
-      await service._doInit()
-
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-    } finally {
-      platform.mockRestore()
-    }
+    const restarted = new CherryCloudService()
+    await restarted._doInit()
+    expect(await restarted.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
   it('fails closed in packaged builds until the production origin is configured', async () => {
@@ -331,6 +291,7 @@ describe('CherryCloudService', () => {
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
     expect(mocks.netFetch).toHaveBeenCalledTimes(1)
+    expect(mocks.savedSession).toBeNull()
     expect(mocks.broadcast).toHaveBeenLastCalledWith('cherry_cloud.status_changed', {
       phase: 'signed-out',
       displayName: null
@@ -415,11 +376,6 @@ describe('CherryCloudService', () => {
     pendingExchange.resolve(jsonResponse(exchangeResponse()))
     await expect(Promise.all([validCallback, errorCallback])).resolves.toEqual([undefined, undefined])
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-
-    CherryCloudService.resetInstances()
-    const restored = new CherryCloudService()
-    await restored._doInit()
-    expect(await restored.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
   it('clears a matching malformed callback so login can be started again', async () => {
@@ -444,7 +400,7 @@ describe('CherryCloudService', () => {
   })
 
   it('syncs only models belonging to active free entitlements', async () => {
-    restoreSignedInState()
+    const service = await createSignedInService()
     mocks.modelList.mockReturnValue([
       { id: 'cherryai::qwen', providerId: 'cherryai', apiModelId: 'qwen', name: 'Qwen', group: 'Qwen' },
       {
@@ -459,8 +415,6 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(jsonResponse(freeAccountSnapshot))
       .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
-    const service = new CherryCloudService()
-    await service._doInit()
     await expect(service.syncFreeModels()).resolves.toEqual({ modelCount: 1 })
 
     expect(mocks.modelCreate).toHaveBeenCalledWith([
@@ -493,7 +447,7 @@ describe('CherryCloudService', () => {
   })
 
   it('does not apply a model sync that finishes after the Session is cleared', async () => {
-    restoreSignedInState()
+    const service = await createSignedInService()
     const accountRequest = deferred<Response>()
     const catalogRequest = deferred<Response>()
     mocks.netFetch
@@ -501,8 +455,6 @@ describe('CherryCloudService', () => {
       .mockReturnValueOnce(catalogRequest.promise)
       .mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
 
-    const service = new CherryCloudService()
-    await service._doInit()
     const sync = service.syncFreeModels()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
     await service.authenticatedFetch('/v1/messages', { method: 'POST' })
@@ -515,54 +467,57 @@ describe('CherryCloudService', () => {
   })
 
   it('rotates an expired access token before a signed model request', async () => {
-    restoreSignedInState('2026-01-02T03:14:05Z')
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
-      .mockResolvedValueOnce(jsonResponse({ data: [] }))
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
 
-    const service = new CherryCloudService()
-    await service._doInit()
-    await expect(
-      service.authenticatedFetch('/v1/models?limit=1000', {
-        headers: { 'anthropic-version': '2023-06-01' }
+    try {
+      const service = await createSignedInService()
+      mocks.netFetch
+        .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
+        .mockResolvedValueOnce(jsonResponse({ data: [] }))
+      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
+
+      await expect(
+        service.authenticatedFetch('/v1/models?limit=1000', {
+          headers: { 'anthropic-version': '2023-06-01' }
+        })
+      ).resolves.toHaveProperty('status', 200)
+
+      const refreshHeaders = new Headers(mocks.netFetch.mock.calls[0][1].headers)
+      const modelHeaders = new Headers(mocks.netFetch.mock.calls[1][1].headers)
+      expect(refreshHeaders.has('Authorization')).toBe(false)
+      expect(JSON.parse(Buffer.from(mocks.netFetch.mock.calls[0][1].body).toString())).toEqual({
+        session_id: sessionId,
+        refresh_token: token('G')
       })
-    ).resolves.toHaveProperty('status', 200)
-
-    const refreshHeaders = new Headers(mocks.netFetch.mock.calls[0][1].headers)
-    const modelHeaders = new Headers(mocks.netFetch.mock.calls[1][1].headers)
-    expect(refreshHeaders.has('Authorization')).toBe(false)
-    expect(JSON.parse(Buffer.from(mocks.netFetch.mock.calls[0][1].body).toString())).toEqual({
-      session_id: sessionId,
-      refresh_token: token('G')
-    })
-    expect(modelHeaders.get('Authorization')).toBe(`Bearer ${token('H')}`)
-    expect(Buffer.from(mocks.storedBytes!).toString()).not.toContain(token('I'))
+      expect(modelHeaders.get('Authorization')).toBe(`Bearer ${token('H')}`)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('keeps a refreshed Session when an older request returns 401 afterward', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
-    restoreSignedInState('2030-01-02T03:02:00Z')
-    const pendingOldRequest = deferred<Response>()
-    mocks.netFetch
-      .mockReturnValueOnce(pendingOldRequest.promise)
-      .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
-      .mockResolvedValueOnce(jsonResponse({ data: [] }))
 
     try {
-      const service = new CherryCloudService()
-      await service._doInit()
+      const service = await createSignedInService()
+      const pendingOldRequest = deferred<Response>()
+      mocks.netFetch
+        .mockReturnValueOnce(pendingOldRequest.promise)
+        .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
+        .mockResolvedValueOnce(jsonResponse({ data: [] }))
       await service.ensureAgentGateway()
       const sessionGeneration = await service.getSessionGeneration()
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
-      clock.mockReturnValue(Date.parse('2030-01-02T03:01:30Z'))
+      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
       await expect(service.authenticatedFetch('/v1/models')).resolves.toHaveProperty('status', 200)
       pendingOldRequest.resolve(jsonResponse({ type: 'error' }, 401))
       await expect(oldRequest).resolves.toHaveProperty('status', 401)
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
       expect(await service.getSessionGeneration()).toBe(sessionGeneration)
+      expect(mocks.savedSession).toMatchObject({ accessToken: token('H'), refreshToken: token('I') })
       expect(mocks.releaseGatewayLease).not.toHaveBeenCalled()
       expect(new Headers(mocks.netFetch.mock.calls[2][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
     } finally {
@@ -572,20 +527,18 @@ describe('CherryCloudService', () => {
 
   it('does not restore a refreshed Session after an older request has cleared it', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
-    restoreSignedInState('2030-01-02T03:02:00Z')
-    const pendingOldRequest = deferred<Response>()
-    const pendingRefresh = deferred<Response>()
-    mocks.netFetch.mockReturnValueOnce(pendingOldRequest.promise).mockReturnValueOnce(pendingRefresh.promise)
 
     try {
-      const service = new CherryCloudService()
-      await service._doInit()
+      const service = await createSignedInService()
+      const pendingOldRequest = deferred<Response>()
+      const pendingRefresh = deferred<Response>()
+      mocks.netFetch.mockReturnValueOnce(pendingOldRequest.promise).mockReturnValueOnce(pendingRefresh.promise)
       await service.ensureAgentGateway()
       const sessionGeneration = await service.getSessionGeneration()
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
-      clock.mockReturnValue(Date.parse('2030-01-02T03:01:30Z'))
+      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
       const refreshingRequest = service.authenticatedFetch('/v1/models')
       const refreshFailure = expect(refreshingRequest).rejects.toThrow(
         'Cherry Cloud session changed while refresh was in progress'
@@ -599,8 +552,8 @@ describe('CherryCloudService', () => {
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
       expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
+      expect(mocks.savedSession).toBeNull()
       expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
-      expect(mocks.writeFile).toHaveBeenCalledOnce()
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {
       clock.mockRestore()
@@ -608,10 +561,8 @@ describe('CherryCloudService', () => {
   })
 
   it('adds an idempotency key to signed Anthropic message requests', async () => {
-    restoreSignedInState()
+    const service = await createSignedInService()
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'message' }))
-    const service = new CherryCloudService()
-    await service._doInit()
 
     await service.authenticatedFetch('/v1/messages', {
       method: 'POST',
@@ -625,10 +576,8 @@ describe('CherryCloudService', () => {
   })
 
   it('revokes the current Product Session before clearing the local login', async () => {
-    restoreSignedInState()
+    const service = await createSignedInService()
     mocks.netFetch.mockResolvedValueOnce(new Response(null, { status: 204 }))
-    const service = new CherryCloudService()
-    await service._doInit()
 
     await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
 
@@ -639,49 +588,41 @@ describe('CherryCloudService', () => {
     expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
     expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
     expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
-    expect(mocks.writeFile).toHaveBeenCalledOnce()
+    expect(mocks.savedSession).toBeNull()
   })
 
   it('finishes local logout when the current Product Session is already invalid', async () => {
-    restoreSignedInState()
+    const service = await createSignedInService()
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
-    const service = new CherryCloudService()
-    await service._doInit()
 
     await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
-    expect(mocks.writeFile).toHaveBeenCalledOnce()
+    expect(mocks.savedSession).toBeNull()
   })
 
   it('keeps the local login when remote Product Session revocation fails', async () => {
-    restoreSignedInState()
+    const service = await createSignedInService()
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 503))
-    const service = new CherryCloudService()
-    await service._doInit()
 
     await expect(service.revokeCurrentSession()).rejects.toThrow('Cherry Cloud logout failed (503)')
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-    expect(mocks.writeFile).not.toHaveBeenCalled()
+    expect(mocks.savedSession).not.toBeNull()
   })
 
   it('clears the Product Session when Cloud API rejects authentication', async () => {
-    restoreSignedInState()
+    const service = await createSignedInService()
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
-    const service = new CherryCloudService()
-    await service._doInit()
     const sessionGeneration = await service.getSessionGeneration()
 
     await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
     expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
-    expect(mocks.writeFile).toHaveBeenCalledOnce()
+    expect(mocks.savedSession).toBeNull()
   })
 
   it('expires the Product Session before a warm agent connection can be reused', async () => {
-    restoreSignedInState()
-    const service = new CherryCloudService()
-    await service._doInit()
+    const service = await createSignedInService()
     await service.ensureAgentGateway()
     const sessionGeneration = await service.getSessionGeneration()
 
@@ -692,15 +633,14 @@ describe('CherryCloudService', () => {
       expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
       expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
+      expect(mocks.savedSession).toBeNull()
     } finally {
       vi.useRealTimers()
     }
   })
 
   it('holds one temporary API gateway lease while Cloud Work can use the signed session', async () => {
-    restoreSignedInState()
-    const service = new CherryCloudService()
-    await service._doInit()
+    const service = await createSignedInService()
 
     await Promise.all([service.ensureAgentGateway(), service.ensureAgentGateway()])
     expect(mocks.acquireGatewayLease).toHaveBeenCalledOnce()

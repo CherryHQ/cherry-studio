@@ -160,9 +160,6 @@ export function buildPathRegistry() {
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
-    // Cherry Cloud Product Session (safeStorage-encrypted)
-    'feature.cherry_cloud.session_file': path.join(appUserDataData, 'CherryCloud', 'session.enc'),
-
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),
 
