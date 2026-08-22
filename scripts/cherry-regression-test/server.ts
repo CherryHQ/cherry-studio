@@ -92,13 +92,13 @@ const locatorInputSchema = {
 
 const toolDefinitions = [
   {
-    name: 'get_run_context',
+    name: 'get-run-context',
     description:
       'Read this suite, case contracts, fixture paths, capability results, and current statuses. Never returns secrets.',
     inputSchema: { type: 'object', additionalProperties: false }
   },
   {
-    name: 'begin_case',
+    name: 'begin-case',
     description:
       'Start one case in this suite and switch Cherry Studio to its isolated profile. Capability-blocked cases are closed automatically.',
     inputSchema: {
@@ -109,7 +109,7 @@ const toolDefinitions = [
     }
   },
   {
-    name: 'inspect_ui',
+    name: 'inspect-ui',
     description: 'Inspect live Cherry Studio UI through CDP using an accessibility-first locator.',
     inputSchema: {
       type: 'object',
@@ -137,7 +137,7 @@ const toolDefinitions = [
     }
   },
   {
-    name: 'system_action',
+    name: 'system-action',
     description:
       'Operate the hosted runner desktop for a global shortcut, external text selection, Escape, or a native file picker.',
     inputSchema: {
@@ -152,13 +152,13 @@ const toolDefinitions = [
     }
   },
   {
-    name: 'restart_app',
+    name: 'restart-app',
     description:
       'Gracefully restart only the owned Cherry Studio instance. Reopen the tested state before recording restart evidence.',
     inputSchema: { type: 'object', additionalProperties: false }
   },
   {
-    name: 'record_evidence',
+    name: 'record-evidence',
     description:
       'Create machine-verified evidence declared by the current case. A failed observation is recorded but cannot satisfy the pass gate.',
     inputSchema: {
@@ -178,7 +178,7 @@ const toolDefinitions = [
     }
   },
   {
-    name: 'complete_case',
+    name: 'complete-case',
     description:
       'Finish a case as passed, failed, or blocked. Passed is rejected unless every declared evidence item passed machine verification.',
     inputSchema: {
@@ -457,7 +457,7 @@ async function recordMachineEvidence(input: z.infer<typeof evidenceSchema>): Pro
     case 'restart': {
       if (!input.locator) throw new Error('Restart evidence requires locator')
       const baseline = restartBaselines.get(input.caseId)
-      if (baseline === undefined) throw new Error(`${input.caseId} has no restart baseline; call begin_case first`)
+      if (baseline === undefined) throw new Error(`${input.caseId} has no restart baseline; call begin-case first`)
       observation = (await controller.recordRestart(
         input.locator as LocatorDescriptor,
         [restartExpectedText(input.evidenceId)],
@@ -483,7 +483,7 @@ async function recordMachineEvidence(input: z.infer<typeof evidenceSchema>): Pro
 
 async function handleTool(name: string, rawArguments: unknown): Promise<unknown> {
   switch (name) {
-    case 'get_run_context': {
+    case 'get-run-context': {
       const run = readRun(paths.runState)
       const fixtures = JSON.parse(readFileSync(`${paths.fixtures}/manifest.json`, 'utf8')) as unknown
       const installation = existsSync(paths.installation)
@@ -511,7 +511,7 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
         windowError
       }
     }
-    case 'begin_case': {
+    case 'begin-case': {
       const { caseId } = z.object({ caseId: z.string().min(1) }).parse(rawArguments)
       const testCase = assertSuiteCase(caseId)
       let run = readRun(paths.runState)
@@ -535,13 +535,13 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
       writeRun(paths.runState, run)
       return { caseId, profile: app.profile, restartBaseline: app.restartCount, status: 'running' }
     }
-    case 'inspect_ui': {
+    case 'inspect-ui': {
       const input = z.object({ locator: locatorSchema.optional() }).parse(rawArguments)
       return controller.inspect(input.locator as LocatorDescriptor | undefined)
     }
     case 'interact':
       return controller.interact(interactionSchema.parse(rawArguments) as InteractionRequest)
-    case 'system_action': {
+    case 'system-action': {
       const input = z
         .object({
           action: z.enum(['hotkey', 'native-file-picker', 'open-external-text', 'press-escape']),
@@ -565,20 +565,20 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
       sendSystemHotkey(platform, keys)
       return { keys, sent: true }
     }
-    case 'restart_app': {
+    case 'restart-app': {
       const before = readAppRecord(paths)
       await controller.dispose()
       const after = await restartApp(paths)
       return { afterPid: after.electronPid, beforePid: before.electronPid, restartCount: after.restartCount }
     }
-    case 'record_evidence': {
+    case 'record-evidence': {
       const input = evidenceSchema.parse(rawArguments)
       const evidence = await recordMachineEvidence(input)
       const run = addEvidence(readRun(paths.runState), input.caseId, evidence)
       writeRun(paths.runState, run)
       return evidence
     }
-    case 'complete_case': {
+    case 'complete-case': {
       const input = z
         .object({
           caseId: z.string().min(1),
@@ -597,7 +597,7 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
   }
 }
 
-const server = new McpServer({ name: 'cherry_regression', version: '1.0.0' }, { capabilities: { tools: {} } })
+const server = new McpServer({ name: 'cherry-regression', version: '1.0.0' }, { capabilities: { tools: {} } })
 
 server.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolDefinitions }))
 server.server.setRequestHandler(CallToolRequestSchema, async (request) => {

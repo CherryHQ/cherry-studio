@@ -20,14 +20,14 @@ const AGENT_ALLOWED_TOOLS = [
   'Read',
   'Glob',
   'Grep',
-  'mcp__cherry_regression__get_run_context',
-  'mcp__cherry_regression__begin_case',
-  'mcp__cherry_regression__inspect_ui',
-  'mcp__cherry_regression__interact',
-  'mcp__cherry_regression__system_action',
-  'mcp__cherry_regression__restart_app',
-  'mcp__cherry_regression__record_evidence',
-  'mcp__cherry_regression__complete_case'
+  'mcp__cherry-regression__get-run-context',
+  'mcp__cherry-regression__begin-case',
+  'mcp__cherry-regression__inspect-ui',
+  'mcp__cherry-regression__interact',
+  'mcp__cherry-regression__system-action',
+  'mcp__cherry-regression__restart-app',
+  'mcp__cherry-regression__record-evidence',
+  'mcp__cherry-regression__complete-case'
 ] as const
 
 const AGENT_DISALLOWED_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent'] as const
@@ -206,7 +206,7 @@ async function runAgentSuiteCommand(): Promise<void> {
   }
   const mcpConfig = JSON.stringify({
     mcpServers: {
-      cherry_regression: {
+      'cherry-regression': {
         command: 'node',
         args: ['node_modules/tsx/dist/cli.mjs', 'scripts/cherry-regression-test/server.ts']
       }
