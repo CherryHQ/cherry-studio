@@ -92,13 +92,10 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             max={max}
             step={item.step}
             value={numericValue}
-            // Live so the slider tracks typing; committed so the value lands in
-            // range. Null is the transient empty state (clearing to retype) —
+            // Written on settle only: the slider reads the same `painting[key]`,
+            // so writing per keystroke would feed it half-typed, out-of-range
+            // values. Null is the transient empty state (clearing to retype) —
             // writing it would drop the field below `min`.
-            onChange={(value) => {
-              if (value === null) return
-              onChange({ [fieldKey]: value })
-            }}
             onBlur={(value) => {
               if (value === null) return
               onChange({ [fieldKey]: value })

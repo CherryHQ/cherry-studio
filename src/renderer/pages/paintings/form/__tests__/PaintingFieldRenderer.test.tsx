@@ -34,6 +34,7 @@ describe('PaintingFieldRenderer slider input', () => {
     const input = screen.getByRole('textbox')
     await user.clear(input)
     await user.type(input, '7.5')
+    await user.tab()
 
     expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 7.5 })
   })
@@ -48,6 +49,18 @@ describe('PaintingFieldRenderer slider input', () => {
     await user.tab()
 
     expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 20 })
+  })
+
+  it('writes nothing while typing, so the slider never sees a half-typed value', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
+
+    const input = screen.getByRole('textbox')
+    await user.clear(input)
+    await user.type(input, '99')
+
+    expect(input).toHaveValue('99')
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('rejects letters typed into the field', async () => {
