@@ -844,7 +844,7 @@ describe('AiService tool approval', () => {
       // no topicId / anchorId
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'no-anchor-context' })
     expect(getById).not.toHaveBeenCalled()
   })
 
@@ -916,7 +916,7 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'no-caller-window' })
     expect(dispatch).not.toHaveBeenCalled()
   })
 
@@ -943,7 +943,7 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'live-stream-refused' })
     expect(hasLiveStream).toHaveBeenCalledWith('topic-1')
     // Row is NOT mutated and no continuation is dispatched.
     expect(apply).not.toHaveBeenCalled()
@@ -1071,7 +1071,7 @@ describe('AiService tool approval', () => {
     })
 
     // Resolves gracefully through the documented result shape instead of throwing.
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'anchor-missing' })
     expect(apply).toHaveBeenCalledWith('deleted-anchor', [{ approvalId: 'mcp-approval-1', approved: true }])
     expect(dispatch).not.toHaveBeenCalled()
   })
