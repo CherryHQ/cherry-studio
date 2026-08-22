@@ -1265,6 +1265,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     resolveBackgroundCode('background-auth-code')
     await vi.waitFor(() => expect(mcpSdkMock.state.finishAuthStarted).toHaveBeenCalledTimes(1))
 
+    const broadcastsBeforeStop = MockMainCacheServiceUtils.getBroadcastHistory().length
     const stop = (service as any).onStop()
     let stopped = false
     void stop.then(() => {
@@ -1273,6 +1274,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
     expect(stopped).toBe(false)
 
+    mcpSdkMock.state.finishAuthError = new Error('late token exchange failure')
     finishAuth.resolve()
     await stop
 
@@ -1280,6 +1282,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
       state: 'pending-auth'
     })
+    expect(MockMainCacheServiceUtils.getBroadcastHistory().slice(broadcastsBeforeStop)).toEqual([])
   })
 
   it('waits for an in-flight background restart during stop', async () => {
