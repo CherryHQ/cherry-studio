@@ -877,25 +877,23 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
 }
 
 /**
- * Per-type same-name detection key, aligned with {@link getKnowledgeItemDisplayTitle}.
- * file/directory key off `relativePath` (the deduped name under `raw/`, e.g.
- * `test_2.md`) when present, else the source basename. An add-input has no
- * relativePath yet, so it keys off the source basename and detection still fires;
- * an existing item keys off its deduped relativePath, so `replace` targets only
- * the one colliding copy (relativePath `test.md`) instead of every item sharing a
- * source basename (`test.md`, `test_2.md`, `test_3.md`). note keys off the same
- * {@link getKnowledgeNoteName} the display title uses, normalized through
- * {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input matches the slug an
- * already-indexed note is stored under. url stays separate from its display title: it keys off the
- * raw `data.url` (exact, no normalization) because its deduped name is a post-index snapshot name
- * absent at add-time — keying off that would miss real duplicate urls.
+ * Same-name detection key for the item types whose key is decidable from the string alone.
+ *
+ * file/directory are deliberately absent: their key is the `raw/` slot they occupy, and
+ * deciding that needs the host's reading of `\` (a separator on Windows, an ordinary
+ * filename character on POSIX), which this module cannot have. `addConflicts.ts` derives
+ * those with `node:path`.
+ *
+ * note keys off the same {@link getKnowledgeNoteName} the display title uses, normalized
+ * through {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input
+ * matches the slug an already-indexed note is stored under. url stays separate from its
+ * display title: it keys off the raw `data.url` (exact, no normalization) because its
+ * deduped name is a post-index snapshot name absent at add-time — keying off that would
+ * miss real duplicate urls.
  */
-export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
+export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource & { type: 'note' | 'url' }): string {
   const data = item.data
   switch (item.type) {
-    case 'file':
-    case 'directory':
-      return getKnowledgePathBasename(data.relativePath || data.source || '')
     case 'note': {
       const name = getKnowledgeNoteName(data)
       // An unnamed note has no real name to collide on — keep the empty key so detection skips it.
