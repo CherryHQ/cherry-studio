@@ -32,6 +32,11 @@ import { Input } from './input'
  * A minus sign is therefore always typable. Whether the value may be negative is
  * a range question, settled on commit like any other, not a keystroke question.
  *
+ * `min > max` is a call-site bug: no number satisfies it, so the field settles on
+ * none. Committing yields `null` and the arrows refuse to step, which empties the
+ * field on every commit — visible enough to find in development, where a silent
+ * pick between the two bounds would not be. It warns on every render too.
+ *
  * The field is a spin button: ArrowUp/ArrowDown step by `step`, straight into
  * `[min, max]` — an arrow press is a whole gesture, not a half-typed number, so
  * the caret cannot be trapped and the next *allowed* value is what was asked
@@ -63,9 +68,9 @@ interface InputNumberProps
   onValueChange?: (value: number | null) => void
   /** Fires on blur/Enter with the normalized value; route it back into `value` to render it. */
   onBlur?: (value: number | null) => void
-  /** The floor a committed value is clamped up to, negatives included. */
+  /** The floor a committed or stepped value is clamped up to, negatives included. Also published as `aria-valuemin`. */
   min?: number
-  /** Read on commit only, so it does nothing without `onBlur`. An empty range settles on `min` and warns. */
+  /** The ceiling a committed or stepped value is clamped down to. Also published as `aria-valuemax`. */
   max?: number
   /** Also decides whether the value is an integer: an integer `step` truncates on commit. */
   step?: number
@@ -92,10 +97,13 @@ function isTypable(raw: string): boolean {
   return typablePattern.test(raw)
 }
 
-/** Normalizes on commit only: an integer `step` truncates, then the value is clamped into range. `min` wins an empty range. */
+/** `min > max` admits no value at all, so the field can settle on none — see `InputNumberProps`. */
+const isEmptyRange = (min?: number, max?: number) => min !== undefined && max !== undefined && min > max
+
+/** Normalizes on commit only: an integer `step` truncates, then the value is clamped into range. */
 function parse(raw: string, min?: number, max?: number, step?: number): number | null {
   const parsed = Number(raw)
-  if (raw === '' || !Number.isFinite(parsed)) {
+  if (raw === '' || !Number.isFinite(parsed) || isEmptyRange(min, max)) {
     return null
   }
   const normalized = allowsDecimal(step) ? parsed : Math.trunc(parsed)
@@ -136,7 +144,9 @@ function InputNumber({
   ...props
 }: InputNumberProps) {
   if (min !== undefined && max !== undefined && min > max) {
-    console.warn(`InputNumber: min (${min}) is greater than max (${max}); the field will settle on min.`)
+    console.warn(
+      `InputNumber: min (${min}) is greater than max (${max}); no value can satisfy that, so the field will settle on none.`
+    )
   }
 
   // Non-null only while the field is focused: an unfocused field renders `value`
@@ -184,6 +194,7 @@ function InputNumber({
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       // Without this the caret jumps to the end of the text instead.
       event.preventDefault()
+      if (isEmptyRange(min, max)) return
       const delta = (step ?? 1) * (event.key === 'ArrowUp' ? 1 : -1)
       const next = stepFrom(toNumber(text) ?? value ?? min ?? 0, delta, min, max)
       setDraft(format(next))
