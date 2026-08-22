@@ -112,3 +112,21 @@ export function validateApiHost(apiHost: string): boolean {
     return false
   }
 }
+
+/**
+ * Normalize a user-entered OpenAI-compatible API host for storage as an
+ * endpoint base URL.
+ *
+ * Provider dashboards document the complete endpoint, so pasting a full route
+ * (`https://api.example.com/v1/chat/completions`) is common. The stored value,
+ * however, must be a BASE: the request layer appends `/chat/completions`
+ * itself, so keeping the route would double the path and break every call.
+ * Inputs that do not end with that route are returned byte-for-byte unchanged.
+ *
+ * See https://github.com/CherryHQ/cherry-studio/issues/18490
+ */
+export function stripChatCompletionsRoute(apiHost: string): string {
+  const trimmed = trim(apiHost)
+  const match = trimmed.match(/\/chat\/completions\/?$/i)
+  return match ? trimmed.slice(0, trimmed.length - match[0].length) : trimmed
+}

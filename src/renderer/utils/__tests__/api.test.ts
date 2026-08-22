@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatVertexApiHost, maskApiKey, routeToEndpoint, splitApiKeyString, validateApiHost } from '../api'
+import {
+  formatVertexApiHost,
+  maskApiKey,
+  routeToEndpoint,
+  splitApiKeyString,
+  stripChatCompletionsRoute,
+  validateApiHost
+} from '../api'
 
 describe('api', () => {
   describe('maskApiKey', () => {
@@ -111,6 +118,38 @@ describe('api', () => {
     it('validates supported endpoint fragments when using hash suffix', () => {
       expect(validateApiHost('https://api.example.com/v1/chat/completions#')).toBe(true)
       expect(validateApiHost('https://api.example.com/v1/unknown#')).toBe(true)
+    })
+  })
+
+  // Regression for https://github.com/CherryHQ/cherry-studio/issues/18490: a full
+  // API route pasted as the host must be stored as its base — the request layer
+  // appends `/chat/completions` itself.
+  describe('stripChatCompletionsRoute', () => {
+    it('strips a trailing chat-completion route down to the base URL', () => {
+      expect(stripChatCompletionsRoute('https://api.example.com/v1/chat/completions')).toBe(
+        'https://api.example.com/v1'
+      )
+      expect(stripChatCompletionsRoute('https://gateway.example.com/openai/v1/chat/completions')).toBe(
+        'https://gateway.example.com/openai/v1'
+      )
+    })
+
+    it('tolerates a trailing slash after the route and mixed casing', () => {
+      expect(stripChatCompletionsRoute('https://api.example.com/v1/chat/completions/')).toBe(
+        'https://api.example.com/v1'
+      )
+      expect(stripChatCompletionsRoute('https://api.example.com/v1/Chat/Completions')).toBe(
+        'https://api.example.com/v1'
+      )
+    })
+
+    it('returns non-route inputs byte-for-byte unchanged', () => {
+      expect(stripChatCompletionsRoute('https://api.example.com/v1')).toBe('https://api.example.com/v1')
+      expect(stripChatCompletionsRoute('https://api.example.com/v1/')).toBe('https://api.example.com/v1/')
+      expect(stripChatCompletionsRoute('https://api.example.com/v1/messages')).toBe(
+        'https://api.example.com/v1/messages'
+      )
+      expect(stripChatCompletionsRoute('')).toBe('')
     })
   })
 

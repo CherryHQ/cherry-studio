@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
-import { validateApiHost } from '@renderer/utils/api'
+import { stripChatCompletionsRoute, validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -91,7 +91,10 @@ export function useProviderEndpointActions({
         return false
       }
 
-      const trimmedApiHost = trim(nextApiHost)
+      // A pasted full API route (`…/v1/chat/completions`) must not be stored as
+      // the base: the request layer appends the route itself.
+      // See https://github.com/CherryHQ/cherry-studio/issues/18490
+      const trimmedApiHost = stripChatCompletionsRoute(trim(nextApiHost))
       if (!validateApiHost(trimmedApiHost)) {
         return false
       }
@@ -155,7 +158,10 @@ export function useProviderEndpointActions({
         debouncedPersistApiHost.cancel()
 
         const raw = explicitNext !== undefined ? explicitNext : apiHost
-        const trimmedApiHost = trim(raw)
+        // Same base-vs-route normalization as persistApiHostDraft: accept a pasted
+        // full API path, store the base the request layer expects.
+        // See https://github.com/CherryHQ/cherry-studio/issues/18490
+        const trimmedApiHost = stripChatCompletionsRoute(trim(raw))
         if (!validateApiHost(trimmedApiHost)) {
           setApiHost(providerApiHost)
           toast.error(t('settings.provider.api_host_no_valid'))
