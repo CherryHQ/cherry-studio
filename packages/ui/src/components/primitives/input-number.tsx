@@ -31,6 +31,15 @@ import { Input } from './input'
  *
  * A minus sign is therefore always typable. Whether the value may be negative is
  * a range question, settled on commit like any other, not a keystroke question.
+ *
+ * The field is a spin button: ArrowUp/ArrowDown step by `step`, straight into
+ * `[min, max]` — an arrow press is a whole gesture, not a half-typed number, so
+ * the caret cannot be trapped and the next *allowed* value is what was asked
+ * for. Stepping reports like typing does and still settles on blur/Enter. The
+ * range rides along in `aria-value*`, without which a screen-reader user has no
+ * way to know a bound exists until the silent clamp on blur moves their number.
+ * The wheel is deliberately left alone: over a `type="text"` field it scrolls
+ * the page, which is what someone scrolling past a form means.
  */
 interface InputNumberProps
   extends Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode' | 'value' | 'onChange' | 'onBlur' | 'size'> {
@@ -90,6 +99,24 @@ function parse(raw: string, min?: number, max?: number, step?: number): number |
   return normalized
 }
 
+/** Reads what the field shows right now — the draft while editing, `value` otherwise. */
+function toNumber(raw: string): number | null {
+  const parsed = Number(raw)
+  return raw === '' || !Number.isFinite(parsed) ? null : parsed
+}
+
+/**
+ * Steps in the step's own precision: adding `0.1` in binary floating point
+ * otherwise surfaces as `0.30000000000000004`.
+ */
+function stepFrom(base: number, step: number, min?: number, max?: number): number {
+  const decimals = String(step).split('.')[1]?.length ?? 0
+  const stepped = Number((base + step).toFixed(decimals))
+  if (min !== undefined && stepped < min) return min
+  if (max !== undefined && stepped > max) return max
+  return stepped
+}
+
 function InputNumber({
   value,
   onValueChange,
@@ -142,6 +169,14 @@ function InputNumber({
     if (event.key === 'Escape') {
       setDraft(format(value))
     }
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      // Without this the caret jumps to the end of the text instead.
+      event.preventDefault()
+      const delta = (step ?? 1) * (event.key === 'ArrowUp' ? 1 : -1)
+      const next = stepFrom(toNumber(text) ?? value ?? min ?? 0, delta, min, max)
+      setDraft(format(next))
+      onValueChange?.(next)
+    }
     onKeyDown?.(event)
   }
 
@@ -150,6 +185,10 @@ function InputNumber({
       {...props}
       type="text"
       inputMode={allowsDecimal(step) ? 'decimal' : 'numeric'}
+      role="spinbutton"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={toNumber(text) ?? undefined}
       value={text}
       className={cn(sizeClasses[size], className)}
       onFocus={(event) => {

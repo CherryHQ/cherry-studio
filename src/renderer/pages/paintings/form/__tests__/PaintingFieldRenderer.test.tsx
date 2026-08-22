@@ -31,7 +31,7 @@ describe('PaintingFieldRenderer slider input', () => {
     const user = userEvent.setup()
     const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
-    const input = screen.getByRole('textbox')
+    const input = screen.getByRole('spinbutton')
     await user.clear(input)
     await user.type(input, '7.5')
     await user.tab()
@@ -43,7 +43,7 @@ describe('PaintingFieldRenderer slider input', () => {
     const user = userEvent.setup()
     const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
-    const input = screen.getByRole('textbox')
+    const input = screen.getByRole('spinbutton')
     await user.clear(input)
     await user.type(input, '99')
     await user.tab()
@@ -55,7 +55,7 @@ describe('PaintingFieldRenderer slider input', () => {
     const user = userEvent.setup()
     const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
-    const input = screen.getByRole('textbox')
+    const input = screen.getByRole('spinbutton')
     await user.clear(input)
     await user.type(input, '99')
 
@@ -67,7 +67,7 @@ describe('PaintingFieldRenderer slider input', () => {
     const user = userEvent.setup()
     renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
-    const input = screen.getByRole('textbox')
+    const input = screen.getByRole('spinbutton')
     await user.clear(input)
     await user.type(input, '1a2')
 
