@@ -10,12 +10,7 @@ import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react
 import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH
-} from '../../shell/paneLayout'
+import { ARTIFACT_RIGHT_PANE_WIDTH_PROFILE, type RightPaneWidthProfile } from '../../shell/paneLayout'
 import { PersistentRightPaneHost, type RightPaneLayoutMode } from '../../shell/RightPaneHost'
 
 export type RightPanelReadiness = 'ready' | 'pending' | 'unavailable'
@@ -37,6 +32,8 @@ export interface RightPanelInstance {
   headerMode?: 'shell' | 'content'
   /** Whether this panel may enter maximized presentation. */
   canMaximize?: boolean
+  /** Width envelope + persisted width this panel wants; defaults to the artifact pane's. */
+  paneWidth?: RightPaneWidthProfile
 }
 
 /** Resolves one panel slot from domain-owned scope; null means the slot has no identity. */
@@ -59,6 +56,8 @@ interface ResolvedRightPanelEntry<TScope = unknown> extends RightPanelInstance {
 export interface RightPanelState {
   /** The ready panel selected for presentation; visibility is reported separately. */
   activePanelId?: string
+  /** Width envelope of the presented panel, so the host sizes it without knowing panel ids. */
+  activePaneWidth: RightPaneWidthProfile
   /** First ready entry, then first pending entry, then the first catalog entry. */
   defaultPanelId?: string
   /** Raw maximize intent, retained while environmental presentation is disabled. */
@@ -329,6 +328,7 @@ export function RightPanelProvider<TScope>({
   const state = useMemo<RightPanelState>(
     () => ({
       activePanelId: activeEntry?.id,
+      activePaneWidth: activeEntry?.paneWidth ?? ARTIFACT_RIGHT_PANE_WIDTH_PROFILE,
       defaultPanelId: defaultEntry?.id,
       maximized,
       presentationOpen,
@@ -344,6 +344,7 @@ export function RightPanelProvider<TScope>({
     }),
     [
       activeEntry?.id,
+      activeEntry?.paneWidth,
       defaultEntry?.id,
       fullWidthActive,
       isActive,
@@ -567,6 +568,7 @@ function RightPanelKeyboardShortcut() {
 export function RightPanelViewport({ children = <RightPanel /> }: { children?: ReactNode }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
+  const paneWidth = state.activePaneWidth
 
   return (
     <>
@@ -574,12 +576,10 @@ export function RightPanelViewport({ children = <RightPanel /> }: { children?: R
       <PersistentRightPaneHost
         open={state.presentationOpen}
         maximized={state.presentationMaximized}
-        width={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
         resizable
-        minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
-        defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
-        maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
-        cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
+        minWidth={paneWidth.minWidth}
+        maxWidth={paneWidth.maxWidth}
+        cacheKey={paneWidth.cacheKey}
         onLayoutAnimationComplete={actions.completeLayoutAnimation}
         onFullWidthPhaseChange={actions.reportFullWidthPhase}
         onResizingChange={actions.reportPaneResizing}

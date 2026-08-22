@@ -10,10 +10,10 @@ import { useOptionalRightPanelState, useRightPanelComposerElevated } from '../pa
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  ARTIFACT_RIGHT_PANE_WIDTH_PROFILE,
   CHAT_SHELL_TRANSITION,
-  type ChatPanePosition
+  type ChatPanePosition,
+  type RightPaneWidthProfile
 } from './paneLayout'
 import { evaluateAutoCollapse, predictCenterWidth } from './paneWidthPolicy'
 import { RightPaneHost } from './RightPaneHost'
@@ -57,8 +57,8 @@ export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterConten
 
 const MANUAL_EXPAND_RELEASE_NARROWING = 8
 
-function clampPaneStoredWidth(width: number): number {
-  return Math.min(ARTIFACT_RIGHT_PANE_MAX_WIDTH, Math.max(ARTIFACT_RIGHT_PANE_MIN_WIDTH, Math.round(width)))
+function clampPaneStoredWidth(width: number, { minWidth, maxWidth }: RightPaneWidthProfile): number {
+  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
 }
 
 /**
@@ -91,7 +91,10 @@ function useResourceListAutoCollapse({
 }) {
   const rightPanelState = useOptionalRightPanelState()
   const [storedListWidth] = usePersistCache('ui.chat.sidebar.width')
-  const [storedPaneWidth] = usePersistCache('ui.chat.artifact_pane.width')
+  // The prediction must size the pane that is actually presented; a list and an artifact
+  // have different widths, and reading the wrong one strands the list collapsed.
+  const paneProfile = rightPanelState?.activePaneWidth ?? ARTIFACT_RIGHT_PANE_WIDTH_PROFILE
+  const [storedPaneWidth] = usePersistCache(paneProfile.cacheKey)
 
   const dockedPaneOpen = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
   // `fullWidthActive` is host-reported one commit late; `presentationMaximized` and
@@ -120,14 +123,15 @@ function useResourceListAutoCollapse({
   const leftPaneOpenRef = useRef(leftPaneOpen)
   const frozenRef = useRef(frozen)
   const dockedPaneOpenRef = useRef(dockedPaneOpen)
-  const widthsRef = useRef({ listWidth: 0, paneWidth: 0 })
+  const widthsRef = useRef({ listWidth: 0, paneWidth: 0, paneMin: 0 })
   const onChangeRef = useRef(onPaneAutoCollapseChange)
   leftPaneOpenRef.current = leftPaneOpen
   frozenRef.current = frozen
   dockedPaneOpenRef.current = dockedPaneOpen
   widthsRef.current = {
     listWidth: clampResourceListPaneWidth(storedListWidth ?? 0),
-    paneWidth: clampPaneStoredWidth(storedPaneWidth ?? 0)
+    paneWidth: clampPaneStoredWidth(storedPaneWidth ?? 0, paneProfile),
+    paneMin: paneProfile.minWidth
   }
   useEffect(() => {
     onChangeRef.current = onPaneAutoCollapseChange
@@ -153,7 +157,8 @@ function useResourceListAutoCollapse({
         shellWidth,
         listWidth: widthsRef.current.listWidth,
         paneOpen: dockedPaneOpenRef.current,
-        paneWidth: widthsRef.current.paneWidth
+        paneWidth: widthsRef.current.paneWidth,
+        paneMin: widthsRef.current.paneMin
       })
       let next = evaluateAutoCollapse(predictedCenter, collapsedRef.current)
       // Never newly collapse a list the user is not showing; releasing stays allowed.
