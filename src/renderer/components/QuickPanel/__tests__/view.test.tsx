@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import React, { Activity, useEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1214,13 +1213,12 @@ describe('QuickPanelView', () => {
     const staleAction = await screen.findByRole('button', { name: 'Open target tab' })
     fireEvent.mouseMove(screen.getByTestId('quick-panel-body'))
     vi.useFakeTimers()
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
 
-    await user.click(staleAction)
+    fireEvent.click(staleAction)
     expect(screen.getByRole('status', { name: 'Active tab' })).toHaveTextContent('target')
     expect(onNavigate).toHaveBeenCalledTimes(1)
 
-    await user.click(screen.getByRole('button', { name: 'Return to source tab' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Return to source tab' }))
 
     expect(screen.getByRole('status', { name: 'Active tab' })).toHaveTextContent('source')
     expect(screen.queryByRole('button', { name: 'Open target tab' })).not.toBeInTheDocument()
