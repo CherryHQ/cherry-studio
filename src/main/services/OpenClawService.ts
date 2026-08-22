@@ -401,16 +401,25 @@ export class OpenClawService extends BaseService {
   }
 
   protected async onReady(): Promise<void> {
+    // Align the probe port with the persisted preference so external gateways on a
+    // custom port are detected before any sync/start runs this session.
+    this.syncGatewayPortFromPreference()
     // Detect externally-started gateways without renderer polling; registerInterval is lifecycle-cleaned.
     this.registerInterval(() => this.probeGatewayTick(), GATEWAY_PROBE_INTERVAL_MS)
+  }
+
+  private syncGatewayPortFromPreference(): void {
+    const port = application.get('PreferenceService').get('feature.openclaw.gateway_port')
+    if (typeof port === 'number' && Number.isInteger(port) && port > 0) this.gatewayPort = port
   }
 
   protected async onStop(): Promise<void> {
     await this.stopGateway()
   }
 
-  /** Single gateway-status-transition point: assign, then broadcast the get_status-shaped payload. */
+  /** Single gateway-status-transition point: assign, then broadcast; same-value calls are not transitions. */
   private setGatewayStatus(status: GatewayStatus): void {
+    if (this.gatewayStatus === status) return
     this.gatewayStatus = status
     this.gatewayTransitionId++
     try {
@@ -456,7 +465,8 @@ export class OpenClawService extends BaseService {
         this.setGatewayStatus('stopped')
       }
     } catch (error) {
-      // Connection refused is the steady state while no gateway runs — probe noise, not an error.
+      // Unreachable gateways surface as an unhealthy result, not an exception; only
+      // unexpected errors land here.
       logger.warn('OpenClaw gateway health probe failed', error as Error)
     }
   }
