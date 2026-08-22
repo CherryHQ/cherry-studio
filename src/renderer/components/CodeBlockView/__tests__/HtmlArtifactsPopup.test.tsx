@@ -125,6 +125,22 @@ describe('HtmlArtifactsPopup', () => {
     expect(screen.getByRole('button', { name: 'html_artifacts.capture.label' })).toBeInTheDocument()
   })
 
+  it('still honors an explicit canCapturePreview={false} on the default preview path', () => {
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<div><h2>Hello</h2></div>"
+        canCapturePreview={false}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTitle('common.html_preview')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'html_artifacts.capture.label' })).not.toBeInTheDocument()
+  })
+
   it('keeps interactive fragments interactive: an active fragment opens in the hardened webview', () => {
     render(
       <HtmlArtifactsPopup

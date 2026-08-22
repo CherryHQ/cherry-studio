@@ -191,8 +191,9 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
 
   // The interactive (webview) tier exposes no capture iframe, so the capture menu only
   // makes sense on the script-less frame — both for the default surface and callers.
+  // An explicit canCapturePreview={false} from any caller is still honored.
   const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
-  const effectiveCanCapturePreview = renderPreview ? canCapturePreview : !requiresInteractivePreview
+  const effectiveCanCapturePreview = renderPreview ? canCapturePreview : canCapturePreview && !requiresInteractivePreview
 
   const renderPreviewPanel = () =>
     renderPreview ? (
