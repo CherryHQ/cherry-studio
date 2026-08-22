@@ -1699,6 +1699,9 @@
     },
     "expand": "Développer",
     "more": "Plus",
+    "preview": {
+      "invalid_json": "Configuration JSON invalide"
+    },
     "run": "Exécuter le code",
     "split": {
       "label": "Fractionner la vue",
