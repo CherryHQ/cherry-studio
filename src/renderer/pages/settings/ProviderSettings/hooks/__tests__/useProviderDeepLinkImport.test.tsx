@@ -8,6 +8,8 @@ import { useProviderDeepLinkImport } from '../useProviderDeepLinkImport'
 
 const createProviderMock = vi.fn()
 const updateProviderByIdMock = vi.fn()
+const createModelsMock = vi.fn()
+const syncProviderModelsForProviderMock = vi.fn()
 const addApiKeyTriggerMock = vi.fn()
 const navigateMock = vi.fn()
 const popupShowMock = vi.fn()
@@ -19,6 +21,16 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderActions: () => ({
     updateProviderById: updateProviderByIdMock
   })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelMutations: () => ({
+    createModels: createModelsMock
+  })
+}))
+
+vi.mock('../useProviderModelSync', () => ({
+  syncProviderModelsForProvider: (...args: any[]) => syncProviderModelsForProviderMock(...args)
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -42,6 +54,8 @@ describe('useProviderDeepLinkImport', () => {
     vi.clearAllMocks()
     createProviderMock.mockResolvedValue({ id: 'openai' })
     updateProviderByIdMock.mockResolvedValue(undefined)
+    createModelsMock.mockResolvedValue([])
+    syncProviderModelsForProviderMock.mockResolvedValue([])
     addApiKeyTriggerMock.mockResolvedValue(undefined)
   })
 
@@ -154,6 +168,48 @@ describe('useProviderDeepLinkImport', () => {
       to: '/settings/provider',
       search: { id: 'anthropic' }
     })
+  })
+
+  it('syncs models and enables the provider when the confirmed deep link opts in', async () => {
+    const onSelectProvider = vi.fn()
+    const persistedProvider = { id: 'everyapi', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }
+    createProviderMock.mockResolvedValue(persistedProvider)
+    syncProviderModelsForProviderMock.mockResolvedValue([{ id: 'everyapi::gpt-5' }])
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'everyapi',
+        name: 'EveryAPI',
+        type: 'openai',
+        apiKey: 'sk-everyapi',
+        apiHost: 'https://api.everyapi.example/v1'
+      },
+      isNew: true,
+      displayName: 'EveryAPI',
+      autoSyncModels: true
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'everyapi',
+          apiKey: 'sk-everyapi',
+          baseUrl: 'https://api.everyapi.example/v1',
+          type: 'openai',
+          name: 'EveryAPI',
+          autoSyncModels: true
+        }),
+        onSelectProvider
+      )
+    )
+
+    await waitFor(() => expect(onSelectProvider).toHaveBeenCalledWith('everyapi'))
+
+    expect(syncProviderModelsForProviderMock).toHaveBeenCalledWith({
+      providerId: 'everyapi',
+      endpointProvider: persistedProvider,
+      createModels: createModelsMock
+    })
+    expect(updateProviderByIdMock).toHaveBeenCalledWith('everyapi', { isEnabled: true })
   })
 
   it('shows an error toast and clears the search state for invalid input', async () => {
