@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   netFetch: vi.fn(),
   notifyDataChange: vi.fn(),
   openExternal: vi.fn(),
+  acquireGatewayLease: vi.fn(),
+  releaseGatewayLease: vi.fn(),
   storedBytes: null as Uint8Array | null,
   writeFile: vi.fn()
 }))
@@ -33,6 +35,9 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
+      if (name === 'ApiGatewayService') {
+        return { acquireLease: mocks.acquireGatewayLease, releaseLease: mocks.releaseGatewayLease }
+      }
       throw new Error(`Unexpected service: ${name}`)
     },
     getPath: () => '/mock/cherry-cloud-session.enc'
@@ -156,6 +161,7 @@ describe('CherryCloudService', () => {
     mocks.modelCreate.mockReturnValue([])
     mocks.modelBulkUpdate.mockReturnValue([])
     mocks.openExternal.mockResolvedValue(undefined)
+    mocks.acquireGatewayLease.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
   })
 
@@ -383,8 +389,18 @@ describe('CherryCloudService', () => {
       .mockResolvedValueOnce(
         jsonResponse({
           data: [
-            { id: 'deepseek-free', display_name: 'DeepSeek Free' },
-            { id: 'deepseek-go', display_name: 'DeepSeek GO' }
+            {
+              id: 'deepseek-free',
+              display_name: 'DeepSeek Free',
+              context_window: 128_000,
+              max_output_tokens: 8_192
+            },
+            {
+              id: 'deepseek-go',
+              display_name: 'DeepSeek GO',
+              context_window: 256_000,
+              max_output_tokens: 16_384
+            }
           ]
         })
       )
@@ -399,7 +415,9 @@ describe('CherryCloudService', () => {
           providerId: 'cherryai',
           modelId: 'deepseek-free',
           name: 'DeepSeek Free',
-          group: 'Cherry Cloud'
+          group: 'Cherry Cloud',
+          contextWindow: 128_000,
+          maxOutputTokens: 8_192
         })
       }
     ])
@@ -511,5 +529,29 @@ describe('CherryCloudService', () => {
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     expect(mocks.writeFile).not.toHaveBeenCalled()
+  })
+
+  it('clears the Product Session when Cloud API rejects authentication', async () => {
+    restoreSignedInState()
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
+
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.writeFile).toHaveBeenCalledOnce()
+  })
+
+  it('holds one temporary API gateway lease while Cloud Work can use the signed session', async () => {
+    restoreSignedInState()
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await Promise.all([service.ensureAgentGateway(), service.ensureAgentGateway()])
+    expect(mocks.acquireGatewayLease).toHaveBeenCalledOnce()
+
+    await service._doStop()
+    expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
   })
 })

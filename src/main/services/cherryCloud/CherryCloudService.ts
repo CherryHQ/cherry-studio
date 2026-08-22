@@ -4,9 +4,13 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { atomicWriteFile } from '@main/utils/file'
-import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_MODEL_GROUP,
+  CHERRYAI_DEFAULT_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -30,7 +34,6 @@ const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
 const SESSION_FILE_MODE = 0o600
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
-const CLOUD_MODEL_GROUP = 'Cherry Cloud'
 const EMPTY_BODY = new Uint8Array()
 
 function resolveApiOrigin(): string {
@@ -76,11 +79,14 @@ export class CherryCloudLoginUnavailableError extends Error {
 
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['ApiGatewayService'])
 export class CherryCloudService extends BaseService {
   private storedState: StoredCherryCloudState = structuredClone(EMPTY_STORED_CHERRY_CLOUD_STATE)
   private loginPromise: Promise<CherryCloudStatus> | null = null
   private refreshPromise: Promise<NonNullable<StoredCherryCloudState['session']>> | null = null
   private modelSyncPromise: Promise<{ modelCount: number }> | null = null
+  private agentGatewayLeasePromise: Promise<void> | null = null
+  private hasAgentGatewayLease = false
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private exchangePromise: {
     authorizationId: string
@@ -94,6 +100,10 @@ export class CherryCloudService extends BaseService {
       this.loopbackCallback = null
     })
     await this.restoreState()
+  }
+
+  protected async onStop(): Promise<void> {
+    await this.releaseAgentGatewayLease()
   }
 
   public async getStatus(): Promise<CherryCloudStatus> {
@@ -319,7 +329,9 @@ export class CherryCloudService extends BaseService {
     return { modelCount: models.length }
   }
 
-  private reconcileFreeModels(models: Array<{ id: string; display_name: string }>): void {
+  private reconcileFreeModels(
+    models: Array<{ id: string; display_name: string; context_window: number; max_output_tokens: number }>
+  ): void {
     const current = modelService.list({ providerId: CHERRYAI_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
     const remoteByModelId = new Map(models.map((model) => [model.id, model]))
@@ -328,7 +340,7 @@ export class CherryCloudService extends BaseService {
       const modelId = parseUniqueModelId(model.id).modelId
       if (
         modelId === CHERRYAI_DEFAULT_MODEL_ID ||
-        (model.group !== CLOUD_MODEL_GROUP && !remoteByModelId.has(modelId))
+        (model.group !== CHERRY_CLOUD_MODEL_GROUP && !remoteByModelId.has(modelId))
       ) {
         return []
       }
@@ -336,9 +348,11 @@ export class CherryCloudService extends BaseService {
       const enabled = Boolean(remote)
       if (
         model.name === (remote?.display_name ?? model.name) &&
-        model.group === CLOUD_MODEL_GROUP &&
+        model.group === CHERRY_CLOUD_MODEL_GROUP &&
         model.endpointTypes?.length === 1 &&
         model.endpointTypes[0] === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+        model.contextWindow === remote?.context_window &&
+        model.maxOutputTokens === remote?.max_output_tokens &&
         model.supportsStreaming &&
         model.isEnabled === enabled
       ) {
@@ -350,8 +364,9 @@ export class CherryCloudService extends BaseService {
           modelId,
           patch: {
             ...(remote ? { name: remote.display_name } : {}),
-            group: CLOUD_MODEL_GROUP,
+            group: CHERRY_CLOUD_MODEL_GROUP,
             endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+            ...(remote ? { contextWindow: remote.context_window, maxOutputTokens: remote.max_output_tokens } : {}),
             supportsStreaming: true,
             isEnabled: enabled
           }
@@ -366,8 +381,10 @@ export class CherryCloudService extends BaseService {
             providerId: CHERRYAI_PROVIDER_ID,
             modelId: model.id,
             name: model.display_name,
-            group: CLOUD_MODEL_GROUP,
+            group: CHERRY_CLOUD_MODEL_GROUP,
             endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+            contextWindow: model.context_window,
+            maxOutputTokens: model.max_output_tokens,
             supportsStreaming: true
           }
         }))
@@ -408,8 +425,22 @@ export class CherryCloudService extends BaseService {
     return this.currentStatus()
   }
 
-  public getModelApiBaseUrl(): string {
-    return `${resolveApiOrigin()}/v1`
+  public async ensureAgentGateway(): Promise<void> {
+    await this.activeSession()
+    if (this.hasAgentGatewayLease) return
+    if (this.agentGatewayLeasePromise) return this.agentGatewayLeasePromise
+
+    const acquire = application
+      .get('ApiGatewayService')
+      .acquireLease()
+      .then(() => {
+        this.hasAgentGatewayLease = true
+      })
+      .finally(() => {
+        if (this.agentGatewayLeasePromise === acquire) this.agentGatewayLeasePromise = null
+      })
+    this.agentGatewayLeasePromise = acquire
+    return acquire
   }
 
   private async getAuthenticatedJson<T>(path: string, schema: ZodType<T>, headers?: HeadersInit): Promise<T> {
@@ -474,8 +505,16 @@ export class CherryCloudService extends BaseService {
   private async clearSession(): Promise<void> {
     this.storedState = { ...this.storedState, session: null }
     await this.persistState()
+    await this.releaseAgentGatewayLease()
     this.reconcileFreeModels([])
     this.emitStatus()
+  }
+
+  private async releaseAgentGatewayLease(): Promise<void> {
+    await this.agentGatewayLeasePromise?.catch(() => undefined)
+    if (!this.hasAgentGatewayLease) return
+    this.hasAgentGatewayLease = false
+    application.get('ApiGatewayService').releaseLease()
   }
 
   private resolveRequestUrl(input: RequestInfo | URL): URL {
@@ -543,6 +582,7 @@ export class CherryCloudService extends BaseService {
       session: sessionExpired ? null : this.storedState.session
     }
     await this.persistState()
+    if (sessionExpired) await this.releaseAgentGatewayLease()
     this.emitStatus()
   }
 

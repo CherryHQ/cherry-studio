@@ -21,6 +21,7 @@ import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isCherryCloudWorkModel } from '@shared/data/presets/cherryai'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
@@ -75,7 +76,7 @@ interface RuntimeModelRef {
 }
 
 interface ClaudeCodeRouteFacts {
-  branch: 'external-cli' | 'gateway' | 'direct'
+  branch: 'external-cli' | 'gateway' | 'cherry-cloud' | 'direct'
   baseUrl?: string
   /** Rotation-insensitive auth/header identity — see {@link WarmQueryRequest.credentialsFingerprint}. */
   credentialsFingerprint: string
@@ -107,7 +108,7 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
 
 /** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
 function gatewayBypassRule(route: Pick<ClaudeCodeRouteFacts, 'branch' | 'baseUrl'>): string | undefined {
-  if (route.branch !== 'gateway' || !route.baseUrl) return undefined
+  if ((route.branch !== 'gateway' && route.branch !== 'cherry-cloud') || !route.baseUrl) return undefined
 
   try {
     return new URL(route.baseUrl).hostname
@@ -682,9 +683,10 @@ function deriveRouteFacts(
     }
   }
 
-  const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
-  )
+  const usesCherryCloud = modelRefs.some((ref) => isCherryCloudWorkModel(ref.providerId, ref.model?.group))
+  const shouldUseGateway =
+    usesCherryCloud ||
+    modelRefs.some((ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref))
 
   if (shouldUseGateway) {
     const apiGatewayService = application.get('ApiGatewayService')
@@ -696,7 +698,7 @@ function deriveRouteFacts(
     // changes once when the key is generated, costing a single extra rebuild. Accepted.
     const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
     return {
-      branch: 'gateway',
+      branch: usesCherryCloud ? 'cherry-cloud' : 'gateway',
       baseUrl: `http://${host}:${port}`,
       credentialsFingerprint: fingerprintCredentials([
         typeof gatewayKey === 'string' ? gatewayKey : '',
@@ -773,8 +775,10 @@ async function resolveClaudeCodeRuntimeRoute(
           frozenModels: facts.usageModels
         }
       }
+    case 'cherry-cloud':
     case 'gateway': {
-      const gateway = await resolveApiGatewayRuntime(sessionId)
+      if (facts.branch === 'cherry-cloud') await application.get('CherryCloudService').ensureAgentGateway()
+      const gateway = await resolveApiGatewayRuntime(sessionId, { allowDisabled: facts.branch === 'cherry-cloud' })
       return {
         ...facts,
         baseUrl: gateway.baseUrl,
