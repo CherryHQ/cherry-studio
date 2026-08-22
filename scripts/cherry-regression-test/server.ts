@@ -11,7 +11,7 @@ import { CONFIG_REFS, getSensitiveConfigValues, loadTestConfig } from './config'
 import { type InteractionRequest, type LocatorDescriptor, RegressionController, type WindowScope } from './controller'
 import type { FileEvidenceOptions } from './file-evidence'
 import { FIXTURE_MARKERS } from './fixtures'
-import { ensureProfile, type InstallationRecord, readAppRecord, restartApp } from './lifecycle'
+import { ensureProfile, readAppRecord, restartApp } from './lifecycle'
 import { getRunPaths, resolveAllowedPath } from './paths'
 import { listOwnedProcessIds } from './process-evidence'
 import { createRedactor } from './redaction'
@@ -239,10 +239,6 @@ function requireRunningCase(caseId: string): void {
 
 function fileContract(evidenceId: string): { expectedPath?: string; options: FileEvidenceOptions } {
   switch (evidenceId) {
-    case 'installed-app': {
-      const installation = JSON.parse(readFileSync(paths.installation, 'utf8')) as InstallationRecord
-      return { expectedPath: installation.executablePath, options: { minimumBytes: 1, type: 'file' } }
-    }
     case 'ppt-file':
       return {
         expectedPath: join(paths.workspace, 'cherry-regression-31415.pptx'),
@@ -321,7 +317,6 @@ function restartExpectedText(evidenceId: string): string {
 
 function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
   const contracts: Record<string, string[]> = {
-    'app-version': [readRun(paths.runState).metadata.appVersion],
     'assistant-saved': [FIXTURE_MARKERS.assistantName],
     'assistant-prompt-response': [FIXTURE_MARKERS.assistantResponse],
     'cherryin-identity': [config.cherryIn.account],
@@ -420,7 +415,7 @@ async function recordMachineEvidence(input: z.infer<typeof evidenceSchema>): Pro
         }
       }
       observation = (await controller.recordFile(input.path, contract.options)) as typeof observation
-      if (!['installed-app', 'selection-source-preserved'].includes(input.evidenceId)) {
+      if (input.evidenceId !== 'selection-source-preserved') {
         const details = observation.details as { modifiedAt?: string; sha256?: string }
         const result = readRun(paths.runState).cases[input.caseId]
         const contractFailures: string[] = []

@@ -219,9 +219,9 @@ jobs:
               --output "$RUN_DIR/claude-settings-$suite.json"
           done
 
-      - name: Run suite 1 — startup and models
+      - name: Run suite 1 — app startup smoke test
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 10
         shell: bash
         env:
           MCP_TIMEOUT: "30000"
@@ -232,7 +232,7 @@ jobs:
           --suite suite-1
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run suite 2 — assistant interactions
+      - name: Run suite 2 — models and assistant interactions
         continue-on-error: true
         timeout-minutes: 50
         shell: bash

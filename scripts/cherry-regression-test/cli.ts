@@ -212,6 +212,7 @@ async function runAgentSuiteCommand(): Promise<void> {
       }
     }
   })
+  const startupOnly = suite === 'suite-1'
   const result = spawnSync(
     claudePath,
     [
@@ -220,7 +221,7 @@ async function runAgentSuiteCommand(): Promise<void> {
       '--model',
       config.customProvider.chatModel,
       '--max-turns',
-      '180',
+      startupOnly ? '12' : '180',
       '--output-format',
       'json',
       '--no-session-persistence',
@@ -239,7 +240,13 @@ async function runAgentSuiteCommand(): Promise<void> {
       'dontAsk',
       `Run suite ${suite}. Use only the CI MCP workflow for application control and evidence. Finish every applicable case with its actual status.`
     ],
-    { cwd: process.cwd(), encoding: 'utf8', env: environment, maxBuffer: 100 * 1024 * 1024, timeout: 45 * 60_000 }
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: environment,
+      maxBuffer: 100 * 1024 * 1024,
+      timeout: (startupOnly ? 8 : 45) * 60_000
+    }
   )
   const redact = createRedactor(getSensitiveConfigValues(config))
   writeFileSync(

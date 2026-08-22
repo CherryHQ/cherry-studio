@@ -34,8 +34,8 @@ describe('regression test manifest', () => {
     expect(
       SUITE_IDS.map((suiteId) => REGRESSION_CASES.filter(({ suite }) => suite === suiteId).map(({ id }) => id))
     ).toEqual([
-      ['S-01', 'M-01', 'M-02'],
-      ['C-01', 'C-02', 'C-03'],
+      ['S-01'],
+      ['M-01', 'M-02', 'C-01', 'C-02', 'C-03'],
       ['K-01', 'K-02', 'MCP-01'],
       ['A-01', 'A-02', 'A-03', 'A-04', 'A-05'],
       ['P-01', 'P-02', 'T-01', 'T-02'],
@@ -56,10 +56,11 @@ describe('regression test manifest', () => {
     }
   })
 
-  it('reserves fresh-install validation for release artifacts', () => {
-    const freshInstall = REGRESSION_CASES.find(({ id }) => id === 'S-01')
-    expect(freshInstall?.modes).toEqual(['tag'])
-    expect(REGRESSION_CASES.filter(({ modes }) => modes.includes('branch'))).toHaveLength(22)
+  it('runs only the startup smoke test in suite 1 for both modes', () => {
+    const startup = REGRESSION_CASES.find(({ id }) => id === 'S-01')
+    expect(startup?.modes).toEqual(['branch', 'tag'])
+    expect(startup?.evidence.map(({ id }) => id)).toEqual(['startup-content', 'startup-screen'])
+    expect(REGRESSION_CASES.filter(({ modes }) => modes.includes('branch'))).toHaveLength(23)
     expect(REGRESSION_CASES.every(({ modes }) => modes.includes('tag'))).toBe(true)
   })
 

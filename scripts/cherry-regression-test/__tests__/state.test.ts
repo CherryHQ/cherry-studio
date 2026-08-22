@@ -55,7 +55,7 @@ describe('evidence-backed run state', () => {
       })
     )
 
-    expect(run.cases['S-01'].status).toBe('not_applicable')
+    expect(run.cases['S-01'].status).toBe('blocked')
     expect(run.cases['M-01'].status).toBe('blocked')
     expect(getRunVerdict(run)).toBe('development_blocked')
   })

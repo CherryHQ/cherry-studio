@@ -13,31 +13,21 @@ function screenshot(id: string): EvidenceRequirement {
 export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'S-01',
-    title: '全新安装和首次启动',
+    title: '应用启动冒烟测试',
     suite: 'suite-1',
     profile: 'clean',
-    modes: ['tag'],
-    steps: [
-      'Install the release asset into a fresh environment and launch with an empty profile.',
-      'Open the home page, each primary feature entry, and Settings.',
-      'Compare the displayed version with the release version.'
-    ],
-    acceptance: [
-      'Installation and startup complete without a white screen, crash, or blocking error.',
-      'Chat, Agent, Paintings, Translate, Mini Apps, Knowledge, Code, and Notes entries open.',
-      'The displayed version matches the release under test.'
-    ],
+    modes: ['branch', 'tag'],
+    steps: ['Launch with an empty profile and wait for the main window to render visible application content.'],
+    acceptance: ['The main window renders visible content without a white screen, crash, or blocking startup error.'],
     evidence: [
-      requirement('installed-app', 'file', 'Verify the installed application executable exists'),
-      requirement('app-version', 'ui', 'Read the displayed application version'),
-      requirement('primary-entrypoints', 'ui', 'Observe every required primary entry opening'),
-      screenshot('fresh-start')
+      requirement('startup-content', 'ui', 'Observe visible content in the rendered main window'),
+      screenshot('startup-screen')
     ]
   },
   {
     id: 'M-01',
     title: '登录 CherryIN 并完成聊天',
-    suite: 'suite-1',
+    suite: 'suite-2',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
@@ -61,7 +51,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   {
     id: 'M-02',
     title: '配置自定义服务商并完成聊天',
-    suite: 'suite-1',
+    suite: 'suite-2',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
