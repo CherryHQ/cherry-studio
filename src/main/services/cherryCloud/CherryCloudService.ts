@@ -265,7 +265,7 @@ export class CherryCloudService extends BaseService {
         exchangeDesktopAuthorizationResponseSchema
       )
       await this.sessionCleanupPromise?.catch(() => undefined)
-      if (this.cloudState.pending !== pending) {
+      if (this.cloudState.pending !== pending || Date.parse(pending.expiresAt) <= Date.now()) {
         throw new Error('Cherry Cloud authorization is no longer active')
       }
 

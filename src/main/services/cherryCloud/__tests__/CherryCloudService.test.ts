@@ -333,7 +333,7 @@ describe('CherryCloudService', () => {
         )
       )
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
-      await vi.advanceTimersByTimeAsync(5_000)
+      vi.setSystemTime(new Date('2030-01-02T03:00:06Z'))
       pendingExchange.resolve(jsonResponse(exchangeResponse()))
 
       await expect(callback).rejects.toThrow('no longer active')
