@@ -114,7 +114,7 @@ async function waitForExit(pid: number, timeoutMs = 8_000): Promise<boolean> {
 function terminateExactProcess(pid: number, platform: Platform): void {
   if (!isAlive(pid)) return
   if (platform === 'windows') {
-    execFileSync('taskkill.exe', ['/PID', String(pid), '/T'], { stdio: 'ignore', timeout: 10_000 })
+    execFileSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
     return
   }
   process.kill(pid, 'SIGTERM')

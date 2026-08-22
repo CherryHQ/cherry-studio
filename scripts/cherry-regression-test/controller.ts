@@ -6,11 +6,11 @@ import { type Browser, chromium, type Locator, type Page } from '@playwright/tes
 
 import type { ConfigRef, RegressionTestConfig } from './config'
 import { getConfigRef } from './config'
-import { type FileEvidenceOptions, validateFileEvidence } from './fileEvidence'
+import { type FileEvidenceOptions, validateFileEvidence } from './file-evidence'
 import { readAppRecord } from './lifecycle'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
-import { observeOwnedProcess } from './processEvidence'
+import { observeOwnedProcess } from './process-evidence'
 
 export type WindowScope = 'any' | 'main' | 'quick-assistant' | 'selection-assistant'
 
