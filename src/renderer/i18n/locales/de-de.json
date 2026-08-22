@@ -5807,7 +5807,7 @@
         "memory": "MCP-Server mit persistenter Erinnerungsbasis auf lokalem Wissensgraphen, der Informationen über verschiedene Dialoge hinweg speichert. MEMORY_FILE_PATH-Umgebungsvariable muss konfiguriert werden",
         "no": "Keine Beschreibung",
         "nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
-        "python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
+        "python": "Führen Sie Python-Code in einer sicheren Browser-Sandbox aus. Verwenden Sie Pyodide zum Ausführen von Python; die meisten Standardbibliotheken und Pakete für wissenschaftliche Berechnungen werden unterstützt. Es kann nicht auf Dateien auf dem Hostcomputer oder der lokalen Festplatte zugreifen.",
         "qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Erfordert die Konfiguration der Umgebungsvariable QVERIS_API_KEY.",
         "sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht"
       },

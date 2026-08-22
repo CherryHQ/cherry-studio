@@ -5807,7 +5807,7 @@
         "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH.",
         "no": "sans description",
         "nowledge_mem": "Nécessite l’application Nowledge Mem exécutée localement. Conserve les discussions IA, outils, notes, agents et fichiers dans une mémoire privée sur votre ordinateur. Téléchargez depuis https://mem.nowledge.co/",
-        "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
+        "python": "Exécutez du code Python dans un bac à sable sécurisé du navigateur. Utilisez Pyodide pour exécuter Python, avec la prise en charge de la plupart des bibliothèques standard et des packages de calcul scientifique. Il ne peut pas accéder aux fichiers de l’ordinateur hôte ni au disque local.",
         "qveris": "Connectez-vous à QVeris pour découvrir, inspecter et appeler des capacités d’agents IA. Nécessite de configurer la variable d’environnement QVERIS_API_KEY.",
         "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
       },
