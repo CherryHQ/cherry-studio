@@ -5910,6 +5910,7 @@
         "connecting": "Conectare",
         "disabled": "Dezactivat",
         "error": "Eroare",
+        "pendingAuth": "Autorizare în așteptare",
         "unavailable": "Indisponibil"
       },
       "search": {

@@ -5910,6 +5910,7 @@
         "connecting": "Kết nối",
         "disabled": "Vô hiệu hóa",
         "error": "Lỗi",
+        "pendingAuth": "Đang chờ xác thực",
         "unavailable": "Không có sẵn"
       },
       "search": {

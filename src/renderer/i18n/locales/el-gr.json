@@ -5910,6 +5910,7 @@
         "connecting": "Σύνδεση",
         "disabled": "Απενεργοποιημένο",
         "error": "Σφάλμα",
+        "pendingAuth": "Εκκρεμεί εξουσιοδότηση",
         "unavailable": "Μη διαθέσιμο"
       },
       "search": {

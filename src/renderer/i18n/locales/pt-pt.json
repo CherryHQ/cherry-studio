@@ -5910,6 +5910,7 @@
         "connecting": "A ligar",
         "disabled": "Desativado",
         "error": "Erro",
+        "pendingAuth": "Autorização pendente",
         "unavailable": "Indisponível"
       },
       "search": {

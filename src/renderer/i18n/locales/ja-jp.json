@@ -5910,6 +5910,7 @@
         "connecting": "接続中",
         "disabled": "無効",
         "error": "エラー",
+        "pendingAuth": "認証待ち",
         "unavailable": "利用不可"
       },
       "search": {

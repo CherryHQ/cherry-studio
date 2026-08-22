@@ -5910,6 +5910,7 @@
         "connecting": "连接中",
         "disabled": "已禁用",
         "error": "错误",
+        "pendingAuth": "待授权",
         "unavailable": "不可用"
       },
       "search": {

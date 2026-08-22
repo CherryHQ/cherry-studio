@@ -5910,6 +5910,7 @@
         "connecting": "Connecting",
         "disabled": "Disabled",
         "error": "Error",
+        "pendingAuth": "Pending Auth",
         "unavailable": "Unavailable"
       },
       "search": {

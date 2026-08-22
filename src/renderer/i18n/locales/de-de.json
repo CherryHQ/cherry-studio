@@ -5910,6 +5910,7 @@
         "connecting": "Verbinden",
         "disabled": "Deaktiviert",
         "error": "Fehler",
+        "pendingAuth": "Autorisierung ausstehend",
         "unavailable": "Nicht verfügbar"
       },
       "search": {

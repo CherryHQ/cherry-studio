@@ -5910,6 +5910,7 @@
         "connecting": "Подключение",
         "disabled": "Отключено",
         "error": "Ошибка",
+        "pendingAuth": "Ожидает авторизации",
         "unavailable": "Недоступно"
       },
       "search": {

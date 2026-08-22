@@ -8,6 +8,13 @@ import type { OAuthCallbackServerOptions } from './types'
 
 const logger = loggerService.withContext('Mcp:OAuthCallbackServer')
 
+export class OAuthCallbackTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`)
+    this.name = 'OAuthCallbackTimeoutError'
+  }
+}
+
 export class CallBackServer {
   private server: Promise<http.Server>
   private events: EventEmitter
@@ -113,26 +120,45 @@ export class CallBackServer {
   }
 
   async close() {
-    const server = await this.server
-    server.close()
+    const server = await this.server.catch(() => undefined)
+    server?.close()
   }
 
   /**
    * Resolve with the OAuth authorization code, or reject if none arrives within
    * `timeoutMs`. Without the reject path the caller's `await` hangs forever on a
    * cancelled / never-completed callback, leaking the connect attempt and its status.
+   *
+   * Default is 60 s — long enough for a user to complete an OAuth flow in a browser
+   * tab, but short enough that a pending-auth server does not stall startup for 5 minutes.
+   * Callers that need a different bound pass `timeoutMs` explicitly.
    */
-  async waitForAuthCode(timeoutMs = 300_000): Promise<string> {
+  async waitForAuthCode(timeoutMs = 60_000, signal?: AbortSignal): Promise<string> {
     return new Promise((resolve, reject) => {
-      const onCode = (code: string) => {
+      const cleanup = () => {
         clearTimeout(timer)
+        this.events.off('auth-code-received', onCode)
+        signal?.removeEventListener('abort', onAbort)
+      }
+      const onCode = (code: string) => {
+        cleanup()
         resolve(code)
       }
+      const onAbort = () => {
+        cleanup()
+        reject(signal?.reason ?? new Error('OAuth callback wait aborted'))
+      }
       const timer = setTimeout(() => {
-        this.events.off('auth-code-received', onCode)
-        reject(new Error(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`))
+        cleanup()
+        reject(new OAuthCallbackTimeoutError(timeoutMs))
       }, timeoutMs)
       this.events.once('auth-code-received', onCode)
+      void this.server.catch((error) => {
+        cleanup()
+        reject(error)
+      })
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
     })
   }
 }
