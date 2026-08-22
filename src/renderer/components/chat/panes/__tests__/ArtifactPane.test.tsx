@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ArtifactPane, {
   ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
   ArtifactPaneView,
+  clearOpenTargetMenuItemsCacheForTests,
   getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
@@ -136,6 +137,7 @@ const mocks = vi.hoisted(() => ({
   }>,
   openTargetsError: null as Error | null,
   openTargetsGate: null as (() => Promise<void>) | null,
+  openTargetListCalls: [] as Array<{ pathKind: string; targetPath: string }>,
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
   filePreviewProps: [] as Array<{
@@ -569,6 +571,7 @@ vi.mock('@renderer/components/OpenTarget', () => ({
     />
   ),
   loadOpenTargetMenuItems: async ({ targetPath, pathKind }: { targetPath: string; pathKind: 'file' | 'directory' }) => {
+    mocks.openTargetListCalls.push({ pathKind, targetPath })
     if (mocks.openTargetsError) throw mocks.openTargetsError
     if (mocks.openTargetsGate) await mocks.openTargetsGate()
     return [
@@ -663,6 +666,7 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language: 'en' },
     t: (key: string, options?: { count?: number; extension?: string; name?: string }) => {
       if (key === 'agent.preview_pane.items') return `${options?.count ?? 0} localized items`
       if (key === 'agent.preview_pane.office.title') return `unsupported ${options?.extension ?? ''}`
@@ -702,6 +706,8 @@ describe('ArtifactPane', () => {
     mocks.externalApps = []
     mocks.openTargetsError = null
     mocks.openTargetsGate = null
+    mocks.openTargetListCalls = []
+    clearOpenTargetMenuItemsCacheForTests()
     mocks.isDirectory.mockResolvedValue(false)
     // Default: tiny text files. `getMetadata().type` drives text detection
     // (via useIsTextFile) and `.size` drives the size gate — override per-test
@@ -1334,6 +1340,126 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(toggleItem)
     expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/draft.md')
+  })
+
+  it('refreshes the current file when a resolved header menu outlives a file switch', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['draft.md', 'other.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    expect(await within(overlay).findByTestId('code-editor')).toBeInTheDocument()
+
+    // Resolve the header menu while draft.md is open in edit mode.
+    fireEvent.contextMenu(within(overlay).getByText('draft.md'))
+    await screen.findByRole('menuitem', { name: 'agent.preview_pane.refresh' })
+
+    // Switch files underneath the open menu snapshot, then trigger its Refresh:
+    // it must act on the now-open file and never reload the previous session.
+    fireEvent.click(screen.getByTestId('tree-node-other.md'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.preview_pane.refresh' }))
+
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/other.md')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '1')
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.read')).toHaveLength(1)
+  })
+
+  it('applies the current editor mode when the toolbar toggles under an open menu', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+
+    // Resolve the menu while in preview: the frozen snapshot offers "edit".
+    fireEvent.contextMenu(within(overlay).getByText('draft.md'))
+    const staleToggle = await screen.findByRole('menuitem', { name: 'common.edit' })
+
+    // Toggle to edit through the toolbar while the snapshot stays open, then
+    // click the stale item: it must go back to preview, not repeat "edit".
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    expect(await within(overlay).findByTestId('code-editor')).toBeInTheDocument()
+
+    fireEvent.click(staleToggle)
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/draft.md')
+    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
+  })
+
+  it('drops in-flight open targets and rebuilds tab actions when the file switches mid-lookup', async () => {
+    let releaseOpenTargets!: () => void
+    const openTargetsGate = new Promise<void>((resolve) => {
+      releaseOpenTargets = resolve
+    })
+    mocks.openTargetsGate = () => openTargetsGate
+    mockWorkspaceTree('/tmp/workspace', ['a.md', 'b.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-a.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-a.md'))
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+
+    fireEvent.contextMenu(within(overlay).getByText('a.md'))
+    // Tab actions render synchronously while the lookup is gated.
+    expect(screen.getByRole('menuitem', { name: 'agent.preview_pane.refresh' })).toBeInTheDocument()
+
+    // Switch files underneath the opening menu, then let the lookup land.
+    fireEvent.click(screen.getByTestId('tree-node-b.md'))
+    await act(async () => {
+      releaseOpenTargets()
+      await Promise.resolve()
+    })
+
+    // a.md's open targets must not appear for b.md; the baseline is rebuilt.
+    expect(screen.queryByRole('menuitem', { name: 'Finder' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.preview_pane.refresh' }))
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/b.md')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '1')
+  })
+
+  it('shows the full-path tooltip on the overlay header title', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(within(overlay).getByText('README.md')).toHaveAttribute('title', '/tmp/workspace/README.md')
+  })
+
+  it('caches open-target lookups across repeated right-clicks until invalidated', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+
+    fireEvent.contextMenu(within(overlay).getByText('README.md'))
+    expect(await screen.findByRole('menuitem', { name: 'Finder' })).toBeInTheDocument()
+    expect(mocks.openTargetListCalls).toHaveLength(1)
+
+    // A second right-click on the same path reuses the cached lookup.
+    fireEvent.contextMenu(within(overlay).getByText('README.md'))
+    expect(await screen.findByRole('menuitem', { name: 'Finder' })).toBeInTheDocument()
+    expect(mocks.openTargetListCalls).toHaveLength(1)
+
+    // Clearing the cache (as TTL expiry does) issues a fresh lookup.
+    clearOpenTargetMenuItemsCacheForTests()
+    fireEvent.contextMenu(within(overlay).getByText('README.md'))
+    expect(await screen.findByRole('menuitem', { name: 'Finder' })).toBeInTheDocument()
+    expect(mocks.openTargetListCalls).toHaveLength(2)
   })
 
   it('keeps the selected lazy file while expanded directories are refreshing', async () => {

@@ -93,6 +93,52 @@ function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id
   return node.id === WORKSPACE_ROOT_ID ? workspacePath : joinPath(workspacePath, node.id)
 }
 
+/**
+ * The opened-file header menu resolves open targets on every right-click. Cache
+ * the resolved items briefly so rapid clicks don't re-issue the
+ * `external_app.target.list` IPC round-trip; caching the promise also dedupes
+ * overlapping lookups for the same path. `loadOpenTargetMenuItems` never
+ * rejects (it maps failures to an empty list), so caching the promise is safe.
+ */
+const OPEN_TARGET_MENU_ITEMS_TTL_MS = 5_000
+const OPEN_TARGET_MENU_ITEMS_CACHE_LIMIT = 32
+interface OpenTargetMenuItemsCacheEntry {
+  at: number
+  promise: Promise<readonly CommandContextMenuExtraItem[]>
+}
+const openTargetMenuItemsCache = new Map<string, OpenTargetMenuItemsCacheEntry>()
+
+/** Test-only: drop all cached open-target menu lookups. */
+export function clearOpenTargetMenuItemsCacheForTests(): void {
+  openTargetMenuItemsCache.clear()
+}
+
+function loadOpenTargetMenuItemsCached(
+  options: Parameters<typeof loadOpenTargetMenuItems>[0],
+  language: string | undefined
+) {
+  const key = `${options.pathKind}\0${options.targetPath}\0${language ?? ''}`
+  const cached = openTargetMenuItemsCache.get(key)
+  if (cached && Date.now() - cached.at < OPEN_TARGET_MENU_ITEMS_TTL_MS) return cached.promise
+
+  // Bound growth: drop expired entries first, then evict oldest-inserted.
+  if (openTargetMenuItemsCache.size >= OPEN_TARGET_MENU_ITEMS_CACHE_LIMIT) {
+    const now = Date.now()
+    for (const [entryKey, entry] of openTargetMenuItemsCache) {
+      if (now - entry.at >= OPEN_TARGET_MENU_ITEMS_TTL_MS) openTargetMenuItemsCache.delete(entryKey)
+    }
+    while (openTargetMenuItemsCache.size >= OPEN_TARGET_MENU_ITEMS_CACHE_LIMIT) {
+      const oldestKey = openTargetMenuItemsCache.keys().next().value
+      if (oldestKey === undefined) break
+      openTargetMenuItemsCache.delete(oldestKey)
+    }
+  }
+
+  const promise = loadOpenTargetMenuItems(options)
+  openTargetMenuItemsCache.set(key, { at: Date.now(), promise })
+  return promise
+}
+
 interface ArtifactPaneViewBaseProps {
   workspacePath?: string
   maximized?: boolean
@@ -145,7 +191,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     editMode = 'preview',
     onEditModeChange
   } = props
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -264,23 +310,38 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const fileSessionReload = fileSession?.reload
   const fileSessionFlush = fileSession?.flush
   const fileSessionDiscard = fileSession?.discard
-  // Context-menu items outlive their opening render, so read the dirty flag at
-  // click time — a stale `false` here would reload away an unsaved draft.
+  const editorLoading = fileSession?.status === 'loading'
+  // Context-menu items outlive their opening render (the menu portal stays open
+  // across renders), so every value they read at click time must live in a ref —
+  // a stale closure here would reload away an unsaved draft or act on a
+  // previously opened file.
+  const editModeRef = useRef(editMode)
+  editModeRef.current = editMode
+  const editorLoadingRef = useRef(editorLoading)
+  editorLoadingRef.current = editorLoading
+  const canEditSelectionRef = useRef(canEditSelection)
+  canEditSelectionRef.current = canEditSelection
   const isEditDirtyRef = useRef(isEditDirty)
   isEditDirtyRef.current = isEditDirty
+  const fileSessionReloadRef = useRef(fileSessionReload)
+  fileSessionReloadRef.current = fileSessionReload
+  const overlayPathsRef = useRef<{ filePath?: string; workspacePath?: string }>({})
+  overlayPathsRef.current = { filePath: overlayFilePath, workspacePath: overlayWorkspacePath }
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
-    if (overlayWorkspacePath && overlayFilePath) {
+    const { filePath, workspacePath } = overlayPathsRef.current
+    if (workspacePath && filePath) {
       setContentRefreshToken((value) => value + 1)
     }
-    if (editMode === 'edit' && fileSessionReload && !isEditDirtyRef.current) {
-      void fileSessionReload().catch((error: unknown) => {
+    const reload = fileSessionReloadRef.current
+    if (editModeRef.current === 'edit' && reload && !isEditDirtyRef.current) {
+      void reload().catch((error: unknown) => {
         logger.error('Failed to refresh editable file snapshot', error as Error)
         toast.error(t('agent.preview_pane.edit.refresh_failed'))
       })
     }
-  }, [editMode, fileSessionReload, overlayFilePath, overlayWorkspacePath, refresh, reloadExpandedDirectories, t])
+  }, [refresh, reloadExpandedDirectories, t])
 
   const handleClosePreview = useCallback(() => {
     if (onPreviewClose) {
@@ -373,7 +434,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     fileSessionDiscard?.()
   }, [fileSessionDiscard])
 
-  const editorLoading = fileSession?.status === 'loading'
   const nextEditorMode = editMode === 'preview' ? 'edit' : 'preview'
   const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
   const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
@@ -383,47 +443,63 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   // refresh, close). Tab actions are the synchronous baseline; open targets
   // resolve asynchronously and are best-effort — an unresolvable path must
   // never wipe the whole menu.
-  const tabActionItems = useMemo<CommandContextMenuExtraItem[]>(
-    () => [
-      ...(canEditSelection
-        ? [
-            {
-              type: 'item' as const,
-              id: 'artifact-pane.overlay.toggle-edit-mode',
-              label: modeActionLabel,
-              icon: <ModeActionIcon size={14} />,
-              enabled: !editorLoading,
-              onSelect: () => handleEditorModeChange(nextEditorMode)
-            }
-          ]
-        : []),
-      {
-        type: 'item' as const,
-        id: 'artifact-pane.overlay.refresh',
-        label: t('agent.preview_pane.refresh'),
-        icon: <RotateCw size={14} />,
-        onSelect: handleRefresh
-      },
-      { type: 'separator' },
-      {
-        type: 'item' as const,
-        id: 'artifact-pane.overlay.close',
-        label: t('agent.preview_pane.close'),
-        icon: <X size={14} />,
-        onSelect: handleClosePreview
-      }
-    ],
-    [
-      canEditSelection,
-      editorLoading,
-      handleClosePreview,
-      handleEditorModeChange,
-      handleRefresh,
-      ModeActionIcon,
-      modeActionLabel,
-      nextEditorMode,
-      t
-    ]
+  //
+  // Items come from a factory: click-time behavior always reads the refs above,
+  // while the displayed label/icon/enabled come from an explicit snapshot (the
+  // latest render for the pending baseline, live refs for mid-flight rebuilds).
+  const buildTabActionItems = useCallback(
+    (snapshot?: {
+      canEditSelection?: boolean
+      editMode?: 'preview' | 'edit'
+      editorLoading?: boolean
+    }): CommandContextMenuExtraItem[] => {
+      const canEdit = snapshot?.canEditSelection ?? canEditSelectionRef.current
+      const currentMode = snapshot?.editMode ?? editModeRef.current
+      const isLoading = snapshot?.editorLoading ?? editorLoadingRef.current
+      const label = t(currentMode === 'preview' ? 'common.edit' : 'common.preview')
+      const ModeIcon = currentMode === 'preview' ? SquarePen : Eye
+      return [
+        ...(canEdit
+          ? [
+              {
+                type: 'item' as const,
+                id: 'artifact-pane.overlay.toggle-edit-mode',
+                label,
+                icon: <ModeIcon size={14} />,
+                enabled: !isLoading,
+                // The target mode is derived from the ref at click time — the
+                // toolbar may have toggled the mode while this snapshot was open.
+                onSelect: () => {
+                  if (editorLoadingRef.current) return
+                  handleEditorModeChange(editModeRef.current === 'preview' ? 'edit' : 'preview')
+                }
+              }
+            ]
+          : []),
+        {
+          type: 'item' as const,
+          id: 'artifact-pane.overlay.refresh',
+          label: t('agent.preview_pane.refresh'),
+          icon: <RotateCw size={14} />,
+          onSelect: handleRefresh
+        },
+        { type: 'separator' },
+        {
+          type: 'item' as const,
+          id: 'artifact-pane.overlay.close',
+          label: t('agent.preview_pane.close'),
+          icon: <X size={14} />,
+          onSelect: handleClosePreview
+        }
+      ]
+    },
+    [handleClosePreview, handleEditorModeChange, handleRefresh, t]
+  )
+
+  // Pending baseline rendered synchronously while open targets resolve.
+  const tabActionItems = useMemo(
+    () => buildTabActionItems({ canEditSelection, editMode, editorLoading }),
+    [buildTabActionItems, canEditSelection, editMode, editorLoading]
   )
 
   // Open-target items can outlive their opening render (the menu stays open
@@ -436,13 +512,20 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     let openTargetItems: readonly CommandContextMenuExtraItem[] = []
     try {
       const targetPath = getArtifactPaneSelectionPath(overlaySelection)
-      openTargetItems = await loadOpenTargetMenuItems({ targetPath, pathKind: 'file', t })
+      openTargetItems = await loadOpenTargetMenuItemsCached({ targetPath, pathKind: 'file', t }, i18n.language)
     } catch (error) {
       logger.warn('Failed to resolve open targets for the opened-file header menu', error as Error)
     }
-    if (currentPreviewKeyRef.current !== previewKey) return tabActionItems
-    return [...openTargetItems, ...(openTargetItems.length ? [{ type: 'separator' } as const] : []), ...tabActionItems]
-  }, [overlaySelection, previewKey, tabActionItems, t])
+    // The selection changed while the lookup was in flight: the resolved items
+    // point at the previous path, so drop them and rebuild the baseline from
+    // live refs instead of returning a stale snapshot.
+    if (currentPreviewKeyRef.current !== previewKey) return buildTabActionItems()
+    return [
+      ...openTargetItems,
+      ...(openTargetItems.length ? [{ type: 'separator' } as const] : []),
+      ...buildTabActionItems()
+    ]
+  }, [buildTabActionItems, i18n, overlaySelection, previewKey, t])
 
   const paneHeader =
     props.headerVariant === 'pane' ? (
@@ -475,7 +558,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   'min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm',
                   overlaySelection && 'cursor-context-menu'
                 )}
-                title={overlaySelection?.filePath}>
+                title={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : undefined}>
                 {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
               </div>
             </CommandContextMenu>
@@ -565,7 +648,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 disabled={!overlaySelection}
                 pendingExtraItems={tabActionItems}
                 getExtraItems={getOverlayMenuItems}>
-                <span className="cursor-context-menu truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
+                <span className="cursor-context-menu truncate" title={getArtifactPaneSelectionPath(overlaySelection)}>
+                  {getPreviewFileTitle(overlaySelection.filePath)}
+                </span>
               </CommandContextMenu>
               {isEditDirty && (
                 <span
