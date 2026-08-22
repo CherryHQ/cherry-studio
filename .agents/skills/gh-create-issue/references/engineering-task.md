@@ -9,8 +9,8 @@ outside that directory is what stops regular users from picking it. It is used b
 
 ## Eligibility
 
-Restricted to repository members and collaborators. The skill verifies this before use; see
-[SKILL.md](../SKILL.md) Step 1.
+Restricted to repository members and collaborators holding `write` or `admin` permission. The skill
+verifies this before use; see [SKILL.md](../SKILL.md) Step 1.
 
 ## Metadata
 

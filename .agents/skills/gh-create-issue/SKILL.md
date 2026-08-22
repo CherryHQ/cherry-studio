@@ -24,17 +24,24 @@ Engineering Task is not a GitHub issue form and is not offered to regular users.
 
 #### Eligibility Check (Engineering Task only)
 
-Engineering Task is restricted to repository members and collaborators. Before collecting any
-information, confirm the authenticated user has write access to the repository:
+Engineering Task is restricted to repository members and collaborators with write access. Before
+collecting any information, confirm the authenticated user's permission level:
 
 ```bash
 repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 user="$(gh api user --jq .login)"
-gh api "repos/$repo/collaborators/$user" --silent >/dev/null 2>&1 && echo "eligible" || echo "not eligible"
+permission="$(gh api "repos/$repo/collaborators/$user/permission" --jq .permission 2>/dev/null)"
+case "$permission" in
+  admin | write) echo "eligible" ;;
+  *) echo "not eligible" ;;
+esac
 ```
 
-A `204` (`eligible`) means the user is a collaborator or an org member with repository access.
-Anything else means they are not.
+Only `admin` and `write` are eligible (`maintain` reports as `write`). Always compare the returned
+value: on a public repository this endpoint answers `read` for any user, including one who is not a
+collaborator at all, so a successful call proves nothing on its own. Do not use
+`repos/{owner}/{repo}/collaborators/{user}` here — collaborators can hold `read` or `triage` only,
+and those users cannot apply the restricted labels or the issue type anyway.
 
 If the check fails, **stop**. Tell the user this template is restricted to members and
 collaborators, and ask them to choose one of the public templates instead. Do not silently fall back
