@@ -557,10 +557,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </div>
     ) : null
 
+  // The chip is not cleared on click: the composer receives the reference over a window event and can still
+  // refuse it (an insertion that would exceed the input limit), and nothing reports that back here. Clearing
+  // optimistically would drop the selection on exactly those failures, with no way to get the chip back short
+  // of re-selecting. The chip's lifetime is already owned by the effects above — file switch, edit mode, and
+  // the plugin reporting a new or cleared selection.
   const handleInsertSelectionReference = useCallback(() => {
     if (!selectionReference) return
     onInsertSelectionReference?.(selectionReference)
-    setSelectionReference(null)
   }, [onInsertSelectionReference, selectionReference])
 
   const previewContent = overlaySelection ? (
