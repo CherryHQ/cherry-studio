@@ -355,12 +355,19 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputAdapter
         }
 
-        consumeInputQueryOnce()
+        // Button-tracked queries are live filters (e.g. Knowledge Base). Consuming them
+        // on first select deletes the typed filter and re-shows the unfiltered list.
+        const keepLiveFilter = Boolean(ctx.trackInputQuery && ctx.triggerInfo?.type === 'button')
+        if (!keepLiveFilter) {
+          consumeInputQueryOnce()
+        }
         ctx.beforeAction?.(quickPanelCallBackOptions)
         item?.action?.(quickPanelCallBackOptions)
         ctx.afterAction?.(quickPanelCallBackOptions)
-        queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
-        setInputSearchText('')
+        if (!keepLiveFilter) {
+          queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
+          setInputSearchText('')
+        }
         return
       }
 
