@@ -55,6 +55,25 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
     }
   }
 
+  if (provider && matchesPreset(provider, 'qwencloud')) {
+    // Chat `enable_search` follows the QwenCloud web-search supported-models table; eligible lines
+    // take the `agent` strategy (docs.qwencloud.com/developer-guides/text-generation/web-search).
+    const apiModelId = getRawModelId(model)
+    const searchStrategy =
+      /qwen3[.-]8-(?:max|2)|qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(
+        apiModelId
+      )
+        ? 'agent'
+        : undefined
+    return {
+      enable_search: true,
+      search_options: {
+        forced_search: true,
+        ...(searchStrategy ? { search_strategy: searchStrategy } : {})
+      }
+    }
+  }
+
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
   if (provider && matchesPreset(provider, 'poe')) {
     return {
@@ -137,6 +156,11 @@ export function buildProviderBuiltinWebSearchConfig(
         // `undefined` (not `{}`) is what suppresses the tool: `providerWebSearchFeature` applies on a
         // truthy config, so an empty object would still attach it.
         return servesResponsesWebSearch(model) ? { openai: {} } : undefined
+      }
+      if (model && provider && matchesPreset(provider, 'qwencloud')) {
+        // Only the DeepSeek-V4/GLM-5.2 lines take the Responses web_search tool (docs.qwencloud.com
+        // web-search); Qwen lines search via Chat's enable_search — `undefined` keeps the tool off.
+        return /deepseek-v4|glm-5\.2/.test(getRawModelId(model)) ? { openai: {} } : undefined
       }
       const searchContextSize =
         model && isOpenAIDeepResearchModel(model)
