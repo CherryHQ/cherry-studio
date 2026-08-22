@@ -26,6 +26,7 @@ import { CherryCloudLoopbackCallback } from './loopbackCallback'
 
 const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
+const PRODUCTION_API_ORIGIN = 'https://cloud.cherryai.com.cn'
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
@@ -57,8 +58,7 @@ function emptyState(): CherryCloudState {
 }
 
 function resolveApiOrigin(): string {
-  if (app.isPackaged) throw new Error('Cherry Cloud production API origin is not configured')
-  return DEVELOPMENT_API_ORIGIN
+  return app.isPackaged ? PRODUCTION_API_ORIGIN : DEVELOPMENT_API_ORIGIN
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
