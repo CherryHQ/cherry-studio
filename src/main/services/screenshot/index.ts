@@ -9,4 +9,3 @@
 export { captureAllMonitors, listMonitors } from './screenCapture'
 export { ScreenshotOverlayService } from './ScreenshotOverlayService'
 export { ScreenCaptureError, ScreenCapturePermissionError } from './types'
-export { listWindowsOffThread } from './windowEnumerator'

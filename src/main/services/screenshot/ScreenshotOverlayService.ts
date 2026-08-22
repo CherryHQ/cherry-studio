@@ -560,8 +560,8 @@ export class ScreenshotOverlayService extends BaseService {
     if (DIAGNOSTICS_ENABLED) {
       logger.info(
         `[Diagnostics/screenshot] snap targets ready ${(performance.now() - startedAt).toFixed(0)}ms ` +
-          `after the overlays opened, ${snapCandidates.length} candidates ` +
-          `(0 means the worker finished before the overlays did)`
+          `after the overlays opened (0ms means the enumeration finished first), ` +
+          `${snapCandidates.length} candidates`
       )
     }
 
