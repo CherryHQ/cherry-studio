@@ -1038,6 +1038,38 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(statusPayloads().at(-1)).toEqual({ status: 'stopped' })
     })
+
+    it('does not broadcast when a stop finds the gateway already stopped', async () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      checkPortOpenSpy.mockResolvedValue(false)
+
+      await expect(service.stopGateway()).resolves.toEqual({ success: true })
+
+      expect(broadcastMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('gateway port preference sync', () => {
+    it('adopts the persisted custom gateway port at readiness', () => {
+      vi.mocked(application.get).mockImplementationOnce(
+        () =>
+          ({
+            get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 18888 : undefined)
+          }) as never
+      )
+
+      ;(service as any).syncGatewayPortFromPreference()
+
+      expect((service as any).gatewayPort).toBe(18888)
+    })
+
+    it('keeps the default port when the preference value is not a positive integer', () => {
+      vi.mocked(application.get).mockImplementationOnce(() => ({ get: () => 'en-US' }) as never)
+
+      ;(service as any).syncGatewayPortFromPreference()
+
+      expect((service as any).gatewayPort).toBe(18790)
+    })
   })
 
   describe('probeGatewayTick (external gateway detection)', () => {
