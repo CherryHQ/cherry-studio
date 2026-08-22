@@ -812,6 +812,29 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'qwen3-max-preview'
       ]
     },
+    qwencloud: {
+      'web-search': [
+        'deepseek-v4-flash',
+        'deepseek-v4-flash-vision-exp',
+        'deepseek-v4-pro',
+        'glm-5-2',
+        'glm-5-2-fast',
+        'qwen3-5-flash',
+        'qwen3-5-flash-02-23',
+        'qwen3-5-plus',
+        'qwen3-5-plus-02-15',
+        'qwen3-6-flash',
+        'qwen3-6-plus',
+        'qwen3-7-flash',
+        'qwen3-7-max',
+        'qwen3-7-plus',
+        'qwen3-8-2-4t-a95b',
+        'qwen3-8-max',
+        'qwen3-8-max-preview',
+        'qwen3-max',
+        'qwen3-max-preview'
+      ]
+    },
     doubao: {
       'web-search': [
         'doubao-seed-1-6',
