@@ -1,0 +1,63 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const service = vi.hoisted(() => ({
+  getStatus: vi.fn(),
+  startLogin: vi.fn(),
+  syncFreeModels: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) => {
+      if (name === 'CherryCloudService') return service
+      throw new Error(`Unexpected service: ${name}`)
+    }
+  }
+}))
+
+import { CherryCloudLoginUnavailableError } from '@main/services/cherryCloud/CherryCloudService'
+import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
+import { cherryCloudHandlers } from '../cherryCloud'
+
+describe('cherryCloudHandlers', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('returns only the public login status', async () => {
+    service.getStatus.mockResolvedValue({ phase: 'signed-in', displayName: 'Sora' })
+
+    await expect(cherryCloudHandlers['cherry_cloud.status.get'](undefined, { senderId: 'w1' })).resolves.toEqual({
+      phase: 'signed-in',
+      displayName: 'Sora'
+    })
+  })
+
+  it('starts login through the lifecycle service', async () => {
+    service.startLogin.mockResolvedValue({ phase: 'authorizing', displayName: null })
+
+    await expect(cherryCloudHandlers['cherry_cloud.login.start'](undefined, { senderId: 'w1' })).resolves.toEqual({
+      phase: 'authorizing',
+      displayName: null
+    })
+  })
+
+  it('syncs the signed-in free model catalog', async () => {
+    service.syncFreeModels.mockResolvedValue({ modelCount: 2 })
+
+    await expect(cherryCloudHandlers['cherry_cloud.models.sync'](undefined, { senderId: 'w1' })).resolves.toEqual({
+      modelCount: 2
+    })
+  })
+
+  it('maps an unavailable login service to a stable IPC error', async () => {
+    service.startLogin.mockRejectedValueOnce(new CherryCloudLoginUnavailableError())
+
+    const error = await cherryCloudHandlers['cherry_cloud.login.start'](undefined, { senderId: 'w1' }).catch(
+      (caught: unknown) => caught
+    )
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toHaveProperty('code', cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE)
+  })
+})

@@ -7,7 +7,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
+import { readApiGatewayConnectionSnapshot } from '@main/ai/runtime/agentApiGateway'
 import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
 import { resolveDshInjectionApi } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -15,6 +15,7 @@ import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isCherryCloudWorkModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
@@ -84,6 +85,14 @@ export async function captureDshConnectionSnapshot(
   const linkedChannel = channel?.agentId === agent.id ? channel : null
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
+  const usesCherryCloud = isCherryCloudWorkModel(model.providerId, model.group)
+  const cherryCloudSessionGeneration = usesCherryCloud
+    ? await application.get('CherryCloudService').getSessionGeneration()
+    : null
+  const gatewayConnectionFingerprint =
+    usesCherryCloud || resolveDshInjectionApi(provider, model) === undefined
+      ? readApiGatewayConnectionSnapshot().fingerprint
+      : null
 
   const signature = createHash('sha256')
     .update(
@@ -100,10 +109,8 @@ export async function captureDshConnectionSnapshot(
           mcpTools,
           linkedChannelId: linkedChannel?.id ?? null,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
-          // the warm connection (claude's credentialsFingerprint parity); null on native routes.
-          gatewayCredentials:
-            resolveDshInjectionApi(provider, model) === undefined ? gatewayCredentialsFingerprint() : null
+          cherryCloudSessionGeneration,
+          gatewayConnectionFingerprint
         })
       )
     )

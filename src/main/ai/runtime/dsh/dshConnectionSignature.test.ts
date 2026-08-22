@@ -1,4 +1,5 @@
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -11,10 +12,23 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   findMcp: vi.fn(),
   listTools: vi.fn(),
-  findBySessionId: vi.fn()
+  findBySessionId: vi.fn(),
+  resolveDshInjectionApi: vi.fn(),
+  cloudSessionGeneration: 0,
+  gatewayFingerprint: 'gateway-1'
 }))
 
-vi.mock('@application', () => ({ application: { get: () => ({ listTools: mocks.listTools }) } }))
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) => {
+      if (name === 'McpCatalogService') return { listTools: mocks.listTools }
+      if (name === 'CherryCloudService') {
+        return { getSessionGeneration: async () => mocks.cloudSessionGeneration }
+      }
+      throw new Error(`Unexpected service: ${name}`)
+    }
+  }
+}))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/ProviderService', () => ({
@@ -29,8 +43,10 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: { list: mocks.listSkills, getSkillDirectory: mocks.getSkillDirectory }
 }))
 
-vi.mock('@main/ai/runtime/dsh/modelInjection', () => ({ resolveDshInjectionApi: vi.fn(() => undefined) }))
-vi.mock('@main/ai/runtime/agentApiGateway', () => ({ gatewayCredentialsFingerprint: vi.fn(() => 'gateway') }))
+vi.mock('@main/ai/runtime/dsh/modelInjection', () => ({ resolveDshInjectionApi: mocks.resolveDshInjectionApi }))
+vi.mock('@main/ai/runtime/agentApiGateway', () => ({
+  readApiGatewayConnectionSnapshot: () => ({ fingerprint: mocks.gatewayFingerprint })
+}))
 
 const { captureDshConnectionSnapshot } = await import('./dshConnectionSignature')
 
@@ -59,6 +75,9 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
+  mocks.resolveDshInjectionApi.mockReturnValue(undefined)
+  mocks.cloudSessionGeneration = 0
+  mocks.gatewayFingerprint = 'gateway-1'
 })
 
 describe('captureDshConnectionSnapshot', () => {
@@ -120,5 +139,29 @@ describe('captureDshConnectionSnapshot', () => {
     await expect(captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.toMatchObject({
       linkedChannel: null
     })
+  })
+
+  it('rebuilds the Cloud route when its Session or gateway identity changes', async () => {
+    const normalSignature = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    mocks.cloudSessionGeneration = 1
+    expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).toBe(
+      normalSignature
+    )
+
+    mocks.resolveDshInjectionApi.mockReturnValue('anthropic-messages')
+    mocks.getProvider.mockResolvedValue({ id: CHERRYAI_PROVIDER_ID })
+    mocks.getModel.mockResolvedValue({
+      id: `${CHERRYAI_PROVIDER_ID}::deepseek-free`,
+      providerId: CHERRYAI_PROVIDER_ID,
+      group: CHERRY_CLOUD_MODEL_GROUP
+    })
+    const captureCloud = () =>
+      captureDshConnectionSnapshot('session-1', agent.id, `${CHERRYAI_PROVIDER_ID}::deepseek-free`)
+    const cloudSignature = (await captureCloud()).signature
+    mocks.cloudSessionGeneration = 2
+    expect((await captureCloud()).signature).not.toBe(cloudSignature)
+    mocks.cloudSessionGeneration = 1
+    mocks.gatewayFingerprint = 'gateway-2'
+    expect((await captureCloud()).signature).not.toBe(cloudSignature)
   })
 })

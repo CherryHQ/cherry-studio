@@ -6470,6 +6470,14 @@
       "check": "Verificar",
       "check_all_keys": "Verificar todas las claves",
       "check_multiple_keys": "Verificar múltiples claves API",
+      "cherry_cloud": {
+        "logged_in": "Sesión iniciada",
+        "login": "Iniciar sesión con la cuenta de Cherry Studio",
+        "logout": "Cerrar sesión",
+        "logout_failed": "No se pudo cerrar sesión. Inténtalo de nuevo.",
+        "sign_in_failed": "Error al iniciar sesión. Inténtalo de nuevo.",
+        "signing_in": "Esperando la autorización del navegador…"
+      },
       "cherryin": {
         "api_host": {
           "acceleration": "Dominio de aceleración",

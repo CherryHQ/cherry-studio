@@ -12,6 +12,7 @@
  * equivalent are unsupported for pi agents.
  */
 
+import { isCherryCloudWorkModel } from '@shared/data/presets/cherryai'
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import type { Model } from '@shared/data/types/model'
@@ -122,5 +123,8 @@ export function hasKnownPiContextWindow(model: Model): model is Model & { contex
 
 /** Whether a pi agent can use this provider+model. Used for renderer filtering. */
 export function isPiCompatibleModel(provider: Provider, model: Model): boolean {
+  // Cherry Cloud is not driven with the provider's local key/config. The main
+  // process injects an Anthropic route to the signed local gateway instead.
+  if (isCherryCloudWorkModel(model.providerId, model.group)) return hasKnownPiContextWindow(model)
   return resolvePiApi(provider, model) !== undefined && hasKnownPiContextWindow(model)
 }

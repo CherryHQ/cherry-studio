@@ -21,6 +21,7 @@ import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isCherryCloudWorkModel } from '@shared/data/presets/cherryai'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
@@ -38,7 +39,11 @@ import {
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
-import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
+import {
+  readApiGatewayConnectionSnapshot,
+  resolveApiGatewayRuntime,
+  resolveCherryCloudGatewayRuntime
+} from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -75,7 +80,7 @@ interface RuntimeModelRef {
 }
 
 interface ClaudeCodeRouteFacts {
-  branch: 'external-cli' | 'gateway' | 'direct'
+  branch: 'external-cli' | 'gateway' | 'cherry-cloud' | 'direct'
   baseUrl?: string
   /** Rotation-insensitive auth/header identity — see {@link WarmQueryRequest.credentialsFingerprint}. */
   credentialsFingerprint: string
@@ -107,7 +112,7 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
 
 /** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
 function gatewayBypassRule(route: Pick<ClaudeCodeRouteFacts, 'branch' | 'baseUrl'>): string | undefined {
-  if (route.branch !== 'gateway' || !route.baseUrl) return undefined
+  if ((route.branch !== 'gateway' && route.branch !== 'cherry-cloud') || !route.baseUrl) return undefined
 
   try {
     return new URL(route.baseUrl).hostname
@@ -372,6 +377,8 @@ async function deriveConnectionConfigFromSnapshot(
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
+  const cherryCloudSessionGeneration =
+    routeFacts.branch === 'cherry-cloud' ? await application.get('CherryCloudService').getSessionGeneration() : null
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
@@ -379,6 +386,7 @@ async function deriveConnectionConfigFromSnapshot(
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
+    cherryCloudSessionGeneration,
     cwd,
     language: getAppLanguage(),
     instructions: agent.instructions ?? null,
@@ -681,26 +689,17 @@ function deriveRouteFacts(
     }
   }
 
-  const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
-  )
+  const usesCherryCloud = modelRefs.some((ref) => isCherryCloudWorkModel(ref.providerId, ref.model?.group))
+  const shouldUseGateway =
+    usesCherryCloud ||
+    modelRefs.some((ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref))
 
   if (shouldUseGateway) {
-    const apiGatewayService = application.get('ApiGatewayService')
-    const config = apiGatewayService.getCurrentConfig()
-    const host = config.host || '127.0.0.1'
-    const port = config.port || 23333
-    // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
-    // persist one). Before the gateway's first activation the preference is empty — the signature
-    // changes once when the key is generated, costing a single extra rebuild. Accepted.
-    const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
+    const gateway = readApiGatewayConnectionSnapshot()
     return {
-      branch: 'gateway',
-      baseUrl: `http://${host}:${port}`,
-      credentialsFingerprint: fingerprintCredentials([
-        typeof gatewayKey === 'string' ? gatewayKey : '',
-        gatewayStateTag(config.enabled, apiGatewayService.isRunning())
-      ]),
+      branch: usesCherryCloud ? 'cherry-cloud' : 'gateway',
+      baseUrl: gateway.baseUrl,
+      credentialsFingerprint: gateway.fingerprint,
       toolSearchCompatible,
       modelIds: {
         primary: toGatewayModelId(primaryRef),
@@ -772,8 +771,12 @@ async function resolveClaudeCodeRuntimeRoute(
           frozenModels: facts.usageModels
         }
       }
+    case 'cherry-cloud':
     case 'gateway': {
-      const gateway = await resolveApiGatewayRuntime(sessionId)
+      const gateway =
+        facts.branch === 'cherry-cloud'
+          ? await resolveCherryCloudGatewayRuntime(sessionId)
+          : await resolveApiGatewayRuntime(sessionId)
       return {
         ...facts,
         baseUrl: gateway.baseUrl,
@@ -781,7 +784,7 @@ async function resolveClaudeCodeRuntimeRoute(
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
         internalRequestToken: gateway.internalRequestToken,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
+        credentialsFingerprint: gateway.connectionFingerprint
       }
     }
     case 'direct': {
@@ -928,6 +931,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
+    connectionRebuildSignature: request.connectionConfig.rebuildSignature,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,
     knowledgeBaseIds: request.knowledgeBaseIds

@@ -6470,6 +6470,14 @@
       "check": "檢查",
       "check_all_keys": "檢查所有金鑰",
       "check_multiple_keys": "檢查多個 API 金鑰",
+      "cherry_cloud": {
+        "logged_in": "已登入",
+        "login": "使用 Cherry Studio 帳號登入",
+        "logout": "登出",
+        "logout_failed": "無法登出，請重試。",
+        "sign_in_failed": "登入失敗，請重試。",
+        "signing_in": "等待瀏覽器授權…"
+      },
       "cherryin": {
         "api_host": {
           "acceleration": "加速網域",

@@ -9,33 +9,26 @@ import { application } from '@application'
 import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
 
 /**
- * Gateway state a materialized connection is pinned to. It is part of the credentials fingerprint,
- * so disabling (or losing) the gateway makes the next turn rebuild instead of quietly posting to a
- * closed port. Derived and materialized routes MUST build it the same way or every turn rebuilds.
- */
-export function gatewayStateTag(enabled: boolean, running: boolean): string {
-  return `gateway-state:${enabled}:${running}`
-}
-
-/**
- * Rotation-sensitive gateway auth identity for connection signatures: key edits or gateway
- * enable/running flips rebuild the connection instead of quietly posting stale credentials.
+ * Read-only gateway connection identity for route derivation and connection signatures.
  * Read-only by contract — snapshot capture must never generate or persist a key.
  */
-export function gatewayCredentialsFingerprint(): string {
+export function readApiGatewayConnectionSnapshot(): { baseUrl: string; fingerprint: string } {
   const apiGatewayService = application.get('ApiGatewayService')
   const config = apiGatewayService.getCurrentConfig()
   const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
-  return createHash('sha256')
-    .update(
-      JSON.stringify(
-        [
-          typeof gatewayKey === 'string' ? gatewayKey : '',
-          gatewayStateTag(config.enabled, apiGatewayService.isRunning())
-        ].sort()
+  const baseUrl = `http://${config.host || '127.0.0.1'}:${config.port || 23333}`
+  return {
+    baseUrl,
+    fingerprint: createHash('sha256')
+      .update(
+        JSON.stringify({
+          baseUrl,
+          key: typeof gatewayKey === 'string' ? gatewayKey : '',
+          state: `gateway-state:${config.enabled}:${apiGatewayService.isRunning()}`
+        })
       )
-    )
-    .digest('hex')
+      .digest('hex')
+  }
 }
 
 /**
@@ -54,10 +47,13 @@ export class ApiGatewayNotRunningError extends Error {
 }
 
 /** Consent, convergence, and key sequence in one place — every gateway route resolves through here. */
-export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
+export async function resolveApiGatewayRuntime(
+  sessionId: string,
+  { allowDisabled = false }: { allowDisabled?: boolean } = {}
+): Promise<{
   baseUrl: string
   apiKey: string
-  stateTag: string
+  connectionFingerprint: string
   usageHeaders: Record<string, string>
   internalRequestToken: string
 }> {
@@ -66,21 +62,28 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   // Ask for consent on the PERSISTED intent, never on `isRunning()`: the gateway is also briefly
   // down while binding at boot, mid-restart, or after a failed activation, and prompting the user
   // to enable a service they already enabled would be nonsense.
-  if (!config.enabled) throw new ApiGatewayNotRunningError()
+  if (!config.enabled && !allowDisabled) throw new ApiGatewayNotRunningError()
   // Consent already given, so converging is not an implicit start. `ensureRunning()` goes through
   // the same reconciler (serializing behind an in-flight transition) and throws the real bind
   // error; unlike `start()` it cannot re-persist an intent, so it can never re-enable the gateway.
-  if (!apiGatewayService.isRunning()) await apiGatewayService.ensureRunning()
+  if (!apiGatewayService.isRunning()) {
+    if (allowDisabled) throw new Error('The leased API Gateway is not running')
+    await apiGatewayService.ensureRunning()
+  }
   // Only after the checks above: this persists a freshly generated key on first use, and a failing
   // route must not leave that side effect behind.
   const apiKey = await apiGatewayService.ensureValidApiKey()
-  const host = config.host || '127.0.0.1'
-  const port = config.port || 23333
+  const connection = readApiGatewayConnectionSnapshot()
   return {
-    baseUrl: `http://${host}:${port}`,
+    baseUrl: connection.baseUrl,
     apiKey,
-    stateTag: gatewayStateTag(config.enabled, apiGatewayService.isRunning()),
+    connectionFingerprint: connection.fingerprint,
     usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
     internalRequestToken: apiGatewayService.getInternalRequestToken()
   }
+}
+
+export async function resolveCherryCloudGatewayRuntime(sessionId: string) {
+  await application.get('CherryCloudService').ensureAgentGateway()
+  return resolveApiGatewayRuntime(sessionId, { allowDisabled: true })
 }

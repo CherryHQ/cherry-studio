@@ -6470,6 +6470,14 @@
       "check": "Check",
       "check_all_keys": "Check All Keys",
       "check_multiple_keys": "Check Multiple API Keys",
+      "cherry_cloud": {
+        "logged_in": "Logged in",
+        "login": "Login with Cherry Studio account",
+        "logout": "Log out",
+        "logout_failed": "Could not log out. Please try again.",
+        "sign_in_failed": "Sign-in failed. Please try again.",
+        "signing_in": "Waiting for browser authorization…"
+      },
       "cherryin": {
         "api_host": {
           "acceleration": "Acceleration domain",

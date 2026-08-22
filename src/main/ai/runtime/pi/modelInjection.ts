@@ -17,6 +17,7 @@ import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { hasKnownPiContextWindow, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { isCherryCloudWorkModel } from '@shared/data/presets/cherryai'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
@@ -30,11 +31,13 @@ import {
 } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
+import { resolveCherryCloudGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
@@ -84,7 +87,7 @@ export class PiMissingContextWindowError extends Error {
   }
 }
 
-export interface PiProviderInjection {
+interface PiProviderInjectionBase {
   /** pi provider name to register + target with `setRuntimeApiKey`. Cherry's provider id. */
   providerName: string
   /** Resolved Pi wire family; duplicated from providerConfig because that SDK field is optional in its public type. */
@@ -103,9 +106,19 @@ export interface PiProviderInjection {
   transportAdapter?: ProviderTransportAdapter
   /** Provider-specific environment consumed by pi-ai's request implementation. */
   requestEnvironment?: Record<string, string>
-  /** Frozen attribution selected together with the credential used by this connection. */
+}
+
+/** Native/OAuth route whose invocations are accounted for by the Agent SDK. */
+export interface PiDirectProviderInjection extends PiProviderInjectionBase {
   usageCapture: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>
 }
+
+/** Local gateway route whose provider calls are accounted for by gateway middleware. */
+export interface PiGatewayProviderInjection extends PiProviderInjectionBase {
+  usageCapture: Extract<AgentSessionUsageCapture, { owner: 'provider-calls' }>
+}
+
+export type PiProviderInjection = PiDirectProviderInjection | PiGatewayProviderInjection
 
 /** Materialize provider-specific stream compatibility before the connection consumes it. */
 export async function materializePiProviderStream(injection: PiProviderInjection): Promise<{
@@ -144,7 +157,7 @@ export function buildPiProviderInjection(
   model: Model,
   apiKey: string,
   credentialReceipt?: AiUsageCredentialReceipt
-): PiProviderInjection {
+): PiDirectProviderInjection {
   // Unsupported-provider beats missing-key: a login-based provider (grok-cli,
   // claude-code) has no key by design, and "missing API key" would misdiagnose it.
   const resolvedEndpoint = resolvePiEndpoint(provider, model)
@@ -209,6 +222,45 @@ export function buildPiProviderInjection(
   }
 }
 
+/**
+ * Build the Pi route for a Cherry Cloud model. Pi still speaks Anthropic
+ * Messages, but it targets Cherry's local gateway instead of the provider's
+ * configured URL. The gateway then attaches the Product Session and device
+ * signature in the main process, so neither credential enters Pi's storage.
+ */
+export function buildPiCloudGatewayInjection(
+  provider: Provider,
+  model: Model,
+  gateway: { baseUrl: string; apiKey: string; usageHeaders: Record<string, string> }
+): PiGatewayProviderInjection {
+  if (!isCherryCloudWorkModel(model.providerId, model.group)) {
+    throw new PiUnsupportedProviderError(provider.id)
+  }
+
+  const api: PiApi = 'anthropic-messages'
+  const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
+  if (!hasKnownPiContextWindow(model)) throw new PiMissingContextWindowError(model.id)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, api, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+  const headers = Object.keys(gateway.usageHeaders).length ? gateway.usageHeaders : undefined
+
+  return {
+    providerName: provider.id,
+    api,
+    providerConfig: {
+      name: provider.name,
+      baseUrl: formatPiBaseUrl(gateway.baseUrl, api),
+      apiKey: PI_PLACEHOLDER_API_KEY,
+      api,
+      ...(headers ? { headers } : {}),
+      models: [modelConfig]
+    },
+    apiKey: gateway.apiKey,
+    modelId,
+    // The local gateway owns provider-call accounting for Cloud requests.
+    usageCapture: { owner: 'provider-calls' }
+  }
+}
+
 function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
   switch (api) {
     case 'openai-completions':
@@ -231,7 +283,7 @@ function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
  *
  * @throws PiUnsupportedProviderError when the provider has no pi mapping.
  */
-export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiProviderInjection> {
+export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiDirectProviderInjection> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const [provider, model] = await Promise.all([
     providerService.getByProviderId(providerId),
@@ -246,7 +298,7 @@ export function resolvePiProviderInjectionFromSnapshot(
   provider: Provider,
   model: Model,
   enabledApiKeys?: readonly ApiKeyEntry[]
-): PiProviderInjection {
+): PiDirectProviderInjection {
   // Transport-adapter providers hold no app-side key: the real OAuth token is
   // fetched per stream call by the adapter. Skip the round-robin key rotation.
   if (getProviderTransportAdapter(provider.id)) {
@@ -261,6 +313,21 @@ export function resolvePiProviderInjectionFromSnapshot(
   return buildPiProviderInjection(provider, model, resolvedApiKey.value, resolvedApiKey.apiKeySelection)
 }
 
+/** Resolve a session-bound Pi route, including Cherry Cloud's signed local transport. */
+export async function resolvePiProviderInjectionForSession(
+  sessionId: string,
+  provider: Provider,
+  model: Model,
+  enabledApiKeys?: readonly ApiKeyEntry[]
+): Promise<PiProviderInjection> {
+  if (!isCherryCloudWorkModel(model.providerId, model.group)) {
+    return resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
+  }
+
+  const gateway = await resolveCherryCloudGatewayRuntime(sessionId)
+  return buildPiCloudGatewayInjection(provider, model, gateway)
+}
+
 /**
  * Validate pi compatibility without consuming ProviderService's round-robin API
  * key rotation. Dispatch validation runs before every turn; selecting the key is
@@ -272,6 +339,14 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
     providerService.getByProviderId(providerId),
     modelService.getByKey(providerId, modelId)
   ])
+
+  // Cloud authentication is the Product Session, not a provider API key. The
+  // connection materializer validates it while acquiring the temporary gateway
+  // lease; model metadata still has to be complete for pi compaction.
+  if (isCherryCloudWorkModel(model.providerId, model.group)) {
+    if (!hasKnownPiContextWindow(model)) throw new PiMissingContextWindowError(model.id)
+    return
+  }
 
   // Unsupported beats missing-credential (parity with buildPiProviderInjection):
   // a login-based provider with no adapter has no key by design, and reporting

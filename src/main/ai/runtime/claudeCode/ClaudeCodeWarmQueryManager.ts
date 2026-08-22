@@ -26,6 +26,8 @@ export interface WarmQueryRequest {
   key: string
   options: Options
   initializeTimeoutMs?: number
+  /** Spawn-frozen connection identity, including the active Cherry Cloud Session generation. */
+  connectionRebuildSignature?: string
   /**
    * Rotation-insensitive identity of the auth/header material the options were built with (e.g. a
    * hash of the provider's enabled key SET and custom headers). The raw rotated key is stripped from
@@ -130,7 +132,8 @@ function sanitizeSensitiveEnvForSignature(options: Options): Options {
 export function createClaudeCodeWarmQuerySignature(
   options: Options,
   credentialsFingerprint?: string,
-  knowledgeBaseIds: readonly string[] = []
+  knowledgeBaseIds: readonly string[] = [],
+  connectionRebuildSignature?: string
 ): string {
   const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
@@ -139,7 +142,8 @@ export function createClaudeCodeWarmQuerySignature(
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
-    knowledgeBaseIds: [...knowledgeBaseIds].sort()
+    knowledgeBaseIds: [...knowledgeBaseIds].sort(),
+    connectionRebuildSignature: connectionRebuildSignature ?? null
   })
 }
 
@@ -205,7 +209,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.connectionRebuildSignature
     )
     const existing = this.entries.get(request.key)
 
@@ -238,7 +243,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.connectionRebuildSignature
     )
     const entry = this.entries.get(request.key)
     if (!entry) return undefined

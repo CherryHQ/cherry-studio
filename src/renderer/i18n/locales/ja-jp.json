@@ -6470,6 +6470,14 @@
       "check": "チェック",
       "check_all_keys": "すべてのキーをチェック",
       "check_multiple_keys": "複数のAPIキーをチェック",
+      "cherry_cloud": {
+        "logged_in": "ログイン済み",
+        "login": "Cherry Studio アカウントでログイン",
+        "logout": "ログアウト",
+        "logout_failed": "ログアウトできませんでした。もう一度お試しください。",
+        "sign_in_failed": "ログインに失敗しました。もう一度お試しください。",
+        "signing_in": "ブラウザでの認証を待っています…"
+      },
       "cherryin": {
         "api_host": {
           "acceleration": "加速度領域",

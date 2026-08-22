@@ -1,3 +1,4 @@
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +8,8 @@ const serviceMocks = vi.hoisted(() => ({
   getApiKeys: vi.fn(),
   resolveApiKey: vi.fn(),
   getByKey: vi.fn(),
-  hasToken: vi.fn()
+  hasToken: vi.fn(),
+  resolveCherryCloudGatewayRuntime: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -20,21 +22,40 @@ vi.mock('@data/services/ProviderService', () => ({
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: serviceMocks.getByKey } }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ OAuthRuntimeService: { hasToken: serviceMocks.hasToken } } as never)
+  return mockApplicationFactory({
+    OAuthRuntimeService: { hasToken: serviceMocks.hasToken }
+  } as never)
 })
+vi.mock('@main/ai/runtime/agentApiGateway', () => ({
+  resolveCherryCloudGatewayRuntime: serviceMocks.resolveCherryCloudGatewayRuntime
+}))
 
 import {
   assertPiProviderUsable,
+  buildPiCloudGatewayInjection,
   buildPiProviderInjection,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
   PiMissingContextWindowError,
   PiUnsupportedProviderError,
   resolvePiProviderInjection,
+  resolvePiProviderInjectionForSession,
   resolvePiProviderInjectionFromSnapshot
 } from './modelInjection'
 
 const REAL_KEY = 'sk-cherry-secret-key'
+const GATEWAY_KEY = 'cs-sk-local-gateway'
+const GATEWAY_USAGE_HEADERS = {
+  'x-cherry-agent-session-id': 'session-1',
+  'x-cherry-internal-usage-token': 'usage-token'
+}
+const GATEWAY = {
+  baseUrl: 'http://127.0.0.1:23333',
+  apiKey: GATEWAY_KEY,
+  usageHeaders: GATEWAY_USAGE_HEADERS,
+  connectionFingerprint: 'gateway-fingerprint',
+  internalRequestToken: 'internal-request-token'
+}
 
 function makeProvider(overrides: Partial<Provider>): Provider {
   return {
@@ -465,6 +486,48 @@ describe('buildPiProviderInjection', () => {
   })
 })
 
+describe('Cherry Cloud Pi injection', () => {
+  const provider = makeProvider({
+    id: CHERRYAI_PROVIDER_ID,
+    name: 'CherryAI',
+    defaultChatEndpoint: 'openai-chat-completions'
+  })
+  const model = makeModel({
+    id: `${CHERRYAI_PROVIDER_ID}::deepseek-free`,
+    providerId: CHERRYAI_PROVIDER_ID,
+    apiModelId: 'deepseek-free',
+    group: CHERRY_CLOUD_MODEL_GROUP,
+    contextWindow: 128_000,
+    maxOutputTokens: 8_192
+  })
+
+  it('routes Anthropic Messages through the local gateway without a provider key', () => {
+    const injection = buildPiCloudGatewayInjection(provider, model, GATEWAY)
+
+    expect(injection.api).toBe('anthropic-messages')
+    expect(injection.providerConfig.baseUrl).toBe('http://127.0.0.1:23333')
+    expect(injection.providerConfig.headers).toEqual(GATEWAY_USAGE_HEADERS)
+    expect(injection.providerConfig.models?.[0]).toMatchObject({
+      id: 'cherryai:deepseek-free',
+      contextWindow: 128_000,
+      maxTokens: 8_192
+    })
+    expect(injection.apiKey).toBe(GATEWAY_KEY)
+    expect(injection.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  it('acquires the signed Cloud gateway before materializing the session route', async () => {
+    serviceMocks.resolveCherryCloudGatewayRuntime.mockResolvedValue(GATEWAY)
+
+    await expect(resolvePiProviderInjectionForSession('session-1', provider, model)).resolves.toMatchObject({
+      modelId: 'cherryai:deepseek-free',
+      apiKey: GATEWAY_KEY
+    })
+    expect(serviceMocks.resolveCherryCloudGatewayRuntime).toHaveBeenCalledWith('session-1')
+    expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+})
+
 function stubGrokCliServices(): void {
   serviceMocks.getByProviderId.mockResolvedValue({
     id: 'grok-cli',
@@ -486,6 +549,7 @@ function stubGrokCliServices(): void {
 describe('modelInjection service resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    serviceMocks.resolveCherryCloudGatewayRuntime.mockResolvedValue(GATEWAY)
     serviceMocks.getByProviderId.mockResolvedValue({
       id: 'p',
       name: 'P',
@@ -505,6 +569,24 @@ describe('modelInjection service resolution', () => {
   it('validates compatibility without consuming rotated API keys', async () => {
     await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
     expect(serviceMocks.getApiKeys).toHaveBeenCalledWith('p', { enabled: true })
+    expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('accepts a Cherry Cloud model without a provider API key when synchronized metadata is complete', async () => {
+    serviceMocks.getByProviderId.mockResolvedValueOnce({ id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' })
+    serviceMocks.getByKey.mockResolvedValueOnce({
+      id: `${CHERRYAI_PROVIDER_ID}::deepseek-free`,
+      providerId: CHERRYAI_PROVIDER_ID,
+      apiModelId: 'deepseek-free',
+      name: 'DeepSeek Free',
+      group: CHERRY_CLOUD_MODEL_GROUP,
+      capabilities: [],
+      contextWindow: 128_000,
+      maxOutputTokens: 8_192
+    })
+
+    await expect(assertPiProviderUsable('cherryai::deepseek-free')).resolves.toBeUndefined()
+    expect(serviceMocks.getApiKeys).not.toHaveBeenCalled()
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
