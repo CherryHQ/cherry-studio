@@ -34,16 +34,23 @@ vi.mock('@cherrystudio/ui', () => ({
     icon,
     label,
     onClick,
+    onAuxClick,
     className,
     active
   }: {
     icon?: ReactNode
     label: string
     onClick?: () => void
+    onAuxClick?: (e: React.MouseEvent) => void
     className?: string
     active?: boolean
   }) => (
-    <button type="button" data-active={active ? 'true' : 'false'} className={className} onClick={onClick}>
+    <button
+      type="button"
+      data-active={active ? 'true' : 'false'}
+      className={className}
+      onClick={onClick}
+      onAuxClick={onAuxClick}>
       {icon}
       <span>{label}</span>
     </button>
@@ -542,6 +549,52 @@ describe('Sidebar resize handle', () => {
     expect(onAgentOpen).toHaveBeenCalledTimes(1)
   })
 
+  it('suppresses only the dragged sidebar entry middle-click after sorting settles', () => {
+    const onChatOpenNewTab = vi.fn()
+    const onAgentOpenNewTab = vi.fn()
+    const sortableEntries: ResolvedSidebarEntry[] = [
+      {
+        key: 'app:chat',
+        label: 'Chat',
+        renderIcon: () => null,
+        isActive: (active) => active.activeItem === 'chat',
+        onOpen: vi.fn(),
+        onOpenNewTab: onChatOpenNewTab
+      },
+      {
+        key: 'app:agent',
+        label: 'Agent',
+        renderIcon: () => null,
+        isActive: (active) => active.activeItem === 'agent',
+        onOpen: vi.fn(),
+        onOpenNewTab: onAgentOpenNewTab
+      }
+    ]
+
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={sortableEntries}
+        onEntriesReorder={vi.fn()}
+      />
+    )
+
+    const sortableCall = uiMocks.sortableCalls.at(-1)
+    sortableCall.onDragStart({ active: { id: 'app:chat' } })
+    sortableCall.onDragEnd()
+
+    const chatButton = screen.getByRole('button', { name: 'Chat' })
+    const agentButton = screen.getByRole('button', { name: 'Agent' })
+
+    fireEvent(chatButton, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
+    fireEvent(agentButton, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
+
+    expect(onChatOpenNewTab).not.toHaveBeenCalled()
+    expect(onAgentOpenNewTab).toHaveBeenCalledTimes(1)
+  })
+
   it('renders footer actions with the current sidebar layout', () => {
     const renderActions = (layout: 'icon' | 'full') => <button type="button">theme-{layout}</button>
 
@@ -569,5 +622,85 @@ describe('Sidebar resize handle', () => {
 
     expect(document.body).toHaveTextContent('theme-full')
     expect(document.body).not.toHaveTextContent('theme-icon')
+  })
+
+  it('triggers onOpenNewTab on middle-click (auxclick with button 1) in icon layout', () => {
+    const onChatOpen = vi.fn()
+    const onChatOpenNewTab = vi.fn()
+    const testEntries: ResolvedSidebarEntry[] = [
+      {
+        key: 'app:chat',
+        label: 'Chat',
+        renderIcon: () => <span>chat-icon</span>,
+        isActive: () => false,
+        onOpen: onChatOpen,
+        onOpenNewTab: onChatOpenNewTab
+      }
+    ]
+
+    render(
+      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={testEntries} />
+    )
+
+    const button = screen.getByRole('button', { name: 'Chat' })
+    fireEvent(button, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
+
+    expect(onChatOpenNewTab).toHaveBeenCalledTimes(1)
+    expect(onChatOpen).not.toHaveBeenCalled()
+  })
+
+  it('triggers onOpenNewTab on middle-click (auxclick with button 1) in full layout', () => {
+    const onChatOpen = vi.fn()
+    const onChatOpenNewTab = vi.fn()
+    const testEntries: ResolvedSidebarEntry[] = [
+      {
+        key: 'app:chat',
+        label: 'Chat',
+        renderIcon: () => <span>chat-icon</span>,
+        isActive: () => false,
+        onOpen: onChatOpen,
+        onOpenNewTab: onChatOpenNewTab
+      }
+    ]
+
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={testEntries}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: /Chat/ })
+    fireEvent(button, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
+
+    expect(onChatOpenNewTab).toHaveBeenCalledTimes(1)
+    expect(onChatOpen).not.toHaveBeenCalled()
+  })
+
+  it('does not trigger onOpenNewTab on auxclick with non-middle button', () => {
+    const onChatOpen = vi.fn()
+    const onChatOpenNewTab = vi.fn()
+    const testEntries: ResolvedSidebarEntry[] = [
+      {
+        key: 'app:chat',
+        label: 'Chat',
+        renderIcon: () => <span>chat-icon</span>,
+        isActive: () => false,
+        onOpen: onChatOpen,
+        onOpenNewTab: onChatOpenNewTab
+      }
+    ]
+
+    render(
+      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={testEntries} />
+    )
+
+    const button = screen.getByRole('button', { name: 'Chat' })
+    fireEvent(button, new MouseEvent('auxclick', { button: 2, bubbles: true, cancelable: true }))
+
+    expect(onChatOpenNewTab).not.toHaveBeenCalled()
+    expect(onChatOpen).not.toHaveBeenCalled()
   })
 })
