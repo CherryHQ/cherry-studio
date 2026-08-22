@@ -1096,6 +1096,9 @@ importers:
       rehype-stringify:
         specifier: ^10.0.1
         version: 10.0.1
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
       remark-github-blockquote-alert:
         specifier: ^2.0.0
         version: 2.0.1

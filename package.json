@@ -434,6 +434,7 @@
     "reflect-metadata": "0.2.2",
     "rehype-parse": "^9.0.1",
     "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
     "remark-github-blockquote-alert": "^2.0.0",
     "remark-parse": "11.0.0",
     "remark-stringify": "11.0.0",
