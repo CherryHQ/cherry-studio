@@ -8,7 +8,6 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
-import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
@@ -174,7 +173,7 @@ export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   shouldValidateSkills?: boolean
 }
 
-export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
+export type ExternalOpenTargetPreferences = Record<string, string>
 
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'

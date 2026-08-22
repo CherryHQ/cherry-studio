@@ -170,14 +170,7 @@ function createProvider(overrides: Partial<DataProvider> = {}): DataProvider {
     defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     apiKeys: [{ id: 'key-1', label: 'Primary', isEnabled: true }],
     authType: 'api-key',
-    apiFeatures: {
-      arrayContent: true,
-      streamOptions: true,
-      developerRole: false,
-      serviceTier: false,
-      verbosity: false,
-      reportsActualCost: false
-    },
+    reportsActualCost: false,
     settings: {},
     isEnabled: true,
     ...overrides

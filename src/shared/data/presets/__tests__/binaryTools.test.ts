@@ -50,6 +50,7 @@ describe('BabelDOC Stream preset', () => {
     [{ status: 'absent' } as const, 'missing'],
     [{ status: 'applied' } as const, 'outdated'],
     [{ status: 'applied', version: '0.6.4.post1' } as const, 'outdated'],
+    [{ status: 'applied', version: '0.6.4.post2' } as const, 'outdated'],
     [{ status: 'applied', version: BABELDOC_MINIMUM_VERSION } as const, 'available'],
     [{ status: 'applied', version: '0.6.5' } as const, 'available']
   ])('classifies application %j as %s', (application, expected) => {

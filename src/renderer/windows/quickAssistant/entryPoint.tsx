@@ -14,6 +14,8 @@ await prepareWindow({
     'ui.theme_user.color_primary',
     'ui.window_style',
     'feature.quick_assistant.assistant_id',
+    'feature.quick_assistant.model_id',
+    'chat.default_model_id',
     'feature.quick_assistant.read_clipboard_at_startup'
   ]
 })
