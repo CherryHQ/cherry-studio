@@ -3009,6 +3009,8 @@
       "file_preview": "File preview",
       "installed": "Installed",
       "no_description": "No description",
+      "open_folder": "Open folder",
+      "open_folder_failed": "Could not open folder",
       "updated_at": "Recently updated"
     },
     "skill_marketplace": {

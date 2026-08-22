@@ -3009,6 +3009,8 @@
       "file_preview": "文件预览",
       "installed": "已安装",
       "no_description": "暂无描述",
+      "open_folder": "打开文件夹",
+      "open_folder_failed": "无法打开文件夹",
       "updated_at": "最近更新"
     },
     "skill_marketplace": {

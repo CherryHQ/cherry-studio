@@ -1,15 +1,33 @@
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type { InstalledSkill } from '@shared/types/skill'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SkillDetailDialog from '../SkillDetailDialog'
 
-const { listFilesMock, readSkillFileMock, uiLanguage } = vi.hoisted(() => ({
-  listFilesMock: vi.fn(),
-  readSkillFileMock: vi.fn(),
-  uiLanguage: { current: 'en-US', resolved: undefined as string | undefined }
+const { ipcRequestMock, listFilesMock, loggerErrorMock, readSkillFileMock, toastErrorMock, uiLanguage } = vi.hoisted(
+  () => ({
+    ipcRequestMock: vi.fn(),
+    listFilesMock: vi.fn(),
+    loggerErrorMock: vi.fn(),
+    readSkillFileMock: vi.fn(),
+    toastErrorMock: vi.fn(),
+    uiLanguage: { current: 'en-US', resolved: undefined as string | undefined }
+  })
+)
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock }
+}))
+
+vi.mock('@renderer/services/LoggerService', () => ({
+  loggerService: { withContext: () => ({ error: loggerErrorMock }) }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -86,8 +104,11 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
 
 describe('SkillDetailDialog', () => {
   beforeEach(() => {
+    ipcRequestMock.mockReset()
     listFilesMock.mockReset()
+    loggerErrorMock.mockReset()
     readSkillFileMock.mockReset()
+    toastErrorMock.mockReset()
     uiLanguage.current = 'en-US'
     uiLanguage.resolved = undefined
 
@@ -143,6 +164,26 @@ describe('SkillDetailDialog', () => {
     expect(screen.queryByRole('button', { name: 'library.action.uninstall' })).not.toBeInTheDocument()
     expect(listFilesMock).not.toHaveBeenCalled()
     expect(readSkillFileMock).not.toHaveBeenCalled()
+  })
+
+  it('opens the selected installed skill folder through the skill-scoped IPC route', async () => {
+    const user = userEvent.setup()
+    ipcRequestMock.mockResolvedValue(undefined)
+    render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'library.skill_detail.open_folder' }))
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('skill.folder.open', { skillId: 'skill-1' })
+  })
+
+  it('reports an OS failure to open the skill folder', async () => {
+    const user = userEvent.setup()
+    ipcRequestMock.mockRejectedValue(new Error('open failed'))
+    render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'library.skill_detail.open_folder' }))
+
+    expect(toastErrorMock).toHaveBeenCalledWith('library.skill_detail.open_folder_failed')
   })
 
   it('keeps the selected skill mounted until the close animation finishes', async () => {

@@ -3009,6 +3009,8 @@
       "file_preview": "Предварительный просмотр файла",
       "installed": "Установлено",
       "no_description": "Нет описания",
+      "open_folder": "Открыть папку",
+      "open_folder_failed": "Не удалось открыть папку",
       "updated_at": "Недавно обновлено"
     },
     "skill_marketplace": {

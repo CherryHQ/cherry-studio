@@ -3009,6 +3009,8 @@
       "file_preview": "Xem trước tệp",
       "installed": "Đã cài đặt",
       "no_description": "Không có mô tả",
+      "open_folder": "Mở thư mục",
+      "open_folder_failed": "Không thể mở thư mục",
       "updated_at": "Đã cập nhật gần đây"
     },
     "skill_marketplace": {

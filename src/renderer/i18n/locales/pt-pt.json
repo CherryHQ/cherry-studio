@@ -3009,6 +3009,8 @@
       "file_preview": "Pré-visualização de ficheiro",
       "installed": "Instalado",
       "no_description": "Sem descrição",
+      "open_folder": "Abrir pasta",
+      "open_folder_failed": "Não foi possível abrir a pasta",
       "updated_at": "Atualizado recentemente"
     },
     "skill_marketplace": {
