@@ -1009,5 +1009,34 @@ describe('MainWindowService', () => {
       vi.advanceTimersByTime(100)
       expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
     })
+
+    it('falls back to reopening via WindowManager when there is no main window', () => {
+      ;(svc as any).mainWindow = null
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
+
+      svc.quoteToMainWindow('Selected text', { id: 999 } as any)
+      vi.advanceTimersByTime(100)
+
+      // The rebuild goes through WindowManager's open path and, with no live
+      // main window at send time, nothing is delivered anywhere.
+      expect(windowManagerMock.open).toHaveBeenCalled()
+      expect(win.webContents.send).not.toHaveBeenCalled()
+    })
+
+    it('delivers quotes arriving through the registered App_QuoteToMain IPC handler', () => {
+      ;(svc as any).registerIpcHandlers()
+
+      // Exercise the actual wiring instead of the method directly: a wrong
+      // channel constant or a dropped/misordered text argument fails here.
+      const registered = ((svc as any).ipcHandle.mock.calls as [string, (event: unknown, text: string) => void][]).find(
+        ([channel]) => channel === IpcChannel.App_QuoteToMain
+      )
+      expect(registered, 'handler must be registered under App_QuoteToMain').toBeDefined()
+
+      const [, handler] = registered!
+      handler({ sender: { id: 1000 } }, 'Selected text')
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+    })
   })
 })

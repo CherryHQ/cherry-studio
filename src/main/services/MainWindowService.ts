@@ -644,6 +644,9 @@ export class MainWindowService extends BaseService {
         quoteTarget = `sub window ${sourceWindow.id}`
         // SubWindow already has a composer mounted with the same App_QuoteToMain
         // listener, so sending here inserts the quote into the detached window.
+        // Deliberately no Dock-visibility side effects: quoting into a detached
+        // window must not undo the user's close-to-tray choice (macOS keeps the
+        // Dock icon hidden while Main stays hidden; the tray still shows the app).
         sourceWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
         return
       }
@@ -653,7 +656,12 @@ export class MainWindowService extends BaseService {
       const mainWindow = this.mainWindow
       if (mainWindow && !mainWindow.isDestroyed()) {
         setTimeout(() => {
-          mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+          // Re-check at fire time: the window can be destroyed during the 100ms
+          // gap (e.g. user quits via tray), and sending to destroyed webContents
+          // would throw outside the enclosing try/catch.
+          if (!mainWindow.isDestroyed()) {
+            mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+          }
         }, 100)
       }
     } catch (error) {
