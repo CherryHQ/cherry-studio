@@ -8,7 +8,7 @@ import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/fileP
 import { getCodeBlockId } from '@renderer/utils/markdownLight'
 import { isWin } from '@renderer/utils/platform'
 import type { Node } from 'mdast'
-import React, { memo, type ReactNode, useCallback, useMemo } from 'react'
+import React, { isValidElement, memo, type ReactNode, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
@@ -34,6 +34,15 @@ const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} inline-flex max-w-full
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
+/** Concatenated text of a node tree, so streamed animate spans still feed the analyses below. */
+function collectText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(collectText).join('')
+  if (isValidElement(node)) return collectText((node.props as { children?: ReactNode }).children)
+  return ''
+}
+
 const CodeBlock: React.FC<Props> = ({
   children: rawChildren,
   className,
@@ -43,9 +52,7 @@ const CodeBlock: React.FC<Props> = ({
   isStreaming = false
 }) => {
   const children = rawChildren ?? ''
-  // Text analyses below only make sense for the plain-string case; streamed
-  // inline code arrives as element children instead.
-  const text = typeof children === 'string' ? children : ''
+  const text = collectText(children)
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = text.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)

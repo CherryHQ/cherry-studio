@@ -151,6 +151,21 @@ describe('CodeBlock', () => {
       expect(screen.getByText('i', { exact: false }).tagName).toBe('SPAN')
     })
 
+    it('still detects file paths inside streamed animate spans', () => {
+      // Path detection must read the concatenated span text, not bail on
+      // non-string children, so the clickable chip works mid-stream.
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className={undefined}
+          children={<span data-sd-animate="true">/Users/foo/bar.tsx</span>}
+        />
+      )
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+      expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
+    })
+
     it('should render without a message list provider', () => {
       mocks.messageListActions = undefined
 
