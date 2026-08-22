@@ -27,3 +27,11 @@ _Avoid_: System notification, Dynamic Island clone
 **Awaiting Confirmation**:
 A Conversation Activity that cannot continue until the user responds to a confirmation or other required interaction.
 _Avoid_: Awaiting approval when the interaction may be a question or plan review
+
+## Ownership Boundaries
+
+Conversation Activity is shared domain language, not a new application-wide event source or notification contract.
+
+`ConversationIslandService` exclusively owns continuous Conversation Activity observation, topic-to-target projection, title fallback, presentation state, and the transient window. The service is conditionally registered only on macOS. `NotificationService` continues to own completion and confirmation notification delivery; it does not observe the continuous status stream for Conversation Island.
+
+On Windows and Linux, Conversation Island registers no lifecycle service and runs no Cache, Preference, display, timer, geometry, or window work. Packaging excludes its feature-only preload, renderer HTML, and renderer entry chunk. Shared compile-time types plus inert IPC and window metadata remain in the common main bundle; the feature does not introduce a platform-specific Vite build or registry variant.
