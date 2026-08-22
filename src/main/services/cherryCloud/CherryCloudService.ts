@@ -51,6 +51,11 @@ function accessExpiresAt(expiresIn: number): string {
   return new Date(Date.now() + expiresIn * 1000).toISOString()
 }
 
+function isSecureCredentialStorageAvailable(): boolean {
+  if (!safeStorage.isEncryptionAvailable()) return false
+  return process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'
+}
+
 function requestHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
   const headers = new Headers(input instanceof Request ? input.headers : undefined)
   new Headers(init?.headers).forEach((value, name) => headers.set(name, value))
@@ -87,6 +92,7 @@ export class CherryCloudService extends BaseService {
   private modelSyncPromise: Promise<{ modelCount: number }> | null = null
   private agentGatewayLeasePromise: Promise<void> | null = null
   private hasAgentGatewayLease = false
+  private agentGatewayGeneration = 0
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private exchangePromise: {
     authorizationId: string
@@ -170,11 +176,8 @@ export class CherryCloudService extends BaseService {
   private async openLoopbackCallback(): Promise<CherryCloudLoopbackCallback> {
     this.loopbackCallback?.dispose()
     const receiver = await CherryCloudLoopbackCallback.open(async (url) => {
-      try {
-        await this.handleCallback(url)
-      } finally {
-        if (this.loopbackCallback === receiver) this.loopbackCallback = null
-      }
+      await this.handleCallback(url)
+      if (this.loopbackCallback === receiver) this.loopbackCallback = null
     }, resolveApiOrigin())
     this.loopbackCallback = receiver
     return receiver
@@ -403,7 +406,7 @@ export class CherryCloudService extends BaseService {
     const idempotencyKey =
       url.pathname === '/v1/messages' ? (headers.get('Idempotency-Key') ?? createIdempotencyKey()) : undefined
     const response = await this.signedFetch(url, input, init, session, { bearer: true, idempotencyKey })
-    if (response.status === 401) await this.clearSession()
+    if (response.status === 401) await this.clearSession(session)
     return response
   }
 
@@ -443,6 +446,11 @@ export class CherryCloudService extends BaseService {
     return acquire
   }
 
+  public async getAgentGatewayGeneration(): Promise<number> {
+    await this.pruneExpiredState()
+    return this.agentGatewayGeneration
+  }
+
   private async getAuthenticatedJson<T>(path: string, schema: ZodType<T>, headers?: HeadersInit): Promise<T> {
     const response = await this.authenticatedFetch(path, { method: 'GET', headers })
     if (!response.ok) throw new Error(`Cherry Cloud request failed (${response.status})`)
@@ -478,7 +486,7 @@ export class CherryCloudService extends BaseService {
       }
     )
     if (!response.ok) {
-      if (response.status === 401) await this.clearSession()
+      if (response.status === 401) await this.clearSession(session)
       throw new Error(`Cherry Cloud session refresh failed (${response.status})`)
     }
     const refreshPayload = refreshProductSessionResponseSchema.safeParse(await response.json())
@@ -497,13 +505,20 @@ export class CherryCloudService extends BaseService {
       sessionId: refreshed.session_id,
       sessionExpiresAt: refreshed.session_expires_at
     }
+    if (this.storedState.session !== session) {
+      throw new Error('Cherry Cloud session changed while refresh was in progress')
+    }
     this.storedState = { ...this.storedState, session: next }
     await this.persistState()
     return next
   }
 
-  private async clearSession(): Promise<void> {
+  private async clearSession(expectedSession?: NonNullable<StoredCherryCloudState['session']>): Promise<void> {
+    const currentSession = this.storedState.session
+    if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
+
     this.storedState = { ...this.storedState, session: null }
+    this.agentGatewayGeneration += 1
     await this.persistState()
     await this.releaseAgentGatewayLease()
     this.reconcileFreeModels([])
@@ -581,13 +596,14 @@ export class CherryCloudService extends BaseService {
       pending: pendingExpired ? null : this.storedState.pending,
       session: sessionExpired ? null : this.storedState.session
     }
+    if (sessionExpired) this.agentGatewayGeneration += 1
     await this.persistState()
     if (sessionExpired) await this.releaseAgentGatewayLease()
     this.emitStatus()
   }
 
   private async restoreState(): Promise<void> {
-    if (!safeStorage.isEncryptionAvailable()) return
+    if (!isSecureCredentialStorageAvailable()) return
 
     try {
       const encrypted = await readFile(this.sessionFilePath())
@@ -602,7 +618,7 @@ export class CherryCloudService extends BaseService {
   }
 
   private assertEncryptionAvailable(): void {
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!isSecureCredentialStorageAvailable()) {
       throw new Error('Secure credential storage is unavailable')
     }
   }

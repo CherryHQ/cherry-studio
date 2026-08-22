@@ -74,12 +74,12 @@ export class CherryCloudLoopbackCallback {
       return
     }
 
-    this.handled = true
-    this.dispose()
     const callback = new URL('cherrystudio://cloud-auth/callback')
     callback.search = target.search
     try {
       await this.callback(callback)
+      this.handled = true
+      this.dispose()
       this.redirectToCompletion(response, callback.searchParams.has('error') ? 'failure' : 'success')
     } catch {
       this.redirectToCompletion(response, 'invalid')
