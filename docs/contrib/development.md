@@ -91,7 +91,10 @@ CS_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
 CS_DEV_USER_DATA_SUFFIX=DevParis pnpm dev
 ```
 
-Blank values are ignored and fall back to `Dev`.
+The suffix must be a single path component (no path separator, drive colon,
+`* ? " < > |`, control character, or trailing dot). Blank values fall back to
+`Dev`; anything else that breaks those rules stops the dev run instead of
+falling back, so two instances never end up sharing one directory.
 
 ### Debug
 

@@ -1437,11 +1437,11 @@ export class OpenClawService extends BaseService {
    * - Others: {host}/v1
    */
   private formatOpenAIUrl(provider: Provider): string {
-    // Special-case built-in GitHub / Copilot providers: these hosts should
+    // Special-case the built-in Copilot provider: its host should
     // not have a `/v1` suffix appended by default (renderer applies
-    // `formatApiHost(..., false)` for these). Mirror that behavior here
+    // `formatApiHost(..., false)`). Mirror that behavior here
     // to avoid constructing incorrect endpoints that return 404.
-    if (provider.id === 'copilot' || provider.id === 'github') {
+    if (provider.id === 'copilot') {
       return formatApiHost(provider.apiHost, false)
     }
 

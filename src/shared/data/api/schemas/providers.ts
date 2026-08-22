@@ -8,7 +8,6 @@ import * as z from 'zod'
 
 import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../../types/model'
 import {
-  ApiFeaturesSchema,
   type ApiKeyEntry,
   ApiKeyEntrySchema,
   type AuthConfig,
@@ -80,8 +79,6 @@ export const CreateProviderSchema = z.strictObject({
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
   /** Authentication configuration */
   authConfig: AuthConfigSchema.optional(),
-  /** API feature support */
-  apiFeatures: ApiFeaturesSchema.optional(),
   /** Provider-specific settings */
   providerSettings: ProviderSettingsPartialSchema.optional()
 })
@@ -98,7 +95,6 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
   endpointConfigs: true,
   defaultChatEndpoint: true,
   authConfig: true,
-  apiFeatures: true,
   providerSettings: true
 })
 
