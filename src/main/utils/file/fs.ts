@@ -495,12 +495,19 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   private finalized = false
   private enteredCommit = false
 
-  constructor(target: AbsoluteFilePath, onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>) {
+  constructor(
+    target: AbsoluteFilePath,
+    onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>,
+    options?: { mode?: number }
+  ) {
     super()
     this.target = target
     this.tmp = tmpNameFor(target)
     this.onPrepared = onPrepared
-    this.underlying = nodeCreateWriteStream(this.tmp)
+    this.underlying =
+      options?.mode !== undefined
+        ? nodeCreateWriteStream(this.tmp, { mode: options.mode })
+        : nodeCreateWriteStream(this.tmp)
     this.underlying.on('error', (err) => this.destroy(err))
   }
 
@@ -585,13 +592,19 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
 
 /**
  * Create an `AtomicWriteStream` that buffers to a tmp file and atomically
- * commits onto `target` on `.end()`. See `AtomicWriteStream` JSDoc for the
- * full lifecycle contract.
+ * commits onto `target` on `.end()`. `options.mode` follows the
+ * `atomicWriteFile` contract: applied to the tmp file at open(2) and carried
+ * to the target by the rename. See `AtomicWriteStream` JSDoc for the full
+ * lifecycle contract.
  */
-export function createAtomicWriteStream(target: AbsoluteFilePath): AtomicWriteStream {
-  return createPreparedAtomicWriteStream(target, async (prepared) => {
-    await prepared.commit()
-  })
+export function createAtomicWriteStream(target: AbsoluteFilePath, options?: { mode?: number }): AtomicWriteStream {
+  return createPreparedAtomicWriteStream(
+    target,
+    async (prepared) => {
+      await prepared.commit()
+    },
+    options
+  )
 }
 
 /**
@@ -600,9 +613,10 @@ export function createAtomicWriteStream(target: AbsoluteFilePath): AtomicWriteSt
  */
 export function createPreparedAtomicWriteStream(
   target: AbsoluteFilePath,
-  onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>
+  onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>,
+  options?: { mode?: number }
 ): AtomicWriteStream {
-  return new AtomicWriteStreamImpl(target, onPrepared)
+  return new AtomicWriteStreamImpl(target, onPrepared, options)
 }
 
 async function prepareAtomicCopyStream(

@@ -928,7 +928,8 @@
     },
     "content": "Crie uma cópia de segurança de todos os dados, incluindo o histórico de conversas, as definições e a base de conhecimento. O processo poderá demorar algum tempo. Agradecemos a sua paciência.",
     "error": {
-      "active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente."
+      "active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente.",
+      "webdav_tls_certificate": "Não foi possível verificar o certificado TLS do servidor WebDAV. Se o servidor usar um certificado autoassinado, ative «Permitir certificados autoassinados» em Definições → Dados → WebDAV (isto reduz a segurança do transporte)."
     },
     "progress": {
       "completed": "Backup concluído",
@@ -5421,6 +5422,10 @@
         "title": "Repetir a migração dos dados v1"
       },
       "webdav": {
+        "allowSelfSignedTls": {
+          "help": "Desativado por predefinição: o certificado TLS do servidor WebDAV é verificado. Ative apenas para servidores com certificados autoassinados — um intermediário (man-in-the-middle) poderia intercetar a sua palavra-passe do WebDAV e todos os dados da cópia de segurança.",
+          "title": "Permitir certificados autoassinados"
+        },
         "autoSync": {
           "label": "Backup automático",
           "off": "Desligar"

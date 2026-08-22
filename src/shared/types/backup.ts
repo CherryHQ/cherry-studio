@@ -13,6 +13,8 @@ export type WebDavConfig = {
   maxBackups?: number
   skipBackupFile?: boolean
   disableStream?: boolean
+  /** Opt-in: accept self-signed/unverifiable TLS certificates. Default (unset/false) verifies. */
+  allowSelfSignedTls?: boolean
 }
 
 export type LocalBackupConfig = {

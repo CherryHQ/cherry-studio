@@ -303,7 +303,8 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('../WebDav', () => ({
-  default: vi.fn()
+  // Return a distinct object per construction so instance identity is observable.
+  default: vi.fn(() => ({}))
 }))
 
 vi.mock('../S3Storage', () => ({
@@ -324,6 +325,7 @@ import * as fs from 'fs-extra'
 import * as path from 'path'
 
 import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
+import WebDav from '../WebDav'
 
 // Helper to construct platform-independent paths for assertions
 // The implementation uses path.normalize() which converts to platform separators
@@ -393,6 +395,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.remove).mockResolvedValue(undefined as never)
     vi.mocked(fs.rename).mockResolvedValue(undefined as never)
     vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.chmod).mockResolvedValue(undefined as never)
     vi.mocked(fs.copy).mockResolvedValue(undefined as never)
     vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
     vi.mocked(fs.readdir).mockResolvedValue([] as never)
@@ -464,6 +467,54 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleExtract}`)
     expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleArchive}`)
     expect(fs.lstat).toHaveBeenCalledTimes(3)
+  })
+
+  it('boot-hardens both shared-temp staging roots (backup + lan-transfer)', async () => {
+    await backupManager.cleanupStaleTempArtifacts()
+
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/temp/backup', 0o700)
+    expect(fs.chmod).toHaveBeenCalledWith('/tmp/cherry-studio/lan-transfer', 0o700)
+  })
+
+  it('pre-tightens an existing legacy archive to 0600 before overwriting it', async () => {
+    // The legacy JSON path writes via fs.createWriteStream, whose mode only
+    // applies at creation — an existing 0644 target must be chmod'd BEFORE the
+    // stream opens, or an overwrite keeps the loose mode (S8). The path calls
+    // createWriteStream twice (data.json first, then the archive) — fresh
+    // Writable per call, and finalize ends every instance.
+    const outputs: Writable[] = []
+    vi.mocked(fs.createWriteStream).mockImplementation(() => {
+      const stream = new Writable({
+        write(_c, _e, cb) {
+          cb()
+        }
+      })
+      outputs.push(stream)
+      return stream as never
+    })
+    const archive = {
+      on: vi.fn().mockReturnThis(),
+      pipe: vi.fn(),
+      directory: vi.fn(),
+      finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
+    }
+    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+
+    await backupManager.backupLegacy({} as Electron.IpcMainInvokeEvent, 'legacy.zip', '{}', '/mock/temp/backup', false)
+
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', 0o600)
+    const chmodCalls = vi.mocked(fs.chmod).mock.calls
+    const archiveChmodIndex = chmodCalls.findIndex((call) => String(call[0]).endsWith('legacy.zip'))
+    const archiveOpenIndex = vi
+      .mocked(fs.createWriteStream)
+      .mock.calls.findIndex((call) => String(call[0]).endsWith('legacy.zip'))
+    expect(archiveChmodIndex).toBeGreaterThan(-1)
+    expect(archiveOpenIndex).toBeGreaterThan(-1)
+    expect(vi.mocked(fs.chmod).mock.invocationCallOrder[archiveChmodIndex]).toBeLessThan(
+      vi.mocked(fs.createWriteStream).mock.invocationCallOrder[archiveOpenIndex]
+    )
   })
 
   it('writes a version 7 archive with complete Data, IndexedDB, Local Storage, and cache.json', async () => {
@@ -1907,5 +1958,50 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
       // path.normalize handles double slashes
       expect(result).toBe(true)
     })
+  })
+})
+
+describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
+  beforeEach(() => {
+    vi.mocked(WebDav).mockClear()
+  })
+
+  it('reuses the client while connection fields (incl. TLS flag) are unchanged', () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com', webdavUser: 'u', webdavPass: 'p', webdavPath: '/' }
+
+    const first = (manager as any).getWebDavInstance(config)
+    const second = (manager as any).getWebDavInstance({ ...config })
+
+    expect(second).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
+  })
+
+  it('recreates the client when allowSelfSignedTls changes', () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com' }
+
+    const before = (manager as any).getWebDavInstance(config)
+    const optedIn = (manager as any).getWebDavInstance({ ...config, allowSelfSignedTls: true })
+    const reverted = (manager as any).getWebDavInstance(config)
+
+    expect(optedIn).not.toBe(before)
+    expect(reverted).not.toBe(optedIn)
+    expect(WebDav).toHaveBeenCalledTimes(3)
+    expect(WebDav).toHaveBeenNthCalledWith(2, { webdavHost: 'https://example.com', allowSelfSignedTls: true })
+    expect(WebDav).toHaveBeenNthCalledWith(3, { webdavHost: 'https://example.com' })
+  })
+
+  it('treats undefined and false as the same TLS setting (no needless recreation)', () => {
+    const manager = new BackupManager()
+
+    const first = (manager as any).getWebDavInstance({ webdavHost: 'https://example.com' })
+    const explicitFalse = (manager as any).getWebDavInstance({
+      webdavHost: 'https://example.com',
+      allowSelfSignedTls: false
+    })
+
+    expect(explicitFalse).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
   })
 })

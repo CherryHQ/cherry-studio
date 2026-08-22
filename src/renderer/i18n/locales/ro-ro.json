@@ -928,7 +928,8 @@
     },
     "content": "Se face backup la toate datele, inclusiv istoricul chat-ului, setările și baza de cunoștințe. Te rugăm să reții că procesul de backup poate dura ceva timp, îți mulțumim pentru răbdare.",
     "error": {
-      "active_data_writers": "O conversație sau un agent este încă în execuție. Așteaptă să se termine, apoi încearcă din nou."
+      "active_data_writers": "O conversație sau un agent este încă în execuție. Așteaptă să se termine, apoi încearcă din nou.",
+      "webdav_tls_certificate": "Nu s-a putut verifica certificatul TLS al serverului WebDAV. Dacă serverul folosește un certificat auto-semnat, activați „Permite certificatele auto-semnate” în Setări → Date → WebDAV (aceasta reduce securitatea transferului)."
     },
     "progress": {
       "completed": "Backup finalizat",
@@ -5421,6 +5422,10 @@
         "title": "Rulează din nou migrarea datelor v1"
       },
       "webdav": {
+        "allowSelfSignedTls": {
+          "help": "Dezactivat implicit: certificatul TLS al serverului WebDAV este verificat. Activați doar pentru servere cu certificate auto-semnate — un atacator (man-in-the-middle) ar putea intercepta parola WebDAV și toate datele copiilor de rezervă.",
+          "title": "Permite certificatele auto-semnate"
+        },
         "autoSync": {
           "label": "Backup automat",
           "off": "Oprit"

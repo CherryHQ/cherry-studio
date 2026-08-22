@@ -34,7 +34,9 @@ export function useAutoBackupEvents(): void {
         setBackupSyncState(event.type, {
           syncing: false,
           lastSyncTime: event.timestamp,
-          lastSyncError: getLocalizedBackupErrorMessage(new Error(event.errorMessage))
+          lastSyncError: getLocalizedBackupErrorMessage(new Error(event.errorMessage), 'message.backup.failed', {
+            tlsCertificateHint: event.type === 'webdav'
+          })
         })
       } else {
         setBackupSyncState(event.type, { syncing: false, lastSyncTime: event.timestamp, lastSyncError: null })
@@ -48,7 +50,11 @@ export function useAutoBackupEvents(): void {
       if (event.status === 'warning') {
         toast.warning(t('message.backup.cleanup_failed'))
       } else {
-        toast.error(getLocalizedBackupErrorMessage(new Error(event.errorMessage)))
+        toast.error(
+          getLocalizedBackupErrorMessage(new Error(event.errorMessage), 'message.backup.failed', {
+            tlsCertificateHint: event.type === 'webdav'
+          })
+        )
       }
       void ipcApi
         .request('backup.acknowledge_auto_sync_notification', { type: event.type, id: event.id })
