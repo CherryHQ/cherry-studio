@@ -4,6 +4,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -278,6 +279,28 @@ describe('WebSearchSettings', () => {
     rerender(<WebSearchSettings />)
 
     expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('10')
+  })
+
+  // The field holds its own draft while focused, so a reset that does not take the
+  // focus away is undone the moment the caret leaves.
+  it('resets max results even while the field has focus', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.max_results', 20)
+    const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
+
+    await user.click(screen.getByLabelText('settings.tool.websearch.search_max_result.label'))
+    await user.click(screen.getByLabelText('common.reset'))
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(5)
+    })
+    rerender(<WebSearchSettings />)
+
+    await user.tab()
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(5)
+    })
   })
 
   it('marks max-result drafts clean after a successful commit', async () => {

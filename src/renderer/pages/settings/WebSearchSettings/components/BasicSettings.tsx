@@ -73,7 +73,6 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
                   size="icon-sm"
                   className="text-muted-foreground hover:text-foreground"
                   aria-label={t('common.reset')}
-                  onMouseDown={(e) => e.preventDefault()}
                   onClick={resetMaxResults}>
                   <ResetIcon size={14} />
                 </Button>
