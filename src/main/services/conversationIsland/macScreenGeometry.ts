@@ -79,8 +79,6 @@ export function resolveConversationIslandSize(
   presentation: ConversationIslandPresentation,
   activityCount: number
 ): ConversationIslandSize {
-  if (activityCount < 2) return COMPACT_ISLAND_SIZE
-
   const visibleRows = Math.min(MAX_VISIBLE_EXPANDED_ROWS, activityCount)
   const chromeHeight = presentation === 'notch' ? NOTCH_TOP_INSET : CAPSULE_VERTICAL_PADDING
   return { width: EXPANDED_WIDTH, height: visibleRows * EXPANDED_ROW_HEIGHT + chromeHeight }

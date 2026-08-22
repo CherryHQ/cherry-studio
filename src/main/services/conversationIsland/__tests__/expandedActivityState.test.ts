@@ -34,11 +34,15 @@ function add(
 }
 
 describe('expandedActivityState', () => {
-  it('creates an initial state in deterministic order and requires at least two activities', () => {
+  it('creates an initial state for one eligible activity and preserves deterministic order as activities join', () => {
     const activities = new Map<string, ConversationIslandActivity>()
     add(activities, 'topic-live', 'streaming', 300)
 
-    expect(createExpandedActivityState(activities, 301, 7)).toBeNull()
+    expect(createExpandedActivityState(activities, 301, 7)).toEqual({
+      displayId: 7,
+      primaryActivityId: 'topic-live',
+      activityIds: ['topic-live']
+    })
 
     add(activities, 'topic-done', 'done', 200)
     add(activities, 'topic-approval', 'awaiting-approval', 100)
@@ -96,7 +100,7 @@ describe('expandedActivityState', () => {
     })
   })
 
-  it('returns null when an aborted activity leaves fewer than two activities', () => {
+  it('keeps the remaining activity expanded after another activity is aborted', () => {
     const activities = new Map<string, ConversationIslandActivity>()
     add(activities, 'topic-approval', 'awaiting-approval', 100)
     add(activities, 'topic-live', 'streaming', 90)
@@ -105,7 +109,22 @@ describe('expandedActivityState', () => {
 
     reduceActivities(activities, update('topic-live', 'aborted', 102))
 
-    expect(reconcileExpandedActivityState(initial!, activities, 102)).toBeNull()
+    expect(reconcileExpandedActivityState(initial!, activities, 102)).toEqual({
+      displayId: 7,
+      primaryActivityId: 'topic-approval',
+      activityIds: ['topic-approval']
+    })
+  })
+
+  it('returns null when the last expanded activity is removed', () => {
+    const activities = new Map<string, ConversationIslandActivity>()
+    add(activities, 'topic-live', 'streaming', 90)
+    const initial = createExpandedActivityState(activities, 91, 7)
+    expect(initial).not.toBeNull()
+
+    reduceActivities(activities, update('topic-live', 'aborted', 92))
+
+    expect(reconcileExpandedActivityState(initial!, activities, 92)).toBeNull()
   })
 
   it('resolves the existing activity objects in frozen order', () => {

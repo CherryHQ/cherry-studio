@@ -104,6 +104,10 @@
   },
   "conversation_island": {
     "activity_count": "Total: {{count}}",
+    "identity": {
+      "agent": "Agente",
+      "assistant": "Assistente"
+    },
     "status": {
       "agent": {
         "done": "Tarefa concluída",

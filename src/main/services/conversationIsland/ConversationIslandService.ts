@@ -1,5 +1,7 @@
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
@@ -17,6 +19,7 @@ import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
 import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
+import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type {
   ConversationIslandActivityItem,
   ConversationIslandSnapshot,
@@ -44,12 +47,20 @@ import {
 const logger = loggerService.withContext('Conversation Island')
 const TOPIC_STATUS_PREFIX = 'topic.stream.statuses.'
 const EXIT_ANIMATION_MS = 180
+const DEFAULT_AGENT_AVATAR = '🤖'
 
 interface ConversationActivityChangedEvent {
   topicId: string
   target: ConversationNavigationTarget
   snapshot: TopicStatusSnapshotEntry | null
   changedAt: number
+}
+
+interface ActivityItemMetadata {
+  turnId?: string
+  title: string
+  identityName: string
+  identityAvatar: string
 }
 
 function snapshotState(status: ConversationIslandActivity['status']): ConversationIslandStateKind {
@@ -106,7 +117,7 @@ function prefersReducedMotion(): boolean {
 @ServicePhase(Phase.WhenReady)
 export class ConversationIslandService extends BaseService {
   private readonly activities = new Map<string, ConversationIslandActivity>()
-  private readonly titleCache = new Map<string, { turnId?: string; title: string }>()
+  private readonly itemMetadataCache = new Map<string, ActivityItemMetadata>()
   private geometries = new Map<number, MacScreenGeometry>()
   private enabled = false
   private expandedState: ExpandedActivityState | null = null
@@ -158,7 +169,7 @@ export class ConversationIslandService extends BaseService {
     )
     this.registerDisposable(
       preferences.subscribeChange('app.language', () => {
-        this.titleCache.clear()
+        this.itemMetadataCache.clear()
         this.refreshPresentation()
       })
     )
@@ -171,7 +182,7 @@ export class ConversationIslandService extends BaseService {
     this.expandedState = null
     this.deactivateResources()
     this.activities.clear()
-    this.titleCache.clear()
+    this.itemMetadataCache.clear()
   }
 
   private handleConversationActivitySnapshot(
@@ -220,7 +231,7 @@ export class ConversationIslandService extends BaseService {
     else {
       if (status === 'done' || status === 'error') this.activities.delete(event.topicId)
       selectPrimaryActivity(this.activities, Date.now())
-      this.pruneTitleCache()
+      this.pruneItemMetadataCache()
     }
   }
 
@@ -234,7 +245,7 @@ export class ConversationIslandService extends BaseService {
       for (const [topicId, activity] of this.activities) {
         if (isTerminal(activity.status)) this.activities.delete(topicId)
       }
-      this.pruneTitleCache()
+      this.pruneItemMetadataCache()
       return
     }
 
@@ -370,7 +381,7 @@ export class ConversationIslandService extends BaseService {
         const activities = resolveExpandedActivities(expandedState, this.activities)
         const primary = activities.find((activity) => activity.topicId === expandedState.primaryActivityId)
         if (primary) {
-          this.pruneTitleCache()
+          this.pruneItemMetadataCache()
           this.clearExpiryTimer()
           try {
             const compactPlacement = resolveConversationIslandBounds(display, this.geometries, COMPACT_ISLAND_SIZE)
@@ -408,7 +419,7 @@ export class ConversationIslandService extends BaseService {
 
   private presentCompact(now: number): void {
     const selection = selectPrimaryActivity(this.activities, now)
-    this.pruneTitleCache()
+    this.pruneItemMetadataCache()
     if (!selection.primary) {
       this.beginExit()
       this.clearExpiryTimer()
@@ -422,33 +433,78 @@ export class ConversationIslandService extends BaseService {
   }
 
   private buildActivityItem(activity: ConversationIslandActivity): ConversationIslandActivityItem {
-    const cached = this.titleCache.get(activity.topicId)
-    let title = cached && cached.turnId === activity.turnId ? cached.title : undefined
-    if (title === undefined) {
-      title = this.resolveConversationName(activity.target)
-      this.titleCache.set(activity.topicId, { turnId: activity.turnId, title })
+    let metadata = this.itemMetadataCache.get(activity.topicId)
+    if (!metadata || metadata.turnId !== activity.turnId) {
+      metadata = { turnId: activity.turnId, ...this.resolveItemMetadata(activity.target) }
+      this.itemMetadataCache.set(activity.topicId, metadata)
     }
 
     return {
       activityId: activity.topicId,
+      identityAvatar: metadata.identityAvatar,
+      identityName: metadata.identityName,
       target: activity.target,
       state: snapshotState(activity.status),
       statusText: statusText(activity),
-      title
+      title: metadata.title
     }
   }
 
-  private resolveConversationName(target: ConversationNavigationTarget): string {
-    const fallback = target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
+  private resolveItemMetadata(target: ConversationNavigationTarget): Omit<ActivityItemMetadata, 'turnId'> {
+    const fallbackTitle = target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
+    const fallbackIdentityName =
+      target.conversationType === 'agent'
+        ? t('conversation_island.identity.agent')
+        : t('conversation_island.identity.assistant')
+    const fallbackIdentityAvatar = target.conversationType === 'agent' ? DEFAULT_AGENT_AVATAR : DEFAULT_ASSISTANT_EMOJI
+    const fallback = {
+      title: fallbackTitle,
+      identityName: fallbackIdentityName,
+      identityAvatar: fallbackIdentityAvatar
+    }
 
     try {
-      const name =
-        target.conversationType === 'agent'
-          ? agentSessionService.getById(target.conversationId).name
-          : topicService.getById(target.conversationId).name
-      return name.trim() || fallback
+      if (target.conversationType === 'agent') {
+        const session = agentSessionService.getById(target.conversationId)
+        const title = session.name.trim() || fallbackTitle
+        if (!session.agentId) return { ...fallback, title }
+
+        try {
+          const agent = agentService.getAgent(session.agentId)
+          return {
+            title,
+            identityName: agent?.name.trim() || fallbackIdentityName,
+            identityAvatar: agent?.configuration?.avatar?.trim() || fallbackIdentityAvatar
+          }
+        } catch (error) {
+          logger.warn('Failed to resolve Conversation Island agent identity', {
+            agentId: session.agentId,
+            err: error
+          })
+          return { ...fallback, title }
+        }
+      }
+
+      const topic = topicService.getById(target.conversationId)
+      const title = topic.name.trim() || fallbackTitle
+      if (!topic.assistantId) return { ...fallback, title }
+
+      try {
+        const assistant = assistantDataService.getById(topic.assistantId)
+        return {
+          title,
+          identityName: assistant.name.trim() || fallbackIdentityName,
+          identityAvatar: assistant.emoji.trim() || fallbackIdentityAvatar
+        }
+      } catch (error) {
+        logger.warn('Failed to resolve Conversation Island assistant identity', {
+          assistantId: topic.assistantId,
+          err: error
+        })
+        return { ...fallback, title }
+      }
     } catch (error) {
-      logger.warn('Failed to resolve conversation name for Conversation Island', { target, err: error })
+      logger.warn('Failed to resolve Conversation Island activity metadata', { target, err: error })
       return fallback
     }
   }
@@ -512,9 +568,9 @@ export class ConversationIslandService extends BaseService {
     this.expiryTimer.unref()
   }
 
-  private pruneTitleCache(): void {
-    for (const topicId of this.titleCache.keys()) {
-      if (!this.activities.has(topicId)) this.titleCache.delete(topicId)
+  private pruneItemMetadataCache(): void {
+    for (const topicId of this.itemMetadataCache.keys()) {
+      if (!this.activities.has(topicId)) this.itemMetadataCache.delete(topicId)
     }
   }
 

@@ -34,12 +34,20 @@ const mocks = vi.hoisted(() => {
     loggerError: vi.fn(),
     loggerWarn: vi.fn(),
     name: 'Research notes',
+    agent: { name: 'Coding Agent', configuration: { avatar: '🤖' } } as any,
+    agentId: 'agent-1' as string | null,
+    assistant: { name: 'Research Assistant', emoji: '🔬' } as any,
+    assistantId: 'assistant-1' as string | null,
     openError: undefined as Error | undefined,
     powerListener: undefined as (() => void) | undefined,
     preferenceListeners: new Map<string, (value: any) => void>(),
     preferences: new Map<string, any>(),
     prefersReducedMotion: false,
     resolveName: vi.fn(),
+    resolveAgent: vi.fn(),
+    resolveAgentId: vi.fn(),
+    resolveAssistant: vi.fn(),
+    resolveAssistantId: vi.fn(),
     screenListeners,
     screen: {
       on: vi.fn(onScreen),
@@ -185,14 +193,28 @@ const services = vi.hoisted(() => {
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: (conversationId: string) => ({
+      agentId: mocks.resolveAgentId(conversationId),
       name: mocks.resolveName({ conversationType: 'agent', conversationId })
     })
+  }
+}))
+
+vi.mock('@data/services/AgentService', () => ({
+  agentService: {
+    getAgent: (agentId: string) => mocks.resolveAgent(agentId)
+  }
+}))
+
+vi.mock('@data/services/AssistantService', () => ({
+  assistantDataService: {
+    getById: (assistantId: string) => mocks.resolveAssistant(assistantId)
   }
 }))
 
 vi.mock('@data/services/TopicService', () => ({
   topicService: {
     getById: (conversationId: string) => ({
+      assistantId: mocks.resolveAssistantId(conversationId),
       name: mocks.resolveName({ conversationType: 'assistant', conversationId })
     })
   }
@@ -283,6 +305,10 @@ describe('ConversationIslandService', () => {
     }))
     mocks.i18nSuffix = ''
     mocks.name = 'Research notes'
+    mocks.agent = { name: 'Coding Agent', configuration: { avatar: '🤖' } }
+    mocks.agentId = 'agent-1'
+    mocks.assistant = { name: 'Research Assistant', emoji: '🔬' }
+    mocks.assistantId = 'assistant-1'
     mocks.openError = undefined
     mocks.powerListener = undefined
     mocks.preferenceListeners.clear()
@@ -291,6 +317,10 @@ describe('ConversationIslandService', () => {
     mocks.preferences.set('feature.conversation_island.enabled', false)
     mocks.preferences.set('app.language', 'en-US')
     mocks.resolveName.mockImplementation(() => mocks.name)
+    mocks.resolveAgent.mockImplementation(() => mocks.agent)
+    mocks.resolveAgentId.mockImplementation(() => mocks.agentId)
+    mocks.resolveAssistant.mockImplementation(() => mocks.assistant)
+    mocks.resolveAssistantId.mockImplementation(() => mocks.assistantId)
     mocks.screenListeners.clear()
     mocks.screen.getAllDisplays.mockImplementation(() => mocks.displays)
     mocks.screen.getPrimaryDisplay.mockImplementation(() => mocks.displays[0])
@@ -603,7 +633,7 @@ describe('ConversationIslandService', () => {
     })
   })
 
-  it('refuses a single activity and expands two activities with a complete ordered snapshot', () => {
+  it('expands one activity and preserves a complete ordered snapshot as another activity joins', () => {
     const titles = new Map([
       ['topic-streaming', 'Streaming research'],
       ['topic-approval', 'Approval request']
@@ -613,36 +643,98 @@ describe('ConversationIslandService', () => {
     emitActivity('streaming', 100, 'topic-streaming')
 
     ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-streaming', expanded: false, secondaryCount: 0 })
-    expect(latestSnapshot().activities).toBeUndefined()
+    expect(latestSnapshot()).toMatchObject({
+      activityId: 'topic-streaming',
+      expanded: true,
+      secondaryCount: 0,
+      activities: [{ activityId: 'topic-streaming' }]
+    })
 
     emitActivity('awaiting-approval', 200, 'topic-approval', 'agent')
     ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
 
     expect(latestSnapshot()).toMatchObject({
-      activityId: 'agent-session:topic-approval',
+      activityId: 'topic-streaming',
       activityCountText: 'Total: 2',
-      state: 'awaiting-confirmation',
-      statusText: 'conversation_island.status.awaiting_confirmation',
-      title: 'Approval request',
+      state: 'streaming',
+      statusText: 'conversation_island.status.assistant.streaming',
+      title: 'Streaming research',
       secondaryCount: 1,
       expanded: true,
       exiting: false,
       reducedMotion: false,
       activities: [
         {
-          activityId: 'agent-session:topic-approval',
-          state: 'awaiting-confirmation',
-          statusText: 'conversation_island.status.awaiting_confirmation',
-          title: 'Approval request'
-        },
-        {
           activityId: 'topic-streaming',
           state: 'streaming',
           statusText: 'conversation_island.status.assistant.streaming',
           title: 'Streaming research'
+        },
+        {
+          activityId: 'agent-session:topic-approval',
+          state: 'awaiting-confirmation',
+          statusText: 'conversation_island.status.awaiting_confirmation',
+          title: 'Approval request'
         }
       ]
+    })
+  })
+
+  it('projects assistant identity once per turn while stream status refreshes', () => {
+    changePreference('feature.conversation_island.enabled', true)
+
+    emitActivity('pending', 100, 'topic-1', 'assistant', 'turn-1')
+    emitActivity('streaming', 200, 'topic-1', 'assistant', 'turn-1')
+
+    expect(latestSnapshot()).toMatchObject({
+      identityAvatar: '🔬',
+      identityName: 'Research Assistant'
+    })
+    expect(mocks.resolveName).toHaveBeenCalledOnce()
+    expect(mocks.resolveAssistantId).toHaveBeenCalledOnce()
+    expect(mocks.resolveAssistant).toHaveBeenCalledOnce()
+  })
+
+  it('projects agent identity from the session agent', () => {
+    changePreference('feature.conversation_island.enabled', true)
+
+    emitActivity('streaming', 100, 'session-1', 'agent')
+
+    expect(latestSnapshot()).toMatchObject({
+      identityAvatar: '🤖',
+      identityName: 'Coding Agent'
+    })
+    expect(mocks.resolveAgentId).toHaveBeenCalledOnce()
+    expect(mocks.resolveAgent).toHaveBeenCalledWith('agent-1')
+  })
+
+  it('uses localized identity names and default emoji when identity records are unavailable', () => {
+    mocks.resolveAssistant.mockImplementation(() => {
+      throw new Error('assistant missing')
+    })
+    changePreference('feature.conversation_island.enabled', true)
+
+    emitActivity('pending', 100)
+
+    expect(latestSnapshot()).toMatchObject({
+      identityAvatar: '😀',
+      identityName: 'conversation_island.identity.assistant',
+      title: 'Research notes'
+    })
+  })
+
+  it('preserves the session title when the agent identity record is unavailable', () => {
+    mocks.resolveAgent.mockImplementation(() => {
+      throw new Error('agent missing')
+    })
+    changePreference('feature.conversation_island.enabled', true)
+
+    emitActivity('pending', 100, 'session-1', 'agent')
+
+    expect(latestSnapshot()).toMatchObject({
+      identityAvatar: '🤖',
+      identityName: 'conversation_island.identity.agent',
+      title: 'Research notes'
     })
   })
 
@@ -666,7 +758,7 @@ describe('ConversationIslandService', () => {
     expect(latestSnapshot().activities).toBeUndefined()
   })
 
-  it('reconciles updates in place, appends new activity, and promotes or collapses after removals', () => {
+  it('reconciles updates in place, appends new activity, and promotes after removals', () => {
     const titles = new Map([
       ['topic-primary', 'Primary'],
       ['topic-second', 'Second'],
@@ -699,8 +791,12 @@ describe('ConversationIslandService', () => {
     })
 
     emitActivity('aborted', 600, 'topic-new')
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-second', expanded: false, secondaryCount: 0 })
-    expect(latestSnapshot().activities).toBeUndefined()
+    expect(latestSnapshot()).toMatchObject({
+      activityId: 'topic-second',
+      expanded: true,
+      secondaryCount: 0,
+      activities: [{ activityId: 'topic-second' }]
+    })
   })
 
   it('clears expansion for display changes, resume, and disable', () => {

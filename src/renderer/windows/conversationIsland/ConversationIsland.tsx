@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, EmojiIcon } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
@@ -28,6 +28,14 @@ const COLLAPSE_DELAY_MS = 250
 
 type FreshReentryState = 'idle' | 'waiting-for-compact-enter' | 'left-before-compact' | 'waiting-for-leave'
 
+function IdentityAvatar({ avatar }: { avatar: string }) {
+  return (
+    <span aria-hidden="true" className="shrink-0">
+      <EmojiIcon emoji={avatar || '🤖'} className="mr-0" size={18} fontSize={11} />
+    </span>
+  )
+}
+
 export default function ConversationIsland() {
   const snapshot = useWindowInitData<ConversationIslandSnapshot>()
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -43,7 +51,7 @@ export default function ConversationIsland() {
       return
     }
 
-    if (snapshot?.expanded || snapshot?.secondaryCount === 0) {
+    if (snapshot?.expanded) {
       if (expandTimerRef.current !== null) clearTimeout(expandTimerRef.current)
       expandTimerRef.current = null
     }
@@ -51,7 +59,7 @@ export default function ConversationIsland() {
       if (collapseTimerRef.current !== null) clearTimeout(collapseTimerRef.current)
       collapseTimerRef.current = null
     }
-  }, [snapshot?.expanded, snapshot?.exiting, snapshot?.secondaryCount])
+  }, [snapshot?.expanded, snapshot?.exiting])
 
   useEffect(
     () => () => {
@@ -98,7 +106,7 @@ export default function ConversationIsland() {
       return
     }
 
-    if (snapshot.expanded || snapshot.secondaryCount === 0 || expandTimerRef.current !== null) return
+    if (snapshot.expanded || expandTimerRef.current !== null) return
 
     expandTimerRef.current = setTimeout(() => {
       expandTimerRef.current = null
@@ -139,6 +147,8 @@ export default function ConversationIsland() {
     Number.isFinite(snapshot.notchWidth) &&
     snapshot.notchWidth > 0
   const ActivityIcon = snapshot.target.conversationType === 'agent' ? Bot : MessageCircle
+  const isSingleActivity = snapshot.secondaryCount === 0
+  const usesSingleNotchDetail = usesNotchLayout && isSingleActivity
 
   const stateIndicator = (state: ConversationIslandStateKind) => (
     <span
@@ -176,7 +186,7 @@ export default function ConversationIsland() {
     await openActivity(activity)
   }
 
-  const activities = snapshot.activities ?? []
+  const activities = isSingleActivity ? [snapshot] : (snapshot.activities ?? [])
   const surface = snapshot.expanded ? (
     <div
       data-testid="conversation-island-surface"
@@ -196,20 +206,36 @@ export default function ConversationIsland() {
           <div
             data-testid="notch-expanded-leading"
             className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
-            <ActivityIcon
-              data-testid="notch-activity-icon"
-              data-conversation-type={snapshot.target.conversationType}
-              className="size-3.5 shrink-0 text-white/70"
-              aria-hidden="true"
-            />
-            {stateIndicator(snapshot.state)}
-            <span className="min-w-0 truncate">{snapshot.statusText}</span>
+            {usesSingleNotchDetail ? (
+              <>
+                <IdentityAvatar avatar={snapshot.identityAvatar} />
+                <span className="min-w-0 truncate">{snapshot.identityName}</span>
+              </>
+            ) : (
+              <>
+                <ActivityIcon
+                  data-testid="notch-activity-icon"
+                  data-conversation-type={snapshot.target.conversationType}
+                  className="size-3.5 shrink-0 text-white/70"
+                  aria-hidden="true"
+                />
+                {stateIndicator(snapshot.state)}
+                <span className="min-w-0 truncate">{snapshot.statusText}</span>
+              </>
+            )}
           </div>
           <div data-testid="notch-expanded-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
           <div
             data-testid="notch-expanded-trailing"
-            className="flex min-w-0 items-center justify-end overflow-hidden pr-3 text-white/60">
-            <span className="min-w-0 truncate">{snapshot.activityCountText}</span>
+            className={`flex min-w-0 items-center justify-end overflow-hidden pr-3 text-white/60 ${usesSingleNotchDetail ? 'gap-2' : ''}`}>
+            {usesSingleNotchDetail ? (
+              <>
+                {stateIndicator(snapshot.state)}
+                <span className="min-w-0 truncate">{snapshot.statusText}</span>
+              </>
+            ) : (
+              <span className="min-w-0 truncate">{snapshot.activityCountText}</span>
+            )}
           </div>
         </div>
       ) : null}
@@ -231,8 +257,8 @@ export default function ConversationIsland() {
                     ? `${isPrimary ? 'bg-white/10 font-medium' : 'font-normal'} text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white`
                     : `${isPrimary ? 'bg-accent font-medium' : 'font-normal'} text-popover-foreground hover:bg-accent focus-visible:bg-accent`
                 }`}>
-                {stateIndicator(activity.state)}
-                <span className="shrink-0">{activity.statusText}</span>
+                {usesSingleNotchDetail ? null : stateIndicator(activity.state)}
+                {usesSingleNotchDetail ? null : <span className="shrink-0">{activity.statusText}</span>}
                 <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{activity.title}</span>
               </Button>
             </div>

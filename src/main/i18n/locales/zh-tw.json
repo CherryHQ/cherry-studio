@@ -104,6 +104,10 @@
   },
   "conversation_island": {
     "activity_count": "共 {{count}} 項",
+    "identity": {
+      "agent": "Agent",
+      "assistant": "助手"
+    },
     "status": {
       "agent": {
         "done": "任務完成",

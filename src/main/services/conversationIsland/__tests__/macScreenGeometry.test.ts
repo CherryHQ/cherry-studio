@@ -96,10 +96,11 @@ describe('macScreenGeometry', () => {
   })
 
   it.each([
-    ['capsule', 1, { width: 320, height: 38 }],
+    ['capsule', 1, { width: 420, height: 60 }],
     ['capsule', 2, { width: 420, height: 104 }],
     ['capsule', 5, { width: 420, height: 236 }],
     ['capsule', 8, { width: 420, height: 236 }],
+    ['notch', 1, { width: 420, height: 82 }],
     ['notch', 2, { width: 420, height: 126 }],
     ['notch', 5, { width: 420, height: 258 }],
     ['notch', 8, { width: 420, height: 258 }]

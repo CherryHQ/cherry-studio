@@ -12,7 +12,7 @@ export function createExpandedActivityState(
   displayId: number
 ): ExpandedActivityState | null {
   const activityIds = selectEligibleActivities(activities, now).map((activity) => activity.topicId)
-  if (activityIds.length < 2) return null
+  if (activityIds.length === 0) return null
 
   return { displayId, primaryActivityId: activityIds[0], activityIds }
 }
@@ -29,7 +29,7 @@ export function reconcileExpandedActivityState(
   const frozenActivityIds = new Set(activityIds)
 
   activityIds.push(...eligibleActivityIds.filter((activityId) => !frozenActivityIds.has(activityId)))
-  if (activityIds.length < 2) return null
+  if (activityIds.length === 0) return null
 
   const primaryActivityId = activityIds.includes(state.primaryActivityId) ? state.primaryActivityId : activityIds[0]
   return { ...state, primaryActivityId, activityIds }

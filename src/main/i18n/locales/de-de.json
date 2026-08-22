@@ -104,6 +104,10 @@
   },
   "conversation_island": {
     "activity_count": "Gesamt: {{count}}",
+    "identity": {
+      "agent": "Agent",
+      "assistant": "Assistent"
+    },
     "status": {
       "agent": {
         "done": "Aufgabe abgeschlossen",

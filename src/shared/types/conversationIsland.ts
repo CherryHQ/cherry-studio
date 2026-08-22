@@ -4,6 +4,8 @@ export type ConversationIslandStateKind = 'pending' | 'streaming' | 'awaiting-co
 
 export interface ConversationIslandActivityItem {
   activityId: string
+  identityAvatar: string
+  identityName: string
   target: ConversationNavigationTarget
   state: ConversationIslandStateKind
   statusText: string

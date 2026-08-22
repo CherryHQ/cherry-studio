@@ -63,6 +63,8 @@ const activity = (
   overrides: Partial<ConversationIslandActivityItem> = {}
 ): ConversationIslandActivityItem => ({
   activityId,
+  identityAvatar: '🌸',
+  identityName: 'Cherry Assistant',
   target: { conversationType: 'assistant', conversationId: activityId },
   state: 'streaming',
   statusText: 'Responding',
@@ -129,6 +131,8 @@ describe('ConversationIsland', () => {
 
   it('keeps notch content in two wings around the measured occlusion', () => {
     mocks.initData = snapshot({
+      identityAvatar: '🧠',
+      identityName: 'Research Assistant',
       presentation: 'notch',
       notchWidth: 120,
       title: 'Research notes',
@@ -154,6 +158,8 @@ describe('ConversationIsland', () => {
     expect(within(leading).getByText('Responding')).toBeVisible()
     expect(within(trailing).getByText('Research notes')).toBeVisible()
     expect(within(trailing).getByText('+2')).toBeVisible()
+    expect(screen.queryByText('Research Assistant')).toBeNull()
+    expect(screen.queryByText('🧠')).toBeNull()
 
     mocks.initData = snapshot({ presentation: 'notch', notchWidth: 120, secondaryCount: 2 })
     view.rerender(<ConversationIsland />)
@@ -170,6 +176,15 @@ describe('ConversationIsland', () => {
     expect(screen.queryByTestId('notch-occlusion')).toBeNull()
     expect(screen.queryByTestId('notch-expanded-header')).toBeNull()
     expect(screen.getByRole('button')).toHaveClass('rounded-full', 'bg-popover/95')
+  })
+
+  it('keeps the status visible when a single activity expands as a capsule', () => {
+    mocks.initData = snapshot({ expanded: true })
+    render(<ConversationIsland />)
+
+    const activity = screen.getByRole('button', { name: 'Responding: New Chat' })
+    expect(within(activity).getByText('Responding')).toBeVisible()
+    expect(within(activity).getByText('New Chat')).toBeVisible()
   })
 
   it.each([
@@ -318,14 +333,16 @@ describe('ConversationIsland', () => {
     )
   })
 
-  it('does not expand a single activity and cancels a pending dwell when the pointer leaves', async () => {
+  it('requests single-activity expansion after a 500ms dwell and cancels a new pending dwell on leave', async () => {
     vi.useFakeTimers()
     mocks.initData = snapshot()
     const view = render(<ConversationIsland />)
 
     fireEvent.pointerEnter(screen.getByRole('button'))
-    await advance(500)
+    await advance(499)
     expect(expansionRequests()).toEqual([])
+    await advance(1)
+    expect(expansionRequests()).toEqual([['conversation_island.set_expanded', { expanded: true }]])
 
     mocks.initData = snapshot({ secondaryCount: 1 })
     view.rerender(<ConversationIsland />)
@@ -334,24 +351,83 @@ describe('ConversationIsland', () => {
     fireEvent.pointerLeave(screen.getByRole('button'))
     await advance(1)
 
-    expect(expansionRequests()).toEqual([])
+    expect(expansionRequests()).toEqual([['conversation_island.set_expanded', { expanded: true }]])
   })
 
-  it.each([
-    ['an expanded snapshot', expandedSnapshot()],
-    ['no secondary activities', snapshot({ secondaryCount: 0 })]
-  ])('cancels a pending dwell when the authoritative snapshot reports %s', async (_label, nextSnapshot) => {
+  it('cancels a pending dwell when the authoritative snapshot reports expansion', async () => {
     vi.useFakeTimers()
     mocks.initData = snapshot({ secondaryCount: 1 })
     const view = render(<ConversationIsland />)
 
     fireEvent.pointerEnter(screen.getByRole('button'))
     await advance(250)
-    mocks.initData = nextSnapshot
+    mocks.initData = expandedSnapshot()
     view.rerender(<ConversationIsland />)
     await advance(250)
 
     expect(expansionRequests()).toEqual([])
+  })
+
+  it.each([
+    {
+      identityAvatar: '🧠',
+      identityName: 'Research Assistant',
+      renderedAvatar: '🧠'
+    },
+    {
+      identityAvatar: '',
+      identityName: 'Planning Agent',
+      renderedAvatar: '🤖'
+    }
+  ])(
+    'shows $identityName identity, state, and title in a single-activity expanded notch',
+    ({ identityAvatar, identityName, renderedAvatar }) => {
+      mocks.initData = snapshot({
+        expanded: true,
+        identityAvatar,
+        identityName,
+        notchWidth: 120,
+        presentation: 'notch',
+        title: 'Investigate rendering behavior'
+      })
+      render(<ConversationIsland />)
+
+      const leading = screen.getByTestId('notch-expanded-leading')
+      const trailing = screen.getByTestId('notch-expanded-trailing')
+
+      expect(within(leading).getByText(identityName)).toBeVisible()
+      expect(within(leading).getByTestId('emoji-icon')).toHaveTextContent(renderedAvatar)
+      expect(within(trailing).getByTestId('state-indicator')).toBeInTheDocument()
+      expect(within(trailing).getByText('Responding')).toBeVisible()
+      const detail = screen.getByRole('button', { name: 'Responding: Investigate rendering behavior' })
+      expect(within(detail).getByText('Investigate rendering behavior')).toBeVisible()
+      expect(within(detail).queryByText('Responding')).toBeNull()
+      expect(screen.getAllByRole('button')).toHaveLength(1)
+    }
+  )
+
+  it('collapses and opens the single activity when its expanded title is clicked', async () => {
+    const user = userEvent.setup()
+    mocks.initData = snapshot({
+      expanded: true,
+      notchWidth: 120,
+      presentation: 'notch',
+      title: 'Research notes'
+    })
+    render(<ConversationIsland />)
+
+    await user.click(screen.getByRole('button', { name: 'Responding: Research notes' }))
+
+    expect(mocks.ipcRequest.mock.calls).toEqual([
+      ['conversation_island.set_expanded', { expanded: false }],
+      [
+        'navigation.focus_or_open_conversation',
+        {
+          target: { conversationType: 'assistant', conversationId: 'topic-1' },
+          title: 'Research notes'
+        }
+      ]
+    ])
   })
 
   it('collapses after a 250ms expanded leave and cancels collapse on re-entry', async () => {

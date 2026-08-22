@@ -4,7 +4,7 @@ Status: approved
 
 ## Summary
 
-Polish the macOS Conversation Island introduced by the approved 2026-08-21 design. Expanded notch layouts gain useful content in the two shoulders beside the physical notch, expanded rows end flush with the island's bottom edge, and the island uses one top-anchored motion language for appearing, expanding, collapsing, and disappearing.
+Polish the macOS Conversation Island introduced by the approved 2026-08-21 design. Expanded notch layouts gain useful content in the two shoulders beside the physical notch, a single activity gains a wider hover detail state with its configured Assistant or Agent identity, expanded rows end flush with the island's bottom edge, and the island uses one top-anchored motion language for appearing, expanding, collapsing, and disappearing.
 
 The change remains feature-local. `ConversationIslandService` continues to own window existence, authoritative snapshots, bounds, and close timing. The renderer owns only visual motion and interaction. No Preference, Cache, DataApi, generic WindowManager API, or native helper is added.
 
@@ -16,6 +16,8 @@ The refinements are:
 
 - remove the 8 px bottom gap from expanded notch geometry;
 - use the previously empty 38 px expanded notch shoulders for activity identity, state, and total count;
+- let one activity expand on hover without changing its compact presentation;
+- show the configured Assistant or Agent avatar and name in the single-activity expanded shoulder;
 - animate appearance and disappearance instead of showing and closing the BrowserWindow abruptly;
 - give compact/expanded content changes the same top-anchored spring character as window bounds change;
 - preserve reduced-motion and transparent-window safety.
@@ -24,6 +26,7 @@ The refinements are:
 
 - Make the island feel connected to the physical notch instead of appearing as an abrupt black rectangle.
 - Make expanded notch shoulders useful without adding controls or competing with the activity list.
+- Give a single activity's title a full-width detail row after the existing hover dwell.
 - Let the final visible activity row meet the curved bottom edge with no empty strip.
 - Keep the existing main/renderer ownership boundary.
 - Cancel a pending disappearance when new activity arrives, reusing the same window.
@@ -64,7 +67,20 @@ Sources:
 
 ## Visual layout
 
-### Expanded hardware-notch presentation
+### Single-activity hover detail
+
+A single activity remains 320 × 38 in compact form. After the existing 500 ms hover dwell, it expands around the same notch center to 420 × 82:
+
+```text
+[ Assistant/Agent avatar + name ] [ physical notch ] [ state + localized status ]
+[                         conversation or session title                         ]
+```
+
+The identity is resolved from the configured Assistant attached to the Topic or the configured Agent attached to the Agent Session. Missing or deleted identity records use a localized type name and the default Assistant or Agent emoji without replacing an already resolved conversation or session title.
+
+The bottom 44 px row is the existing navigation target and keeps the title to one truncated line. The avatar is decorative; the identity name and localized status remain the accessible text. The capsule fallback has no physical shoulders, so a single activity expands to 420 × 60 and keeps the existing inline status-and-title row.
+
+### Multiple-activity hardware-notch presentation
 
 The expanded surface keeps a 38 px top shoulder zone and renders it as a three-column grid:
 
@@ -80,7 +96,7 @@ The leading shoulder contains:
 
 The trailing shoulder contains a quiet badge with the localized total activity count, for example `2 activities` / `2 项`. It has no click behavior. The status text and count truncate before crossing into the measured notch. Icons are decorative and `aria-hidden`; text remains the accessible source of meaning.
 
-The compact hardware-notch layout remains unchanged. The capsule fallback also remains unchanged because it has no physical occlusion or empty shoulder zone to reclaim.
+The compact hardware-notch layout remains unchanged. Multiple-activity capsule rendering also remains unchanged because it has no physical occlusion or empty shoulder zone to reclaim.
 
 ### Rows and bottom edge
 
@@ -96,6 +112,7 @@ Expected notch sizes include:
 
 | Visible rows | Previous height | New height |
 |---:|---:|---:|
+| 1 | 38 px compact only | 82 px while hovered |
 | 2 | 134 px | 126 px |
 | 5 | 266 px | 258 px |
 
@@ -164,6 +181,7 @@ The renderer receives the resolved reduced-motion boolean in the snapshot so bot
 - an optional exit flag indicating that the last visible snapshot is leaving;
 - a localized total-activity label for expanded notch shoulders;
 - the resolved reduced-motion boolean.
+- the configured identity name and avatar already consumed by the single-activity expanded shoulder.
 
 The activity type icon is derived in renderer from the existing navigation target and needs no new cross-process field.
 
@@ -196,6 +214,7 @@ Only normal activity exhaustion animates disappearance. Safety and lifecycle tea
 - Existing pointer dwell and leave timers remain unchanged.
 - Exit state clears renderer hover timers and applies `pointer-events: none`.
 - Shoulder content is informational and cannot receive focus.
+- Single-activity identity avatars are decorative; the configured identity name remains readable by assistive technology.
 - Activity rows retain their current accessible labels and click behavior.
 - State is expressed with localized text in addition to indicator color.
 - Assistant and Agent icons are decorative supplements, not the only identity signal.
@@ -226,6 +245,7 @@ This cannot display a disappearance animation because closing the BrowserWindow 
 
 ### Pure geometry tests
 
+- One expanded notch row resolves to 420 × 82; one expanded capsule row resolves to 420 × 60.
 - Two expanded notch rows resolve to 420 × 126.
 - Five or more expanded notch rows resolve to 420 × 258.
 - Capsule sizes remain unchanged.
@@ -233,6 +253,9 @@ This cannot display a disappearance animation because closing the BrowserWindow 
 
 ### Main service tests
 
+- One eligible activity can enter and remain in the authoritative expanded state.
+- Assistant and Agent identities are resolved once per activity turn and projected into the snapshot.
+- Missing identity records keep the resolved conversation title and use localized identity fallbacks.
 - Normal activity exhaustion pushes an exit snapshot and does not close before 180 ms.
 - The matching window closes when the deadline expires.
 - New activity cancels exit and reuses the same window id.
@@ -242,6 +265,9 @@ This cannot display a disappearance animation because closing the BrowserWindow 
 
 ### Renderer tests
 
+- A single activity requests expansion after the existing 500 ms dwell.
+- A single expanded notch shows configured identity on the left, status on the right, and a clickable title below.
+- A single expanded capsule preserves its inline status and title.
 - Expanded notch shoulders show the correct Assistant/Agent icon, localized status, and total count.
 - Expanded capsule rendering does not gain notch shoulders.
 - Exit state disables pointer interaction and cancels hover timers.
@@ -254,18 +280,20 @@ Tests assert observable contracts and motion state selection, not intermediate a
 
 In the tracked Electron instance:
 
-1. inject two temporary activities;
-2. confirm compact bounds are 320 × 38;
-3. hover and confirm expanded bounds are 420 × 126;
-4. confirm the shoulder icon/status/count and that the last row meets the bottom edge;
-5. confirm compact/expanded motion is top-anchored and does not steal focus;
-6. remove all temporary activities and confirm exit motion precedes window closure;
-7. repeat with reduced motion enabled or an injected reduced-motion snapshot;
-8. remove the temporary activity state and leave the healthy tracked instance running.
+1. inject one temporary activity and confirm compact bounds are 320 × 38;
+2. hover and confirm expanded bounds are 420 × 82;
+3. confirm the configured identity, status, and full-width title row, then leave and confirm the window returns to 320 × 38;
+4. inject a second temporary activity and confirm expanded bounds are 420 × 126;
+5. confirm the multi-activity shoulder icon/status/count and that the last row meets the bottom edge;
+6. confirm compact/expanded motion is top-anchored and does not steal focus;
+7. remove all temporary activities and confirm exit motion precedes window closure;
+8. repeat with reduced motion enabled or an injected reduced-motion snapshot;
+9. remove the temporary activity state and leave the healthy tracked instance running.
 
 ## Acceptance criteria
 
 - Expanded notch layouts contain useful information on both sides of the physical notch.
+- One activity stays compact until hover, then expands to show its configured identity, status, and full-width title.
 - The expanded notch list has no bottom gap.
 - Appearance, compact/expanded transition, and disappearance no longer read as abrupt state swaps.
 - Normal exit is cancelable by new activity and cannot close a replacement window.

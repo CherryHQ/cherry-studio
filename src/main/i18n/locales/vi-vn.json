@@ -104,6 +104,10 @@
   },
   "conversation_island": {
     "activity_count": "Tổng: {{count}}",
+    "identity": {
+      "agent": "Agent",
+      "assistant": "Trợ lý"
+    },
     "status": {
       "agent": {
         "done": "Đã hoàn thành tác vụ",

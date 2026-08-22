@@ -104,6 +104,10 @@
   },
   "conversation_island": {
     "activity_count": "Σύνολο: {{count}}",
+    "identity": {
+      "agent": "Πράκτορας",
+      "assistant": "Βοηθός"
+    },
     "status": {
       "agent": {
         "done": "Η εργασία ολοκληρώθηκε",
