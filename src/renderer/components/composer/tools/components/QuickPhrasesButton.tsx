@@ -11,6 +11,7 @@ import {
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -143,7 +144,14 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     restoreInputFocus()
   }, [restoreInputFocus])
 
-  const openPromptSettings = useCallback(() => openSettingsTab('/settings/prompts'), [])
+  const openPromptManagement = useCallback(() => {
+    if (bindingTarget) {
+      openResourceEditDialog({ kind: bindingTarget.type, id: bindingTarget.id, initialTab: 'prompts' })
+      return
+    }
+
+    openSettingsTab('/settings/prompts')
+  }, [bindingTarget])
 
   const phraseItems = useMemo(() => {
     const newList: QuickPanelListItem[] = []
@@ -174,7 +182,7 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     newList.push({
       label: t('settings.prompts.manage'),
       icon: <Settings />,
-      action: openPromptSettings
+      action: openPromptManagement
     })
 
     newList.push({
@@ -188,7 +196,7 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     handleItemSelect,
     isPromptsLoading,
     openAddModal,
-    openPromptSettings,
+    openPromptManagement,
     promptItems,
     promptsEnabled,
     promptsError,

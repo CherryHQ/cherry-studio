@@ -7,6 +7,7 @@ import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
 
 const mocks = vi.hoisted(() => ({
   createPrompt: vi.fn(),
+  openResourceEditDialog: vi.fn(),
   openSettingsTab: vi.fn(),
   quickPanelClose: vi.fn(),
   quickPanelOpen: vi.fn(),
@@ -56,6 +57,9 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
         </button>
       </div>
     ) : null
+}))
+vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
+  openResourceEditDialog: (...args: unknown[]) => mocks.openResourceEditDialog(...args)
 }))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: (...args: unknown[]) => mocks.openSettingsTab(...args)
@@ -177,7 +181,7 @@ describe('QuickPhrasesToolRuntime', () => {
     )
   })
 
-  it('opens prompt settings from the management action without replacing the add action', async () => {
+  it('opens the current Assistant prompt tab from the management action without replacing the add action', async () => {
     const launcher = createLauncherApi()
     const assistantId = ASSISTANT_ID
 
@@ -208,7 +212,12 @@ describe('QuickPhrasesToolRuntime', () => {
       manageItem.action({} as never)
     })
 
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/prompts')
+    expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
+      kind: 'assistant',
+      id: assistantId,
+      initialTab: 'prompts'
+    })
+    expect(mocks.openSettingsTab).not.toHaveBeenCalled()
     expect(screen.queryByTestId('prompt-edit-dialog')).not.toBeInTheDocument()
   })
 
@@ -299,6 +308,18 @@ describe('QuickPhrasesToolRuntime', () => {
         query: { targetType: 'agent', targetId: agentId, includeGlobal: true }
       })
     )
+
+    const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
+    act(() => {
+      manageItem.action({} as never)
+    })
+
+    expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
+      kind: 'agent',
+      id: agentId,
+      initialTab: 'prompts'
+    })
   })
 
   it('restores composer focus after closing the add prompt dialog opened from quick panel', async () => {
