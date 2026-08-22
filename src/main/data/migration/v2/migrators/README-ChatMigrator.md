@@ -85,9 +85,9 @@ Topic data is merged from Dexie + Redux before transformation:
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
 | (computed) | `activeNodeId` | Smart selection: original active → foldSelected → last migrated |
-| (none) | `sortOrder` | 0 (new field) |
-| Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
-| (none) | `pinnedOrder` | 0 (new field) |
+| Redux: `assistants[].topics[]` then `defaultAssistant.topics[]` (first-write-wins) | `orderKey` | Global sequence; Dexie-only leftovers append after the flatten (`updatedAt` DESC, then id). Not recency. |
+| Redux: `pinned` | `pin` row | Polymorphic `pin` table (`entityType='topic'`) |
+| Same flatten restricted to `pinned === true` | `pin.orderKey` | Pin list order follows Redux array order among pinned ids, not `updatedAt` |
 | `createdAt` | `createdAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `min(message.createdAt)` |
 | `updatedAt` | `updatedAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `max(message.createdAt)` |
 | (computed from imported messages) | `lastActivityAt` | Maximum user creation / assistant completion activity; falls back to topic `createdAt` |
@@ -132,9 +132,13 @@ Topic data is merged from Dexie + Redux before transformation:
 | `compact` | `CompactBlock` | Direct copy |
 | `unknown` | (skipped) | Placeholder blocks are dropped |
 
+Already-migrated profiles that still have V1 Redux persist (`persist:cherry-studio`) are repaired once by `repairMigratedV1TopicOrder`: overlapping topic/pin ids are permuted into Redux order, and post-migration V2 rows keep their slots. Profiles whose persist is gone are left as-is.
+
 ## Implementation Files
 
 - `ChatMigrator.ts` - Main migrator class with prepare/execute/validate phases
+- `repairV1TopicOrder.ts` - One-shot already-migrated order rewrite
+- `utils/v1TopicOrder.ts` - Redux flatten + leftover append
 - `mappings/ChatMappings.ts` - Pure transformation functions and type definitions
 
 ## Code Quality
