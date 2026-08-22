@@ -210,7 +210,12 @@ describe('AgentTaskService (read side)', () => {
           name: 'b',
           jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
         }),
-        makeSnapshot({ id: 's3', name: 'heartbeat' })
+        // A real heartbeat row: the prompt sentinel is the discriminator
+        makeSnapshot({
+          id: 's3',
+          name: 'heartbeat:agent-1',
+          jobInputTemplate: { agentId: AGENT_ID, prompt: '__heartbeat__', timeoutMinutes: 5, workspace: taskWorkspace }
+        })
       ])
 
       const result = agentTaskService.listTasks(AGENT_ID)
@@ -220,10 +225,25 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks[0].id).toBe('s1')
     })
 
+    it('keeps a user task that merely happens to be named heartbeat visible', () => {
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([
+        makeSnapshot({ id: 's1', name: 'a' }),
+        makeSnapshot({ id: 'named', name: 'heartbeat' })
+      ])
+
+      const result = agentTaskService.listTasks(AGENT_ID)
+
+      expect(result.tasks.map((t) => t.id)).toEqual(['s1', 'named'])
+    })
+
     it('returns heartbeat tasks when includeHeartbeat=true', () => {
       vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([
         makeSnapshot({ id: 's1', name: 'a' }),
-        makeSnapshot({ id: 's3', name: 'heartbeat' })
+        makeSnapshot({
+          id: 's3',
+          name: 'heartbeat:agent-1',
+          jobInputTemplate: { agentId: AGENT_ID, prompt: '__heartbeat__', timeoutMinutes: 5, workspace: taskWorkspace }
+        })
       ])
 
       const result = agentTaskService.listTasks(AGENT_ID, { includeHeartbeat: true })
@@ -241,7 +261,12 @@ describe('AgentTaskService (read side)', () => {
           createdAt: '2026-05-22T00:00:00.000Z',
           jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
         }),
-        makeSnapshot({ id: 'heartbeat', name: 'heartbeat', createdAt: '2026-05-23T00:00:00.000Z' })
+        makeSnapshot({
+          id: 'heartbeat',
+          name: 'heartbeat:agent-1',
+          createdAt: '2026-05-23T00:00:00.000Z',
+          jobInputTemplate: { agentId: AGENT_ID, prompt: '__heartbeat__', timeoutMinutes: 5, workspace: taskWorkspace }
+        })
       ])
 
       const result = agentTaskService.listAllTasks({ limit: 1, offset: 0 })
