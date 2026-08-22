@@ -389,6 +389,8 @@ export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+  // Bumped by every setGatewayStatus; probes discard results from an older generation.
+  private gatewayTransitionId = 0
 
   public get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.gatewayPort}/ws`
@@ -407,18 +409,29 @@ export class OpenClawService extends BaseService {
     await this.stopGateway()
   }
 
-  /** Single gateway-status-transition point: assign, then broadcast the getStatus()-shaped payload. */
+  /** Single gateway-status-transition point: assign, then broadcast the get_status-shaped payload. */
   private setGatewayStatus(status: GatewayStatus): void {
     this.gatewayStatus = status
+    this.gatewayTransitionId++
     try {
-      application.get('IpcApiService').broadcast('openclaw.status_changed', {
-        status: this.gatewayStatus,
-        port: this.gatewayPort
-      })
+      application.get('IpcApiService').broadcast('openclaw.status_changed', { status: this.gatewayStatus })
     } catch (err) {
       // The renderer re-syncs via get_status; a failed broadcast must not abort the transition.
       logger.warn('Failed to broadcast OpenClaw gateway status change', err as Error)
     }
+  }
+
+  /**
+   * Generation snapshot for mid-flight probes: a monotonic transition counter
+   * (covers stop→start cycles that revisit the same status) plus the port,
+   * which can change without a transition via syncConfig.
+   */
+  private gatewayGeneration(): { transitionId: number; port: number } {
+    return { transitionId: this.gatewayTransitionId, port: this.gatewayPort }
+  }
+
+  private gatewayGenerationChanged(before: { transitionId: number; port: number }): boolean {
+    return this.gatewayTransitionId !== before.transitionId || this.gatewayPort !== before.port
   }
 
   /**
@@ -429,12 +442,12 @@ export class OpenClawService extends BaseService {
    */
   private async probeGatewayTick(): Promise<void> {
     if (this.gatewayStatus === 'starting') return
+    const generationBefore = this.gatewayGeneration()
     const statusBefore = this.gatewayStatus
-    const portBefore = this.gatewayPort
     try {
       const { status } = await this.checkGatewayHealth()
-      // A transition (stop/start/port change) that completed mid-probe invalidates its result.
-      if (this.gatewayStatus !== statusBefore || this.gatewayPort !== portBefore) return
+      // Any transition or port change that completed mid-probe invalidates its result.
+      if (this.gatewayGenerationChanged(generationBefore)) return
       if (status === 'healthy' && statusBefore !== 'running') {
         logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
         this.setGatewayStatus('running')
@@ -938,11 +951,11 @@ export class OpenClawService extends BaseService {
       return { status: this.gatewayStatus, port: this.gatewayPort }
     }
 
+    const generationBefore = this.gatewayGeneration()
     const statusBefore = this.gatewayStatus
-    const portBefore = this.gatewayPort
     const { status } = await this.checkGatewayHealth()
-    // A transition (stop/start/port change) that completed mid-probe invalidates its result.
-    if (this.gatewayStatus !== statusBefore || this.gatewayPort !== portBefore) {
+    // Any transition or port change that completed mid-probe invalidates its result.
+    if (this.gatewayGenerationChanged(generationBefore)) {
       return { status: this.gatewayStatus, port: this.gatewayPort }
     }
     if (status === 'healthy' && statusBefore !== 'running') {
