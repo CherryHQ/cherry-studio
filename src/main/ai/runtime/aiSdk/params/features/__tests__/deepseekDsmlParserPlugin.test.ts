@@ -205,6 +205,51 @@ const SSE_DELTAS: string[] = [
 ]
 
 describe('deepseekDsmlParserPlugin', () => {
+  /** Stream fixture carrying the model output on the reasoning (thinking) channel — the #19188 shape. */
+  async function runReasoningStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+    const middleware = await getMiddleware()
+    expect(middleware.wrapStream).toBeDefined()
+
+    const parts: LanguageModelV3StreamPart[] = [
+      { type: 'stream-start', warnings: [] },
+      { type: 'reasoning-start', id: 'reasoning-1' },
+      ...deltas.map<LanguageModelV3StreamPart>((delta) => ({
+        type: 'reasoning-delta',
+        id: 'reasoning-1',
+        delta
+      })),
+      { type: 'reasoning-end', id: 'reasoning-1' },
+      {
+        type: 'finish',
+        finishReason: { unified: finishReasonUnified, raw: finishReasonUnified },
+        usage: {} as any
+      }
+    ]
+
+    const source = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(part)
+        controller.close()
+      }
+    })
+
+    const wrapped = await middleware.wrapStream!({
+      doStream: async () => ({ stream: source, request: { body: {} }, response: { headers: {} } }),
+      doGenerate: (async () => ({})) as any,
+      params: {} as any,
+      model: {} as any
+    } as any)
+
+    const events: LanguageModelV3StreamPart[] = []
+    const reader = wrapped.stream.getReader()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      events.push(value)
+    }
+    return events
+  }
+
   it('converts the captured SSE sample into two AI SDK tool-call events', async () => {
     const events = await runStream(SSE_DELTAS, 'stop')
 
@@ -379,6 +424,60 @@ describe('deepseekDsmlParserPlugin', () => {
     expect(text).toBe('prefix  suffix')
   })
 
+  describe('reasoning channel (#19188)', () => {
+    const OPEN = '<｜｜DSML｜｜tool_calls>'
+    const CLOSE = '</｜｜DSML｜｜tool_calls>'
+    const INVOKE =
+      '<｜｜DSML｜｜invoke name="bash"><｜｜DSML｜｜parameter name="command">cat doc.md</｜｜DSML｜｜parameter></｜｜DSML｜｜invoke>'
+
+    it('extracts DSML tool calls emitted inside the thinking stream and rewrites the finish reason', async () => {
+      const events = await runReasoningStream(['I should verify the document. ', OPEN + INVOKE + CLOSE])
+
+      const toolCalls = events.filter((e) => e.type === 'tool-call')
+      expect(toolCalls).toHaveLength(1)
+      expect(toolCalls[0]).toMatchObject({ type: 'tool-call', toolName: 'bash' })
+      expect(JSON.parse(toolCalls[0].input)).toEqual({ command: 'cat doc.md' })
+
+      const finish = events.find((e) => e.type === 'finish')
+      expect(finish).toMatchObject({ finishReason: { unified: 'tool-calls' } })
+    })
+
+    it('strips the DSML markup from the reasoning output but keeps the surrounding thinking text', async () => {
+      const events = await runReasoningStream(['thinking before ', OPEN + INVOKE + CLOSE, ' thinking after'])
+
+      const reasoning = events
+        .filter((e) => e.type === 'reasoning-delta')
+        .map((e) => (e as { delta: string }).delta)
+        .join('')
+      expect(reasoning).toBe('thinking before  thinking after')
+      expect(reasoning).not.toContain('DSML')
+    })
+
+    it('keeps a partial DSML opening tag buffered across reasoning chunk boundaries', async () => {
+      const events = await runReasoningStream(['hmm ', '<｜｜DSML｜｜to', 'ol_calls>', INVOKE, CLOSE])
+
+      const toolCalls = events.filter((e) => e.type === 'tool-call')
+      expect(toolCalls).toHaveLength(1)
+
+      const reasoning = events
+        .filter((e) => e.type === 'reasoning-delta')
+        .map((e) => (e as { delta: string }).delta)
+        .join('')
+      expect(reasoning).toBe('hmm ')
+    })
+
+    it('flushes an unclosed DSML block as reasoning text on reasoning-end', async () => {
+      const events = await runReasoningStream([OPEN + 'never closed'])
+
+      expect(events.filter((e) => e.type === 'tool-call')).toHaveLength(0)
+      const reasoning = events
+        .filter((e) => e.type === 'reasoning-delta')
+        .map((e) => (e as { delta: string }).delta)
+        .join('')
+      expect(reasoning).toBe(OPEN + 'never closed')
+    })
+  })
+
   describe('wrapGenerate (non-streaming)', () => {
     async function runGenerate(text: string, finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
       const middleware = await getMiddleware()
@@ -449,6 +548,43 @@ describe('deepseekDsmlParserPlugin', () => {
       expect(result.content).toHaveLength(1)
       expect(result.content[0]).toMatchObject({ type: 'text', text })
       expect(result.finishReason.unified).toBe('stop')
+    })
+
+    it('extracts DSML tool calls from a reasoning part (#19188)', async () => {
+      const middleware = await getMiddleware()
+      const OPEN = '<｜｜DSML｜｜tool_calls>'
+      const CLOSE = '</｜｜DSML｜｜tool_calls>'
+      const INVOKE =
+        '<｜｜DSML｜｜invoke name="bash"><｜｜DSML｜｜parameter name="command">cat doc.md</｜｜DSML｜｜parameter></｜｜DSML｜｜invoke>'
+
+      const result = await middleware.wrapGenerate!({
+        doGenerate: async () =>
+          ({
+            content: [
+              { type: 'reasoning', text: 'verify ' + OPEN + INVOKE + CLOSE + ' now' },
+              { type: 'text', text: '' }
+            ],
+            finishReason: { unified: 'stop', raw: 'stop' },
+            usage: {} as any,
+            warnings: [],
+            request: { body: {} },
+            response: { headers: {} }
+          }) as any,
+        doStream: (async () => ({})) as any,
+        params: {} as any,
+        model: {} as any
+      } as any)
+
+      const content = (result as any).content as Array<{ type: string; text?: string; toolName?: string }>
+      const toolCall = content.find((p) => p.type === 'tool-call')
+      expect(toolCall).toMatchObject({ toolName: 'bash' })
+      // trailing text after the block lands in a second reasoning part
+      const reasoningText = content
+        .filter((p) => p.type === 'reasoning')
+        .map((p) => p.text ?? '')
+        .join('')
+      expect(reasoningText).toBe('verify  now')
+      expect((result as any).finishReason.unified).toBe('tool-calls')
     })
 
     it('returns input unchanged when no DSML markup is present', async () => {

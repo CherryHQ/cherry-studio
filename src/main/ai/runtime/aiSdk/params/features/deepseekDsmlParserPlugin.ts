@@ -67,6 +67,147 @@ function generateToolCallId(): string {
   return `dsml_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
 }
 
+function enqueueToolCalls(
+  controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
+  calls: ParsedDsmlCall[]
+): void {
+  for (const call of calls) {
+    const id = generateToolCallId()
+    const inputJson = JSON.stringify(call.args)
+    controller.enqueue({ type: 'tool-input-start', id, toolName: call.toolName })
+    controller.enqueue({ type: 'tool-input-delta', id, delta: inputJson })
+    controller.enqueue({ type: 'tool-input-end', id })
+    controller.enqueue({
+      type: 'tool-call',
+      toolCallId: id,
+      toolName: call.toolName,
+      input: inputJson
+    })
+  }
+}
+
+/**
+ * One DSML-scanning state machine per output channel (`text` or `reasoning`).
+ *
+ * The reasoning channel exists because DeepSeek models sometimes emit the
+ * tool_calls markup inside the thinking field instead of the text field
+ * (#19188): the turn then carries no visible text and no structured call, and
+ * the runtime's "no visible output" retry loops forever. The same extraction
+ * runs on both channels; extracted blocks are stripped from the channel they
+ * arrived in and re-emitted as structured tool calls.
+ */
+interface DsmlChannel {
+  onDelta(controller: TransformStreamDefaultController<LanguageModelV3StreamPart>, partId: string, delta: string): void
+  onEnd(controller: TransformStreamDefaultController<LanguageModelV3StreamPart>, partId: string): void
+}
+
+function createDsmlChannel(
+  deltaType: 'text-delta' | 'reasoning-delta',
+  onExtracted: (count: number) => void
+): DsmlChannel {
+  let buffer = ''
+  let dsmlBuffer = ''
+  let inDsml = false
+
+  // eslint-disable-next-line prefer-const
+  let drainDsmlBuffer: (controller: TransformStreamDefaultController<LanguageModelV3StreamPart>, partId: string) => void
+
+  const enqueueRemainder = (
+    controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
+    partId: string
+  ) => {
+    const startIdx = buffer.indexOf(TOOL_CALLS_OPEN)
+    if (startIdx === -1) {
+      const partialIdx = findPartialPrefix(buffer, TOOL_CALLS_OPEN)
+      if (partialIdx >= 0) {
+        const safe = buffer.slice(0, partialIdx)
+        if (safe) controller.enqueue({ type: deltaType, id: partId, delta: safe })
+        buffer = buffer.slice(partialIdx)
+      } else {
+        if (buffer) controller.enqueue({ type: deltaType, id: partId, delta: buffer })
+        buffer = ''
+      }
+      return
+    }
+    if (startIdx > 0) {
+      controller.enqueue({ type: deltaType, id: partId, delta: buffer.slice(0, startIdx) })
+    }
+    dsmlBuffer = buffer.slice(startIdx + TOOL_CALLS_OPEN.length)
+    buffer = ''
+    inDsml = true
+    drainDsmlBuffer(controller, partId)
+  }
+
+  drainDsmlBuffer = (controller: TransformStreamDefaultController<LanguageModelV3StreamPart>, partId: string) => {
+    const closeIdx = dsmlBuffer.indexOf(TOOL_CALLS_CLOSE)
+    if (closeIdx === -1) {
+      if (dsmlBuffer.length > SWALLOW_BUFFER_LIMIT) {
+        logger.warn('DSML buffer exceeded limit without close tag, falling back to text')
+        controller.enqueue({
+          type: deltaType,
+          id: partId,
+          delta: TOOL_CALLS_OPEN + dsmlBuffer
+        })
+        dsmlBuffer = ''
+        inDsml = false
+      }
+      return
+    }
+
+    const blockContent = dsmlBuffer.slice(0, closeIdx)
+    const remainder = dsmlBuffer.slice(closeIdx + TOOL_CALLS_CLOSE.length)
+    const calls = parseInvokeBlocks(blockContent)
+
+    if (calls.length === 0) {
+      logger.warn('DSML block closed but no invoke blocks parsed, emitting as text')
+      controller.enqueue({
+        type: deltaType,
+        id: partId,
+        delta: TOOL_CALLS_OPEN + blockContent + TOOL_CALLS_CLOSE
+      })
+    } else {
+      enqueueToolCalls(controller, calls)
+      onExtracted(calls.length)
+      logger.info(`Parsed ${calls.length} DSML tool call(s)`, {
+        channel: deltaType,
+        tools: calls.map((c) => c.toolName)
+      })
+    }
+
+    dsmlBuffer = ''
+    inDsml = false
+    buffer = remainder
+    if (buffer) enqueueRemainder(controller, partId)
+  }
+
+  return {
+    onDelta(controller, partId, delta) {
+      if (inDsml) {
+        dsmlBuffer += delta
+        drainDsmlBuffer(controller, partId)
+        return
+      }
+      buffer += delta
+      enqueueRemainder(controller, partId)
+    },
+    onEnd(controller, partId) {
+      if (inDsml) {
+        logger.warn(`${deltaType} end with unclosed DSML block, flushing as text`)
+        controller.enqueue({
+          type: deltaType,
+          id: partId,
+          delta: TOOL_CALLS_OPEN + dsmlBuffer
+        })
+        dsmlBuffer = ''
+        inDsml = false
+      } else if (buffer) {
+        controller.enqueue({ type: deltaType, id: partId, delta: buffer })
+        buffer = ''
+      }
+    }
+  }
+}
+
 function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
@@ -74,96 +215,14 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
     wrapStream: async ({ doStream }) => {
       const { stream, ...rest } = await doStream()
 
-      let textBuffer = ''
-      let dsmlBuffer = ''
-      let inDsml = false
       let activeTextId: string | null = null
+      let activeReasoningId: string | null = null
       let extractedToolCalls = false
-
-      // eslint-disable-next-line prefer-const
-      let drainDsmlBuffer: (
-        controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
-        textId: string
-      ) => void
-
-      const enqueueRemainderText = (
-        controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
-        textId: string
-      ) => {
-        const startIdx = textBuffer.indexOf(TOOL_CALLS_OPEN)
-        if (startIdx === -1) {
-          const partialIdx = findPartialPrefix(textBuffer, TOOL_CALLS_OPEN)
-          if (partialIdx >= 0) {
-            const safe = textBuffer.slice(0, partialIdx)
-            if (safe) controller.enqueue({ type: 'text-delta', id: textId, delta: safe })
-            textBuffer = textBuffer.slice(partialIdx)
-          } else {
-            if (textBuffer) controller.enqueue({ type: 'text-delta', id: textId, delta: textBuffer })
-            textBuffer = ''
-          }
-          return
-        }
-        if (startIdx > 0) {
-          controller.enqueue({ type: 'text-delta', id: textId, delta: textBuffer.slice(0, startIdx) })
-        }
-        dsmlBuffer = textBuffer.slice(startIdx + TOOL_CALLS_OPEN.length)
-        textBuffer = ''
-        inDsml = true
-        drainDsmlBuffer(controller, textId)
+      const markExtracted = (count: number) => {
+        if (count > 0) extractedToolCalls = true
       }
-
-      drainDsmlBuffer = (controller: TransformStreamDefaultController<LanguageModelV3StreamPart>, textId: string) => {
-        const closeIdx = dsmlBuffer.indexOf(TOOL_CALLS_CLOSE)
-        if (closeIdx === -1) {
-          if (dsmlBuffer.length > SWALLOW_BUFFER_LIMIT) {
-            logger.warn('DSML buffer exceeded limit without close tag, falling back to text')
-            controller.enqueue({
-              type: 'text-delta',
-              id: textId,
-              delta: TOOL_CALLS_OPEN + dsmlBuffer
-            })
-            dsmlBuffer = ''
-            inDsml = false
-          }
-          return
-        }
-
-        const blockContent = dsmlBuffer.slice(0, closeIdx)
-        const remainder = dsmlBuffer.slice(closeIdx + TOOL_CALLS_CLOSE.length)
-        const calls = parseInvokeBlocks(blockContent)
-
-        if (calls.length === 0) {
-          logger.warn('DSML block closed but no invoke blocks parsed, emitting as text')
-          controller.enqueue({
-            type: 'text-delta',
-            id: textId,
-            delta: TOOL_CALLS_OPEN + blockContent + TOOL_CALLS_CLOSE
-          })
-        } else {
-          for (const call of calls) {
-            const id = generateToolCallId()
-            const inputJson = JSON.stringify(call.args)
-            controller.enqueue({ type: 'tool-input-start', id, toolName: call.toolName })
-            controller.enqueue({ type: 'tool-input-delta', id, delta: inputJson })
-            controller.enqueue({ type: 'tool-input-end', id })
-            controller.enqueue({
-              type: 'tool-call',
-              toolCallId: id,
-              toolName: call.toolName,
-              input: inputJson
-            })
-          }
-          extractedToolCalls = true
-          logger.info(`Parsed ${calls.length} DSML tool call(s)`, {
-            tools: calls.map((c) => c.toolName)
-          })
-        }
-
-        dsmlBuffer = ''
-        inDsml = false
-        textBuffer = remainder
-        if (textBuffer) enqueueRemainderText(controller, textId)
-      }
+      const textChannel = createDsmlChannel('text-delta', markExtracted)
+      const reasoningChannel = createDsmlChannel('reasoning-delta', markExtracted)
 
       return {
         stream: stream.pipeThrough(
@@ -179,22 +238,28 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               }
 
               if (chunk.type === 'text-end') {
-                const textId = chunk.id
-                if (inDsml) {
-                  logger.warn('text-end with unclosed DSML block, flushing as text')
-                  controller.enqueue({
-                    type: 'text-delta',
-                    id: textId,
-                    delta: TOOL_CALLS_OPEN + dsmlBuffer
-                  })
-                  dsmlBuffer = ''
-                  inDsml = false
-                } else if (textBuffer) {
-                  controller.enqueue({ type: 'text-delta', id: textId, delta: textBuffer })
-                  textBuffer = ''
-                }
+                textChannel.onEnd(controller, chunk.id)
                 controller.enqueue(chunk)
                 activeTextId = null
+                return
+              }
+
+              if (chunk.type === 'reasoning-start') {
+                activeReasoningId = chunk.id
+                controller.enqueue(chunk)
+                return
+              }
+
+              if (chunk.type === 'reasoning-delta') {
+                if (!activeReasoningId) activeReasoningId = chunk.id
+                reasoningChannel.onDelta(controller, chunk.id, chunk.delta)
+                return
+              }
+
+              if (chunk.type === 'reasoning-end') {
+                reasoningChannel.onEnd(controller, chunk.id)
+                controller.enqueue(chunk)
+                activeReasoningId = null
                 return
               }
 
@@ -215,33 +280,14 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
                 return
               }
 
-              const textId = chunk.id
-              if (!activeTextId) activeTextId = textId
-
-              if (inDsml) {
-                dsmlBuffer += chunk.delta
-                drainDsmlBuffer(controller, textId)
-                return
-              }
-
-              textBuffer += chunk.delta
-              enqueueRemainderText(controller, textId)
+              if (!activeTextId) activeTextId = chunk.id
+              textChannel.onDelta(controller, chunk.id, chunk.delta)
             },
             flush(controller: TransformStreamDefaultController<LanguageModelV3StreamPart>) {
-              const textId = activeTextId ?? 'dsml-fallback'
-              if (inDsml) {
-                logger.warn('Stream flushed with unclosed DSML block')
-                controller.enqueue({
-                  type: 'text-delta',
-                  id: textId,
-                  delta: TOOL_CALLS_OPEN + dsmlBuffer
-                })
-              } else if (textBuffer) {
-                controller.enqueue({ type: 'text-delta', id: textId, delta: textBuffer })
-              }
-              textBuffer = ''
-              dsmlBuffer = ''
-              inDsml = false
+              // text-end / reasoning-end normally flush each channel; a stream
+              // torn down between start and end still gets its remainder out.
+              textChannel.onEnd(controller, activeTextId ?? 'dsml-fallback')
+              if (activeReasoningId) reasoningChannel.onEnd(controller, activeReasoningId)
             }
           })
         ),
@@ -255,7 +301,9 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
       let extracted = false
 
       for (const part of result.content) {
-        if (part.type !== 'text') {
+        // DSML can arrive on the text channel or inside the reasoning
+        // (thinking) channel (#19188); both carry plain string content here.
+        if (part.type !== 'text' && part.type !== 'reasoning') {
           newContent.push(part)
           continue
         }
@@ -342,8 +390,11 @@ export const createDeepseekDsmlParserPlugin = () =>
 
 /**
  * Some DeepSeek deployments emit tool calls as `<｜｜DSML｜｜tool_calls>` markup inside text
- * deltas instead of native `tool-call` parts; this re-extracts them. The middleware passes
- * text straight through unless that distinctive markup appears, so gating to DeepSeek models
+ * deltas instead of native `tool-call` parts; this re-extracts them. The same markup can
+ * also surface inside the thinking/reasoning channel (#19188), where without extraction
+ * the turn produces no visible text and no structured call — the runtime's
+ * "no visible output" retry then loops forever. The middleware passes text and reasoning
+ * straight through unless that distinctive markup appears, so gating to DeepSeek models
  * is both sufficient (where the leak happens) and safe (no transform for non-DeepSeek).
  */
 export const deepseekDsmlParserFeature: RequestFeature = {
