@@ -562,6 +562,62 @@ describe('XlsxGrid — range selection', () => {
     })
   })
 
+  it('commits a plain press-and-release without relying on the trailing click', () => {
+    // The grid captures the pointer on pointerdown, so the click synthesized afterwards is not targeted at the
+    // cell the press started on. Leaving the commit to that click strands the parent on the old selection while
+    // the grid already shows the new one.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B3.x, IN_B3.y))
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'B3', rect: { top: 3, left: 2, bottom: 3, right: 2 } })
+    )
+  })
+
+  it('commits the drawn range when the pointer is cancelled instead of released', () => {
+    // Lost capture or an OS-level gesture takeover leaves the extended selection on screen; abandoning it here
+    // would leave the parent holding the pre-drag selection.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    onSelectCell.mockClear()
+    fireEvent.pointerCancel(scroll, pointerAt(IN_B3.x, IN_B3.y))
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'A2:B3', rect: { top: 2, left: 1, bottom: 3, right: 2 } })
+    )
+  })
+
+  it('commits a Shift+Arrow extension when focus leaves before the key is released', () => {
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.click(screen.getByText('Quarter')) // A2
+    onSelectCell.mockClear()
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown', shiftKey: true })
+    expect(onSelectCell).not.toHaveBeenCalled() // still mid-extend
+    fireEvent.blur(scroll)
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'A2:A3', rect: { top: 2, left: 1, bottom: 3, right: 1 } })
+    )
+  })
+
   it('extends the existing selection from its anchor on Shift+Click', () => {
     showHeaderRange()
     const onSelectCell = vi.fn()
