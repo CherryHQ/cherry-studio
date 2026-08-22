@@ -10,12 +10,15 @@ import { remarkLiteralAutolinkFix } from '../remarkLiteralAutolinkFix'
 // so a tree parsed without them would not contain the literal autolinks at all.
 const parse = (source: string): Root => {
   const processor = unified().use(remarkParse).use(remarkGfm).use(remarkLiteralAutolinkFix)
-  return processor.runSync(processor.parse(source), { value: source }) as Root
+  // The unified generic resolves differently across toolchains; narrow via unknown explicitly.
+  const tree: unknown = processor.runSync(processor.parse(source), { value: source })
+  return tree as Root
 }
 
 const parseWithoutPlugin = (source: string): Root => {
   const processor = unified().use(remarkParse).use(remarkGfm)
-  return processor.runSync(processor.parse(source), { value: source }) as Root
+  const tree: unknown = processor.runSync(processor.parse(source), { value: source })
+  return tree as Root
 }
 
 function inlineChildren(source: string): PhrasingContent[] {
