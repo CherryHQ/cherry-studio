@@ -713,6 +713,15 @@ class ModelService {
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        if (model.description === undefined && registryModel?.description !== undefined) {
+          updates.description = registryModel.description
+        }
+        if (model.inputModalities === undefined && registryModel?.inputModalities !== undefined) {
+          updates.inputModalities = registryModel.inputModalities
+        }
+        if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {
+          updates.outputModalities = registryModel.outputModalities
+        }
         if (model.contextWindow === undefined && registryModel?.contextWindow !== undefined) {
           updates.contextWindow = registryModel.contextWindow
         }
