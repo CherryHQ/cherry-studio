@@ -7,6 +7,7 @@ import type {
   ConversationIslandSnapshot,
   ConversationIslandStateKind
 } from '@shared/types/conversationIsland'
+import { Bot, MessageCircle } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('ConversationIsland')
@@ -122,9 +123,14 @@ export default function ConversationIsland() {
     typeof snapshot.notchWidth === 'number' &&
     Number.isFinite(snapshot.notchWidth) &&
     snapshot.notchWidth > 0
+  const ActivityIcon = snapshot.target.conversationType === 'agent' ? Bot : MessageCircle
 
   const stateIndicator = (state: ConversationIslandStateKind) => (
-    <span className={`size-2 shrink-0 rounded-full ${STATE_INDICATOR_CLASS[state]}`} aria-hidden="true" />
+    <span
+      data-testid="state-indicator"
+      className={`size-2 shrink-0 rounded-full ${STATE_INDICATOR_CLASS[state]}`}
+      aria-hidden="true"
+    />
   )
 
   const openActivity = async (activity: ConversationIslandActivityItem) => {
@@ -162,9 +168,33 @@ export default function ConversationIsland() {
         onPointerLeave={handlePointerLeave}
         className={
           usesNotchLayout
-            ? 'h-full w-full overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black pt-[38px] text-white'
+            ? 'h-full w-full overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black text-white'
             : 'h-full w-full overflow-hidden rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-md'
         }>
+        {usesNotchLayout ? (
+          <div
+            data-testid="notch-expanded-header"
+            className="grid h-[38px] w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] text-xs">
+            <div
+              data-testid="notch-expanded-leading"
+              className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
+              <ActivityIcon
+                data-testid="notch-activity-icon"
+                data-conversation-type={snapshot.target.conversationType}
+                className="size-3.5 shrink-0 text-white/70"
+                aria-hidden="true"
+              />
+              {stateIndicator(snapshot.state)}
+              <span className="min-w-0 truncate">{snapshot.statusText}</span>
+            </div>
+            <div data-testid="notch-expanded-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
+            <div
+              data-testid="notch-expanded-trailing"
+              className="flex min-w-0 items-center justify-end overflow-hidden pr-3 text-white/60">
+              <span className="min-w-0 truncate">{snapshot.activityCountText}</span>
+            </div>
+          </div>
+        ) : null}
         <div role="list" className="max-h-[220px] overflow-y-auto">
           {activities.map((activity) => {
             const isPrimary = activity.activityId === snapshot.activityId

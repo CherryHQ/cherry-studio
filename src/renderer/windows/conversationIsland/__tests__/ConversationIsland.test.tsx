@@ -134,7 +134,47 @@ describe('ConversationIsland', () => {
     render(<ConversationIsland />)
 
     expect(screen.queryByTestId('notch-occlusion')).toBeNull()
+    expect(screen.queryByTestId('notch-expanded-header')).toBeNull()
     expect(screen.getByRole('button')).toHaveClass('rounded-full', 'bg-popover/95')
+  })
+
+  it.each([
+    ['assistant', 'Assistant active'],
+    ['agent', 'Agent active']
+  ] as const)(
+    'shows the %s primary activity identity in the expanded notch leading shoulder',
+    (conversationType, statusText) => {
+      mocks.initData = expandedSnapshot({
+        presentation: 'notch',
+        notchWidth: 180,
+        statusText,
+        target: { conversationType, conversationId: 'topic-1' }
+      })
+      render(<ConversationIsland />)
+
+      const leading = screen.getByTestId('notch-expanded-leading')
+      const icon = within(leading).getByTestId('notch-activity-icon')
+
+      expect(within(leading).getByText(statusText)).toBeVisible()
+      expect(icon).toHaveAttribute('data-conversation-type', conversationType)
+      expect(within(leading).getByTestId('state-indicator')).toBeInTheDocument()
+    }
+  )
+
+  it('shows the localized total around the measured expanded-notch occlusion', () => {
+    mocks.initData = expandedSnapshot({
+      presentation: 'notch',
+      notchWidth: 180,
+      activityCountText: 'Total: 2',
+      secondaryCount: 41
+    })
+    render(<ConversationIsland />)
+
+    const trailing = screen.getByTestId('notch-expanded-trailing')
+
+    expect(within(trailing).getByText('Total: 2')).toBeVisible()
+    expect(within(trailing).queryByText('+41')).toBeNull()
+    expect(screen.getByTestId('notch-expanded-occlusion')).toHaveStyle({ width: '180px' })
   })
 
   it.each([
@@ -387,8 +427,10 @@ describe('ConversationIsland', () => {
     const view = render(<ConversationIsland />)
 
     const notchSurface = screen.getByTestId('conversation-island-surface')
-    expect(notchSurface).toHaveClass('bg-black', 'rounded-t-none', 'rounded-b-[12px]', 'pt-[38px]')
-    expect(notchSurface).not.toHaveClass('p-2', 'bg-popover')
+    const notchHeader = screen.getByTestId('notch-expanded-header')
+    expect(notchSurface).toHaveClass('bg-black', 'rounded-t-none', 'rounded-b-[12px]')
+    expect(notchSurface).not.toHaveClass('p-2', 'pt-[38px]', 'bg-popover')
+    expect(notchHeader).toHaveClass('h-[38px]')
 
     mocks.initData = expandedSnapshot({ presentation: 'capsule' })
     view.rerender(<ConversationIsland />)
@@ -396,6 +438,7 @@ describe('ConversationIsland', () => {
     const capsuleSurface = screen.getByTestId('conversation-island-surface')
     expect(capsuleSurface).toHaveClass('bg-popover', 'text-popover-foreground', 'p-2')
     expect(capsuleSurface).not.toHaveClass('pt-[38px]', 'bg-black')
+    expect(screen.queryByTestId('notch-expanded-header')).toBeNull()
   })
 
   it('cleans pending expand and collapse timers on unmount', async () => {
