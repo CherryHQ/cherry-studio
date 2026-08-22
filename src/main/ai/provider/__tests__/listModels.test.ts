@@ -7,28 +7,31 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
-// HTTP call through @ai-sdk/provider-utils' getFromApi. Mock all of them at the
+// HTTP calls through @ai-sdk/provider-utils. Mock all of them at the
 // module boundary: ProviderService / VertexAiService to avoid the DB and signing,
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
 const {
   getRotatedApiKeyMock,
+  resolveApiKeyMock,
   getAuthConfigMock,
   getAuthHeadersMock,
   getCopilotTokenMock,
   aiSdkGetFromApiMock,
-  aiSdkPostJsonToApiMock
+  postJsonToApiMock
 } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+  resolveApiKeyMock: vi.fn(),
   getAuthConfigMock: vi.fn(),
   getAuthHeadersMock: vi.fn(),
   getCopilotTokenMock: vi.fn(),
   aiSdkGetFromApiMock: vi.fn(),
-  aiSdkPostJsonToApiMock: vi.fn()
+  postJsonToApiMock: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getRotatedApiKey: getRotatedApiKeyMock,
+    resolveApiKey: resolveApiKeyMock,
     getAuthConfig: getAuthConfigMock
   }
 }))
@@ -50,24 +53,26 @@ vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
   return {
     ...actual,
     getFromApi: aiSdkGetFromApiMock,
-    postJsonToApi: aiSdkPostJsonToApiMock
+    postJsonToApi: postJsonToApiMock
   }
 })
 
 // Import the SUT after the mocks are declared.
+const { resolveOllamaModelContextWindow } = await import('../custom/ollama/modelInfo')
 const { listModels } = await import('../listModels')
 
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
+  resolveApiKeyMock.mockReturnValue({ value: 'selected-secret-key' })
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
-  aiSdkPostJsonToApiMock.mockResolvedValue({ value: {} })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
   aiSdkGetFromApiMock.mockResolvedValue({
     value: {
       models: [{ name: 'models/gemini-2.0-flash', displayName: 'Gemini 2.0 Flash', description: 'fast' }]
     }
   })
+  postJsonToApiMock.mockResolvedValue({ value: {} })
 })
 
 function makeGeminiProvider() {
@@ -154,48 +159,83 @@ describe('listModels — Ollama capabilities', () => {
   })
 
   it('reads the trained context window from /api/show so num_ctx is not left at Ollama default', async () => {
-    // /api/tags carries no context length; without this the model has no contextWindow and no
-    // num_ctx is sent, leaving Ollama to size by VRAM — 4k below 24 GiB, which an agent's tool
-    // preamble overruns on its own (#18643).
     aiSdkGetFromApiMock.mockResolvedValueOnce({
-      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion', 'tools'] }] }
+      value: {
+        models: [
+          {
+            name: 'qwen3:32b',
+            capabilities: ['completion', 'tools'],
+            details: { family: 'qwen3' }
+          }
+        ]
+      }
     })
-    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
-      value: { model_info: { 'general.architecture': 'qwen3', 'qwen3.context_length': 40960 } }
+    postJsonToApiMock.mockResolvedValueOnce({
+      value: {
+        model_info: {
+          'general.architecture': 'qwen3',
+          'qwen3.context_length': 40_960
+        }
+      }
     })
 
     const models = await listModels(makeOllamaProvider())
 
-    expect(models[0]).toMatchObject({ apiModelId: 'qwen3:32b', contextWindow: 40960 })
-    expect(aiSdkPostJsonToApiMock.mock.calls[0][0]).toMatchObject({
-      url: 'http://ollama.test:11434/api/show',
-      body: { model: 'qwen3:32b' }
+    expect(models[0]).toMatchObject({
+      apiModelId: 'qwen3:32b',
+      contextWindow: 40_960
     })
+    expect(postJsonToApiMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http://ollama.test:11434/api/show',
+        body: { model: 'qwen3:32b', verbose: false }
+      })
+    )
   })
 
-  it('still lists a model whose /api/show call fails', async () => {
+  it('keeps listed models when optional show metadata is unavailable', async () => {
     aiSdkGetFromApiMock.mockResolvedValueOnce({
-      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion'] }] }
+      value: { models: [{ name: 'offline-details:latest' }] }
     })
-    aiSdkPostJsonToApiMock.mockRejectedValueOnce(new Error('connection refused'))
+    postJsonToApiMock.mockRejectedValueOnce(new Error('show unavailable'))
 
-    const models = await listModels(makeOllamaProvider())
-
-    expect(models).toHaveLength(1)
-    expect(models[0].contextWindow).toBeUndefined()
+    await expect(listModels(makeOllamaProvider())).resolves.toEqual([
+      expect.objectContaining({ apiModelId: 'offline-details:latest' })
+    ])
   })
 
   it('ignores a context length that does not match the reported architecture', async () => {
     aiSdkGetFromApiMock.mockResolvedValueOnce({
-      value: { models: [{ name: 'qwen3:32b', capabilities: ['completion'] }] }
+      value: { models: [{ name: 'qwen3-mismatch:32b', capabilities: ['completion'] }] }
     })
-    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+    postJsonToApiMock.mockResolvedValueOnce({
       value: { model_info: { 'general.architecture': 'qwen3', 'llama.context_length': 8192 } }
     })
 
     const models = await listModels(makeOllamaProvider())
 
     expect(models[0].contextWindow).toBeUndefined()
+  })
+
+  it('uses the request-selected credential when resolving runtime model metadata', async () => {
+    postJsonToApiMock.mockResolvedValueOnce({
+      value: { model_info: { 'llama.context_length': 32_768 } }
+    })
+    const provider = makeOllamaProvider()
+
+    await resolveOllamaModelContextWindow(provider, 'runtime-only:latest', {
+      apiKeyOverride: 'selected-key'
+    })
+
+    expect(resolveApiKeyMock).toHaveBeenCalledWith('ollama', 'selected-key')
+    expect(postJsonToApiMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer selected-secret-key',
+          'X-Api-Key': 'selected-secret-key'
+        })
+      })
+    )
   })
 })
 

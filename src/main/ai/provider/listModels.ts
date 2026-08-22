@@ -9,7 +9,6 @@ import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
   getFromApi as aiSdkGetFromApi,
-  postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
@@ -38,6 +37,7 @@ import * as z from 'zod'
 
 import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { resolveOllamaModelContextWindow } from './custom/ollama/modelInfo'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -51,7 +51,6 @@ import {
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
   NewApiModelsResponseSchema,
-  OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
@@ -174,46 +173,6 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   return undefined
 }
 
-/** The trained context length from `/api/show`, whose `model_info` keys carry an architecture prefix. */
-function readOllamaContextLength(modelInfo: Record<string, unknown> | undefined): number | undefined {
-  const architecture = modelInfo?.['general.architecture']
-  if (typeof architecture !== 'string') return undefined
-  const contextLength = modelInfo?.[`${architecture}.context_length`]
-  return typeof contextLength === 'number' && contextLength > 0 ? contextLength : undefined
-}
-
-/**
- * `/api/tags` carries no context length, so without this the model has no `contextWindow` and
- * Ollama falls back to sizing by available VRAM — 4k below 24 GiB, where an agent's tool preamble
- * alone overruns the window and Ollama truncates the conversation away (#18643). Its own guidance
- * puts agent and coding workloads at 64k+, which only the model's real window can satisfy.
- */
-async function fetchOllamaContextWindow(
-  baseUrl: string,
-  provider: Provider,
-  model: string,
-  signal?: AbortSignal
-): Promise<number | undefined> {
-  try {
-    const { value } = await postJsonToApi({
-      url: `${baseUrl}/api/show`,
-      headers: defaultHeaders(provider),
-      body: { model },
-      successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
-      failedResponseHandler: createJsonErrorResponseHandler({
-        errorSchema: zodSchema(ApiErrorSchema),
-        errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
-      }),
-      abortSignal: signal
-    })
-    return readOllamaContextLength(value.model_info)
-  } catch (error) {
-    // A model that cannot be inspected still belongs in the list; it falls back to the default window.
-    logger.warn('failed to read Ollama context length', { model, error })
-    return undefined
-  }
-}
-
 const ollamaFetcher: ModelFetcher = {
   match: (p) => isOllamaProvider(p),
   fetch: async (provider, signal) => {
@@ -226,15 +185,27 @@ const ollamaFetcher: ModelFetcher = {
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
-    const models = dedup(response.models, (m) => m.name)
-    const contextWindows = await Promise.all(
-      models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
-    )
-    return models.map((m, index) =>
+    const models = dedup(response.models, (m) => m.name).map((m) =>
       toModel(m.name, provider, {
         ownedBy: 'ollama',
-        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : [],
-        ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
+        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : []
+      })
+    )
+
+    return Promise.all(
+      models.map(async (model) => {
+        try {
+          const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId ?? '', { signal })
+          return contextWindow ? { ...model, contextWindow } : model
+        } catch (error) {
+          if (signal?.aborted) throw error
+          logger.warn('Optional Ollama model details failed; continuing with tag metadata', {
+            providerId: provider.id,
+            modelId: model.apiModelId,
+            error
+          })
+          return model
+        }
       })
     )
   }

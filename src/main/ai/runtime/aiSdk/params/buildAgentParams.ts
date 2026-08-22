@@ -25,7 +25,12 @@ import {
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
+import {
+  finalizeWebToolRoutes,
+  isOllamaProvider,
+  resolveWebToolRoutes,
+  type WebToolRoutes
+} from '@shared/utils/provider'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -34,6 +39,7 @@ import { collectRetainedContext, type RetainedContext } from '../../../messages/
 import { createHttpTraceFetch } from '../../../observability'
 import { resolveProviderAiSdkConfig } from '../../../provider/config'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
+import { resolveOllamaModelContextWindow } from '../../../provider/custom/ollama/modelInfo'
 import {
   resolveAiSdkProviderId,
   type ResolvedEndpoint,
@@ -127,7 +133,8 @@ export interface BuiltAgentParams {
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
-  const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
+  const { request, signal, provider, model: configuredModel, assistant, extraFeatures, compactionSink } = input
+  const model = await resolveRuntimeModel(provider, configuredModel, signal, request.apiKeyOverride)
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
@@ -306,6 +313,31 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     hookParts: contributions.hookParts,
     nativeFileSupport,
     fileAttachments
+  }
+}
+
+async function resolveRuntimeModel(
+  provider: Provider,
+  model: Model,
+  signal: AbortSignal | undefined,
+  apiKeyOverride: string | undefined
+): Promise<Model> {
+  if (!isOllamaProvider(provider) || model.contextWindow || !model.apiModelId) return model
+
+  try {
+    const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId, {
+      signal,
+      apiKeyOverride
+    })
+    return contextWindow ? { ...model, contextWindow } : model
+  } catch (error) {
+    if (signal?.aborted) throw error
+    logger.warn('Failed to resolve Ollama context window; continuing with configured model metadata', {
+      providerId: provider.id,
+      modelId: model.apiModelId,
+      error
+    })
+    return model
   }
 }
 
