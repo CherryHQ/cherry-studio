@@ -1,6 +1,7 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
-import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
+import { Button, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorView } from '@codemirror/view'
 import { usePreference } from '@data/hooks/usePreference'
@@ -187,7 +188,7 @@ export function PromptEditorField({
               <Markdown id={previewId}>{previewValue || value}</Markdown>
             </div>
           ) : (
-            <CodeEditor
+            <LazyCodeEditor
               ref={codeEditorRef}
               theme={promptEditorTheme}
               fontSize={fontSize - 1}

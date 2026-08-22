@@ -1,4 +1,5 @@
-import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
@@ -23,7 +24,7 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve
         </DialogHeader>
         <div className="min-h-0 overflow-hidden">
           {extension !== undefined ? (
-            <CodeEditor
+            <LazyCodeEditor
               className="[&_.cm-line]:cursor-text"
               theme={activeCmTheme}
               fontSize={fontSize - 1}

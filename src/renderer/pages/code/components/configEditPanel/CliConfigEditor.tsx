@@ -1,4 +1,5 @@
-import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip, type CodeEditorProps } from '@cherrystudio/ui'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
@@ -97,11 +98,11 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
 const EditorBody: FC<{
   file: CliConfigFileDraft
   fontSize: number
-  theme: React.ComponentProps<typeof CodeEditor>['theme']
+  theme: CodeEditorProps['theme']
   onChange: (target: string, content: string) => void
 }> = ({ file, fontSize, theme, onChange }) => (
   <div className={cn('overflow-hidden rounded-lg border border-border-subtle bg-background')}>
-    <CodeEditor
+    <LazyCodeEditor
       theme={theme}
       fontSize={fontSize - 1}
       value={file.content}

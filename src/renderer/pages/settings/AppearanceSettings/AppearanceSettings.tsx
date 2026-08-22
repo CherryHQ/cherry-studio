@@ -1,6 +1,5 @@
 import {
   Button,
-  CodeEditor,
   Combobox,
   type ComboboxOption,
   EditableNumber,
@@ -15,6 +14,7 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
@@ -541,7 +541,7 @@ const AppearanceSettings: FC = () => {
           <SettingDescription>{t('settings.display.custom.css.migration_notice')}</SettingDescription>
         )}
         <div className="mt-4 overflow-hidden rounded-lg border border-border-subtle">
-          <CodeEditor
+          <LazyCodeEditor
             theme={activeCmTheme}
             fontSize={fontSize - 1}
             value={customCss}
