@@ -633,7 +633,11 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       if (e.button !== 0) return
       const target = cellAtPointer(e.clientX, e.clientY)
       if (!target || target.inHeader || target.row > sheet.rowCount || target.col > sheet.colCount) return
-      const cell: CellRef = { row: target.row, col: target.col }
+      // Address a merged range by its master, the way selectCell does. Pressing a follower coordinate produces
+      // the same committed range either way, but it is also where later Shift+Arrow steps start from, and
+      // stepping off a follower walks back into the same merge instead of leaving it.
+      const merge = findMerge(target.row, target.col)
+      const cell: CellRef = { row: merge?.top ?? target.row, col: merge?.left ?? target.col }
       const current = selectionRef.current
       // Shift+Click is the v1 way to select a range whose corners sit in different viewports.
       const extending = e.shiftKey && current !== null
@@ -642,7 +646,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       dragRef.current = { pointerId: e.pointerId, selection: next, extended: extending }
       e.currentTarget.setPointerCapture?.(e.pointerId)
     },
-    [applySelection, cellAtPointer, sheet.colCount, sheet.rowCount]
+    [applySelection, cellAtPointer, findMerge, sheet.colCount, sheet.rowCount]
   )
 
   const handlePointerMove = useCallback(

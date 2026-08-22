@@ -1,4 +1,5 @@
 import { COMPOSER_INPUT_MAX_LENGTH } from '@renderer/components/composer/composerDraft'
+import { createSelectionReferenceToken } from '@renderer/components/composer/selectionReferenceToken'
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { SelectionReference } from '@renderer/types/selectionReference'
@@ -67,6 +68,30 @@ describe('useComposerSelectionReferenceInsertion', () => {
 
     expect(onInsert).not.toHaveBeenCalled()
     expect(mocks.toastError).toHaveBeenCalledWith('chat.input.reference_panel.no_room_selection')
+  })
+
+  it('counts the separator space insertToken appends, not just promptText', async () => {
+    // Room for the block itself but not for the trailing space: accepting here would land the draft one
+    // character past the limit.
+    const onInsert = vi.fn()
+    const promptLength = createSelectionReferenceToken(REFERENCE).promptText?.length ?? 0
+    render(<Harness draftText={'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - promptLength)} onInsert={onInsert} />)
+
+    await emit({ topicId: TOPIC_ID, reference: REFERENCE })
+
+    expect(onInsert).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.reference_panel.no_room_selection')
+  })
+
+  it('still inserts when the block and its separator both fit exactly', async () => {
+    const onInsert = vi.fn()
+    const promptLength = createSelectionReferenceToken(REFERENCE).promptText?.length ?? 0
+    render(<Harness draftText={'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - promptLength - 1)} onInsert={onInsert} />)
+
+    await emit({ topicId: TOPIC_ID, reference: REFERENCE })
+
+    expect(onInsert).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
   it('ignores selections addressed to another composer in the same window', async () => {
