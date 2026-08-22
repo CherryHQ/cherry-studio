@@ -38,7 +38,7 @@ import { application } from '@application'
 import type * as fsUtils from '@main/utils/file/fs'
 import { atomicWriteFile, remove } from '@main/utils/file/fs'
 
-import { writeCliConfigFiles } from '../configWriter'
+import { readCliConfigFiles, writeCliConfigFiles } from '../configWriter'
 
 const isWin = process.platform === 'win32'
 
@@ -190,5 +190,43 @@ describe('writeCliConfigFiles', () => {
 
     expect(await readFile(codexConfig(), 'utf-8')).toBe('config_old = true\n')
     expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining('roll back'), expect.any(Error))
+  })
+})
+
+describe('readCliConfigFiles', () => {
+  let home: string
+  const claudeSettings = () => path.join(home, '.claude', 'settings.json')
+
+  beforeEach(async () => {
+    home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
+    vi.mocked(application.getPath).mockImplementation((key: string) => {
+      if (key === 'sys.home') return home
+      throw new Error(`Unexpected getPath(${key})`)
+    })
+  })
+
+  afterEach(async () => {
+    await rm(home, { recursive: true, force: true })
+  })
+
+  it('returns the real content under the spec-resolved absolute path', async () => {
+    await mkdir(path.dirname(claudeSettings()), { recursive: true })
+    await writeFile(claudeSettings(), '{"env":{}}\n')
+
+    await expect(readCliConfigFiles(['claude-settings'])).resolves.toEqual([
+      { target: 'claude-settings', path: claudeSettings(), content: '{"env":{}}\n' }
+    ])
+  })
+
+  it('maps a missing file to content null while still resolving its path', async () => {
+    await expect(readCliConfigFiles(['claude-settings'])).resolves.toEqual([
+      { target: 'claude-settings', path: claudeSettings(), content: null }
+    ])
+  })
+
+  it('rejects on a non-ENOENT read error (EISDIR) instead of treating it as missing', async () => {
+    await mkdir(claudeSettings(), { recursive: true })
+
+    await expect(readCliConfigFiles(['claude-settings'])).rejects.toThrow()
   })
 })

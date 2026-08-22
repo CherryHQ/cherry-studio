@@ -75,6 +75,18 @@ export class DeepSeekHarnessService extends BaseService {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
   }
 
+  /** Single status-transition point: assign, then broadcast; same-value calls are not transitions. */
+  private setStatus(status: DeepSeekHarnessStatus): void {
+    if (this.status === status) return
+    this.status = status
+    try {
+      application.get('IpcApiService').broadcast('deepseek_harness.status_changed', this.getStatus())
+    } catch (err) {
+      // The renderer re-syncs via get_status; a failed broadcast must not abort the transition.
+      logger.warn('Failed to broadcast DeepSeek Harness status change', err as Error)
+    }
+  }
+
   async start(
     input: DeepSeekHarnessStartInput
   ): Promise<{ success: true; url: string } | { success: false; message: string }> {
@@ -120,8 +132,8 @@ export class DeepSeekHarnessService extends BaseService {
 
         let receipt: DeepSeekHarnessConfigReceipt | undefined
         try {
-          this.status = 'starting'
           this.url = undefined
+          this.setStatus('starting')
           const runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
             throw new Error('DeepSeek Harness startup was cancelled')
@@ -141,17 +153,19 @@ export class DeepSeekHarnessService extends BaseService {
           if (!this.child || this.child.exitCode !== null || this.child.signalCode !== null) {
             throw new Error('DeepSeek Harness exited immediately after becoming ready')
           }
-          this.status = 'running'
           this.url = url
+          this.setStatus('running')
           this.runningPermissionMode = input.permissionMode
           return { success: true, url }
         } catch (error) {
+          // Terminal state first: the cleanup-driven termination handler must not
+          // broadcast 'stopped' for a failed launch on its way to 'error'.
+          this.url = undefined
+          this.setStatus('error')
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError as Error)
           })
           if (receipt) await this.rollbackLaunchConfig(receipt)
-          this.status = 'error'
-          this.url = undefined
           const message = error instanceof Error ? error.message : 'Failed to start DeepSeek Harness'
           return { success: false, message: sanitizeDiagnostic(message) }
         }
@@ -165,9 +179,9 @@ export class DeepSeekHarnessService extends BaseService {
     for (const startup of this.startupAbortControllers) startup.abort()
     await this.operationMutex.runExclusive(async () => {
       await this.stopOwnedProcessLocked()
-      this.status = 'stopped'
       this.url = undefined
       this.runningPermissionMode = undefined
+      this.setStatus('stopped')
     })
   }
 
@@ -278,7 +292,7 @@ export class DeepSeekHarnessService extends BaseService {
     child.once('exit', handleTermination)
     child.once('close', handleTermination)
     child.on('error', (error) => {
-      if (this.child === child && this.status === 'running') this.status = 'error'
+      if (this.child === child && this.status === 'running') this.setStatus('error')
       logger.warn('Managed DeepSeek Harness process error', { message: sanitizeDiagnostic(error.message) })
     })
 
@@ -296,11 +310,13 @@ export class DeepSeekHarnessService extends BaseService {
     this.runningPermissionMode = undefined
     if (this.stoppingChild === child) {
       this.stoppingChild = null
-      this.status = 'stopped'
+      // A teardown that began after the state already left starting/running (failed-launch
+      // cleanup sets 'error' first) must not revive 'stopped'.
+      if (this.status === 'starting' || this.status === 'running') this.setStatus('stopped')
       return
     }
     if (this.status === 'starting' || this.status === 'running') {
-      this.status = 'error'
+      this.setStatus('error')
       logger.warn('Managed DeepSeek Harness process exited unexpectedly', { code, signal })
     }
   }

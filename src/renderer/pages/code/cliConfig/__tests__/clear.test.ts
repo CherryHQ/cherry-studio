@@ -1,5 +1,5 @@
 import { CodeCli } from '@shared/types/codeCli'
-import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
+import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { parse as parseToml } from 'smol-toml'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,25 +20,20 @@ beforeEach(() => {
   existing = {}
   writes = {}
   deletes = []
-  // Clearing still reads the on-disk configs renderer-side to strip the
-  // Cherry-managed keys; only the rewrite crosses to the main process.
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-      file: {
-        readExternal: vi.fn(async (p: string) => {
-          if (p in existing) return existing[p]
-          throw new Error(`File does not exist: ${p}`)
+  // Clearing still reads the on-disk configs renderer-side (code_cli.read_config)
+  // to strip the Cherry-managed keys; only the rewrite crosses to write_config.
+  mocks.request.mockReset()
+  mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+    if (route === 'code_cli.read_config') {
+      // Translate targets back to `/resolved~/…` paths so the strip-semantics fixtures stay unchanged.
+      return {
+        files: (input.targets as CliConfigTarget[]).map((target) => {
+          const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+          return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
         })
       }
     }
-  })
-  // Translate the `{ target, content }` batch back to `/resolved~/…` paths so
-  // the strip-semantics fixtures stay unchanged.
-  mocks.request.mockReset()
-  mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
-    for (const file of input.files) {
+    for (const file of input.files as CliConfigWriteFile[]) {
       const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`
       if ('delete' in file) deletes.push(resolvedPath)
       else writes[resolvedPath] = file.content
@@ -226,10 +221,10 @@ describe('clearCliConfig', () => {
     expect(writes['/resolved~/.gemini/.env']).toBe('# my proxy\nUSER_KEY=keep\n')
   })
 
-  it('qwen: missing config is already clear and sends no IPC', async () => {
+  it('qwen: missing config is already clear and sends no rewrite', async () => {
     await clearCliConfig({ cliTool: CodeCli.QWEN_CODE })
 
-    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.request.mock.calls.some(([route]) => route === 'code_cli.write_config')).toBe(false)
   })
 
   it('qwen: strips managed settings when config exists', async () => {
@@ -259,10 +254,10 @@ describe('clearCliConfig', () => {
     })
   })
 
-  it('kimi: missing config is already clear and sends no IPC', async () => {
+  it('kimi: missing config is already clear and sends no rewrite', async () => {
     await clearCliConfig({ cliTool: CodeCli.KIMI_CODE })
 
-    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.request.mock.calls.some(([route]) => route === 'code_cli.write_config')).toBe(false)
   })
 
   it('kimi: strips Cherry-managed entries when config exists', async () => {
@@ -329,8 +324,9 @@ describe('clearCliConfig', () => {
     existing['/resolved~/.codex/auth.json'] = JSON.stringify({ OPENAI_API_KEY: 'sk', user: 'keep' })
     await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
 
-    expect(mocks.request).toHaveBeenCalledTimes(1)
-    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+    const writeCalls = mocks.request.mock.calls.filter(([route]) => route === 'code_cli.write_config')
+    expect(writeCalls).toHaveLength(1)
+    expect(writeCalls[0][1]).toEqual({
       cliTool: CodeCli.OPENAI_CODEX,
       files: [
         { target: 'codex-config', content: expect.stringContaining('user_key = "keep"') },
@@ -341,7 +337,15 @@ describe('clearCliConfig', () => {
 
   it('throws the main-process failure message when the rewrite is rejected', async () => {
     existing['/resolved~/.codex/config.toml'] = 'model_provider = "cherry-deepseek"'
-    mocks.request.mockResolvedValue({ success: false, message: 'disk full' })
+    mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+      if (route === 'code_cli.write_config') return { success: false, message: 'disk full' }
+      return {
+        files: (input.targets as CliConfigTarget[]).map((target) => {
+          const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+          return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
+        })
+      }
+    })
 
     await expect(clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })).rejects.toThrow('disk full')
   })
