@@ -1,7 +1,7 @@
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
 import { parseDotenv } from './dotenv'
-import { type CliConfigReadFiles, parseJsonOrThrow, parseTomlOrThrow, requireReadFile } from './file'
+import { type CliConfigReadFiles, parseJsonOrThrow, parseTomlOrThrow, readConfigFiles, requireReadFile } from './file'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 
 export function getDraftFile(
@@ -9,6 +9,23 @@ export function getDraftFile(
   target: CliConfigTarget
 ): CliConfigFileDraft | undefined {
   return files?.find((file) => file.target === target)
+}
+
+/**
+ * Read view for a draft rebuild: targets covered by an in-progress draft are served
+ * from it (no disk IO — a failing read must not block a rebuild the draft already
+ * has everything for); only uncovered targets cross to `code_cli.read_config`.
+ */
+export async function readConfigFilesForDraft(
+  targets: readonly CliConfigTarget[],
+  files: CliConfigFileDraft[] | undefined
+): Promise<CliConfigReadFiles> {
+  const read = await readConfigFiles(targets.filter((target) => !getDraftFile(files, target)))
+  for (const target of targets) {
+    const draft = getDraftFile(files, target)
+    if (draft && !read.has(target)) read.set(target, { path: draft.path, content: draft.content })
+  }
+  return read
 }
 
 /** Draft entry for freshly-rendered content; the path is the main-resolved one from the batch read. */

@@ -20,7 +20,13 @@ import {
 } from './builders'
 import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
 import { parseDotenv, renderDotenvFile } from './dotenv'
-import { getDraftFile, makeDraftFile, readAndParseDraftFile, readDraftFileText } from './draftFiles'
+import {
+  getDraftFile,
+  makeDraftFile,
+  readAndParseDraftFile,
+  readConfigFilesForDraft,
+  readDraftFileText
+} from './draftFiles'
 import {
   parseJsonOrThrow,
   parseTomlOrThrow,
@@ -170,7 +176,7 @@ const claudeAdapter: CliConfigAdapter = {
   sanitize: sanitizeClaudeConfigBlob,
   async buildDraft(args, context) {
     const { provider, apiKey, model, configBlob } = context
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('claude-settings', parseJsonOrThrow, args.files, read)
     const baseUrl = resolveClaudeBaseUrl(provider)
     return [
@@ -281,7 +287,7 @@ const codexAdapter: CliConfigAdapter = {
     if (!responsesUrl) {
       throw new Error('Codex requires an OpenAI Responses API endpoint, which this provider does not expose')
     }
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
     const config = readAndParseDraftFile('codex-config', parseTomlOrThrow, args.files, read)
     const auth = readAndParseDraftFile('codex-auth', parseJsonOrThrow, args.files, read)
     const providerName = cliProviderKeyName(provider)
@@ -390,7 +396,7 @@ const openCodeAdapter: CliConfigAdapter = {
     // @ai-sdk/anthropic package OpenCode loads expects the /v1 in baseURL and only
     // appends /messages.
     const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('opencode-config', parseJsonOrThrow, args.files, read)
     const env = asRecord(configBlob.env)
     return [
@@ -513,7 +519,7 @@ const geminiAdapter: CliConfigAdapter = {
   sanitize: sanitizeGeminiConfigBlob,
   async buildDraft(args, context) {
     const { provider, apiKey, model, configBlob } = context
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
     const envText = readDraftFileText('gemini-env', args.files, read)
     const settings = readAndParseDraftFile('gemini-settings', parseJsonOrThrow, args.files, read)
     const baseUrl = resolveGeminiBaseUrl(provider)
@@ -615,7 +621,7 @@ const qwenAdapter: CliConfigAdapter = {
   async buildDraft(args, context) {
     const { provider, apiKey, model, modelRecord, configBlob } = context
     const baseUrl = resolveOpenAIBaseUrl(provider)
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('qwen-settings', parseJsonOrThrow, args.files, read)
     return [
       makeDraftFile(
@@ -699,7 +705,7 @@ const kimiAdapter: CliConfigAdapter = {
   async buildDraft(args, context) {
     const { provider, apiKey, model, modelRecord, configBlob } = context
     const baseUrl = resolveOpenAIBaseUrl(provider)
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('kimi-config', parseTomlOrThrow, args.files, read)
     const providerName = cliProviderKeyName(provider)
     return [
@@ -800,7 +806,7 @@ const piAdapter: CliConfigAdapter = {
     const { provider, apiKey, model, modelLabel, modelRecord } = context
     const providerInfo = resolvePiProviderInfo(provider, modelRecord?.endpointTypes)
     const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
     const models = readAndParseDraftFile('pi-models', parseJsonOrThrow, args.files, read)
     const settings = readAndParseDraftFile('pi-settings', parseJsonOrThrow, args.files, read)
     const input: Array<'image' | 'text'> = modelRecord?.inputModalities?.includes('image')
