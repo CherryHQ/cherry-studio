@@ -489,17 +489,20 @@ describe('DeepSeekHarnessService', () => {
       expect(service.getStatus()).toEqual({ status: 'error' })
     })
 
-    it('announces stopped when a stop completes', async () => {
+    it('announces stopped exactly once when a stop completes', async () => {
       spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
       const service = new DeepSeekHarnessService()
       await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
 
       await service.stop()
 
-      // The owned child's termination handler and stop() both pass through the single
-      // transition point, so the terminal stopped payload may arrive twice — never zero times.
-      expect(statusPayloads().at(-1)).toEqual({ status: 'stopped' })
-      expect(statusPayloads()).toContainEqual({ status: 'stopped' })
+      // The termination handler and stop() both reach setStatus, but same-value calls
+      // are not transitions — the terminal 'stopped' must broadcast exactly once.
+      expect(statusPayloads()).toEqual([
+        { status: 'starting' },
+        { status: 'running', url: 'http://127.0.0.1:43123' },
+        { status: 'stopped' }
+      ])
       expect(service.getStatus()).toEqual({ status: 'stopped' })
     })
 
