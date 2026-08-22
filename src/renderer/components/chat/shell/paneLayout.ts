@@ -21,3 +21,27 @@ export const ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT = 80
 export const ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH = 280
 export const ARTIFACT_RIGHT_PANE_MAX_WIDTH = 720
 export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
+
+/**
+ * The topic/session list borrows the right pane but is a list, not an artifact: it keeps the left
+ * list's width envelope and its own persisted width, so dragging one never resizes the other.
+ */
+export const RESOURCE_LIST_RIGHT_PANE_CACHE_KEY = 'ui.chat.resource_pane.width'
+
+export type RightPaneWidthProfile = {
+  cacheKey: typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+  minWidth: number
+  maxWidth: number
+}
+
+export const ARTIFACT_RIGHT_PANE_WIDTH_PROFILE = {
+  cacheKey: ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  minWidth: ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  maxWidth: ARTIFACT_RIGHT_PANE_MAX_WIDTH
+} as const satisfies RightPaneWidthProfile
+
+export const RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE = {
+  cacheKey: RESOURCE_LIST_RIGHT_PANE_CACHE_KEY,
+  minWidth: RESOURCE_LIST_PANE_MIN_WIDTH,
+  maxWidth: RESOURCE_LIST_PANE_MAX_WIDTH
+} as const satisfies RightPaneWidthProfile

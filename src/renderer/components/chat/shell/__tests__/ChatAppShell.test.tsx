@@ -11,7 +11,9 @@ import {
   RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD,
   RESOURCE_LIST_PANE_DEFAULT_WIDTH,
   RESOURCE_LIST_PANE_MAX_WIDTH,
-  RESOURCE_LIST_PANE_MIN_WIDTH
+  RESOURCE_LIST_PANE_MIN_WIDTH,
+  RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE,
+  type RightPaneWidthProfile
 } from '../paneLayout'
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -25,7 +27,7 @@ interface ResizeObserverMockInstance {
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 240, paneWidth: 460 }
+  const state = { width: 240, paneWidth: 460, listPaneWidth: 275 }
 
   return {
     state,
@@ -34,6 +36,9 @@ const persistCacheMock = vi.hoisted(() => {
     }),
     setPaneWidth: vi.fn((width: number) => {
       state.paneWidth = width
+    }),
+    setListPaneWidth: vi.fn((width: number) => {
+      state.listPaneWidth = width
     })
   }
 })
@@ -45,6 +50,7 @@ interface RightPanelStateMockValue {
   fullWidthActive?: boolean
   paneResizing?: boolean
   userOpenSeq?: number
+  activePaneWidth?: RightPaneWidthProfile
 }
 
 const composerElevatedMock = vi.hoisted(() => ({ current: false }))
@@ -57,11 +63,12 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: vi.fn((key: string) =>
-    key === 'ui.chat.artifact_pane.width'
-      ? [persistCacheMock.state.paneWidth, persistCacheMock.setPaneWidth]
-      : [persistCacheMock.state.width, persistCacheMock.setWidth]
-  )
+  usePersistCache: vi.fn((key: string) => {
+    if (key === 'ui.chat.artifact_pane.width') return [persistCacheMock.state.paneWidth, persistCacheMock.setPaneWidth]
+    if (key === 'ui.chat.resource_pane.width')
+      return [persistCacheMock.state.listPaneWidth, persistCacheMock.setListPaneWidth]
+    return [persistCacheMock.state.width, persistCacheMock.setWidth]
+  })
 }))
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
@@ -132,8 +139,10 @@ describe('ChatAppShell', () => {
   afterEach(() => {
     persistCacheMock.state.width = RESOURCE_LIST_PANE_DEFAULT_WIDTH
     persistCacheMock.state.paneWidth = 460
+    persistCacheMock.state.listPaneWidth = 275
     persistCacheMock.setWidth.mockClear()
     persistCacheMock.setPaneWidth.mockClear()
+    persistCacheMock.setListPaneWidth.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     document.documentElement.style.removeProperty('--assistants-width')
@@ -530,6 +539,38 @@ describe('ChatAppShell', () => {
 
     expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
     expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
+  })
+
+  it('predicts the center from the presented panel, so a stale artifact width cannot strand the list', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    // The artifact pane was dragged wide once; the list actually on screen is only 275.
+    persistCacheMock.state.paneWidth = 720
+    persistCacheMock.state.listPaneWidth = 275
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: false,
+      presentationOpen: true,
+      activePaneWidth: RESOURCE_LIST_RIGHT_PANE_WIDTH_PROFILE
+    }
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(500)
+    expect(onPaneAutoCollapseChange).toHaveBeenLastCalledWith(true)
+
+    // available = 940 - 240 = 700. With the list's own 275 the center is 425 and the list
+    // must come back; reading the artifact's width instead yields exactly 360 — inside the
+    // hysteresis band — and the list would stay collapsed forever.
+    notifyObservedShellWidth(940)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenLastCalledWith(false)
   })
 
   it('ignores zero-width shell measurements', () => {
