@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
+import { canonicalizeFilePath } from '../canonicalize'
 import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from '../url'
 
 describe('normalizeExt', () => {
@@ -91,8 +92,21 @@ describe('toFileUrl', () => {
     expect(toFileUrl('D:\\folder\\file.txt' as AbsoluteFilePath)).toBe('file:///D:/folder/file.txt')
   })
 
-  it('normalizes backslashes to forward slashes', () => {
+  it('normalizes backslashes to forward slashes for Windows drive paths', () => {
     expect(toFileUrl('C:\\a\\b\\c.txt' as AbsoluteFilePath)).toBe('file:///C:/a/b/c.txt')
+  })
+
+  // On POSIX a backslash is an ordinary filename character — folding it to `/`
+  // here denoted a different file. It must reach the per-segment encodeURIComponent
+  // and come out percent-encoded instead.
+  // See https://github.com/CherryHQ/cherry-studio/issues/18206
+  it('does NOT fold backslashes on POSIX input — percent-encodes them as filename bytes', () => {
+    expect(toFileUrl('/workspace/a\\b.txt' as AbsoluteFilePath)).toBe('file:///workspace/a%5Cb.txt')
+  })
+
+  it('round-trips a POSIX filename containing a backslash byte-faithfully', () => {
+    const url = toFileUrl('/workspace/a\\b.txt' as AbsoluteFilePath)
+    expect(fileUrlToPath(url)).toBe('/workspace/a\\b.txt')
   })
 
   it('encodes non-ASCII characters', () => {
@@ -114,7 +128,8 @@ describe('toFileUrl', () => {
   })
 
   it('treats the forward-slash UNC spelling identically', () => {
-    // `fileUrlToPath` decodes UNC to this form, so both spellings must agree.
+    // Both spellings encode to the same authority-form URL, so a decoded UNC
+    // path re-encodes byte-identically.
     expect(toFileUrl('//server/share/baz.pdf' as AbsoluteFilePath)).toBe('file://server/share/baz.pdf')
   })
 
@@ -123,12 +138,16 @@ describe('toFileUrl', () => {
     expect(fileURLToPath(url, { windows: true })).toBe('\\\\server\\share\\baz.pdf')
   })
 
-  it('round-trips UNC through fileUrlToPath into the forward-slash form', () => {
+  it('round-trips UNC through fileUrlToPath into the canonical backslash spelling', () => {
     const url = toFileUrl('\\\\server\\share\\report final.pdf' as AbsoluteFilePath)
     const decoded = fileUrlToPath(url)
-    expect(decoded).toBe('//server/share/report final.pdf')
+    expect(decoded).toBe('\\\\server\\share\\report final.pdf')
     // The decoded form is itself a valid input that maps to the same URL.
     expect(toFileUrl(decoded as AbsoluteFilePath)).toBe(url)
+    // And it is the spelling downstream UNC handling recognises: feeding it to
+    // canonicalizeFilePath raises the documented UNC rejection instead of
+    // silently collapsing a leading `//` into an unrelated POSIX path.
+    expect(() => canonicalizeFilePath(decoded)).toThrow(/UNC/i)
   })
 })
 
@@ -142,8 +161,8 @@ describe('fileUrlToPath', () => {
     expect(fileUrlToPath('file:///C:/foo/bar%20baz.pdf')).toBe('C:/foo/bar baz.pdf')
   })
 
-  it('preserves UNC hosts as network paths', () => {
-    expect(fileUrlToPath('file://server/share/report%20final.pdf')).toBe('//server/share/report final.pdf')
+  it('preserves UNC hosts as canonical backslash network paths', () => {
+    expect(fileUrlToPath('file://server/share/report%20final.pdf')).toBe('\\\\server\\share\\report final.pdf')
   })
 
   it('throws for a non-file: URL', () => {
