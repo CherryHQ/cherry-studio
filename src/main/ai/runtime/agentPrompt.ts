@@ -111,7 +111,7 @@ ${instructions}
 }
 
 export function resolveEffectiveAgentLanguage(agent: AgentEntity): string | null {
-  const perAgent = agent.configuration?.language as string | undefined
+  const perAgent = agent.configuration?.language
   if (typeof perAgent === 'string' && perAgent.trim() !== '') {
     if (perAgent === 'auto') return null
     return perAgent
