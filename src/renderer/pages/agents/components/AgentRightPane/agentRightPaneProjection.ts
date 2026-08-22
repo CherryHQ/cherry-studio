@@ -5,7 +5,11 @@ import {
   isTaskRecord,
   normalizeTaskStatus
 } from '@renderer/components/chat/messages/tools/agent'
-import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import {
+  AgentToolsType,
+  getResumedAgentId,
+  resolveResumedAgent
+} from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
   stripPartParentToolMetadata
@@ -239,6 +243,48 @@ function isTerminalToolState(state: string | undefined): boolean {
   return state === 'output-available' || state === 'output-error' || state === 'output-denied' || state === 'cancelled'
 }
 
+/**
+ * Follow a tool-call entry to the flow it represents. A surface that binds a resumed task to the
+ * SendMessage call id (e.g. a cold reconnect replaying resume edges) would otherwise open an empty
+ * flow — everything streaming under the launch root instead.
+ */
+export function resolveFlowToolCallId(
+  toolCallId: string,
+  partsByMessageId: Record<string, CherryMessagePart[]> | null
+): { toolCallId: string; description?: string } | undefined {
+  if (!partsByMessageId) return undefined
+  for (const parts of Object.values(partsByMessageId)) {
+    for (const part of parts) {
+      const record = part as { toolCallId?: unknown; output?: unknown }
+      if (typeof record.toolCallId !== 'string' || record.toolCallId !== toolCallId) continue
+      return resolveResumedAgent(record.output, partsByMessageId)
+    }
+  }
+  return undefined
+}
+
+/** The agent id a launch receipt reports — the trailer string or a structured field. */
+function extractLaunchedAgentId(part: CherryMessagePart | undefined): string | undefined {
+  const output = part && (part as { output?: unknown }).output
+  if (typeof output === 'string') return /agentId[:\s]+([a-zA-Z0-9-]{16,})/.exec(output)?.[1]
+  if (isRecord(output)) {
+    const direct = output.agentId ?? output.agent_id
+    return typeof direct === 'string' && direct.length >= 16 ? direct : undefined
+  }
+  return undefined
+}
+
+/** The prompt of a SendMessage that resumed THIS agent — the request to show between rounds. */
+function getResumeReceiptPromptText(part: CherryMessagePart, launchedAgentId: string): string | undefined {
+  const record = part as { toolName?: unknown; output?: unknown }
+  if (record.toolName !== AgentToolsType.SendMessage) return undefined
+  if (getResumedAgentId(record.output) !== launchedAgentId) return undefined
+
+  const input = (part as { input?: unknown }).input
+  const prompt = isRecord(input) ? (input.message ?? input.summary) : undefined
+  return typeof prompt === 'string' && prompt.trim() ? prompt.trim() : undefined
+}
+
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
@@ -308,11 +354,59 @@ export function buildAgentToolFlowProjection(
       flowPartsByMessageId[promptMessage.id] = promptMessage.parts as CherryMessagePart[]
     }
 
-    const assistantParts: CherryMessagePart[] = []
+    // Content is segmented by the resume requests that continued this agent: each SendMessage
+    // receipt resolving to the launch splits the timeline, so its prompt lands between rounds.
+    const launchedAgentId = extractLaunchedAgentId(selectedToolPart)
+    const outputText = getToolOutputText(selectedToolPart, selectedToolOutput)
+    const isFlowActive = toolNodes.some(
+      (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
+    )
+
+    const segments: Array<{ parts: CherryMessagePart[] }> = [{ parts: [] }]
+    let segmentIndex = 0
+    let emittedSegments = 0
+    let resumeCount = 0
+    const emitSegment = (index: number) => {
+      const segment = segments[index]
+      if (segment.parts.length === 0 && !isFlowActive) return
+      const id = `${selectedToolCallId}:agent-flow-assistant${index === 0 ? '' : `-${index}`}`
+      const assistantMessage = {
+        id,
+        role: 'assistant',
+        parts: segment.parts,
+        metadata: {
+          createdAt: selectedCreatedAt,
+          status: isFlowActive ? 'pending' : 'success'
+        }
+      } as CherryUIMessage
+      flowMessages.push(assistantMessage)
+      flowPartsByMessageId[id] = segment.parts
+    }
     for (const { parts } of messageEntries) {
-      for (let partIndex = 0; partIndex < parts.length; partIndex++) {
-        const part = parts[partIndex]
+      for (const part of parts) {
         const toolCallId = getToolCallId(part)
+
+        // A resume receipt is not itself part of the flow, but it marks where a new round starts.
+        const resumePrompt =
+          launchedAgentId && isToolUIPart(part) ? getResumeReceiptPromptText(part, launchedAgentId) : undefined
+        if (resumePrompt !== undefined) {
+          for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
+          resumeCount += 1
+          segmentIndex += 1
+          segments.push({ parts: [] })
+          const resumeMessage = createFlowTextMessage(
+            `${selectedToolCallId}:agent-flow-resume-${resumeCount}`,
+            'user',
+            resumePrompt,
+            selectedCreatedAt
+          )
+          if (resumeMessage) {
+            flowMessages.push(resumeMessage)
+            flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts as CherryMessagePart[]
+          }
+          continue
+        }
+
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
         } else {
@@ -320,28 +414,13 @@ export function buildAgentToolFlowProjection(
           if (!parentToolCallId || !selectedToolCallIds.has(parentToolCallId)) continue
         }
 
-        assistantParts.push(getPartWithoutParentMetadata(part))
+        segments[segmentIndex].parts.push(getPartWithoutParentMetadata(part))
       }
     }
-
-    const outputText = getToolOutputText(selectedToolPart, selectedToolOutput)
-    if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
-    const isFlowActive = toolNodes.some(
-      (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
-    )
-    if (assistantParts.length || isFlowActive) {
-      const assistantMessage = {
-        id: `${selectedToolCallId}:agent-flow-assistant`,
-        role: 'assistant',
-        parts: assistantParts,
-        metadata: {
-          createdAt: selectedCreatedAt,
-          status: isFlowActive ? 'pending' : 'success'
-        }
-      } as CherryUIMessage
-      flowMessages.push(assistantMessage)
-      flowPartsByMessageId[assistantMessage.id] = assistantParts
-    }
+    // The launch receipt's own result belongs to the final round only — attaching it before
+    // segmentation finishes would duplicate it onto every boundary-flushed segment.
+    if (outputText) segments.at(-1)?.parts.push({ type: 'text', text: outputText } as CherryMessagePart)
+    for (; emittedSegments < segments.length; emittedSegments += 1) emitSegment(emittedSegments)
   }
 
   return {
@@ -483,7 +562,9 @@ function applyAgentTaskEvent(
 
   runTaskMap.set(data.taskId, {
     id: data.taskId,
-    toolUseId: data.toolUseId ?? existing?.toolUseId,
+    // First registration wins: SendMessage-resume edges carry the resuming call's id while
+    // content keeps streaming under the original launch tool-use id.
+    toolUseId: existing?.toolUseId ?? data.toolUseId,
     title,
     activeText: data.activeText ?? data.description ?? existing?.activeText,
     status,

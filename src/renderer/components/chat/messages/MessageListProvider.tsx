@@ -1,7 +1,7 @@
 import type { Context, ReactNode } from 'react'
 import { createContext, use, useMemo } from 'react'
 
-import { PartsProvider } from './blocks/MessagePartsContext'
+import { FullPartsMapProvider, PartsProvider } from './blocks/MessagePartsContext'
 import type {
   MessageListActions,
   MessageListItem,
@@ -155,23 +155,25 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
   return (
     <MessageListDataContext value={data}>
       <MessageListMessagesContext value={state.messages}>
-        <PartsProvider value={state.partsByMessageId}>
-          <MessageListActionsContext value={actions}>
-            <MessageListMetaContext value={meta}>
-              <MessageListRenderConfigContext value={state.renderConfig}>
-                <MessageListSelectionContext value={state.selection}>
-                  <MessageListUiStaticContext value={uiStatic}>
-                    <MessageListUiSelectorsContext value={uiSelectors}>
-                      <MessageListEditingContext value={state.editingMessageId ?? null}>
-                        {children}
-                      </MessageListEditingContext>
-                    </MessageListUiSelectorsContext>
-                  </MessageListUiStaticContext>
-                </MessageListSelectionContext>
-              </MessageListRenderConfigContext>
-            </MessageListMetaContext>
-          </MessageListActionsContext>
-        </PartsProvider>
+        <FullPartsMapProvider value={state.partsByMessageId}>
+          <PartsProvider value={state.partsByMessageId}>
+            <MessageListActionsContext value={actions}>
+              <MessageListMetaContext value={meta}>
+                <MessageListRenderConfigContext value={state.renderConfig}>
+                  <MessageListSelectionContext value={state.selection}>
+                    <MessageListUiStaticContext value={uiStatic}>
+                      <MessageListUiSelectorsContext value={uiSelectors}>
+                        <MessageListEditingContext value={state.editingMessageId ?? null}>
+                          {children}
+                        </MessageListEditingContext>
+                      </MessageListUiSelectorsContext>
+                    </MessageListUiStaticContext>
+                  </MessageListSelectionContext>
+                </MessageListRenderConfigContext>
+              </MessageListMetaContext>
+            </MessageListActionsContext>
+          </PartsProvider>
+        </FullPartsMapProvider>
       </MessageListMessagesContext>
     </MessageListDataContext>
   )

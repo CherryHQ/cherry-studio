@@ -1697,6 +1697,43 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
+    // A SendMessage resume re-points lifecycle edges at the resuming call's id; the navigation
+    // anchor must stay on the launch root the content actually streams under.
+    it('keeps the first navigation id for a task when resume edges report a new one', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+
+      const started = {
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        task_id: 'subagent-1',
+        tool_use_id: 'call_launch',
+        description: 'Review the patch',
+        task_type: 'subagent'
+      } as any
+      adapter.handleMessage({ ...started, uuid: crypto.randomUUID() } as any)
+      adapter.handleMessage({
+        ...started,
+        uuid: crypto.randomUUID(),
+        tool_use_id: 'call_resume',
+        description: 'Resumed review'
+      } as any)
+
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
+    })
+
     it('uses local workflow task starts to enrich navigation without changing authoritative membership', () => {
       const { adapter, statusEvents } = createAdapter()
 

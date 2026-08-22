@@ -102,7 +102,8 @@ import {
   type AgentStatusTask,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
-  buildAgentToolFlowProjection
+  buildAgentToolFlowProjection,
+  resolveFlowToolCallId
 } from './agentRightPaneProjection'
 
 const logger = loggerService.withContext('AgentRightPane')
@@ -311,11 +312,22 @@ function AgentRightPaneActionsProvider({
   }, [sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
+  // Read the parts map at call time through a ref so message streaming does not re-create the
+  // actions object (and re-render consumers that only open flows).
+  const runtime = use(AgentRightPaneRuntimeContext)
+  const runtimeRef = useRef(runtime)
+  runtimeRef.current = runtime
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
-      replaceFlowTab(input)
-      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
+      // A task bound to its send-message receipt (cold reconnect replay) must still open the flow
+      // its agent actually streams under — the launch root.
+      const resolved = resolveFlowToolCallId(input.toolCallId, runtimeRef.current?.partsByMessageId ?? null)
+      const flowInput = resolved
+        ? { ...input, toolCallId: resolved.toolCallId, title: resolved.description ?? input.title }
+        : input
+      replaceFlowTab(flowInput)
+      panelActions.requestOpen(getFlowTabValue(flowInput.toolCallId), { userInitiated: true })
     },
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
