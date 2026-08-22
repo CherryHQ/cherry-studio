@@ -264,28 +264,23 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const fileSessionReload = fileSession?.reload
   const fileSessionFlush = fileSession?.flush
   const fileSessionDiscard = fileSession?.discard
+  // Context-menu items outlive their opening render, so read the dirty flag at
+  // click time — a stale `false` here would reload away an unsaved draft.
+  const isEditDirtyRef = useRef(isEditDirty)
+  isEditDirtyRef.current = isEditDirty
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
     if (overlayWorkspacePath && overlayFilePath) {
       setContentRefreshToken((value) => value + 1)
     }
-    if (editMode === 'edit' && fileSessionReload && !isEditDirty) {
+    if (editMode === 'edit' && fileSessionReload && !isEditDirtyRef.current) {
       void fileSessionReload().catch((error: unknown) => {
         logger.error('Failed to refresh editable file snapshot', error as Error)
         toast.error(t('agent.preview_pane.edit.refresh_failed'))
       })
     }
-  }, [
-    editMode,
-    fileSessionReload,
-    isEditDirty,
-    overlayFilePath,
-    overlayWorkspacePath,
-    refresh,
-    reloadExpandedDirectories,
-    t
-  ])
+  }, [editMode, fileSessionReload, overlayFilePath, overlayWorkspacePath, refresh, reloadExpandedDirectories, t])
 
   const handleClosePreview = useCallback(() => {
     if (onPreviewClose) {
@@ -385,16 +380,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
 
   // Right-click menu for the opened-file header ("tab"): the same external
   // open targets as the file-tree rows, plus tab actions (edit/preview toggle,
-  // refresh, close).
-  const getOverlayMenuItems = useCallback(async (): Promise<readonly CommandContextMenuExtraItem[]> => {
-    if (!overlaySelection) return []
-    const targetPath = getArtifactPaneSelectionPath(overlaySelection)
-    const openTargetItems: readonly CommandContextMenuExtraItem[] = await loadOpenTargetMenuItems({
-      targetPath,
-      pathKind: 'file',
-      t
-    })
-    const tabActionItems: CommandContextMenuExtraItem[] = [
+  // refresh, close). Tab actions are the synchronous baseline; open targets
+  // resolve asynchronously and are best-effort — an unresolvable path must
+  // never wipe the whole menu.
+  const tabActionItems = useMemo<CommandContextMenuExtraItem[]>(
+    () => [
       ...(canEditSelection
         ? [
             {
@@ -422,20 +412,37 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         icon: <X size={14} />,
         onSelect: handleClosePreview
       }
+    ],
+    [
+      canEditSelection,
+      editorLoading,
+      handleClosePreview,
+      handleEditorModeChange,
+      handleRefresh,
+      ModeActionIcon,
+      modeActionLabel,
+      nextEditorMode,
+      t
     ]
+  )
+
+  // Open-target items can outlive their opening render (the menu stays open
+  // across file switches), so drop them when the selection changed mid-flight.
+  const currentPreviewKeyRef = useRef(previewKey)
+  currentPreviewKeyRef.current = previewKey
+
+  const getOverlayMenuItems = useCallback(async (): Promise<readonly CommandContextMenuExtraItem[]> => {
+    if (!overlaySelection) return []
+    let openTargetItems: readonly CommandContextMenuExtraItem[] = []
+    try {
+      const targetPath = getArtifactPaneSelectionPath(overlaySelection)
+      openTargetItems = await loadOpenTargetMenuItems({ targetPath, pathKind: 'file', t })
+    } catch (error) {
+      logger.warn('Failed to resolve open targets for the opened-file header menu', error as Error)
+    }
+    if (currentPreviewKeyRef.current !== previewKey) return tabActionItems
     return [...openTargetItems, ...(openTargetItems.length ? [{ type: 'separator' } as const] : []), ...tabActionItems]
-  }, [
-    canEditSelection,
-    editorLoading,
-    handleClosePreview,
-    handleEditorModeChange,
-    handleRefresh,
-    ModeActionIcon,
-    modeActionLabel,
-    nextEditorMode,
-    overlaySelection,
-    t
-  ])
+  }, [overlaySelection, previewKey, tabActionItems, t])
 
   const paneHeader =
     props.headerVariant === 'pane' ? (
@@ -460,6 +467,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             <CommandContextMenu
               location="webcontents.context"
               disabled={!overlaySelection}
+              pendingExtraItems={tabActionItems}
               getExtraItems={getOverlayMenuItems}>
               <div
                 data-testid="artifact-pane-header-title"
@@ -552,7 +560,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {props.headerVariant === 'pane' ? null : (
           <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
-              <CommandContextMenu location="webcontents.context" getExtraItems={getOverlayMenuItems}>
+              <CommandContextMenu
+                location="webcontents.context"
+                disabled={!overlaySelection}
+                pendingExtraItems={tabActionItems}
+                getExtraItems={getOverlayMenuItems}>
                 <span className="cursor-context-menu truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
               </CommandContextMenu>
               {isEditDirty && (
