@@ -1,6 +1,5 @@
 import type { InlineCode, Link, Paragraph, PhrasingContent, Root, Text } from 'mdast'
 import { unified } from 'unified'
-import type { Position } from 'unist'
 import { describe, expect, it } from 'vitest'
 
 import { remarkLiteralAutolinkFix } from '../remarkLiteralAutolinkFix'
@@ -9,18 +8,8 @@ function text(value: string): Text {
   return { type: 'text', value }
 }
 
-// Real remark-gfm output always carries a position; tests that must reach the fix set one.
-function swallowedLink(url: string, options?: { label?: string; startOffset?: number }): Link {
-  const node: Link = { type: 'link', url, children: [text(options?.label ?? url)] }
-  const offset = options?.startOffset
-  if (offset !== undefined) {
-    const position: Position = {
-      start: { line: 1, column: offset + 1, offset },
-      end: { line: 1, column: offset + url.length + 1, offset: offset + url.length }
-    }
-    node.position = position
-  }
-  return node
+function swallowedLink(url: string, label?: string): Link {
+  return { type: 'link', url, children: [text(label ?? url)] }
 }
 
 function run(source: string, children: PhrasingContent[]): PhrasingContent[] {
@@ -37,7 +26,7 @@ describe('remarkLiteralAutolinkFix', () => {
     const badUrl = 'https://github.com/CherryHQ/cherry-studio/pull/19113**（`tommyzhang100504:fix`'
     const children = run('PR 已创建：**https://…**（`x`）', [
       text('PR 已创建：**'),
-      swallowedLink(badUrl, { startOffset: 9 }),
+      swallowedLink(badUrl),
       text(' → main）。')
     ])
 
@@ -59,72 +48,87 @@ describe('remarkLiteralAutolinkFix', () => {
     ])
   })
 
-  it('drops an opener that hugs the link at the start of the line', () => {
-    const children = run('**https://a.com/x**(see below)', [
-      text('**'),
-      swallowedLink('https://a.com/x**(see below)', { startOffset: 2 })
-    ])
+  it('cuts at the closing markers, preserving earlier marker runs inside the path', () => {
+    const children = run('**https://x.com/a/**/b**(x)', [text('**'), swallowedLink('https://x.com/a/**/b**(x)')])
 
     expect(children).toEqual([
       {
         type: 'strong',
-        children: [{ type: 'link', url: 'https://a.com/x', children: [text('https://a.com/x')] }]
+        children: [{ type: 'link', url: 'https://x.com/a/**/b', children: [text('https://x.com/a/**/b')] }]
       },
-      text('(see below)')
+      text('(x)')
     ])
   })
 
+  it('repairs unpunctuated tails starting with letters or CJK ideographs', () => {
+    for (const tail of ['Notes', '中文']) {
+      const children = run(`**https://a.com/x**${tail}`, [text('**'), swallowedLink(`https://a.com/x**${tail}`)])
+
+      expect(children).toEqual([
+        {
+          type: 'strong',
+          children: [{ type: 'link', url: 'https://a.com/x', children: [text('https://a.com/x')] }]
+        },
+        text(tail)
+      ])
+    }
+  })
+
   it('mirrors the cut onto a www literal whose url carries the http:// prefix', () => {
-    const children = run('**www.a.com/b**。', [
-      text('**'),
-      swallowedLink('http://www.a.com/b**', { label: 'www.a.com/b**', startOffset: 2 })
-    ])
+    const children = run('**www.a.com/b**。', [text('**'), swallowedLink('http://www.a.com/b**。', 'www.a.com/b**。')])
 
     expect(children).toEqual([
       {
         type: 'strong',
         children: [{ type: 'link', url: 'http://www.a.com/b', children: [text('www.a.com/b')] }]
-      }
+      },
+      text('。')
     ])
   })
 
+  it('never wraps the slice when a tiny www label is cut shorter than the scheme delta', () => {
+    const children = run('**a**b', [text('**'), swallowedLink('http://a**b', 'a**b')])
+
+    expect(children).toEqual([
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'http://a', children: [text('a')] }]
+      },
+      text('b')
+    ])
+  })
+
+  it('keeps spec behavior when no emphasis opener hugs the link', () => {
+    for (const lead of ['see ', '**<', '']) {
+      const input: PhrasingContent[] =
+        lead === '**<' ? [swallowedLink('https://a.com/x**b')] : [text(lead), swallowedLink('https://a.com/x**(y)')]
+      expect(run(`${lead}https://a.com/x**(y)`, input)).toEqual(input)
+    }
+  })
+
   it('leaves clean links untouched', () => {
-    const input: PhrasingContent[] = [
-      text('see **'),
-      swallowedLink('https://a.com/x', { startOffset: 7 }),
-      text(' now')
-    ]
+    const input: PhrasingContent[] = [text('see **'), swallowedLink('https://a.com/x'), text(' now')]
     expect(run('see **https://a.com/x** now', input)).toEqual(input)
   })
 
   it('leaves single-star links untouched', () => {
-    const input: PhrasingContent[] = [text('*'), swallowedLink('https://a.com/x*(y)', { startOffset: 1 })]
+    const input: PhrasingContent[] = [text('*'), swallowedLink('https://a.com/x*(y)')]
     expect(run('*https://a.com/x*(y)', input)).toEqual(input)
   })
 
-  it('leaves angle-bracket autolinks untouched — their stars are intentional', () => {
-    const input: PhrasingContent[] = [swallowedLink('https://a.com/x**b', { startOffset: 0 })]
-    expect(run('<https://a.com/x**b>', input)).toEqual(input)
-  })
-
-  it('skips nodes without a position instead of guessing their origin', () => {
-    const input: PhrasingContent[] = [text('**'), swallowedLink('https://a.com/x**(y)')]
-    expect(run('**https://a.com/x**(y)', input)).toEqual(input)
-  })
-
   it('leaves explicit `[label](url)` links untouched even with stars in the url', () => {
-    const input: PhrasingContent[] = [swallowedLink('https://a.com/x**(y)', { label: 'label', startOffset: 1 })]
+    const input: PhrasingContent[] = [text('**'), swallowedLink('https://a.com/x**(y)', 'label')]
     expect(run('[label](https://a.com/x**(y))', input)).toEqual(input)
   })
 
-  it('keeps spec behavior for glob-style urls where the stars continue into the path', () => {
-    const input: PhrasingContent[] = [swallowedLink('https://x.com/a/**/b**(x)', { startOffset: 0 })]
-    expect(run('https://x.com/a/**/b**(x)', input)).toEqual(input)
+  it('keeps spec behavior when the closing markers continue into a port or query', () => {
+    const input: PhrasingContent[] = [text('**'), swallowedLink('https://a.com/x**:8080')]
+    expect(run('**https://a.com/x**:8080', input)).toEqual(input)
   })
 
   it('is idempotent across streaming frames', () => {
     const source = '**https://a.com/x**（note）'
-    const first = run(source, [text('**'), swallowedLink('https://a.com/x**（note）', { startOffset: 2 })])
+    const first = run(source, [text('**'), swallowedLink('https://a.com/x**（note）')])
     const second = run(source, structuredClone(first))
 
     expect(second).toEqual(first)
