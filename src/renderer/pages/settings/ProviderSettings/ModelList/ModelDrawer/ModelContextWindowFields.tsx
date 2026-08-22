@@ -4,28 +4,24 @@ import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primiti
 import { useTranslation } from 'react-i18next'
 
 interface ModelContextWindowFieldsProps {
-  contextWindow: string
-  maxInputTokens: string
-  maxOutputTokens: string
-  onContextWindowChange: (value: string) => void
+  contextWindow: number | null
+  maxInputTokens: number | null
+  maxOutputTokens: number | null
+  onContextWindowChange: (value: number | null) => void
   /** Optional: the normalized value always reaches `onContextWindowChange` first. */
-  onContextWindowCommit?: (value: string) => void
-  onMaxInputTokensChange: (value: string) => void
-  onMaxInputTokensCommit?: (value: string) => void
-  onMaxOutputTokensChange: (value: string) => void
-  onMaxOutputTokensCommit?: (value: string) => void
+  onContextWindowCommit?: (value: number | null) => void
+  onMaxInputTokensChange: (value: number | null) => void
+  onMaxInputTokensCommit?: (value: number | null) => void
+  onMaxOutputTokensChange: (value: number | null) => void
+  onMaxOutputTokensCommit?: (value: number | null) => void
 }
 
-/**
- * `InputNumber` renders `value`, not its own normalized result, so the settled
- * value has to go back through the change callback or the field keeps showing
- * what was typed — a decimal in an integer field, a number below `min`.
- */
-const settle = (onChange: (value: string) => void, onCommit?: (value: string) => void) => (value: number | null) => {
-  const next = value === null ? '' : String(value)
-  onChange(next)
-  onCommit?.(next)
-}
+/** Route InputNumber's normalized result into both controlled state and persistence. */
+const settle =
+  (onChange: (value: number | null) => void, onCommit?: (value: number | null) => void) => (value: number | null) => {
+    onChange(value)
+    onCommit?.(value)
+  }
 
 export function ModelContextWindowFields({
   contextWindow,
@@ -50,10 +46,10 @@ export function ModelContextWindowFields({
           min={1}
           step={1}
           aria-label={t('settings.models.add.context_window.label')}
-          value={contextWindow === '' ? null : Number(contextWindow)}
+          value={contextWindow}
           placeholder={t('settings.models.add.context_window.placeholder')}
           className={drawerClasses.input}
-          onValueChange={(value) => onContextWindowChange(value === null ? '' : String(value))}
+          onValueChange={onContextWindowChange}
           onBlur={settle(onContextWindowChange, onContextWindowCommit)}
         />
       </ProviderField>
@@ -66,10 +62,10 @@ export function ModelContextWindowFields({
           min={1}
           step={1}
           aria-label={t('settings.models.add.max_input_tokens.label')}
-          value={maxInputTokens === '' ? null : Number(maxInputTokens)}
+          value={maxInputTokens}
           placeholder={t('settings.models.add.max_input_tokens.placeholder')}
           className={drawerClasses.input}
-          onValueChange={(value) => onMaxInputTokensChange(value === null ? '' : String(value))}
+          onValueChange={onMaxInputTokensChange}
           onBlur={settle(onMaxInputTokensChange, onMaxInputTokensCommit)}
         />
       </ProviderField>
@@ -82,10 +78,10 @@ export function ModelContextWindowFields({
           min={1}
           step={1}
           aria-label={t('settings.models.add.max_output_tokens.label')}
-          value={maxOutputTokens === '' ? null : Number(maxOutputTokens)}
+          value={maxOutputTokens}
           placeholder={t('settings.models.add.max_output_tokens.placeholder')}
           className={drawerClasses.input}
-          onValueChange={(value) => onMaxOutputTokensChange(value === null ? '' : String(value))}
+          onValueChange={onMaxOutputTokensChange}
           onBlur={settle(onMaxOutputTokensChange, onMaxOutputTokensCommit)}
         />
       </ProviderField>
