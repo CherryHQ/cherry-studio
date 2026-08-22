@@ -6227,6 +6227,7 @@
       "painting_model": "Malermodell",
       "painting_model_description": "Modell für die Bildgenerierung",
       "provider_id": "Anbieter-ID",
+      "provider_import_auto_sync": "Nach der Bestätigung werden Modelle automatisch synchronisiert und der Anbieter wird aktiviert.",
       "provider_key_add_confirm": "API-Schlüssel für {{provider}} hinzufügen?",
       "provider_key_add_failed_by_invalid_data": "Der API-Schlüssel für den Anbieter konnte aufgrund eines ungültigen Datenformats nicht hinzugefügt werden",
       "provider_key_added": "API-Schlüssel für {{provider}} erfolgreich hinzugefügt",

@@ -6227,6 +6227,7 @@
       "painting_model": "繪圖模型",
       "painting_model_description": "影像產生使用的模型",
       "provider_id": "供應商 ID",
+      "provider_import_auto_sync": "確認後將自動同步模型並啟用該提供者。",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_invalid_data": "新增供應商 API 金鑰失敗，資料格式錯誤",
       "provider_key_added": "成功為 {{provider}} 新增 API 金鑰",
