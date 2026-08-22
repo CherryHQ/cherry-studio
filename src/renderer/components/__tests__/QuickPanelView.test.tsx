@@ -593,6 +593,41 @@ describe('QuickPanelView', () => {
       expect(childAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: '' }))
     })
 
+    it('keeps a tracked multi-select filter after selecting a matching item', async () => {
+      // Bug: trackInputQuery fills activeSearchQuery, so consumeInputQueryOnce deletes the
+      // typed filter on first Knowledge Base select and setInputSearchText('') unfilters the list.
+      const input = createInputAdapter()
+      const list: QuickPanelListItem[] = [
+        { id: 'kb-card', label: 'Card notes', filterText: 'Card notes', icon: 'kb' },
+        { id: 'kb-docs', label: 'Docs', filterText: 'Docs', icon: 'kb' }
+      ]
+
+      renderOpenPanel({
+        input,
+        list,
+        symbol: 'knowledge-base',
+        queryAnchor: 0,
+        trackInputQuery: true,
+        triggerInfo: { type: 'button', position: 0 },
+        panelOptions: { multiple: true }
+      })
+
+      expect(screen.getByText('Card notes')).toBeInTheDocument()
+      expect(screen.getByText('Docs')).toBeInTheDocument()
+
+      input.setText('card')
+
+      await waitFor(() => expect(screen.getByText('Card notes')).toBeInTheDocument())
+      expect(screen.queryByText('Docs')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('Card notes'))
+
+      expect(input.adapter.getText()).toBe('card')
+      expect(input.adapter.deleteTriggerRange).not.toHaveBeenCalled()
+      expect(screen.getByText('Card notes')).toBeInTheDocument()
+      expect(screen.queryByText('Docs')).not.toBeInTheDocument()
+    })
+
     it('does not filter non-root multi-select panels from composer input changes', async () => {
       const input = createInputAdapter('/Alpha')
       const list = createList(2, 'Prompt')

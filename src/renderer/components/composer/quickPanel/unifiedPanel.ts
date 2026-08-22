@@ -59,6 +59,35 @@ export type ComposerUnifiedPanelSelectHandler = (
   }
 ) => void
 
+export function prepareComposerQuickPanelSearch({
+  inputAdapter,
+  queryAnchor,
+  triggerInfo
+}: Pick<ComposerUnifiedPanelResourceContext, 'inputAdapter' | 'queryAnchor' | 'triggerInfo'>) {
+  const text = inputAdapter?.getText()
+  const cursorOffset = inputAdapter ? (inputAdapter.getCursorOffset?.() ?? text?.length ?? 0) : undefined
+  let searchAnchor = queryAnchor ?? triggerInfo?.position ?? cursorOffset
+
+  // type:input deletion is queryAnchor-owned. position is authoritative for type:button only.
+  if (inputAdapter && triggerInfo?.type === 'input' && queryAnchor !== undefined) {
+    const liveText = inputAdapter.getText()
+    const rangeEnd = inputAdapter.getCursorOffset?.() ?? liveText.length
+    if (rangeEnd > queryAnchor) {
+      inputAdapter.deleteTriggerRange({ from: queryAnchor, to: rangeEnd })
+      inputAdapter.focus()
+      // The trigger is gone; a leftover typed prefix must not be tracked as a query.
+      searchAnchor = undefined
+    }
+  }
+
+  return {
+    queryAnchor: searchAnchor,
+    trackInputQuery: true,
+    triggerInfo:
+      searchAnchor === undefined ? { type: 'button' as const } : { type: 'button' as const, position: searchAnchor }
+  }
+}
+
 function createQuickPanelWithParent(
   quickPanel: QuickPanelContextType,
   parentPanel?: QuickPanelOpenOptions

@@ -3,7 +3,11 @@ import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
-import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'
+import {
+  createUnifiedQuickPanelOpenOptions,
+  hasUnifiedQuickPanelRootContent,
+  prepareComposerQuickPanelSearch
+} from '../unifiedPanel'
 
 const quickPanel = {
   open: vi.fn(),
@@ -51,6 +55,130 @@ beforeEach(() => {
   quickPanel.getPanelGeneration.mockReturnValue(0)
   quickPanel.registerKeyDownHandler.mockReset()
   quickPanel.registerKeyDownHandler.mockReturnValue(() => undefined)
+})
+
+describe('prepareComposerQuickPanelSearch', () => {
+  it('removes the slash category query before tracking submenu search', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 7,
+      getText: () => '/skills',
+      insertText: vi.fn()
+    }
+
+    expect(
+      prepareComposerQuickPanelSearch({
+        inputAdapter,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+      })
+    ).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      triggerInfo: { type: 'button' }
+    })
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+    expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('does not return the pre-deletion queryAnchor after removing a slash trigger with leftover text', () => {
+    // Bug: returning searchAnchor after deleteTriggerRange lets consumeInputQuery wipe leftover
+    // composer text (`hello world`) when a slash-opened Quick Phrases/skills item is selected.
+    const trigger = '/prompt '
+    let text = `${trigger}hello world`
+    let cursorOffset = trigger.length
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(({ from, to }: { from: number; to: number }) => {
+        text = `${text.slice(0, from)}${text.slice(to)}`
+        cursorOffset = cursorOffset <= from ? cursorOffset : Math.max(from, cursorOffset - (to - from))
+      }),
+      focus: vi.fn(),
+      getCursorOffset: () => cursorOffset,
+      getText: () => text,
+      insertText: vi.fn()
+    }
+
+    const result = prepareComposerQuickPanelSearch({
+      inputAdapter,
+      queryAnchor: 0,
+      triggerInfo: { type: 'input', position: 0, originalText: `${trigger}hello world` }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: trigger.length })
+    expect(text).toBe('hello world')
+    expect(result.queryAnchor).toBeUndefined()
+    expect(result.triggerInfo).toEqual({ type: 'button' })
+
+    // consumeInputQuery deletes [queryAnchor, cursor] when queryAnchor is defined. After the
+    // trigger is gone, leftover text sits at the caret; a stale 0-anchor would wipe it.
+    cursorOffset = text.length
+    const consumeQueryAnchor = result.queryAnchor
+    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
+      inputAdapter.deleteTriggerRange({ from: consumeQueryAnchor, to: cursorOffset })
+    }
+    expect(text).toBe('hello world')
+  })
+
+  it('starts button-opened search at the cursor without changing existing text', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 12,
+      getText: () => 'existing text',
+      insertText: vi.fn()
+    }
+
+    expect(prepareComposerQuickPanelSearch({ inputAdapter })).toEqual({
+      queryAnchor: 12,
+      trackInputQuery: true,
+      triggerInfo: { type: 'button', position: 12 }
+    })
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).not.toHaveBeenCalled()
+  })
+
+  it('does not delete leftover draft when a type:input trigger has no queryAnchor', () => {
+    // Bug: searchAnchor falls back to triggerInfo.position (0) when queryAnchor is undefined,
+    // so prepareComposerQuickPanelSearch wipes leftover composer text such as `/skills hello world`.
+    const leftover = '/skills hello world'
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => leftover.length,
+      getText: () => leftover,
+      insertText: vi.fn()
+    }
+
+    prepareComposerQuickPanelSearch({
+      inputAdapter,
+      triggerInfo: { type: 'input', position: 0, originalText: leftover }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).not.toHaveBeenCalled()
+  })
+
+  it('uses a live cursor offset as rangeEnd instead of the value captured at entry', () => {
+    // Bug: cursorOffset is snapshotted at function entry and reused as rangeEnd, so a later
+    // caret move (e.g. 8 → 19) deletes a stale shorter range and leaves trigger text.
+    const offsets = [8, 19]
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: vi.fn(() => offsets.shift() ?? 19),
+      getText: () => '/skills leftover',
+      insertText: vi.fn()
+    }
+
+    prepareComposerQuickPanelSearch({
+      inputAdapter,
+      queryAnchor: 0,
+      triggerInfo: { type: 'input', position: 0, originalText: '/skills leftover' }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 19 })
+  })
 })
 
 describe('createUnifiedQuickPanelOpenOptions', () => {
