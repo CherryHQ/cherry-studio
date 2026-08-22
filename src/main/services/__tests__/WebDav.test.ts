@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import type { AddressInfo } from 'node:net'
-import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,9 +14,10 @@ vi.mock('@logger', () => ({
 
 import WebDav from '../WebDav'
 
-const FIXTURES_DIR = path.join(__dirname, 'fixtures')
-const SELF_SIGNED_KEY = readFileSync(path.join(FIXTURES_DIR, 'self-signed-key.pem'), 'utf-8')
-const SELF_SIGNED_CERT = readFileSync(path.join(FIXTURES_DIR, 'self-signed-cert.pem'), 'utf-8')
+// import.meta.url (not __dirname) keeps module init valid under pure-ESM pools.
+const FIXTURES_DIR = fileURLToPath(new URL('./fixtures', import.meta.url))
+const SELF_SIGNED_KEY = readFileSync(`${FIXTURES_DIR}/self-signed-key.pem`, 'utf-8')
+const SELF_SIGNED_CERT = readFileSync(`${FIXTURES_DIR}/self-signed-cert.pem`, 'utf-8')
 
 // Any HTTP response (even 404) is enough: the TLS handshake happens before
 // HTTP semantics, which is exactly the layer under test.
