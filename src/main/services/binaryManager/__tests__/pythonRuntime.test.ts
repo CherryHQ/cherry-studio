@@ -15,8 +15,6 @@ vi.mock('fs', () => ({ default: mockFs }))
 
 vi.mock('node:fs/promises', () => ({ default: mockFsp }))
 
-vi.mock('node:os', () => ({ default: { tmpdir: () => '/tmp' } }))
-
 vi.mock('node:child_process', () => ({ execFile: vi.fn() }))
 
 vi.mock('node:util', async (importOriginal) => {
@@ -32,7 +30,8 @@ const { regionService } = await import('@main/services/RegionService')
 const { provideManagedPython } = await import('../pythonRuntime')
 
 const UV_BIN = '/mock/cherry.bin/uv'
-const INSTALL_DIR = '/mock/feature.binary.data/uv-python'
+const INSTALL_DIR = '/mock/feature.binary.data.uv_python'
+const APP_TEMP = '/mock/app.temp'
 const MANAGED_PYTHON = `${INSTALL_DIR}/cpython-3.12.13/bin/python`
 const CHINA_PYTHON_MIRROR = 'https://registry.npmmirror.com/-/binary/python-build-standalone'
 
@@ -76,14 +75,20 @@ describe('provideManagedPython', () => {
     })
 
     await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
-    expect(uvCalls('install')).toHaveLength(1)
+    const installs = uvCalls('install')
+    expect(installs).toHaveLength(1)
+    // A system interpreter is an absence, not a damaged managed install: uv is
+    // asked for a plain install so a copy it already holds is left alone.
+    expect(installs[0]?.[1]).not.toContain('--reinstall')
   })
 
-  it('reinstalls when the stored interpreter no longer runs', async () => {
+  it('reinstalls when the stored interpreter no longer runs, which a plain install would skip', async () => {
     let repaired = false
     mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+      // uv exits successfully without doing anything when it already has the
+      // version, so only an explicit reinstall replaces the broken copy.
       if (bin === UV_BIN && args[1] === 'install') {
-        repaired = true
+        if (args.includes('--reinstall')) repaired = true
         return { stdout: '', stderr: '' }
       }
       if (bin === UV_BIN && args[1] === 'find') return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
@@ -95,7 +100,9 @@ describe('provideManagedPython', () => {
     })
 
     await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
-    expect(uvCalls('install')).toHaveLength(1)
+    const installs = uvCalls('install')
+    expect(installs).toHaveLength(1)
+    expect(installs[0]?.[1]).toContain('--reinstall')
   })
 
   it('installs from the China mirror when in China', async () => {
@@ -198,5 +205,8 @@ describe('provideManagedPython', () => {
       HTTPS_PROXY: 'http://proxy.test:8080',
       UV_PYTHON_INSTALL_DIR: INSTALL_DIR
     })
+    // Every path this module hands a subprocess comes from the registry, so the
+    // isolated HOME above can never be undercut by an ambient temp directory.
+    expect(uvCalls('find')[0]?.[2].cwd).toBe(APP_TEMP)
   })
 })

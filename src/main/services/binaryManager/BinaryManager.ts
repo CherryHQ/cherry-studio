@@ -1207,6 +1207,27 @@ export class BinaryManager extends BaseService {
     throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
   }
 
+  /**
+   * Drop the global Python selection older Cherry versions wrote for the pipx
+   * backend. Cherry provisions the interpreter itself now, so its own leftover
+   * entry would leave mise resolving — and reinstalling — a runtime it no longer
+   * owns. Config only: nothing is uninstalled, and a selection the user made by
+   * adding Python as a custom tool stays theirs.
+   */
+  private async releaseMisePythonSelection(): Promise<void> {
+    const runtimeName = RUNTIME_DEPS.pipx.split('@')[0]
+    const userOwned = this.getCustomDefinitions().some(
+      (entry) => normalizeToolIdentity(entry.tool).split('@')[0] === runtimeName
+    )
+    if (userOwned) return
+    try {
+      await this.runMise(['unuse', '-g', runtimeName])
+    } catch (error) {
+      // The tool itself installed; a leftover selection is not worth failing over.
+      logger.warn('Failed to drop the legacy mise Python selection', { error: this.errorMessage(error) })
+    }
+  }
+
   private async installWithMise(
     definition: CustomToolDefinition,
     targetVersion: string | undefined,
@@ -1252,6 +1273,7 @@ export class BinaryManager extends BaseService {
 
     if (pythonPath) {
       await this.installPipxTool(useArgs, pythonPath, includePrerelease)
+      await this.releaseMisePythonSelection()
     } else {
       await this.runMise(useArgs, {
         timeoutMs: MISE_INSTALL_TIMEOUT_MS,

@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process'
 import fsp from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
@@ -36,22 +35,26 @@ const CHINA_PYTHON_MIRROR = 'https://registry.npmmirror.com/-/binary/python-buil
 const execFileAsync = promisify(execFile)
 
 function installDir(): string {
-  return application.getPath('feature.binary.data', 'uv-python')
+  return application.getPath('feature.binary.data.uv_python')
 }
 
 async function runUv(args: string[], env: Record<string, string>, timeoutMs: number): Promise<string> {
   const uvBin = application.getPath('cherry.bin', getBinaryName('uv'))
   if (!fs.existsSync(uvBin)) throw new Error('Bundled uv is not available')
-  const { stdout } = await execFileAsync(uvBin, args, { cwd: os.tmpdir(), env, timeout: timeoutMs })
+  const cwd = application.getPath('app.temp')
+  const { stdout } = await execFileAsync(uvBin, args, { cwd, env, timeout: timeoutMs })
   return stdout
 }
 
+/** A managed interpreter uv already has, and whether it actually runs. */
+type ManagedPython = { path: string; healthy: boolean }
+
 /**
- * The interpreter uv already has for `version`, or null. `uv python find` is
- * offline, so a hit costs nothing; the extra `--version` spawn is what catches
- * one left corrupted by a half-written install.
+ * The interpreter uv already has for `version`, or null when it has none. `uv
+ * python find` is offline, so a hit costs nothing; the extra `--version` spawn is
+ * what tells a working install apart from one a half-written download corrupted.
  */
-async function findInstalled(version: string, env: Record<string, string>): Promise<string | null> {
+async function findInstalled(version: string, env: Record<string, string>): Promise<ManagedPython | null> {
   let pythonPath: string | undefined
   try {
     const stdout = await runUv(
@@ -66,15 +69,19 @@ async function findInstalled(version: string, env: Record<string, string>): Prom
   // Never adopt a system interpreter: only Cherry's own install dir counts.
   if (!pythonPath || !path.isAbsolute(pythonPath) || !isPathWithin(env.UV_PYTHON_INSTALL_DIR, pythonPath)) return null
   try {
-    await execFileAsync(pythonPath, ['--version'], { cwd: os.tmpdir(), env, timeout: FIND_TIMEOUT_MS })
+    await execFileAsync(pythonPath, ['--version'], {
+      cwd: application.getPath('app.temp'),
+      env,
+      timeout: FIND_TIMEOUT_MS
+    })
   } catch (error) {
-    logger.warn('Rejected unhealthy Cherry-managed Python runtime', {
+    logger.warn('Cherry-managed Python runtime is not runnable', {
       path: pythonPath,
       error: sanitizedCommandError(error)
     })
-    return null
+    return { path: pythonPath, healthy: false }
   }
-  return pythonPath
+  return { path: pythonPath, healthy: true }
 }
 
 /**
@@ -96,13 +103,17 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
   }
 
   const existing = await findInstalled(version, env)
-  if (existing) return existing
+  if (existing?.healthy) return existing.path
 
   await fsp.mkdir(dir, { recursive: true })
   const installArgs = [
     'python',
     'install',
     version,
+    // uv exits successfully without doing anything when it already has the
+    // version, so an install it still lists — but that no longer runs — is only
+    // repaired by asking for it again explicitly.
+    ...(existing ? ['--reinstall'] : []),
     '--install-dir',
     dir,
     '--no-bin',
@@ -130,6 +141,6 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
   }
 
   const installed = await findInstalled(version, env)
-  if (!installed) throw new Error(`Managed Python is not runnable after install: ${version}`)
-  return installed
+  if (!installed?.healthy) throw new Error(`Managed Python is not runnable after install: ${version}`)
+  return installed.path
 }

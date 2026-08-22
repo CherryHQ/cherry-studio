@@ -2777,23 +2777,18 @@ describe('BinaryManager', () => {
 
   describe('installWithMise', () => {
     const UV_BIN = '/mock/cherry.bin/uv'
-    const MANAGED_PYTHON = '/mock/feature.binary.data/uv-python/cpython-3.12.13/bin/python'
+    const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
     const BABELDOC = { name: 'babeldoc-stream', tool: 'pipx:babeldoc-stream' }
     const uvCalls = (subcommand: string) =>
       mockExecFileAsync.mock.calls.filter(
         (call: any[]) => call[0] === UV_BIN && call[1][0] === 'python' && call[1][1] === subcommand
       )
     const miseUseCalls = () => mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
+    const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
 
-    it('installs BabelDOC against an interpreter already in Cherry storage, without naming Python to mise', async () => {
+    // Drives a BabelDOC install that finds a healthy Cherry-managed interpreter.
+    const stubManagedPythonInstall = () => {
       ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === UV_BIN)
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {
-        env: { PIP_INDEX_URL: 'https://pypi.org/simple' },
-        usesDefaultChinaPipIndex: false
-      }
-
       mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
         if (bin === UV_BIN && args[1] === 'find') return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
         if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
@@ -2805,6 +2800,16 @@ describe('BinaryManager', () => {
         }
         return { stdout: '', stderr: '' }
       })
+    }
+
+    it('installs BabelDOC against an interpreter already in Cherry storage, without naming Python to mise', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {
+        env: { PIP_INDEX_URL: 'https://pypi.org/simple' },
+        usesDefaultChinaPipIndex: false
+      }
+      stubManagedPythonInstall()
 
       await expect((service as any).installWithMise(BABELDOC, undefined, [])).resolves.toBe('0.6.4.post4')
 
@@ -2814,6 +2819,47 @@ describe('BinaryManager', () => {
       const useCall = miseUseCalls()[0]
       expect(useCall?.[1].some((arg: string) => arg.startsWith('python@'))).toBe(false)
       expect(useCall?.[2].env).toMatchObject({ UV_PYTHON: MANAGED_PYTHON, UV_PYTHON_DOWNLOADS: 'never' })
+    })
+
+    // An older Cherry version passed `python@3.12` to `mise use`, which wrote a
+    // global selection. Cherry owns the interpreter itself now, so leaving that
+    // entry behind keeps mise resolving — and re-fetching from GitHub — a runtime
+    // nothing uses.
+    it('drops the global Python selection an older version wrote for the pipx backend', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+
+      await (service as any).installWithMise(BABELDOC, undefined, [])
+
+      expect(miseArgs()).toContainEqual(['unuse', '-g', 'python'])
+    })
+
+    it('leaves a Python the user added as a custom tool selected', async () => {
+      manifestRef.value = [{ name: 'python', tool: 'core:python', requestedVersion: '3.13.0' }]
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+
+      await (service as any).installWithMise(BABELDOC, undefined, [])
+
+      expect(miseArgs()).not.toContainEqual(['unuse', '-g', 'python'])
+    })
+
+    it('keeps a BabelDOC install that succeeded when the selection cannot be dropped', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+      const stubbed = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (args[0] === 'unuse') throw new Error('mise config is read-only')
+        return stubbed(bin, args, opts)
+      })
+
+      await expect((service as any).installWithMise(BABELDOC, undefined, [])).resolves.toBe('0.6.4.post4')
     })
 
     it('preserves and sanitizes command stderr when every pip source fails', async () => {
@@ -3022,7 +3068,7 @@ describe('BinaryManager', () => {
     const TENCENT = 'https://mirrors.cloud.tencent.com/pypi/simple'
     const OFFICIAL = 'https://pypi.org/simple'
     const UV_BIN = '/mock/cherry.bin/uv'
-    const MANAGED_PYTHON = '/mock/feature.binary.data/uv-python/cpython-3.12.13/bin/python'
+    const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
 
     let originalEnv: NodeJS.ProcessEnv
 
