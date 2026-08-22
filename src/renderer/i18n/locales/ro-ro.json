@@ -6388,6 +6388,25 @@
         "tip": "Folosește virgule pentru a separa mai multe chei",
         "unnamed": "Cheie API"
       },
+      "api_setup": {
+        "add_and_verify": "Adaugă modelele și verifică",
+        "add_key": "Adaugă cheia API",
+        "check_failed": "Solicitarea către model a eșuat",
+        "continue_models": "Continuă adăugarea modelelor",
+        "deselect_all": "Deselectează tot",
+        "edit_key": "Editează cheia salvată",
+        "enable_failed": "Verificarea modelului a reușit, dar furnizorul nu a putut fi activat",
+        "loading_models": "Se încarcă modelele disponibile…",
+        "manual_description": "Modelele selectate acceptă doar verificări costisitoare sau neacceptate. Au fost adăugate, dar furnizorul rămâne dezactivat. Rulează o verificare a modelului și activează manual furnizorul după ce confirmi că funcționează.",
+        "manual_title": "Este necesară confirmarea manuală",
+        "models_empty_hint": "Cheia API este salvată. Alege cel puțin un model pentru a finaliza configurarea.",
+        "models_title": "Alege modelele",
+        "no_models": "Furnizorul nu a returnat niciun model disponibil.",
+        "save_key": "Salvează cheia și continuă",
+        "select_model": "Selectează {{model}}",
+        "success": "Cheia API și modelul au fost verificate. Furnizorul este acum activat.",
+        "verifying": "Se salvează și se verifică…"
+      },
       "api_version": "Versiune API",
       "aws-bedrock": {
         "access_key_id": "ID cheie acces AWS",

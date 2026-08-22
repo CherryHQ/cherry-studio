@@ -6388,6 +6388,25 @@
         "tip": "Use vírgula para separar várias chaves",
         "unnamed": "Chave de API"
       },
+      "api_setup": {
+        "add_and_verify": "Adicionar modelos e verificar",
+        "add_key": "Adicionar chave de API",
+        "check_failed": "O pedido ao modelo falhou",
+        "continue_models": "Continuar a adicionar modelos",
+        "deselect_all": "Desmarcar tudo",
+        "edit_key": "Editar a chave guardada",
+        "enable_failed": "A verificação do modelo foi concluída, mas não foi possível ativar o fornecedor",
+        "loading_models": "A carregar modelos disponíveis…",
+        "manual_description": "Os modelos selecionados apenas suportam verificações de custo elevado ou não suportadas. Foram adicionados, mas o fornecedor permanece desativado. Execute uma verificação do modelo e ative manualmente o fornecedor depois de confirmar que funciona.",
+        "manual_title": "É necessária confirmação manual",
+        "models_empty_hint": "A chave de API está guardada. Escolha pelo menos um modelo para concluir a configuração.",
+        "models_title": "Escolher modelos",
+        "no_models": "O fornecedor não devolveu modelos disponíveis.",
+        "save_key": "Guardar chave e continuar",
+        "select_model": "Selecionar {{model}}",
+        "success": "A chave de API e o modelo foram verificados. O fornecedor está agora ativado.",
+        "verifying": "A guardar e a verificar…"
+      },
       "api_version": "Versão da API",
       "aws-bedrock": {
         "access_key_id": "ID da chave de acesso da AWS",

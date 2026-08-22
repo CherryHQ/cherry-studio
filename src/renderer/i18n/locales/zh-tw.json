@@ -6388,6 +6388,25 @@
         "tip": "每次新增一個 API 金鑰",
         "unnamed": "API Key"
       },
+      "api_setup": {
+        "add_and_verify": "新增模型並驗證",
+        "add_key": "新增 API 金鑰",
+        "check_failed": "模型請求失敗",
+        "continue_models": "繼續新增模型",
+        "deselect_all": "取消全選",
+        "edit_key": "修改已儲存的金鑰",
+        "enable_failed": "模型驗證已通過，但無法啟用服務商",
+        "loading_models": "正在載入可用模型…",
+        "manual_description": "所選模型僅支援高成本檢測，或暫不支援自動檢測。模型已新增，但服務商仍保持關閉。請手動執行模型檢測，確認可用後再啟用服務商。",
+        "manual_title": "需要手動確認",
+        "models_empty_hint": "API 金鑰已儲存。請選擇至少一個模型以完成設定。",
+        "models_title": "選擇模型",
+        "no_models": "服務商未傳回任何可用模型。",
+        "save_key": "儲存金鑰並繼續",
+        "select_model": "選擇 {{model}}",
+        "success": "API 金鑰和模型驗證成功，服務商已啟用。",
+        "verifying": "正在儲存並驗證…"
+      },
       "api_version": "API 版本",
       "aws-bedrock": {
         "access_key_id": "AWS 存取金鑰 ID",

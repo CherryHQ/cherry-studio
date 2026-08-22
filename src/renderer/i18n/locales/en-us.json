@@ -6388,6 +6388,25 @@
         "tip": "Add one API key at a time",
         "unnamed": "API Key"
       },
+      "api_setup": {
+        "add_and_verify": "Add models and verify",
+        "add_key": "Add API key",
+        "check_failed": "The model request failed",
+        "continue_models": "Continue adding models",
+        "deselect_all": "Deselect all",
+        "edit_key": "Edit saved key",
+        "enable_failed": "The model check passed, but the provider could not be enabled",
+        "loading_models": "Loading available models…",
+        "manual_description": "The selected models only support high-cost or unsupported checks. They were added, but the provider remains off. Run a model check and enable the provider manually after confirming it works.",
+        "manual_title": "Manual confirmation required",
+        "models_empty_hint": "Your API key is saved. Choose at least one model to finish setup.",
+        "models_title": "Choose models",
+        "no_models": "The provider returned no available models.",
+        "save_key": "Save key and continue",
+        "select_model": "Select {{model}}",
+        "success": "API key and model verified. The provider is now enabled.",
+        "verifying": "Saving and verifying…"
+      },
       "api_version": "API Version",
       "aws-bedrock": {
         "access_key_id": "AWS Access Key ID",

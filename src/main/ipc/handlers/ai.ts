@@ -36,19 +36,29 @@ const logger = loggerService.withContext('ipc/ai')
  * in `data`. Without this the renderer would only ever see `message` (Electron's
  * invoke reject drops `code`/`data`) — the detail this migration exists to surface.
  */
-async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T> {
+async function exposeAiError<T>(
+  route: string,
+  op: () => Promise<T>,
+  options: { redactLogDetails?: boolean } = {}
+): Promise<T> {
   try {
     return await op()
   } catch (e) {
-    // Log the FULL serialized error at the source (statusCode / responseBody / AI SDK
-    // subtype). The `data` rides the IpcError for the renderer, but Electron's invoke
-    // reject keeps only `message`, and a downstream normalize (e.g. the paintings
-    // pipeline → `REMOTE_ERROR`) can collapse even that — so the only durable record of
-    // the real cause is this log. User-initiated aborts are control flow, not failures.
+    const serializedError = serializeError(e)
+    // Provider setup routes log metadata only because upstream errors can echo credentials.
+    // The full serialized error still crosses IPC so the UI can redact known secrets and explain the failure.
     if (!(e instanceof Error && e.name === 'AbortError')) {
-      logger.error(`${route} failed`, serializeError(e))
+      logger.error(
+        `${route} failed`,
+        options.redactLogDetails
+          ? {
+              errorType: e instanceof Error ? e.name : typeof e,
+              statusCode: typeof serializedError.statusCode === 'number' ? serializedError.statusCode : null
+            }
+          : serializedError
+      )
     }
-    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, e instanceof Error ? e.message : String(e), serializeError(e))
+    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, e instanceof Error ? e.message : String(e), serializedError)
   }
 }
 
@@ -166,9 +176,13 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Provider model catalog & reachability probe. ──
   'ai.provider.model.list': (request) =>
-    exposeAiError('ai.provider.model.list', () => application.get('AiService').listModels(request)),
+    exposeAiError('ai.provider.model.list', () => application.get('AiService').listModels(request), {
+      redactLogDetails: true
+    }),
   'ai.provider.model.check': (request) =>
-    exposeAiError('ai.provider.model.check', () => application.get('AiService').checkModel(request)),
+    exposeAiError('ai.provider.model.check', () => application.get('AiService').checkModel(request), {
+      redactLogDetails: true
+    }),
 
   // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
   'ai.stream.open': async (request, { senderId }) => {

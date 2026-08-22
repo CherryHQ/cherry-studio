@@ -7,11 +7,13 @@ import ApiKey from './ApiKey'
 export interface AuthenticationSectionContentProps {
   providerId: string
   onRequestModelPullGuide?: () => void
+  onOpenApiSetup?: () => void
 }
 
 export function AuthenticationSectionContent({
   providerId,
-  onRequestModelPullGuide
+  onRequestModelPullGuide,
+  onOpenApiSetup
 }: AuthenticationSectionContentProps) {
   const { provider } = useProvider(providerId)
 
@@ -24,7 +26,11 @@ export function AuthenticationSectionContent({
 
   return (
     <>
-      <ApiKey providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
+      <ApiKey
+        providerId={providerId}
+        onRequestModelPullGuide={onRequestModelPullGuide}
+        onOpenApiSetup={onOpenApiSetup}
+      />
       <ApiHost providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
     </>
   )

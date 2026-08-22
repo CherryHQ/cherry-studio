@@ -26,6 +26,7 @@ import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/
 import type { Model } from '@shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { defaultLanguage } from '@shared/utils/languages'
+import { isNonChatModel } from '@shared/utils/model'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { ArrowLeft, Check, KeyRound, Languages, LogIn } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -40,7 +41,7 @@ type PrivacyChoiceAction = () => void | Promise<void>
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
-const isOnboardingModel = (model: Model) => model.providerId !== CHERRYAI_PROVIDER_ID
+const isOnboardingModel = (model: Model) => model.providerId !== CHERRYAI_PROVIDER_ID && !isNonChatModel(model)
 const ONBOARDING_PREFERENCE_KEYS = {
   providerSetupStatus: 'app.onboarding.provider_setup.status',
   dataCollectionEnabled: 'app.privacy.data_collection.enabled',
@@ -49,7 +50,7 @@ const ONBOARDING_PREFERENCE_KEYS = {
 
 function OnboardingProviderSettings() {
   const router = useMemo(() => {
-    const routeTree = createRootRoute({ component: () => <ProviderSettingsPage isOnboarding /> })
+    const routeTree = createRootRoute({ component: () => <ProviderSettingsPage /> })
     const history = createMemoryHistory({ initialEntries: ['/'] })
     return createRouter({ routeTree, history })
   }, [])
@@ -84,7 +85,9 @@ export default function OnboardingPage() {
     enabledProviders.filter((provider) => provider.id !== CHERRYAI_PROVIDER_ID).map((provider) => provider.id)
   )
   const hasEligibleProvider = eligibleProviderIds.size > 0
-  const hasEligibleModel = enabledModels.some((model) => eligibleProviderIds.has(model.providerId))
+  const hasEligibleModel = enabledModels.some(
+    (model) => eligibleProviderIds.has(model.providerId) && isOnboardingModel(model)
+  )
   const isProviderSetupLoading = isProvidersLoading || isModelsLoading
   const canContinueProviderSetup = !isProviderSetupLoading && hasEligibleProvider && hasEligibleModel
   const providerSetupHint = !isProviderSetupLoading

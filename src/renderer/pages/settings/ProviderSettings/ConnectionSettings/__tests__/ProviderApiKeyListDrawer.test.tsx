@@ -107,6 +107,15 @@ describe('ProviderApiKeyListDrawer', () => {
     })
   })
 
+  it('never renders a short stored key as plain text', () => {
+    mockKeys = [{ id: 'key-1', key: 'short', isEnabled: true }]
+
+    render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.queryByText('short')).not.toBeInTheDocument()
+    expect(screen.getByText('••••••••')).toBeInTheDocument()
+  })
+
   it('removes a key via deleteApiKey by id', async () => {
     mockKeys = [{ id: 'key-1', key: 'sk-a', isEnabled: true }]
     render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)

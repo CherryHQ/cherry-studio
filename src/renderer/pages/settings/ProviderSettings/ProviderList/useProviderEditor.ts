@@ -24,7 +24,12 @@ export type ProviderEditorMode =
   | { kind: 'edit'; provider: Provider }
 
 interface UseProviderEditorParams {
-  onProviderCreated: (providerId: string) => void
+  onProviderCreated: (providerId: string, context: ProviderCreationContext) => void
+}
+
+export interface ProviderCreationContext {
+  kind: 'custom' | 'duplicate'
+  hasApiKey: boolean
 }
 
 /**
@@ -133,6 +138,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         return
       }
 
+      const creationMode = modeRef.current?.kind
       const providerId = uuid()
       const submitToken = ++submitTokenRef.current
       const provider = await createProvider({
@@ -152,8 +158,14 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         await applyLogo(provider.id, params.logo)
       }
 
-      if (submitTokenRef.current === submitToken && modeRef.current?.kind !== 'edit') {
-        onProviderCreated(provider.id)
+      if (
+        submitTokenRef.current === submitToken &&
+        (creationMode === 'create-custom' || creationMode === 'duplicate')
+      ) {
+        onProviderCreated(provider.id, {
+          kind: creationMode === 'create-custom' ? 'custom' : 'duplicate',
+          hasApiKey: params.apiKeys?.some((entry) => entry.isEnabled && Boolean(entry.key.trim())) ?? false
+        })
         cancel()
       }
     },

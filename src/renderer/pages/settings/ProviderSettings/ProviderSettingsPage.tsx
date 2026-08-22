@@ -4,14 +4,11 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { omit } from 'es-toolkit/compat'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import { ProviderList } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
 import { isProviderSettingsListVisibleProvider } from './utils/providerDisplay'
-
-interface ProviderSettingsPageProps {
-  isOnboarding?: boolean
-}
 
 interface ProviderSettingsSearch {
   addProviderData?: string
@@ -19,7 +16,12 @@ interface ProviderSettingsSearch {
   id?: string
 }
 
-export default function ProviderSettingsPage({ isOnboarding = false }: ProviderSettingsPageProps) {
+interface PendingApiSetup {
+  providerId: string
+  initialStep: ProviderApiSetupInitialStep
+}
+
+export default function ProviderSettingsPage() {
   const search = useSearch({ strict: false }) as ProviderSettingsSearch
   const navigate = useNavigate()
   const { providers: rawProviders } = useProviders()
@@ -29,6 +31,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
   const [selectedProviderId, setSelectedProviderIdState] = useState<string | undefined>(
     () => lastSelectedProviderId ?? undefined
   )
+  const [pendingApiSetup, setPendingApiSetup] = useState<PendingApiSetup | null>(null)
   const setLastSelectedProviderIdRef = useRef(setLastSelectedProviderId)
 
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
@@ -49,6 +52,14 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
   const setSelectedProviderId = useCallback((providerId: string | undefined) => {
     setLastSelectedProviderIdRef.current(providerId ?? null)
     startTransition(() => setSelectedProviderIdState(providerId))
+  }, [])
+
+  const handleCustomProviderCreated = useCallback((providerId: string, hasApiKey: boolean) => {
+    setPendingApiSetup({ providerId, initialStep: hasApiKey ? 'models' : 'api-key' })
+  }, [])
+
+  const handleApiSetupClosed = useCallback((providerId: string) => {
+    setPendingApiSetup((current) => (current?.providerId === providerId ? null : current))
   }, [])
 
   useProviderDeepLinkImport(search.addProviderData, setSelectedProviderId)
@@ -94,9 +105,17 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
         selectedProviderId={selectedProviderId}
         filterModeHint={filterModeHint}
         onSelectProvider={setSelectedProviderId}
+        onCustomProviderCreated={handleCustomProviderCreated}
       />
       {selectedProvider && (
-        <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
+        <ProviderSetting
+          providerId={selectedProvider.id}
+          key={selectedProvider.id}
+          initialApiSetupStep={
+            pendingApiSetup?.providerId === selectedProvider.id ? pendingApiSetup.initialStep : undefined
+          }
+          onApiSetupClosed={() => handleApiSetupClosed(selectedProvider.id)}
+        />
       )}
     </div>
   )

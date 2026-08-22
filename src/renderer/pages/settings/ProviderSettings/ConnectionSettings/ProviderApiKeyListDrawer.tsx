@@ -69,7 +69,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
   const enabledCount = apiKeys.filter((item) => item.isEnabled).length
 
   const persist = useCallback(
-    async (mutation: () => Promise<void>) => {
+    async (mutation: () => Promise<unknown>) => {
       if (savingRef.current) {
         return false
       }
@@ -303,6 +303,7 @@ interface ApiKeyDisplayRowProps {
 
 function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: ApiKeyDisplayRowProps) {
   const { t } = useTranslation()
+  const maskedKey = maskApiKey(entry.key)
   const handleCopy = useCallback(() => {
     void copyApiKeyToClipboard(entry.key, t)
   }, [entry.key, t])
@@ -316,7 +317,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
           title={t('settings.provider.api_key.copy')}
           className={`${apiKeyListClasses.keyValue} block cursor-pointer text-left transition-colors hover:text-foreground`}
           onClick={handleCopy}>
-          {maskApiKey(entry.key)}
+          {maskedKey === entry.key ? '••••••••' : maskedKey}
         </button>
       </div>
       <div className={apiKeyListClasses.keyRowActions}>
