@@ -2756,6 +2756,7 @@
         "custom_params": "Parametri personalizați",
         "custom_params_add": "Adaugă parametru",
         "custom_params_name": "Nume parametru",
+        "custom_params_value": "Valoarea parametrului",
         "default_value": "Model implicit",
         "field": {
           "context_compress_enabled": {

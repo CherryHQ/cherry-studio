@@ -2756,6 +2756,7 @@
         "custom_params": "Các tham số tùy chỉnh",
         "custom_params_add": "Thêm tham số",
         "custom_params_name": "Tên tham số",
+        "custom_params_value": "Giá trị tham số",
         "default_value": "Mặc định mô hình",
         "field": {
           "context_compress_enabled": {
