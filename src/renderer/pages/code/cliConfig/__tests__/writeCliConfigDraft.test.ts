@@ -1290,6 +1290,44 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env.ANTHROPIC_BASE_URL).toBe(GATEWAY_BASE_URL)
       expect(parsed.env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-chat')
     })
+
+    it('rebuilds purely from a complete draft when every on-disk read fails', async () => {
+      // A complete in-memory draft must not depend on the disk: a transient read
+      // failure (EACCES/EBUSY) must not block a rebuild the draft already covers.
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({ theme: 'dark', env: { KEEP: '1' } })
+      }
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+      mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        for (const file of input.files as CliConfigWriteFile[]) {
+          // This path asserts writes only; delete entries never reach it (the suite pins that).
+          const nextWrite = {
+            path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`,
+            content: (file as { content: string }).content
+          }
+          written = nextWrite
+          writes.push(nextWrite)
+        }
+        return { success: true }
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        files: [editedDraft],
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
+    })
   })
 
   describe('clear on disable deletes Cherry-managed keys', () => {
