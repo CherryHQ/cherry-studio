@@ -80,7 +80,6 @@ const nativeProvider = {
 const cloudProvider = {
   id: CHERRYAI_PROVIDER_ID,
   name: 'CherryAI',
-  apiFeatures: DEFAULT_API_FEATURES,
   defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   endpointConfigs: {
     [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {

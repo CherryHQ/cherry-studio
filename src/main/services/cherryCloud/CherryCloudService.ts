@@ -83,8 +83,9 @@ export class CherryCloudLoginUnavailableError extends Error {
 @DependsOn(['ApiGatewayService'])
 export class CherryCloudService extends BaseService {
   private cloudState = emptyState()
+  private lifecycleGeneration = 0
   private loginPromise: Promise<CherryCloudStatus> | null = null
-  private refreshPromise: Promise<ProductSession> | null = null
+  private refreshPromise: { session: ProductSession; promise: Promise<ProductSession> } | null = null
   private modelSyncPromise: {
     generation: number
     promise: Promise<{ modelCount: number }>
@@ -92,8 +93,10 @@ export class CherryCloudService extends BaseService {
   private agentGatewayLeasePromise: Promise<void> | null = null
   private hasAgentGatewayLease = false
   private sessionGeneration = 0
+  private sessionCleanupPromise: Promise<void> | null = null
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private pendingExpiryTimer: ReturnType<typeof setTimeout> | null = null
+  private sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private exchangePromise: {
     authorizationId: string
     state: string
@@ -101,15 +104,28 @@ export class CherryCloudService extends BaseService {
   } | null = null
 
   protected async onInit(): Promise<void> {
+    this.lifecycleGeneration += 1
     this.registerDisposable(() => {
       this.loopbackCallback?.dispose()
       this.loopbackCallback = null
       this.clearPendingExpiryTimer()
+      this.clearSessionExpiryTimer()
     })
     await this.restoreSession()
   }
 
   protected async onStop(): Promise<void> {
+    this.lifecycleGeneration += 1
+    this.loginPromise = null
+    this.exchangePromise = null
+    this.refreshPromise = null
+    this.modelSyncPromise = null
+    const pending = this.cloudState.pending
+    if (pending) this.clearPendingAuthorization(pending)
+    this.clearSessionExpiryTimer()
+    if (this.cloudState.session) this.sessionGeneration += 1
+    this.cloudState = emptyState()
+    await this.sessionCleanupPromise?.catch(() => undefined)
     await this.releaseAgentGatewayLease()
   }
 
@@ -129,12 +145,19 @@ export class CherryCloudService extends BaseService {
   }
 
   private async createLogin(): Promise<CherryCloudStatus> {
+    const lifecycleGeneration = this.lifecycleGeneration
     const current = await this.getStatus()
+    this.assertLifecycleGeneration(lifecycleGeneration)
     if (current.phase !== 'signed-out') return current
 
     const device = this.cloudState.device ?? createDeviceKeyPair()
     const secrets = createAuthorizationSecrets()
     const loopbackCallback = app.isPackaged ? null : await this.openLoopbackCallback()
+    if (this.lifecycleGeneration !== lifecycleGeneration) {
+      loopbackCallback?.dispose()
+      if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
+      this.assertLifecycleGeneration(lifecycleGeneration)
+    }
     let pending: PendingAuthorization | null = null
 
     try {
@@ -151,6 +174,7 @@ export class CherryCloudService extends BaseService {
         },
         createDesktopAuthorizationResponseSchema
       )
+      this.assertLifecycleGeneration(lifecycleGeneration)
       loopbackCallback?.setExpiresAt(created.expires_at)
       pending = {
         authorizationId: created.authorization_id,
@@ -240,6 +264,10 @@ export class CherryCloudService extends BaseService {
         },
         exchangeDesktopAuthorizationResponseSchema
       )
+      await this.sessionCleanupPromise?.catch(() => undefined)
+      if (this.cloudState.pending !== pending) {
+        throw new Error('Cherry Cloud authorization is no longer active')
+      }
 
       const tokenSet = exchanged.token_set
       const session = {
@@ -257,11 +285,13 @@ export class CherryCloudService extends BaseService {
 
       this.persistSession(device, session)
       this.clearPendingExpiryTimer()
+      this.sessionGeneration += 1
       this.cloudState = {
         ...this.cloudState,
         pending: null,
         session
       }
+      this.scheduleSessionExpiry(session)
       this.emitStatus()
       void this.syncFreeModels().catch((error) => {
         logger.warn('Cherry Cloud model sync failed after login', {
@@ -307,6 +337,38 @@ export class CherryCloudService extends BaseService {
     if (!this.pendingExpiryTimer) return
     clearTimeout(this.pendingExpiryTimer)
     this.pendingExpiryTimer = null
+  }
+
+  private scheduleSessionExpiry(session: ProductSession): void {
+    this.clearSessionExpiryTimer()
+    const remaining = session.sessionExpiresAt - Date.now()
+    const timer = setTimeout(
+      () => {
+        if (this.cloudState.session !== session) return
+        if (session.sessionExpiresAt > Date.now()) {
+          this.scheduleSessionExpiry(session)
+          return
+        }
+        void this.clearSession(session).catch((error) => {
+          logger.warn('Cherry Cloud Session expiry cleanup failed', {
+            reason: error instanceof Error ? error.message : String(error)
+          })
+        })
+      },
+      Math.max(0, Math.min(remaining, 2_147_483_647))
+    )
+    timer.unref()
+    this.sessionExpiryTimer = timer
+  }
+
+  private clearSessionExpiryTimer(): void {
+    if (!this.sessionExpiryTimer) return
+    clearTimeout(this.sessionExpiryTimer)
+    this.sessionExpiryTimer = null
+  }
+
+  private assertLifecycleGeneration(expected: number): void {
+    if (this.lifecycleGeneration !== expected) throw new Error('Cherry Cloud service stopped during login')
   }
 
   private currentStatus(): CherryCloudStatus {
@@ -447,6 +509,7 @@ export class CherryCloudService extends BaseService {
   public async revokeCurrentSession(): Promise<CherryCloudStatus> {
     await this.pruneExpiredState()
     if (!this.cloudState.session) return this.currentStatus()
+    const sessionGeneration = this.sessionGeneration
 
     let response: Response
     try {
@@ -458,7 +521,7 @@ export class CherryCloudService extends BaseService {
     if (response.status === 401) return this.currentStatus()
     if (!response.ok) throw new Error(`Cherry Cloud logout failed (${response.status})`)
 
-    await this.clearSession()
+    if (this.sessionGeneration === sessionGeneration) await this.clearSession()
     return this.currentStatus()
   }
 
@@ -496,12 +559,12 @@ export class CherryCloudService extends BaseService {
     const session = this.cloudState.session
     if (!session) throw new Error('Cherry Cloud account is not signed in')
     if (session.accessExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > Date.now()) return session
-    if (this.refreshPromise) return this.refreshPromise
+    if (this.refreshPromise?.session === session) return this.refreshPromise.promise
 
     const refresh = this.refreshSession(session).finally(() => {
-      if (this.refreshPromise === refresh) this.refreshPromise = null
+      if (this.refreshPromise?.promise === refresh) this.refreshPromise = null
     })
-    this.refreshPromise = refresh
+    this.refreshPromise = { session, promise: refresh }
     return refresh
   }
 
@@ -554,6 +617,7 @@ export class CherryCloudService extends BaseService {
       throw error
     }
     this.cloudState = { ...this.cloudState, session: next }
+    this.scheduleSessionExpiry(next)
     return next
   }
 
@@ -563,16 +627,39 @@ export class CherryCloudService extends BaseService {
 
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
-    let persistenceError: unknown
+    this.clearSessionExpiryTimer()
+    let cleanupError: unknown
     try {
       cherryCloudSessionService.clear()
     } catch (error) {
-      persistenceError = error
+      cleanupError = error
     }
-    await this.releaseAgentGatewayLease()
-    this.reconcileFreeModels([])
-    this.emitStatus()
-    if (persistenceError) throw persistenceError
+    const cleanup = this.finishSessionCleanup(cleanupError)
+    this.sessionCleanupPromise = cleanup
+    try {
+      await cleanup
+    } finally {
+      if (this.sessionCleanupPromise === cleanup) this.sessionCleanupPromise = null
+    }
+  }
+
+  private async finishSessionCleanup(cleanupError: unknown): Promise<void> {
+    try {
+      await this.releaseAgentGatewayLease()
+    } catch (error) {
+      cleanupError ??= error
+    }
+    try {
+      this.reconcileFreeModels([])
+    } catch (error) {
+      cleanupError ??= error
+    }
+    try {
+      this.emitStatus()
+    } catch (error) {
+      cleanupError ??= error
+    }
+    if (cleanupError) throw cleanupError
   }
 
   private async releaseAgentGatewayLease(): Promise<void> {
@@ -660,6 +747,8 @@ export class CherryCloudService extends BaseService {
         displayName: stored.displayName ?? null
       }
     }
+    this.sessionGeneration += 1
+    if (this.cloudState.session) this.scheduleSessionExpiry(this.cloudState.session)
     await this.pruneExpiredState()
   }
 

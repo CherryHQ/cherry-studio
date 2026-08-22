@@ -117,7 +117,11 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const {
+  buildClaudeCodeQueryRequestForAgentSession,
+  buildClaudeCodeWarmQueryRequestForAgentSession,
+  deriveConnectionConfig
+} = await import('../agentSessionWarmup')
 const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
@@ -238,6 +242,14 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('passes the connection rebuild signature into the warm query request', async () => {
+    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    if (!warmRequest || !current.ok) throw new Error('expected warm request and current config')
+    expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
   })
 
   it('pins the rebuild baseline to the context window used to materialize settings', async () => {
