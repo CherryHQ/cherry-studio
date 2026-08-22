@@ -1047,6 +1047,7 @@
       "reference_panel": {
         "load_failed": "参照された会話の読み込みに失敗しました",
         "no_room": "メッセージにこの会話を追加する余地が残っていません",
+        "no_room_selection": "メッセージの残り文字数が不足しているため、この選択範囲を挿入できません",
         "session": {
           "no_results": {
             "description": "検索条件に一致するセッションはありません",

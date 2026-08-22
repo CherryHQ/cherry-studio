@@ -1047,6 +1047,7 @@
       "reference_panel": {
         "load_failed": "Không thể tải cuộc trò chuyện được tham chiếu",
         "no_room": "Không còn đủ chỗ trong tin nhắn để thêm cuộc trò chuyện này",
+        "no_room_selection": "Không còn đủ chỗ trong tin nhắn để thêm vùng chọn này",
         "session": {
           "no_results": {
             "description": "Không có phiên nào khớp với tìm kiếm của bạn",

@@ -1047,6 +1047,7 @@
       "reference_panel": {
         "load_failed": "Failed to load the referenced conversation",
         "no_room": "Not enough room left in the message to add this conversation",
+        "no_room_selection": "Not enough room left in the message to add this selection",
         "session": {
           "no_results": {
             "description": "No sessions match your search",

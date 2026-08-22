@@ -1047,6 +1047,7 @@
       "reference_panel": {
         "load_failed": "Fehler beim Laden der referenzierten Konversation",
         "no_room": "Nicht genug Platz in der Nachricht, um diese Konversation hinzuzufügen",
+        "no_room_selection": "Nicht genügend Platz in der Nachricht, um diese Auswahl einzufügen",
         "session": {
           "no_results": {
             "description": "Keine Sitzungen entsprechen Ihrer Suche",

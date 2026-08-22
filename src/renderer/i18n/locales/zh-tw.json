@@ -1047,6 +1047,7 @@
       "reference_panel": {
         "load_failed": "無法載入引用的對話",
         "no_room": "訊息中沒有足夠的空間來新增此對話",
+        "no_room_selection": "輸入框剩餘長度不足，無法插入該選取範圍",
         "session": {
           "no_results": {
             "description": "沒有符合您搜尋條件的工作階段",
