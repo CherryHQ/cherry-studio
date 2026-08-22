@@ -1,5 +1,12 @@
-import { readWindowInfo } from '@main/services/screenshot/windowEnumerator'
-import { describe, expect, it } from 'vitest'
+import { listWindowsOffThread, readWindowInfo } from '@main/services/screenshot/windowEnumerator'
+import { describe, expect, it, vi } from 'vitest'
+
+const workerConstructor = vi.hoisted(() => vi.fn())
+
+vi.mock('node:worker_threads', () => ({ Worker: workerConstructor }))
+vi.mock('@main/services/screenshot/nativeCaptureBackend', () => ({
+  nativeCaptureBackendPath: () => '/fake/node-screenshots'
+}))
 
 const makeWindow = (over: Partial<Record<string, unknown>> = {}) => ({
   pid: () => 1,
@@ -37,5 +44,17 @@ describe('readWindowInfo', () => {
       height: 40,
       isMinimized: false
     })
+  })
+})
+
+describe('listWindowsOffThread', () => {
+  it('degrades to no snap targets when the worker cannot be spawned', async () => {
+    // Hover-to-snap is optional — it falls back to snapping to the whole display.
+    // A rejection here would escape the caller's fire-and-forget `void`.
+    workerConstructor.mockImplementationOnce(() => {
+      throw new Error('cannot spawn')
+    })
+
+    await expect(listWindowsOffThread()).resolves.toEqual([])
   })
 })

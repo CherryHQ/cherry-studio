@@ -113,47 +113,52 @@ export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
       resolve(windows)
     }
 
-    const worker = new Worker(enumeratorSource, { eval: true, workerData: { backendPath } })
-    const spawnMs = performance.now() - t0
-    // A capture session is short-lived and this result is optional; it must never
-    // be the reason the app stays alive on quit.
-    worker.unref()
+    try {
+      const worker = new Worker(enumeratorSource, { eval: true, workerData: { backendPath } })
+      const spawnMs = performance.now() - t0
+      // A capture session is short-lived and this result is optional; it must never
+      // be the reason the app stays alive on quit.
+      worker.unref()
 
-    worker.on(
-      'message',
-      (
-        message:
-          | { ok: true; windows: RawWindowInfo[]; startedAt: number; loadMs: number; enumMs: number }
-          | { ok: false; message: string }
-      ) => {
-        if (message.ok) {
-          if (DIAGNOSTICS_ENABLED) {
-            // Splits the wall clock five ways, so a slow run names its own cause:
-            // `boot` = spawning the thread, `load` = the native binding, `enum` =
-            // the OS queries, `dispatch` = the main thread getting round to the
-            // reply. A large `dispatch` is a scheduling problem, not a native one.
-            const total = performance.now() - t0
-            const bootMs = message.startedAt - t0Wall
-            logger.info(
-              `[Diagnostics/screenshot] enumerator total=${total.toFixed(0)}ms ` +
-                `spawn=${spawnMs.toFixed(0)}ms boot=${bootMs.toFixed(0)}ms ` +
-                `load=${message.loadMs.toFixed(0)}ms enum=${message.enumMs.toFixed(0)}ms ` +
-                `dispatch=${(total - bootMs - message.loadMs - message.enumMs).toFixed(0)}ms`
-            )
+      worker.on(
+        'message',
+        (
+          message:
+            | { ok: true; windows: RawWindowInfo[]; startedAt: number; loadMs: number; enumMs: number }
+            | { ok: false; message: string }
+        ) => {
+          if (message.ok) {
+            if (DIAGNOSTICS_ENABLED) {
+              // Splits the wall clock five ways, so a slow run names its own cause:
+              // `boot` = spawning the thread, `load` = the native binding, `enum` =
+              // the OS queries, `dispatch` = the main thread getting round to the
+              // reply. A large `dispatch` is a scheduling problem, not a native one.
+              const total = performance.now() - t0
+              const bootMs = message.startedAt - t0Wall
+              logger.info(
+                `[Diagnostics/screenshot] enumerator total=${total.toFixed(0)}ms ` +
+                  `spawn=${spawnMs.toFixed(0)}ms boot=${bootMs.toFixed(0)}ms ` +
+                  `load=${message.loadMs.toFixed(0)}ms enum=${message.enumMs.toFixed(0)}ms ` +
+                  `dispatch=${(total - bootMs - message.loadMs - message.enumMs).toFixed(0)}ms`
+              )
+            }
+            settle(message.windows)
+          } else {
+            logger.warn('Skipping snap targets: the enumerator worker failed', new Error(message.message))
+            settle([])
           }
-          settle(message.windows)
-        } else {
-          logger.warn('Skipping snap targets: the enumerator worker failed', new Error(message.message))
-          settle([])
+          void worker.terminate()
         }
-        void worker.terminate()
-      }
-    )
-    worker.on('error', (error) => {
-      logger.warn('Skipping snap targets: the enumerator worker errored', error)
+      )
+      worker.on('error', (error) => {
+        logger.warn('Skipping snap targets: the enumerator worker errored', error)
+        settle([])
+      })
+      // Covers a worker that dies without reporting — otherwise the caller waits forever.
+      worker.on('exit', () => settle([]))
+    } catch (error) {
+      logger.warn('Skipping snap targets: the enumerator worker could not be spawned', error as Error)
       settle([])
-    })
-    // Covers a worker that dies without reporting — otherwise the caller waits forever.
-    worker.on('exit', () => settle([]))
+    }
   })
 }
