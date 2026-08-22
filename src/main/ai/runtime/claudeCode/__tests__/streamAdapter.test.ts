@@ -1719,13 +1719,13 @@ describe('ClaudeCodeStreamAdapter', () => {
         description: 'Review the patch',
         task_type: 'subagent'
       } as any
-      adapter.handleMessage({ ...started, uuid: crypto.randomUUID() } as any)
+      adapter.handleMessage({ ...started, uuid: crypto.randomUUID() })
       adapter.handleMessage({
         ...started,
         uuid: crypto.randomUUID(),
         tool_use_id: 'call_resume',
         description: 'Resumed review'
-      } as any)
+      })
 
       const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
       expect(last).toEqual({
