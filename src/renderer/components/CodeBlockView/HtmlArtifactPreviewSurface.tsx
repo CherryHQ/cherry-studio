@@ -24,12 +24,14 @@ type HtmlArtifactBridgeMessage =
       value: number
     }
 
-/** True when the surface must use the hardened webview tier: the content itself is active
- *  (scripts/embeds), regardless of fragment/document classification. Only mount this
- *  surface after explicit user consent — opening the popup IS the consent — so an active
- *  fragment keeps its interactivity there too. Non-consented inline surfaces keep
- *  fragments script-less instead (see HtmlArtifactView's kind-gated inline tier).
- *  Fail-closed: a content-parse error reports active. */
+/** True when the surface must use the hardened webview tier: the content itself needs the
+ *  relaxed environment — scripts/embeds (`script`/`iframe`/`object`/`embed`, `on*`
+ *  handlers, `javascript:` URLs), meta-refresh, external resource URLs, or external CSS
+ *  `url()`s — regardless of fragment/document classification (the restricted-CSP frame
+ *  would block external resources, breaking them). Only mount this surface after explicit
+ *  user consent — opening the popup IS the consent — so such a fragment keeps working
+ *  there too. Non-consented inline surfaces keep fragments script-less instead (see
+ *  HtmlArtifactView's kind-gated inline tier). Fail-closed on content-parse errors. */
 export function htmlArtifactPreviewRequiresInteractive(html: string): boolean {
   return htmlArtifactRequiresUserConsent(html)
 }
