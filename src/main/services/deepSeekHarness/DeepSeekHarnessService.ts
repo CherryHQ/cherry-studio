@@ -75,8 +75,9 @@ export class DeepSeekHarnessService extends BaseService {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
   }
 
-  /** Single status-transition point: assign, then broadcast the get_status-shaped payload. */
+  /** Single status-transition point: assign, then broadcast; same-value calls are not transitions. */
   private setStatus(status: DeepSeekHarnessStatus): void {
+    if (this.status === status) return
     this.status = status
     try {
       application.get('IpcApiService').broadcast('deepseek_harness.status_changed', this.getStatus())
