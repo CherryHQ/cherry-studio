@@ -21,6 +21,7 @@ import { triggersEqual, type UpdateJobScheduleDto } from '@shared/data/api/schem
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import { agentTaskJobHandler } from './agentTaskJobHandler'
+import { syncHeartbeatSchedule } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentJobsService')
 
@@ -71,6 +72,22 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 export class AgentJobsService extends BaseService {
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
+
+    // Configuration saves reach the data layer through DataApi; this service
+    // owns the schedule side effects those keys describe (#19203). Sync after
+    // the write: the schedule row and its timer are derived state.
+    this.registerDisposable(
+      agentService.onAgentUpdated(({ agentId, updates }) => {
+        const configuration = updates.configuration
+        if (configuration && ('heartbeat_enabled' in configuration || 'heartbeat_interval' in configuration)) {
+          try {
+            syncHeartbeatSchedule(agentId)
+          } catch (error) {
+            logger.warn('Failed to sync heartbeat schedule', { agentId, error })
+          }
+        }
+      })
+    )
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {

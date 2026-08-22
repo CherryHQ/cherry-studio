@@ -36,6 +36,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
+import { HEARTBEAT_PROMPT_SENTINEL } from '@main/ai/agents/heartbeatSchedule'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
@@ -43,9 +44,6 @@ import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
-
-const HEARTBEAT_PROMPT_SENTINEL = '__heartbeat__'
-const HEARTBEAT_TASK_NAME = 'heartbeat'
 
 export type AgentTaskInput = {
   agentId: string
@@ -157,7 +155,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   const config = agent.configuration ?? {}
 
-  const isHeartbeat = taskName === HEARTBEAT_TASK_NAME && prompt === HEARTBEAT_PROMPT_SENTINEL
+  // The prompt sentinel is the discriminator: schedule names carry the agent id
+  // (uniqueness is per (type, name)), so pinning the heartbeat on a literal name
+  // would let only one agent ever heart beat. `taskName` stays for logging.
+  const isHeartbeat = prompt === HEARTBEAT_PROMPT_SENTINEL && taskName !== null
 
   let effectivePrompt = prompt
 
