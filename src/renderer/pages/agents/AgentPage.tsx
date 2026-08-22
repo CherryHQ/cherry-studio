@@ -22,9 +22,8 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
-import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs, useCurrentTabId, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -51,6 +50,7 @@ import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import Sessions from './components/Sessions'
+import { AgentTabRuntime } from './components/AgentTabRuntime'
 import {
   createFeedbackComposerLaunch,
   FEEDBACK_INTENT_GUARD_TTL_MS,
@@ -96,7 +96,6 @@ const AgentPage = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
-  const isActiveTab = useIsActiveTab()
   const currentTabId = useCurrentTabId()
   const routeSessionId = routeSearch.sessionId
   const routeAgentId = routeSearch.agentId
@@ -172,7 +171,6 @@ const AgentPage = () => {
       ownerFallbackRequestIdRef.current += 1
     }
   }, [routeActiveSessionId])
-  const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
@@ -304,7 +302,7 @@ const AgentPage = () => {
   const manageAgentsActive = activeResourceKind === 'agent'
   const onManageAgents = conversationResourcesEnabled ? toggleAgentResourceView : undefined
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
-  // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
+  // own AgentPage.
   const clearSessionRevealRequestAfterPaint = useCallback((requestId: number) => {
     const clear = () => {
       setSessionRevealRequest((current) => (current?.requestId === requestId ? undefined : current))
@@ -349,15 +347,8 @@ const AgentPage = () => {
     visibleConversationId: visibleSession?.id
   })
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
-  useTabSelfVisuals({
-    title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
-    emoji: visibleAgent?.configuration?.avatar,
-    appId: 'agents',
-    preserveVisuals: preserveTabVisuals
-  })
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
-  useCommandHandler('app.sidebar.toggle', toggleShellPane, { enabled: isActiveTab })
 
   useEffect(() => {
     if (isMessageOnlyView) return
@@ -373,16 +364,6 @@ const AgentPage = () => {
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession
   }, [activeSession])
-
-  useEffect(() => {
-    // Track "last focused session" only for persisted sessions. Gated on
-    // the active tab: `last_used` is a single global "what I'm looking at now",
-    // so background tabs must not clobber it and switching tabs must update it.
-    if (!isActiveTab) return
-    if (activeSession?.id && activeSessionSource === 'query') {
-      setLastUsedSessionId(activeSession.id)
-    }
-  }, [isActiveTab, activeSession, activeSessionSource, setLastUsedSessionId])
 
   const rememberLastUsedSession = useCallback(
     (agentId: string, userWorkspaceId?: string) => {
@@ -972,7 +953,16 @@ const AgentPage = () => {
   const centerSurface = historyRecordsCenter ?? resourceCenter
 
   return (
-    <Container>
+    <>
+      <AgentTabRuntime
+        title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
+        emoji={visibleAgent?.configuration?.avatar}
+        preserveVisuals={preserveTabVisuals}
+        activeSession={activeSession ?? null}
+        activeSessionSource={activeSessionSource}
+        onToggleSidebar={toggleShellPane}
+      />
+      <Container>
       <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
           centerSurface={centerSurface}
@@ -1013,6 +1003,7 @@ const AgentPage = () => {
         onCreated={handleAgentConversationSelect}
       />
     </Container>
+    </>
   )
 }
 
