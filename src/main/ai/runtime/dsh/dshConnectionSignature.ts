@@ -7,7 +7,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
+import { readApiGatewayConnectionSnapshot } from '@main/ai/runtime/agentApiGateway'
 import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
 import { resolveDshInjectionApi } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -85,9 +85,14 @@ export async function captureDshConnectionSnapshot(
   const linkedChannel = channel?.agentId === agent.id ? channel : null
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-  const cherryCloudGatewayGeneration = isCherryCloudWorkModel(model.providerId, model.group)
-    ? await application.get('CherryCloudService').getAgentGatewayGeneration()
+  const usesCherryCloud = isCherryCloudWorkModel(model.providerId, model.group)
+  const cherryCloudSessionGeneration = usesCherryCloud
+    ? await application.get('CherryCloudService').getSessionGeneration()
     : null
+  const gatewayConnectionFingerprint =
+    usesCherryCloud || resolveDshInjectionApi(provider, model) === undefined
+      ? readApiGatewayConnectionSnapshot().fingerprint
+      : null
 
   const signature = createHash('sha256')
     .update(
@@ -104,11 +109,8 @@ export async function captureDshConnectionSnapshot(
           mcpTools,
           linkedChannelId: linkedChannel?.id ?? null,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          cherryCloudGatewayGeneration,
-          // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
-          // the warm connection (claude's credentialsFingerprint parity); null on native routes.
-          gatewayCredentials:
-            resolveDshInjectionApi(provider, model) === undefined ? gatewayCredentialsFingerprint() : null
+          cherryCloudSessionGeneration,
+          gatewayConnectionFingerprint
         })
       )
     )

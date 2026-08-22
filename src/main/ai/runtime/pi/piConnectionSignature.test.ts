@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   findMcp: vi.fn(),
   listTools: vi.fn(),
   findBySessionId: vi.fn(),
-  cloudGatewayGeneration: 0
+  cloudSessionGeneration: 0,
+  gatewayFingerprint: 'gateway-1'
 }))
 
 vi.mock('@application', () => ({
@@ -21,7 +22,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'McpCatalogService') return { listTools: mocks.listTools }
       if (name === 'CherryCloudService') {
-        return { getAgentGatewayGeneration: async () => mocks.cloudGatewayGeneration }
+        return { getSessionGeneration: async () => mocks.cloudSessionGeneration }
       }
       throw new Error(`Unexpected service: ${name}`)
     }
@@ -39,6 +40,9 @@ vi.mock('@data/services/AgentChannelService', () => ({
 }))
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: { list: mocks.listSkills, getSkillDirectory: mocks.getSkillDirectory }
+}))
+vi.mock('@main/ai/runtime/agentApiGateway', () => ({
+  readApiGatewayConnectionSnapshot: () => ({ fingerprint: mocks.gatewayFingerprint })
 }))
 
 const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
@@ -68,7 +72,8 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
-  mocks.cloudGatewayGeneration = 0
+  mocks.cloudSessionGeneration = 0
+  mocks.gatewayFingerprint = 'gateway-1'
 })
 
 describe('capturePiConnectionSnapshot', () => {
@@ -131,9 +136,9 @@ describe('capturePiConnectionSnapshot', () => {
     })
   })
 
-  it('rebuilds only Cherry Cloud connections when the signed gateway generation changes', async () => {
+  it('rebuilds only Cherry Cloud connections when its session or gateway identity changes', async () => {
     const normalSignature = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
-    mocks.cloudGatewayGeneration = 1
+    mocks.cloudSessionGeneration = 1
     expect((await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).toBe(
       normalSignature
     )
@@ -144,13 +149,14 @@ describe('capturePiConnectionSnapshot', () => {
       providerId: CHERRYAI_PROVIDER_ID,
       group: CHERRY_CLOUD_MODEL_GROUP
     })
-    const cloudSignature = (
-      await capturePiConnectionSnapshot('session-1', agent.id, `${CHERRYAI_PROVIDER_ID}::deepseek-free`)
-    ).signature
-    mocks.cloudGatewayGeneration = 2
+    const captureCloud = () =>
+      capturePiConnectionSnapshot('session-1', agent.id, `${CHERRYAI_PROVIDER_ID}::deepseek-free`)
+    const cloudSignature = (await captureCloud()).signature
+    mocks.cloudSessionGeneration = 2
+    expect((await captureCloud()).signature).not.toBe(cloudSignature)
 
-    expect(
-      (await capturePiConnectionSnapshot('session-1', agent.id, `${CHERRYAI_PROVIDER_ID}::deepseek-free`)).signature
-    ).not.toBe(cloudSignature)
+    mocks.cloudSessionGeneration = 1
+    mocks.gatewayFingerprint = 'gateway-2'
+    expect((await captureCloud()).signature).not.toBe(cloudSignature)
   })
 })

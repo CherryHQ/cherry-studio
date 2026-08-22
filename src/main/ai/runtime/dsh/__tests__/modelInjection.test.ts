@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({
   getByProviderId: vi.fn(),
   getByKey: vi.fn(),
   resolveApiGatewayRuntime: vi.fn(),
+  resolveCherryCloudGatewayRuntime: vi.fn(),
   getCurrentConfig: vi.fn(),
-  ensureCherryCloudGateway: vi.fn(),
   ApiGatewayNotRunningError: class ApiGatewayNotRunningError extends Error {}
 }))
 
@@ -25,13 +25,13 @@ vi.mock('@data/services/ProviderService', () => ({
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getByKey } }))
 vi.mock('@main/ai/runtime/agentApiGateway', () => ({
   ApiGatewayNotRunningError: mocks.ApiGatewayNotRunningError,
-  resolveApiGatewayRuntime: mocks.resolveApiGatewayRuntime
+  resolveApiGatewayRuntime: mocks.resolveApiGatewayRuntime,
+  resolveCherryCloudGatewayRuntime: mocks.resolveCherryCloudGatewayRuntime
 }))
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'ApiGatewayService') return { getCurrentConfig: mocks.getCurrentConfig }
-      if (name === 'CherryCloudService') return { ensureAgentGateway: mocks.ensureCherryCloudGateway }
       throw new Error(`unexpected service ${name}`)
     }
   }
@@ -119,8 +119,8 @@ function makeCloudModel(overrides: Partial<Model> = {}): Model {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.ensureCherryCloudGateway.mockResolvedValue(undefined)
   mocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
+  mocks.resolveCherryCloudGatewayRuntime.mockResolvedValue(GATEWAY)
   mocks.resolveApiKey.mockReturnValue({ value: 'sk-native', apiKeySelection: { attribution: 'unknown' } })
 })
 
@@ -221,8 +221,7 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
   it('acquires the signed Cloud gateway even when the persistent gateway setting is disabled', async () => {
     const injection = await resolveDshProviderInjectionFromSnapshot('session-1', cloudProvider, makeCloudModel())
 
-    expect(mocks.ensureCherryCloudGateway).toHaveBeenCalledOnce()
-    expect(mocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1', { allowDisabled: true })
+    expect(mocks.resolveCherryCloudGatewayRuntime).toHaveBeenCalledWith('session-1')
     expect(mocks.resolveApiKey).not.toHaveBeenCalled()
     expect(injection).toMatchObject({ api: 'anthropic-messages', modelId: 'cherryai:deepseek-free' })
   })

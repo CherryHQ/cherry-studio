@@ -93,12 +93,60 @@ const sessionId = '00000000-0000-4000-8000-000000000010'
 const accountId = '00000000-0000-4000-8000-000000000020'
 const deviceId = '00000000-0000-4000-8000-000000000030'
 const token = (character: string) => character.repeat(42) + 'A'
+const freeAccountSnapshot = {
+  account: { id: accountId },
+  session: { id: sessionId, expires_at: '2030-02-01T03:04:05Z' },
+  device: { id: deviceId },
+  entitlements: [
+    {
+      plan_id: '00000000-0000-4000-8000-000000000040',
+      plan_name: '免费套餐',
+      is_free: true,
+      status: 'active',
+      model_ids: ['deepseek-free']
+    },
+    {
+      plan_id: '00000000-0000-4000-8000-000000000041',
+      plan_name: 'GO 套餐',
+      is_free: false,
+      status: 'active',
+      model_ids: ['deepseek-go']
+    }
+  ]
+}
+const cloudModelCatalog = {
+  data: [
+    { id: 'deepseek-free', display_name: 'DeepSeek Free', context_window: 128_000, max_output_tokens: 8_192 },
+    { id: 'deepseek-go', display_name: 'DeepSeek GO', context_window: 256_000, max_output_tokens: 16_384 }
+  ]
+}
 
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
     status,
     headers: { 'Content-Type': 'application/json' }
   })
+}
+
+function refreshedTokenSet() {
+  return {
+    token_set: {
+      token_type: 'Bearer',
+      access_token: token('H'),
+      expires_in: 600,
+      refresh_token: token('I'),
+      session_id: sessionId,
+      session_expires_at: '2030-02-01T03:04:05Z'
+    }
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((accept) => {
+    resolve = accept
+  })
+  return { promise, resolve }
 }
 
 function exchangeResponse() {
@@ -342,13 +390,10 @@ describe('CherryCloudService', () => {
   })
 
   it('does not let a matching error callback clear an exchange in progress', async () => {
-    let resolveExchange!: (response: Response) => void
-    const pendingExchange = new Promise<Response>((resolve) => {
-      resolveExchange = resolve
-    })
+    const pendingExchange = deferred<Response>()
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockReturnValueOnce(pendingExchange)
+      .mockReturnValueOnce(pendingExchange.promise)
     const service = new CherryCloudService()
     await service._doInit()
     await service.startLogin()
@@ -367,7 +412,7 @@ describe('CherryCloudService', () => {
     )
 
     expect(await service.getStatus()).toEqual({ phase: 'authorizing', displayName: null })
-    resolveExchange(jsonResponse(exchangeResponse()))
+    pendingExchange.resolve(jsonResponse(exchangeResponse()))
     await expect(Promise.all([validCallback, errorCallback])).resolves.toEqual([undefined, undefined])
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
 
@@ -411,47 +456,8 @@ describe('CherryCloudService', () => {
       }
     ])
     mocks.netFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          account: { id: accountId },
-          session: { id: sessionId, expires_at: '2030-02-01T03:04:05Z' },
-          device: { id: deviceId },
-          entitlements: [
-            {
-              plan_id: '00000000-0000-4000-8000-000000000040',
-              plan_name: '免费套餐',
-              is_free: true,
-              status: 'active',
-              model_ids: ['deepseek-free']
-            },
-            {
-              plan_id: '00000000-0000-4000-8000-000000000041',
-              plan_name: 'GO 套餐',
-              is_free: false,
-              status: 'active',
-              model_ids: ['deepseek-go']
-            }
-          ]
-        })
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: [
-            {
-              id: 'deepseek-free',
-              display_name: 'DeepSeek Free',
-              context_window: 128_000,
-              max_output_tokens: 8_192
-            },
-            {
-              id: 'deepseek-go',
-              display_name: 'DeepSeek GO',
-              context_window: 256_000,
-              max_output_tokens: 16_384
-            }
-          ]
-        })
-      )
+      .mockResolvedValueOnce(jsonResponse(freeAccountSnapshot))
+      .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
 
     const service = new CherryCloudService()
     await service._doInit()
@@ -486,21 +492,32 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('does not apply a model sync that finishes after the Session is cleared', async () => {
+    restoreSignedInState()
+    const accountRequest = deferred<Response>()
+    const catalogRequest = deferred<Response>()
+    mocks.netFetch
+      .mockReturnValueOnce(accountRequest.promise)
+      .mockReturnValueOnce(catalogRequest.promise)
+      .mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
+
+    const service = new CherryCloudService()
+    await service._doInit()
+    const sync = service.syncFreeModels()
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+    await service.authenticatedFetch('/v1/messages', { method: 'POST' })
+
+    accountRequest.resolve(jsonResponse(freeAccountSnapshot))
+    catalogRequest.resolve(jsonResponse(cloudModelCatalog))
+
+    await expect(sync).resolves.toEqual({ modelCount: 0 })
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+  })
+
   it('rotates an expired access token before a signed model request', async () => {
     restoreSignedInState('2026-01-02T03:14:05Z')
     mocks.netFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          token_set: {
-            token_type: 'Bearer',
-            access_token: token('H'),
-            expires_in: 600,
-            refresh_token: token('I'),
-            session_id: sessionId,
-            session_expires_at: '2030-02-01T03:04:05Z'
-          }
-        })
-      )
+      .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
       .mockResolvedValueOnce(jsonResponse({ data: [] }))
 
     const service = new CherryCloudService()
@@ -525,41 +542,27 @@ describe('CherryCloudService', () => {
   it('keeps a refreshed Session when an older request returns 401 afterward', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
     restoreSignedInState('2030-01-02T03:02:00Z')
-    let resolveOldRequest!: (response: Response) => void
-    const oldRequestResponse = new Promise<Response>((resolve) => {
-      resolveOldRequest = resolve
-    })
+    const pendingOldRequest = deferred<Response>()
     mocks.netFetch
-      .mockReturnValueOnce(oldRequestResponse)
-      .mockResolvedValueOnce(
-        jsonResponse({
-          token_set: {
-            token_type: 'Bearer',
-            access_token: token('H'),
-            expires_in: 600,
-            refresh_token: token('I'),
-            session_id: sessionId,
-            session_expires_at: '2030-02-01T03:04:05Z'
-          }
-        })
-      )
+      .mockReturnValueOnce(pendingOldRequest.promise)
+      .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
       .mockResolvedValueOnce(jsonResponse({ data: [] }))
 
     try {
       const service = new CherryCloudService()
       await service._doInit()
       await service.ensureAgentGateway()
-      const gatewayGeneration = await service.getAgentGatewayGeneration()
+      const sessionGeneration = await service.getSessionGeneration()
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
       clock.mockReturnValue(Date.parse('2030-01-02T03:01:30Z'))
       await expect(service.authenticatedFetch('/v1/models')).resolves.toHaveProperty('status', 200)
-      resolveOldRequest(jsonResponse({ type: 'error' }, 401))
+      pendingOldRequest.resolve(jsonResponse({ type: 'error' }, 401))
       await expect(oldRequest).resolves.toHaveProperty('status', 401)
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-      expect(await service.getAgentGatewayGeneration()).toBe(gatewayGeneration)
+      expect(await service.getSessionGeneration()).toBe(sessionGeneration)
       expect(mocks.releaseGatewayLease).not.toHaveBeenCalled()
       expect(new Headers(mocks.netFetch.mock.calls[2][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
     } finally {
@@ -570,21 +573,15 @@ describe('CherryCloudService', () => {
   it('does not restore a refreshed Session after an older request has cleared it', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
     restoreSignedInState('2030-01-02T03:02:00Z')
-    let resolveOldRequest!: (response: Response) => void
-    const oldRequestResponse = new Promise<Response>((resolve) => {
-      resolveOldRequest = resolve
-    })
-    let resolveRefresh!: (response: Response) => void
-    const refreshResponse = new Promise<Response>((resolve) => {
-      resolveRefresh = resolve
-    })
-    mocks.netFetch.mockReturnValueOnce(oldRequestResponse).mockReturnValueOnce(refreshResponse)
+    const pendingOldRequest = deferred<Response>()
+    const pendingRefresh = deferred<Response>()
+    mocks.netFetch.mockReturnValueOnce(pendingOldRequest.promise).mockReturnValueOnce(pendingRefresh.promise)
 
     try {
       const service = new CherryCloudService()
       await service._doInit()
       await service.ensureAgentGateway()
-      const gatewayGeneration = await service.getAgentGatewayGeneration()
+      const sessionGeneration = await service.getSessionGeneration()
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
@@ -595,24 +592,13 @@ describe('CherryCloudService', () => {
       )
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
 
-      resolveOldRequest(jsonResponse({ type: 'error' }, 401))
+      pendingOldRequest.resolve(jsonResponse({ type: 'error' }, 401))
       await expect(oldRequest).resolves.toHaveProperty('status', 401)
-      resolveRefresh(
-        jsonResponse({
-          token_set: {
-            token_type: 'Bearer',
-            access_token: token('H'),
-            expires_in: 600,
-            refresh_token: token('I'),
-            session_id: sessionId,
-            session_expires_at: '2030-02-01T03:04:05Z'
-          }
-        })
-      )
+      pendingRefresh.resolve(jsonResponse(refreshedTokenSet()))
       await refreshFailure
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-      expect(await service.getAgentGatewayGeneration()).toBe(gatewayGeneration + 1)
+      expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
       expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
       expect(mocks.writeFile).toHaveBeenCalledOnce()
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
@@ -683,12 +669,12 @@ describe('CherryCloudService', () => {
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
     const service = new CherryCloudService()
     await service._doInit()
-    const gatewayGeneration = await service.getAgentGatewayGeneration()
+    const sessionGeneration = await service.getSessionGeneration()
 
     await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-    expect(await service.getAgentGatewayGeneration()).toBe(gatewayGeneration + 1)
+    expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
     expect(mocks.writeFile).toHaveBeenCalledOnce()
   })
 
@@ -697,13 +683,13 @@ describe('CherryCloudService', () => {
     const service = new CherryCloudService()
     await service._doInit()
     await service.ensureAgentGateway()
-    const gatewayGeneration = await service.getAgentGatewayGeneration()
+    const sessionGeneration = await service.getSessionGeneration()
 
     vi.useFakeTimers()
     try {
       vi.setSystemTime(new Date('2031-01-01T00:00:00Z'))
 
-      expect(await service.getAgentGatewayGeneration()).toBe(gatewayGeneration + 1)
+      expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
       expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
     } finally {

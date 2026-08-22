@@ -677,6 +677,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       port: 23333,
       apiKey: 'gateway-key'
     })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+    mocks.ensureCherryCloudGateway.mockImplementation(async () => mocks.apiGatewayIsRunning.mockReturnValue(true))
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 

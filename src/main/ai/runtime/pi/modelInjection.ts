@@ -36,7 +36,7 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
-import { resolveApiGatewayRuntime } from '../agentApiGateway'
+import { resolveCherryCloudGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
@@ -322,8 +322,7 @@ export async function resolvePiProviderInjectionForSession(
     return resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
   }
 
-  await application.get('CherryCloudService').ensureAgentGateway()
-  const gateway = await resolveApiGatewayRuntime(sessionId, { allowDisabled: true })
+  const gateway = await resolveCherryCloudGatewayRuntime(sessionId)
   return buildPiCloudGatewayInjection(provider, model, gateway)
 }
 

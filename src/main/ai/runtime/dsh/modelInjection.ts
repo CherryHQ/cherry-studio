@@ -32,7 +32,11 @@ import { getRawModelId, isGatewayRoutableModel, isReasoningModel, isVisionModel 
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { ApiGatewayNotRunningError, resolveApiGatewayRuntime } from '../agentApiGateway'
+import {
+  ApiGatewayNotRunningError,
+  resolveApiGatewayRuntime,
+  resolveCherryCloudGatewayRuntime
+} from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 
 // dsh-llm-pi-ai uses maxTokens as a per-request output cap. Keep pi's
@@ -327,8 +331,7 @@ export async function resolveDshProviderInjectionFromSnapshot(
   reasoningEffort: ReasoningEffortOption = 'default'
 ): Promise<DshProviderInjection> {
   if (isCherryCloudWorkModel(model.providerId, model.group)) {
-    await application.get('CherryCloudService').ensureAgentGateway()
-    const gateway = await resolveApiGatewayRuntime(sessionId, { allowDisabled: true })
+    const gateway = await resolveCherryCloudGatewayRuntime(sessionId)
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
 

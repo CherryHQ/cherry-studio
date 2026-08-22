@@ -7,6 +7,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { readApiGatewayConnectionSnapshot } from '@main/ai/runtime/agentApiGateway'
 import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -81,8 +82,11 @@ export async function capturePiConnectionSnapshot(
   const linkedChannel = channel?.agentId === agent.id ? channel : null
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-  const cherryCloudGatewayGeneration = isCherryCloudWorkModel(model.providerId, model.group)
-    ? await application.get('CherryCloudService').getAgentGatewayGeneration()
+  const cherryCloudConnection = isCherryCloudWorkModel(model.providerId, model.group)
+    ? {
+        sessionGeneration: await application.get('CherryCloudService').getSessionGeneration(),
+        gatewayFingerprint: readApiGatewayConnectionSnapshot().fingerprint
+      }
     : null
 
   const signature = createHash('sha256')
@@ -100,7 +104,7 @@ export async function capturePiConnectionSnapshot(
           mcpTools,
           linkedChannelId: linkedChannel?.id ?? null,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          cherryCloudGatewayGeneration
+          cherryCloudConnection
         })
       )
     )

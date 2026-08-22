@@ -34,7 +34,8 @@ const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
 const SESSION_FILE_MODE = 0o600
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
-const EMPTY_BODY = new Uint8Array()
+
+type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
 
 function resolveApiOrigin(): string {
   if (app.isPackaged) throw new Error('Cherry Cloud production API origin is not configured')
@@ -56,25 +57,6 @@ function isSecureCredentialStorageAvailable(): boolean {
   return process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'
 }
 
-function requestHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
-  const headers = new Headers(input instanceof Request ? input.headers : undefined)
-  new Headers(init?.headers).forEach((value, name) => headers.set(name, value))
-  return headers
-}
-
-async function requestBody(input: RequestInfo | URL, init?: RequestInit): Promise<Uint8Array> {
-  const body = init?.body
-  if (body == null) {
-    if (input instanceof Request && input.body) return new Uint8Array(await input.clone().arrayBuffer())
-    return EMPTY_BODY
-  }
-  if (typeof body === 'string') return Buffer.from(body, 'utf8')
-  if (body instanceof URLSearchParams) return Buffer.from(body.toString(), 'utf8')
-  if (body instanceof ArrayBuffer) return new Uint8Array(body)
-  if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer, body.byteOffset, body.byteLength)
-  throw new Error('Cherry Cloud requests require a replayable byte body')
-}
-
 export class CherryCloudLoginUnavailableError extends Error {
   constructor() {
     super('Cherry Cloud login service is unavailable')
@@ -92,7 +74,7 @@ export class CherryCloudService extends BaseService {
   private modelSyncPromise: Promise<{ modelCount: number }> | null = null
   private agentGatewayLeasePromise: Promise<void> | null = null
   private hasAgentGatewayLease = false
-  private agentGatewayGeneration = 0
+  private sessionGeneration = 0
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private exchangePromise: {
     authorizationId: string
@@ -315,6 +297,7 @@ export class CherryCloudService extends BaseService {
       this.reconcileFreeModels([])
       return { modelCount: 0 }
     }
+    const sessionGeneration = this.sessionGeneration
 
     const [account, catalog] = await Promise.all([
       this.getAuthenticatedJson('/api/v1/account', accountSnapshotSchema),
@@ -322,6 +305,8 @@ export class CherryCloudService extends BaseService {
         'anthropic-version': '2023-06-01'
       })
     ])
+    if (this.sessionGeneration !== sessionGeneration || !this.storedState.session) return { modelCount: 0 }
+
     const freeModelIds = new Set(
       account.entitlements
         .filter((entitlement) => entitlement.status === 'active' && entitlement.is_free)
@@ -399,13 +384,13 @@ export class CherryCloudService extends BaseService {
     }
   }
 
-  public async authenticatedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  public async authenticatedFetch(path: string, init?: CherryCloudRequestInit): Promise<Response> {
     const session = await this.activeSession()
-    const url = this.resolveRequestUrl(input)
-    const headers = requestHeaders(input, init)
+    const url = this.resolveRequestUrl(path)
+    const headers = new Headers(init?.headers)
     const idempotencyKey =
       url.pathname === '/v1/messages' ? (headers.get('Idempotency-Key') ?? createIdempotencyKey()) : undefined
-    const response = await this.signedFetch(url, input, init, session, { bearer: true, idempotencyKey })
+    const response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
     if (response.status === 401) await this.clearSession(session)
     return response
   }
@@ -446,9 +431,9 @@ export class CherryCloudService extends BaseService {
     return acquire
   }
 
-  public async getAgentGatewayGeneration(): Promise<number> {
+  public async getSessionGeneration(): Promise<number> {
     await this.pruneExpiredState()
-    return this.agentGatewayGeneration
+    return this.sessionGeneration
   }
 
   private async getAuthenticatedJson<T>(path: string, schema: ZodType<T>, headers?: HeadersInit): Promise<T> {
@@ -477,7 +462,6 @@ export class CherryCloudService extends BaseService {
     const body = JSON.stringify({ session_id: session.sessionId, refresh_token: session.refreshToken })
     const url = new URL('/api/v1/product-sessions/refresh', `${resolveApiOrigin()}/`)
     const response = await this.signedFetch(
-      url,
       url,
       { method: 'POST', body, headers: { 'Content-Type': 'application/json' } },
       session,
@@ -518,7 +502,7 @@ export class CherryCloudService extends BaseService {
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
 
     this.storedState = { ...this.storedState, session: null }
-    this.agentGatewayGeneration += 1
+    this.sessionGeneration += 1
     await this.persistState()
     await this.releaseAgentGatewayLease()
     this.reconcileFreeModels([])
@@ -532,8 +516,8 @@ export class CherryCloudService extends BaseService {
     application.get('ApiGatewayService').releaseLease()
   }
 
-  private resolveRequestUrl(input: RequestInfo | URL): URL {
-    const url = new URL(input instanceof Request ? input.url : input.toString(), `${resolveApiOrigin()}/`)
+  private resolveRequestUrl(path: string): URL {
+    const url = new URL(path, `${resolveApiOrigin()}/`)
     if (url.origin !== new URL(resolveApiOrigin()).origin) {
       throw new Error('Cherry Cloud signed requests must stay on the configured API origin')
     }
@@ -542,16 +526,15 @@ export class CherryCloudService extends BaseService {
 
   private async signedFetch(
     url: URL,
-    input: RequestInfo | URL,
-    init: RequestInit | undefined,
+    init: CherryCloudRequestInit | undefined,
     session: NonNullable<StoredCherryCloudState['session']>,
     options: { bearer: boolean; idempotencyKey?: string }
   ): Promise<Response> {
     const device = this.storedState.device
     if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
-    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
-    const body = await requestBody(input, init)
-    const headers = requestHeaders(input, init)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    const body = Buffer.from(init?.body ?? '', 'utf8')
+    const headers = new Headers(init?.headers)
     for (const name of [
       'Cherry-Device-ID',
       'Cherry-Request-ID',
@@ -596,7 +579,7 @@ export class CherryCloudService extends BaseService {
       pending: pendingExpired ? null : this.storedState.pending,
       session: sessionExpired ? null : this.storedState.session
     }
-    if (sessionExpired) this.agentGatewayGeneration += 1
+    if (sessionExpired) this.sessionGeneration += 1
     await this.persistState()
     if (sessionExpired) await this.releaseAgentGatewayLease()
     this.emitStatus()
