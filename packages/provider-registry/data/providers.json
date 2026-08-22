@@ -2408,6 +2408,76 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "moonshot-global - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.moonshot.ai/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.moonshot.ai",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "moonshot-global",
+      "metadata": {
+        "website": {
+          "apiKey": "https://platform.moonshot.ai/console/api-keys",
+          "docs": "https://platform.moonshot.ai/docs/",
+          "models": "https://platform.moonshot.ai/docs/",
+          "official": "https://www.moonshot.ai/"
+        }
+      },
+      "name": "moonshot-global",
+      "presetProviderId": "moonshot",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["kimi"]
+        }
+      ]
     }
   ],
   "version": "d4aebe86a12ca8f8"

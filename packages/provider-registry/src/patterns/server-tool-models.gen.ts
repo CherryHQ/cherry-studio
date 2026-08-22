@@ -1074,5 +1074,23 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'sonar-pro',
         'sonar-reasoning-pro'
       ]
+    },
+    'moonshot-global': {
+      'web-search': [
+        'kimi-k2',
+        'kimi-k2-0711-preview',
+        'kimi-k2-0905-preview',
+        'kimi-k2-5',
+        'kimi-k2-6',
+        'kimi-k2-7-code',
+        'kimi-k2-7-code-highspeed',
+        'kimi-k2-instruct',
+        'kimi-k2-thinking-maas',
+        'kimi-k2-thinking-turbo',
+        'kimi-k2-turbo-preview',
+        'kimi-k3',
+        'kimi-k3-fast',
+        'kimi-latest'
+      ]
     }
   }

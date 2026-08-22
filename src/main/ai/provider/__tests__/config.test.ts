@@ -1085,6 +1085,33 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('openai-compatible')
     })
 
+    it.each([
+      ['moonshot', undefined, 'https://api.moonshot.cn', 'https://api.moonshot.cn/v1'],
+      ['moonshot-global', 'moonshot', 'https://api.moonshot.ai', 'https://api.moonshot.ai/v1']
+    ])(
+      'routes %s chat models through the Moonshot extension config',
+      async (id, presetProviderId, baseUrl, expectedBaseUrl) => {
+        const provider = makeProvider({
+          id,
+          presetProviderId,
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              baseUrl,
+              adapterFamily: 'openai-compatible'
+            }
+          }
+        })
+        const model = makeModel({ providerId: id, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(config.providerId).toBe('moonshot')
+        expect(settings.baseURL).toBe(expectedBaseUrl)
+      }
+    )
+
     it('routes Doubao IMAGE models through Doubao config (Ark protocol + the providerOptions key)', async () => {
       // Two things ride on this id. The generic OpenAICompatibleImageModel would POST
       // multipart /v1/images/edits once a reference image is attached — an endpoint Ark
