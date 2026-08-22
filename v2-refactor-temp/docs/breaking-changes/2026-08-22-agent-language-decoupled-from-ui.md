@@ -8,15 +8,15 @@ date: 2026-08-22
 
 ## What changed
 
-Agent reply language is now controlled by a dedicated preference `agent.language` (global) and per-agent `configuration.language`, instead of inheriting the UI language (`app.language`). The default for both is `auto`, which means no language constraint is injected into the system prompt.
+Agent reply language is now controlled by a dedicated preference `agent.language` (global) and per-agent `configuration.language`, decoupled from the UI language (`app.language`). When neither is set (default `auto`), the runtime falls back to the UI language (`app.language`) so existing installs keep replying in their UI language. An explicit per-agent `auto` suppresses the instruction entirely (opt-out).
 
 ## Why this matters to the user
 
-Before this PR, every agent turn injected `IMPORTANT: You must respond in <UI language>` — the UI language directly dictated reply language. After the upgrade, an existing setup with e.g. Chinese UI and no persona language will no longer get a Chinese reply by default; the model will reply in its own default (often English). The behavior is intentional to let `SOUL.md` / `agent.instructions` dictate language without being overridden, but it is a silent behavior change on upgrade. Neither the global preference nor the per-agent override is currently exposed in the settings UI — they are only configurable by editing the Electron store / agent JSON.
+Before this PR, every agent turn injected `IMPORTANT: You must respond in <UI language>`. After the PR the same turn injects `By default, respond in <effective language>. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.` — the wording is deferential and positioned before persona/workspace content so `SOUL.md` / `agent.instructions` can override it, while the fallback preserves "reply in my UI language" for users with no persona directive on upgrade. Neither the global preference nor the per-agent override is currently exposed in the settings UI — they are only configurable by editing the Electron store / agent JSON.
 
 ## What the user should do
 
-If you relied on the implicit "reply in my UI language" behavior, set `agent.language` to your UI language (or set the per-agent `configuration.language` for individual agents) via the config store until a UI picker is added. To let the persona decide, leave both on `auto`.
+No action is required to keep the previous behavior — `auto` (the default) now resolves to your UI language. To decouple reply language from the UI, set `agent.language` to an explicit language or `auto` at the per-agent level to suppress the instruction. A UI picker is planned as a follow-up.
 
 ## Notes for release manager
 

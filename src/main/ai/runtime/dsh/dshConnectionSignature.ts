@@ -13,6 +13,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
+import { getAppLanguage } from '@main/i18n'
 import { resolveDshInjectionApi } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -44,7 +45,11 @@ function resolveEffectiveAgentLanguage(agent: AgentEntity): string | null {
   } catch {
     // PreferenceService unavailable in some test harnesses
   }
-  return null
+  try {
+    return getAppLanguage()
+  } catch {
+    return null
+  }
 }
 
 export interface DshConnectionSnapshot {

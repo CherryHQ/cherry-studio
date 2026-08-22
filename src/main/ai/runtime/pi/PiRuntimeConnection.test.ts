@@ -483,8 +483,9 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
     expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
     expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
-    // Default agent.language is 'auto' — no language constraint is injected (decoupled from app.language)
-    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
+    // Default agent.language is 'auto' — falls back to UI language so upgrades
+    // preserve the pre-19160 "reply in UI language" contract
+    expect(appendedSystemPrompt()).toContain('By default, respond in English.')
   })
 
   it('injects global agent language when agent.language is set', async () => {

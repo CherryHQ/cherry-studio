@@ -12,6 +12,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
+import { getAppLanguage } from '@main/i18n'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -42,7 +43,11 @@ function resolveEffectiveAgentLanguage(agent: AgentEntity): string | null {
   } catch {
     // PreferenceService unavailable in some test harnesses
   }
-  return null
+  try {
+    return getAppLanguage()
+  } catch {
+    return null
+  }
 }
 
 export interface PiConnectionSnapshot {

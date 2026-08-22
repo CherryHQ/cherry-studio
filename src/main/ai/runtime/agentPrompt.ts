@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
+import { getAppLanguage } from '@main/i18n'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -122,7 +123,14 @@ export function resolveEffectiveAgentLanguage(agent: AgentEntity): string | null
   } catch {
     // PreferenceService unavailable in some test harnesses
   }
-  return null
+  // No explicit agent/global language — fall back to UI language so upgrades
+  // preserve the pre-19160 "reply in UI language" contract. Per-agent `auto`
+  // already returned above as an explicit opt-out.
+  try {
+    return getAppLanguage()
+  } catch {
+    return null
+  }
 }
 
 function resolveAgentLanguage(agent: AgentEntity): string | null {
