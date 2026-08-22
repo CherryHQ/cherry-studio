@@ -408,4 +408,13 @@ describe('AutoBackupService', () => {
     const config = vi.mocked(legacyBackupManager.backupToWebdav).mock.calls[0][1]
     expect(config.allowSelfSignedTls).toBe(true)
   })
+
+  it('leaves the flag unset in the config when the preference is unset (no hardcoding)', async () => {
+    delete preferences['data.backup.webdav.allow_self_signed_tls']
+    await recreateService()
+    await vi.advanceTimersByTimeAsync(61_000)
+
+    const config = vi.mocked(legacyBackupManager.backupToWebdav).mock.calls[0][1]
+    expect(config.allowSelfSignedTls).toBeUndefined()
+  })
 })

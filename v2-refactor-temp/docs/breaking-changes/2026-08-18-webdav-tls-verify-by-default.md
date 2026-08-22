@@ -2,7 +2,7 @@
 title: WebDAV backup now verifies TLS certificates by default
 category: changed
 severity: breaking
-introduced_in_pr: '#TBD'
+introduced_in_pr: '#18793'
 date: 2026-08-18
 ---
 

@@ -578,7 +578,7 @@ class BackupManager {
 
       // Create output file stream
       const backupedFilePath = path.join(destinationPath, fileName)
-      const output = fs.createWriteStream(backupedFilePath)
+      const output = fs.createWriteStream(backupedFilePath, { mode: BACKUP_ARCHIVE_FILE_MODE })
 
       // Create archiver instance, enable ZIP64 support
       const archive = new ZipArchive({
@@ -1442,11 +1442,12 @@ class BackupManager {
   // These are helper methods for file operations like size calculation,
   // directory copying with progress, and permission management.
 
-  /** Staging dirs hold full-backup content; keep them owner-only on multi-user hosts (S8). */
+  /** Staging dirs hold full-backup content (S8); a chmod failure aborts the
+   * backup rather than writing payloads under looser permissions. */
   private async ensurePrivateDir(dir: string): Promise<void> {
     await fs.ensureDir(dir)
     await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
-      logger.warn('[BackupManager] Failed to restrict backup staging dir permissions', { dir, error })
+      throw new Error(`Failed to restrict backup staging dir permissions (${dir}): ${String(error)}`)
     })
   }
 
@@ -2005,8 +2006,13 @@ class BackupManager {
     const tempPath = application.getPath('feature.lan_transfer.temp')
     const targetPath = destinationPath || tempPath
 
-    // Ensure temp directory exists
-    await fs.ensureDir(targetPath)
+    // The LAN staging dir sits in the shared OS temp tree; keep it owner-only
+    // when using the default (user-chosen destinations keep their own perms).
+    if (targetPath === tempPath) {
+      await this.ensurePrivateDir(targetPath)
+    } else {
+      await fs.ensureDir(targetPath)
+    }
 
     // Create backup with skipBackupFile=true (no Data folder)
     const backupedFilePath = await this.backupLegacy(_, fileName, data, targetPath, true)

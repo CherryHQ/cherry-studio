@@ -249,6 +249,7 @@ const WebDavSettings: FC = () => {
         <WebdavBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
+          tlsCertificateHint
           webdavConfig={{
             webdavHost,
             webdavUser,

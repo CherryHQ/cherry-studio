@@ -51,6 +51,8 @@ interface WebdavBackupManagerProps {
     restoreConfirmContent?: string
     invalidConfigMessage?: string
   }
+  /** WebDAV transport only — surfaces self-signed TLS guidance; Nutstore reuse must not pass it. */
+  tlsCertificateHint?: boolean
 }
 
 const PAGE_SIZE = 5
@@ -60,7 +62,8 @@ export function WebdavBackupManager({
   onClose,
   webdavConfig,
   restoreMethod,
-  customLabels
+  customLabels,
+  tlsCertificateHint = false
 }: WebdavBackupManagerProps) {
   const { t } = useTranslation()
   const [backupFiles, setBackupFiles] = useState<BackupFile[]>([])
@@ -88,8 +91,12 @@ export function WebdavBackupManager({
         allowSelfSignedTls
       } as WebdavConfig)
       setBackupFiles(files)
-    } catch {
-      toast.error(t('settings.data.webdav.backup.manager.fetch.error'))
+    } catch (error) {
+      toast.error(
+        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.fetch.error', {
+          tlsCertificateHint
+        })
+      )
     } finally {
       setLoading(false)
     }
@@ -166,8 +173,12 @@ export function WebdavBackupManager({
       toast.success(t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
-    } catch {
-      toast.error(t('settings.data.webdav.backup.manager.delete.error'))
+    } catch (error) {
+      toast.error(
+        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.delete.error', {
+          tlsCertificateHint
+        })
+      )
     } finally {
       setDeleting(false)
     }
@@ -200,8 +211,12 @@ export function WebdavBackupManager({
       } as WebdavConfig)
       toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
       await fetchBackupFiles()
-    } catch {
-      toast.error(t('settings.data.webdav.backup.manager.delete.error'))
+    } catch (error) {
+      toast.error(
+        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.delete.error', {
+          tlsCertificateHint
+        })
+      )
     } finally {
       setDeleting(false)
     }
@@ -231,7 +246,7 @@ export function WebdavBackupManager({
     } catch (error) {
       toast.error(
         getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error', {
-          tlsCertificateHint: true
+          tlsCertificateHint
         })
       )
     } finally {

@@ -41,14 +41,26 @@ describe('getLocalizedBackupErrorMessage', () => {
       })
     ).toBe('localized:backup.error.webdav_tls_certificate')
     expect(
+      getLocalizedBackupErrorMessage(new Error('unable to get local issuer certificate'), undefined, {
+        tlsCertificateHint: true
+      })
+    ).toBe('localized:backup.error.webdav_tls_certificate')
+  })
+
+  it('does NOT advise the switch for expiry/hostname failures (they need a cert fix, not a bypass)', () => {
+    expect(
+      getLocalizedBackupErrorMessage(new Error('certificate has expired'), undefined, { tlsCertificateHint: true })
+    ).toBe('localized:message.backup.failed')
+    expect(
       getLocalizedBackupErrorMessage(
         new Error("Hostname/IP does not match certificate's altnames: example.com"),
         undefined,
-        {
-          tlsCertificateHint: true
-        }
+        { tlsCertificateHint: true }
       )
-    ).toBe('localized:backup.error.webdav_tls_certificate')
+    ).toBe('localized:message.backup.failed')
+    expect(
+      getLocalizedBackupErrorMessage(new Error('certificate is not yet valid'), undefined, { tlsCertificateHint: true })
+    ).toBe('localized:message.backup.failed')
   })
 
   it('does NOT give WebDAV guidance without the hint (S3/local transports must not see it)', () => {
