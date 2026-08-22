@@ -599,6 +599,30 @@ describe('XlsxGrid — range selection', () => {
     )
   })
 
+  it('anchors a press inside a merged range at its master, the way a click does', () => {
+    // A2 is a follower of the A1:B2 merge. The committed range is the same either way — expandRangeToMerges
+    // grows both to A1:B2 — but the stored corner is where the next Shift+Arrow starts, and the click path
+    // (selectCell) has always stored the master. Keeping the follower makes the pointer path disagree.
+    showHeaderRange()
+    const mergeSheet: SheetRenderModel = { ...salesSheet, merges: [{ top: 1, left: 1, bottom: 2, right: 2 }] }
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={mergeSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    onSelectCell.mockClear()
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyUp(scroll, { key: 'ArrowDown', shiftKey: true })
+
+    // From the master, one step down stays inside the merge. From the follower it would have reached row 3,
+    // committing A1:B3 — a different selection for the same two user actions.
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'A1', rect: { top: 1, left: 1, bottom: 2, right: 2 } })
+    )
+  })
+
   it('commits a Shift+Arrow extension when focus leaves before the key is released', () => {
     showHeaderRange()
     const onSelectCell = vi.fn()
