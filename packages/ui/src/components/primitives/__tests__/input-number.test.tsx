@@ -204,7 +204,9 @@ describe('InputNumber', () => {
     expect(onValueChange).not.toHaveBeenCalled()
   })
 
-  it('discards the edit on Escape and commits the restored value', async () => {
+  // Escape leaves the field, so the commit it triggers must settle on what the
+  // edit started from — the text on screen is still the discarded one.
+  it('discards the edit on Escape, leaves the field, and commits the restored value', async () => {
     const user = userEvent.setup()
     const onBlur = vi.fn()
     render(<InputNumber aria-label="amount" value={7} onBlur={onBlur} />)
@@ -215,9 +217,9 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('789')
 
     await user.keyboard('{Escape}')
-    expect(input).toHaveValue('7')
 
-    await user.tab()
+    expect(input).toHaveValue('7')
+    expect(input).not.toHaveFocus()
     expect(onBlur).toHaveBeenCalledExactlyOnceWith(7)
   })
 

@@ -210,6 +210,9 @@ function InputNumber({
   // Bumped by every focus and blur, so a commit that settles after the user has come
   // back cannot clear the text they are typing now.
   const generation = React.useRef(0)
+  // Set by Escape so the blur it triggers settles on what the edit started from:
+  // `draft` has not re-rendered yet, so the text still reads what was typed.
+  const discarding = React.useRef(false)
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.value
@@ -229,7 +232,8 @@ function InputNumber({
   }
 
   const handleBlur = () => {
-    const settled = parse(text, min, max, step)
+    const settled = discarding.current ? preEdit.current : parse(text, min, max, step)
+    discarding.current = false
     const commit = onBlur?.(settled)
     if (!isPromise(commit)) {
       setDraft(null)
@@ -251,13 +255,14 @@ function InputNumber({
     if (event.key === 'Enter') {
       event.currentTarget.blur()
     }
-    // Discards the edit. Focus stays, so the restored value is what later commits.
+    // Discards the edit and leaves the field, the way Escape dismisses elsewhere.
     // Swallowed so it stops at the React root: the app exits fullscreen on any
-    // Escape that reaches `window`, and this one is spent discarding the edit.
+    // Escape that reaches `window`, and this one is spent leaving the edit.
     if (event.key === 'Escape') {
       event.stopPropagation()
-      setDraft(format(preEdit.current))
+      discarding.current = true
       onValueChange?.(preEdit.current)
+      event.currentTarget.blur()
     }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       // Without this the caret jumps to the end of the text instead.
