@@ -254,6 +254,24 @@ describe('EditModelDrawer pricing', () => {
     expect(minInputTokens).toHaveValue('12')
   })
 
+  // The drawer passes the committed value straight through, because its own state
+  // has not re-rendered yet — so what reaches the patch is the settled number, not
+  // the text that was typed.
+  it('saves the settled context window rather than what was typed', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+
+    const field = screen.getByLabelText('settings.models.add.context_window.label')
+    await user.clear(field)
+    await user.type(field, '3.9')
+    await user.tab()
+
+    expect(field).toHaveValue('3')
+    await waitFor(() => {
+      expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ contextWindow: 3 }))
+    })
+  })
+
   it('reports a zero tier boundary instead of raising it to the nearest legal value', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
