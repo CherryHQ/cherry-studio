@@ -32,7 +32,7 @@ export const Integer: Story = {
   }
 }
 
-/** Type `3.9` and leave the field: an integer `step` truncates, and `200` clamps to `max`. */
+/** A fractional `step` keeps the decimals: `3.99` settles as typed, arrows move by `0.1`, and `min` raises anything below `0`. */
 export const Decimal: Story = {
   render: function DecimalExample() {
     const [value, setValue] = useState<number | null>(1.5)
