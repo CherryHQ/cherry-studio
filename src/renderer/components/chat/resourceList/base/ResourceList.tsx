@@ -552,6 +552,15 @@ function RenameField<T extends ResourceListItemBase>({
         event.stopPropagation()
       }}
       onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          didCommitRef.current = true
+          isComposingRef.current = false
+          pendingBlurCommitRef.current = false
+          actions.cancelRename()
+          return
+        }
         // IME candidate confirmation still emits keydown; committing there would save the raw pinyin
         // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
         // oxlint-disable-next-line no-deprecated
@@ -563,12 +572,6 @@ function RenameField<T extends ResourceListItemBase>({
         }
         if (event.key === ' ' || event.key === 'Spacebar') {
           event.stopPropagation()
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          event.stopPropagation()
-          didCommitRef.current = true
-          actions.cancelRename()
         }
       }}
       {...props}
