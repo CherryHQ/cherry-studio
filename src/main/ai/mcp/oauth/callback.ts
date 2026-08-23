@@ -150,28 +150,44 @@ export class CallBackServer {
    */
   async waitForAuthCode(timeoutMs = 60_000, signal?: AbortSignal): Promise<string> {
     return new Promise((resolve, reject) => {
+      let settled = false
+      let listeningServer: http.Server | undefined
       const cleanup = () => {
         clearTimeout(timer)
         this.events.off('auth-code-received', onCode)
         signal?.removeEventListener('abort', onAbort)
+        listeningServer?.off('error', onServerError)
       }
       const onCode = (code: string) => {
+        if (settled) return
+        settled = true
         cleanup()
         resolve(code)
       }
       const onAbort = () => {
+        if (settled) return
+        settled = true
         cleanup()
         reject(signal?.reason ?? new Error('OAuth callback wait aborted'))
       }
+      const onServerError = (error: Error) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(error)
+      }
       const timer = setTimeout(() => {
+        if (settled) return
+        settled = true
         cleanup()
         reject(new OAuthCallbackTimeoutError(timeoutMs))
       }, timeoutMs)
       this.events.once('auth-code-received', onCode)
-      void this.server.catch((error) => {
-        cleanup()
-        reject(error)
-      })
+      void this.server.then((server) => {
+        if (settled) return
+        listeningServer = server
+        server.once('error', onServerError)
+      }, onServerError)
       signal?.addEventListener('abort', onAbort, { once: true })
       if (signal?.aborted) onAbort()
     })

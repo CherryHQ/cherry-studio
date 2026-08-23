@@ -6,9 +6,11 @@ import { CallBackServer, OAuthCallbackTimeoutError } from '../callback'
 
 class TestCallBackServer extends CallBackServer {
   override initialize(): Promise<http.Server> {
-    return Promise.resolve({
-      close: vi.fn((callback?: (error?: Error) => void) => callback?.())
-    } as unknown as http.Server)
+    return Promise.resolve(
+      Object.assign(new EventEmitter(), {
+        close: vi.fn((callback?: (error?: Error) => void) => callback?.())
+      }) as unknown as http.Server
+    )
   }
 }
 
@@ -56,6 +58,26 @@ describe('CallBackServer.waitForAuthCode', () => {
     await expect(server.waitForAuthCode(1000)).rejects.toThrow('callback server failed to listen')
     expect(events.listenerCount('auth-code-received')).toBe(0)
     await expect(server.close()).resolves.toBeUndefined()
+  })
+
+  it('rejects and removes listeners when the callback server fails after listening', async () => {
+    const httpServer = Object.assign(new EventEmitter(), {
+      close: vi.fn((callback?: (error?: Error) => void) => callback?.())
+    }) as unknown as http.Server
+    server = new (class extends CallBackServer {
+      override initialize(): Promise<http.Server> {
+        return Promise.resolve(httpServer)
+      }
+    })({ port: 0, path: '/oauth/callback', events })
+    const failure = new Error('callback server stopped unexpectedly')
+    const promise = server.waitForAuthCode(1000)
+
+    await Promise.resolve()
+    httpServer.emit('error', failure)
+
+    await expect(promise).rejects.toBe(failure)
+    expect(events.listenerCount('auth-code-received')).toBe(0)
+    expect(httpServer.listenerCount('error')).toBe(0)
   })
 
   it('does not reject after resolving (timer is cleared on success)', async () => {
