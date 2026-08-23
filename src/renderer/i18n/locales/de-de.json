@@ -5974,12 +5974,6 @@
       "updateSuccess": "Server erfolgreich aktualisiert",
       "url": "URL"
     },
-    "memory": {
-      "description": "Verwalten Sie, wie dauerhafte Fakten über Sitzungen hinweg extrahiert und abgerufen werden.",
-      "enabled": "Globales Gedächtnis",
-      "hint": "Diese Funktion gilt nur für Assistenten. Verwenden Sie für Agents dateibasiertes Gedächtnis (SOUL / USER / FACT / JOURNAL).",
-      "title": "Gedächtnis"
-    },
     "menuGroups": {
       "automation": "Effizienz",
       "capabilities": "Werkzeuge",

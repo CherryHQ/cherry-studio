@@ -707,13 +707,6 @@
       "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
     },
     {
-      "targetKey": "feature.memory.enabled",
-      "type": "boolean",
-      "defaultValue": false,
-      "status": "classified",
-      "description": "Global Memory for Assistants: when enabled, the model auto-extracts durable facts from assistant chats. Agents use separate file-based memory (SOUL/USER/FACT/JOURNAL)"
-    },
-    {
       "targetKey": "feature.screenshot.enabled",
       "type": "boolean",
       "defaultValue": false,

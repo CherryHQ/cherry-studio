@@ -5974,12 +5974,6 @@
       "updateSuccess": "Server updated successfully",
       "url": "URL"
     },
-    "memory": {
-      "description": "Manage how durable facts are extracted and recalled across sessions.",
-      "enabled": "Global Memory",
-      "hint": "This feature only applies to Assistants. For Agents, use file-based memory (SOUL / USER / FACT / JOURNAL).",
-      "title": "Memory"
-    },
     "menuGroups": {
       "automation": "Efficiency",
       "capabilities": "Tools",

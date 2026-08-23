@@ -12,7 +12,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { MemorySettings } from '@renderer/pages/settings/MemorySettings'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -214,8 +213,6 @@ const GeneralSettings: FC = () => {
       </SettingGroup>
 
       <ContextManagementSettings />
-
-      <MemorySettings />
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>

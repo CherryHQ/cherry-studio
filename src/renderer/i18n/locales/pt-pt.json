@@ -5974,12 +5974,6 @@
       "updateSuccess": "Servidor atualizado com sucesso",
       "url": "URL"
     },
-    "memory": {
-      "description": "Gerir a forma como os factos persistentes são extraídos e recordados entre sessões.",
-      "enabled": "Memória global",
-      "hint": "Esta funcionalidade aplica-se apenas aos assistentes. Para os agentes, utilize a memória baseada em ficheiros (SOUL / USER / FACT / JOURNAL).",
-      "title": "Memória"
-    },
     "menuGroups": {
       "automation": "Eficiência",
       "capabilities": "Ferramentas",

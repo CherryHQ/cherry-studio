@@ -5974,12 +5974,6 @@
       "updateSuccess": "伺服器更新成功",
       "url": "URL"
     },
-    "memory": {
-      "description": "管理跨工作階段持久記憶的擷取與召回。",
-      "enabled": "全域記憶",
-      "hint": "本功能僅對助理生效，Agent 請使用檔案記憶（SOUL / USER / FACT / JOURNAL）。",
-      "title": "記憶"
-    },
     "menuGroups": {
       "automation": "效率",
       "capabilities": "工具",
