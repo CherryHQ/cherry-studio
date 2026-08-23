@@ -12,7 +12,7 @@ import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type {
   SkillFileNode,
   SkillImportSystemOptions,
@@ -111,7 +111,7 @@ export class SkillService {
       const [realRoot, realFile] = await Promise.all([fs.promises.realpath(skillRoot), fs.promises.realpath(filePath)])
       if (isOutsidePath(path.relative(realRoot, realFile))) return null
 
-      const snapshot = await openReadableFileSnapshot(realFile as AbsoluteFilePath)
+      const snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(realFile))
       try {
         if (snapshot.size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return null
 
