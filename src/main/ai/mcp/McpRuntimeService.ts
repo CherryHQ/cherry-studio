@@ -906,9 +906,14 @@ export class McpRuntimeService extends BaseService {
       })
       .catch((err) => {
         if (!active || this.stopping || wasStopped()) return
-        getServerLogger(server).warn(`Background OAuth listener expired without receiving a code`, {
-          err: String(err)
-        })
+        if (err instanceof OAuthCallbackTimeoutError) {
+          getServerLogger(server).warn(`Background OAuth listener expired without receiving a code`, {
+            err: String(err)
+          })
+          return
+        }
+        getServerLogger(server).error(`Background OAuth callback failed`, err as Error)
+        this.setServerStatus(server.id, 'error', err)
       })
       .finally(async () => {
         if (active) {

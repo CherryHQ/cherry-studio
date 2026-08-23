@@ -1241,6 +1241,32 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(restartSpy).not.toHaveBeenCalled()
   })
 
+  it('marks non-timeout background callback failures as errors', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockRejectedValueOnce(new Error('callback server failed to listen'))
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    const restartSpy = vi.spyOn(service as any, 'restartServerIfCurrent')
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+    await vi.waitFor(() => {
+      expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+        state: 'error',
+        lastError: 'callback server failed to listen'
+      })
+    })
+    await vi.waitFor(() => expect(mcpSdkMock.clients.at(-1)?.close).toHaveBeenCalledTimes(1))
+    expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(2)
+    expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
+    expect(restartSpy).not.toHaveBeenCalled()
+  })
+
   it('drains background finishAuth during shutdown without writing stale status', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
