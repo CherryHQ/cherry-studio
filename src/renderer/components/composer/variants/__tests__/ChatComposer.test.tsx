@@ -912,10 +912,41 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
 
-    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' })
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({
+      reasoning_effort: 'high',
+      reasoning_effort_by_model: { [model.id]: 'high' }
+    })
     expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
 
     await act(async () => finishPatch?.())
+  })
+
+  it('remembers the explicit selection per model without discarding other models', async () => {
+    mocks.assistant = {
+      id: 'assistant-1',
+      name: 'Assistant 1',
+      emoji: 'A',
+      modelId: model.id,
+      settings: { enableWebSearch: false, reasoning_effort_by_model: { 'other::model': 'low' } },
+      knowledgeBaseIds: []
+    }
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({
+      reasoning_effort: 'high',
+      reasoning_effort_by_model: { 'other::model': 'low', [model.id]: 'high' }
+    })
   })
 
   it('submits Fast for an eligible Codex model', async () => {

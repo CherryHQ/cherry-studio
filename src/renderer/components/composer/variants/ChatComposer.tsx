@@ -869,7 +869,17 @@ const ChatComposerInner = ({
         value: option,
         version
       })
-      void updateAssistantSettings({ reasoning_effort: option })
+      // Explicit selections are remembered per model so model switches can restore them;
+      // the scalar field stays for consumers predating the map.
+      void updateAssistantSettings({
+        reasoning_effort: option,
+        ...(effectiveSubmittedModel && {
+          reasoning_effort_by_model: {
+            ...assistant?.settings.reasoning_effort_by_model,
+            [effectiveSubmittedModel.id]: option
+          }
+        })
+      })
         .then(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
         })
@@ -878,7 +888,14 @@ const ChatComposerInner = ({
           logger.warn('Failed to persist reasoning effort', { error })
         })
     },
-    [assistant?.settings.enableWebSearch, effectiveSubmittedModel, selectedAssistantId, t, updateAssistantSettings]
+    [
+      assistant?.settings.enableWebSearch,
+      assistant?.settings.reasoning_effort_by_model,
+      effectiveSubmittedModel,
+      selectedAssistantId,
+      t,
+      updateAssistantSettings
+    ]
   )
   const conversationControlsSnapshot = useMemo<ChatConversationControlsSnapshot>(
     () => ({
