@@ -219,12 +219,9 @@ describe('ConversationIsland', () => {
       const summary = screen.getByTestId(presentation === 'notch' ? 'notch-expanded-header' : 'capsule-expanded-header')
       expect(within(summary).getByText('Responding')).toBeVisible()
       expect(within(summary).getByText('Total: 2')).toBeVisible()
+      expect(summary.querySelector('.lucide-message-circle, .lucide-bot')).toBeNull()
 
       if (presentation === 'notch') {
-        expect(within(summary).getByTestId('notch-activity-icon')).toHaveAttribute(
-          'data-conversation-type',
-          'assistant'
-        )
         expect(screen.getByTestId('notch-expanded-occlusion')).toHaveStyle({ width: '180px' })
       }
 
@@ -232,6 +229,9 @@ describe('ConversationIsland', () => {
       const secondary = screen.getByRole('button', { name: 'Waiting: Review plan' })
       expectTextOrder(primary, ['Cherry Assistant', 'Responding', 'Research notes'])
       expectTextOrder(secondary, ['Planning Agent', 'Waiting', 'Review plan'])
+      expect(primary).toHaveClass('gap-1')
+      expect(within(primary).getByText('Cherry Assistant').parentElement).toHaveClass('gap-1')
+      expect(within(secondary).getByText('Planning Agent').parentElement).toHaveClass('gap-1')
 
       // Permanent fill or weight would make Primary look selected instead of merely ordered first.
       expect(primary).not.toHaveClass('bg-accent', 'bg-white/10', 'font-medium')
@@ -395,7 +395,9 @@ describe('ConversationIsland', () => {
 
       const summary = screen.getByTestId(presentation === 'notch' ? 'notch-expanded-header' : 'capsule-expanded-header')
       expect(within(summary).getByText('Research Assistant')).toBeVisible()
-      expect(within(summary).getByTestId('emoji-icon')).toHaveTextContent('🧠')
+      const avatar = within(summary).getByTestId('emoji-icon')
+      expect(avatar).toHaveTextContent('🧠')
+      expect(avatar.closest('[aria-hidden="true"]')?.parentElement).toHaveClass('gap-1')
       expect(within(summary).getByTestId('state-indicator')).toBeInTheDocument()
       expect(within(summary).getByText('Responding')).toBeVisible()
 
@@ -580,7 +582,8 @@ describe('ConversationIsland', () => {
       'Responding: Activity 5',
       'Responding: Activity 6'
     ])
-    for (const row of rows) expect(row).toHaveClass('h-[52px]')
+    for (const row of rows) expect(row).toHaveClass('h-[52px]', 'gap-1')
+    expect(within(rows[0]).getByText('Cherry Assistant').parentElement).toHaveClass('gap-1')
 
     // The row and scroller classes are the approved fixed-height four-row window layout contract.
     expect(screen.getByRole('list')).toHaveClass('max-h-[208px]', 'overflow-y-auto')

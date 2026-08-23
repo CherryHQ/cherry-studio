@@ -7,7 +7,6 @@ import type {
   ConversationIslandSnapshot,
   ConversationIslandStateKind
 } from '@shared/types/conversationIsland'
-import { Bot, MessageCircle } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
@@ -252,7 +251,6 @@ export default function ConversationIsland() {
     const primary = isSingleDetail
       ? surfaceModel.activity
       : surfaceModel.activities.find((activity) => activity.activityId === surfaceModel.primaryActivityId)!
-    const ActivityIcon = primary.target.conversationType === 'agent' ? Bot : MessageCircle
     const summaryLeading = isSingleDetail ? (
       <>
         <IdentityAvatar avatar={primary.identityAvatar} />
@@ -262,12 +260,6 @@ export default function ConversationIsland() {
       </>
     ) : (
       <>
-        <ActivityIcon
-          data-testid={usesNotchLayout ? 'notch-activity-icon' : undefined}
-          data-conversation-type={primary.target.conversationType}
-          className={`size-3.5 shrink-0 ${usesNotchLayout ? 'text-white/70' : 'text-muted-foreground'}`}
-          aria-hidden="true"
-        />
         {stateIndicator(primary.state)}
         <span className={`min-w-0 truncate ${usesNotchLayout ? 'text-white/70' : 'text-muted-foreground'}`}>
           {primary.statusText}
@@ -288,7 +280,7 @@ export default function ConversationIsland() {
         className="grid h-[38px] w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] text-xs">
         <div
           data-testid="notch-expanded-leading"
-          className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
+          className={`flex min-w-0 items-center overflow-hidden pl-3 text-left ${isSingleDetail ? 'gap-1' : 'gap-2'}`}>
           {summaryLeading}
         </div>
         <div data-testid="notch-expanded-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
@@ -302,7 +294,9 @@ export default function ConversationIsland() {
       <div
         data-testid="capsule-expanded-header"
         className="flex h-[38px] w-full min-w-0 items-center justify-between gap-3 px-3 text-xs">
-        <div className="flex min-w-0 items-center gap-2 overflow-hidden text-left">{summaryLeading}</div>
+        <div className={`flex min-w-0 items-center overflow-hidden text-left ${isSingleDetail ? 'gap-1' : 'gap-2'}`}>
+          {summaryLeading}
+        </div>
         <div className="flex min-w-0 items-center justify-end gap-2 overflow-hidden text-muted-foreground">
           {summaryTrailing}
         </div>
@@ -334,14 +328,14 @@ export default function ConversationIsland() {
               data-state={activity.state}
               disabled={snapshot.exiting}
               onClick={() => void openExpandedActivity(activity)}
-              className={`h-[52px] min-h-[52px] w-full min-w-0 flex-col items-stretch justify-center gap-0 rounded-none px-3 py-0 font-normal text-xs shadow-none ${
+              className={`h-[52px] min-h-[52px] w-full min-w-0 flex-col items-stretch justify-center gap-1 rounded-none px-3 py-0 font-normal text-xs shadow-none ${
                 usesNotchLayout
                   ? 'text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white'
                   : 'text-popover-foreground hover:bg-accent focus-visible:bg-accent'
               }`}>
               <span className="flex w-full min-w-0 items-center justify-between gap-3 leading-4">
                 <span
-                  className={`flex min-w-0 items-center gap-2 overflow-hidden ${
+                  className={`flex min-w-0 items-center gap-1 overflow-hidden ${
                     usesNotchLayout ? 'text-white/60' : 'text-muted-foreground'
                   }`}>
                   <IdentityAvatar avatar={activity.identityAvatar} />
