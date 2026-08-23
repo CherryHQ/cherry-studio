@@ -1147,6 +1147,32 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     await vi.waitFor(() => expect(mcpSdkMock.clients.at(-1)?.close).toHaveBeenCalledTimes(1))
   })
 
+  it('does not let a caller joining pending initialization overwrite pending-auth', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode.mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    const backgroundRegistration = createDeferred<void>()
+    vi.spyOn(service as any, 'scheduleBackgroundOAuthCompletion').mockReturnValue(backgroundRegistration.promise)
+
+    const owner = (service as any).getOrCreateClient(server)
+    await vi.waitFor(() => {
+      expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+        state: 'pending-auth'
+      })
+    })
+    const joiningCaller = (service as any).getOrCreateClient(server)
+
+    backgroundRegistration.resolve()
+    await expect(owner).rejects.toMatchObject({ name: 'OAuthPendingAuthError' })
+    await expect(joiningCaller).rejects.toMatchObject({ name: 'OAuthPendingAuthError' })
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'pending-auth'
+    })
+  })
+
   it('marks non-timeout OAuth callback failures as errors without scheduling background completion', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true

@@ -418,7 +418,6 @@ export class McpRuntimeService extends BaseService {
     // client whose entry the other's cleanup deletes.
     const pendingClient = this.pendingClients.get(serverKey)
     if (pendingClient) {
-      this.setServerStatus(server.id, 'connecting')
       getServerLogger(server).silly(`Waiting for pending client initialization`)
       return pendingClient
     }
