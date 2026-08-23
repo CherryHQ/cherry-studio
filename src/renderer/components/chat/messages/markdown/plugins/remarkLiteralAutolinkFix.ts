@@ -77,9 +77,11 @@ function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Tex
 // of the path (`https://x.com/a/**/b`). Scan backwards until one is followed by non-URL text.
 function findCloserRun(url: string): { start: number; tailStart: number } | undefined {
   let index = url.lastIndexOf(CLOSER)
+  // `index === 0` must terminate the scan: a backward `lastIndexOf(CLOSER, -1)` rounds back
+  // to 0 and would loop forever. GFM URLs never start with `**`, so it is defensive only.
   while (index >= 0) {
     const after = url[index + CLOSER.length]
-    if (after === undefined || !URL_CONTINUATION_REGEX.test(after)) {
+    if (index === 0 || after === undefined || !URL_CONTINUATION_REGEX.test(after)) {
       let start = index
       while (start > 0 && url[start - 1] === '*') start--
       return { start, tailStart: index + CLOSER.length }
@@ -96,8 +98,14 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
   const prev = parent.children[index - 1]
   const opener = prev?.type === 'text' ? (prev as Text) : undefined
   if (!opener?.value.endsWith(CLOSER)) return undefined
+  // Reject a run whose marker at the end of its source span is escaped (`\**`) — escaped stars
+  // render as `**` but are literal text, not emphasis. Only that exact case; a backslash or
+  // character reference earlier in the span (`\q**`, `&amp;**`) must not disqualify real emphasis.
   const openerSource = opener.position && source.slice(opener.position.start.offset, opener.position.end.offset)
-  if (!openerSource || openerSource.length !== opener.value.length || openerSource.includes('\\')) return undefined
+  if (!openerSource) return undefined
+  let starCount = 0
+  while (starCount < openerSource.length && openerSource[openerSource.length - 1 - starCount] === '*') starCount++
+  if (openerSource[openerSource.length - 1 - starCount] === '\\') return undefined
 
   const closer = findCloserRun(node.url)
   if (!closer) return undefined

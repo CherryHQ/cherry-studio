@@ -129,6 +129,73 @@ describe('remarkLiteralAutolinkFix', () => {
     expect(parse(source)).toEqual(parseWithoutPlugin(source))
   })
 
+  it('does not reject an opener just because a backslash or entity sits earlier in the span', () => {
+    for (const lead of ['&amp;**', '\\q**']) {
+      const source = `${lead}https://a.com/x**(y)`
+      expect(inlineChildren(source).map(shape)).toEqual([
+        { type: 'text', value: lead === '&amp;**' ? '&' : '\\q' },
+        {
+          type: 'strong',
+          children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
+        },
+        { type: 'text', value: '(y)' }
+      ])
+    }
+  })
+
+  it('preserves a structural tail instead of dropping it', () => {
+    // `>` is URL-admissible, so `>q` gets swallowed and parses back as a blockquote denatured
+    // to plain text below — the important contract is that no user-visible suffix vanishes.
+    const tree = parse('**https://a.com/x**(y)**>q')
+    const paragraph = tree.children[0]
+    if (paragraph?.type !== 'paragraph') throw new Error('expected a paragraph')
+    const labels = paragraph.children.filter((child) => child.type === 'text').map((child) => child.value)
+    expect(labels.join('')).toContain('>q')
+  })
+
+  it('cuts label and href at the same marker run even with a second run later', () => {
+    const source = '**http://a.com/x**(y)**.html'
+    expect(inlineChildren(source).map(shape)).toEqual([
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'http://a.com/x', children: [{ type: 'text', value: 'http://a.com/x' }] }]
+      },
+      { type: 'text', value: '(y)**.html' }
+    ])
+  })
+
+  it('does not loop forever on a marker run at the very start of the url', () => {
+    const link: Link = {
+      type: 'link',
+      url: '**.html',
+      children: [{ type: 'text', value: '**.html' }],
+      position: {
+        start: { line: 1, column: 3, offset: 2 },
+        end: { line: 1, column: 10, offset: 9 }
+      }
+    }
+    const tree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value: '**',
+              position: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 3, offset: 2 } }
+            },
+            link
+          ]
+        }
+      ]
+    }
+    const processor = unified().use(remarkLiteralAutolinkFix)
+    const before = JSON.stringify(tree)
+    expect(() => processor.runSync(structuredClone(tree), { value: '**https://a.com/x**.html' })).not.toThrow()
+    expect(JSON.stringify(processor.runSync(structuredClone(tree), { value: '**https://a.com/x**.html' }))).toBe(before)
+  })
+
   it('keeps spec behavior when no emphasis opener hugs the link', () => {
     const source = 'see https://x.com/a/**/b**(x)'
     expect(parse(source)).toEqual(parseWithoutPlugin(source))
