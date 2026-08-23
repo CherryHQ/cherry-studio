@@ -8,15 +8,15 @@ date: 2026-08-22
 
 ## What changed
 
-The full-screen HTML preview popup no longer runs scripts in a same-origin iframe. Active HTML — a script-bearing document **or fragment** — now opens in a hardened isolated webview when the user explicitly opens the popup (opening it is the consent); inert HTML still renders in the script-less frame as before.
+The full-screen HTML preview popup (opened from a code-block card) no longer runs scripts in a same-origin iframe. It now opens in the script-less static tier by default; when the content is active (scripts, embeds, external resources), an explicit **"run interactive preview"** action appears, and only that mounts the hardened isolated webview — the same consent wording the inline preview already uses.
 
 ## Why this matters to the user
 
-Interactivity is preserved: script-driven fragments and documents keep working once the popup is opened — same one-click experience as before, now isolated from the app's privileged bridge. The "save/copy PNG" capture menu is hidden while the interactive (webview) tier is showing, since that tier has no capture surface. The inline chat preview is unchanged: successfully generated assistant artifacts already rendered under this policy, and non-consented inline surfaces keep fragments script-less.
+Opening the popup now always shows the safe static rendering first; interactivity is one deliberate click away (per-open, not remembered). While static, the "save/copy PNG" capture menu is available; entering the webview hides it (that tier has no capture surface — use "open in external browser" / download instead). External-resource content (e.g. linked images) renders fully only in the webview tier; the static tier blocks external resources by design, same as the inline static preview. The inline chat preview and the maximize popup keep their existing behavior.
 
 ## What the user should do
 
-Nothing for previews. For capturing an interactive preview, use "open in external browser" or download it instead of the capture menu (capture still works for inert previews).
+Click "run interactive preview" when you want an active artifact to execute; nothing else changes.
 
 ## Notes for release manager
 
