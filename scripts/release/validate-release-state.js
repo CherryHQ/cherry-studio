@@ -1,9 +1,12 @@
-function validateBuildStart({ release, remoteTagSha, tag, workflowSha }) {
+function validateBuildStart({ platform, release, remoteTagSha, tag, workflowSha }) {
   if (release && release.draft !== true) {
     throw new Error(`Release ${tag} is already published; create a new version instead`)
   }
   if (!release && remoteTagSha && remoteTagSha !== workflowSha) {
     throw new Error(`Tag ${tag} exists without a draft release and points to another commit`)
+  }
+  if (platform !== 'all' && (!release || remoteTagSha !== workflowSha)) {
+    throw new Error(`A single-platform retry requires an existing draft whose tag already points to ${workflowSha}`)
   }
 }
 
@@ -20,6 +23,7 @@ function validatePublishState({
   buildRun,
   expectedBuildTitle,
   openReleasePullRequests,
+  pendingHotfixes,
   release,
   tag,
   tagSha,
@@ -33,6 +37,9 @@ function validatePublishState({
   }
   if (openReleasePullRequests.trim()) {
     throw new Error(`Release branch still has open pull requests:\n${openReleasePullRequests}`)
+  }
+  if (pendingHotfixes.trim()) {
+    throw new Error(`Merged hotfix pull requests are still waiting for this release:\n${pendingHotfixes}`)
   }
   if (
     !buildRun ||
@@ -72,6 +79,7 @@ function main() {
   if (phase === 'build-start') {
     validateBuildStart({
       release,
+      platform: requiredEnvironment('PLATFORM'),
       remoteTagSha: process.env.REMOTE_TAG_SHA || '',
       tag,
       workflowSha: requiredEnvironment('WORKFLOW_SHA')
@@ -88,6 +96,7 @@ function main() {
       buildRun: parseOptionalJson(process.env.BUILD_RUN_JSON, 'BUILD_RUN_JSON'),
       expectedBuildTitle: requiredEnvironment('EXPECTED_BUILD_TITLE'),
       openReleasePullRequests: process.env.OPEN_RELEASE_PULL_REQUESTS || '',
+      pendingHotfixes: process.env.PENDING_HOTFIXES || '',
       release,
       tag,
       tagSha: requiredEnvironment('TAG_SHA'),

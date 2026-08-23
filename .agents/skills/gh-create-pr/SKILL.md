@@ -16,6 +16,7 @@ description: Create or update GitHub pull requests using the repository-required
    ```
 4. Determine the base branch:
    - Inspect the head branch before applying any default. If the head is `release/v<version>`, stop: never open a pull request from a release branch, especially not to `main`. Put an isolated fix on a topic branch and target the release branch, or let Post Release create the metadata sync branch.
+   - Before defaulting an arbitrary topic branch to `main`, inspect its merge base and upstream. If it was created from `release/v<version>` for backport recovery or release-only repair, target that exact release branch; never send release-only changes to `main` because the topic name does not match the automatic `backport/` pattern.
    - A `backport/v<version>/pr-<number>` head must target the matching `release/v<version>` base. A `release-sync/v<version>` head must target `main`, use the exact title `chore(release): sync v<version> metadata`, retain the `release-metadata-boundary: v<version>` body marker, and be squash-merged.
    - For official repo(CherryHQ/cherry-studio) as `origin`: default base is `main` from `origin`, but allow the user to explicitly indicate a base branch.
    - `main` is the active development line, including hotfix PRs. Do not target an old maintenance branch unless the user explicitly requests it.
@@ -48,11 +49,11 @@ description: Create or update GitHub pull requests using the repository-required
    ```bash
    gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
    ```
-   For a release hotfix, ensure the repository label exists and create the PR with it:
+   For a release hotfix, use an exact classifier-compatible title and let the workflow validate the bilingual note before synchronizing the label:
    ```bash
-   gh label create hotfix --color D73A4A --description "Urgent fix for the active draft release" --force
-   gh pr create --base main --head <head> --title "hotfix(<scope>): <description>" --label hotfix --body-file "$pr_body_file"
+   gh pr create --base main --head <head> --title "hotfix: <description>" --body-file "$pr_body_file"
    ```
+   After creation, verify that the classifier added `hotfix`; if it did not, fix the title or bilingual note instead of adding the label manually.
 8. Clean up the temp file: `rm -f "$pr_body_file"`
 9. Report the created PR URL and summarize title/base/head and any required follow-up.
 

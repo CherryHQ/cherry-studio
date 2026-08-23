@@ -31,7 +31,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    ```
    Stop before editing files if any check fails. This prevents a standalone run from creating a release branch from an arbitrary or stale checkout.
 2. Read the current version from `package.json`. Post Release keeps this synchronized with the last published release.
-3. Before editing, verify that no draft semantic-version GitHub Release has a matching `release/v<version>` branch. Use `gh release list --limit 1000 --json isDraft,tagName` so `gh` paginates beyond its default result limit, then use `git ls-remote --heads origin refs/heads/release/<tag>` to check every draft's branch. Stop if a match exists; only one prepared or draft release may be active at a time.
+3. Before editing, verify that there is no unpublished semantic-version `release/v<version>` branch and no draft semantic-version GitHub Release, including an orphan branch or draft whose counterpart is missing. Use `gh release list --limit 1000 --json isDraft,tagName` and `git ls-remote --heads origin 'refs/heads/release/v*'`, then compare every strict semantic-version tag and branch. Historical release branches are allowed only when their matching release is already published. Stop on any unfinished release state.
 4. Resolve the baseline tag as `v{current-version}` and verify that it exists:
    ```bash
    git rev-parse --verify refs/tags/v{current-version}
@@ -165,8 +165,13 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 
 ### Step 6: Create Release Branch
 
-1. For an interactive local run, create and push a signed, DCO-compliant release commit:
+1. For an interactive local run, repeat Step 1 items 1-4 in full immediately before creating the branch, including the all-version unfinished branch/draft comparison. The target branch being absent is not a substitute for that complete recheck. Then create and push a signed, DCO-compliant release commit:
    ```bash
+   git fetch origin refs/heads/main:refs/remotes/origin/main --tags
+   test "$(git branch --show-current)" = main
+   test -z "$(git status --porcelain)"
+   test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+   test -z "$(git ls-remote --heads origin refs/heads/release/v{version})"
    git checkout -b release/v{version}
    git add package.json electron-builder.yml resources/cherry-studio/release-history.json resources/builtin-agents/cherry-assistant/product-manifest.json
    git commit -S --signoff -m "chore(release): prepare v{version}"
@@ -180,11 +185,11 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 ## CI Trigger Chain
 
 - Wait for the **CI** push run on the new `release/v{version}` commit to succeed, then run **`release.yml`** manually with that release branch selected. It validates the branch name against `package.json`, builds the exact branch commit on macOS, Windows, and Linux, and creates or updates a draft GitHub Release.
-- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for each merged `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR from `main` against the matching release branch. It manages the `hotfix` and backport-status labels and reports failures on the source PR; never merge `main` into the release branch.
+- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for the first merged `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR from `main`, then appends consecutive hotfixes and source markers to that same open topic branch. It manages every source PR's `hotfix` and backport-status labels and reports failures on the source PR; never merge `main` into the release branch.
 - Review the backport PR, wait for its CI, and merge it. After the resulting release-branch push passes CI, run **`release.yml`** again from the release branch to rebuild the draft release.
 - Publish only through the **`release.yml`** `publish` operation on the release branch. It shares the release-state lock with preparation, builds, and backports; verifies the exact successful all-platform build; then publishes the still-current draft. Publication triggers **`post-release.yml`**, which verifies that the tag still matches the release branch, applies only the release metadata delta to the latest `main`, and creates a `release-sync/v{version}` metadata-only PR.
 - The metadata PR synchronizes only `package.json`, `electron-builder.yml`, release history, and the generated product manifest. It triggers **`ci.yml`**; merge it only after CI passes.
-- Keep the metadata PR title exactly `chore(release): sync v{version} metadata` and squash-merge it without changing that subject except for GitHub's optional PR-number suffix. Its body must retain `release-metadata-boundary: v{version}` so the next release can find the boundary reliably.
+- When squash-merging the metadata PR, set the commit title to exactly `chore(release): sync v{version} metadata` with only GitHub's optional PR-number suffix, and keep `release-metadata-boundary: v{version}` on its own line in the squash commit body so the next release can find the boundary reliably.
 
 ## Constraints
 

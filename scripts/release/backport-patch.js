@@ -16,6 +16,38 @@ function gitMode(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: MAX_BUFFER }).slice(0, 6)
 }
 
+function validatePatchModes({ cwd, mergeSha, patchBase }) {
+  const entries = execFileSync('git', ['diff', '--raw', '--no-renames', '-z', patchBase, mergeSha, '--'], {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: MAX_BUFFER
+  })
+    .split('\0')
+    .filter(Boolean)
+  const regularModes = new Set(['100644', '100755'])
+
+  for (let index = 0; index < entries.length; index += 2) {
+    const header = entries[index]
+    const filePath = entries[index + 1]
+    const match = /^:(\d{6}) (\d{6}) [0-9a-f]+ [0-9a-f]+ [A-Z]$/.exec(header)
+    if (!match || !filePath) throw new Error('Cannot parse backport patch file modes')
+
+    const [, baseMode, targetMode] = match
+    if (
+      (baseMode !== '000000' && !regularModes.has(baseMode)) ||
+      (targetMode !== '000000' && !regularModes.has(targetMode))
+    ) {
+      throw new Error(`Cannot backport a symbolic link or gitlink: ${filePath}`)
+    }
+    if (
+      (baseMode !== '000000' && targetMode !== '000000' && baseMode !== targetMode) ||
+      (baseMode === '000000' && targetMode !== '100644')
+    ) {
+      throw new Error(`Cannot backport a file mode change: ${filePath}`)
+    }
+  }
+}
+
 function validateBackportChanges(cwd) {
   const changedPaths = execFileSync('git', ['diff', '--cached', '--name-only', '--no-renames', '-z'], {
     cwd,
@@ -70,6 +102,7 @@ function resolvePatchBase({ cwd, mergeSha, prCommitCount, prNumber, getAssociate
 }
 
 function applyBackportPatch({ cwd, mergeSha, patchBase, patchFile }) {
+  validatePatchModes({ cwd, mergeSha, patchBase })
   const patch = execFileSync('git', ['diff', '--binary', '--full-index', patchBase, mergeSha, '--'], {
     cwd,
     maxBuffer: MAX_BUFFER
@@ -169,4 +202,10 @@ if (require.main === module) {
   }
 }
 
-module.exports = { applyBackportPatch, prepareBackport, resolvePatchBase, validateBackportChanges }
+module.exports = {
+  applyBackportPatch,
+  prepareBackport,
+  resolvePatchBase,
+  validateBackportChanges,
+  validatePatchModes
+}

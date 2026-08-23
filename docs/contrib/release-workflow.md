@@ -49,7 +49,7 @@ Confirm all of the following:
 
 - The previous release is published.
 - Its `chore(release): sync v<version> metadata` pull request is merged into `main` when one was created.
-- There is no other active draft semantic-version release with a matching `release/v<version>` branch. Hotfix automation deliberately refuses to choose between multiple active releases.
+- There is no unpublished semantic-version `release/v<version>` branch and no draft semantic-version release, including an orphan branch or draft whose counterpart is missing. Only published releases may retain historical release branches.
 - The intended `main` commit is ready to release.
 - Repository secrets used by release preparation, package signing, notarization, and publishing are available.
 - You have permission to run workflows and publish GitHub Releases.
@@ -65,7 +65,7 @@ Do not create the release branch, release tag, or metadata synchronization pull 
    - An exact version such as `2.1.0`, `2.1.0-rc.1`, or `2.1.0-beta.1`.
 4. Run the workflow and wait for it to finish.
 
-The workflow first verifies that `main` records the latest published version, contains its tag or metadata boundary, and is still at the selected remote head. The requested version must be strictly greater than that baseline. It then collects release notes, updates the release metadata source files, validates that only the intended version, notes, and stable history entry changed, regenerates the product manifest itself, and creates `release/v<version>` through the GitHub API. The commit must be both Verified and DCO-signed off.
+The workflow first verifies that `main` records the latest published version and is still at the selected remote head. Its release-note collection base is the published tag when that tag is an ancestor; otherwise it requires the latest commit whose full message contains the exact line `release-metadata-boundary: v<version>`. Only metadata sync commits created before that marker existed may use the legacy exact subject `chore(release): sync v<version> metadata`, optionally followed by GitHub's ` (#<number>)` squash suffix. The requested version must be strictly greater than that baseline. It then collects release notes, updates the release metadata source files, validates that only the intended version, notes, and stable history entry changed, and regenerates the product manifest itself without a write token. A fresh job accepts only the four staged metadata files, revalidates the current `main` and release slot, and creates `release/v<version>` through the GitHub API. The commit must be both Verified and DCO-signed off.
 
 Release preparation may change only these files:
 
@@ -111,7 +111,7 @@ The first release-branch CI run happens before a draft GitHub Release exists, so
 3. Select the `build` operation.
 4. Select a platform:
    - `all` for the initial release build.
-   - `windows`, `mac`, or `linux` to retry or refresh one platform.
+   - `windows`, `mac`, or `linux` only to retry artifacts for the exact commit already referenced by the draft tag. A new release-branch head requires `all`.
 5. Run the workflow and wait for every selected build job to finish.
 
 Before building, the workflow verifies that:
@@ -121,7 +121,7 @@ Before building, the workflow verifies that:
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
 
-The workflow then moves `v<version>` to the exact validated branch commit and creates or updates a draft GitHub Release. Moving the tag is allowed only while the release is still a draft.
+Each selected runner first stages only its own platform artifacts. After every selected build succeeds, one final job downloads that complete staged set, fails on any artifact read or upload error, updates the draft, and only then moves `v<version>` to the exact validated branch commit. A single-platform retry first downloads the existing draft assets, overlays the selected platform's replacements, uploads the complete set, and never moves the tag. Tag movement is allowed only while the release is still a draft.
 
 Before publishing, inspect the draft release and confirm:
 
@@ -153,7 +153,7 @@ All hotfix development still starts from `main`:
 
 5. Wait for review and CI, then merge the pull request into `main`.
 
-The **Backport Release Hotfixes** workflow synchronizes the `hotfix` label from the title and validates this bilingual note contract. After merge, it locks release state, finds the single draft semantic-version release with a matching release branch, captures and checks out its exact head, applies the source PR result, appends both note lines to `electron-builder.yml` and stable release history, and creates a `backport/v<version>/pr-<source-number>` branch with a GitHub-verified, DCO-signed commit. It then revalidates that the release is still a draft and the release branch has not moved before opening a pull request against `release/v<version>`. It never writes the hotfix commit directly to the release branch.
+The **Backport Release Hotfixes** workflow validates the bilingual note before synchronizing the `hotfix` label. After merge, it locks release state, finds the single draft semantic-version release with a matching release branch, and applies the source PR result with trusted workflow scripts. If a backport PR is already open for that release, the new fix and source marker are appended to its topic branch; otherwise the workflow creates `backport/v<version>/pr-<source-number>`. This keeps consecutive hotfixes in one reviewed queue instead of creating conflicting PRs from the same release head. Every generated commit is GitHub-verified and DCO-signed off. The workflow revalidates the draft, release head, and aggregate backport head before writing, and never commits directly to the release branch.
 
 Track the source pull request by its labels:
 
@@ -198,7 +198,7 @@ Publish only after the latest release branch commit has passed CI and an `all`-p
 3. Select the matching `release/v<version>` branch and the `publish` operation.
 4. Run the workflow.
 
-The workflow shares the same release-state lock as preparation, builds, backport creation, and Post Release. Immediately before publishing, it requires the draft, tag, branch, and selected SHA to agree, rejects any open pull request targeting the release branch, requires a successful exact-head `all` build, and confirms that artifacts exist. Publication then makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
+The workflow shares the same release-state lock as preparation, builds, backport creation, and Post Release. Immediately before publishing, it requires the draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; requires a successful exact-head `all` build; and confirms that artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. Publication then makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
 Publishing triggers **Post Release** automatically.
 

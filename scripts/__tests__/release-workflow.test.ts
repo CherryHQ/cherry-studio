@@ -162,6 +162,8 @@ describe('backport patch preparation', () => {
 
     expect(runBackport(fixture, mergeSha, 1)).toMatchObject({ hasChanges: false, patchBase: base })
     expect(git(fixture.repo, 'diff', '--cached', '--name-only')).toBe('')
+    expect(git(fixture.repo, 'diff', '--name-only')).toBe('')
+    expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
   })
 
   it('resets a conflicted three-way application to the release head', () => {
@@ -205,6 +207,34 @@ describe('backport patch preparation', () => {
 
     expect(() => runBackport(fixture, mergeSha, 1)).toThrow('Cannot backport a file mode change')
     expect(fs.existsSync(path.join(fixture.repo, 'script.sh'))).toBe(false)
+    expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
+  })
+
+  it('rejects a gitlink before release metadata can be updated', () => {
+    const fixture = createGitFixture()
+    const base = git(fixture.repo, 'rev-parse', 'HEAD')
+    git(fixture.repo, 'update-index', '--add', '--cacheinfo', `160000,${base},vendor`)
+    git(fixture.repo, 'commit', '-m', 'add gitlink')
+    const mergeSha = git(fixture.repo, 'rev-parse', 'HEAD')
+    markOriginMain(fixture.repo, mergeSha)
+    git(fixture.repo, 'checkout', '-b', 'release', base)
+
+    expect(() => runBackport(fixture, mergeSha, 1)).toThrow('Cannot backport a symbolic link or gitlink')
+    expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
+  })
+
+  it('rejects an existing-file mode change before release metadata can be updated', () => {
+    const fixture = createGitFixture()
+    const base = git(fixture.repo, 'rev-parse', 'HEAD')
+    git(fixture.repo, 'config', 'core.filemode', 'true')
+    fs.chmodSync(path.join(fixture.repo, 'app.txt'), 0o755)
+    git(fixture.repo, 'update-index', '--chmod=+x', 'app.txt')
+    git(fixture.repo, 'commit', '-m', 'make app executable')
+    const mergeSha = git(fixture.repo, 'rev-parse', 'HEAD')
+    markOriginMain(fixture.repo, mergeSha)
+    git(fixture.repo, 'checkout', '-b', 'release', base)
+
+    expect(() => runBackport(fixture, mergeSha, 1)).toThrow('Cannot backport a file mode change')
     expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
   })
 })
@@ -486,6 +516,7 @@ describe('release publication state', () => {
         buildRun: successfulBuild,
         expectedBuildTitle,
         openReleasePullRequests: '',
+        pendingHotfixes: '',
         release: draftRelease,
         tag: 'v1.2.0',
         tagSha: workflowSha,
@@ -495,41 +526,201 @@ describe('release publication state', () => {
   })
 
   it.each([
-    ['a published release', { ...draftRelease, draft: false }, workflowSha, '', successfulBuild],
-    ['a mismatched tag', draftRelease, 'b'.repeat(40), '', successfulBuild],
-    ['an open release pull request', draftRelease, workflowSha, 'https://example.test/pr', successfulBuild],
-    ['a stale build', draftRelease, workflowSha, '', { ...successfulBuild, head_sha: 'b'.repeat(40) }],
-    ['a draft without artifacts', { assets: [], draft: true }, workflowSha, '', successfulBuild]
-  ])('rejects publication with %s', (_case, release, tagSha, openReleasePullRequests, buildRun) => {
+    ['a missing release', null, workflowSha, workflowSha, '', '', successfulBuild, 'must exist and still be a draft'],
+    [
+      'a published release',
+      { ...draftRelease, draft: false },
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      successfulBuild,
+      'must exist and still be a draft'
+    ],
+    [
+      'a mismatched tag',
+      draftRelease,
+      'b'.repeat(40),
+      workflowSha,
+      '',
+      '',
+      successfulBuild,
+      'Tag, release branch, and selected workflow commit must be identical'
+    ],
+    [
+      'a mismatched branch',
+      draftRelease,
+      workflowSha,
+      'b'.repeat(40),
+      '',
+      '',
+      successfulBuild,
+      'Tag, release branch, and selected workflow commit must be identical'
+    ],
+    [
+      'an open release pull request',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      'https://example.test/pr',
+      '',
+      successfulBuild,
+      'Release branch still has open pull requests'
+    ],
+    [
+      'a pending merged hotfix',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      '',
+      'https://example.test/hotfix',
+      successfulBuild,
+      'Merged hotfix pull requests are still waiting for this release'
+    ],
+    [
+      'a missing build',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      null,
+      'No successful all-platform Release build exists'
+    ],
+    [
+      'a wrong build title',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      { ...successfulBuild, display_title: 'wrong' },
+      'No successful all-platform Release build exists'
+    ],
+    [
+      'a stale build',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      { ...successfulBuild, head_sha: 'b'.repeat(40) },
+      'No successful all-platform Release build exists'
+    ],
+    [
+      'a non-dispatch build',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      { ...successfulBuild, event: 'push' },
+      'No successful all-platform Release build exists'
+    ],
+    [
+      'an incomplete build',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      { ...successfulBuild, status: 'in_progress' },
+      'No successful all-platform Release build exists'
+    ],
+    [
+      'a failed build',
+      draftRelease,
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      { ...successfulBuild, conclusion: 'failure' },
+      'No successful all-platform Release build exists'
+    ],
+    [
+      'a draft without artifacts',
+      { assets: [], draft: true },
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      successfulBuild,
+      'has no artifacts'
+    ]
+  ])(
+    'rejects publication with %s',
+    (_case, release, tagSha, branchSha, openReleasePullRequests, pendingHotfixes, buildRun, expectedError) => {
+      expect(() =>
+        validatePublishState({
+          branchSha,
+          buildRun,
+          expectedBuildTitle,
+          openReleasePullRequests,
+          pendingHotfixes,
+          release,
+          tag: 'v1.2.0',
+          tagSha,
+          workflowSha
+        })
+      ).toThrow(expectedError)
+    }
+  )
+
+  it('allows all-platform draft movement but restricts single-platform retries to the existing tag', () => {
     expect(() =>
-      validatePublishState({
-        branchSha: workflowSha,
-        buildRun,
-        expectedBuildTitle,
-        openReleasePullRequests,
-        release,
+      validateBuildStart({
+        platform: 'all',
+        release: draftRelease,
+        remoteTagSha: 'b'.repeat(40),
         tag: 'v1.2.0',
-        tagSha,
         workflowSha
       })
-    ).toThrow()
-  })
-
-  it('allows draft tag movement but rejects orphan tags and every published state', () => {
-    expect(() =>
-      validateBuildStart({ release: draftRelease, remoteTagSha: 'b'.repeat(40), tag: 'v1.2.0', workflowSha })
     ).not.toThrow()
     expect(() =>
-      validateBuildStart({ release: null, remoteTagSha: 'b'.repeat(40), tag: 'v1.2.0', workflowSha })
+      validateBuildStart({
+        platform: 'mac',
+        release: draftRelease,
+        remoteTagSha: workflowSha,
+        tag: 'v1.2.0',
+        workflowSha
+      })
+    ).not.toThrow()
+    expect(() =>
+      validateBuildStart({
+        platform: 'all',
+        release: null,
+        remoteTagSha: 'b'.repeat(40),
+        tag: 'v1.2.0',
+        workflowSha
+      })
     ).toThrow('exists without a draft release')
     expect(() =>
       validateBuildStart({
+        platform: 'all',
         release: { ...draftRelease, draft: false },
         remoteTagSha: workflowSha,
         tag: 'v1.2.0',
         workflowSha
       })
     ).toThrow('already published')
+    expect(() =>
+      validateBuildStart({
+        platform: 'linux',
+        release: draftRelease,
+        remoteTagSha: 'b'.repeat(40),
+        tag: 'v1.2.0',
+        workflowSha
+      })
+    ).toThrow('requires an existing draft whose tag already points')
+    expect(() =>
+      validateBuildStart({
+        platform: 'windows',
+        release: null,
+        remoteTagSha: workflowSha,
+        tag: 'v1.2.0',
+        workflowSha
+      })
+    ).toThrow('requires an existing draft whose tag already points')
     expect(() => validateBuildCompletion({ release: { draft: false }, tag: 'v1.2.0' })).toThrow(
       'refusing any post-publication tag mutation'
     )

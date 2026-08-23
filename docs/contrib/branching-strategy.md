@@ -17,7 +17,7 @@ Cherry Studio implements a structured branching strategy to maintain code qualit
   - Code may contain features in development and might not be fully stable
 
 - `release/*`: Release branches
-  - Created from `main` branch
+  - Created from the exact current `main` head by the **Pre Release** workflow; do not create them by hand in the normal flow
   - Contains stable code ready for release
   - Only accepts documentation updates and bug fixes
   - Thoroughly tested before production deployment
@@ -51,19 +51,20 @@ When contributing to Cherry Studio, please follow these guidelines:
    - Create from `main` branch
    - Naming format: `hotfix/issue-number-brief-description`
    - Use a `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR title; CI synchronizes the required `hotfix` label from this exact grammar
+   - Put exactly one user-facing release-note line in English and Chinese inside the PR template's `release-note` fence; automatic backporting rejects missing, single-language, multiline, or bullet-prefixed notes
    - Submit PR back to `main`
 
 5. **Release Branches:**
-   - Create from `main` branch
+   - Created only by **Pre Release** from the exact validated `main` head
    - Naming format: `release/v<semantic-version>`
    - Used for final preparation work before version release
    - Only accepts bug fixes and documentation updates
    - Build and tag releases from this branch, never from `main`
    - Merged `hotfix:` PRs are automatically labeled and get a backport PR only when exactly one draft semantic-version release has a matching active release branch
-   - Merge the backport PR only after its CI passes, then rebuild the draft release from the updated release branch
+   - Merge the backport PR only after its PR CI passes, wait for push CI on the resulting release-branch head, then rebuild the draft release
    - Resolve any automatically reported backport failure without merging all of `main` into the release branch
    - Publishing the GitHub Release applies the release metadata delta to the latest `main` and opens a metadata-only sync PR
-   - Keep the metadata PR title and body boundary marker unchanged; its squash commit marks the next release-note collection boundary
+   - Squash the metadata PR with the exact title `chore(release): sync v<version> metadata` (plus only GitHub's optional PR-number suffix) and keep `release-metadata-boundary: v<version>` on its own line in the squash commit body
    - Follow the [Release Workflow Operations](./release-workflow.md) runbook to prepare, build, hotfix, publish, and synchronize a release
 
 ## Workflow Diagram
@@ -83,4 +84,4 @@ When contributing to Cherry Studio, please follow these guidelines:
 - Major releases: v1.0.0, v2.0.0, etc.
 - Feature releases: v1.1.0, v1.2.0, etc.
 - Patch releases: v1.0.1, v1.0.2, etc.
-- Hotfix releases: v1.0.1-hotfix, etc.
+- Fixes merged while a draft is active keep that draft's existing version tag. After publication, ship another fix under the next greater semantic version, normally the next patch (for example, `v1.0.2` after `v1.0.1`); do not create a separate `v1.0.1-hotfix` tag.

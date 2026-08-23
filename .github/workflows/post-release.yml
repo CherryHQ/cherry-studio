@@ -277,7 +277,7 @@ jobs:
             '' \
             '### Special notes for your reviewer' \
             '' \
-            "This PR was created automatically after $TAG was published. Keep its title unchanged and squash-merge it so the next Pre Release has a stable release-note boundary." \
+            "This PR was created automatically after $TAG was published. When squash-merging, set the commit title to exactly \`chore(release): sync $TAG metadata\` with only GitHub's optional PR-number suffix, and keep the boundary line below in the squash commit body." \
             '' \
             '### Checklist' \
             '' \
@@ -295,7 +295,7 @@ jobs:
             'NONE' \
             '```' \
             '' \
-            "<!-- release-metadata-boundary: $TAG -->")"
+            "release-metadata-boundary: $TAG")"
 
           gh pr create \
             --repo "$REPO" \
