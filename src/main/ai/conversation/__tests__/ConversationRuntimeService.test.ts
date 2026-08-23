@@ -12,7 +12,9 @@ import {
   ConversationOutcomeKind,
   ConversationPhase,
   ConversationStatus,
-  ConversationStreamTerminalStatus
+  ConversationStreamTerminalStatus,
+  toConversationEffectId,
+  toConversationInputId
 } from '@shared/ai/conversation'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -44,8 +46,10 @@ import {
 import {
   AiExecutionManager as ResourceExecutionManager,
   type ConversationExecutionDriver,
+  ConversationInputProvenance,
   type ConversationNamingTaskExecutor,
   type ConversationQuiescenceTaskExecutor,
+  ConversationResponderKind,
   ConversationRuntimeService as RuntimeConversationRuntimeService
 } from '..'
 
@@ -53,7 +57,7 @@ type ConversationHistoryPort = Omit<RuntimeConversationHistoryPort, 'persistTerm
 
 const services = vi.hoisted(() => ({
   cache: { getShared: vi.fn(), setShared: vi.fn() },
-  agentConnection: { prepareConversationAutonomous: vi.fn(), redirectConversationInput: vi.fn() }
+  agentConnection: { describeConversationAutonomous: vi.fn(), redirectConversationInput: vi.fn() }
 }))
 vi.mock('@application', () => ({
   application: {
@@ -2349,6 +2353,32 @@ describe('ConversationRuntimeService', () => {
     const hold = service.pause('backup')
 
     expect(service.startAgentAutonomous('session-1', false)).toBe(false)
+
+    hold.dispose()
+  })
+
+  it('rejects an autonomous history commit queued before the pause barrier begins', async () => {
+    const service = new ConversationRuntimeService({ providers: [] })
+    const conversation = { kind: ConversationKind.Agent, id: 'session-1' } as const
+    const input = {
+      id: toConversationInputId('runtime-input-1'),
+      historyNodeId: 'autonomous:runtime-input-1',
+      provenance: ConversationInputProvenance.Runtime,
+      responder: ConversationResponderKind.Headless
+    }
+    const scheduled = (
+      service as unknown as {
+        scheduleAutonomousTurn: (
+          ref: typeof conversation,
+          value: typeof input,
+          effectId: ReturnType<typeof toConversationEffectId>
+        ) => Promise<void>
+      }
+    ).scheduleAutonomousTurn(conversation, input, toConversationEffectId('suspend-1'))
+    const hold = service.pause('backup')
+
+    await expect(scheduled).rejects.toThrow('write-quiesced')
+    expect(services.agentConnection.describeConversationAutonomous).not.toHaveBeenCalled()
 
     hold.dispose()
   })

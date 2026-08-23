@@ -451,13 +451,14 @@ class QqAdapter extends ChannelAdapter {
    */
   private async processGroupMessage(msg: QqMessage, chatId: string, signal: AbortSignal): Promise<void> {
     try {
-      await this.processMessage(
+      const processed = await this.processMessage(
         msg,
         chatId,
         msg.author.member_openid ?? msg.author.id,
         msg.author.username ?? '',
         signal
       )
+      if (!processed) this.seenMsgIds.delete(msg.id)
     } catch (err) {
       this.seenMsgIds.delete(msg.id)
       throw err
@@ -507,27 +508,29 @@ class QqAdapter extends ChannelAdapter {
     userId: string,
     userName: string,
     signal: AbortSignal
-  ): Promise<void> {
-    if (!this.isConnectRunActive(signal)) return
+  ): Promise<boolean> {
+    if (!this.isConnectRunActive(signal)) return false
+    const receivedAt = Date.now()
     const text = this.parseContent(msg.content)
 
     if (isSlashCommand(text)) {
       if (text.startsWith('/whoami')) {
+        this.recordInbound(chatId, msg.id, receivedAt)
         await this.sendWhoami(chatId, msg.id)
-        return
+        return true
       }
-      if (!this.isConnectRunActive(signal)) return
-      this.recordInbound(chatId, msg.id)
+      if (!this.isConnectRunActive(signal)) return false
+      this.recordInbound(chatId, msg.id, receivedAt)
       this.emitCommand(chatId, userId, userName, text, msg.id)
-      return
+      return true
     }
 
     const { images, files } = await this.downloadAttachments(msg.attachments, signal)
-    if (!this.isConnectRunActive(signal)) return
-    if (!text && !images && !files) return
+    if (!this.isConnectRunActive(signal)) return false
+    if (!text && !images && !files) return true
 
     // Passive replies must bind to the exact message owned by this still-current connect run.
-    this.recordInbound(chatId, msg.id)
+    this.recordInbound(chatId, msg.id, receivedAt)
     this.emit('message', {
       chatId,
       userId,
@@ -537,11 +540,12 @@ class QqAdapter extends ChannelAdapter {
       images,
       files
     })
+    return true
   }
 
   /** Record an inbound message id for passive replies, evicting the oldest entries past the cap. */
-  private recordInbound(chatId: string, msgId: string): void {
-    this.passiveReplies.set(`${chatId}:${msgId}`, { chatId, receivedAt: Date.now(), seq: 0 })
+  private recordInbound(chatId: string, msgId: string, receivedAt: number): void {
+    this.passiveReplies.set(`${chatId}:${msgId}`, { chatId, receivedAt, seq: 0 })
     while (this.passiveReplies.size > QQ_MAX_PASSIVE_ENTRIES) {
       const oldest = this.passiveReplies.keys().next().value
       if (oldest === undefined) break

@@ -1232,6 +1232,7 @@ export class ConversationRuntimeService extends BaseService {
     suspendEffectId: ConversationEffectId
   ): Promise<void> {
     return this.actorFor(ref).enqueue(ConversationAdmissionOperationKind.RuntimeContinuation, async (operation) => {
+      if (this.isWriteQuiesced) throw new Error('Conversation runtime is write-quiesced')
       operation.assertCurrent()
       const state = this.inspect(ref)
       const resource = this.bindings.input(input.id)

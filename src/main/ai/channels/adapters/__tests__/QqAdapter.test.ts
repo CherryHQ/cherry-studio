@@ -131,6 +131,45 @@ describe('QqAdapter passive reply', () => {
     expect(bodies[0].msg_seq).toBe(1)
   })
 
+  it('registers the passive reply before answering /whoami', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const bodies = capturePostBodies()
+
+    await adapter.handleGroupMessage(groupMessage('whoami-1', 'g1', '/whoami'), connectRun(adapter))
+
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0].msg_id).toBe('whoami-1')
+    expect(bodies[0].msg_seq).toBe(1)
+  })
+
+  it('freezes the passive reply window at message receipt rather than attachment completion', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-08-24T00:00:00.000Z'))
+      const adapter = createAdapter()
+      let finishDownload!: () => void
+      vi.spyOn(adapter, 'downloadAttachments').mockReturnValue(
+        new Promise((resolve) => {
+          finishDownload = () => resolve({})
+        })
+      )
+      const signal = connectRun(adapter)
+      const handling = adapter.handleGroupMessage(groupMessage('slow-1'), signal)
+      await Promise.resolve()
+
+      vi.setSystemTime(new Date('2026-08-24T00:01:00.000Z'))
+      finishDownload()
+      await handling
+
+      expect(adapter.passiveReplies.get('group:g1:slow-1').receivedAt).toBe(
+        new Date('2026-08-24T00:00:00.000Z').getTime()
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('increments msg_seq across replies so chunks are not deduped', async () => {
     const adapter = createAdapter()
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
@@ -315,6 +354,7 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
 
     expect(events).toEqual([])
     expect(adapter.passiveReplies.has('group:g1:stale-mid-flight')).toBe(false)
+    expect(adapter.seenMsgIds.has('stale-mid-flight')).toBe(false)
   })
 
   it('mention_only=false: dedup—AT event then FULL event with same msg.id emits once', async () => {
