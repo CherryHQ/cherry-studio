@@ -1237,6 +1237,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
       })
     })
     await vi.waitFor(() => expect(mcpSdkMock.clients.at(-1)?.close).toHaveBeenCalledTimes(1))
+    expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
     expect(restartSpy).not.toHaveBeenCalled()
   })
 
