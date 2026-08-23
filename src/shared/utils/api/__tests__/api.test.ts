@@ -68,7 +68,17 @@ describe('api', () => {
       expect(hasApiVersion('/v3alpha/resources')).toBe(true)
     })
 
+    it('detects supported endpoint suffix as already-versioned', () => {
+      expect(hasApiVersion('https://ark.cn-beijing.volces.com/api/v3/chat/completions')).toBe(true)
+      expect(hasApiVersion('https://api.example.com/v1/messages')).toBe(true)
+      expect(hasApiVersion('https://api.example.com/generateContent')).toBe(true)
+    })
+
     it('returns false when no version found', () => {
+      expect(hasApiVersion('https://api.example.com/chat')).toBe(false)
+      // /v1/other still contains a version segment, so hasApiVersion returns true —
+      // formatApiHost will not append /v1 to a URL that already has /v1/ in its path.
+      expect(hasApiVersion('https://api.example.com/v1/other')).toBe(true)
       expect(hasApiVersion('https://api.example.com')).toBe(false)
       expect(hasApiVersion('')).toBe(false)
       expect(hasApiVersion(undefined)).toBe(false)
