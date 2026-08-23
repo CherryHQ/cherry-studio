@@ -1,17 +1,18 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, waitFor } from '@testing-library/react'
 import { Activity } from 'react'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it } from 'vitest'
 
 import { PageSidebar } from '../PageSidebar'
+import { RESOURCE_LIST_PANE_CACHE_KEY } from '../paneLayout'
 
-const cache = vi.hoisted(() => ({ width: 200 }))
-
-vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [cache.width, vi.fn()]
-}))
+beforeEach(() => {
+  MockUseCacheUtils.resetMocks()
+  MockUseCacheUtils.setPersistCacheValue(RESOURCE_LIST_PANE_CACHE_KEY, 200)
+})
 
 afterEach(() => {
-  cache.width = 200
+  MockUseCacheUtils.resetMocks()
   document.documentElement.style.removeProperty('--assistants-width')
 })
 
@@ -25,7 +26,7 @@ it('keeps the restored width through the next transition', async () => {
   const { container, rerender } = render(<Sidebar visible />)
   const pane = container.querySelector<HTMLElement>('[data-resource-list-pane]')!
 
-  cache.width = 283
+  MockUseCacheUtils.setPersistCacheValue(RESOURCE_LIST_PANE_CACHE_KEY, 283)
   rerender(<Sidebar visible={false} />)
   rerender(<Sidebar visible />)
   await waitFor(() => {
