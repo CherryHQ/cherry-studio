@@ -506,6 +506,27 @@ describe('DeepSeekHarnessService', () => {
       expect(service.getStatus()).toEqual({ status: 'stopped' })
     })
 
+    it('rebroadcasts running when a start hits the already-running fast path', async () => {
+      spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+      const service = new DeepSeekHarnessService()
+      await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
+      mocks.broadcast.mockClear()
+
+      await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
+
+      // The idempotent success is not a transition, but a renderer that missed the
+      // original running event must still be corrected by this request.
+      expect(statusPayloads()).toEqual([{ status: 'running', url: 'http://127.0.0.1:43123' }])
+    })
+
+    it('confirms stopped on a no-op stop of an already-stopped harness', async () => {
+      const service = new DeepSeekHarnessService()
+
+      await service.stop()
+
+      expect(statusPayloads()).toEqual([{ status: 'stopped' }])
+    })
+
     it('completes the transition even when broadcasting fails', async () => {
       mocks.broadcast.mockImplementation(() => {
         throw new Error('broadcast transport unavailable')
