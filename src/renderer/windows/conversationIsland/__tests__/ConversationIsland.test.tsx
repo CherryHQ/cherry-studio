@@ -122,20 +122,31 @@ describe('ConversationIsland', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('prioritizes the compact capsule title and shows the localized total badge only for multiple activities', () => {
+  it('shows compact capsule status on the left and title or total count on the right', () => {
     mocks.initData = snapshot()
     const view = render(<ConversationIsland />)
 
-    expect(screen.getByText('Responding')).toBeVisible()
-    expect(screen.getByText('New Chat')).toBeVisible()
+    const button = screen.getByRole('button')
+    const surface = button.firstElementChild as HTMLElement
+    const leading = surface.firstElementChild as HTMLElement
+    const trailing = surface.lastElementChild as HTMLElement
+    expect(within(leading).getByTestId('state-indicator')).toBeInTheDocument()
+    expect(within(leading).getByText('Responding')).toBeVisible()
+    expect(within(leading).queryByText('New Chat')).toBeNull()
+    expect(within(trailing).getByText('New Chat')).toBeVisible()
+    expect(within(trailing).queryByText('Responding')).toBeNull()
     expect(screen.queryByLabelText('Total: 1')).toBeNull()
 
     mocks.initData = snapshot({ title: 'Research notes', activityCountText: 'Total: 3', secondaryCount: 2 })
     view.rerender(<ConversationIsland />)
 
-    expect(screen.getByText('Research notes')).toBeVisible()
-    expect(screen.getByText('Responding')).toBeVisible()
-    expect(screen.getByLabelText('Total: 3')).toHaveTextContent('3')
+    expect(within(leading).getByTestId('state-indicator')).toBeInTheDocument()
+    expect(within(leading).getByText('Responding')).toBeVisible()
+    expect(within(leading).queryByText('Research notes')).toBeNull()
+    expect(within(trailing).getByLabelText('Total: 3')).toHaveTextContent('3')
+    expect(within(trailing).queryByText('Research notes')).toBeNull()
+    expect(within(trailing).queryByText('Responding')).toBeNull()
+    expect(screen.queryByText('Research notes')).toBeNull()
     expect(screen.queryByText('+2')).toBeNull()
   })
 
@@ -145,9 +156,7 @@ describe('ConversationIsland', () => {
       identityName: 'Research Assistant',
       presentation: 'notch',
       notchWidth: 120,
-      title: 'Research notes',
-      activityCountText: 'Total: 3',
-      secondaryCount: 2
+      title: 'Research notes'
     })
     const view = render(<ConversationIsland />)
 
@@ -166,10 +175,11 @@ describe('ConversationIsland', () => {
       'backdrop-blur-xs'
     )
     expect(occlusion).toHaveStyle({ width: '120px' })
-    expect(within(leading).getByText('Research notes')).toBeVisible()
-    expect(within(trailing).getByText('Responding')).toBeVisible()
-    expect(within(trailing).getByLabelText('Total: 3')).toHaveTextContent('3')
-    expect(within(trailing).queryByText('+2')).toBeNull()
+    expect(within(leading).getByTestId('state-indicator')).toBeInTheDocument()
+    expect(within(leading).getByText('Responding')).toBeVisible()
+    expect(within(leading).queryByText('Research notes')).toBeNull()
+    expect(within(trailing).getByText('Research notes')).toBeVisible()
+    expect(within(trailing).queryByText('Responding')).toBeNull()
     expect(screen.queryByText('Research Assistant')).toBeNull()
     expect(screen.queryByText('🧠')).toBeNull()
 
@@ -181,9 +191,15 @@ describe('ConversationIsland', () => {
     })
     view.rerender(<ConversationIsland />)
 
-    expect(screen.queryByText('Research notes')).toBeNull()
-    expect(within(screen.getByTestId('notch-leading')).getByText('New Chat')).toBeVisible()
-    expect(within(screen.getByTestId('notch-trailing')).getByLabelText('Total: 3')).toHaveTextContent('3')
+    const multiLeading = screen.getByTestId('notch-leading')
+    const multiTrailing = screen.getByTestId('notch-trailing')
+    expect(within(multiLeading).getByTestId('state-indicator')).toBeInTheDocument()
+    expect(within(multiLeading).getByText('Responding')).toBeVisible()
+    expect(within(multiLeading).queryByText('New Chat')).toBeNull()
+    expect(within(multiTrailing).getByLabelText('Total: 3')).toHaveTextContent('3')
+    expect(within(multiTrailing).queryByText('New Chat')).toBeNull()
+    expect(within(multiTrailing).queryByText('Responding')).toBeNull()
+    expect(screen.queryByText('New Chat')).toBeNull()
   })
 
   it('keeps capsule styling for capsule snapshots', () => {
@@ -217,8 +233,17 @@ describe('ConversationIsland', () => {
       render(<ConversationIsland />)
 
       const summary = screen.getByTestId(presentation === 'notch' ? 'notch-expanded-header' : 'capsule-expanded-header')
-      expect(within(summary).getByText('Responding')).toBeVisible()
-      expect(within(summary).getByText('Total: 2')).toBeVisible()
+      const leading = (
+        presentation === 'notch' ? screen.getByTestId('notch-expanded-leading') : summary.firstElementChild
+      ) as HTMLElement
+      const trailing = (
+        presentation === 'notch' ? screen.getByTestId('notch-expanded-trailing') : summary.lastElementChild
+      ) as HTMLElement
+      expect(within(leading).getByText('Total: 2')).toBeVisible()
+      expect(within(leading).queryByText('Responding')).toBeNull()
+      expect(within(leading).queryByTestId('state-indicator')).toBeNull()
+      expect(trailing).toBeEmptyDOMElement()
+      expect(within(summary).queryByText('Responding')).toBeNull()
       expect(summary.querySelector('.lucide-message-circle, .lucide-bot')).toBeNull()
 
       if (presentation === 'notch') {

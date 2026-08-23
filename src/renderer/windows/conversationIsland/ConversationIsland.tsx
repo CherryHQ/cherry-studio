@@ -221,25 +221,23 @@ export default function ConversationIsland() {
                 data-testid="notch-leading"
                 className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
                 {stateIndicator(primary.state)}
-                <span className="min-w-0 truncate">{primary.title}</span>
+                <span className="min-w-0 truncate">{primary.statusText}</span>
               </span>
               <span data-testid="notch-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
               <span
                 data-testid="notch-trailing"
                 className="flex min-w-0 items-center justify-end gap-2 overflow-hidden pr-3 text-white/60">
-                <span className="min-w-0 truncate">{primary.statusText}</span>
-                {countBadge}
+                {countBadge ?? <span className="min-w-0 truncate">{primary.title}</span>}
               </span>
             </span>
           ) : (
             <span className="flex w-full min-w-0 items-center gap-3">
               <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
                 {stateIndicator(primary.state)}
-                <span className="min-w-0 truncate">{primary.title}</span>
+                <span className="min-w-0 truncate">{primary.statusText}</span>
               </span>
               <span className="flex shrink-0 items-center gap-2 text-muted-foreground">
-                <span>{primary.statusText}</span>
-                {countBadge}
+                {countBadge ?? <span className="min-w-0 truncate">{primary.title}</span>}
               </span>
             </span>
           )}
@@ -259,21 +257,16 @@ export default function ConversationIsland() {
         </span>
       </>
     ) : (
-      <>
-        {stateIndicator(primary.state)}
-        <span className={`min-w-0 truncate ${usesNotchLayout ? 'text-white/70' : 'text-muted-foreground'}`}>
-          {primary.statusText}
-        </span>
-      </>
+      <span className={`min-w-0 truncate ${usesNotchLayout ? 'text-white/70' : 'text-muted-foreground'}`}>
+        {snapshot.activityCountText}
+      </span>
     )
     const summaryTrailing = isSingleDetail ? (
       <>
         {stateIndicator(primary.state)}
         <span className="min-w-0 truncate">{primary.statusText}</span>
       </>
-    ) : (
-      <span className="min-w-0 truncate">{snapshot.activityCountText}</span>
-    )
+    ) : null
     const summary = usesNotchLayout ? (
       <div
         data-testid="notch-expanded-header"
