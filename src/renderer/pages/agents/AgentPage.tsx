@@ -124,6 +124,7 @@ const AgentPage = () => {
     isMessageOnlyView ? routeSessionId : null
   )
   const { agents, isLoading: isAgentsLoading } = useAgents()
+  const routeAgentExists = !!routeAgentId && agents.some((agent) => agent.id === routeAgentId)
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
   const requestComposerFocus = useComposerFocusRequest(
     activeSessionId ? buildAgentSessionTopicId(activeSessionId) : null
@@ -149,6 +150,11 @@ const AgentPage = () => {
     defaultOpen: !isWindowFrame && panePosition === 'right'
   })
   const isCreatingEmptySessionRef = useRef(false)
+  const routeAgentActivationGenerationRef = useRef(0)
+  const routeAgentSessionRequestRef = useRef<{
+    agentId: string
+    promise: Promise<AgentSessionEntity>
+  } | null>(null)
 
   useLayoutEffect(() => {
     ownerFallbackRequestIdRef.current += 1
@@ -499,6 +505,51 @@ const AgentPage = () => {
       visibleSession?.agentId
     ]
   )
+
+  useEffect(() => {
+    const generation = ++routeAgentActivationGenerationRef.current
+    if (!routeAgentId || routeSessionId || activeSessionId || isAgentsLoading || !routeAgentExists) return
+
+    closeSurface()
+    const pendingRequest = routeAgentSessionRequestRef.current
+    const sessionPromise =
+      pendingRequest?.agentId === routeAgentId
+        ? pendingRequest.promise
+        : resolveEmptySession(routeAgentId, { agentId: routeAgentId, workspaceMode: 'system' })
+    routeAgentSessionRequestRef.current = { agentId: routeAgentId, promise: sessionPromise }
+
+    void sessionPromise
+      .then((session) => {
+        if (generation !== routeAgentActivationGenerationRef.current) return
+        activateSession(session, routeAgentId)
+      })
+      .catch((err) => {
+        if (generation !== routeAgentActivationGenerationRef.current) return
+        logger.error('Failed to create empty agent session', err as Error, { agentId: routeAgentId })
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      })
+      .finally(() => {
+        if (routeAgentSessionRequestRef.current?.promise === sessionPromise) {
+          routeAgentSessionRequestRef.current = null
+        }
+      })
+
+    return () => {
+      if (generation === routeAgentActivationGenerationRef.current) {
+        routeAgentActivationGenerationRef.current += 1
+      }
+    }
+  }, [
+    activeSessionId,
+    activateSession,
+    closeSurface,
+    isAgentsLoading,
+    resolveEmptySession,
+    routeAgentExists,
+    routeAgentId,
+    routeSessionId,
+    t
+  ])
 
   const showMissingAgentSelection = useCallback(() => {
     closeSurface()
