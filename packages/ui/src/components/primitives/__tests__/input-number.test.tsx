@@ -281,6 +281,33 @@ describe('InputNumber', () => {
     warn.mockRestore()
   })
 
+  // Every row measured against a real `input[type=number]`: the grid is anchored at
+  // `min`, and an off-grid value moves to the next grid point in the direction of
+  // travel rather than carrying its remainder along.
+  it.each([
+    ['3.7', 1, undefined, undefined, '4', '3'],
+    ['3.7', 1, 1, undefined, '4', '3'],
+    ['4', 1, 1, undefined, '5', '3'],
+    ['3.7', 1, 0.5, undefined, '4.5', '3.5'],
+    ['0.25', 0.1, undefined, undefined, '0.3', '0.2'],
+    ['3.7', 0.5, undefined, undefined, '4', '3.5']
+  ])('steps %s by %s onto the grid (min=%s)', async (typed, step, min, max, expectedUp, expectedDown) => {
+    const user = userEvent.setup()
+
+    for (const [key, expected] of [
+      ['{ArrowUp}', expectedUp],
+      ['{ArrowDown}', expectedDown]
+    ] as const) {
+      const view = render(<InputNumber aria-label="amount" min={min} max={max} step={step} value={null} />)
+      const input = screen.getByLabelText('amount')
+      await user.type(input, typed)
+      await user.keyboard(key)
+
+      expect(input).toHaveValue(expected)
+      view.unmount()
+    }
+  })
+
   it('refuses to step when the range is empty', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const user = userEvent.setup()
@@ -364,16 +391,18 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onValueChange = vi.fn()
     const onBlur = vi.fn()
-    render(<InputNumber aria-label="amount" value={3} step={2} onValueChange={onValueChange} onBlur={onBlur} />)
+    // On-grid start, so this stays about when the callbacks fire; the grid itself
+    // is covered by the stepping table above.
+    render(<InputNumber aria-label="amount" value={4} step={2} onValueChange={onValueChange} onBlur={onBlur} />)
 
     const input = screen.getByLabelText('amount')
     await user.click(input)
     await user.keyboard('{ArrowUp}')
-    expect(onValueChange).toHaveBeenLastCalledWith(5)
+    expect(onValueChange).toHaveBeenLastCalledWith(6)
     expect(onBlur).not.toHaveBeenCalled()
 
     await user.tab()
-    expect(onBlur).toHaveBeenCalledExactlyOnceWith(5)
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(6)
   })
 
   it('exposes its range and current value to assistive tech', async () => {

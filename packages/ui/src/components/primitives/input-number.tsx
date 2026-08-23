@@ -81,7 +81,16 @@ interface InputNumberProps
   min?: number
   /** The ceiling a committed or stepped value is clamped down to. Also published as `aria-valuemax`. */
   max?: number
-  /** Also decides whether the value is an integer: an integer `step` truncates on commit. */
+  /**
+   * The spacing of the grid the arrows move along, anchored at `min` when one is
+   * declared — `min={0.5} step={1}` steps 0.5, 1.5, 2.5, as a native number input does.
+   *
+   * It doubles as the field's precision: an integer `step` means the value is an
+   * integer, which sets `inputMode` and truncates on commit. Commit does **not** snap
+   * to the grid — a typed `7` survives under `step={5}`. Rejecting off-grid values is
+   * a validation decision, and this field only clamps; anything richer belongs to the
+   * caller.
+   */
   step?: number
   size?: 'small' | 'middle' | 'large'
 }
@@ -127,13 +136,28 @@ function toNumber(raw: string): number | null {
   return raw === '' || !Number.isFinite(parsed) ? null : parsed
 }
 
+const decimalsOf = (value: number) => String(value).split('.')[1]?.length ?? 0
+
 /**
- * Steps in the step's own precision: adding `0.1` in binary floating point
- * otherwise surfaces as `0.30000000000000004`.
+ * Moves to the next value on the grid `step` describes, in the direction of travel —
+ * the same rule `stepUp`/`stepDown` follow on a native number input. The grid is
+ * anchored at `min` when one is declared, so `min={0.5} step={1}` steps 0.5, 1.5, 2.5.
+ *
+ * Adding `step` to an off-grid base instead would carry the remainder along: from
+ * `3.7` with `step={1}` the next value is 4, not 4.7 — nor 5, which is what rounding
+ * the sum to the step's precision used to produce. Rounding still finishes the job,
+ * since `0.1` in binary floating point otherwise surfaces as `0.30000000000000004`.
  */
 function stepFrom(base: number, step: number, min?: number, max?: number): number {
-  const decimals = String(step).split('.')[1]?.length ?? 0
-  const stepped = Number((base + step).toFixed(decimals))
+  const anchor = min ?? 0
+  const size = Math.abs(step)
+  const offsets = (base - anchor) / size
+  // Tolerance so a base already on the grid moves one whole step rather than
+  // being nudged by the remainder of its own division.
+  const epsilon = 1e-9
+  const next = step > 0 ? Math.floor(offsets + epsilon) + 1 : Math.ceil(offsets - epsilon) - 1
+  const decimals = Math.max(decimalsOf(size), decimalsOf(anchor))
+  const stepped = Number((anchor + next * size).toFixed(decimals))
   if (min !== undefined && stepped < min) return min
   if (max !== undefined && stepped > max) return max
   return stepped
