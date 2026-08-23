@@ -30,10 +30,17 @@ desktop tools.
    exactly once after `Authorize with CherryIN` is visible. If it returns an
    error, do not retry it; finish the case as failed. Do not search Cherry
    Studio or an external browser for account and password fields.
-   After login, use `textConfigRef: cherryInChatModel` with `exact: true` to
-   add and select only the configured chat model. Never select a fallback model
-   or use `Add all models`. Select the same configured model in `Model Check`
-   before starting the connection check.
+   After login, follow the M-01 steps literally. Open `Get model list`, fill
+   its `Search models` textbox with `configRef: cherryInChatModel`, inspect
+   `textConfigRef: cherryInChatModel` with `exact: true`, then click the first
+   `role: button`, `name: Add`, `exact: true` result. Do not clear the filter,
+   scroll the list, select a fallback, or use `Add all models`. Close the drawer
+   by pressing Escape against its search textbox. The clean provider now has
+   exactly one model, so open `Model Check`, leave its preselected model
+   unchanged, click `Start`, and wait for the persistent `Passed` button before
+   closing the dialog and recording connection evidence. In Chat, open the
+   `Selected models` button, fill `testId: model-selector-search` with
+   `configRef: cherryInChatModel`, and click the first `role: option` result.
 6. Use `system-action` only for the case's external shortcut, external text, or
    native file-picker step. Use fixture and workspace paths returned by
    `get-run-context`.

@@ -305,7 +305,7 @@ function processContract(evidenceId: string): { commandFragment: string; expecte
 function restartExpectedText(evidenceId: string): string {
   switch (evidenceId) {
     case 'cherryin-restart':
-      return config.cherryIn.chatModel
+      return 'Logged in via OAuth'
     case 'custom-provider-restart':
       return FIXTURE_MARKERS.customProviderName
     case 'assistant-restart':
@@ -329,10 +329,12 @@ function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
   const contracts: Record<string, string[]> = {
     'assistant-saved': [FIXTURE_MARKERS.assistantName],
     'assistant-prompt-response': [FIXTURE_MARKERS.assistantResponse],
+    'cherryin-connection': ['Passed'],
     'cherryin-identity': ['Logged in via OAuth'],
     'cherryin-chat-response': [FIXTURE_MARKERS.cherryInChat],
     'claude-runtime': [FIXTURE_MARKERS.claudeAgentName],
     'codex-directory': ['agent-workspace'],
+    'custom-provider-connection': ['Passed'],
     'custom-provider-saved': [FIXTURE_MARKERS.customProviderName, config.customProvider.chatModel],
     'custom-provider-chat-response': [FIXTURE_MARKERS.customProviderChat],
     'dsh-runtime': ['DeepSeek'],

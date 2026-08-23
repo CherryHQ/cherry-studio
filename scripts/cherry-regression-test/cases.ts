@@ -30,8 +30,10 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     steps: [
       'If onboarding is visible, choose Set up later. Open provider settings, select CherryIN, and call authenticate-cherryin exactly once when the authorization button is visible.',
-      'Select the configured CherryIN chat model and run its connection check.',
-      'Ask the default assistant to reply exactly CHERRYIN_CHAT_PASS, then restart the application.'
+      'Click Get model list, fill Search models with configRef cherryInChatModel, verify the exact configured model, click the first exact Add button, and close the drawer without clearing or scrolling the filtered list.',
+      'Run Model Check without changing the only preselected model, wait for the persistent Passed status, and record the connection evidence.',
+      'Return to Chat, open Selected models, filter model-selector-search with configRef cherryInChatModel, select the first option, and ask the default assistant to reply exactly CHERRYIN_CHAT_PASS.',
+      'Restart the application, reopen Settings > Model Provider > CherryIN, and verify that Logged in via OAuth remains visible.'
     ],
     acceptance: [
       'OAuth login state, model list, and connection check are visible and valid.',
