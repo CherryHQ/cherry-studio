@@ -204,6 +204,11 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   // the webview (mirrors the inline consent card — "open" is not authorization).
   const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
   const [interactiveAuthorized, setInteractiveAuthorized] = useState(false)
+  // Authorization is scoped to the exact content: re-authorize if html changes (e.g. a
+  // still-streaming source) so new bytes never inherit a previous run action.
+  useEffect(() => {
+    setInteractiveAuthorized(false)
+  }, [html])
   // The webview tier has no capture iframe; an explicit canCapturePreview={false} wins.
   const effectiveCanCapturePreview = renderPreview
     ? canCapturePreview
@@ -224,16 +229,18 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         />
         {requiresInteractivePreview && !interactiveAuthorized && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-3">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="pointer-events-auto border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
-              aria-label={t('html_artifacts.interactive_preview.action')}
-              onClick={() => setInteractiveAuthorized(true)}>
-              <ShieldAlert className="size-3.5 text-warning" />
-              {t('html_artifacts.interactive_preview.action')}
-            </Button>
+            <Tooltip content={t('html_artifacts.interactive_preview.description')} delay={200}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="pointer-events-auto border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
+                aria-label={t('html_artifacts.interactive_preview.action')}
+                onClick={() => setInteractiveAuthorized(true)}>
+                <ShieldAlert className="size-3.5 text-warning" />
+                {t('html_artifacts.interactive_preview.action')}
+              </Button>
+            </Tooltip>
           </div>
         )}
       </div>

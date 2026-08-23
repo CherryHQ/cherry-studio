@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import {
   clampForwardedWheelDelta,
   type ScrollRuntimeBoundary,
@@ -17,8 +16,6 @@ import { memo, type RefObject, useLayoutEffect, useMemo, useRef, useState } from
 
 export const SCROLL_ACTIVATION_DELAY_MS = 300
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
-
-const logger = loggerService.withContext('HtmlArtifactPreviewSurface')
 
 type HtmlArtifactBridgeMessage =
   | { type: 'height'; value: number }
@@ -310,7 +307,6 @@ export const HtmlArtifactPreviewSurface = memo(function HtmlArtifactPreviewSurfa
 }) {
   if (htmlArtifactPreviewRequiresInteractive(html)) {
     if (!authorized) {
-      logger.warn('Active HTML preview rendered without authorization; falling back to the script-less frame')
       return <StaticHtmlPreview html={html} title={title} zoom={zoom} iframeRef={iframeRef} emptyText={emptyText} />
     }
     return (
