@@ -120,10 +120,7 @@ describe('CodeBlock', () => {
     })
 
     it('should render streamed inline code whose children are animate spans', () => {
-      // Streaming wraps inline-code text in [data-sd-animate] spans, so the
-      // renderer receives element children. Regression guard for
-      // "children?.includes is not a function" — the component must treat
-      // non-string children as renderable content, not text to analyse.
+      // Animate spans make children elements — and they persist post-settle (streamdown#570).
       render(<CodeBlock {...defaultProps} className={undefined} children={<span data-sd-animate="true">npm i</span>} />)
 
       expect(screen.getByText('npm i').tagName).toBe('SPAN')
@@ -151,9 +148,9 @@ describe('CodeBlock', () => {
       expect(screen.getByText('i', { exact: false }).tagName).toBe('SPAN')
     })
 
-    it('keeps streamed path-like inline code faded until streaming settles', () => {
-      // Widget rewrites wait for settled streaming so the pill never swaps
-      // layouts mid-stream; the animate span keeps rendering as inline code.
+    it('keeps the path faded while an unclosed tail fence holds the block open', () => {
+      // Widget swaps race the per-tick span rebuild, so a still-growing block stays faded.
+      mocks.isCodeFenceIncomplete = true
       render(
         <CodeBlock
           {...defaultProps}
@@ -179,14 +176,13 @@ describe('CodeBlock', () => {
       expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
     })
 
-    it('does not couple the settled chip to fences elsewhere in the part', () => {
-      // isIncomplete refers to the last block of a streaming part; a settled
-      // path in an earlier block must promote regardless of it.
-      mocks.isCodeFenceIncomplete = true
+    it('promotes once the block settles even while the part streams', () => {
+      mocks.isCodeFenceIncomplete = false
       render(
         <CodeBlock
           {...defaultProps}
           className={undefined}
+          isStreaming
           children={<span data-sd-animate="true">/Users/foo/bar.tsx</span>}
         />
       )

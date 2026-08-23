@@ -13,8 +13,9 @@ export const getNodeText = (node: ReactNode): string => {
     return node.map(getNodeText).join('')
   }
 
-  if (isValidElement<{ children?: ReactNode; 'aria-hidden'?: boolean | 'true' }>(node)) {
-    if (node.props['aria-hidden']) {
+  if (isValidElement<{ children?: ReactNode; 'aria-hidden'?: boolean | 'true' | 'false' }>(node)) {
+    // Only the canonical hidden forms count; "false" is an explicit opt-out.
+    if (node.props['aria-hidden'] === true || node.props['aria-hidden'] === 'true') {
       return ''
     }
     return getNodeText(node.props.children)

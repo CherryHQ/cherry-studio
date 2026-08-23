@@ -72,10 +72,7 @@ describe('StreamingMarkdown', () => {
   })
 
   it('animates inline code text like surrounding prose', () => {
-    // Regression guard: streamdown's animate plugin skips any subtree whose
-    // ancestor chain contains `code`, which left inline code popping in with
-    // no fade. The local patch narrows the skip set to block-level containers
-    // (`pre`, svg, math), so inline code must receive animate spans too.
+    // Patch narrows streamdown's animate skip set to pre/svg/math, so inline code must get animate spans too.
     const { container } = render(<StreamingMarkdown id="s5">{'run `npm i` now'}</StreamingMarkdown>)
     const inlineCode = container.querySelector('p code')
     expect(inlineCode).not.toBeNull()

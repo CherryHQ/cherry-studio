@@ -18,8 +18,8 @@ import { classifyHtmlArtifactSource } from './plugins/remarkHtmlArtifact'
 
 interface Props {
   /**
-   * String for fences; elements while streaming wraps inline-code text in
-   * animate spans.
+   * Strings for fences and non-animated content; animate-span elements for
+   * streamed inline code — and they persist post-settle (streamdown#570).
    */
   children?: ReactNode
   className?: string
@@ -79,11 +79,9 @@ const CodeBlock: React.FC<Props> = ({
     [actions, blockId, id]
   )
 
-  // Widget rewrites swap the faded <code> for interactive chrome, so they wait
-  // until this part settles; `isIncomplete` is per-block and implies
-  // `isStreaming`, so it adds nothing here.
-  const inlinePath =
-    !isStreaming && (language === null || language === 'text') && text ? normalizeInlineFilePath(text) : null
+  // Widget swaps race the per-tick span rebuild, so they wait for this block
+  // to stop growing (an unclosed tail fence); part-level state is too coarse.
+  const inlinePath = !isIncomplete && (language === null || language === 'text') ? normalizeInlineFilePath(text) : null
 
   if (inlinePath && isKnownNavigationPath(inlinePath)) {
     return <NavigateToolInline input={{ path: inlinePath }} />
