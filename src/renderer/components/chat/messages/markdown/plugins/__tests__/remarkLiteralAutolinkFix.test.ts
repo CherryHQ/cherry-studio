@@ -129,10 +129,27 @@ describe('remarkLiteralAutolinkFix', () => {
     expect(parse(source)).toEqual(parseWithoutPlugin(source))
   })
 
-  it('keeps spec behavior when the closing markers continue into a port or query', () => {
-    for (const source of ['**https://a.com/x**:8080', '**https://a.com/x**?q=1']) {
+  it('keeps spec behavior when the closing markers continue into a port, query, or path extension', () => {
+    for (const source of [
+      '**https://a.com/x**:8080',
+      '**https://a.com/x**?q=1',
+      '**https://a.com/x**.html',
+      '**https://a.com/x**-suffix',
+      '**https://a.com/x**_v2'
+    ]) {
       expect(parse(source)).toEqual(parseWithoutPlugin(source))
     }
+  })
+
+  it('keeps a second url inside the tail clickable (tail parses with GFM like the document)', () => {
+    const tree = parse('**https://a.com/x**https://b.com')
+    const paragraph = tree.children[0]
+    if (paragraph?.type !== 'paragraph') throw new Error('expected a paragraph')
+    expect(shape(paragraph.children[1])).toEqual({
+      type: 'link',
+      url: 'https://b.com',
+      children: [{ type: 'text', value: 'https://b.com' }]
+    })
   })
 
   it('repairs inside nested contexts like blockquotes', () => {

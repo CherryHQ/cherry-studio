@@ -19,13 +19,17 @@ import { visit } from 'unist-util-visit'
  * label share their first source character; angle/explicit links include their delimiter in the
  * span), and an emphasis opener must hug the link. Either check failing — including missing
  * position data — leaves the node untouched.
+ *
+ * Scope: only `**` (strong) is repaired. Single-matcher star (`*`) swallows identically but is
+ * left alone because a bare `*` is a valid URL character, making the boundary unresolvable;
+ * underscore emphasis (`_`/`__`) is not swallowed by remark-gfm at all and needs no repair.
  */
 
 const CLOSER = '**'
 // When these follow the closing markers the stars likely continue the URL
-// (scheme/port/query/path), so we leave the link alone; anything else — letters, CJK,
-// punctuation, whitespace, end of text — counts as prose resuming.
-const URL_CONTINUATION_REGEX = /^[/:#?&=%@+~]/
+// (scheme/port/query/path/extension — note `.`, `-`, `_`), so we leave the link alone;
+// anything else — letters, CJK, brackets, whitespace, end of text — is prose resuming.
+const URL_CONTINUATION_REGEX = /^[/:#?&=%@+~.\-_]/
 
 interface FixPlan {
   parent: Parent
@@ -55,7 +59,8 @@ function parseInlineTail(value: string): PhrasingContent[] {
 function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Text] } {
   if (node.children.length !== 1 || node.children[0].type !== 'text') return false
   const value = node.children[0].value
-  if (!node.url.includes(CLOSER) || (value !== node.url && node.url !== `http://${value}`)) return false
+  const isWww = node.url === `http://${value}` || node.url === `https://${value}`
+  if (!node.url.includes(CLOSER) || (value !== node.url && !isWww)) return false
   // Literal autolinks are built from one contiguous slice, so link and label start together;
   // angle (`<...>`) and explicit (`[..](..)`) links carry their delimiter in the link span.
   const linkStart = node.position?.start.offset
@@ -98,8 +103,9 @@ function buildFix(node: Link, index: number, parent: Parent): FixPlan | undefine
   const tailNodes = parseInlineTail(node.url.slice(closer.tailStart))
   node.url = node.url.slice(0, closer.start)
   text.value = text.value.slice(0, textCut)
-  // The old span covers the swallowed run, which no longer belongs to this node.
+  // Both spans covered the swallowed run, which no longer belongs to either node.
   delete node.position
+  delete text.position
 
   const strong: Strong = { type: 'strong', children: [node] }
   const head: RootContent[] = []
@@ -112,7 +118,9 @@ function buildFix(node: Link, index: number, parent: Parent): FixPlan | undefine
 }
 
 export const remarkLiteralAutolinkFix: Plugin<[], Root> = () => (tree, file) => {
-  if (!String(file).includes(CLOSER)) return tree
+  // VFile.frozen may not hold value; read it explicitly rather than relying on toString.
+  const source = typeof file.value === 'string' ? file.value : String(file)
+  if (!source.includes(CLOSER)) return tree
 
   const plans: FixPlan[] = []
 
