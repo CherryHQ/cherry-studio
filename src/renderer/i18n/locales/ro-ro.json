@@ -5671,6 +5671,10 @@
         "global": "Font global",
         "select": "Selectează font",
         "title": "Setări font"
+      },
+      "list_position": {
+        "chat": "Poziția listei de conversații",
+        "work": "Poziția listei de sarcini"
       }
     },
     "fetch": {

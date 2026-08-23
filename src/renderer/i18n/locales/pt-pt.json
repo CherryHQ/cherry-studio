@@ -5671,6 +5671,10 @@
         "global": "Fonte global",
         "select": "Selecionar fonte",
         "title": "Configuração de fonte"
+      },
+      "list_position": {
+        "chat": "Posição da lista de conversas",
+        "work": "Posição da lista de tarefas"
       }
     },
     "fetch": {

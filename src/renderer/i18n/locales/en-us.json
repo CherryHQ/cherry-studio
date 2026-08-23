@@ -5671,6 +5671,10 @@
         "global": "Global Font",
         "select": "Select Font",
         "title": "Font Settings"
+      },
+      "list_position": {
+        "chat": "Conversation list position",
+        "work": "Task list position"
       }
     },
     "fetch": {

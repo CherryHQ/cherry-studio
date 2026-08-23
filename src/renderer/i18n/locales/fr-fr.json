@@ -5671,6 +5671,10 @@
         "global": "Police de caractère globale",
         "select": "Sélectionner la police",
         "title": "Paramètres de police"
+      },
+      "list_position": {
+        "chat": "Position de la liste des conversations",
+        "work": "Position de la liste des tâches"
       }
     },
     "fetch": {
