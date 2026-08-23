@@ -15,14 +15,14 @@ const v4ChatEffortWire = {
   auto: {
     operations: [
       { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
+      { target: 'reasoningEffort' as const, value: { source: 'effort' as const } }
     ],
     effortMap: { auto: 'high' as const, ...v4EffortMap }
   },
   effort: {
     operations: [
       { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoning_effort' as const, value: { source: 'effort' as const } }
+      { target: 'reasoningEffort' as const, value: { source: 'effort' as const } }
     ],
     effortMap: v4EffortMap
   }
@@ -86,8 +86,9 @@ export default defineProvider({
     }
   },
   // The Anthropic-compatible endpoint serves V4 Pro / V4 Flash only, and silently maps any other
-  // model name onto v4-flash — so it is pinned on those two and withheld from chat/reasoner. It
-  // trails Chat Completions because `endpointTypes[0]` routes in-app chat.
+  // model name onto v4-flash — so it is pinned on those two and withheld from chat/reasoner and
+  // from the vision variant (which would silently lose vision). It trails Chat Completions
+  // because `endpointTypes[0]` routes in-app chat.
   overrides: [
     { modelId: 'deepseek-chat', endpointTypes: ['openai-chat-completions'] },
     { modelId: 'deepseek-reasoner', endpointTypes: ['openai-chat-completions'] },
@@ -102,6 +103,14 @@ export default defineProvider({
     {
       modelId: 'deepseek-v4-pro',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      reasoningContracts: {
+        'openai-chat-completions': { wire: v4ChatEffortWire },
+        'openai-responses': { wire: v4ResponsesEffortWire }
+      }
+    },
+    {
+      modelId: 'deepseek-v4-flash-vision-exp',
+      endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }
