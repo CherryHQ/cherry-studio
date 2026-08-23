@@ -4205,10 +4205,8 @@
       "saved": "Salvat"
     },
     "footer": {
-      "copy_last_message": "Apasă C pentru a copia",
       "esc": "ESC pentru a {{action}}",
       "esc_back": "reveni",
-      "esc_close": "închide",
       "esc_pause": "pune pauză"
     },
     "input": {

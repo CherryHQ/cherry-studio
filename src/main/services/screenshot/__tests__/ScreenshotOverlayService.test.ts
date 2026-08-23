@@ -91,8 +91,22 @@ vi.mock('@main/core/lifecycle', () => {
       return disposable
     }
   }
+  class MockEmitter<T> {
+    private listeners: Array<(value: T) => void> = []
+    readonly event = (listener: (value: T) => void) => {
+      this.listeners.push(listener)
+      return { dispose: () => {} }
+    }
+    fire(value: T) {
+      for (const listener of this.listeners) listener(value)
+    }
+    dispose() {
+      this.listeners = []
+    }
+  }
   return {
     BaseService: MockBaseService,
+    Emitter: MockEmitter,
     Injectable: () => (target: unknown) => target,
     ServicePhase: () => (target: unknown) => target,
     DependsOn: () => (target: unknown) => target,
@@ -847,13 +861,31 @@ describe('ScreenshotOverlayService', () => {
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
 
-    it('tells the window that started the capture the clipboard is ready', async () => {
+    it('hands the capture itself to the window that started it', async () => {
       singleDisplaySetup()
       await service.startCapture('quick-assistant')
 
       service.commit({ pngBytes: PNG_BYTES })
 
-      expect(container.ipcApiService.send).toHaveBeenCalledWith('quick-assistant', 'screenshot.captured', undefined)
+      // Carrying the bytes rather than pointing at the clipboard: whatever the user
+      // copies next must not change what gets attached.
+      expect(container.ipcApiService.send).toHaveBeenCalledWith('quick-assistant', 'screenshot.captured', {
+        pngBytes: PNG_BYTES
+      })
+    })
+
+    it('still delivers the capture when the clipboard write throws', async () => {
+      singleDisplaySetup()
+      await service.startCapture('quick-assistant')
+      electron.clipboard.writeImage.mockImplementationOnce(() => {
+        throw new Error('clipboard busy')
+      })
+
+      service.commit({ pngBytes: PNG_BYTES })
+
+      expect(container.ipcApiService.send).toHaveBeenCalledWith('quick-assistant', 'screenshot.captured', {
+        pngBytes: PNG_BYTES
+      })
     })
 
     it('notifies nobody when the capture came from the global shortcut', async () => {
@@ -869,15 +901,14 @@ describe('ScreenshotOverlayService', () => {
       )
     })
 
-    it('does not announce a result the clipboard never received', async () => {
+    it('does not announce bytes that could not be decoded', async () => {
       singleDisplaySetup()
       await service.startCapture('quick-assistant')
       electron.nativeImage.createFromBuffer.mockReturnValueOnce({ isEmpty: () => true })
 
       service.commit({ pngBytes: new Uint8Array([1, 2]) })
 
-      // The requester reads the image back off the clipboard, so announcing here would
-      // attach whatever the user happened to have copied earlier.
+      // Announcing here would stage an attachment no decoder can read.
       expect(container.ipcApiService.send).not.toHaveBeenCalledWith(
         expect.anything(),
         'screenshot.captured',
@@ -885,15 +916,28 @@ describe('ScreenshotOverlayService', () => {
       )
     })
 
-    it('reports the session as active only while the overlays are up', async () => {
+    it('reports the session as active only to the window that started it', async () => {
       singleDisplaySetup()
-      expect(service.isSessionActive()).toBe(false)
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
 
       await service.startCapture('quick-assistant')
-      expect(service.isSessionActive()).toBe(true)
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(true)
+      // Another window's hide-on-blur must not be suppressed by someone else's capture.
+      expect(service.isSessionRequestedBy('main-window')).toBe(false)
 
       service.commit({ pngBytes: PNG_BYTES })
-      expect(service.isSessionActive()).toBe(false)
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
+    })
+
+    it('announces the end of the session so a suppressed hide can settle', async () => {
+      singleDisplaySetup()
+      const ended = vi.fn()
+      service.onSessionEnded(ended)
+      await service.startCapture('quick-assistant')
+
+      service.commit({ pngBytes: PNG_BYTES })
+
+      expect(ended).toHaveBeenCalledWith('quick-assistant')
     })
 
     it('still dismisses the overlays when the clipboard write throws', async () => {

@@ -136,9 +136,10 @@ export type ScreenshotEventSchemas = {
    */
   'screenshot.session_ended': void
   /**
-   * Directed to the window that started the session: a result is on the clipboard.
-   * The payload stays on the clipboard rather than travelling here — the bytes are
-   * already capped for `screenshot.commit` and a second copy buys nothing.
+   * Directed to the window that started the session, carrying the capture itself.
+   * Reading it back off the clipboard instead would race anything else the user copies
+   * and depends on clipboard read permission; the bytes are already capped by
+   * `screenshot.commit` on the way in.
    */
-  'screenshot.captured': void
+  'screenshot.captured': ScreenshotResultData
 }

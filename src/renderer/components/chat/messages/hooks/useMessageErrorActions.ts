@@ -1,7 +1,8 @@
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
-import { useNavigate } from '@tanstack/react-router'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { useRouter } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
 const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
@@ -14,7 +15,9 @@ interface MessageErrorActionOptions {
 }
 
 export function useMessageErrorActions(options: MessageErrorActionOptions = {}): MessageErrorActions {
-  const navigate = useNavigate()
+  // The message list also renders in router-less windows (quick assistant), where
+  // `useRouter` yields undefined rather than throwing only because `warn` is off.
+  const router = useRouter({ warn: false }) as ReturnType<typeof useRouter> | undefined
   const { persistDiagnosis } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
@@ -54,9 +57,13 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
 
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
     (target) => {
-      void navigate({ to: target })
+      if (!router) {
+        openRoute(target)
+        return
+      }
+      void router.navigate({ to: target })
     },
-    [navigate]
+    [router]
   )
 
   return useMemo(

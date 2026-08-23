@@ -427,7 +427,9 @@ const ChatComposerRoot = ({
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
   const resolvedAssistantId = assistantId ?? topic?.assistantId
-  const draftCacheScopeKey = resolvedTopicId ?? resolvedScopeKey ?? ''
+  // Scope key first: chat passes its topic id as both, while surfaces whose topic is
+  // re-leased under the user (quick assistant) rely on the scope key to hold the draft.
+  const draftCacheScopeKey = resolvedScopeKey ?? resolvedTopicId ?? ''
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   // Snapshot the topic draft before mounting its tool provider: files seed the provider synchronously so
   // the surface's managed-token sync does not strip restored file tokens, and the same snapshot
@@ -556,10 +558,7 @@ const ChatComposerInner = ({
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
     customizePanelItem
-    // Quick Assistant inherits Chat tools but adds screenshot and keeps its own defaults/order.
-  } = useComposerToolbarPinnedTools(
-    scope === 'quick-assistant' ? 'quick_assistant.input.toolbar.pinned_tools' : 'chat.input.toolbar.pinned_tools'
-  )
+  } = useComposerToolbarPinnedTools(config.pinnedToolsPreferenceKey ?? 'chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.

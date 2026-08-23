@@ -14,7 +14,6 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('screenshotTool')
 
-const SCREENSHOT_MIME_TYPE = 'image/png'
 const SCREENSHOT_FILE_NAME = 'screenshot.png'
 
 interface Props {
@@ -25,34 +24,32 @@ interface Props {
 }
 
 /**
- * Region capture, staged as an attachment. Main copies the result to the clipboard
- * (the payload never travels over IPC) and answers `screenshot.captured` to the window
- * that asked, which is where this reads it back from.
+ * Region capture, staged as an attachment. Main copies the result to the clipboard and
+ * hands the same bytes to the window that asked via `screenshot.captured`, so the
+ * attachment does not depend on what the clipboard holds by the time this runs.
  */
 const useScreenshotToolController = ({ launcher, couldAddImageFile, extensions, setFiles }: Props) => {
   const { t } = useTranslation()
   const [screenshotEnabled] = usePreference('feature.screenshot.enabled')
   const supported = couldAddImageFile && extensions.includes(getFileExtension(SCREENSHOT_FILE_NAME))
 
-  const readCapturedImage = useCallback(async () => {
-    try {
-      const items = await navigator.clipboard.read()
-      const item = items.find((entry) => entry.types.includes(SCREENSHOT_MIME_TYPE))
-      if (!item) throw new Error('No PNG item on the clipboard after capture')
-
-      const bytes = new Uint8Array(await (await item.getType(SCREENSHOT_MIME_TYPE)).arrayBuffer())
-      if (!(await attachImageBytes(SCREENSHOT_FILE_NAME, bytes, setFiles))) {
-        throw new Error('Could not read the screenshot back from its temporary file')
+  const attachCapture = useCallback(
+    async (pngBytes: Uint8Array) => {
+      try {
+        if (!(await attachImageBytes(SCREENSHOT_FILE_NAME, pngBytes, setFiles))) {
+          throw new Error('Could not read the screenshot back from its temporary file')
+        }
+      } catch (error) {
+        // The capture is still on the clipboard, so say so rather than letting the
+        // button look like it did nothing.
+        logger.error('Failed to attach the screenshot', error as Error)
+        toast.error(t('chat.input.screenshot_attach_failed'))
       }
-    } catch (error) {
-      // Every failure here still leaves the capture on the clipboard, so say so rather
-      // than letting the button look like it did nothing.
-      logger.error('Failed to attach the screenshot', error as Error)
-      toast.error(t('chat.input.screenshot_attach_failed'))
-    }
-  }, [setFiles, t])
+    },
+    [setFiles, t]
+  )
 
-  useIpcOn('screenshot.captured', () => void readCapturedImage())
+  useIpcOn('screenshot.captured', ({ pngBytes }) => void attachCapture(pngBytes))
 
   useEffect(() => {
     if (!screenshotEnabled) return

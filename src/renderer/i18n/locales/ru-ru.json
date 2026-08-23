@@ -4205,10 +4205,8 @@
       "saved": "Сохранено"
     },
     "footer": {
-      "copy_last_message": "Нажмите C для копирования",
       "esc": "Нажмите ESC {{action}}",
       "esc_back": "возвращения",
-      "esc_close": "закрытия окна",
       "esc_pause": "пауза"
     },
     "input": {

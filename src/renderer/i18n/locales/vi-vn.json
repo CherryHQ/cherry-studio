@@ -4205,10 +4205,8 @@
       "saved": "Đã lưu"
     },
     "footer": {
-      "copy_last_message": "Nhấn C để sao chép",
       "esc": "ESC để {{action}}",
       "esc_back": "trả về",
-      "esc_close": "đóng",
       "esc_pause": "tạm dừng"
     },
     "input": {

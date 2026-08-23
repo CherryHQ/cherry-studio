@@ -65,7 +65,7 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
  *
  * Chunks are routed to the per-execution collector, so `useChat.messages` only ever
  * holds the user turns `send` pushed — assistant turns arrive through the overlay and
- * are accumulated in `completedAssistants` as each stream ends, which is what makes the
+ * are accumulated in `completedRounds` as each stream ends, which is what makes the
  * multi-turn transcript survive.
  */
 export function useQuickConversation({ assistantId }: { assistantId?: string }) {
@@ -103,7 +103,9 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     reset: resetExecutionMessages,
     clear: clearExecutionMessages
   } = useExecutionOverlay(chatId, activeExecutions, EMPTY_UI_MESSAGES)
-  const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
+  /** One entry per finished turn, holding every execution that turn produced — a
+   *  multi-model send answers one user message with several assistant messages. */
+  const [completedRounds, setCompletedRounds] = useState<CherryUIMessage[][]>([])
   /** First time each message id was projected, used as its display timestamp. */
   const messageTimestampsRef = useRef(new Map<string, string>())
 
@@ -115,7 +117,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
       // Snapshots are retained after a reader tears down, so the final
       // frames are still in `liveAssistants` at this →0 transition.
       if (liveAssistants.length) {
-        setCompletedAssistants((done) => [...done, ...finalizeLiveMessages(liveAssistants)])
+        setCompletedRounds((rounds) => [...rounds, finalizeLiveMessages(liveAssistants)])
         resetExecutionMessages()
       }
     }
@@ -125,10 +127,11 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     if (isPending) setIsPreparing(false)
   }, [isPending])
 
-  const allAssistants = useMemo<CherryUIMessage[]>(
-    () => [...completedAssistants, ...liveAssistants],
-    [completedAssistants, liveAssistants]
+  const rounds = useMemo<CherryUIMessage[][]>(
+    () => (liveAssistants.length ? [...completedRounds, liveAssistants] : completedRounds),
+    [completedRounds, liveAssistants]
   )
+  const allAssistants = useMemo<CherryUIMessage[]>(() => rounds.flat(), [rounds])
 
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
@@ -138,33 +141,32 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     return next
   }, [allAssistants, chatMessages])
 
-  // Interleave user messages (from state.messages) with assistant turns
-  // (accumulated completed + live). The assumption: users and assistants
-  // alternate strictly — user[i] precedes assistant[i]. Temporary topics
-  // are always a clean linear chat, no branches.
+  // Interleave user messages (from state.messages) with the turns they produced.
+  // One user message per turn, but a turn holds every execution it started, so a
+  // multi-model send lands all of its answers under the message that asked.
+  // Temporary topics are always a clean linear chat, no branches.
   const displayMessages = useMemo<CherryUIMessage[]>(() => {
     const users = chatMessages.filter((m) => m.role === 'user')
-    const latestAssistantId = liveAssistants[liveAssistants.length - 1]?.id
+    const liveRoundIndex = liveAssistants.length ? rounds.length - 1 : -1
     const out: CherryUIMessage[] = []
-    const turns = Math.max(users.length, allAssistants.length)
+    const turns = Math.max(users.length, rounds.length)
     for (let i = 0; i < turns; i++) {
       const u = users[i]
       if (u) {
         out.push(u)
       }
-      const a = allAssistants[i]
-      if (a) {
+      for (const a of rounds[i] ?? []) {
         out.push({
           ...a,
           metadata: {
             ...a.metadata,
-            status: a.id === latestAssistantId && isPending ? 'pending' : 'success'
+            status: i === liveRoundIndex && isPending ? 'pending' : 'success'
           }
         })
       }
     }
     return out
-  }, [chatMessages, allAssistants, liveAssistants, isPending])
+  }, [chatMessages, rounds, liveAssistants, isPending])
 
   const messages = useMemo<MessageListItem[]>(
     () =>
@@ -203,7 +205,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
   const clear = useCallback(() => {
     void stopChat()
     setMessages([])
-    setCompletedAssistants([])
+    setCompletedRounds([])
     messageTimestampsRef.current.clear()
     clearExecutionMessages()
     setError(null)

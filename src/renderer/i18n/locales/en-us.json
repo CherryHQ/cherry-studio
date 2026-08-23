@@ -4205,10 +4205,8 @@
       "saved": "Saved"
     },
     "footer": {
-      "copy_last_message": "Press C to copy",
       "esc": "ESC to {{action}}",
       "esc_back": "return",
-      "esc_close": "close",
       "esc_pause": "pause"
     },
     "input": {

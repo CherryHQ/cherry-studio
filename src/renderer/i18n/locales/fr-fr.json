@@ -4205,10 +4205,8 @@
       "saved": "Enregistré"
     },
     "footer": {
-      "copy_last_message": "Appuyez sur C pour copier",
       "esc": "Appuyez sur ESC {{action}}",
       "esc_back": "Revenir en arrière",
-      "esc_close": "Fermer la fenêtre",
       "esc_pause": "Pause"
     },
     "input": {

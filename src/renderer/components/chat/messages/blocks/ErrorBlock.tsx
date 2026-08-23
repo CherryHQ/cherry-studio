@@ -6,7 +6,6 @@ import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/labe
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
-import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -33,6 +32,7 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message, cachedDiagnosis }
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+  const { navigateToRoute } = useMessageListActions()
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
@@ -51,7 +51,16 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
+            // Not a router <Link>: the message list also renders in windows without a
+            // router, where navigation goes through the adapter to the main window.
+            provider: (
+              <button
+                type="button"
+                style={{ color: 'var(--link)' }}
+                className="cursor-pointer bg-transparent p-0 underline-offset-2 hover:underline"
+                onClick={() => void navigateToRoute?.({ path: '/settings/provider', query: { id: providerId } })}
+              />
+            )
           }}
         />
       )

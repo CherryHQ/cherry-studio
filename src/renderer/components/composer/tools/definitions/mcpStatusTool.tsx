@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import { resolvesToolScopeAs } from '@renderer/components/composer/tools/registry'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -286,8 +287,14 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   const { assistant, launcher, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
   const [dataRequested, setDataRequested] = useState(false)
-  const mode =
-    scope === TopicType.Chat ? (assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled') : undefined
+  // Scope chain, not identity: quick assistant inherits this tool from Chat and drives
+  // MCP from the same assistant settings, so an identity check would leave it read-only.
+  const assistantDrivenMcp = resolvesToolScopeAs(scope, TopicType.Chat)
+  const mode = assistantDrivenMcp
+    ? assistant
+      ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE)
+      : 'disabled'
+    : undefined
   const dataEnabled = dataRequested && (scope === TopicType.Session || mode !== 'disabled')
   const { mcpServers, isLoading: isMcpServersLoading } = useMcpServers(undefined, { enabled: dataEnabled })
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)

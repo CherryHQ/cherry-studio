@@ -4205,10 +4205,8 @@
       "saved": "保存済み"
     },
     "footer": {
-      "copy_last_message": "C キーを押してコピー",
       "esc": "ESC キーを押して{{action}}",
       "esc_back": "戻る",
-      "esc_close": "ウィンドウを閉じる",
       "esc_pause": "一時停止"
     },
     "input": {

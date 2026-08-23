@@ -4205,10 +4205,8 @@
       "saved": "已儲存"
     },
     "footer": {
-      "copy_last_message": "按 C 鍵複製",
       "esc": "按 ESC {{action}}",
       "esc_back": "返回",
-      "esc_close": "關閉視窗",
       "esc_pause": "暫停"
     },
     "input": {

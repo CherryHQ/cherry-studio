@@ -4205,10 +4205,8 @@
       "saved": "Guardado"
     },
     "footer": {
-      "copy_last_message": "Prima C para copiar",
       "esc": "Prima ESC {{action}}",
       "esc_back": "Voltar",
-      "esc_close": "Fechar janela",
       "esc_pause": "Pausar"
     },
     "input": {

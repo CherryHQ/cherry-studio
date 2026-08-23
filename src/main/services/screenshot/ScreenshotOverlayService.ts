@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
@@ -98,6 +98,11 @@ export class ScreenshotOverlayService extends BaseService {
    *  clipboard. Null for hotkey-started sessions, which have no window to answer to. */
   private requesterWindowId: WindowId | null = null
 
+  private readonly _onSessionEnded = new Emitter<WindowId | null>()
+  /** Fires with the requester once a session is over, so a window that suppressed its
+   *  own hide-on-blur for the overlay can settle whether it should still be visible. */
+  public readonly onSessionEnded: Event<WindowId | null> = this._onSessionEnded.event
+
   /** Pending reveal per overlay, with the fallback timer it races. Cleared together. */
   private pendingReveals = new Map<WindowId, { reveal: () => void; timer: NodeJS.Timeout }>()
 
@@ -112,6 +117,7 @@ export class ScreenshotOverlayService extends BaseService {
   private latestOcrToken: symbol | null = null
 
   protected onInit(): void {
+    this.registerDisposable(this._onSessionEnded)
     const windowManager = application.get('WindowManager')
     this.registerDisposable(
       windowManager.onWindowCreatedByType(WindowType.Screenshot, ({ id, window }) => {
@@ -324,11 +330,12 @@ export class ScreenshotOverlayService extends BaseService {
   }
 
   /**
-   * Whether a capture is being prepared or its overlays are on screen. Windows that
-   * auto-hide on blur consult this so opening the overlay does not dismiss them.
+   * Whether a capture this window started is being prepared or on screen. Windows that
+   * auto-hide on blur consult this so opening their own overlay does not dismiss them —
+   * a capture some other window asked for is an ordinary focus loss and should.
    */
-  public isSessionActive(): boolean {
-    return this.capturing || this.overlayWindowIds.length > 0
+  public isSessionRequestedBy(windowId: WindowId): boolean {
+    return this.requesterWindowId === windowId && (this.capturing || this.overlayWindowIds.length > 0)
   }
 
   /** Whether the window belongs to the live session. */
@@ -446,14 +453,16 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Copy the overlay's result to the clipboard and end the session. */
   public commit(result: ScreenshotResultData): void {
-    let copied = false
+    // Tracks decoding, not the clipboard write: the requester is handed the bytes
+    // directly, so a busy clipboard must not cost it the capture.
+    let decoded = false
     try {
       const image = nativeImage.createFromBuffer(Buffer.from(result.pngBytes))
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
       // writing that wipes the clipboard while the log still claims success.
       if (image.isEmpty()) throw new Error('the result bytes could not be decoded')
+      decoded = true
       clipboard.writeImage(image)
-      copied = true
       logger.info('Screenshot copied to the clipboard')
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)
@@ -466,8 +475,8 @@ export class ScreenshotOverlayService extends BaseService {
     this.dismiss()
 
     // After dismiss so the requester takes focus from a screen the overlays have left.
-    if (copied && requesterWindowId) {
-      application.get('IpcApiService').send(requesterWindowId, 'screenshot.captured', undefined)
+    if (decoded && requesterWindowId) {
+      application.get('IpcApiService').send(requesterWindowId, 'screenshot.captured', result)
       application.get('WindowManager').getWindow(requesterWindowId)?.focus()
     }
   }
@@ -619,9 +628,13 @@ export class ScreenshotOverlayService extends BaseService {
     // the next session's never-painted window would have no Escape rescue.
     this.renderersReady.clear()
 
+    const endedRequesterWindowId = this.requesterWindowId
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
     this.requesterWindowId = null
+    // Fired after the session state is torn down, so a listener that asks
+    // isSessionRequestedBy() sees the session as over.
+    this._onSessionEnded.fire(endedRequesterWindowId)
 
     // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
     this.latestOcrToken = null

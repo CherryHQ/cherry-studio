@@ -156,6 +156,17 @@ export class QuickAssistantService extends BaseService implements Activatable {
       })
     )
 
+    // The blur that opened our own capture overlay was swallowed above, and no second
+    // blur is coming — settle here instead of leaving the window stranded on screen.
+    this.registerDisposable(
+      application.get('ScreenshotOverlayService').onSessionEnded((requesterWindowId) => {
+        if (!this.windowId || requesterWindowId !== this.windowId || this.isPinnedQuickAssistant) return
+        const window = this.getQuickAssistant()
+        if (!window || window.isDestroyed() || !window.isVisible() || window.isFocused()) return
+        this.hideQuickAssistant()
+      })
+    )
+
     // Preference toggle drives activate/deactivate of heavy resources (BrowserWindow).
     // IPC handlers remain registered regardless, so the settings panel switch and global
     // shortcut continue to function; they simply become no-ops while deactivated.
@@ -340,8 +351,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // workaround is needed (see that method for the full rationale).
       this.hasBlurredSinceShow = true
       // The composer's screenshot button blurs this window by opening the capture
-      // overlay; hiding there would take the user's draft off screen mid-capture.
-      if (application.get('ScreenshotOverlayService').isSessionActive()) return
+      // overlay; hiding there would take the user's draft off screen mid-capture. A
+      // capture another window asked for is an ordinary focus loss.
+      if (this.windowId && application.get('ScreenshotOverlayService').isSessionRequestedBy(this.windowId)) return
       if (!this.isPinnedQuickAssistant) {
         this.hideQuickAssistant()
       }
@@ -500,7 +512,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
     window.show()
 
     // A hidden window keeps its DOM, so the renderer sees no mount to focus on.
-    application.get('IpcApiService').send(WindowType.QuickAssistant, 'quick_assistant.shown', undefined)
+    // `send` takes a WindowId — passing a WindowType typechecks (both are strings) but
+    // never matches a live window.
+    application.get('IpcApiService').broadcastToType(WindowType.QuickAssistant, 'quick_assistant.shown', undefined)
   }
 
   /**
