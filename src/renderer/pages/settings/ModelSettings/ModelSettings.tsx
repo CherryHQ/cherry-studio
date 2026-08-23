@@ -24,7 +24,6 @@ import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import { useSearch } from '@tanstack/react-router'
 import {
   ArrowRight,
   ChevronDown,
@@ -40,7 +39,6 @@ import type { FC, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { validateModelSettingsSearch } from './modelSettingsFocus'
 import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
@@ -113,7 +111,7 @@ const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
 
-const ModelSettingsBase: FC<ModelSettingsProps> = ({
+const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
   showDescription = true,
   showDividers = true,
@@ -439,17 +437,6 @@ const ModelSettingsBase: FC<ModelSettingsProps> = ({
       )}
     </div>
   )
-}
-
-// ModelSettings renders on the settings route (on-router) and during onboarding
-// (compact, off-router — no router context). useSearch throws off-router, so only
-// the non-compact branch calls it.
-const ModelSettings: FC<ModelSettingsProps> = (props) =>
-  props.compact ? <ModelSettingsBase {...props} /> : <ModelSettingsWithFocus {...props} />
-
-const ModelSettingsWithFocus: FC<ModelSettingsProps> = (props) => {
-  const { focus } = validateModelSettingsSearch(useSearch({ strict: false }) as Record<string, unknown>)
-  return <ModelSettingsBase {...props} focus={focus} />
 }
 
 export default ModelSettings
