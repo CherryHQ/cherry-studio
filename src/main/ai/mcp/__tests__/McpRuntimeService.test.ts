@@ -1423,6 +1423,47 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     await (service as any).onStop()
   })
 
+  it('does not retry a stale probe past a newer configuration pending-auth', async () => {
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    getByIdMock.mockReturnValue(server)
+    const cachedClient = (await (service as any).getOrCreateClient(server)) as MockClient
+    const ping = createDeferred<object>()
+    cachedClient.ping.mockReturnValueOnce(ping.promise)
+
+    const staleProbe = (service as any).getOrCreateClient(server)
+    const staleProbeAssertion = expect(staleProbe).rejects.toMatchObject({ name: 'OAuthCancelledError' })
+    await vi.waitFor(() => expect(cachedClient.ping).toHaveBeenCalledTimes(1))
+    await service.restartServer(server.id)
+
+    let backgroundSignal: AbortSignal | undefined
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce(
+        (_timeoutMs: number, signal?: AbortSignal) =>
+          new Promise<string>((_, reject) => {
+            backgroundSignal = signal
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+    const newerServer = { ...server, baseUrl: `${server.baseUrl}?updated=true` }
+    await expect((service as any).getOrCreateClient(newerServer)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+
+    ping.resolve({})
+    await staleProbeAssertion
+    expect(backgroundSignal?.aborted).toBe(false)
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'pending-auth'
+    })
+
+    await (service as any).onStop()
+  })
+
   it('marks non-timeout background callback failures as errors', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
@@ -1877,6 +1918,46 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     })
     expect(closeClientSpy).not.toHaveBeenCalled()
     expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith(server.id)
+
+    await (service as any).onStop()
+  })
+
+  it('does not let an older connectivity check overwrite newer pending-auth', async () => {
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    getByIdMock.mockReturnValue(server)
+    const client = (await (service as any).getOrCreateClient(server)) as MockClient
+    const listTools = createDeferred<void>()
+    const listToolsSpy = vi.fn(() => listTools.promise)
+    ;(client as any).listTools = listToolsSpy
+
+    const connectivityCheck = service.checkMcpConnectivity(server.id)
+    await vi.waitFor(() => expect(listToolsSpy).toHaveBeenCalledTimes(1))
+
+    let backgroundSignal: AbortSignal | undefined
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce(
+        (_timeoutMs: number, signal?: AbortSignal) =>
+          new Promise<string>((_, reject) => {
+            backgroundSignal = signal
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+    const newerServer = { ...server, baseUrl: `${server.baseUrl}?updated=true` }
+    await expect((service as any).getOrCreateClient(newerServer)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+
+    listTools.resolve()
+    await expect(connectivityCheck).resolves.toBe(false)
+    expect(backgroundSignal?.aborted).toBe(false)
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'pending-auth'
+    })
 
     await (service as any).onStop()
   })

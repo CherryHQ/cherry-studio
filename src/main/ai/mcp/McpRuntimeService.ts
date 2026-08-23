@@ -209,6 +209,7 @@ export class McpRuntimeService extends BaseService {
   // Different configuration fingerprints can connect concurrently; only the newest
   // attempt for a server id may publish state or control its OAuth listener.
   private connectionAttemptGenerations = new Map<string, number>()
+  private clientConnectionAttemptGenerations = new WeakMap<Client, number>()
   // In-flight liveness probes, deduped per server key. Deliberately separate from
   // pendingClients: removeServer awaits that map, and it must not wait out a ping.
   private pendingProbes: Map<string, Promise<Client | undefined>> = new Map()
@@ -436,7 +437,13 @@ export class McpRuntimeService extends BaseService {
       try {
         reused = await this.probeLiveClient(server, serverKey, existingClient)
       } catch (error) {
-        if (error instanceof OAuthCancelledError && this.clients.get(serverKey) !== existingClient) {
+        const replacement = this.clients.get(serverKey)
+        if (
+          error instanceof OAuthCancelledError &&
+          replacement &&
+          replacement !== existingClient &&
+          this.clientConnectionAttemptGenerations.get(replacement) === this.connectionAttemptGenerations.get(server.id)
+        ) {
           return this.getOrCreateClient(server)
         }
         throw error
@@ -508,6 +515,7 @@ export class McpRuntimeService extends BaseService {
         if (this.clients.get(serverKey) !== existingClient || this.removedServerIds.has(server.id)) {
           return undefined
         }
+        this.clientConnectionAttemptGenerations.set(existingClient, attemptGeneration)
         this.setServerStatus(server.id, 'connected')
         return existingClient
       }
@@ -600,6 +608,7 @@ export class McpRuntimeService extends BaseService {
       })
 
       // Store the new client in the cache
+      this.clientConnectionAttemptGenerations.set(client, attemptGeneration)
       this.clients.set(serverKey, client)
       this.setServerStatus(server.id, 'connected')
 
@@ -1448,8 +1457,12 @@ export class McpRuntimeService extends BaseService {
     getServerLogger(server).debug(`Checking connectivity`)
     try {
       const client = await this.getOrCreateClient(server)
+      const attemptGeneration = this.clientConnectionAttemptGenerations.get(client)
       // Attempt to list tools as a way to check connectivity
       await client.listTools()
+      if (attemptGeneration !== this.connectionAttemptGenerations.get(server.id)) {
+        throw new OAuthCancelledError(`Connectivity check for MCP server ${server.name} was superseded`)
+      }
       getServerLogger(server).debug(`Connectivity check successful`)
       this.setServerStatus(server.id, 'connected')
       this.emitServerLog(server, {
