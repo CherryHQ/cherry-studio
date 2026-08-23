@@ -62,12 +62,9 @@ const cherryInRates: Array<[string, string, number, number, number?, number?]> =
   ['bytedance/seed-oss-36b-instruct(free)', 'seed-oss-36b-instruct', 0, 0],
   ['deepseek/deepseek-v3.1-terminus', 'deepseek-v3-1-terminus', 0.27, 1, 0.027],
   ['deepseek/deepseek-v3.2(free)', 'deepseek-v3-2', 0, 0],
-  ['deepseek/deepseek-v4-flash', 'deepseek-v4-flash', 0.15, 0.3, 0.003],
-  ['deepseek/deepseek-v4-flash(free)', 'deepseek-v4-flash', 0, 0],
-  ['deepseek/deepseek-v4-pro', 'deepseek-v4-pro', 0.45, 0.9, 0.004],
   ['google/gemini-2.5-flash', 'gemini-2-5-flash', 0.3, 2.5, 0.037],
   ['google/gemini-2.5-flash-image', 'gemini-2-5-flash-image', 0.3, 30],
-  ['google/gemini-2.5-flash-lite', 'gemini-2-5-flash-lite', 0.1, 0.4],
+  ['google/gemini-2.5-flash-lite', 'gemini-2-5-flash-lite', 0.1, 0.4, 0.01],
   ['google/gemini-3.5-flash', 'gemini-3-5-flash', 1.5, 9, 0.15],
   ['google/gemini-3.6-flash', 'gemini-3-6-flash', 1.5, 7.5],
   ['kwai-kolors/kolors(free)', 'kolors', 0, 0],
@@ -128,12 +125,26 @@ const cherryInRates: Array<[string, string, number, number, number?, number?]> =
   ['qwen/qwen3.5-plus', 'qwen3-5-plus', 0.571, 3.429],
   ['qwen/qwen3.6-plus', 'qwen3-6-plus', 0.286, 1.714],
   ['qwen/qwen3.7-max', 'qwen3-7-max', 1.77, 5.3, 0.35],
-  ['stepfun-ai/step-3.5-flash(free)', 'step-3-5-flash', 0, 0],
   ['x-ai/grok-4-1-fast-non-reasoning', 'grok-4-1-fast-non-reasoning', 0.2, 0.5, 0.02],
   ['x-ai/grok-4-1-fast-reasoning', 'grok-4-1-fast', 0.2, 0.5, 0.02],
   ['z-ai/glm-5', 'glm-5', 0.86, 3.156, 0.215],
   ['z-ai/glm-5.2', 'glm-5-2', 1.18, 4.13, 0.3]
 ]
+
+/**
+ * CherryIN prices DeepSeek V4 by the Shanghai clock — peak (09:00-12:00, 14:00-18:00) is double
+ * off-peak — and a single rate per model cannot say that. Declared unknown so usage records count as
+ * unpriced instead of carrying whichever tier we happened to pick; the live `/api/pricing` fetch
+ * reports the same. Give these real rates once pricing can express a time tier.
+ */
+const timeTieredModels = ['deepseek/deepseek-v4-flash', 'deepseek/deepseek-v4-pro'].map((apiModelId) => ({
+  apiModelId,
+  modelId: apiModelId.replace('deepseek/deepseek-', 'deepseek-'),
+  pricing: {
+    input: { currency: 'USD' as const, perMillionTokens: null },
+    output: { currency: 'USD' as const, perMillionTokens: null }
+  }
+})) satisfies Array<Partial<ProviderModelOverride>>
 
 const pricedModelOverrides = cherryInRates.map(([apiModelId, modelId, input, output, cacheRead, cacheWrite]) => ({
   apiModelId,
@@ -268,5 +279,10 @@ export default defineProvider({
       official: 'https://open.cherryin.ai'
     }
   },
-  overrides: [...deepSeekModelOverrides, ...qwenAudioCompatibilityOverrides, ...pricedModelOverrides]
+  overrides: [
+    ...deepSeekModelOverrides,
+    ...qwenAudioCompatibilityOverrides,
+    ...pricedModelOverrides,
+    ...timeTieredModels
+  ]
 })
