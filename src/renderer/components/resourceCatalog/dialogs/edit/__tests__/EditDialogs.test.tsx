@@ -10,6 +10,10 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  bindPromptMock,
+  applyReorderedListMock,
+  boundPromptsRefetchMock,
+  createPromptMock,
   createGroupMock,
   fetchGenerateMock,
   installedSkillsState,
@@ -17,14 +21,20 @@ const {
   knowledgeBasesState,
   mcpStatusState,
   openSettingsTabMock,
+  promptCatalogState,
   promptProcessorMock,
   settingsNavigateMock,
   skillCatalogPickerMock,
   updateAgentMock,
   updateAssistantMock,
+  unbindPromptMock,
   useMutationMock,
   useQueryMock
 } = vi.hoisted(() => ({
+  bindPromptMock: vi.fn(),
+  applyReorderedListMock: vi.fn(),
+  boundPromptsRefetchMock: vi.fn(),
+  createPromptMock: vi.fn(),
   createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   installedSkillsState: {
@@ -53,11 +63,36 @@ const {
   },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
+  promptCatalogState: {
+    current: {
+      all: [
+        {
+          id: '00000000-0000-4000-8000-000000000001',
+          title: 'Reusable prompt',
+          content: 'Reusable prompt content',
+          visibility: 'restricted' as const,
+          orderKey: 'a0',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-01T00:00:00.000Z'
+        }
+      ],
+      bound: [] as Array<{
+        id: string
+        title: string
+        content: string
+        visibility: 'global' | 'restricted'
+        orderKey: string
+        createdAt: string
+        updatedAt: string
+      }>
+    }
+  },
   promptProcessorMock: vi.fn(({ prompt }: { prompt: string }) => prompt),
   settingsNavigateMock: vi.fn(),
   skillCatalogPickerMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
+  unbindPromptMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn()
 }))
@@ -95,6 +130,10 @@ vi.mock('@renderer/components/ModelSelector', () => ({
       </button>
     </div>
   )
+}))
+
+vi.mock('@data/hooks/useReorder', () => ({
+  useReorder: () => ({ applyReorderedList: applyReorderedListMock, isPending: false })
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -222,6 +261,7 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useDataChange: vi.fn(),
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],
@@ -283,6 +323,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
           'common.close': 'Close',
+          'common.confirm': 'Confirm',
           'common.delete': 'Delete',
           'common.description': 'Description',
           'common.edit': 'Edit',
@@ -377,7 +418,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.temperature': 'Temperature',
           'library.config.basic.top_p': 'Top-P',
           'library.config.dialogs.edit.advanced_tab': 'Advanced',
-          'library.config.prompt.label': 'Prompt',
+          'library.config.prompt.label': 'System Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'library.config.prompt.dblclick_hint': 'Double-click to edit',
           'library.config.prompt.generate': 'Generate prompt',
@@ -409,7 +450,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.edit.basic_tab': 'Basic',
           'library.config.dialogs.edit.knowledge_tab': 'Knowledge',
           'library.config.dialogs.edit.permission_tab': 'Permission',
-          'library.config.dialogs.edit.prompt_tab': 'Prompt',
+          'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'library.config.dialogs.edit.tools_tab': 'Tools',
           'library.config.knowledge.add': 'Add knowledge base',
@@ -442,6 +483,28 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
+          'settings.prompts.add': 'Add prompt',
+          'settings.prompts.binding.bind': 'Bind prompt',
+          'settings.prompts.binding.noLinked': 'No prompts linked',
+          'settings.prompts.binding.noMore': 'No more prompts available',
+          'settings.prompts.binding.remove': `Remove prompt ${
+            typeof fallbackOrOptions === 'object' && typeof fallbackOrOptions.title === 'string'
+              ? fallbackOrOptions.title
+              : ''
+          }`.trim(),
+          'settings.prompts.binding.search': 'Search prompts',
+          'settings.prompts.binding.tabTitle': 'Prompts',
+          'settings.prompts.contentLabel': 'Content',
+          'settings.prompts.contentPlaceholder': 'Enter prompt content',
+          'settings.prompts.errors.bindFailed': 'Failed to link prompt',
+          'settings.prompts.errors.createFailed': 'Failed to create prompt',
+          'settings.prompts.errors.loadFailed': 'Failed to load prompts',
+          'settings.prompts.errors.unbindFailed': 'Failed to unlink prompt',
+          'settings.prompts.noPrompts': 'No prompts',
+          'settings.prompts.titleLabel': 'Title',
+          'settings.prompts.titlePlaceholder': 'Enter a title',
+          'settings.prompts.variablePlaceholder': '${variable}',
+          'settings.prompts.visibility.global.label': 'Use globally',
           'settings.title': 'Settings'
         })[key] ??
         (typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined) ??
@@ -450,6 +513,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
+import { PromptBindingTab } from '../../components/PromptBindingTab'
 import { AgentEditDialog } from '../AgentEditDialog'
 import { AssistantEditDialog } from '../AssistantEditDialog'
 
@@ -543,6 +607,11 @@ beforeEach(() => {
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
+  promptCatalogState.current.bound = []
+  boundPromptsRefetchMock.mockResolvedValue(undefined)
+  bindPromptMock.mockResolvedValue(undefined)
+  createPromptMock.mockResolvedValue(promptCatalogState.current.all[0])
+  unbindPromptMock.mockResolvedValue(undefined)
   useQueryMock.mockImplementation((path: string) => {
     if (path.startsWith('/models/')) {
       const id = path.slice('/models/'.length)
@@ -584,14 +653,37 @@ beforeEach(() => {
         isLoading: false
       }
     }
+    if (path === '/prompts') {
+      return {
+        data: promptCatalogState.current.all,
+        isLoading: false,
+        refetch: vi.fn()
+      }
+    }
+    if (path.startsWith('/prompt-bindings/')) {
+      return {
+        data: promptCatalogState.current.bound,
+        isLoading: false,
+        refetch: boundPromptsRefetchMock
+      }
+    }
     return { data: { items: [] }, isLoading: false }
   })
   useMutationMock.mockImplementation((method: string, path: string) => {
+    if (method === 'POST' && path === '/prompts') {
+      return { trigger: createPromptMock, isLoading: false, error: undefined }
+    }
     if (method === 'PATCH' && path.startsWith('/assistants/')) {
       return { trigger: updateAssistantMock, isLoading: false, error: undefined }
     }
     if (method === 'PATCH' && path.startsWith('/agents/')) {
       return { trigger: updateAgentMock, isLoading: false, error: undefined }
+    }
+    if (method === 'PUT' && path === '/prompts/:id/bindings/:targetType/:targetId') {
+      return { trigger: bindPromptMock, isLoading: false, error: undefined }
+    }
+    if (method === 'DELETE' && path === '/prompts/:id/bindings/:targetType/:targetId') {
+      return { trigger: unbindPromptMock, isLoading: false, error: undefined }
     }
     return { trigger: vi.fn(), isLoading: false, error: undefined }
   })
@@ -680,7 +772,164 @@ function mockDeferredAnimationFrames() {
   }
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+
+  return { promise, resolve }
+}
+
 describe('edit dialogs', () => {
+  it('binds a prompt to the assistant being edited', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Prompts')
+    expect(within(screen.getByRole('tabpanel', { name: 'Prompts' })).getByText('Prompts')).toBeInTheDocument()
+    expect(useQueryMock).toHaveBeenCalledWith('/prompts', { enabled: true, query: { visibility: 'restricted' } })
+    expect(useQueryMock).toHaveBeenCalledWith('/prompt-bindings/:targetType/:targetId', {
+      enabled: true,
+      params: { targetType: 'assistant', targetId: ASSISTANT.id }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
+
+    await waitFor(() =>
+      expect(bindPromptMock).toHaveBeenCalledWith({
+        params: {
+          id: '00000000-0000-4000-8000-000000000001',
+          targetType: 'assistant',
+          targetId: ASSISTANT.id
+        }
+      })
+    )
+    expect(unbindPromptMock).not.toHaveBeenCalled()
+  })
+
+  it('unbinds a prompt from the agent being edited', async () => {
+    const user = userEvent.setup()
+    promptCatalogState.current.bound = [...promptCatalogState.current.all]
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    selectTab('Prompts')
+    expect(screen.getByText('Reusable prompt')).toBeInTheDocument()
+    const removeButton = screen.getByRole('button', { name: 'Remove prompt Reusable prompt' })
+    await user.hover(removeButton)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Remove prompt Reusable prompt')
+    await user.click(removeButton)
+
+    await waitFor(() =>
+      expect(unbindPromptMock).toHaveBeenCalledWith({
+        params: {
+          id: '00000000-0000-4000-8000-000000000001',
+          targetType: 'agent',
+          targetId: AGENT.id
+        }
+      })
+    )
+    expect(bindPromptMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps a new target binding locked when the previous target request settles', async () => {
+    const previousBinding = createDeferred<void>()
+    const currentBinding = createDeferred<void>()
+    bindPromptMock.mockReturnValueOnce(previousBinding.promise).mockReturnValueOnce(currentBinding.promise)
+    const { rerender } = render(<PromptBindingTab enabled target={{ type: 'assistant', id: 'assistant-old' }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled())
+
+    rerender(<PromptBindingTab enabled target={{ type: 'assistant', id: 'assistant-new' }} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled())
+
+    await act(async () => {
+      previousBinding.resolve(undefined)
+      await previousBinding.promise
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled()
+
+    await act(async () => {
+      currentBinding.resolve(undefined)
+      await currentBinding.promise
+    })
+  })
+
+  it('creates a selected prompt and binds it to the assistant being edited', async () => {
+    const user = userEvent.setup()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Prompts')
+    await user.click(screen.getByRole('button', { name: 'Add prompt' }))
+    const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
+    await user.type(within(createDialog).getByLabelText('Title'), 'Created prompt')
+    await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Created prompt content')
+    await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() =>
+      expect(createPromptMock).toHaveBeenCalledWith({
+        body: {
+          title: 'Created prompt',
+          content: 'Created prompt content',
+          visibility: 'restricted',
+          bindingTarget: { type: 'assistant', id: ASSISTANT.id }
+        }
+      })
+    )
+  })
+
+  it('creates a global prompt without binding it to the assistant being edited', async () => {
+    const user = userEvent.setup()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Prompts')
+    await user.click(screen.getByRole('button', { name: 'Add prompt' }))
+    const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
+    await user.type(within(createDialog).getByLabelText('Title'), 'Global prompt')
+    await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Global prompt content')
+    await user.click(within(createDialog).getByRole('switch', { name: 'Use globally' }))
+    await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() =>
+      expect(createPromptMock).toHaveBeenCalledWith({
+        body: {
+          title: 'Global prompt',
+          content: 'Global prompt content',
+          visibility: 'global'
+        }
+      })
+    )
+  })
+
+  it('disables prompt visibility while a create request is pending', async () => {
+    const user = userEvent.setup()
+    const pendingCreate = createDeferred<void>()
+    createPromptMock.mockReturnValueOnce(pendingCreate.promise)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Prompts')
+    await user.click(screen.getByRole('button', { name: 'Add prompt' }))
+    const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
+    await user.type(within(createDialog).getByLabelText('Title'), 'Pending prompt')
+    await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Pending prompt content')
+    await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() => {
+      expect(within(createDialog).getByRole('switch', { name: 'Use globally' })).toBeDisabled()
+    })
+
+    await act(async () => {
+      pendingCreate.resolve(undefined)
+      await pendingCreate.promise
+    })
+  })
+
   it('submits assistant name, description, and model changes as a PATCH', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -802,9 +1051,11 @@ describe('edit dialogs', () => {
       />
     )
 
-    selectTab('Prompt')
+    selectTab('System Prompt')
     expect(screen.getByRole('button', { name: 'System variables' })).toBeInTheDocument()
-    expect(within(screen.getByRole('tabpanel', { name: 'Prompt' })).getByText('Prompt')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('tabpanel', { name: 'System Prompt' })).getByText('System Prompt')
+    ).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
     expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this assistant how to respond')
     expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
@@ -819,7 +1070,7 @@ describe('edit dialogs', () => {
     expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getAllByRole('button', { name: 'Pick model' })[0])
-    selectTab('Prompt')
+    selectTab('System Prompt')
     await waitFor(() =>
       expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Updated instructions Updated Model')
     )
@@ -927,7 +1178,7 @@ describe('edit dialogs', () => {
     fetchGenerateMock.mockResolvedValue('Polished agent instructions')
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
-    selectTab('Prompt')
+    selectTab('System Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
@@ -948,7 +1199,7 @@ describe('edit dialogs', () => {
     fetchGenerateMock.mockResolvedValue('Generated agent instructions')
     render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} />)
 
-    selectTab('Prompt')
+    selectTab('System Prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
     const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
     expect(generateButton).toBeEnabled()
@@ -972,7 +1223,7 @@ describe('edit dialogs', () => {
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
-    selectTab('Prompt')
+    selectTab('System Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     selectTab('Basic')
@@ -1002,6 +1253,9 @@ describe('edit dialogs', () => {
           },
           isLoading: false
         }
+      }
+      if (path === '/prompts' || path.startsWith('/prompt-bindings/')) {
+        return { data: [], isLoading: false, refetch: vi.fn() }
       }
       return { data: { items: [] }, isLoading: false }
     })
@@ -1187,7 +1441,7 @@ describe('edit dialogs', () => {
     fetchGenerateMock.mockResolvedValueOnce('Polished assistant prompt')
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    selectTab('Prompt')
+    selectTab('System Prompt')
     await expectVariablesHelpOnOpen()
     const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
@@ -1211,7 +1465,7 @@ describe('edit dialogs', () => {
   it('generates an assistant prompt from its name when the prompt is blank', async () => {
     render(<AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} />)
 
-    selectTab('Prompt')
+    selectTab('System Prompt')
     const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
     fireEvent.click(generateButton)
 
@@ -1232,7 +1486,7 @@ describe('edit dialogs', () => {
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
-    selectTab('Prompt')
+    selectTab('System Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     selectTab('Basic')
@@ -1614,7 +1868,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft Agent' } })
-    selectTab('Prompt')
+    selectTab('System Prompt')
     selectTab('Basic')
 
     expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')

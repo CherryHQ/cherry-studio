@@ -14,6 +14,7 @@ import {
   dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
+  isPathWithin,
   mergeBinaryExecutionEnv
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
@@ -41,6 +42,9 @@ import type {
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
+
+import { sanitizedCommandError } from './commandError'
+import { provideManagedPython } from './pythonRuntime'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -85,6 +89,17 @@ const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: '
 // killing it mid-download surfaces as a bogus "install failed".
 const MISE_COMMAND_TIMEOUT_MS = 120_000
 const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
+
+// Tried in order for China users who have not chosen an index themselves. A
+// mirror that has not synced a freshly published release fails the install
+// outright, and mirror lag is neither rare nor short: Tsinghua's PyPI sync has
+// stalled for over a day at a time, and the university mirrors that pull from
+// it stall with it. Tencent syncs independently, and pypi.org is the backstop.
+const CHINA_PIP_INDEXES = [
+  'https://pypi.tuna.tsinghua.edu.cn/simple',
+  'https://mirrors.cloud.tencent.com/pypi/simple'
+] as const
+const OFFICIAL_PIP_INDEX = 'https://pypi.org/simple'
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
@@ -142,6 +157,19 @@ function toPipxRegistryUrl(indexUrl: string): string {
   return `${indexUrl.replace(/\/+$/, '')}/{}/`
 }
 
+// Naming an index only means something if every layer moves with it: mise
+// resolves the version through MISE_PIPX_REGISTRY_URL and hands the download to
+// uv, which it only tells about an *extra* index (UV_INDEX) — so UV_DEFAULT_INDEX
+// is what actually displaces pypi.org, and PIP_INDEX_URL covers a pipx fallback.
+function pipIndexEnv(index: string): Record<string, string> {
+  return {
+    PIP_INDEX_URL: index,
+    MISE_PIPX_REGISTRY_URL: toPipxRegistryUrl(index),
+    UV_DEFAULT_INDEX: index,
+    UV_INDEX_URL: index
+  }
+}
+
 /** Comparable base name for a shim or bin file — Windows carries an extension and ignores case. */
 function toShimStem(file: string): string {
   return isWin ? path.basename(file, path.extname(file)).toLowerCase() : file
@@ -153,13 +181,6 @@ function isExecutableShim(shimPath: string): Promise<boolean> {
     () => true,
     () => false
   )
-}
-
-function isPathWithin(root: string, candidate: string): boolean {
-  const normalizedRoot = isWin ? path.resolve(root).toLowerCase() : path.resolve(root)
-  const normalizedCandidate = isWin ? path.resolve(candidate).toLowerCase() : path.resolve(candidate)
-  const relative = path.relative(normalizedRoot, normalizedCandidate)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 // Single source of truth for tools shipped inside the app and extracted at
@@ -199,6 +220,14 @@ export type ManagedCliInventoryEntry = {
 type FixedToolDefinition = { name: string; tool: string }
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
+// One build's env and the facts derived from it, so no caller can pair them
+// with another build's — see the `isolatedEnv` field comment.
+type IsolatedEnvSnapshot = {
+  env: Record<string, string>
+  // Only Cherry's own China default may be retried against other indexes.
+  usesDefaultChinaPipIndex: boolean
+}
+
 // Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
 // executable and every Code CLI executable mapped to its canonical mise recipe.
 // Derived from the two preset sources so their names and recipes stay the single
@@ -231,8 +260,10 @@ export class BinaryManager extends BaseService {
   // Background-phase critical path that gates allReady(), for a value most
   // launches never use. `isolatedEnvPromise` memoizes the in-flight build so
   // concurrent first callers share a single build and a single region lookup.
-  private isolatedEnv: Record<string, string> | null = null
-  private isolatedEnvPromise: Promise<Record<string, string>> | null = null
+  // Cached as one snapshot because a preference change discards the build in
+  // flight without cancelling it — a superseded build must not outlive its env.
+  private isolatedEnv: IsolatedEnvSnapshot | null = null
+  private isolatedEnvPromise: Promise<IsolatedEnvSnapshot> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
   // Serializes custom-registry read-modify-write with filesystem mutations so
@@ -796,7 +827,7 @@ export class BinaryManager extends BaseService {
   // private registry auth tokens are not passed through.
   // NPM_CONFIG_REGISTRY and PIP_INDEX_URL are passed through and overridden
   // with mirror URLs for China users so that npm/pipx backends work reliably.
-  private async buildIsolatedEnv(): Promise<Record<string, string>> {
+  private async buildIsolatedEnv(): Promise<IsolatedEnvSnapshot> {
     const env: Record<string, string> = {}
 
     for (const key of MISE_PASSTHROUGH_ENV) {
@@ -812,12 +843,10 @@ export class BinaryManager extends BaseService {
     const pipIndexUrl =
       parseInstallUrl(installSettings.pipIndexUrl, 'pip index') ?? parseAmbientUrl(env['PIP_INDEX_URL'], 'pip index')
     if (npmRegistry) env['NPM_CONFIG_REGISTRY'] = npmRegistry
-    if (pipIndexUrl) {
-      env['PIP_INDEX_URL'] = pipIndexUrl
-      // mise's pipx backend derives UV_INDEX/PIP_INDEX_URL from this setting,
-      // overriding ambient values before invoking uvx/pipx.
-      env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(pipIndexUrl)
-    }
+    // A chosen index has to become uv's *default*, not just an extra one it may
+    // consult: leaving pypi.org in place lets uv quietly source a version or a
+    // transitive dependency the chosen index does not carry.
+    if (pipIndexUrl) Object.assign(env, pipIndexEnv(pipIndexUrl))
 
     // Opt-in GitHub token: users who hit the 60 req/hr unauthenticated API
     // limit (shared NATs, CI, Codespaces) can set CHERRY_GITHUB_TOKEN to
@@ -849,14 +878,15 @@ export class BinaryManager extends BaseService {
     }
 
     const inChina = await regionService.isInChina().catch(() => false)
+    let usesDefaultChinaPipIndex = false
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
         env['NPM_CONFIG_REGISTRY'] = 'https://registry.npmmirror.com'
       }
       if (!env['PIP_INDEX_URL']) {
-        const chinaPipIndex = 'https://pypi.tuna.tsinghua.edu.cn/simple'
-        env['PIP_INDEX_URL'] = chinaPipIndex
-        env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(chinaPipIndex)
+        env['PIP_INDEX_URL'] = CHINA_PIP_INDEXES[0]
+        env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(CHINA_PIP_INDEXES[0])
+        usesDefaultChinaPipIndex = true
       }
     }
 
@@ -884,7 +914,7 @@ export class BinaryManager extends BaseService {
       fs.mkdirSync(merged[key], { recursive: true })
     }
 
-    return merged
+    return { env: merged, usesDefaultChinaPipIndex }
   }
 
   /**
@@ -896,15 +926,15 @@ export class BinaryManager extends BaseService {
    * failed build is not cached, so a later call can retry once a transient cause
    * (e.g. mkdir failure) clears.
    */
-  private getIsolatedEnv(): Promise<Record<string, string>> {
+  private getIsolatedEnv(): Promise<IsolatedEnvSnapshot> {
     if (this.isolatedEnv) {
       return Promise.resolve(this.isolatedEnv)
     }
     if (!this.isolatedEnvPromise) {
       const building = this.buildIsolatedEnv().then(
-        (env) => {
-          if (this.isolatedEnvPromise === building) this.isolatedEnv = env
-          return env
+        (snapshot) => {
+          if (this.isolatedEnvPromise === building) this.isolatedEnv = snapshot
+          return snapshot
         },
         (err) => {
           if (this.isolatedEnvPromise === building) this.isolatedEnvPromise = null
@@ -918,7 +948,16 @@ export class BinaryManager extends BaseService {
 
   private async runMise(
     args: string[],
-    opts?: { timeoutMs?: number; includePrerelease?: boolean; shellOutNpm?: boolean; prependPath?: string }
+    opts?: {
+      timeoutMs?: number
+      includePrerelease?: boolean
+      shellOutNpm?: boolean
+      prependPath?: string
+      env?: Record<string, string>
+      // Pins the run to an already-resolved snapshot so a sequence of related
+      // runs cannot straddle a rebuild triggered halfway through.
+      snapshot?: IsolatedEnvSnapshot
+    }
   ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
@@ -928,9 +967,9 @@ export class BinaryManager extends BaseService {
       // isolation. getIsolatedEnv() always resolves a fully-built isolated env.
       throw new Error('mise binary not available')
     }
-    const isolatedEnv = await this.getIsolatedEnv()
+    const isolatedEnv = (opts?.snapshot ?? (await this.getIsolatedEnv())).env
     let env = isolatedEnv
-    if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath) {
+    if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath || opts?.env) {
       env = { ...isolatedEnv }
       if (opts.includePrerelease) env['MISE_PRERELEASES'] = '1'
       if (opts.shellOutNpm) {
@@ -949,6 +988,7 @@ export class BinaryManager extends BaseService {
         env[pathKey] = pathValue
         if (!isWin) env.PATH = pathValue
       }
+      if (opts.env) Object.assign(env, opts.env)
     }
     const timeoutMs = opts?.timeoutMs ?? MISE_COMMAND_TIMEOUT_MS
     const startedAt = Date.now()
@@ -1136,6 +1176,61 @@ export class BinaryManager extends BaseService {
     return runtimeBin
   }
 
+  private async installPipxTool(args: string[], pythonPath: string, includePrerelease: boolean): Promise<void> {
+    // mise's pipx backend shells out to uv, which honours UV_PYTHON — so mise
+    // never needs a Python of its own, and none is passed to `mise use`.
+    const pythonEnv = {
+      UV_PYTHON: pythonPath,
+      UV_PYTHON_DOWNLOADS: 'never',
+      UV_HTTP_TIMEOUT: '30',
+      UV_HTTP_RETRIES: '2'
+    }
+    // Every attempt runs against the snapshot the decision came from: an index
+    // the user chose is used as-is, since retrying elsewhere would silently pull
+    // packages from somewhere they did not ask for.
+    const snapshot = await this.getIsolatedEnv()
+    const opts = { timeoutMs: MISE_INSTALL_TIMEOUT_MS, includePrerelease, snapshot }
+    if (!snapshot.usesDefaultChinaPipIndex) {
+      await this.runMise(args, { ...opts, env: pythonEnv })
+      return
+    }
+
+    const failures: string[] = []
+    for (const index of [...CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX]) {
+      try {
+        await this.runMise(args, { ...opts, env: { ...pythonEnv, ...pipIndexEnv(index) } })
+        return
+      } catch (error) {
+        failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
+      }
+    }
+    throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
+  }
+
+  /**
+   * Drop the global Python selection older Cherry versions wrote for the pipx
+   * backend. Cherry provisions the interpreter itself now, so its own leftover
+   * entry leaves mise reporting a runtime it no longer owns as active. A
+   * selection the user made by adding Python as a custom tool stays theirs.
+   *
+   * `--no-prune` is what keeps this to the config file: `mise unuse` uninstalls
+   * the version too by default, and the tools an earlier version installed hold
+   * a `pyvenv.cfg` pointing straight into that install directory.
+   */
+  private async releaseMisePythonSelection(): Promise<void> {
+    const runtimeName = RUNTIME_DEPS.pipx.split('@')[0]
+    const userOwned = this.getCustomDefinitions().some(
+      (entry) => normalizeToolIdentity(entry.tool).split('@')[0] === runtimeName
+    )
+    if (userOwned) return
+    try {
+      await this.runMise(['unuse', '-g', '--no-prune', runtimeName])
+    } catch (error) {
+      // The tool itself installed; a leftover selection is not worth failing over.
+      logger.warn('Failed to drop the legacy mise Python selection', { error: this.errorMessage(error) })
+    }
+  }
+
   private async installWithMise(
     definition: CustomToolDefinition,
     targetVersion: string | undefined,
@@ -1165,13 +1260,31 @@ export class BinaryManager extends BaseService {
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
     const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
+    // Cherry provisions Python itself, so the pipx runtime stays out of `mise
+    // use` — naming it there is what makes mise fetch its own Python.
+    const pythonPath =
+      backend === 'pipx' && runtime
+        ? await provideManagedPython(runtime.slice(runtime.lastIndexOf('@') + 1), (await this.getIsolatedEnv()).env)
+        : undefined
+    const useArgs = [
+      'use',
+      '-g',
+      ...releaseAgeArgs,
+      ...(!shellOutNpm && runtime && !pythonPath ? [runtime] : []),
+      toolSpec
+    ]
 
-    await this.runMise(['use', '-g', ...releaseAgeArgs, ...(!shellOutNpm && runtime ? [runtime] : []), toolSpec], {
-      timeoutMs: MISE_INSTALL_TIMEOUT_MS,
-      includePrerelease,
-      shellOutNpm,
-      prependPath: runtimeBin
-    })
+    if (pythonPath) {
+      await this.installPipxTool(useArgs, pythonPath, includePrerelease)
+      await this.releaseMisePythonSelection()
+    } else {
+      await this.runMise(useArgs, {
+        timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+        includePrerelease,
+        shellOutNpm,
+        prependPath: runtimeBin
+      })
+    }
     await this.runMise(['reshim'])
     return this.getInstalledVersion(definition.tool, requested)
   }
@@ -2134,6 +2247,6 @@ export class BinaryManager extends BaseService {
   }
 
   private errorMessage(err: unknown): string {
-    return err instanceof Error ? err.message : String(err)
+    return sanitizedCommandError(err)
   }
 }
