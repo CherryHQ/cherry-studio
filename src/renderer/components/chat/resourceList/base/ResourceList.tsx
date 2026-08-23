@@ -484,6 +484,7 @@ function RenameField<T extends ResourceListItemBase>({
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
   const didCommitRef = useRef(false)
+  const isComposingRef = useRef(false)
   const setInputRef = useCallback(
     (node: HTMLInputElement | null) => {
       if (typeof ref === 'function') {
@@ -498,6 +499,7 @@ function RenameField<T extends ResourceListItemBase>({
   useEffect(() => {
     if (!rowState.renaming) {
       didCommitRef.current = false
+      isComposingRef.current = false
     }
   }, [rowState.renaming])
 
@@ -523,7 +525,16 @@ function RenameField<T extends ResourceListItemBase>({
         'font-medium',
         className
       )}
-      onBlur={(event) => commitRename(event.currentTarget.value)}
+      onCompositionStart={() => {
+        isComposingRef.current = true
+      }}
+      onCompositionEnd={() => {
+        isComposingRef.current = false
+      }}
+      onBlur={(event) => {
+        if (isComposingRef.current || (event.nativeEvent as unknown as InputEvent).isComposing) return
+        commitRename(event.currentTarget.value)
+      }}
       onPointerDown={(event) => {
         onPointerDown?.(event)
         event.stopPropagation()
@@ -532,7 +543,7 @@ function RenameField<T extends ResourceListItemBase>({
         // IME candidate confirmation still emits keydown; committing there would save the raw pinyin
         // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
         // oxlint-disable-next-line no-deprecated
-        if (event.nativeEvent.isComposing || event.keyCode === 229) return
+        if (isComposingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return
         if (event.key === 'Enter') {
           event.preventDefault()
           event.stopPropagation()
