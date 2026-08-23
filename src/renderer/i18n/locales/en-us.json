@@ -7023,6 +7023,7 @@
           "fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
           "firecrawl": "Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "Jina Reader search and read APIs for retrieving clean web content.",
+          "openai_codex": "Web search through your ChatGPT subscription (Plus/Pro) via the OpenAI Codex endpoint. No API key needed — sign in to OpenAI Codex first.",
           "querit": "Querit search and contents APIs for AI apps, retrieving web results and page content.",
           "searxng": "Self-hostable free internet metasearch engine across many sources.",
           "tavily": "Search engine optimized for LLMs.",

@@ -39,6 +39,7 @@ import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { JinaProvider } from '../api/JinaProvider'
+import { OpenAICodexProvider } from '../api/OpenAICodexProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
@@ -74,6 +75,7 @@ describe('createWebSearchProvider', () => {
       'fetch',
       'firecrawl',
       'jina',
+      'openai-codex',
       'querit',
       'searxng',
       'tavily',
@@ -108,5 +110,8 @@ describe('createWebSearchProvider', () => {
         rotationState
       )
     ).toBeInstanceOf(JinaProvider)
+    expect(
+      createWebSearchProvider(createProvider({ id: 'openai-codex', type: 'oauth' }), rotationState)
+    ).toBeInstanceOf(OpenAICodexProvider)
   })
 })
