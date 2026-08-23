@@ -100,4 +100,54 @@ describe('grep MCP ripgrep integration', () => {
     expect(result.content[0].text).toContain('1: needle')
     expect(result.content[0].text).not.toContain('99: stale')
   })
+  it('attributes matches to colon-bearing paths and decodes plain `lines.text` payloads', async () => {
+    const workspaceRoot = await createTempDir('grep-colon-root-')
+    // Stands in for a Windows drive-letter path, which colon-splitting the old text
+    // output truncated to `C`. POSIX allows the colon, so this runs on every CI OS.
+    const matchedFile = path.join(workspaceRoot, 'C:notes.txt')
+    await fs.writeFile(matchedFile, 'needle here')
+
+    vi.spyOn(types, 'runRipgrep').mockResolvedValue({
+      ok: true,
+      stdout: JSON.stringify({
+        type: 'match',
+        data: { path: { text: matchedFile }, lines: { text: 'needle here\n' }, line_number: 7 }
+      }),
+      exitCode: 0
+    })
+
+    const result = await handleGrepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
+
+    expect(result.content[0].text).toContain(`${matchedFile}:`)
+    expect(result.content[0].text).toContain('7: needle here')
+  })
+
+  it('skips a binary file that ripgrep searched because it was named explicitly', async () => {
+    const workspaceRoot = await createTempDir('grep-binary-root-')
+    const binaryFile = path.join(workspaceRoot, 'blob.bin')
+    // A run of pure NULs reads as UTF-16 text to isBinaryFile; real binaries carry
+    // mixed low bytes, so use those to land on the NUL-density branch.
+    const binaryTail = Buffer.alloc(512)
+    binaryTail.forEach((_, index) => (binaryTail[index] = index % 8))
+    await fs.writeFile(binaryFile, Buffer.concat([Buffer.from('needle in the head\n'), binaryTail]))
+
+    vi.spyOn(types, 'runRipgrep').mockResolvedValue({
+      ok: true,
+      stdout: [
+        JSON.stringify({ type: 'begin', data: { path: { text: binaryFile } } }),
+        JSON.stringify({
+          type: 'match',
+          data: { path: { text: binaryFile }, lines: { text: 'needle in the head\n' }, line_number: 1 }
+        }),
+        // ripgrep reports the match, then flags the file as binary once it reaches the NULs.
+        JSON.stringify({ type: 'end', data: { path: { text: binaryFile }, binary_offset: 19 } })
+      ].join('\n'),
+      exitCode: 0
+    })
+
+    const result = await handleGrepTool({ pattern: 'needle', path: binaryFile }, workspaceRoot)
+
+    expect(result.content[0].text).not.toContain('needle in the head')
+    expect(result.content[0].text).toBe('No matches found')
+  })
 })

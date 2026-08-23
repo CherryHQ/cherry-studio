@@ -231,6 +231,7 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
   }
 
   // Perform the search
+  const binaryFileCache = new Map<string, boolean>()
   let usedRipgrep = false
   try {
     const rgResult = await runRipgrep(rgArgs)
@@ -261,6 +262,17 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
             await validatePath(absoluteFilePath, baseDir)
           } catch {
             logger.debug('Skipping grep match outside workspace root', { file: absoluteFilePath })
+            continue
+          }
+
+          // ripgrep only auto-skips binary files it reaches by traversal; one named
+          // explicitly on the command line is searched up to its first NUL byte.
+          let binary = binaryFileCache.get(absoluteFilePath)
+          if (binary === undefined) {
+            binary = await isBinaryFile(absoluteFilePath)
+            binaryFileCache.set(absoluteFilePath, binary)
+          }
+          if (binary) {
             continue
           }
 
