@@ -65,7 +65,10 @@ export function toCreateModelDto(
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Dropping this would strand the provider-reported rate in the picker: the row persists without it,
     // and every request against the model then records an unpriced (or vendor-list-priced) usage row.
-    ...(model.pricing ? { pricing: model.pricing } : {})
+    ...(model.pricing ? { pricing: model.pricing } : {}),
+    // Discovered rather than registry-supplied for local providers — Ollama's window comes from
+    // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
   }
 }
 

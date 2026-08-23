@@ -30,6 +30,12 @@ interface ModelPricingFieldsProps {
   onCommit: (pricing: NonNullable<Model['pricing']>) => void
 }
 
+/** Keeps digits and at most one decimal point, so the field never holds a non-numeric draft. */
+function sanitizePriceInput(value: string): string {
+  const [integerPart, ...fractionParts] = value.replace(/[^\d.]/g, '').split('.')
+  return fractionParts.length > 0 ? `${integerPart}.${fractionParts.join('')}` : integerPart
+}
+
 interface TierPriceFieldProps {
   tierIndex: number
   field: Exclude<ModelPricingDraftField, 'minInputTokens'>
@@ -72,16 +78,16 @@ function TierPriceField({
       }>
       <div className={drawerClasses.responsiveValueRow}>
         <Input
-          type="number"
-          min="0"
-          step="any"
+          type="text"
+          inputMode="decimal"
+          required={!optional}
           aria-label={ariaLabel}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
           value={value}
           placeholder={optional ? t('models.price.use_input_price') : t('models.price.unpriced')}
           className={drawerClasses.input}
-          onChange={(event) => onChange(field, event.target.value)}
+          onChange={(event) => onChange(field, sanitizePriceInput(event.target.value))}
           onBlur={onBlur}
         />
         <span className={drawerClasses.valueSuffix}>
@@ -166,9 +172,8 @@ function ModelPricingTierFields({
             </div>
           }>
           <Input
-            type="number"
-            min="1"
-            step="1"
+            type="text"
+            inputMode="numeric"
             required
             aria-label={minInputTokensAriaLabel}
             aria-invalid={Boolean(errors.minInputTokens)}
@@ -176,7 +181,7 @@ function ModelPricingTierFields({
             value={tier.minInputTokens}
             placeholder="0"
             className={drawerClasses.input}
-            onChange={(event) => onChange(tierIndex, 'minInputTokens', event.target.value)}
+            onChange={(event) => onChange(tierIndex, 'minInputTokens', event.target.value.replace(/[^\d]/g, ''))}
             onBlur={onBlur}
           />
         </ProviderField>

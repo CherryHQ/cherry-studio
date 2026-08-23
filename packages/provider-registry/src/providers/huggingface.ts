@@ -6,7 +6,7 @@ export default defineProvider({
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
     'openai-responses': {
-      adapterFamily: 'huggingface',
+      adapterFamily: 'open-responses',
       baseUrl: 'https://router.huggingface.co/v1/'
     }
   },

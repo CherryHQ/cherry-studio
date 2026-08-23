@@ -189,6 +189,16 @@ export class MainWindowService extends BaseService {
     this.mainWindow?.reload()
   }
 
+  /** Start the native close flow when `windowId` identifies the current main window. */
+  public requestClose(windowId: string): boolean {
+    const mainWindow = this.mainWindow
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (application.get('WindowManager').getWindowId(mainWindow) !== windowId) return false
+
+    mainWindow.close()
+    return true
+  }
+
   /**
    * Open the main window via WindowManager.
    * Singleton lifecycle: reuses an existing main window if present (show + focus),

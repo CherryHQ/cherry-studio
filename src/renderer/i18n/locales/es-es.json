@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Cerrar vista previa",
       "code": "Código",
+      "copy_path": "Copiar ruta",
+      "copy_relative_path": "Copiar ruta relativa",
       "default_app": "Aplicación predeterminada",
       "edit": {
         "conflict": {
@@ -388,6 +390,15 @@
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Aceptado",
+        "consumed": "Procesado",
+        "delivering": "Entregando",
+        "failed": "Fallido"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Modo de permisos"
@@ -414,8 +425,7 @@
           "bypassPermissions": {
             "description": "Omite las comprobaciones de permisos. Puede eliminar archivos y usar la red.",
             "title": "Acceso completo",
-            "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación.",
-            "warning_pi": "Peligroso: nunca se pide permiso, salvo para herramientas deshabilitadas, incluidas la eliminación de archivos y el acceso a la red."
+            "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación."
           },
           "default": {
             "description": "Pregunta antes de editar archivos o ejecutar comandos.",
@@ -443,7 +453,20 @@
       "fast": "Rápido",
       "faster": "Más rápido",
       "label": "Velocidad",
+      "service_tier": {
+        "auto": "Automático",
+        "fast": "Rápido",
+        "flex": "Flexible",
+        "label": "Nivel de servicio",
+        "standard": "Estándar"
+      },
       "smarter": "Más inteligente",
+      "summary": {
+        "auto": "Automático",
+        "concise": "Conciso",
+        "detailed": "Detallado",
+        "label": "Resumen del razonamiento"
+      },
       "title": "Configuración de respuesta"
     },
     "tasks": {
@@ -726,6 +749,22 @@
           "description": "Gestionar la lista de tareas",
           "label": "Gestionar la lista de tareas"
         },
+        "tool_call": {
+          "description": "Llamar a una herramienta detectada",
+          "label": "Llamar a una herramienta"
+        },
+        "tool_describe": {
+          "description": "Obtener la descripción completa y la firma de TypeScript de una herramienta",
+          "label": "Describir una herramienta"
+        },
+        "tool_exec": {
+          "description": "Ejecutar JavaScript para coordinar las herramientas detectadas",
+          "label": "Ejecutar código de herramientas"
+        },
+        "tool_search": {
+          "description": "Buscar herramientas disponibles y leer sus firmas de TypeScript",
+          "label": "Buscar herramientas"
+        },
         "update_goal": {
           "description": "Actualizar el estado o el contenido del objetivo de la sesión",
           "label": "Actualizar objetivo"
@@ -784,6 +823,7 @@
       "restartSuccess": "Servidor API reiniciado exitosamente",
       "startError": "Error al iniciar el Servidor API: ",
       "startSuccess": "Servidor API iniciado exitosamente",
+      "stopDeferred": "El Servidor API se detendrá cuando termine la traducción actual",
       "stopError": "Error al detener el Servidor API: ",
       "stopSuccess": "Servidor API detenido exitosamente"
     },
@@ -991,6 +1031,22 @@
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas",
       "locate_editing_message": "Localizar mensaje original",
+      "mcp_prompts": {
+        "description": "Inserta un prompt publicado por un servidor MCP",
+        "empty": "No hay prompts MCP disponibles",
+        "fill_arguments": "Completar argumentos del prompt",
+        "fill_arguments_description": "Proporcione los valores de este prompt antes de insertarlo",
+        "insert": "Insertar",
+        "insert_failed": "Error al insertar el prompt",
+        "title": "Prompts MCP"
+      },
+      "mcp_resources": {
+        "description": "Referencia un recurso publicado por un servidor MCP",
+        "empty": "No hay recursos MCP disponibles",
+        "read_failed": "Error al leer el recurso",
+        "reader_unavailable": "El modelo actual no puede volver a leer este recurso después de adjuntarlo",
+        "title": "Recursos MCP"
+      },
       "new": {
         "context": "Borrar contexto"
       },
@@ -1870,6 +1926,7 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
+    "image_unreadable_for_non_vision_model": "El modelo seleccionado no está configurado para aceptar imágenes y Cherry Studio no pudo extraer texto legible del archivo adjunto. Active Imagen para este modelo en la configuración del proveedor, elija otro modelo con capacidad visual o quite la imagen e inténtelo de nuevo.",
     "lastError": "Último error",
     "maxEmbeddingsPerCall": "máximo de embeddings por llamada",
     "message": "Mensaje de error",
@@ -2961,7 +3018,7 @@
       "empty_title": "Buscar habilidades",
       "github_empty_description": "Pega un enlace al archivo SKILL.md de una habilidad, por ejemplo github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Instalar desde GitHub",
-      "github_url_invalid": "Pega un enlace de GitHub que termine con SKILL.md",
+      "github_url_invalid": "Pega un enlace de GitHub compatible que apunte directamente a un archivo SKILL.md",
       "github_url_label": "URL del SKILL.md en GitHub",
       "github_url_placeholder": "Enlace de GitHub que termina en /SKILL.md",
       "no_results_description": "Prueba otra palabra clave o importa un archivo ZIP local o una carpeta.",
@@ -3359,6 +3416,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Se inició una nueva sesión",
+        "creating": "Iniciando una nueva sesión",
+        "firstMessage": "Primer mensaje",
+        "inheritedContext": "Usando este agente y espacio de trabajo",
+        "open": "Abrir sesión",
+        "sessionId": "ID de sesión",
+        "untitled": "Sesión sin título"
+      },
+      "sessionSend": {
+        "open": "Abrir sesión",
+        "sending": "Enviando a",
+        "sent": "Enviado a",
+        "to": "A"
+      },
       "status": {
         "done": "Hecho",
         "error": "Error",
@@ -3435,6 +3507,12 @@
       "hide": {
         "title": "Ocultar"
       }
+    },
+    "split": {
+      "already_open": "Ya se muestra en el otro panel",
+      "choose": "Elige una miniaplicación para mostrar al lado",
+      "close": "Cerrar vista dividida",
+      "open": "Vista dividida"
     },
     "title": "Mini programa",
     "unpin_failed": "Error al desanclar la miniaplicación",
@@ -3548,6 +3626,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Ir a la configuración de modelos",
     "provider_settings": "Ir a la configuración del proveedor"
   },
   "notes": {
@@ -3693,7 +3772,7 @@
   },
   "notification": {
     "assistant": "Respuesta del asistente",
-    "tip": "Si la respuesta es exitosa, solo se enviará un recordatorio para mensajes que excedan los 30 segundos"
+    "tip": "Solo controla las notificaciones del sistema en segundo plano. Las notificaciones dentro de la aplicación siempre están activadas."
   },
   "ocr": {
     "processing": "Procesando OCR..."
@@ -4467,6 +4546,10 @@
         "custom": "Función personalizada",
         "delete_confirm": "¿Está seguro de que desea eliminar esta función personalizada?",
         "drag_hint": "Arrastre para ordenar, muévalo hacia arriba para habilitar la función ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Se usa en Explicar, Resumir, Mejorar y en las acciones personalizadas que utilizan el modelo predeterminado.",
+          "translate_description": "Se usa para generar traducciones. La detección automática del idioma también puede usar el modelo rápido."
+        },
         "reset": {
           "button": "Restablecer",
           "confirm": "¿Está seguro de que desea restablecer a las funciones predeterminadas? Las funciones personalizadas no se eliminarán.",
@@ -5543,6 +5626,7 @@
       },
       "title": "Dependencias del entorno",
       "tools": {
+        "babeldoc-stream": "Motor de traducción de PDF que conserva el diseño. Los recursos del modelo de diseño se descargan en la primera traducción.",
         "bun": "Entorno de ejecución de JavaScript que utilizan los servicios MCP y las cadenas de herramientas relacionadas.",
         "claude": "Herramienta de programación con agentes de Anthropic para el terminal.",
         "codex": "Agente de programación de código abierto de OpenAI que puede leer, editar y ejecutar código en tu repositorio local.",
@@ -5588,7 +5672,15 @@
         "global": "Fuente global",
         "select": "Seleccionar fuente",
         "title": "Configuración de fuente"
+      },
+      "list_position": {
+        "chat": "Posición de la lista de conversaciones",
+        "work": "Posición de la lista de tareas"
       }
+    },
+    "fetch": {
+      "allow_private_network": "Permitir el acceso a direcciones de red local",
+      "allow_private_network_tip": "Permite que las herramientas de obtención web accedan a localhost y a direcciones de red privada. Desactívalo si no quieres que los modelos lean servicios de tu equipo o de tu LAN."
     },
     "font_size": {
       "title": "Tamaño de fuente de mensajes"
@@ -5619,7 +5711,8 @@
         },
         "sections": {
           "display_language": "Pantalla e idioma"
-        }
+        },
+        "title": "Configuración común"
       },
       "emoji_picker": "Selector de emojis",
       "image_upload": "Carga de imágenes",
@@ -6043,40 +6136,48 @@
       "bulk_enable": "Habilitar todos",
       "check": {
         "all": "Todos",
-        "button_caption": "Verificación de salud",
-        "disabled": "Deshabilitado",
+        "all_models": "Todos los modelos",
+        "all_models_disclaimer": "Al comprobar todos los modelos, se envían muchas solicitudes reales a los modelos y las claves API seleccionados, lo que puede generar cargos elevados en poco tiempo. Confirma que aceptas el riesgo de costes antes de empezar. Se omiten los modelos de generación de imágenes, vídeo y audio, de conversión de voz a texto y de texto a voz.",
+        "button_caption": "Verificación de modelos",
+        "checking": "Comprobando…",
+        "concurrent_hint": "Los modelos se comprueban simultáneamente; las claves API de cada modelo se comprueban siempre de forma simultánea.",
         "disclaimer": "La verificación de estado requiere enviar solicitudes; úsala con precaución. Los modelos con pago por uso pueden generar costes; el usuario es responsable de ellos.",
         "enable_concurrent": "Verificación concurrente",
-        "enabled": "Habilitado",
         "failed": "Fallido",
         "failed_to_start": "Error al iniciar la verificación de estado",
         "generation_output_audio": "audio",
         "generation_output_image": "una imagen",
         "generation_output_video": "un vídeo",
+        "key_scope": "Claves",
+        "keys_failed_count": "Han fallado {{failed}} de {{total}} claves",
+        "latency": "{{latency}} ms",
+        "model": "Modelo",
         "model_button_caption": "Comprobar todos los modelos",
-        "model_status_failed": "{{count}} modelos no son accesibles en absoluto",
-        "model_status_partial": "De ellos, {{count}} modelos no son accesibles con ciertas claves",
-        "model_status_passed": "{{count}} modelos pasaron la verificación de salud",
+        "model_scope": "Modelos a comprobar",
+        "model_status_failed_one": "{{count}} modelos no son accesibles en absoluto",
+        "model_status_failed_other": "{{count}} modelos no son accesibles en absoluto",
+        "model_status_partial_one": "De ellos, {{count}} modelos no son accesibles con ciertas claves",
+        "model_status_partial_other": "De ellos, {{count}} modelos no son accesibles con ciertas claves",
+        "model_status_passed_one": "{{count}} modelos pasaron la verificación de salud",
+        "model_status_passed_other": "{{count}} modelos pasaron la verificación de salud",
+        "model_status_skipped_one": "{{count}} modelos omitidos",
+        "model_status_skipped_other": "{{count}} modelos omitidos",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "Sin resultados",
-        "outcome_fail_short": "{{count}} con error",
-        "outcome_skipped_short": "{{count}} omitido",
-        "outcome_success_short": "{{count}} correctos",
-        "outcome_total": "{{count}} en total",
         "passed": "Pasado",
-        "pipeline_heading": "Progreso de la detección",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "Comprobar de nuevo",
-        "select_api_key": "Seleccionar clave API a usar:",
+        "provider_auth": "Autenticación del proveedor",
+        "select_api_key": "Seleccionar clave API a usar",
         "single": "Individual",
+        "single_model": "Modelo individual",
         "skip_reason_generation_cost": "La verificación de salud de este modelo generaría {{output}} y consumiría cuota, por lo que se omite por defecto.",
         "skip_reason_unsupported_probe": "Este tipo de modelo aún no tiene una verificación de salud de bajo costo, por lo que se omite por defecto.",
         "start": "Iniciar",
         "status_checking": "Comprobando…",
         "status_skipped": "Omitido",
         "timeout": "Tiempo de espera agotado",
-        "title": "Verificación de salud del modelo",
-        "use_all_keys": "Usar todas las claves"
+        "timeout_unit": "s",
+        "title": "Verificación de modelos",
+        "toggle_key": "Cambiar el estado de activación de {{name}}"
       },
       "collapse_all": "Contraer todo",
       "context_management": {
@@ -6089,6 +6190,7 @@
         "max_messages": "Mensajes recientes conservados",
         "max_messages_description": "Envía solo los mensajes más recientes; los anteriores se excluyen del contexto. Déjalo vacío para no poner límite. Los asistentes pueden anularlo",
         "max_messages_unlimited": "Sin límite",
+        "scope_description": "Solo se aplica a las conversaciones con asistentes en Cherry Studio. Los asistentes pueden anular estos ajustes de forma individual.",
         "title": "Gestión del contexto",
         "truncate_threshold": "Umbral de truncado de salida de herramientas (caracteres)",
         "truncate_threshold_description": "Las salidas de herramientas que superen este número de caracteres se descargan a un archivo y se truncan; el modelo puede volver a leerlas cuando lo necesite. Los asistentes pueden anularlo"
@@ -6139,8 +6241,9 @@
       "provider_key_confirm_title": "Agregar clave API para {{provider}}",
       "provider_name": "Nombre del proveedor",
       "quick_assistant_default_tag": "Predeterminado",
-      "quick_assistant_model": "Modelo del asistente rápido",
+      "quick_assistant_response_settings": "Configuración de respuesta",
       "quick_assistant_selection": "Seleccionar asistente",
+      "quick_assistant_usage_method": "Método de uso",
       "quick_model": {
         "description": "El modelo rápido es utilizado para realizar tareas sencillas como nombrar temas, extraer palabras clave de búsqueda, etc.",
         "label": "Modelo rápido",
@@ -6174,7 +6277,7 @@
       "label": "Configuración adicional"
     },
     "notification": {
-      "assistant": "Mensaje del asistente",
+      "assistant": "Notificaciones de finalización de conversaciones",
       "backup": "Copia de seguridad",
       "knowledge_embed": "Base de conocimiento",
       "title": "Notificaciones",
@@ -6192,22 +6295,57 @@
     },
     "prompts": {
       "add": "Añadir Prompt",
+      "binding": {
+        "bind": "Vincular prompt",
+        "manageTargets": "Gestionar destinos de {{title}}",
+        "noLinked": "No hay prompts vinculados",
+        "noMore": "No hay más prompts disponibles",
+        "noTargets": "No hay destinos disponibles",
+        "remove": "Quitar el prompt {{title}}",
+        "search": "Buscar prompts",
+        "searchTargets": "Buscar asistentes o agentes",
+        "tabTitle": "Prompts",
+        "targetCount": "{{count}} destinos",
+        "targets": "Disponible para",
+        "unassigned": "Sin asignar"
+      },
       "contentLabel": "Contenido",
-      "contentPlaceholder": "Introduce el contenido del aviso. Admite ${variables}; presiona Tab para saltar entre variables. Ejemplo:\nAyúdame a planificar una ruta desde ${from} hasta ${to}, y envíala a ${email}.",
+      "contentPlaceholder": "Introduce el contenido del prompt",
       "delete": "Eliminar Prompt",
       "deleteConfirm": "El prompt se eliminará permanentemente. ¿Continuar?",
+      "deleteGlobalConfirm": "Esto lo elimina de todos los contextos y no se puede deshacer.",
+      "deleteRestrictedConfirm": "Esto lo elimina de todos los contextos vinculados y no se puede deshacer.",
+      "deleteSharedConfirm": "Esto lo elimina de {{count}} contextos vinculados y no se puede deshacer.",
       "edit": "Editar Prompt",
       "errors": {
+        "bindFailed": "No se pudo vincular el prompt",
         "createFailed": "Error al crear el aviso",
         "deleteFailed": "Error al eliminar el aviso",
+        "loadBindingsFailed": "No se pudieron cargar los destinos disponibles",
         "loadFailed": "Error al cargar los prompts",
+        "reorderFailed": "Error al reordenar los prompts",
+        "unbindFailed": "No se pudo desvincular el prompt",
         "updateFailed": "Error al actualizar el aviso"
       },
       "manage": "Gestionar Indicaciones",
+      "noPrompts": "No hay prompts",
+      "reorder": "Arrastra {{title}} para reordenarlo",
+      "searchPlaceholder": "Buscar en títulos o contenido de prompts",
       "title": "Gestión de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduce el título del prompt",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Global",
+          "label": "Usar globalmente"
+        },
+        "makeGlobalConfirmDescription": "Hacer global este prompt lo mantiene disponible en todas partes, pero elimina permanentemente sus {{count}} vínculos de contexto y su orden. ¿Continuar?",
+        "makeGlobalConfirmTitle": "¿Hacer global el prompt?",
+        "restricted": {
+          "badge": "Seleccionado"
+        }
+      }
     },
     "provider": {
       "add": {
@@ -6249,10 +6387,6 @@
             "token_threshold": "Umbral de Token de Caché",
             "token_threshold_help": "Los mensajes que superen este recuento de tokens se almacenarán en caché. Establecer en 0 para desactivar el almacenamiento en caché."
           },
-          "array_content": {
-            "help": "¿Admite el proveedor que el campo content del mensaje sea de tipo array?",
-            "label": "Contenido del mensaje compatible con formato de matriz"
-          },
           "developer_role": {
             "help": "¿Admite el proveedor mensajes con el rol: \"developer\"?",
             "label": "Mensajes para desarrolladores compatibles"
@@ -6262,17 +6396,13 @@
             "label": "Soporta enable_thinking"
           },
           "label": "Configuración de la API",
-          "service_tier": {
-            "help": "Si el proveedor admite la configuración del parámetro service_tier. Al activarlo, se podrá ajustar este parámetro en la configuración del nivel de servicio en la página de conversación. (Solo para modelos OpenAI)",
-            "label": "Compatible con service_tier"
+          "reasoning_summary": {
+            "help": "Envía reasoning.summary a este endpoint de Responses. Actívalo solo si el servidor acepta este parámetro de OpenAI.",
+            "label": "Admitir resumen del razonamiento"
           },
           "stream_options": {
             "help": "¿Admite el proveedor el parámetro stream_options?",
             "label": "Admite stream_options"
-          },
-          "verbosity": {
-            "help": "Si el proveedor admite el parámetro de verbosidad",
-            "label": "Soporte de verbosidad"
           }
         },
         "url": {
@@ -6993,9 +7123,8 @@
       "explore": {
         "analysis": "Análisis",
         "chart": "Gráfico",
-        "clearDate": "Limpiar filtro de fecha",
-        "drilldownTitle": "{{date}} desglose",
         "entries": "Solicitudes",
+        "granularity": "Granularidad",
         "groupBy": "Agrupar por",
         "loadMore": "Cargar más",
         "loading": "Cargando...",
@@ -7005,7 +7134,6 @@
         "noEntries": "Sin entradas",
         "noEntriesDescription": "Prueba una ventana más amplia o un proveedor diferente.",
         "rollup": "Acumulado",
-        "selectedDate": "Fecha seleccionada: {{date}}",
         "shareLabel": "Compartir",
         "title": "Explorar",
         "top": "Superior",
@@ -7019,7 +7147,6 @@
         "source": "Asistente / Agente"
       },
       "heatmap": {
-        "ariaDate": "Uso el {{date}}",
         "title": "Actividad diaria"
       },
       "metric": {
@@ -7201,10 +7328,10 @@
     "history": {
       "back": "Volver a la lista",
       "clear": "Borrar historial",
-      "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
+      "clear_description": "Vaciar el historial eliminará todo el historial de traducciones y recuperará los archivos traducidos generados. ¿Continuar?",
       "copy_target": "Copiar resultado",
       "delete": "Eliminar historial de traducción",
-      "delete_description": "¿Eliminar este registro del historial de traducciones? Esta acción no se puede deshacer.",
+      "delete_description": "¿Eliminar este registro del historial de traducciones? En una traducción de archivo también se recupera el archivo traducido. Esta acción no se puede deshacer.",
       "empty": "Sin historial de traducciones por el momento",
       "error": {
         "add": "Error al añadir el historial de traducción",
@@ -7212,6 +7339,17 @@
         "delete": "Eliminación fallida",
         "load": "No se pudo cargar el historial de traducciones",
         "save": "Error al guardar el historial de traducciones"
+      },
+      "file": {
+        "action_failed": "No se pudo completar esa acción sobre el archivo",
+        "badge": "Traducción de archivo",
+        "export": "Guardar el archivo traducido como…",
+        "open": "Abrir el archivo traducido",
+        "preview": "Vista en paralelo",
+        "reveal": "Mostrar en la carpeta",
+        "source": "Archivo de origen",
+        "target": "Archivo traducido",
+        "unavailable": "Los archivos de esta traducción ya no están disponibles"
       },
       "filter": {
         "starred": "Solo destacado"
@@ -7241,6 +7379,53 @@
     "language_settings": "Configuración de idioma",
     "output": {
       "placeholder": "Traducción"
+    },
+    "pdf": {
+      "action": {
+        "close": "Cerrar la traducción de PDF",
+        "export": "Exportar PDF traducido",
+        "install_babeldoc": "Instalar BabelDOC",
+        "update_babeldoc": "Actualizar BabelDOC"
+      },
+      "dependency": {
+        "checking": "Comprobando BabelDOC...",
+        "description": "Instala el complemento BabelDOC para traducir PDF conservando su diseño original.",
+        "installing": "Instalando BabelDOC...",
+        "outdated_description": "Actualiza BabelDOC para seguir traduciendo PDF conservando el diseño.",
+        "outdated_title": "Se requiere actualizar BabelDOC",
+        "title": "PDF detectado"
+      },
+      "error": {
+        "generic": "Se produjo un error durante la traducción. Inténtalo de nuevo.",
+        "ocr_required": "Los PDF escaneados aún no son compatibles.",
+        "persist_failed": "El PDF se tradujo, pero no se pudo guardar el resultado. Inténtalo de nuevo.",
+        "title": "Fallo en la traducción del PDF"
+      },
+      "export_failed": "No se pudo exportar el PDF traducido",
+      "pane": {
+        "translated": "PDF traducido",
+        "translated_text": "Traducción"
+      },
+      "progress": {
+        "analyzing": "Analizando el diseño del documento",
+        "checking_assets": "Comprobando los recursos de procesamiento de PDF",
+        "downloading_assets": "Descargando recursos de procesamiento de PDF...",
+        "extracting_terms": "Extrayendo la terminología del documento",
+        "loading_model": "Cargando el modelo de procesamiento de PDF",
+        "parsing": "Analizando el documento PDF",
+        "percent": "{{progress}}%",
+        "preparing": "Inicializando la traducción del PDF",
+        "preparing_hint": "La primera inicialización puede tardar unos 2 minutos; las siguientes suelen ser más rápidas",
+        "rendering": "Renderizando el PDF traducido",
+        "translating": "Traduciendo el contenido",
+        "typesetting": "Maquetando el PDF traducido",
+        "value": "{{stage}}, etapa {{stageProgress}}%, total {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "Selecciona un idioma de destino e inicia la traducción.",
+        "title": "Listo para traducir"
+      },
+      "success": "PDF traducido generado"
     },
     "preferred_target": "Objetivo Preferido",
     "processing": "Traduciendo...",

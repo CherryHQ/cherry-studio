@@ -32,7 +32,8 @@ import {
   Settings2,
   Terminal,
   TextCursorInput,
-  ToolCase
+  ToolCase,
+  Zap
 } from 'lucide-react'
 import type { CSSProperties, FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -115,6 +116,14 @@ const SettingsPage: FC = () => {
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Zap />}
+                label={t('settings.prompts.title')}
+                active={isActive('/settings/prompts')}
+                onClick={() => go('/settings/prompts')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Search />}
                 label={t('settings.tool.websearch.title')}
                 active={isActive('/settings/websearch')}
@@ -138,6 +147,14 @@ const SettingsPage: FC = () => {
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.personal')}</div>
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Settings2 />}
+                label={t('settings.general.common.title')}
+                active={isActive('/settings/general')}
+                onClick={() => go('/settings/general')}
+              />
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
@@ -222,14 +239,6 @@ const SettingsPage: FC = () => {
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.system')}</div>
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Settings2 />}
-                label={t('settings.system.title')}
-                active={isActive('/settings/system')}
-                onClick={() => go('/settings/system')}
-              />
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}

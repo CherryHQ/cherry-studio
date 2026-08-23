@@ -16,11 +16,20 @@ import {
   ScheduledTaskEntitySchema,
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
+import {
+  type ReusableAgentSessionPlaceholdersResponse,
+  ReuseOrCreateAgentSessionSchema
+} from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
+import {
+  ImageGenerationModeSchema,
+  ModelSchema,
+  ServiceTierSelectionSchema,
+  UniqueModelIdSchema
+} from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
@@ -142,6 +151,7 @@ const aiStreamRegenerateShape = {
   userMessageParts: z.never().optional(),
   targetMode: z.never().optional(),
   reasoningEffort: ReasoningEffortOptionSchema.optional(),
+  serviceTier: ServiceTierSelectionSchema.optional(),
   fastMode: z.boolean().optional()
 }
 
@@ -158,6 +168,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({
       ...aiBaseRequestShape,
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
+      serviceTier: ServiceTierSelectionSchema.optional(),
       system: z.string().optional(),
       prompt: z.string().optional(),
       messages: z.array(z.custom<ModelMessage>()).optional()
@@ -218,6 +229,7 @@ export const aiRequestSchemas = {
           retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          serviceTier: ServiceTierSelectionSchema.optional(),
           fastMode: z.boolean().optional()
         }),
         z.object({
@@ -283,6 +295,14 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
+  'ai.agent.delete': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean().default(false) }),
+    output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
+  }),
+  'ai.agent.sessions.delete': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
   'ai.agent.support_session.create': defineRoute({
     input: z.void(),
     output: z.strictObject({ sessionId: z.string().min(1) })
@@ -294,6 +314,18 @@ export const aiRequestSchemas = {
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+  'ai.agent.session.delete': defineRoute({
+    input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1).max(200) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.session.reuse_or_create': defineRoute({
+    input: ReuseOrCreateAgentSessionSchema,
+    output: z.custom<ReusableAgentSessionPlaceholdersResponse>()
+  }),
+  'ai.agent.workspace.delete': defineRoute({
+    input: z.strictObject({ workspaceId: z.string().min(1) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
   }),
 
   // ── Agent session runtime queries & commands ──

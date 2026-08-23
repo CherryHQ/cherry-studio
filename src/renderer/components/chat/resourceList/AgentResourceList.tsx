@@ -7,11 +7,13 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -38,6 +40,7 @@ const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
+const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
 type SessionListItem = AgentSessionEntity & {
   pinned?: boolean
@@ -105,17 +108,14 @@ export function AgentResourceList({
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
-  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
-  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
+  const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
+  const { agentFavoriteIds: sidebarAgentFavoriteIds, toggleAgent, removeAgent } = useSidebarFavorites()
+  const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
@@ -249,18 +249,34 @@ export function AgentResourceList({
         if (!confirmed) return
 
         if (deleteTasksOnly) {
-          const result = await deleteAgentSessions({ params: { agentId } })
+          const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
           closeConversationTabs('agents', result.deletedIds)
         } else {
-          const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+          const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
         }
+        try {
+          await Promise.all(
+            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+              invalidate(key)
+            )
+          )
+        } catch (err) {
+          logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId, err })
+        }
         if (activeAgentId === agentId) {
-          await onActiveAgentDeleted?.(agentId)
+          try {
+            await onActiveAgentDeleted?.(agentId)
+          } catch (err) {
+            logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
+          }
         }
 
-        if (!deleteTasksOnly) await refetchAgents()
-        await reload()
+        try {
+          await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload()])
+        } catch (err) {
+          logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
+        }
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
@@ -273,9 +289,8 @@ export function AgentResourceList({
       activeAgentId,
       agents,
       closeConversationTabs,
-      deleteAgent,
-      deleteAgentSessions,
       deletingAgentId,
+      invalidate,
       onActiveAgentDeleted,
       refetchAgents,
       reload,
@@ -286,6 +301,7 @@ export function AgentResourceList({
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
+      const sidebarPinned = sidebarAgentFavoriteIdSet.has(item.id)
       const deleteTasksOnly = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
       )
@@ -303,6 +319,12 @@ export function AgentResourceList({
           icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
           order: 20,
           availability: { visible: true, enabled: !isAgentPinActionDisabled }
+        }),
+        buildResolvedResourceEntityMenuAction({
+          id: AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
+          label: sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
+          icon: sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />,
+          order: 22
         }),
         buildResolvedIconTypeMenuAction(
           AGENT_ENTITY_ICON_TYPE_ACTION_ID,
@@ -323,7 +345,15 @@ export function AgentResourceList({
         })
       ]
     },
-    [agentPinnedIdSet, agents, assistantIconType, deletingAgentId, isAgentPinActionDisabled, t]
+    [
+      agentPinnedIdSet,
+      agents,
+      assistantIconType,
+      deletingAgentId,
+      isAgentPinActionDisabled,
+      sidebarAgentFavoriteIdSet,
+      t
+    ]
   )
 
   const handleContextMenuAction = useCallback(
@@ -336,6 +366,11 @@ export function AgentResourceList({
         void handleToggleAgentPin(item.id)
         return
       }
+      if (action.id === AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
+        if (sidebarAgentFavoriteIdSet.has(item.id)) removeAgent(item.id)
+        else toggleAgent(item.id)
+        return
+      }
       if (action.id.startsWith(`${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
         void setAssistantIconType(action.id.slice(AGENT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
         return
@@ -344,7 +379,15 @@ export function AgentResourceList({
         void handleDeleteAgent(item.id)
       }
     },
-    [handleDeleteAgent, handleToggleAgentPin, openAgentEditor, setAssistantIconType]
+    [
+      handleDeleteAgent,
+      handleToggleAgentPin,
+      openAgentEditor,
+      removeAgent,
+      setAssistantIconType,
+      sidebarAgentFavoriteIdSet,
+      toggleAgent
+    ]
   )
 
   return (

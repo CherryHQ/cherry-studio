@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "プレビューを閉じる",
       "code": "コード",
+      "copy_path": "パスをコピー",
+      "copy_relative_path": "相対パスをコピー",
       "default_app": "デフォルトアプリ",
       "edit": {
         "conflict": {
@@ -388,6 +390,15 @@
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "{{agent}} / {{session}} から",
+      "status": {
+        "accepted": "受付済み",
+        "consumed": "処理済み",
+        "delivering": "配信中",
+        "failed": "失敗"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "パーミッションモード"
@@ -414,8 +425,7 @@
           "bypassPermissions": {
             "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
             "title": "フルアクセス",
-            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。",
-            "warning_pi": "危険 — 無効化されたツールを除き、ファイルの削除やネットワークアクセスを含むすべての操作で確認は行われません。"
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
           },
           "default": {
             "description": "ファイルの編集やコマンドの実行前に確認します。",
@@ -443,7 +453,20 @@
       "fast": "速い",
       "faster": "より速く",
       "label": "スピード",
+      "service_tier": {
+        "auto": "自動",
+        "fast": "高速",
+        "flex": "フレックス",
+        "label": "サービス階層",
+        "standard": "標準"
+      },
       "smarter": "スマーター",
+      "summary": {
+        "auto": "自動",
+        "concise": "簡潔",
+        "detailed": "詳細",
+        "label": "思考の要約"
+      },
       "title": "応答設定"
     },
     "tasks": {
@@ -726,6 +749,22 @@
           "description": "タスクリストを管理",
           "label": "タスクリストを管理"
         },
+        "tool_call": {
+          "description": "検出されたツールを1つ呼び出す",
+          "label": "ツールを呼び出す"
+        },
+        "tool_describe": {
+          "description": "ツールの完全な説明とTypeScriptシグネチャを取得",
+          "label": "ツールを説明"
+        },
+        "tool_exec": {
+          "description": "検出されたツールを連携させるJavaScriptを実行",
+          "label": "ツールコードを実行"
+        },
+        "tool_search": {
+          "description": "利用可能なツールを検索し、そのTypeScriptシグネチャを確認",
+          "label": "ツールを検索"
+        },
         "update_goal": {
           "description": "セッション目標の状態または内容を更新",
           "label": "目標を更新"
@@ -784,6 +823,7 @@
       "restartSuccess": "API サーバーが正常に再起動されました",
       "startError": "API サーバーの開始に失敗しました：",
       "startSuccess": "API サーバーが正常に開始されました",
+      "stopDeferred": "現在の翻訳が完了してから API サーバーを停止します",
       "stopError": "API サーバーの停止に失敗しました：",
       "stopSuccess": "API サーバーが正常に停止されました"
     },
@@ -991,6 +1031,22 @@
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択してください",
       "locate_editing_message": "元のメッセージを見つける",
+      "mcp_prompts": {
+        "description": "MCP サーバーが公開するプロンプトを挿入",
+        "empty": "利用可能な MCP プロンプトがありません",
+        "fill_arguments": "プロンプトの引数を入力",
+        "fill_arguments_description": "挿入する前に、このプロンプトの引数を入力してください",
+        "insert": "挿入",
+        "insert_failed": "プロンプトの挿入に失敗しました",
+        "title": "MCP プロンプト"
+      },
+      "mcp_resources": {
+        "description": "MCP サーバーが公開するリソースを参照",
+        "empty": "利用可能な MCP リソースがありません",
+        "read_failed": "リソースの読み込みに失敗しました",
+        "reader_unavailable": "現在のモデルでは、添付後にこのリソースを読み取れません",
+        "title": "MCP リソース"
+      },
       "new": {
         "context": "コンテキストをクリア"
       },
@@ -1870,6 +1926,7 @@
       "503": "サービスが利用できません。後でもう一度試してください",
       "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
     },
+    "image_unreadable_for_non_vision_model": "選択したモデルは画像入力を受け付けるように設定されておらず、Cherry Studio は添付ファイルから読み取り可能なテキストを抽出できませんでした。プロバイダー設定でこのモデルの「画像」を有効にするか、別の画像対応モデルを選択するか、画像を削除してもう一度お試しください。",
     "lastError": "最後のエラー",
     "maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
     "message": "エラーメッセージ",
@@ -2961,7 +3018,7 @@
       "empty_title": "スキルを検索",
       "github_empty_description": "SKILL.mdファイルへのリンクを貼り付けてください。例: github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "GitHubからインストール",
-      "github_url_invalid": "SKILL.mdで終わるGitHubリンクを貼り付けてください",
+      "github_url_invalid": "SKILL.md ファイルを直接指す対応済みの GitHub リンクを貼り付けてください",
       "github_url_label": "GitHub SKILL.md URL",
       "github_url_placeholder": "/SKILL.mdで終わるGitHubリンク",
       "no_results_description": "別のキーワードを試すか、ローカルのZIPファイルまたはフォルダーをインポートしてください。",
@@ -3359,6 +3416,21 @@
         "stderr": "標準エラー出力",
         "stdout": "標準出力"
       },
+      "sessionCreate": {
+        "created": "新しいセッションを開始しました",
+        "creating": "新しいセッションを開始中",
+        "firstMessage": "最初のメッセージ",
+        "inheritedContext": "このエージェントとワークスペースを使用",
+        "open": "セッションを開く",
+        "sessionId": "セッション ID",
+        "untitled": "無題のセッション"
+      },
+      "sessionSend": {
+        "open": "セッションを開く",
+        "sending": "送信先",
+        "sent": "送信済み",
+        "to": "宛先"
+      },
       "status": {
         "done": "完了",
         "error": "エラー",
@@ -3435,6 +3507,12 @@
       "hide": {
         "title": "非表示"
       }
+    },
+    "split": {
+      "already_open": "すでにもう一方に表示されています",
+      "choose": "並べて表示するミニアプリを選択",
+      "close": "分割表示を終了",
+      "open": "分割表示"
     },
     "title": "ミニアプリ",
     "unpin_failed": "ミニアプリのピン留め解除に失敗しました",
@@ -3548,6 +3626,7 @@
     }
   },
   "navigate": {
+    "model_settings": "モデル設定へ移動",
     "provider_settings": "プロバイダー設定に移動"
   },
   "notes": {
@@ -3693,7 +3772,7 @@
   },
   "notification": {
     "assistant": "アシスタントの応答",
-    "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
+    "tip": "バックグラウンド時のシステム通知のみを制御します。アプリ内通知は常に有効です。"
   },
   "ocr": {
     "processing": "OCR処理中..."
@@ -4467,6 +4546,10 @@
         "custom": "カスタム機能",
         "delete_confirm": "このカスタム機能を削除しますか？",
         "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})",
+        "models": {
+          "default_description": "「説明」「要約」「推敲」、およびデフォルトモデルを使用するカスタムアクションで使用されます。",
+          "translate_description": "翻訳の生成に使用されます。言語の自動検出では高速モデルも使用される場合があります。"
+        },
         "reset": {
           "button": "リセット",
           "confirm": "デフォルトのアクションにリセットしますか？カスタムアクションは削除されません。",
@@ -5543,6 +5626,7 @@
       },
       "title": "環境依存",
       "tools": {
+        "babeldoc-stream": "レイアウトを保持したまま PDF を翻訳するエンジンです。レイアウトモデルのデータは初回翻訳時にダウンロードされます。",
         "bun": "MCP サービスと関連ツールチェーンで使用する JavaScript ランタイムです。",
         "claude": "Anthropic が提供するターミナル向けのエージェント型コーディングツールです。",
         "codex": "ローカルリポジトリのコードを読み取り、編集、実行できる OpenAI のオープンソースコーディングエージェントです。",
@@ -5588,7 +5672,15 @@
         "global": "グローバルフォント",
         "select": "フォントを選択",
         "title": "フォント設定"
+      },
+      "list_position": {
+        "chat": "会話リストの位置",
+        "work": "タスクリストの位置"
       }
+    },
+    "fetch": {
+      "allow_private_network": "ローカルネットワークアドレスへのアクセスを許可",
+      "allow_private_network_tip": "Web 取得ツールが localhost やプライベートネットワークのアドレスにアクセスできるようにします。自分のマシンや LAN 上のサービスをモデルに読み取らせたくない場合はオフにしてください。"
     },
     "font_size": {
       "title": "メッセージのフォントサイズ"
@@ -5619,7 +5711,8 @@
         },
         "sections": {
           "display_language": "表示と言語"
-        }
+        },
+        "title": "共通設定"
       },
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
@@ -6043,40 +6136,48 @@
       "bulk_enable": "すべて有効化",
       "check": {
         "all": "すべて",
-        "button_caption": "健康チェック",
-        "disabled": "閉じる",
+        "all_models": "すべてのモデル",
+        "all_models_disclaimer": "すべてのモデルをチェックすると、選択したモデルと API キーに多数の実際のリクエストが送信され、短時間で高額な料金が発生する可能性があります。開始前に料金のリスクを確認してください。画像・動画・音声生成、音声認識、音声合成の各モデルはスキップされます。",
+        "button_caption": "モデルチェック",
+        "checking": "チェック中…",
+        "concurrent_hint": "モデルは並行してチェックされます。各モデルの API キーは常に並行してチェックされます。",
         "disclaimer": "ヘルスチェックでは、選択したモデルと API キーに実際のリクエストを送信します。リクエスト単位の課金や同時チェックにより、高額な費用が発生する場合があります。開始前に内容をご確認ください。",
         "enable_concurrent": "並行チェック",
-        "enabled": "開く",
         "failed": "失敗",
         "failed_to_start": "ヘルスチェックの開始に失敗しました",
         "generation_output_audio": "オーディオ",
         "generation_output_image": "画像",
         "generation_output_video": "動画",
+        "key_scope": "キー",
+        "keys_failed_count": "{{total}} 件中 {{failed}} 件のキーが失敗しました",
+        "latency": "{{latency}} ミリ秒",
+        "model": "モデル",
         "model_button_caption": "すべてのモデルをチェック",
-        "model_status_failed": "{{count}} 個のモデルが完全にアクセスできません",
-        "model_status_partial": "{{count}} 個のモデルが一部のキーでアクセスできません",
-        "model_status_passed": "{{count}} 個のモデルが健康チェックを通過しました",
+        "model_scope": "チェックするモデル",
+        "model_status_failed_one": "{{count}} 個のモデルが完全にアクセスできません",
+        "model_status_failed_other": "{{count}} 個のモデルが完全にアクセスできません",
+        "model_status_partial_one": "{{count}} 個のモデルが一部のキーでアクセスできません",
+        "model_status_partial_other": "{{count}} 個のモデルが一部のキーでアクセスできません",
+        "model_status_passed_one": "{{count}} 個のモデルが健康チェックを通過しました",
+        "model_status_passed_other": "{{count}} 個のモデルが健康チェックを通過しました",
+        "model_status_skipped_one": "{{count}} 個のモデルをスキップ",
+        "model_status_skipped_other": "{{count}} 個のモデルをスキップ",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "結果なし",
-        "outcome_fail_short": "{{count}} 件失敗",
-        "outcome_skipped_short": "{{count}} 件スキップされました",
-        "outcome_success_short": "{{count}} 件成功",
-        "outcome_total": "合計 {{count}} 件",
         "passed": "成功",
-        "pipeline_heading": "検出の進捗",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "もう一度チェック",
-        "select_api_key": "使用するAPIキーを選択：",
+        "provider_auth": "プロバイダー認証",
+        "select_api_key": "使用するAPIキーを選択",
         "single": "単一",
+        "single_model": "単一モデル",
         "skip_reason_generation_cost": "このモデルのヘルスチェックは {{output}} を生成し、クォータを消費するため、デフォルトでスキップされます。",
         "skip_reason_unsupported_probe": "このモデルタイプにはまだ低コストのヘルスチェックが存在しないため、デフォルトでスキップされます。",
         "start": "開始",
         "status_checking": "チェック中…",
         "status_skipped": "スキップしました",
         "timeout": "タイムアウト",
-        "title": "モデル健康チェック",
-        "use_all_keys": "キー"
+        "timeout_unit": "秒",
+        "title": "モデルチェック",
+        "toggle_key": "{{name}} の有効状態を切り替える"
       },
       "collapse_all": "すべて折りたたむ",
       "context_management": {
@@ -6089,6 +6190,7 @@
         "max_messages": "保持する直近メッセージ数",
         "max_messages_description": "直近のメッセージのみを送信し、それより前はコンテキストから除外します。空欄で無制限。アシスタントごとに上書きできます",
         "max_messages_unlimited": "無制限",
+        "scope_description": "Cherry Studio 内のアシスタントとの会話にのみ適用されます。アシスタントごとに個別に上書きできます。",
         "title": "コンテキスト管理",
         "truncate_threshold": "ツール出力の切り詰めしきい値（文字）",
         "truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます"
@@ -6139,8 +6241,9 @@
       "provider_key_confirm_title": "{{provider}} の API キーを追加",
       "provider_name": "プロバイダー名",
       "quick_assistant_default_tag": "デフォルト",
-      "quick_assistant_model": "クイックアシスタントモデル",
+      "quick_assistant_response_settings": "応答設定",
       "quick_assistant_selection": "アシスタントを選択します",
+      "quick_assistant_usage_method": "使用方法",
       "quick_model": {
         "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
         "label": "高速モデル",
@@ -6174,7 +6277,7 @@
       "label": "詳細設定"
     },
     "notification": {
-      "assistant": "アシスタントメッセージ",
+      "assistant": "会話完了通知",
       "backup": "バックアップメッセージ",
       "knowledge_embed": "ナレッジベースメッセージ",
       "title": "通知",
@@ -6192,22 +6295,57 @@
     },
     "prompts": {
       "add": "プロンプトを追加",
+      "binding": {
+        "bind": "プロンプトを関連付ける",
+        "manageTargets": "{{title}} の対象を管理",
+        "noLinked": "関連付けられたプロンプトはありません",
+        "noMore": "利用可能なプロンプトはこれ以上ありません",
+        "noTargets": "利用可能な対象はありません",
+        "remove": "プロンプト「{{title}}」を削除",
+        "search": "プロンプトを検索",
+        "searchTargets": "アシスタントまたはエージェントを検索",
+        "tabTitle": "プロンプト",
+        "targetCount": "{{count}} 件の対象",
+        "targets": "利用対象",
+        "unassigned": "未割り当て"
+      },
       "contentLabel": "内容",
-      "contentPlaceholder": "プロンプトの内容を入力します。${variables} をサポート；Tab キーで変数間を移動します。例：\n${from} から ${to} へのルートを計画し、${email} に送信してください。",
+      "contentPlaceholder": "プロンプトの内容を入力",
       "delete": "プロンプトを削除",
       "deleteConfirm": "プロンプトは完全に削除されます。続行しますか？",
+      "deleteGlobalConfirm": "すべてのコンテキストから削除され、元に戻せません。",
+      "deleteRestrictedConfirm": "関連付けられたすべてのコンテキストから削除され、元に戻せません。",
+      "deleteSharedConfirm": "{{count}} 件の関連コンテキストから削除され、元に戻せません。",
       "edit": "プロンプトを編集",
       "errors": {
+        "bindFailed": "プロンプトの関連付けに失敗しました",
         "createFailed": "プロンプトの作成に失敗しました",
         "deleteFailed": "プロンプトの削除に失敗しました",
+        "loadBindingsFailed": "利用可能な対象の読み込みに失敗しました",
         "loadFailed": "プロンプトの読み込みに失敗しました",
+        "reorderFailed": "プロンプトの並び替えに失敗しました",
+        "unbindFailed": "プロンプトの関連付け解除に失敗しました",
         "updateFailed": "プロンプトの更新に失敗しました"
       },
       "manage": "プロンプトを管理する",
+      "noPrompts": "プロンプトはありません",
+      "reorder": "{{title}} をドラッグして並べ替え",
+      "searchPlaceholder": "プロンプトのタイトルまたは内容を検索",
       "title": "プロンプト管理",
       "titleLabel": "タイトル",
       "titlePlaceholder": "プロンプトのタイトルを入力してください",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "グローバル",
+          "label": "グローバルに使用"
+        },
+        "makeGlobalConfirmDescription": "このプロンプトをグローバルにすると、すべての場所で利用できますが、{{count}} 件のコンテキスト関連付けとその順序は完全に削除されます。続行しますか？",
+        "makeGlobalConfirmTitle": "プロンプトをグローバルにしますか？",
+        "restricted": {
+          "badge": "選択済み"
+        }
+      }
     },
     "provider": {
       "add": {
@@ -6249,10 +6387,6 @@
             "token_threshold": "キャッシュトークン閾値",
             "token_threshold_help": "このトークン数を超えるメッセージはキャッシュされます。キャッシュを無効にするには0を設定してください。"
           },
-          "array_content": {
-            "help": "このプロバイダーは、message の content フィールドが配列型であることをサポートしていますか",
-            "label": "配列形式のメッセージコンテンツをサポート"
-          },
           "developer_role": {
             "help": "このプロバイダーは role: \"developer\" のメッセージをサポートしていますか",
             "label": "Developer Message をサポート"
@@ -6262,17 +6396,13 @@
             "label": "enable_thinking をサポート"
           },
           "label": "API設定",
-          "service_tier": {
-            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
-            "label": "service_tier をサポート"
+          "reasoning_summary": {
+            "help": "この Responses エンドポイントに reasoning.summary を送信します。サーバーがこの OpenAI パラメータを受け付ける場合のみ有効にしてください。",
+            "label": "推論要約をサポート"
           },
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
-          },
-          "verbosity": {
-            "help": "プロバイダーが冗長度パラメータをサポートしているかどうか",
-            "label": "冗長性のサポート"
           }
         },
         "url": {
@@ -6993,9 +7123,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "チャート",
-        "clearDate": "日付フィルターをクリア",
-        "drilldownTitle": "{{date}} ドリルダウン",
         "entries": "リクエスト",
+        "granularity": "粒度",
         "groupBy": "グループ化",
         "loadMore": "もっと読み込む",
         "loading": "読み込み中...",
@@ -7005,7 +7134,6 @@
         "noEntries": "エントリがありません",
         "noEntriesDescription": "より広いウィンドウまたは別のプロバイダーをお試しください。",
         "rollup": "ロールアップ",
-        "selectedDate": "選択された日付: {{date}}",
         "shareLabel": "共有",
         "title": "探索する",
         "top": "トップ",
@@ -7019,7 +7147,6 @@
         "source": "アシスタント / エージェント"
       },
       "heatmap": {
-        "ariaDate": "{{date}}の使用状況",
         "title": "日常活動"
       },
       "metric": {
@@ -7201,10 +7328,10 @@
     "history": {
       "back": "リストに戻る",
       "clear": "履歴をクリア",
-      "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
+      "clear_description": "履歴を消去すると、すべての翻訳履歴が削除され、生成された翻訳ファイルも回収されます。続行しますか？",
       "copy_target": "結果をコピー",
       "delete": "翻訳履歴を削除する",
-      "delete_description": "この翻訳履歴レコードを削除しますか？この操作は取り消せません。",
+      "delete_description": "この翻訳履歴を削除しますか？ファイル翻訳の場合は、生成された翻訳ファイルも回収されます。この操作は取り消せません。",
       "empty": "翻訳履歴がありません",
       "error": {
         "add": "翻訳履歴の追加に失敗しました",
@@ -7212,6 +7339,17 @@
         "delete": "削除に失敗しました",
         "load": "翻訳履歴の読み込みに失敗しました。",
         "save": "保存翻訳履歴に失敗しました"
+      },
+      "file": {
+        "action_failed": "そのファイルに対する操作を完了できませんでした",
+        "badge": "ファイル翻訳",
+        "export": "翻訳ファイルを名前を付けて保存…",
+        "open": "翻訳ファイルを開く",
+        "preview": "並べて表示",
+        "reveal": "フォルダーに表示",
+        "source": "元のファイル",
+        "target": "翻訳ファイル",
+        "unavailable": "この翻訳のファイルは利用できなくなりました"
       },
       "filter": {
         "starred": "スター付きのみ"
@@ -7241,6 +7379,53 @@
     "language_settings": "言語設定",
     "output": {
       "placeholder": "翻訳"
+    },
+    "pdf": {
+      "action": {
+        "close": "PDF 翻訳を閉じる",
+        "export": "翻訳済み PDF をエクスポート",
+        "install_babeldoc": "BabelDOC をインストール",
+        "update_babeldoc": "BabelDOC を更新"
+      },
+      "dependency": {
+        "checking": "BabelDOC を確認しています...",
+        "description": "BabelDOC プラグインをインストールすると、元のレイアウトを保持したまま PDF を翻訳できます。",
+        "installing": "BabelDOC をインストールしています...",
+        "outdated_description": "BabelDOC を更新すると、レイアウトを保持したまま PDF の翻訳を続けられます。",
+        "outdated_title": "BabelDOC の更新が必要です",
+        "title": "PDF を検出しました"
+      },
+      "error": {
+        "generic": "翻訳中にエラーが発生しました。もう一度お試しください。",
+        "ocr_required": "スキャンされた PDF はまだサポートされていません。",
+        "persist_failed": "PDF は翻訳されましたが、結果を保存できませんでした。もう一度お試しください。",
+        "title": "PDF の翻訳に失敗しました"
+      },
+      "export_failed": "翻訳済み PDF のエクスポートに失敗しました",
+      "pane": {
+        "translated": "翻訳済み PDF",
+        "translated_text": "翻訳"
+      },
+      "progress": {
+        "analyzing": "文書のレイアウトを解析しています",
+        "checking_assets": "PDF 処理リソースを確認しています",
+        "downloading_assets": "PDF 処理リソースをダウンロードしています...",
+        "extracting_terms": "文書の用語を抽出しています",
+        "loading_model": "PDF 処理モデルを読み込んでいます",
+        "parsing": "PDF 文書を解析しています",
+        "percent": "{{progress}}%",
+        "preparing": "PDF 翻訳を初期化しています",
+        "preparing_hint": "初回の初期化には約 2 分かかることがあります。次回以降は通常もっと速くなります",
+        "rendering": "翻訳済み PDF をレンダリングしています",
+        "translating": "本文を翻訳しています",
+        "typesetting": "翻訳済み PDF を組版しています",
+        "value": "{{stage}}、段階 {{stageProgress}}%、全体 {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "対象言語を選択して翻訳を開始してください。",
+        "title": "翻訳の準備ができました"
+      },
+      "success": "翻訳済み PDF を生成しました"
     },
     "preferred_target": "優先ターゲット",
     "processing": "翻訳中...",

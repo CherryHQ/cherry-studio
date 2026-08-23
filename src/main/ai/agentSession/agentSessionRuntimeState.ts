@@ -22,6 +22,7 @@ export type AgentSessionRuntimeLaunchState =
 export interface AgentSessionRuntimeConnectionTarget {
   modelId: string
   reasoningEffort: string
+  serviceTier: string
   knowledgeBaseIds: readonly string[]
 }
 

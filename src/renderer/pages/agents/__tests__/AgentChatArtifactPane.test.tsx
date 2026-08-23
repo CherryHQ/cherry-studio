@@ -351,12 +351,13 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   }
 })
 
-vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
-  default: ({ workdir, filePath }: { workdir: string; filePath?: string | null }) => (
-    <button type="button" onClick={() => window.api.file.openPath(`${workdir}/${filePath ?? ''}`)}>
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: ({ targetPath }: { targetPath: string }) => (
+    <button type="button" onClick={() => window.api.file.openPath(targetPath)}>
       open external preview
     </button>
-  )
+  ),
+  loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
@@ -545,7 +546,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
+  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div data-testid="agent-chat-navbar">{tools}</div>
 }))
 
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
@@ -928,6 +929,7 @@ describe('AgentChat artifact pane', () => {
     renderAgentChat()
 
     expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'empty')
+    expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
   })
 

@@ -81,6 +81,14 @@ describe('findNextPendingPermissionRequest', () => {
     expect(result?.title).toBe('Run focused composer tests')
   })
 
+  it('shows the target path for Pi file-tool approvals', () => {
+    const result = findNextPendingPermissionRequest({
+      'message-1': [makePart({ input: { path: '/managed-skills/find-skills/SKILL.md' } })]
+    })
+
+    expect(result?.title).toBe('/managed-skills/find-skills/SKILL.md')
+  })
+
   it('uses Claude Code MCP metadata for the tool preview', () => {
     const result = findNextPendingPermissionRequest({
       'message-1': [

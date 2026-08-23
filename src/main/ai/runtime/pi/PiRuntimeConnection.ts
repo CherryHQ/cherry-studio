@@ -13,20 +13,15 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
@@ -38,12 +33,11 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -53,8 +47,9 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
-import { createPiApprovalExtension } from './approvalExtension'
+import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
 import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
+import { createPiCodeModeTools } from './piCodeMode'
 import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
@@ -67,24 +62,24 @@ import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
-const PI_BUILTIN_TOOL_NAMES = PI_BUILTIN_TOOLS.map((tool) => tool.name)
+const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
-const toPiMcpRuntimeName = (runtimeName: string): string => {
-  const [, serverName, toolName] = runtimeName.split('__')
-  return buildPiMcpToolName(serverName, toolName)
-}
-const PI_AUTO_APPROVED_MCP_TOOLS = new Set([
-  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
-  buildPiMcpToolName('agent-memory', 'memory'),
-  buildPiMcpToolName('skills', 'search_skills'),
-  ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
-  ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
+const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
+  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
+    buildPiMcpToolName(serverName, toolName)
+  )
+)
+const PI_APPROVAL_REQUIRED_TOOLS = new Set([
+  PI_TOOL_EXEC_TOOL_NAME,
+  ...listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
+    buildPiMcpToolName(serverName, toolName)
+  )
 ])
-const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set([
-  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
-  ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
-  ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
-])
+const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
+    buildPiMcpToolName(serverName, toolName)
+  )
+)
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -220,16 +215,32 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const citationsGuidance = buildCitationsGuidance({
         web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
         kb:
-          (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
+          (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
           (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
       })
       const prompt = await buildAgentRuntimePrompt({
         workspacePath,
         agentDataPath,
         agent,
-        channelLinked: linkedChannel !== null,
         citationsGuidance
       })
+      const approvalContext = {
+        sessionId: this.input.sessionId,
+        workspacePath,
+        agentDataPath,
+        emit: (event: AgentRuntimeEvent) => this.eventQueue.push(event),
+        getInteractionState: () =>
+          application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
+        getPermissionMode: () => this.permissionMode,
+        isDisabled: (toolName: string) => this.disabledTools.has(toolName),
+        additionalReadOnlyRoots: additionalSkillPaths,
+        // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
+        // disabledTools hard-blocks every class at fire-time.
+        autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
+        approvalRequiredTools: PI_APPROVAL_REQUIRED_TOOLS,
+        nonBypassableApprovalTools: PI_NON_BYPASSABLE_APPROVAL_TOOLS
+      }
+      const authorizeTool = createPiToolAuthorizer(approvalContext)
       const resourceLoader = new pi.DefaultResourceLoader({
         cwd: workspacePath,
         agentDir,
@@ -251,20 +262,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         additionalSkillPaths,
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
-          createPiApprovalExtension({
-            sessionId: this.input.sessionId,
-            workspacePath,
-            agentDataPath,
-            emit: (event) => this.eventQueue.push(event),
-            getInteractionState: () =>
-              application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
-            getPermissionMode: () => this.permissionMode,
-            isDisabled: (toolName) => this.disabledTools.has(toolName),
-            // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
-            // disabledTools hard-blocks every class at fire-time.
-            autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
-            approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS
-          })
+          createPiApprovalExtension(approvalContext)
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
@@ -277,19 +275,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !linkedChannel
+      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannel !== null })
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
           session,
           agent,
-          assistantMcpEnabled,
+          mountedServers,
           initialSnapshot.mcpServerSnapshots,
           linkedChannel,
           agentDataPath,
           this.input.knowledgeBaseIds
         )
       )
-      const customTools = this.mcpBridge.tools
+      const customTools = createPiCodeModeTools(
+        this.mcpBridge.tools,
+        (toolName) => this.disabledTools.has(toolName),
+        authorizeTool
+      )
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,

@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "关闭预览",
       "code": "代码",
+      "copy_path": "复制路径",
+      "copy_relative_path": "复制相对路径",
       "default_app": "默认应用",
       "edit": {
         "conflict": {
@@ -388,6 +390,15 @@
         "inaccessible": "工作区路径不可访问：{{path}}"
       }
     },
+    "session_delivery": {
+      "from": "来自 {{agent}} / {{session}}",
+      "status": {
+        "accepted": "已接受",
+        "consumed": "已消费",
+        "delivering": "投递中",
+        "failed": "失败"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "权限模式"
@@ -414,8 +425,7 @@
           "bypassPermissions": {
             "description": "跳过权限检查，可删除文件、访问网络。",
             "title": "完全访问",
-            "warning": "危险：大多数工具无需审批即可执行；明确的安全阻止规则仍然生效。",
-            "warning_pi": "危险：除被禁用的工具外，一切操作都不再询问，包括删除文件和访问网络。"
+            "warning": "危险：大多数工具无需审批即可执行；明确的安全阻止规则仍然生效。"
           },
           "default": {
             "description": "编辑文件或执行命令前询问。",
@@ -443,7 +453,20 @@
       "fast": "快速",
       "faster": "更快",
       "label": "速度",
+      "service_tier": {
+        "auto": "自动",
+        "fast": "快速",
+        "flex": "弹性",
+        "label": "服务档位",
+        "standard": "标准"
+      },
       "smarter": "更智能",
+      "summary": {
+        "auto": "自动",
+        "concise": "简洁",
+        "detailed": "详细",
+        "label": "思考摘要"
+      },
       "title": "响应设置"
     },
     "tasks": {
@@ -726,6 +749,22 @@
           "description": "管理任务列表",
           "label": "管理任务列表"
         },
+        "tool_call": {
+          "description": "调用一个已发现的工具",
+          "label": "调用工具"
+        },
+        "tool_describe": {
+          "description": "获取工具的完整描述和 TypeScript 签名",
+          "label": "描述工具"
+        },
+        "tool_exec": {
+          "description": "执行 JavaScript 来编排已发现的工具",
+          "label": "执行工具代码"
+        },
+        "tool_search": {
+          "description": "搜索可用工具并读取其 TypeScript 签名",
+          "label": "搜索工具"
+        },
         "update_goal": {
           "description": "更新会话目标的状态或内容",
           "label": "更新目标"
@@ -784,6 +823,7 @@
       "restartSuccess": "API 网关重启成功",
       "startError": "启动 API 网关失败：",
       "startSuccess": "API 网关启动成功",
+      "stopDeferred": "当前翻译完成后，API 网关将自动停止",
       "stopError": "停止 API 网关失败：",
       "stopSuccess": "API 网关停止成功"
     },
@@ -991,6 +1031,22 @@
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型",
       "locate_editing_message": "定位原消息",
+      "mcp_prompts": {
+        "description": "插入 MCP 服务器提供的提示词",
+        "empty": "没有可用的 MCP 提示词",
+        "fill_arguments": "填写提示词参数",
+        "fill_arguments_description": "插入前先填写此提示词所需的参数",
+        "insert": "插入",
+        "insert_failed": "提示词插入失败",
+        "title": "MCP 提示词"
+      },
+      "mcp_resources": {
+        "description": "引用 MCP 服务器提供的资源",
+        "empty": "没有可用的 MCP 资源",
+        "read_failed": "资源读取失败",
+        "reader_unavailable": "当前模型无法在附加后回读该资源",
+        "title": "MCP 资源"
+      },
       "new": {
         "context": "清除上下文"
       },
@@ -1870,6 +1926,7 @@
       "503": "服务不可用，请稍后再试",
       "504": "网关超时，请稍后再试"
     },
+    "image_unreadable_for_non_vision_model": "当前模型未配置图片输入能力，且 Cherry Studio 未能从附件中识别出有效文字。请前往提供商设置，在该模型的输入模态中启用“视觉”，或选择其他视觉模型、移除图片后重试。",
     "lastError": "最后错误",
     "maxEmbeddingsPerCall": "每次调用的最大嵌入",
     "message": "错误信息",
@@ -2799,7 +2856,7 @@
           "basic_tab": "基础",
           "knowledge_tab": "知识库",
           "permission_tab": "权限",
-          "prompt_tab": "提示词",
+          "prompt_tab": "系统提示词",
           "save_failed": "保存失败",
           "tools_tab": "工具"
         }
@@ -2961,7 +3018,7 @@
       "empty_title": "搜索技能",
       "github_empty_description": "粘贴某个技能 SKILL.md 文件的链接，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "从 GitHub 安装",
-      "github_url_invalid": "请粘贴以 SKILL.md 结尾的 GitHub 链接",
+      "github_url_invalid": "请粘贴受支持且直接指向 SKILL.md 文件的 GitHub 链接",
       "github_url_label": "GitHub SKILL.md 链接",
       "github_url_placeholder": "GitHub 链接，以 /SKILL.md 结尾",
       "no_results_description": "请尝试其他关键词,或本地导入 ZIP 文件/目录。",
@@ -3359,6 +3416,21 @@
         "stderr": "标准错误",
         "stdout": "标准输出"
       },
+      "sessionCreate": {
+        "created": "已启动新会话",
+        "creating": "正在启动新会话",
+        "firstMessage": "首条消息",
+        "inheritedContext": "沿用当前智能体与工作区",
+        "open": "打开会话",
+        "sessionId": "会话 ID",
+        "untitled": "未命名会话"
+      },
+      "sessionSend": {
+        "open": "打开会话",
+        "sending": "正在发送至",
+        "sent": "已发送至",
+        "to": "发送至"
+      },
       "status": {
         "done": "完成",
         "error": "错误",
@@ -3435,6 +3507,12 @@
       "hide": {
         "title": "隐藏"
       }
+    },
+    "split": {
+      "already_open": "已在另一侧显示",
+      "choose": "选择要并排显示的小程序",
+      "close": "关闭分屏",
+      "open": "分屏"
     },
     "title": "小程序",
     "unpin_failed": "取消固定小程序失败",
@@ -3548,6 +3626,7 @@
     }
   },
   "navigate": {
+    "model_settings": "前往模型设置",
     "provider_settings": "跳转到服务商设置界面"
   },
   "notes": {
@@ -3693,7 +3772,7 @@
   },
   "notification": {
     "assistant": "助手响应",
-    "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
+    "tip": "仅控制后台系统通知，应用内通知始终开启。"
   },
   "ocr": {
     "processing": "OCR 处理中..."
@@ -4467,6 +4546,10 @@
         "custom": "自定义功能",
         "delete_confirm": "确定要删除这个自定义功能吗？",
         "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "用于解释、总结、润色，以及使用默认模型的自定义功能。",
+          "translate_description": "用于生成翻译结果；自动语言检测也可能使用快速模型。"
+        },
         "reset": {
           "button": "重置",
           "confirm": "确定要重置为默认功能吗？自定义功能不会被删除。",
@@ -5543,6 +5626,7 @@
       },
       "title": "环境依赖",
       "tools": {
+        "babeldoc-stream": "保留版式的 PDF 翻译引擎。首次翻译时会下载版面模型资源。",
         "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
         "claude": "Anthropic 的终端智能编程工具。",
         "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
@@ -5588,7 +5672,15 @@
         "global": "全局字体",
         "select": "选择字体",
         "title": "字体设置"
+      },
+      "list_position": {
+        "chat": "对话列表位置",
+        "work": "任务列表位置"
       }
+    },
+    "fetch": {
+      "allow_private_network": "允许访问本地网络地址",
+      "allow_private_network_tip": "允许网页抓取工具访问 localhost 和内网地址。如果不希望模型读取本机或局域网上的服务，请关闭。"
     },
     "font_size": {
       "title": "消息字体大小"
@@ -5619,7 +5711,8 @@
         },
         "sections": {
           "display_language": "显示与语言"
-        }
+        },
+        "title": "通用"
       },
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
@@ -6043,40 +6136,48 @@
       "bulk_enable": "全部启用",
       "check": {
         "all": "所有",
-        "button_caption": "健康检测",
-        "disabled": "未启用",
-        "disclaimer": "健康检测会向选中的模型和 API Key 发送真实请求。按次计费或并发检测可能产生高额费用，请确认后再开始。",
+        "all_models": "所有模型",
+        "all_models_disclaimer": "检测所有模型会向选中的模型和 API 密钥发送大量真实请求，可能在短时间内产生高额费用，请确认后再开始。图片、视频、音频生成及语音识别、语音合成模型会跳过。",
+        "button_caption": "检测",
+        "checking": "检测中…",
+        "concurrent_hint": "模型之间可并发；同一模型的多个 API 密钥始终并发检测。",
+        "disclaimer": "模型检测会向选中的模型和 API 密钥发送真实请求，可能产生费用。图片、视频、音频生成及语音识别、语音合成模型会跳过。",
         "enable_concurrent": "并发检测",
-        "enabled": "已启用",
         "failed": "失败",
-        "failed_to_start": "健康检测启动失败",
+        "failed_to_start": "模型检测启动失败",
         "generation_output_audio": "音频",
         "generation_output_image": "图片",
         "generation_output_video": "视频",
+        "key_scope": "使用密钥",
+        "keys_failed_count": "{{failed}}/{{total}} 个密钥失败",
+        "latency": "{{latency}} 毫秒",
+        "model": "模型",
         "model_button_caption": "检测所有模型",
-        "model_status_failed": "{{count}} 个模型完全无法访问",
-        "model_status_partial": "其中 {{count}} 个模型用某些密钥无法访问",
-        "model_status_passed": "{{count}} 个模型通过健康检测",
+        "model_scope": "检测模型范围",
+        "model_status_failed_one": "{{count}} 个模型完全无法访问",
+        "model_status_failed_other": "{{count}} 个模型完全无法访问",
+        "model_status_partial_one": "其中 {{count}} 个模型用某些密钥无法访问",
+        "model_status_partial_other": "其中 {{count}} 个模型用某些密钥无法访问",
+        "model_status_passed_one": "{{count}} 个模型通过模型检测",
+        "model_status_passed_other": "{{count}} 个模型通过模型检测",
+        "model_status_skipped_one": "{{count}} 个模型已跳过",
+        "model_status_skipped_other": "{{count}} 个模型已跳过",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "无结果",
-        "outcome_fail_short": "{{count}} 失败",
-        "outcome_skipped_short": "{{count}} 跳过",
-        "outcome_success_short": "{{count}} 成功",
-        "outcome_total": "共 {{count}} 项",
         "passed": "通过",
-        "pipeline_heading": "检测进度",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "重新检测",
-        "select_api_key": "选择要使用的 API 密钥：",
+        "provider_auth": "服务商认证",
+        "select_api_key": "选择要使用的 API 密钥",
         "single": "单个",
+        "single_model": "单个模型",
         "skip_reason_generation_cost": "此模型检测会实际生成{{output}}并消耗额度，默认跳过。",
-        "skip_reason_unsupported_probe": "此类模型暂无低成本健康检测方式，默认跳过。",
+        "skip_reason_unsupported_probe": "此类模型暂无低成本检测方式，默认跳过。",
         "start": "开始",
-        "status_checking": "检查中…",
+        "status_checking": "检测中…",
         "status_skipped": "已跳过",
         "timeout": "超时",
-        "title": "模型健康检测",
-        "use_all_keys": "使用密钥"
+        "timeout_unit": "秒",
+        "title": "模型检测",
+        "toggle_key": "切换 {{name}} 的启用状态"
       },
       "collapse_all": "全部折叠",
       "context_management": {
@@ -6089,6 +6190,7 @@
         "max_messages": "保留最近消息数",
         "max_messages_description": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制。助手可单独覆盖",
         "max_messages_unlimited": "不限制",
+        "scope_description": "仅适用于 Cherry Studio 内的助手对话；助手可在自身设置中单独覆盖。",
         "title": "上下文管理",
         "truncate_threshold": "工具输出截断阈值(字符)",
         "truncate_threshold_description": "超过该字符数的工具输出会被转存为文件并截断，模型可按需读回。助手可单独覆盖"
@@ -6139,8 +6241,9 @@
       "provider_key_confirm_title": "为 {{provider}} 添加 API 密钥",
       "provider_name": "服务商名称",
       "quick_assistant_default_tag": "默认",
-      "quick_assistant_model": "快捷助手模型",
+      "quick_assistant_response_settings": "响应设置",
       "quick_assistant_selection": "选择助手",
+      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "执行对话命名、搜索关键字提炼等简单任务时使用的模型",
         "label": "快速模型",
@@ -6174,7 +6277,7 @@
       "label": "更多设置"
     },
     "notification": {
-      "assistant": "助手消息",
+      "assistant": "对话完成通知",
       "backup": "备份",
       "knowledge_embed": "知识库",
       "title": "通知",
@@ -6192,22 +6295,57 @@
     },
     "prompts": {
       "add": "添加提示词",
+      "binding": {
+        "bind": "绑定提示词",
+        "manageTargets": "管理“{{title}}”的可用对象",
+        "noLinked": "暂未关联提示词",
+        "noMore": "没有更多可用的提示词",
+        "noTargets": "暂无可用对象",
+        "remove": "移除提示词“{{title}}”",
+        "search": "搜索提示词",
+        "searchTargets": "搜索助手或智能体",
+        "tabTitle": "提示词",
+        "targetCount": "{{count}} 个对象",
+        "targets": "可用对象",
+        "unassigned": "未指定"
+      },
       "contentLabel": "内容",
-      "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
+      "contentPlaceholder": "请输入提示词内容",
       "delete": "删除提示词",
-      "deleteConfirm": "删除提示词后将无法恢复，是否继续？",
+      "deleteConfirm": "删除后无法恢复。",
+      "deleteGlobalConfirm": "将从所有上下文中移除，且无法恢复。",
+      "deleteRestrictedConfirm": "将从所有已关联的上下文中移除，且无法恢复。",
+      "deleteSharedConfirm": "将从 {{count}} 个已关联的上下文中移除，且无法恢复。",
       "edit": "编辑提示词",
       "errors": {
+        "bindFailed": "关联提示词失败",
         "createFailed": "创建提示词失败",
         "deleteFailed": "删除提示词失败",
+        "loadBindingsFailed": "加载可用对象失败",
         "loadFailed": "加载提示词失败",
+        "reorderFailed": "调整提示词顺序失败",
+        "unbindFailed": "取消关联提示词失败",
         "updateFailed": "更新提示词失败"
       },
       "manage": "管理提示词",
-      "title": "提示词管理",
+      "noPrompts": "暂无提示词",
+      "reorder": "拖动以重新排序{{title}}",
+      "searchPlaceholder": "搜索提示词标题或内容",
+      "title": "提示词",
       "titleLabel": "标题",
-      "titlePlaceholder": "请输入提示词标题",
-      "variablePlaceholder": "${变量}"
+      "titlePlaceholder": "请输入标题",
+      "variablePlaceholder": "${变量}",
+      "visibility": {
+        "global": {
+          "badge": "全局",
+          "label": "全局使用"
+        },
+        "makeGlobalConfirmDescription": "改为全局后，该提示词仍会在所有上下文中可用，但会永久删除其 {{count}} 个上下文关联及对应排序。是否继续？",
+        "makeGlobalConfirmTitle": "将提示词改为全局？",
+        "restricted": {
+          "badge": "指定"
+        }
+      }
     },
     "provider": {
       "add": {
@@ -6249,10 +6387,6 @@
             "token_threshold": "缓存 Token 阈值",
             "token_threshold_help": "消息超过此 Token 数才会被缓存，设为 0 禁用缓存"
           },
-          "array_content": {
-            "help": "该提供商是否支持 message 的 content 字段为 array 类型",
-            "label": "支持数组格式的 message content"
-          },
           "developer_role": {
             "help": "该提供商是否支持 role: \"developer\" 的消息",
             "label": "支持 Developer Message"
@@ -6262,17 +6396,13 @@
             "label": "支持 enable_thinking"
           },
           "label": "API 设置",
-          "service_tier": {
-            "help": "该提供商是否支持配置 service_tier 参数。开启后，可在对话页面的服务层级设置中调整该参数。（仅限OpenAI模型）",
-            "label": "支持 service_tier"
+          "reasoning_summary": {
+            "help": "向此 Responses 端点发送 reasoning.summary。请仅在服务器接受该 OpenAI 参数时启用。",
+            "label": "支持思考摘要"
           },
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
-          },
-          "verbosity": {
-            "help": "该提供商是否支持 verbosity 参数",
-            "label": "支持 verbosity"
           }
         },
         "url": {
@@ -6993,9 +7123,8 @@
       "explore": {
         "analysis": "分析",
         "chart": "图表",
-        "clearDate": "清除日期筛选",
-        "drilldownTitle": "{{date}} 明细",
         "entries": "请求",
+        "granularity": "粒度",
         "groupBy": "分组",
         "loadMore": "加载更多",
         "loading": "加载中...",
@@ -7005,7 +7134,6 @@
         "noEntries": "暂无记录",
         "noEntriesDescription": "尝试扩大时间范围或更换供应商。",
         "rollup": "汇总",
-        "selectedDate": "选定日期：{{date}}",
         "shareLabel": "占比",
         "title": "探索",
         "top": "Top",
@@ -7019,7 +7147,6 @@
         "source": "助手 / Agent"
       },
       "heatmap": {
-        "ariaDate": "{{date}} 的用量",
         "title": "每日活动"
       },
       "metric": {
@@ -7201,10 +7328,10 @@
     "history": {
       "back": "返回列表",
       "clear": "清空历史",
-      "clear_description": "清空历史将删除所有翻译历史记录，是否继续？",
+      "clear_description": "清空历史将删除所有翻译历史记录，并一并回收其中生成的译文文件，是否继续？",
       "copy_target": "复制译文",
       "delete": "删除翻译历史",
-      "delete_description": "确定要删除这条翻译历史记录吗？此操作不可撤销。",
+      "delete_description": "确定要删除这条翻译历史记录吗？若是文件翻译，生成的译文文件也会一并回收。此操作不可撤销。",
       "empty": "暂无翻译历史",
       "error": {
         "add": "添加翻译历史失败",
@@ -7212,6 +7339,17 @@
         "delete": "删除失败",
         "load": "加载翻译历史失败",
         "save": "保存翻译历史失败"
+      },
+      "file": {
+        "action_failed": "无法对该文件执行此操作",
+        "badge": "文件翻译",
+        "export": "另存译文文件…",
+        "open": "打开译文文件",
+        "preview": "双栏预览",
+        "reveal": "在文件夹中显示",
+        "source": "源文件",
+        "target": "译文文件",
+        "unavailable": "该翻译记录的文件已不可用"
       },
       "filter": {
         "starred": "仅显示收藏"
@@ -7241,6 +7379,53 @@
     "language_settings": "语言设置",
     "output": {
       "placeholder": "翻译"
+    },
+    "pdf": {
+      "action": {
+        "close": "关闭 PDF 翻译",
+        "export": "导出译文 PDF",
+        "install_babeldoc": "安装 BabelDOC",
+        "update_babeldoc": "更新 BabelDOC"
+      },
+      "dependency": {
+        "checking": "正在检测 BabelDOC...",
+        "description": "安装 BabelDOC 插件即可在翻译 PDF 时保留原始版式。",
+        "installing": "正在安装 BabelDOC...",
+        "outdated_description": "更新 BabelDOC 后即可继续保留原始版式翻译 PDF。",
+        "outdated_title": "需要更新 BabelDOC",
+        "title": "检测到 PDF"
+      },
+      "error": {
+        "generic": "翻译过程中出现错误，请重试。",
+        "ocr_required": "暂不支持扫描版 PDF",
+        "persist_failed": "PDF 已翻译完成，但译文保存失败，请重试。",
+        "title": "PDF 翻译失败"
+      },
+      "export_failed": "导出译文 PDF 失败",
+      "pane": {
+        "translated": "译文 PDF",
+        "translated_text": "译文"
+      },
+      "progress": {
+        "analyzing": "正在分析文档版式",
+        "checking_assets": "正在检查 PDF 处理资源",
+        "downloading_assets": "正在下载 PDF 处理资源...",
+        "extracting_terms": "正在提取文档术语",
+        "loading_model": "正在加载 PDF 处理模型",
+        "parsing": "正在解析 PDF 文档",
+        "percent": "{{progress}}%",
+        "preparing": "正在初始化 PDF 翻译",
+        "preparing_hint": "首次初始化可能需要约 2 分钟，后续通常会更快",
+        "rendering": "正在渲染译文 PDF",
+        "translating": "正在翻译内容",
+        "typesetting": "正在排版译文 PDF",
+        "value": "{{stage}}，阶段 {{stageProgress}}%，总体 {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "选择目标语言并开始翻译。",
+        "title": "等待翻译"
+      },
+      "success": "译文 PDF 已生成"
     },
     "preferred_target": "首选目标",
     "processing": "翻译中...",
