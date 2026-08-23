@@ -71,7 +71,7 @@ function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Tex
 // of the path (`https://x.com/a/**/b`). Scan backwards until one is followed by non-URL text.
 function findCloserRun(url: string): { start: number; tailStart: number } | undefined {
   let index = url.lastIndexOf(CLOSER)
-  while (index > 0) {
+  while (index >= 0) {
     const after = url[index + CLOSER.length]
     if (after === undefined || !URL_CONTINUATION_REGEX.test(after)) {
       let start = index
