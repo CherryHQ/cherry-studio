@@ -5974,6 +5974,12 @@
       "updateSuccess": "サーバーが正常に更新されました",
       "url": "URL"
     },
+    "memory": {
+      "description": "セッション間で永続的な事実を抽出・想起する方法を管理します。",
+      "enabled": "グローバルメモリ",
+      "hint": "この機能はアシスタントにのみ適用されます。エージェントについては、ファイルベースのメモリ（SOUL / USER / FACT / JOURNAL）をご利用ください。",
+      "title": "メモリ"
+    },
     "menuGroups": {
       "automation": "効率",
       "capabilities": "ツール",

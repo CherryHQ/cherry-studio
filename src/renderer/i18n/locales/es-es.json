@@ -5974,6 +5974,12 @@
       "updateSuccess": "Servidor actualizado exitosamente",
       "url": "URL"
     },
+    "memory": {
+      "description": "Administra cómo se extraen y recuperan los hechos persistentes entre sesiones.",
+      "enabled": "Memoria global",
+      "hint": "Esta función solo se aplica a los asistentes. Para los agentes, use la memoria basada en archivos (SOUL / USER / FACT / JOURNAL).",
+      "title": "Memoria"
+    },
     "menuGroups": {
       "automation": "Eficiencia",
       "capabilities": "Herramientas",

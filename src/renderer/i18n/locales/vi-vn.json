@@ -5974,6 +5974,12 @@
       "updateSuccess": "Máy chủ đã được cập nhật thành công",
       "url": "URL"
     },
+    "memory": {
+      "description": "Quản lý cách các thông tin bền vững được trích xuất và ghi nhớ giữa các phiên.",
+      "enabled": "Bộ nhớ toàn cục",
+      "hint": "Tính năng này chỉ áp dụng cho Trợ lý. Với Agent, hãy sử dụng bộ nhớ dựa trên tệp (SOUL / USER / FACT / JOURNAL).",
+      "title": "Bộ nhớ"
+    },
     "menuGroups": {
       "automation": "Hiệu suất",
       "capabilities": "Công cụ",

@@ -5974,6 +5974,12 @@
       "updateSuccess": "Server actualizat cu succes",
       "url": "URL"
     },
+    "memory": {
+      "description": "Gestionați modul în care faptele durabile sunt extrase și reamintite între sesiuni.",
+      "enabled": "Memorie globală",
+      "hint": "Această funcție se aplică doar asistenților. Pentru agenți, utilizați memoria bazată pe fișiere (SOUL / USER / FACT / JOURNAL).",
+      "title": "Memorie"
+    },
     "menuGroups": {
       "automation": "Eficiență",
       "capabilities": "Instrumente",

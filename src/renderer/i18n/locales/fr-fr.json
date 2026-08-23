@@ -5974,6 +5974,12 @@
       "updateSuccess": "Serveur mis à jour avec succès",
       "url": "URL"
     },
+    "memory": {
+      "description": "Gérez comment les faits durables sont extraits et rappelés entre les sessions.",
+      "enabled": "Mémoire globale",
+      "hint": "Cette fonctionnalité s'applique uniquement aux assistants. Pour les agents, utilisez la mémoire basée sur les fichiers (SOUL / USER / FACT / JOURNAL).",
+      "title": "Mémoire"
+    },
     "menuGroups": {
       "automation": "Efficacité",
       "capabilities": "Outils",
