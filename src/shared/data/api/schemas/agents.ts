@@ -62,7 +62,7 @@ export const AgentConfigurationSchema = z
     heartbeat_enabled: z.boolean().optional(),
     heartbeat_interval: z.number().optional(),
     builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional(),
-    language: z.string().optional()
+    language: z.string().nullable().optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must

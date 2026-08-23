@@ -310,7 +310,7 @@ beforeEach(() => {
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
   mocks.getAppLanguage.mockReturnValue('en-US')
-  mocks.preferenceGet.mockReturnValue('auto')
+  mocks.preferenceGet.mockReturnValue(null)
   mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   mocks.provisionBuiltinAgent.mockResolvedValue(undefined)
   mocks.replacePromptVariables.mockImplementation(async (prompt: string) => prompt)
@@ -483,13 +483,12 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
     expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
     expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
-    // Default agent.language is 'auto' — falls back to UI language so upgrades
-    // preserve the pre-19160 "reply in UI language" contract
-    expect(appendedSystemPrompt()).toContain('By default, respond in English.')
+    // Default global null => no language constraint is injected (decoupled from UI language)
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
   })
 
   it('injects global agent language when agent.language is set', async () => {
-    mocks.preferenceGet.mockReturnValue('en-US')
+    mocks.preferenceGet.mockReturnValue('English')
 
     await new PiRuntimeConnection(input).start()
 
@@ -497,7 +496,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('per-agent language overrides the global default', async () => {
-    mocks.preferenceGet.mockReturnValue('en-US')
+    mocks.preferenceGet.mockReturnValue('English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
@@ -512,7 +511,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('per-agent language set to auto suppresses the global language', async () => {
-    mocks.preferenceGet.mockReturnValue('en-US')
+    mocks.preferenceGet.mockReturnValue('English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',

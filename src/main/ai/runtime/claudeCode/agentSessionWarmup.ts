@@ -20,7 +20,7 @@ import {
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { getAppLanguage } from '@main/i18n'
+import { resolveEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -136,24 +136,6 @@ interface ConnectionMaterializationFacts {
  * within the set is invisible; editing either input changes the fingerprint). Gateway routes hash
  * the stable per-install gateway key. External-cli routes have no key (subscription login) — constant.
  */
-function resolveEffectiveAgentLanguage(agent: AgentEntity): string | null {
-  const perAgent = agent.configuration?.language
-  if (typeof perAgent === 'string' && perAgent.trim() !== '') {
-    if (perAgent === 'auto') return null
-    return perAgent
-  }
-  try {
-    const global = application.get('PreferenceService').get('agent.language') as unknown as string | null
-    if (typeof global === 'string' && global.trim() !== '' && global !== 'auto') return global
-  } catch {
-    // PreferenceService unavailable in some test harnesses
-  }
-  try {
-    return getAppLanguage()
-  } catch {
-    return null
-  }
-}
 
 function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
@@ -405,6 +387,10 @@ async function deriveConnectionConfigFromSnapshot(
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
+    // Rebuild fact: language change invalidates the warm connection so the new
+    // language instruction is baked into the next prompt and prompt cache. This
+    // trades cache preservation for correctness — first turn after change pays
+    // full input-token cost until the new prefix is cached.
     language: resolveEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
