@@ -60,8 +60,7 @@ describe('CallBackServer.waitForAuthCode', () => {
   })
 
   it('rejects and removes listeners when the callback server fails after listening', async () => {
-    let httpServer: http.Server
-    httpServer = Object.assign(new EventEmitter(), {
+    const httpServer = Object.assign(new EventEmitter(), {
       listen: vi.fn((_port: number, _host: string, callback: () => void) => {
         callback()
         return httpServer
