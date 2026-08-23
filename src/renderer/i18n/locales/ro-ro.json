@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Închide previzualizare",
       "code": "Cod",
+      "copy_path": "Copiază calea",
+      "copy_relative_path": "Copiază calea relativă",
       "default_app": "Aplicație implicită",
       "edit": {
         "conflict": {
