@@ -39,7 +39,7 @@ describe('provider reasoning contracts', () => {
       expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
         operations: [
           { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-          { target: 'reasoning_effort', value: { source: 'effort' } }
+          { target: 'reasoningEffort', value: { source: 'effort' } }
         ],
         effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
       })
