@@ -1089,6 +1089,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
+    if (this.closingSessions.size > 0) return true
     if (this.inFlightBackgroundFlowFlushes.size > 0) return true
     for (const sessionId of this.entries.keys()) {
       if (this.isSessionBusy(sessionId)) return true
@@ -1171,8 +1172,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff) and
-   * detached-flow finalizers, bounded by timeoutMs. Never rejects; stragglers are NOT aborted.
+   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff),
+   * detached-flow finalizers, and runtime close barriers, bounded by timeoutMs. Never rejects;
+   * stragglers are NOT aborted.
    * The resulting stream writes are AiStreamManager's drain — this only covers the windows this
    * service writes in.
    * The set can grow one step while draining (a settling turn schedules the next start
@@ -1204,6 +1206,13 @@ export class AgentSessionRuntimeService extends BaseService {
         const remove = () => pending.delete(flush)
         flush.then(remove, remove)
       }
+      for (const [sessionId, closing] of this.closingSessions) {
+        if (seen.has(closing.promise)) continue
+        seen.add(closing.promise)
+        pending.set(closing.promise, sessionId)
+        const remove = () => pending.delete(closing.promise)
+        closing.promise.then(remove, remove)
+      }
     }
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -1232,13 +1241,18 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Advisory pre-flight enumeration for the restore orchestrator. Read-only, in-memory. */
   listActiveWork(): Array<{ id: string; summary: string }> {
     const work: Array<{ id: string; summary: string }> = []
+    const activeSessionIds = new Set<string>()
     for (const [sessionId, entry] of this.entries) {
       if (!this.isSessionBusy(sessionId)) continue
+      activeSessionIds.add(sessionId)
       const turn = this.liveTurn(entry) ? 'live' : '-'
       work.push({
         id: sessionId,
         summary: `turn=${turn} pending=${entry.runtimeState.queue.length} execution=${entry.runtimeState.execution.kind} compacting=${isAgentSessionRuntimeCompacting(entry.runtimeState)} launch=${entry.runtimeState.launch.kind}`
       })
+    }
+    for (const sessionId of this.closingSessions.keys()) {
+      if (!activeSessionIds.has(sessionId)) work.push({ id: sessionId, summary: 'closing=true' })
     }
     return work
   }

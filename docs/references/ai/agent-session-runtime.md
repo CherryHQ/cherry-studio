@@ -748,8 +748,9 @@ the last hold's disposal re-kicks it. New-turn admission through `prepareDispatc
 `beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
 write and `startRuntimeTurn` handoff — plus detached-flow finalizers that may still persist message
-parts after their runtime entry closes. The resulting stream writes belong to `AiStreamManager`'s
-drain. This is distinct from the BaseService lifecycle pause and never touches service state.
+parts and runtime close barriers that may still flush external state after their entry is removed.
+The resulting stream writes belong to `AiStreamManager`'s drain. This is distinct from the BaseService
+lifecycle pause and never touches service state.
 `AgentSessionDeliveryService` suppresses accepted-row kicks while a
 hold is live, tracks validation/claim/send handoffs and deletion orchestration in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks

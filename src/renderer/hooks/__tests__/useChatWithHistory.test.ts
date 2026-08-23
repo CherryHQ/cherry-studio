@@ -338,6 +338,16 @@ describe('useChatWithHistory', () => {
     await expect(stopping).resolves.toBeUndefined()
   })
 
+  it('rejects stop() when the main-process stream cannot be aborted', async () => {
+    const abortError = new Error('main abort failed')
+    streamAbortMock.mockRejectedValueOnce(abortError)
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+
+    await expect(result.current.stop()).rejects.toBe(abortError)
+    expect(stop).toHaveBeenCalledTimes(1)
+  })
+
   it('does not refresh on streaming → aborted/error because page handoff owns final refresh', async () => {
     for (const terminal of ['aborted', 'error'] as const) {
       const refresh = vi.fn().mockResolvedValue(refreshedMessages)
