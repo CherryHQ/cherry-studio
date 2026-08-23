@@ -97,6 +97,14 @@ const expansionRequests = () =>
 
 const advance = (milliseconds: number) => act(() => vi.advanceTimersByTime(milliseconds))
 
+const expectTextOrder = (element: HTMLElement, texts: string[]) => {
+  const content = element.textContent ?? ''
+  const positions = texts.map((text) => content.indexOf(text))
+
+  expect(positions.every((position) => position >= 0)).toBe(true)
+  expect(positions).toEqual([...positions].sort((left, right) => left - right))
+}
+
 describe('ConversationIsland', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -114,19 +122,21 @@ describe('ConversationIsland', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('renders status text and the required title while gating the secondary count', () => {
+  it('prioritizes the compact capsule title and shows the localized total badge only for multiple activities', () => {
     mocks.initData = snapshot()
     const view = render(<ConversationIsland />)
 
     expect(screen.getByText('Responding')).toBeVisible()
     expect(screen.getByText('New Chat')).toBeVisible()
-    expect(screen.queryByText('+2')).toBeNull()
+    expect(screen.queryByLabelText('Total: 1')).toBeNull()
 
-    mocks.initData = snapshot({ title: 'Research notes', secondaryCount: 2 })
+    mocks.initData = snapshot({ title: 'Research notes', activityCountText: 'Total: 3', secondaryCount: 2 })
     view.rerender(<ConversationIsland />)
 
     expect(screen.getByText('Research notes')).toBeVisible()
-    expect(screen.getByText('+2')).toBeVisible()
+    expect(screen.getByText('Responding')).toBeVisible()
+    expect(screen.getByLabelText('Total: 3')).toHaveTextContent('3')
+    expect(screen.queryByText('+2')).toBeNull()
   })
 
   it('keeps notch content in two wings around the measured occlusion', () => {
@@ -136,6 +146,7 @@ describe('ConversationIsland', () => {
       presentation: 'notch',
       notchWidth: 120,
       title: 'Research notes',
+      activityCountText: 'Total: 3',
       secondaryCount: 2
     })
     const view = render(<ConversationIsland />)
@@ -155,18 +166,24 @@ describe('ConversationIsland', () => {
       'backdrop-blur-xs'
     )
     expect(occlusion).toHaveStyle({ width: '120px' })
-    expect(within(leading).getByText('Responding')).toBeVisible()
-    expect(within(trailing).getByText('Research notes')).toBeVisible()
-    expect(within(trailing).getByText('+2')).toBeVisible()
+    expect(within(leading).getByText('Research notes')).toBeVisible()
+    expect(within(trailing).getByText('Responding')).toBeVisible()
+    expect(within(trailing).getByLabelText('Total: 3')).toHaveTextContent('3')
+    expect(within(trailing).queryByText('+2')).toBeNull()
     expect(screen.queryByText('Research Assistant')).toBeNull()
     expect(screen.queryByText('🧠')).toBeNull()
 
-    mocks.initData = snapshot({ presentation: 'notch', notchWidth: 120, secondaryCount: 2 })
+    mocks.initData = snapshot({
+      presentation: 'notch',
+      notchWidth: 120,
+      activityCountText: 'Total: 3',
+      secondaryCount: 2
+    })
     view.rerender(<ConversationIsland />)
 
     expect(screen.queryByText('Research notes')).toBeNull()
-    expect(within(screen.getByTestId('notch-trailing')).getByText('New Chat')).toBeVisible()
-    expect(within(screen.getByTestId('notch-trailing')).getByText('+2')).toBeVisible()
+    expect(within(screen.getByTestId('notch-leading')).getByText('New Chat')).toBeVisible()
+    expect(within(screen.getByTestId('notch-trailing')).getByLabelText('Total: 3')).toHaveTextContent('3')
   })
 
   it('keeps capsule styling for capsule snapshots', () => {
@@ -178,53 +195,48 @@ describe('ConversationIsland', () => {
     expect(screen.getByRole('button')).toHaveClass('rounded-full', 'bg-popover/95')
   })
 
-  it('keeps the status visible when a single activity expands as a capsule', () => {
-    mocks.initData = snapshot({ expanded: true })
-    render(<ConversationIsland />)
-
-    const activity = screen.getByRole('button', { name: 'Responding: New Chat' })
-    expect(within(activity).getByText('Responding')).toBeVisible()
-    expect(within(activity).getByText('New Chat')).toBeVisible()
-  })
-
-  it.each([
-    ['assistant', 'Assistant active'],
-    ['agent', 'Agent active']
-  ] as const)(
-    'shows the %s primary activity identity in the expanded notch leading shoulder',
-    (conversationType, statusText) => {
+  it.each(['notch', 'capsule'] as const)(
+    'shows the same multi-activity summary and identity/status/title rows in the %s shell',
+    (presentation) => {
+      const activities = [
+        activity('topic-1', 'Research notes'),
+        activity('topic-2', 'Review plan', {
+          identityAvatar: '🤖',
+          identityName: 'Planning Agent',
+          state: 'awaiting-confirmation',
+          statusText: 'Waiting'
+        })
+      ]
       mocks.initData = expandedSnapshot({
-        presentation: 'notch',
-        notchWidth: 180,
-        statusText,
-        target: { conversationType, conversationId: 'topic-1' }
+        activities,
+        activityCountText: 'Total: 2',
+        notchWidth: presentation === 'notch' ? 180 : undefined,
+        presentation,
+        title: 'Research notes'
       })
       render(<ConversationIsland />)
 
-      const leading = screen.getByTestId('notch-expanded-leading')
-      const icon = within(leading).getByTestId('notch-activity-icon')
+      const summary = screen.getByTestId(presentation === 'notch' ? 'notch-expanded-header' : 'capsule-expanded-header')
+      expect(within(summary).getByText('Responding')).toBeVisible()
+      expect(within(summary).getByText('Total: 2')).toBeVisible()
 
-      expect(within(leading).getByText(statusText)).toBeVisible()
-      expect(icon).toHaveAttribute('data-conversation-type', conversationType)
-      expect(within(leading).getByTestId('state-indicator')).toBeInTheDocument()
+      if (presentation === 'notch') {
+        expect(within(summary).getByTestId('notch-activity-icon')).toHaveAttribute(
+          'data-conversation-type',
+          'assistant'
+        )
+        expect(screen.getByTestId('notch-expanded-occlusion')).toHaveStyle({ width: '180px' })
+      }
+
+      const primary = screen.getByRole('button', { name: 'Responding: Research notes' })
+      const secondary = screen.getByRole('button', { name: 'Waiting: Review plan' })
+      expectTextOrder(primary, ['Cherry Assistant', 'Responding', 'Research notes'])
+      expectTextOrder(secondary, ['Planning Agent', 'Waiting', 'Review plan'])
+
+      // Permanent fill or weight would make Primary look selected instead of merely ordered first.
+      expect(primary).not.toHaveClass('bg-accent', 'bg-white/10', 'font-medium')
     }
   )
-
-  it('shows the localized total around the measured expanded-notch occlusion', () => {
-    mocks.initData = expandedSnapshot({
-      presentation: 'notch',
-      notchWidth: 180,
-      activityCountText: 'Total: 2',
-      secondaryCount: 41
-    })
-    render(<ConversationIsland />)
-
-    const trailing = screen.getByTestId('notch-expanded-trailing')
-
-    expect(within(trailing).getByText('Total: 2')).toBeVisible()
-    expect(within(trailing).queryByText('+41')).toBeNull()
-    expect(screen.getByTestId('notch-expanded-occlusion')).toHaveStyle({ width: '180px' })
-  })
 
   it.each([
     { notchWidth: undefined },
@@ -368,40 +380,31 @@ describe('ConversationIsland', () => {
     expect(expansionRequests()).toEqual([])
   })
 
-  it.each([
-    {
-      identityAvatar: '🧠',
-      identityName: 'Research Assistant',
-      renderedAvatar: '🧠'
-    },
-    {
-      identityAvatar: '',
-      identityName: 'Planning Agent',
-      renderedAvatar: '🤖'
-    }
-  ])(
-    'shows $identityName identity, state, and title in a single-activity expanded notch',
-    ({ identityAvatar, identityName, renderedAvatar }) => {
+  it.each(['notch', 'capsule'] as const)(
+    'shows identity and status above one title button without list semantics in the %s shell',
+    (presentation) => {
       mocks.initData = snapshot({
         expanded: true,
-        identityAvatar,
-        identityName,
-        notchWidth: 120,
-        presentation: 'notch',
+        identityAvatar: '🧠',
+        identityName: 'Research Assistant',
+        notchWidth: presentation === 'notch' ? 120 : undefined,
+        presentation,
         title: 'Investigate rendering behavior'
       })
       render(<ConversationIsland />)
 
-      const leading = screen.getByTestId('notch-expanded-leading')
-      const trailing = screen.getByTestId('notch-expanded-trailing')
+      const summary = screen.getByTestId(presentation === 'notch' ? 'notch-expanded-header' : 'capsule-expanded-header')
+      expect(within(summary).getByText('Research Assistant')).toBeVisible()
+      expect(within(summary).getByTestId('emoji-icon')).toHaveTextContent('🧠')
+      expect(within(summary).getByTestId('state-indicator')).toBeInTheDocument()
+      expect(within(summary).getByText('Responding')).toBeVisible()
 
-      expect(within(leading).getByText(identityName)).toBeVisible()
-      expect(within(leading).getByTestId('emoji-icon')).toHaveTextContent(renderedAvatar)
-      expect(within(trailing).getByTestId('state-indicator')).toBeInTheDocument()
-      expect(within(trailing).getByText('Responding')).toBeVisible()
       const detail = screen.getByRole('button', { name: 'Responding: Investigate rendering behavior' })
+      // The body height is the approved single-detail geometry contract below the fixed 38px summary.
+      expect(detail).toHaveClass('h-[44px]')
       expect(within(detail).getByText('Investigate rendering behavior')).toBeVisible()
       expect(within(detail).queryByText('Responding')).toBeNull()
+      expect(screen.queryByRole('list')).toBeNull()
       expect(screen.getAllByRole('button')).toHaveLength(1)
     }
   )
@@ -557,7 +560,7 @@ describe('ConversationIsland', () => {
     ])
   })
 
-  it('keeps all activities in equal-height accessible rows inside a five-row scroller', () => {
+  it('keeps all activities in equal-height accessible rows inside the four-row scroller', () => {
     const activities = Array.from({ length: 6 }, (_, index) =>
       activity(`topic-${index + 1}`, `Activity ${index + 1}`, {
         statusText: index === 2 ? 'Waiting' : 'Responding',
@@ -577,11 +580,10 @@ describe('ConversationIsland', () => {
       'Responding: Activity 5',
       'Responding: Activity 6'
     ])
-    for (const row of rows) expect(row).toHaveClass('h-11')
-    expect(screen.getByRole('button', { name: 'Waiting: Activity 3' })).toHaveClass('bg-accent', 'font-medium')
+    for (const row of rows) expect(row).toHaveClass('h-[52px]')
 
-    // The max height and overflow classes are the fixed five-row window layout contract.
-    expect(screen.getByRole('list')).toHaveClass('max-h-[220px]', 'overflow-y-auto')
+    // The row and scroller classes are the approved fixed-height four-row window layout contract.
+    expect(screen.getByRole('list')).toHaveClass('max-h-[208px]', 'overflow-y-auto')
   })
 
   it('uses notch and capsule expanded surfaces without recalculating window bounds', () => {
@@ -598,9 +600,10 @@ describe('ConversationIsland', () => {
     view.rerender(<ConversationIsland />)
 
     const capsuleSurface = screen.getByTestId('conversation-island-surface')
-    expect(capsuleSurface).toHaveClass('bg-popover', 'text-popover-foreground', 'p-2')
-    expect(capsuleSurface).not.toHaveClass('pt-[38px]', 'bg-black')
+    expect(capsuleSurface).toHaveClass('bg-popover', 'text-popover-foreground')
+    expect(capsuleSurface).not.toHaveClass('p-2', 'pt-[38px]', 'bg-black')
     expect(screen.queryByTestId('notch-expanded-header')).toBeNull()
+    expect(screen.getByTestId('capsule-expanded-header')).toHaveClass('h-[38px]')
   })
 
   it('cleans pending expand and collapse timers on unmount', async () => {

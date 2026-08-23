@@ -299,10 +299,7 @@ describe('ConversationIslandService', () => {
         presentation: 'capsule'
       })
     )
-    mocks.geometrySize.mockImplementation((presentation: 'notch' | 'capsule', activityCount: number) => ({
-      width: 420,
-      height: activityCount * 44 + (presentation === 'notch' ? 46 : 16)
-    }))
+    mocks.geometrySize.mockReturnValue({ width: 420, height: 142 })
     mocks.i18nSuffix = ''
     mocks.name = 'Research notes'
     mocks.agent = { name: 'Coding Agent', configuration: { avatar: '🤖' } }
@@ -863,7 +860,7 @@ describe('ConversationIslandService', () => {
     ])
   })
 
-  it('derives expanded bounds from compact presentation on the frozen display', () => {
+  it('derives presentation-independent expanded bounds on the frozen display', () => {
     changePreference('feature.conversation_island.enabled', true)
     emitActivity('pending', 100, 'topic-a')
     emitActivity('streaming', 200, 'topic-b')
@@ -871,14 +868,11 @@ describe('ConversationIslandService', () => {
 
     ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
 
-    expect(mocks.geometryResolve).toHaveBeenNthCalledWith(1, internalDisplay, expect.any(Map), {
-      width: 320,
-      height: 38
-    })
-    expect(mocks.geometrySize).toHaveBeenLastCalledWith('capsule', 2)
-    expect(mocks.geometryResolve).toHaveBeenNthCalledWith(2, internalDisplay, expect.any(Map), {
+    expect(mocks.geometrySize).toHaveBeenLastCalledWith(2)
+    expect(mocks.geometryResolve).toHaveBeenCalledOnce()
+    expect(mocks.geometryResolve).toHaveBeenCalledWith(internalDisplay, expect.any(Map), {
       width: 420,
-      height: 104
+      height: 142
     })
     expect(latestSnapshot()).toMatchObject({ expanded: true, presentation: 'capsule' })
   })
