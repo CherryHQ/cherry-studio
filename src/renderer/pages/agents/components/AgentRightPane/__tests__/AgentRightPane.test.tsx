@@ -1698,4 +1698,100 @@ describe('AgentRightPane', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
+
+  it('prefetches one history page only when the status tab is presented', () => {
+    const loadOlder = vi.fn()
+    const renderPane = () => (
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} hasOlder loadOlder={loadOlder}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+
+    expect(loadOlder).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+
+    rerender(renderPane())
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not prefetch while the first history page is still loading', () => {
+    const loadOlder = vi.fn()
+    const renderPane = (isLoading: boolean) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={{}}
+        hasOlder
+        isLoading={isLoading}
+        loadOlder={loadOlder}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane(true))
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(loadOlder).not.toHaveBeenCalled()
+
+    rerender(renderPane(false))
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefetches at most once per session across close/reopen', () => {
+    const loadOlder = vi.fn()
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} hasOlder loadOlder={loadOlder}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="status"]') as HTMLElement)
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not prefetch while a non-status tab is presented', () => {
+    const loadOlder = vi.fn()
+    render(
+      <TestAgentRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}
+        hasOlder
+        loadOlder={loadOlder}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+    expect(loadOlder).not.toHaveBeenCalled()
+  })
+
+  it('does not prefetch when no older history exists', () => {
+    const loadOlder = vi.fn()
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} loadOlder={loadOlder}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(loadOlder).not.toHaveBeenCalled()
+  })
 })
