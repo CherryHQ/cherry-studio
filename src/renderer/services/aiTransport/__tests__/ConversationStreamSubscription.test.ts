@@ -250,6 +250,94 @@ describe('ConversationStreamSubscription', () => {
     subscription.dispose()
   })
 
+  it('sends the live high-water cursor and applies only the replay suffix', async () => {
+    vi.useFakeTimers()
+    ipc.attach.mockRejectedValueOnce(new Error('first attach failed')).mockResolvedValueOnce({
+      status: ConversationAttachStatus.Live,
+      turnId,
+      executions: [
+        {
+          state: ConversationExecutionAttachState.Live,
+          projection,
+          replay: {
+            chunks: [
+              {
+                conversation,
+                turnId,
+                executionId,
+                modelId: projection.modelId,
+                outputNodeId: projection.outputNodeId,
+                chunkSeq: 3,
+                throughChunkSeq: 3,
+                chunk: { type: 'text-delta', id: 'text-1', delta: 'snapshot-suffix' }
+              } satisfies StreamChunkPayload
+            ],
+            throughChunkSeq: 3,
+            firstAvailableChunkSeq: 1,
+            truncated: false
+          }
+        }
+      ]
+    })
+    const subscription = new ConversationStreamSubscription(conversation)
+    const refreshRequired = vi.fn()
+    subscription.onRefreshRequired(refreshRequired)
+    const reader = subscription.register(projection).getReader()
+    await Promise.resolve()
+
+    emit('ai.stream.chunk', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      chunkSeq: 2,
+      chunk: { type: 'text-delta', id: 'text-1', delta: 'live' }
+    } satisfies StreamChunkPayload)
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'live' } })
+
+    await vi.advanceTimersByTimeAsync(250)
+    await vi.waitFor(() => expect(ipc.attach).toHaveBeenCalledTimes(2))
+    expect(ipc.attach).toHaveBeenLastCalledWith({
+      conversation,
+      cursors: [{ turnId, executionId, throughChunkSeq: 2 }]
+    })
+    expect(refreshRequired).not.toHaveBeenCalled()
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'snapshot-suffix' } })
+
+    emit('ai.stream.chunk', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      chunkSeq: 4,
+      chunk: { type: 'text-delta', id: 'text-1', delta: 'after-replay' }
+    } satisfies StreamChunkPayload)
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'after-replay' } })
+    await reader.cancel()
+    subscription.dispose()
+    vi.useRealTimers()
+  })
+
+  it('bounds automatic attach retries and requests durable refresh without settling the branch', async () => {
+    vi.useFakeTimers()
+    ipc.attach.mockRejectedValue(new Error('ipc down'))
+    const subscription = new ConversationStreamSubscription(conversation)
+    const refreshRequired = vi.fn()
+    subscription.onRefreshRequired(refreshRequired)
+    subscription.register(projection)
+
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(ipc.attach).toHaveBeenCalledTimes(4)
+    expect(refreshRequired).toHaveBeenCalledExactlyOnceWith([turnId])
+    expect(subscription.hasOpenBranch(executionId)).toBe(true)
+    expect(subscription.isSettled(executionId)).toBe(false)
+    subscription.dispose()
+    vi.useRealTimers()
+  })
+
   it('requests durable refresh for NotFound without inventing a successful terminal', async () => {
     ipc.attach.mockResolvedValue({ status: ConversationAttachStatus.NotFound })
     const subscription = new ConversationStreamSubscription(conversation)
@@ -293,6 +381,33 @@ describe('ConversationStreamSubscription', () => {
 
     expect(subscription.isSettled(executionId)).toBe(false)
     expect(subscription.isConversationOpen()).toBe(false)
+    subscription.dispose()
+  })
+
+  it('retains terminal authority after the reader unregisters until explicit retirement', async () => {
+    const subscription = new ConversationStreamSubscription(conversation)
+    subscription.listen()
+    const reader = subscription.register(projection).getReader()
+
+    emit('ai.stream.done', {
+      conversation,
+      turnId,
+      executionId,
+      outputNodeId: projection.outputNodeId,
+      status: ConversationStreamTerminalStatus.Done,
+      turnTerminal: true
+    })
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
+
+    subscription.unregister(executionId)
+    expect(subscription.isSettled(executionId)).toBe(true)
+    await expect(subscription.register(projection).getReader().read()).resolves.toEqual({
+      done: true,
+      value: undefined
+    })
+
+    subscription.retireExecution(executionId)
+    expect(subscription.isSettled(executionId)).toBe(false)
     subscription.dispose()
   })
 })

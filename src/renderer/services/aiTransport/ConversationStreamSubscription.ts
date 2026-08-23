@@ -26,6 +26,7 @@ import { streamAttachmentService } from './StreamAttachmentService'
 
 const logger = loggerService.withContext('ConversationStreamSubscription')
 const ATTACH_RETRY_DELAY_MS = 250
+const MAX_ATTACH_ATTEMPTS = 4
 
 function assertNever(value: never): never {
   throw new Error(`Unhandled Conversation attachment variant: ${String(value)}`)
@@ -37,6 +38,7 @@ export interface ExecutionTerminal {
   outputNodeId: string
   isAbort: boolean
   isError: boolean
+  error?: SerializedError
 }
 
 type TerminalListener = (terminal: ExecutionTerminal) => void
@@ -102,6 +104,7 @@ export class ConversationStreamSubscription {
   #attachInFlight: Promise<void> | null = null
   #attachBuffer: BufferedAttachmentEvent[] | null = null
   #attachRetryTimer: number | null = null
+  #attachAttempts = 0
   #releaseAttachment: (() => void) | null = null
   #attachmentGeneration = 0
   #disposed = false
@@ -116,7 +119,6 @@ export class ConversationStreamSubscription {
 
   register(projection: ConversationExecutionProjection): ReadableStream<UIMessageChunk> {
     const branch = this.#getOrCreateBranch(projection)
-    this.#conversationOpen = true
     if (!branch.closed) void this.#ensureAttached()
     return branch.stream
   }
@@ -143,11 +145,14 @@ export class ConversationStreamSubscription {
       this.#closeBranch(branch)
       this.#branches.delete(executionId)
     }
-    this.#terminals.delete(executionId)
     if (this.#branches.size === 0) {
-      this.#setConversationOpen(false)
       queueMicrotask(() => this.#detachIfIdle())
     }
+  }
+
+  retireExecution(executionId: ConversationExecutionId): void {
+    this.unregister(executionId)
+    this.#terminals.delete(executionId)
   }
 
   cancelBranch(executionId: ConversationExecutionId): void {
@@ -203,8 +208,11 @@ export class ConversationStreamSubscription {
     const existing = this.#branches.get(projection.executionId)
     if (existing) return existing
     const branch = createBranch(projection)
-    if (this.#terminals.has(projection.executionId)) this.#closeBranch(branch)
-    else this.#branches.set(projection.executionId, branch)
+    const terminal = this.#terminals.get(projection.executionId)
+    if (terminal) {
+      if (terminal.error) branch.controller?.enqueue({ type: 'data-error', data: { ...terminal.error } })
+      this.#closeBranch(branch)
+    } else this.#branches.set(projection.executionId, branch)
     return branch
   }
 
@@ -302,6 +310,7 @@ export class ConversationStreamSubscription {
         if (event.payload.turnTerminal) {
           this.#setConversationOpen(false)
           this.#publishQuiescence(event.payload.turnId)
+          queueMicrotask(() => this.#detachIfIdle())
         }
         return
       case BufferedAttachmentEventType.Error:
@@ -311,11 +320,13 @@ export class ConversationStreamSubscription {
           executionId: event.payload.executionId,
           outputNodeId: event.payload.outputNodeId,
           isAbort: false,
-          isError: true
+          isError: true,
+          error: event.payload.error
         })
         if (event.payload.turnTerminal) {
           this.#setConversationOpen(false)
           this.#publishQuiescence(event.payload.turnId)
+          queueMicrotask(() => this.#detachIfIdle())
         }
         return
       default:
@@ -327,6 +338,7 @@ export class ConversationStreamSubscription {
     const buffered = this.#attachBuffer ?? []
     this.#attachBuffer = null
     if (result.status === ConversationAttachStatus.NotFound) {
+      this.#attachAttempts = 0
       this.#attachmentPhase = ConversationAttachmentPhase.Detached
       this.#releaseAttachmentLease()
       this.#setConversationOpen(false)
@@ -338,6 +350,7 @@ export class ConversationStreamSubscription {
     }
 
     this.#attachmentPhase = ConversationAttachmentPhase.Attached
+    this.#attachAttempts = 0
     for (const snapshot of result.executions) this.#applyExecutionSnapshot(snapshot)
     this.#setConversationOpen(result.status === ConversationAttachStatus.Live)
     if (result.status === ConversationAttachStatus.Settled) this.#publishQuiescence(result.turnId)
@@ -345,7 +358,7 @@ export class ConversationStreamSubscription {
   }
 
   #applyExecutionSnapshot(snapshot: ExecutionAttachSnapshot): void {
-    for (const payload of snapshot.replay.chunks) this.#routeChunk(payload)
+    this.#applyReplay(snapshot)
     if (snapshot.replay.truncated) this.#publishRefreshRequired([snapshot.projection.turnId])
     switch (snapshot.state) {
       case ConversationExecutionAttachState.Live:
@@ -358,6 +371,21 @@ export class ConversationStreamSubscription {
     }
   }
 
+  #applyReplay(snapshot: ExecutionAttachSnapshot): void {
+    if (this.#terminals.has(snapshot.projection.executionId)) return
+    const branch = this.#getOrCreateBranch(snapshot.projection)
+    const baseline = branch.lastChunkSeq
+    for (const payload of snapshot.replay.chunks) {
+      if (!conversationRefsEqual(payload.conversation, this.conversation)) continue
+      if (payload.executionId !== snapshot.projection.executionId) continue
+      const throughChunkSeq = payload.throughChunkSeq ?? payload.chunkSeq
+      if (throughChunkSeq <= baseline) continue
+      if (payload.chunkSeq <= baseline) continue
+      branch.controller?.enqueue(payload.chunk)
+    }
+    branch.lastChunkSeq = Math.max(branch.lastChunkSeq, snapshot.replay.throughChunkSeq)
+  }
+
   #settleFromSnapshot(projection: ConversationExecutionProjection, terminal: ExecutionAttachTerminal): void {
     if (terminal.status === ConversationStreamTerminalStatus.Error) {
       this.#enqueueError(terminal.error, projection.executionId)
@@ -367,7 +395,8 @@ export class ConversationStreamSubscription {
       executionId: projection.executionId,
       outputNodeId: projection.outputNodeId ?? '',
       isAbort: terminal.status === ConversationStreamTerminalStatus.Paused,
-      isError: terminal.status === ConversationStreamTerminalStatus.Error
+      isError: terminal.status === ConversationStreamTerminalStatus.Error,
+      error: terminal.status === ConversationStreamTerminalStatus.Error ? terminal.error : undefined
     })
   }
 
@@ -377,7 +406,14 @@ export class ConversationStreamSubscription {
   }
 
   #scheduleAttachRetry(): void {
-    if (this.#disposed || this.#attachRetryTimer !== null || this.#branches.size === 0) return
+    if (
+      this.#disposed ||
+      this.#attachRetryTimer !== null ||
+      this.#branches.size === 0 ||
+      this.#attachAttempts >= MAX_ATTACH_ATTEMPTS
+    ) {
+      return
+    }
     this.#attachRetryTimer = window.setTimeout(() => {
       this.#attachRetryTimer = null
       if (!this.#disposed && this.#branches.size > 0) void this.#ensureAttached()
@@ -399,9 +435,17 @@ export class ConversationStreamSubscription {
     this.#attachmentPhase = ConversationAttachmentPhase.Attaching
     this.#attachBuffer = []
     const generation = ++this.#attachmentGeneration
+    this.#attachAttempts += 1
     const attaching = (async () => {
       try {
-        const result = await ipcApi.request('ai.stream.attach', { conversation: this.conversation })
+        const result = await ipcApi.request('ai.stream.attach', {
+          conversation: this.conversation,
+          cursors: [...this.#branches.values()].map(({ projection, lastChunkSeq }) => ({
+            turnId: projection.turnId,
+            executionId: projection.executionId,
+            throughChunkSeq: lastChunkSeq
+          }))
+        })
         if (this.#disposed || generation !== this.#attachmentGeneration) return
         this.#applyAttachSnapshot(result)
       } catch (error) {
@@ -412,7 +456,12 @@ export class ConversationStreamSubscription {
         this.#attachBuffer = null
         this.#releaseAttachmentLease()
         for (const event of buffered) this.#applyAttachEvent(event)
-        this.#scheduleAttachRetry()
+        if (this.#attachAttempts >= MAX_ATTACH_ATTEMPTS) {
+          this.#attachmentPhase = ConversationAttachmentPhase.Detached
+          this.#publishRefreshRequired([
+            ...new Set([...this.#branches.values()].map(({ projection }) => projection.turnId))
+          ])
+        } else this.#scheduleAttachRetry()
       } finally {
         if (generation === this.#attachmentGeneration) this.#attachInFlight = null
         this.#detachIfIdle()
@@ -431,6 +480,7 @@ export class ConversationStreamSubscription {
     this.#attachmentPhase = ConversationAttachmentPhase.Detached
     this.#attachInFlight = null
     this.#attachBuffer = null
+    this.#attachAttempts = 0
     this.#clearAttachRetry()
     this.#releaseAttachmentLease()
   }

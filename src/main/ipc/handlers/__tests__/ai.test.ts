@@ -332,16 +332,19 @@ describe('aiHandlers — streaming', () => {
   it('stream_attach delegates to ConversationRuntimeService.attach and returns its response', async () => {
     conversationRuntime.attach.mockReturnValue({ status: ConversationAttachStatus.NotFound })
 
-    const result = await aiHandlers['ai.stream.attach']({ conversation: CHAT_CONVERSATION }, { senderId: 'w1' })
+    const result = await aiHandlers['ai.stream.attach'](
+      { conversation: CHAT_CONVERSATION, cursors: [] },
+      { senderId: 'w1' }
+    )
 
-    expect(conversationRuntime.attach).toHaveBeenCalledWith(fakeWebContents, CHAT_CONVERSATION)
+    expect(conversationRuntime.attach).toHaveBeenCalledWith(fakeWebContents, CHAT_CONVERSATION, [])
     expect(result).toEqual({ status: ConversationAttachStatus.NotFound })
   })
 
   it('stream_attach throws when the sender is not a managed window', async () => {
     windowManager.getWindow.mockReturnValue(undefined)
     await expect(
-      aiHandlers['ai.stream.attach']({ conversation: CHAT_CONVERSATION }, { senderId: null })
+      aiHandlers['ai.stream.attach']({ conversation: CHAT_CONVERSATION, cursors: [] }, { senderId: null })
     ).rejects.toThrow('requires a managed window')
     expect(conversationRuntime.attach).not.toHaveBeenCalled()
   })
@@ -372,7 +375,7 @@ describe('aiHandlers — streaming', () => {
       { senderId: null }
     )
 
-    expect(conversationRuntime.getDeferredToolOutput).toHaveBeenCalledWith(AGENT_CONVERSATION, 'call-1')
+    expect(conversationRuntime.getDeferredToolOutput).toHaveBeenCalledWith(AGENT_CONVERSATION, 'assistant-1', 'call-1')
     expect(agentSessionMessageService.getSessionMessage).not.toHaveBeenCalled()
     expect(result).toEqual({ found: true, output })
   })

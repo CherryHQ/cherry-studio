@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { APPROVAL_IDLE_TIMEOUT, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type { IdleTimeoutHandle } from '@main/utils/IdleTimeoutController'
@@ -9,6 +10,7 @@ import type { CompactionAnchorData, CompactionSink } from '@shared/ai/compaction
 import {
   type ConversationEffectId,
   type ConversationExecutionId,
+  type ConversationInteractionId,
   ConversationInteractionKind,
   type ConversationInteractionResumeMode,
   ConversationOutcomeKind,
@@ -17,18 +19,37 @@ import {
   type ConversationTurnId,
   toConversationInteractionId
 } from '@shared/ai/conversation'
-import type { ConversationExecutionProjection, ReplayWindow, StreamChunkPayload } from '@shared/ai/transport'
+import type {
+  ConversationExecutionProjection,
+  ExecutionReplayCursor,
+  ReplayWindow,
+  StreamChunkPayload
+} from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { MessageRuntimeSpan } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import { applyTurnOutputAttributes } from '../observability'
+import type {
+  ConversationExecutionContext,
+  ConversationExecutionDriverBinding,
+  ConversationExecutionPreparationDescriptor,
+  ConversationTelemetryDescriptor
+} from '../streamManager'
 import type { AiStreamRequest } from '../types'
+import { buildCompactReplay, splitDeltaPayload } from './buildCompactReplay'
+import {
+  type ConversationExecutionDriver,
+  type ConversationExecutionDriverControl,
+  ConversationExecutionDriverRegistry
+} from './ConversationExecutionDriverRegistry'
 import type {
   AbortConversationExecutionEffect,
   ConversationExecutionPort,
   ConversationExecutionSink,
+  DiscardConversationRuntimeBufferEffect,
   RedirectConversationInputEffect,
   ResumeConversationExecutionEffect,
   ResumeSuspendedConversationExecutionEffect,
@@ -39,6 +60,8 @@ import type { ConversationOutcome } from './conversationState'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
+
+const logger = loggerService.withContext('AiExecutionManager')
 
 export interface ConversationExecutionChunk {
   readonly conversation: ConversationRef
@@ -56,27 +79,23 @@ export interface ConversationExecutionObserver {
   isAlive(): boolean
 }
 
-export interface ConversationExecutionDescriptor {
+export interface AiExecutionResourceDescriptor {
   readonly conversation: ConversationRef
   readonly turnId: ConversationTurnId
   readonly executionId: ConversationExecutionId
   readonly outputNodeId: string
   readonly modelId: UniqueModelId
-  readonly request:
-    | AiStreamRequest
-    | ((signal: AbortSignal, compactionSink: CompactionSink) => Promise<AiStreamRequest>)
+  readonly preparation: ConversationExecutionPreparationDescriptor
+  readonly preparationIndex: number
+  readonly driver: ConversationExecutionDriverBinding
+  readonly telemetry?: ConversationTelemetryDescriptor
   readonly observers: readonly ConversationExecutionObserver[]
   readonly runtimeTimingSeed?: MessageRuntimeTiming
-  readonly rootSpan?: Span
-  readonly abortController?: AbortController
   readonly maxBufferChunks?: number
-  readonly redirect?: (effect: RedirectConversationInputEffect) => boolean
-  readonly resume?: (effect: ResumeConversationExecutionEffect) => void
-  readonly suspend?: (effect: SuspendConversationExecutionEffect) => boolean
-  readonly resumeSuspended?: (effect: ResumeSuspendedConversationExecutionEffect) => void
-  readonly discardRuntimeBuffer?: () => void
   readonly interactionResumeMode: ConversationInteractionResumeMode
 }
+
+export type ConversationExecutionDescriptor = AiExecutionResourceDescriptor
 
 export interface ConversationExecutionResult {
   readonly conversation: ConversationRef
@@ -96,13 +115,17 @@ export interface ConversationExecutionResourceSnapshot {
 }
 
 interface ConversationExecutionResource {
-  readonly descriptor: ConversationExecutionDescriptor
+  readonly descriptor: AiExecutionResourceDescriptor
   readonly sink: ConversationExecutionSink
   readonly abortController: AbortController
+  readonly runEffectId: ConversationEffectId
+  readonly rootSpan?: Span
   readonly observers: Map<string, ConversationExecutionObserver>
-  readonly buffer: ConversationExecutionChunk[]
+  readonly buffer: StreamChunkPayload[]
   readonly runtimeTiming: MessageRuntimeTimingCollector
   readonly runId: number
+  readonly pendingInteractionIds: Set<ConversationInteractionId>
+  readonly pendingInteractionsByToolCallId: Map<string, ConversationInteractionId>
   readonly suspendedBy?: ConversationEffectId
   nextChunkSeq: number
   firstChunkPublished: boolean
@@ -118,70 +141,61 @@ export type ConversationStreamOpener = (request: AiStreamRequest) => Promise<Rea
 const MAX_REPLAY_ENTRIES = 10_000
 const MAX_REPLAY_DELTA_BYTES = 16 * 1024
 
-function fitsReplayDelta(value: string): boolean {
-  return Buffer.byteLength(value, 'utf8') <= MAX_REPLAY_DELTA_BYTES
+function errorFromStreamChunk(errorText: string): SerializedError {
+  return { name: 'StreamError', message: errorText, stack: null }
 }
 
-function mergeReplayDelta(previous: StreamChunkPayload, current: StreamChunkPayload): StreamChunkPayload | undefined {
-  if (previous.chunk.type !== current.chunk.type) return undefined
-  if (previous.chunk.type === 'text-delta' && current.chunk.type === 'text-delta') {
-    if (previous.chunk.id !== current.chunk.id) return undefined
-    const delta = previous.chunk.delta + current.chunk.delta
-    if (!fitsReplayDelta(delta)) return undefined
-    return { ...previous, throughChunkSeq: current.throughChunkSeq, chunk: { ...previous.chunk, delta } }
-  }
-  if (previous.chunk.type === 'reasoning-delta' && current.chunk.type === 'reasoning-delta') {
-    if (previous.chunk.id !== current.chunk.id) return undefined
-    const delta = previous.chunk.delta + current.chunk.delta
-    if (!fitsReplayDelta(delta)) return undefined
-    return { ...previous, throughChunkSeq: current.throughChunkSeq, chunk: { ...previous.chunk, delta } }
-  }
-  if (previous.chunk.type === 'tool-input-delta' && current.chunk.type === 'tool-input-delta') {
-    if (previous.chunk.toolCallId !== current.chunk.toolCallId) return undefined
-    const inputTextDelta = previous.chunk.inputTextDelta + current.chunk.inputTextDelta
-    if (!fitsReplayDelta(inputTextDelta)) return undefined
-    return {
-      ...previous,
-      throughChunkSeq: current.throughChunkSeq,
-      chunk: { ...previous.chunk, inputTextDelta }
-    }
-  }
-  return undefined
+function hasHttpMetadata(error: SerializedError): boolean {
+  return error.statusCode != null || error.responseBody != null
 }
 
-/** Resource-only provider execution registry; ConversationRuntime owns every control decision. */
+/** Resource-only provider execution registry; each ConversationActor owns control decisions. */
 export class AiExecutionManager implements ConversationExecutionPort {
-  private readonly descriptors = new Map<string, ConversationExecutionDescriptor>()
+  private readonly descriptors = new Map<
+    string,
+    { readonly descriptor: AiExecutionResourceDescriptor; readonly abortController: AbortController }
+  >()
   private readonly resources = new Map<string, ConversationExecutionResource>()
   private readonly runs = new Map<string, Promise<void>>()
+  private readonly preparations = new WeakMap<object, Promise<ConversationExecutionContext>>()
   private nextRunId = 0
 
   constructor(
     private readonly openStream: ConversationStreamOpener = (request) =>
-      application.get('AiService').streamText(request)
+      application.get('AiService').streamText(request),
+    private readonly drivers: ConversationExecutionDriver = new ConversationExecutionDriverRegistry()
   ) {}
 
-  register(input: ConversationExecutionDescriptor): void {
+  setDriverControl(control: ConversationExecutionDriverControl): void {
+    this.drivers.setControl(control)
+  }
+
+  register(input: AiExecutionResourceDescriptor): void {
     const key = this.key(input.conversation, input.turnId, input.executionId)
     if (this.descriptors.has(key) || this.resources.has(key)) {
       throw new Error(`Conversation execution already registered: ${key}`)
     }
-    this.descriptors.set(key, input)
+    this.descriptors.set(key, { descriptor: input, abortController: new AbortController() })
   }
 
   start(effect: StartConversationExecutionEffect, sink: ConversationExecutionSink): void {
     const key = this.key(effect.conversation, effect.turnId, effect.executionId)
-    const descriptor = this.descriptors.get(key)
-    if (!descriptor) throw new Error(`Conversation execution is not registered: ${key}`)
+    const registration = this.descriptors.get(key)
+    if (!registration) throw new Error(`Conversation execution is not registered: ${key}`)
     this.descriptors.delete(key)
+    const { descriptor, abortController } = registration
     const resource: ConversationExecutionResource = {
       descriptor,
       sink,
-      abortController: descriptor.abortController ?? new AbortController(),
+      abortController,
+      runEffectId: effect.effectId,
+      rootSpan: this.drivers.openTelemetry(descriptor.telemetry),
       observers: new Map(descriptor.observers.map((observer) => [observer.id, observer])),
       buffer: [],
       runtimeTiming: new MessageRuntimeTimingCollector(descriptor.runtimeTimingSeed),
       runId: ++this.nextRunId,
+      pendingInteractionIds: new Set(),
+      pendingInteractionsByToolCallId: new Map(),
       nextChunkSeq: 0,
       firstChunkPublished: false,
       yieldRequested: false
@@ -220,13 +234,15 @@ export class AiExecutionManager implements ConversationExecutionPort {
 
   redirect(effect: RedirectConversationInputEffect): boolean {
     const resource = this.resources.get(this.key(effect.conversation, effect.turnId, effect.executionId))
-    return resource?.descriptor.redirect?.(effect) === true
+    return resource ? this.drivers.redirect(effect) : false
   }
 
   resume(effect: ResumeConversationExecutionEffect): void {
     const resource = this.resources.get(this.key(effect.conversation, effect.turnId, effect.executionId))
-    resource?.idleTimeout?.reset()
-    resource?.descriptor.resume?.(effect)
+    if (resource && this.forgetPendingInteraction(resource, effect.interactionId)) {
+      this.trimReplayBuffer(resource)
+    }
+    resource?.idleTimeout?.reset(resource.pendingInteractionIds.size > 0 ? APPROVAL_IDLE_TIMEOUT : undefined)
   }
 
   suspend(effect: SuspendConversationExecutionEffect): boolean {
@@ -240,7 +256,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
       idleTimeout: undefined
     }
     this.resources.set(key, suspended)
-    if (resource.descriptor.suspend?.(effect) !== true) {
+    if (!this.drivers.suspend(resource.descriptor.driver, effect)) {
       this.resources.set(key, resource)
       return false
     }
@@ -250,10 +266,15 @@ export class AiExecutionManager implements ConversationExecutionPort {
   resumeSuspended(effect: ResumeSuspendedConversationExecutionEffect): void {
     const key = this.key(effect.conversation, effect.turnId, effect.executionId)
     const resource = this.resources.get(key)
-    if (!resource || resource.suspendedBy !== effect.suspendEffectId || resource.result) {
+    if (
+      !resource ||
+      resource.runEffectId !== effect.runEffectId ||
+      resource.suspendedBy !== effect.suspendEffectId ||
+      resource.result
+    ) {
       throw new Error(`Conversation execution is not suspended by ${effect.suspendEffectId}`)
     }
-    resource.descriptor.resumeSuspended?.(effect)
+    this.drivers.resumeSuspended(resource.descriptor.driver, effect)
     const resumed: ConversationExecutionResource = {
       ...resource,
       runId: ++this.nextRunId,
@@ -264,10 +285,13 @@ export class AiExecutionManager implements ConversationExecutionPort {
     this.startRun(key, resumed)
   }
 
-  discardRuntimeBuffer(conversation: ConversationRef): void {
+  discardRuntimeBuffer(effect: DiscardConversationRuntimeBufferEffect): void {
     for (const resource of this.resources.values()) {
-      if (conversationRefKey(resource.descriptor.conversation) === conversationRefKey(conversation)) {
-        resource.descriptor.discardRuntimeBuffer?.()
+      if (
+        conversationRefKey(resource.descriptor.conversation) === conversationRefKey(effect.conversation) &&
+        resource.descriptor.turnId === effect.turnId
+      ) {
+        this.drivers.discardRuntimeBuffer(resource.descriptor.driver, effect)
       }
     }
   }
@@ -277,7 +301,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
     const descriptor = this.descriptors.get(key)
     if (descriptor) {
       this.descriptors.delete(key)
-      descriptor.abortController?.abort(effect.reason)
+      descriptor.abortController.abort(effect.reason)
       return
     }
     const resource = this.resources.get(key)
@@ -304,8 +328,14 @@ export class AiExecutionManager implements ConversationExecutionPort {
   attachSnapshot(
     conversation: ConversationRef,
     turnId: ConversationTurnId,
-    observer: ConversationExecutionObserver
+    observer: ConversationExecutionObserver,
+    cursors: readonly ExecutionReplayCursor[] = []
   ): readonly ConversationExecutionResourceSnapshot[] {
+    const cursorByExecution = new Map(
+      cursors
+        .filter((cursor) => cursor.turnId === turnId)
+        .map((cursor) => [cursor.executionId, cursor.throughChunkSeq] as const)
+    )
     const snapshots: ConversationExecutionResourceSnapshot[] = []
     for (const resource of this.resources.values()) {
       if (
@@ -322,7 +352,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
           modelId: resource.descriptor.modelId,
           outputNodeId: resource.descriptor.outputNodeId
         },
-        replay: this.replayWindow(resource),
+        replay: this.replayWindow(resource, cursorByExecution.get(resource.descriptor.executionId) ?? 0),
         ...(resource.result ? { result: resource.result } : {})
       })
     }
@@ -358,6 +388,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
 
   release(conversation: ConversationRef, turnId: ConversationTurnId, executionId: ConversationExecutionId): void {
     const key = this.key(conversation, turnId, executionId)
+    this.descriptors.get(key)?.abortController.abort('execution released')
     this.descriptors.delete(key)
     this.resources.get(key)?.abortController.abort('execution released')
     this.resources.delete(key)
@@ -365,10 +396,12 @@ export class AiExecutionManager implements ConversationExecutionPort {
 
   deferredOutput(
     conversation: ConversationRef,
+    outputNodeId: string,
     toolCallId: string
   ): { found: true; output: unknown } | { found: false } {
     for (const resource of this.resources.values()) {
       if (conversationRefKey(resource.descriptor.conversation) !== conversationRefKey(conversation)) continue
+      if (resource.descriptor.outputNodeId !== outputNodeId) continue
       if (resource.deferredOutputs?.has(toolCallId)) {
         return { found: true, output: resource.deferredOutputs.get(toolCallId) }
       }
@@ -409,8 +442,25 @@ export class AiExecutionManager implements ConversationExecutionPort {
         if (index >= 0) anchors[index] = { id: anchorId, data }
         else anchors.push({ id: anchorId, data })
       }
-      const request =
-        typeof descriptor.request === 'function' ? await descriptor.request(signal, compactionSink) : descriptor.request
+      let preparation = this.preparations.get(descriptor.preparation)
+      if (!preparation) {
+        preparation = this.drivers.prepare(descriptor.preparation, descriptor.driver, signal, compactionSink)
+        this.preparations.set(descriptor.preparation, preparation)
+      }
+      const context = await preparation
+      if (conversationRefKey(context.conversation) !== conversationRefKey(descriptor.conversation)) {
+        throw new Error('Execution driver prepared another Conversation')
+      }
+      const prepared = context.models[descriptor.preparationIndex]
+      if (
+        !prepared ||
+        prepared.modelId !== descriptor.modelId ||
+        prepared.request.messageId !== descriptor.outputNodeId
+      ) {
+        throw new Error('Execution driver changed a committed execution identity')
+      }
+      const request = prepared.request
+      this.drivers.annotateTelemetry(descriptor.telemetry, resource.rootSpan, request.messages ?? [])
       signal.throwIfAborted()
       if (!this.isCurrentResource(key, resource)) return
       const streamRequest = {
@@ -439,13 +489,18 @@ export class AiExecutionManager implements ConversationExecutionPort {
       let outcome: ConversationOutcome
       if (signal.aborted) {
         outcome = { kind: ConversationOutcomeKind.Paused, reason: String(signal.reason ?? 'aborted') }
+      } else if (result.threw) {
+        const thrown = serializeError(result.threw.error)
+        outcome = {
+          kind: ConversationOutcomeKind.Error,
+          error:
+            result.streamErrorText && !hasHttpMetadata(thrown) ? errorFromStreamChunk(result.streamErrorText) : thrown
+        }
       } else if (result.streamErrorText) {
         outcome = {
           kind: ConversationOutcomeKind.Error,
-          error: serializeError(new Error(result.streamErrorText))
+          error: errorFromStreamChunk(result.streamErrorText)
         }
-      } else if (result.threw) {
-        outcome = { kind: ConversationOutcomeKind.Error, error: serializeError(result.threw.error) }
       } else {
         outcome = { kind: ConversationOutcomeKind.Success }
       }
@@ -465,7 +520,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
         finalMessage,
         runtimeTiming: resource.runtimeTiming.snapshot()
       }
-      this.endRootSpan(descriptor.rootSpan, finalMessage, outcome)
+      this.endRootSpan(resource.rootSpan, finalMessage, outcome)
       resource.sink.terminal(outcome)
     } catch (error) {
       const outcome: ConversationOutcome = signal.aborted
@@ -483,7 +538,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
         outcome,
         runtimeTiming: resource.runtimeTiming.snapshot()
       }
-      this.endRootSpan(descriptor.rootSpan, undefined, outcome)
+      this.endRootSpan(resource.rootSpan, undefined, outcome)
       if (this.resources.get(key)?.runId === resource.runId) resource.sink.terminal(outcome)
     }
   }
@@ -495,14 +550,23 @@ export class AiExecutionManager implements ConversationExecutionPort {
       resource.sink.firstChunk()
     }
     if (chunk.type === 'tool-approval-request') {
-      resource.idleTimeout?.reset(APPROVAL_IDLE_TIMEOUT)
+      const interactionId = toConversationInteractionId(chunk.approvalId)
+      resource.pendingInteractionIds.add(interactionId)
+      resource.pendingInteractionsByToolCallId.set(chunk.toolCallId, interactionId)
       resource.sink.interactionOpened({
-        id: toConversationInteractionId(chunk.approvalId),
+        id: interactionId,
         executionId: resource.descriptor.executionId,
         kind: ConversationInteractionKind.ToolApproval,
         resumeMode: resource.descriptor.interactionResumeMode
       })
     }
+    if (chunk.type === 'tool-output-available') {
+      const interactionId = resource.pendingInteractionsByToolCallId.get(chunk.toolCallId)
+      if (interactionId && this.forgetPendingInteraction(resource, interactionId)) {
+        resource.sink.interactionCompleted(interactionId)
+      }
+    }
+    resource.idleTimeout?.reset(resource.pendingInteractionIds.size > 0 ? APPROVAL_IDLE_TIMEOUT : undefined)
     if (chunk.type === 'tool-output-available' && shouldDeferToolOutput(chunk.output)) {
       const outputs = (resource.deferredOutputs ??= new Map())
       outputs.set(chunk.toolCallId, chunk.output)
@@ -517,13 +581,25 @@ export class AiExecutionManager implements ConversationExecutionPort {
       chunkSeq: ++resource.nextChunkSeq,
       chunk
     }
-    resource.buffer.push(payload)
-    const limit = Math.max(1, Math.min(MAX_REPLAY_ENTRIES, resource.descriptor.maxBufferChunks ?? MAX_REPLAY_ENTRIES))
-    if (resource.buffer.length > limit) resource.buffer.splice(0, resource.buffer.length - limit)
+    resource.buffer.push({ ...payload, throughChunkSeq: payload.chunkSeq })
+    this.trimReplayBuffer(resource)
     const dead: string[] = []
     for (const [id, observer] of resource.observers) {
       if (!observer.isAlive()) dead.push(id)
-      else observer.onChunk(payload)
+      else {
+        try {
+          observer.onChunk(payload)
+        } catch (error) {
+          dead.push(id)
+          logger.warn('Conversation execution observer rejected a chunk', {
+            conversation: conversationRefKey(resource.descriptor.conversation),
+            turnId: resource.descriptor.turnId,
+            executionId: resource.descriptor.executionId,
+            observerId: id,
+            error
+          })
+        }
+      }
     }
     for (const id of dead) resource.observers.delete(id)
   }
@@ -536,30 +612,85 @@ export class AiExecutionManager implements ConversationExecutionPort {
     return `${conversationRefKey(ref)}\0${turnId}\0${executionId}`
   }
 
-  private replayWindow(resource: ConversationExecutionResource): ReplayWindow {
-    const chunks: StreamChunkPayload[] = []
-    for (const item of resource.buffer) {
-      const payload: StreamChunkPayload = {
-        conversation: item.conversation,
-        turnId: item.turnId,
-        executionId: item.executionId,
-        modelId: item.modelId,
-        outputNodeId: item.outputNodeId,
-        chunkSeq: item.chunkSeq,
-        throughChunkSeq: item.chunkSeq,
-        chunk: item.chunk
-      }
-      const previous = chunks.at(-1)
-      const merged = previous ? mergeReplayDelta(previous, payload) : undefined
-      if (merged) chunks[chunks.length - 1] = merged
-      else chunks.push(payload)
-    }
+  private replayWindow(resource: ConversationExecutionResource, cursor: number): ReplayWindow {
+    const suffix = resource.buffer.filter((payload) => payload.chunkSeq > cursor)
+    const chunks = buildCompactReplay(
+      suffix.flatMap((payload) => splitDeltaPayload(payload, MAX_REPLAY_DELTA_BYTES)),
+      MAX_REPLAY_DELTA_BYTES
+    )
     const firstAvailableChunkSeq = resource.buffer[0]?.chunkSeq ?? resource.nextChunkSeq + 1
+    let nextCoveredChunkSeq = cursor + 1
+    let truncated = firstAvailableChunkSeq > cursor + 1
+    for (const payload of suffix) {
+      if (payload.chunkSeq > nextCoveredChunkSeq) truncated = true
+      nextCoveredChunkSeq = Math.max(nextCoveredChunkSeq, payload.chunkSeq + 1)
+    }
+    if (nextCoveredChunkSeq <= resource.nextChunkSeq) truncated = true
     return {
       chunks,
       throughChunkSeq: resource.nextChunkSeq,
       firstAvailableChunkSeq,
-      truncated: firstAvailableChunkSeq > 1
+      truncated
+    }
+  }
+
+  private trimReplayBuffer(resource: ConversationExecutionResource): void {
+    const limit = Math.max(1, Math.min(MAX_REPLAY_ENTRIES, resource.descriptor.maxBufferChunks ?? MAX_REPLAY_ENTRIES))
+    while (resource.buffer.length > limit) {
+      const pendingToolCallIds = new Set(resource.pendingInteractionsByToolCallId.keys())
+      const evictable = resource.buffer.findIndex(({ chunk }) => {
+        if (
+          chunk.type === 'tool-approval-request' &&
+          resource.pendingInteractionIds.has(toConversationInteractionId(chunk.approvalId))
+        ) {
+          return false
+        }
+        if (
+          (chunk.type === 'tool-input-start' ||
+            chunk.type === 'tool-input-delta' ||
+            chunk.type === 'tool-input-available') &&
+          pendingToolCallIds.has(chunk.toolCallId)
+        ) {
+          return false
+        }
+        return true
+      })
+      if (evictable < 0) return
+      this.evictReplayEntry(resource.buffer, evictable)
+    }
+  }
+
+  private forgetPendingInteraction(
+    resource: ConversationExecutionResource,
+    interactionId: ConversationInteractionId
+  ): boolean {
+    if (!resource.pendingInteractionIds.delete(interactionId)) return false
+    for (const [toolCallId, pendingInteractionId] of resource.pendingInteractionsByToolCallId) {
+      if (pendingInteractionId === interactionId) resource.pendingInteractionsByToolCallId.delete(toolCallId)
+    }
+    const approvalIndex = resource.buffer.findIndex(
+      ({ chunk }) =>
+        chunk.type === 'tool-approval-request' && toConversationInteractionId(chunk.approvalId) === interactionId
+    )
+    if (approvalIndex >= 0) resource.buffer.splice(approvalIndex, 1)
+    return true
+  }
+
+  private evictReplayEntry(buffer: StreamChunkPayload[], index: number): void {
+    const [removed] = buffer.splice(index, 1)
+    if (!removed) return
+    const chunk = removed.chunk
+    if (chunk.type === 'text-start' || chunk.type === 'reasoning-start') {
+      return
+    }
+    if (chunk.type !== 'tool-input-start') return
+    for (let cursor = index; cursor < buffer.length; ) {
+      const candidate = buffer[cursor].chunk
+      if (candidate.type === 'tool-input-start' && candidate.toolCallId === chunk.toolCallId) return
+      if (candidate.type === 'tool-input-available' && candidate.toolCallId === chunk.toolCallId) return
+      if (candidate.type === 'tool-input-delta' && candidate.toolCallId === chunk.toolCallId) {
+        buffer.splice(cursor, 1)
+      } else cursor += 1
     }
   }
 

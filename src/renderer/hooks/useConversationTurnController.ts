@@ -96,8 +96,8 @@ export function useConversationTurnController<TInput, TConversation>({
         const reservedMessages = ack.reservedMessages ?? []
         if (reservedMessages.length > 0) {
           await historyAdapter.seedReservedMessages(reservedMessages, {
-            activeExecutions: ack.activeExecutions,
-            activeNodeDecision: ack.activeNodeDecision
+            activeExecutions: ack.mode === ConversationOpenMode.Started ? ack.activeExecutions : undefined,
+            activeNodeDecision: ack.mode === ConversationOpenMode.Started ? ack.activeNodeDecision : undefined
           })
         }
 

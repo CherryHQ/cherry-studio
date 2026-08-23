@@ -18,6 +18,7 @@ import type {
 import {
   ConversationAdmissionReason,
   type ConversationExecutionId,
+  type ConversationInputId,
   type ConversationRef,
   type ConversationTurnId
 } from '../conversation'
@@ -253,6 +254,13 @@ export interface AiToolApprovalRespondResponse {
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {
   conversation: ConversationRef
+  cursors: ExecutionReplayCursor[]
+}
+
+export interface ExecutionReplayCursor {
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
+  throughChunkSeq: number
 }
 
 /** Unsubscribe from a topic. */
@@ -336,15 +344,8 @@ export type AiStreamAttachResponse =
 /** Result of an open attempt. */
 export type AiStreamOpenResponse =
   | {
-      /**
-       * `'started'`  — a brand new stream was created on this topic.
-       * `'injected'` — a stream was already live, or an enqueue-only turn
-       *                 intentionally launched no models. The subscriber was
-       *                 attached to the running stream instead of starting a
-       *                 turn; chat steers may still include `reservedMessages`
-       *                 for the queued user row.
-       */
-      mode: ConversationOpenMode.Started | ConversationOpenMode.Injected
+      /** A brand new turn or execution was committed. */
+      mode: ConversationOpenMode.Started
       /** Stable turn/execution identities for optimistic stream attachment. */
       activeExecutions?: ConversationExecutionProjection[]
       /** Admission decision applied atomically while reserving persisted messages. */
@@ -354,6 +355,13 @@ export type AiStreamOpenResponse =
        * intent: a consumer may seed these into its view immediately for an optimistic render, then
        * reconcile final content/status from a DB refresh.
        */
+      reservedMessages?: CherryUIMessage[]
+    }
+  | {
+      /** A durable input was accepted for a live Conversation. */
+      mode: ConversationOpenMode.Injected
+      /** Process-local owner until the reducer commits the input to its exact NextStep or NextTurn. */
+      inputId: ConversationInputId
       reservedMessages?: CherryUIMessage[]
     }
   | {

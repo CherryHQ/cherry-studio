@@ -49,8 +49,8 @@ export class ConversationTerminalPersistenceCoordinator {
           })
         : record.run
     }
-    const run = record
-      .persist()
+    const run = Promise.resolve()
+      .then(() => record.persist())
       .then((result) => {
         if (this.records.get(record.effect.effectId) !== record) return
         if (result.kind === ConversationTerminalPersistenceResultKind.Failed && !abandonOnFailure) {

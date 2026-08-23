@@ -3,10 +3,10 @@ import { ConversationAdmissionError } from '@main/ai/conversation'
 import {
   ConversationAdmissionReason,
   ConversationBlockReason,
+  type ConversationInputId,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
-  ConversationPhase,
   type ConversationTurnId
 } from '@shared/ai/conversation'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -34,10 +34,8 @@ export enum StartAgentSessionRunRejection {
 }
 
 export type StartAgentSessionRunResult =
-  | {
-      mode: StartAgentSessionRunMode.Started | StartAgentSessionRunMode.Injected
-      turnId: ConversationTurnId
-    }
+  | { mode: StartAgentSessionRunMode.Started; turnId: ConversationTurnId }
+  | { mode: StartAgentSessionRunMode.Injected; inputId: ConversationInputId }
   | { mode: StartAgentSessionRunMode.Blocked; reason: StartAgentSessionRunRejection }
 
 export async function startAgentSessionRun(input: {
@@ -75,17 +73,12 @@ export async function startAgentSessionRun(input: {
             : StartAgentSessionRunRejection.SessionInvalid
       }
     }
-    const state = runtime.inspect(conversation)
-    const turnId =
-      result.activeExecutions?.[0]?.turnId ?? (state.phase === ConversationPhase.Running ? state.turn.id : undefined)
-    if (!turnId) throw new Error('Agent Conversation admission did not return its owning turn')
-    return {
-      mode:
-        result.mode === ConversationOpenMode.Started
-          ? StartAgentSessionRunMode.Started
-          : StartAgentSessionRunMode.Injected,
-      turnId
+    if (result.mode === ConversationOpenMode.Injected) {
+      return { mode: StartAgentSessionRunMode.Injected, inputId: result.inputId }
     }
+    const turnId = result.activeExecutions?.[0]?.turnId
+    if (!turnId) throw new Error('Started Agent Conversation admission did not return its owning turn')
+    return { mode: StartAgentSessionRunMode.Started, turnId }
   } catch (error) {
     if (error instanceof ConversationAdmissionError && error.reason === ConversationAdmissionReason.ConversationBusy) {
       return { mode: StartAgentSessionRunMode.Blocked, reason: StartAgentSessionRunRejection.Busy }

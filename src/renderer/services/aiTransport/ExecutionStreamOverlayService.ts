@@ -104,6 +104,7 @@ interface Entry {
   refreshError: Error | null
   refreshPorts: Set<() => Promise<unknown>>
   handoff: HandoffState | null
+  projectionRefreshInFlight: Promise<void> | null
   snapshots: Map<ConversationExecutionId, CherryUIMessage>
   settlements: Map<ConversationExecutionId, Settlement>
   view: ExecutionOverlayView
@@ -320,8 +321,13 @@ export class ExecutionStreamOverlayService {
     for (const contribution of entry.desired.values()) {
       for (const execution of contribution.executions) {
         const existing = candidates.get(execution.executionId)
-        if (!existing) candidates.set(execution.executionId, { execution, seed: contribution })
-        else if (execution.seedFromEmpty && !existing.seedFromEmpty) {
+        if (!existing) {
+          candidates.set(execution.executionId, {
+            execution,
+            seedFromEmpty: execution.seedFromEmpty,
+            seed: contribution
+          })
+        } else if (execution.seedFromEmpty && !existing.seedFromEmpty) {
           candidates.set(execution.executionId, { ...existing, seedFromEmpty: true })
         }
       }
@@ -338,6 +344,7 @@ export class ExecutionStreamOverlayService {
       let next = entry.snapshots
       for (const executionId of entry.snapshots.keys()) {
         if (liveExecutionIds.has(executionId)) continue
+        entry.sub.retireExecution(executionId)
         entry.pendingSnapshots.delete(executionId)
         entry.settlements.delete(executionId)
         entry.readerVersions.delete(executionId)
@@ -454,6 +461,15 @@ export class ExecutionStreamOverlayService {
       handle.cancel()
       handle.unregister()
     }
+    for (const executionId of new Set([
+      ...entry.snapshots.keys(),
+      ...entry.pendingSnapshots.keys(),
+      ...entry.settlements.keys(),
+      ...entry.optimisticExecutions.keys(),
+      ...entry.readers.keys()
+    ])) {
+      entry.sub.retireExecution(executionId)
+    }
     entry.readers.clear()
     entry.readerVersions.clear()
     entry.settlements.clear()
@@ -482,6 +498,30 @@ export class ExecutionStreamOverlayService {
       }
     }
     this.#runHandoffRefresh(entry)
+  }
+
+  #refreshProjection(entry: Entry): void {
+    if (entry.projectionRefreshInFlight || entry.dropped) return
+    const refresh = [...entry.refreshPorts].at(-1)
+    if (!refresh) return
+    const work = (async () => {
+      try {
+        await refresh()
+        if (!entry.dropped) this.setRefreshError(entry.conversation, null)
+      } catch (error) {
+        if (entry.dropped) return
+        const refreshError = error instanceof Error ? error : new Error(String(error))
+        this.setRefreshError(entry.conversation, refreshError)
+        logger.warn('conversation projection refresh failed; retaining live overlay', {
+          conversation: entry.conversation,
+          error: refreshError
+        })
+      }
+    })()
+    entry.projectionRefreshInFlight = work
+    void work.then(() => {
+      if (entry.projectionRefreshInFlight === work) entry.projectionRefreshInFlight = null
+    })
   }
 
   #runHandoffRefresh(entry: Entry): void {
@@ -554,6 +594,7 @@ export class ExecutionStreamOverlayService {
         handle.cancel()
         handle.unregister()
       }
+      entry.sub.retireExecution(executionId)
       entry.readers.delete(executionId)
       entry.pendingSnapshots.delete(executionId)
       entry.settlements.delete(executionId)
@@ -582,7 +623,7 @@ export class ExecutionStreamOverlayService {
     if (existing) return existing
     this.#evictIfNeeded()
     const sub = new ConversationStreamSubscription(conversation)
-    sub.listen()
+    if (conversation.id) sub.listen()
     const entry: Entry = {
       conversation,
       key,
@@ -598,6 +639,7 @@ export class ExecutionStreamOverlayService {
       refreshError: null,
       refreshPorts: new Set(),
       handoff: null,
+      projectionRefreshInFlight: null,
       snapshots: new Map(),
       settlements: new Map(),
       view: EMPTY_VIEW,
@@ -626,7 +668,7 @@ export class ExecutionStreamOverlayService {
     })
     sub.onRefreshRequired((turnIds) => {
       if (this.#entries.get(key) !== entry) return
-      for (const turnId of turnIds) this.#beginHandoff(entry, turnId)
+      if (turnIds.length > 0) this.#refreshProjection(entry)
     })
     return entry
   }

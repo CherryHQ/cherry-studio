@@ -6,14 +6,34 @@ export {
 } from './api/startAgentSessionRun'
 export { agentChatContextProvider } from './context/AgentChatContextProvider'
 export type {
-  CommittedDispatch,
-  CommittedDispatchReservation,
+  CommittedConversationExecution,
+  CommittedConversationIntent,
+  ConversationAfterPersistTaskDescriptor,
   ConversationExecutionContext,
+  ConversationExecutionDriverBinding,
+  ConversationExecutionPreparationDescriptor,
   ConversationHistoryPort,
   ConversationInteractionCommitResult,
-  ValidatedDispatch
+  ConversationNamingPostCommitTaskDescriptor,
+  ConversationPostCommitTaskDescriptor,
+  ConversationTelemetryDescriptor,
+  ConversationTerminalPersistenceDescriptor,
+  ConversationTraceFlushTaskDescriptor,
+  ValidatedConversationExecutionMutation,
+  ValidatedConversationIntent
 } from './context/ConversationHistoryPort'
-export { ConversationInteractionCommitResultKind } from './context/ConversationHistoryPort'
+export {
+  ConversationAfterPersistTaskKind,
+  ConversationAgentRuntimeTurnKind,
+  ConversationExecutionDriverBindingKind,
+  ConversationExecutionMutationKind,
+  ConversationExecutionPreparationKind,
+  ConversationHistoryAdapterKind,
+  ConversationInteractionCommitResultKind,
+  ConversationPostCommitTaskKind,
+  ConversationTelemetryKind,
+  ConversationTerminalPersistenceKind
+} from './context/ConversationHistoryPort'
 export type { MainContinueConversationRequest, MainDispatchRequest } from './context/dispatch'
 export { persistentChatContextProvider } from './context/PersistentChatContextProvider'
 export { temporaryChatContextProvider } from './context/TemporaryChatContextProvider'

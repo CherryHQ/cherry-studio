@@ -86,6 +86,24 @@ describe('WebContentsListener', () => {
     })
   })
 
+  it('coalesces reasoning-delta independently from text-delta', () => {
+    const { wc, listener: stream } = listener()
+    const streamIdentity = identity()
+    stream.onChunk(chunk('reasoning-delta', { id: 'reasoning-1', delta: 'think' }), streamIdentity)
+    stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'answer' }), {
+      ...streamIdentity,
+      chunkSeq: 2,
+      throughChunkSeq: 2
+    })
+
+    vi.advanceTimersByTime(16)
+
+    expect(wc.send.mock.calls.map((call) => call[2].chunk)).toEqual([
+      { type: 'reasoning-delta', id: 'reasoning-1', delta: 'think' },
+      { type: 'text-delta', id: 'text-1', delta: 'answer' }
+    ])
+  })
+
   it('never coalesces data from different executions or output nodes', () => {
     const { wc, listener: stream } = listener()
     stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'A' }), identity('execution-1', 'assistant-1'))
@@ -104,6 +122,37 @@ describe('WebContentsListener', () => {
       outputNodeId: 'assistant-2',
       chunk: { delta: 'B' }
     })
+  })
+
+  it('does not merge across different message ids', () => {
+    const { wc, listener: stream } = listener()
+    const streamIdentity = identity()
+    stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'A' }), streamIdentity)
+    stream.onChunk(chunk('text-delta', { id: 'text-2', delta: 'B' }), {
+      ...streamIdentity,
+      chunkSeq: 2,
+      throughChunkSeq: 2
+    })
+
+    vi.advanceTimersByTime(16)
+
+    expect(wc.send.mock.calls.map((call) => call[2].chunk.delta)).toEqual(['A', 'B'])
+  })
+
+  it('does not merge across different sourceModelIds (multi-model)', () => {
+    const { wc, listener: stream } = listener()
+    const streamIdentity = identity()
+    stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'A' }), streamIdentity)
+    stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'B' }), {
+      ...streamIdentity,
+      modelId: 'provider::other-model',
+      chunkSeq: 2,
+      throughChunkSeq: 2
+    })
+
+    vi.advanceTimersByTime(16)
+
+    expect(wc.send.mock.calls.map((call) => call[2].chunk.delta)).toEqual(['A', 'B'])
   })
 
   it('flushes buffered data before non-coalescable chunks', () => {
@@ -153,6 +202,57 @@ describe('WebContentsListener', () => {
     })
   })
 
+  it('does not merge tool-input-delta with text-delta even within window', () => {
+    const { wc, listener: stream } = listener()
+    const streamIdentity = identity()
+    stream.onChunk(chunk('tool-input-delta', { toolCallId: 'call-1', inputTextDelta: '{' }), streamIdentity)
+    stream.onChunk(chunk('text-delta', { id: 'call-1', delta: 'answer' }), {
+      ...streamIdentity,
+      chunkSeq: 2,
+      throughChunkSeq: 2
+    })
+
+    vi.advanceTimersByTime(16)
+
+    expect(wc.send.mock.calls.map((call) => call[2].chunk.type)).toEqual(['tool-input-delta', 'text-delta'])
+  })
+
+  it('does not merge tool-input-deltas across different toolCallIds', () => {
+    const { wc, listener: stream } = listener()
+    const streamIdentity = identity()
+    stream.onChunk(chunk('tool-input-delta', { toolCallId: 'call-1', inputTextDelta: 'A' }), streamIdentity)
+    stream.onChunk(chunk('tool-input-delta', { toolCallId: 'call-2', inputTextDelta: 'B' }), {
+      ...streamIdentity,
+      chunkSeq: 2,
+      throughChunkSeq: 2
+    })
+
+    vi.advanceTimersByTime(16)
+
+    expect(wc.send.mock.calls.map((call) => call[2].chunk.inputTextDelta)).toEqual(['A', 'B'])
+  })
+
+  it('flushes pending tool-input-delta when tool-input-start arrives', () => {
+    const { wc, listener: stream } = listener()
+    const streamIdentity = identity()
+    stream.onChunk(chunk('tool-input-delta', { toolCallId: 'call-1', inputTextDelta: '{"q":' }), streamIdentity)
+    stream.onChunk(chunk('tool-input-start', { toolCallId: 'call-1', toolName: 'search' }), {
+      ...streamIdentity,
+      chunkSeq: 2,
+      throughChunkSeq: 2
+    })
+
+    expect(wc.send.mock.calls.map((call) => call[2].chunk.type)).toEqual(['tool-input-delta', 'tool-input-start'])
+  })
+
+  it('sends a small tool output through untouched', () => {
+    const { wc, listener: stream } = listener()
+    const output = { content: 'small' }
+    stream.onChunk(chunk('tool-output-available', { toolCallId: 'call-1', output }), identity())
+
+    expect(wc.send.mock.calls[0][2].chunk).toEqual({ type: 'tool-output-available', toolCallId: 'call-1', output })
+  })
+
   it('projects large Agent tool outputs without synthetic topic identities or input mutation', () => {
     const { wc, listener: stream } = listener(AGENT)
     const output = { content: 'x'.repeat(64 * 1024) }
@@ -200,6 +300,45 @@ describe('WebContentsListener', () => {
     })
   })
 
+  it('flushes pending buffer on onDone before sending the terminal event', () => {
+    const { wc, listener: stream } = listener()
+    stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'Partial' }), identity())
+
+    stream.onDone({
+      status: ConversationOutcomeKind.Success,
+      turnId: toConversationTurnId('turn-1'),
+      executionId: toConversationExecutionId('execution-1'),
+      modelId: 'provider::model',
+      anchorMessageId: 'assistant-1',
+      turnTerminal: true
+    })
+
+    expect(wc.send.mock.calls.map((call) => call[1])).toEqual(['ai.stream.chunk', 'ai.stream.done'])
+  })
+
+  it('maps a paused terminal to the shared done event without losing exact identity', () => {
+    const { wc, listener: stream } = listener()
+
+    stream.onPaused({
+      status: ConversationOutcomeKind.Paused,
+      turnId: toConversationTurnId('turn-1'),
+      executionId: toConversationExecutionId('execution-1'),
+      modelId: 'provider::model',
+      anchorMessageId: 'assistant-1',
+      turnTerminal: true
+    })
+
+    expect(wc.send.mock.calls[0]).toEqual([
+      IpcChannel.IpcApi_Event,
+      'ai.stream.done',
+      expect.objectContaining({
+        conversation: CHAT,
+        executionId: toConversationExecutionId('execution-1'),
+        status: 'paused'
+      })
+    ])
+  })
+
   it('flushes pending chunks before emitting an error terminal', () => {
     const { wc, listener: stream } = listener()
     stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'Partial' }), identity())
@@ -239,6 +378,24 @@ describe('WebContentsListener', () => {
 
     expect(wc.send.mock.calls[0][2].chunk.delta).toBe('abc')
     now.mockRestore()
+  })
+
+  it('flushes synchronously when the pending delta exceeds the size cap', () => {
+    const { wc, listener: stream } = listener()
+    const streamIdentity = identity()
+    stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'x'.repeat(2_047) }), streamIdentity)
+    stream.onChunk(chunk('text-delta', { id: 'text-1', delta: 'yz' }), {
+      ...streamIdentity,
+      chunkSeq: 2,
+      throughChunkSeq: 2
+    })
+
+    expect(wc.send).toHaveBeenCalledOnce()
+    expect(wc.send.mock.calls[0][2]).toMatchObject({
+      chunkSeq: 1,
+      throughChunkSeq: 2,
+      chunk: { delta: `${'x'.repeat(2_047)}yz` }
+    })
   })
 
   it('discards buffered data when its WebContents is destroyed', () => {

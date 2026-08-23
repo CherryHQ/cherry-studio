@@ -264,7 +264,7 @@ describe('IpcChatTransport', () => {
   it('reconnectToStream returns null when not found', async () => {
     const result = await transport.reconnectToStream({ chatId: topicId })
     expect(result).toBeNull()
-    expect(mock.mockApi.streamAttach).toHaveBeenCalledWith({ conversation })
+    expect(mock.mockApi.streamAttach).toHaveBeenCalledWith({ conversation, cursors: [] })
   })
 
   it('reconnectToStream returns stream when attached', async () => {

@@ -119,6 +119,31 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     }
   )
 
+  it('uses the exact terminal anchor when an early error has no accumulated finalMessage', async () => {
+    const persistAssistant = vi.fn()
+    const listener = new PersistenceListener({
+      topicId: 'abc',
+      modelId: 'openai::gpt-4o',
+      backend: {
+        kind: 'identity-probe',
+        canPersistEmptyTerminal: true,
+        canPersistEmptySuccessTerminal: true,
+        persistAssistant
+      }
+    })
+
+    await listener.onError({
+      status: ConversationOutcomeKind.Error,
+      modelId: 'openai::gpt-4o',
+      anchorMessageId: 'assistant-reserved',
+      error: { name: 'Error', message: 'failed before output', stack: null }
+    })
+
+    expect(persistAssistant).toHaveBeenCalledWith(
+      expect.objectContaining({ finalMessage: expect.objectContaining({ id: 'assistant-reserved' }) })
+    )
+  })
+
   it.each([ConversationOutcomeKind.Success, ConversationOutcomeKind.Paused, ConversationOutcomeKind.Error] as const)(
     'never persists retry status parts after %s',
     async (status) => {

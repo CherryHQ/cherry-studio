@@ -40,6 +40,10 @@ export type ResumeSuspendedConversationExecutionEffect = Extract<
   ConversationEffect,
   { type: ConversationEffectType.ResumeSuspendedExecution }
 >
+export type DiscardConversationRuntimeBufferEffect = Extract<
+  ConversationEffect,
+  { type: ConversationEffectType.DiscardRuntimeBuffer }
+>
 export type PersistConversationTerminalEffect = Extract<
   ConversationEffect,
   { type: ConversationEffectType.PersistTerminal }
@@ -76,6 +80,7 @@ export interface ConversationTerminalPersistencePort {
 export interface ConversationExecutionSink {
   firstChunk(): void
   interactionOpened(interaction: ConversationInteractionFact): void
+  interactionCompleted(interactionId: ConversationInteractionId): void
   terminal(outcome: ConversationOutcome): void
   startFailed(error: SerializedError): void
 }
@@ -88,7 +93,7 @@ export interface ConversationExecutionPort {
   resume(effect: ResumeConversationExecutionEffect): void
   suspend(effect: SuspendConversationExecutionEffect): boolean
   resumeSuspended(effect: ResumeSuspendedConversationExecutionEffect): void
-  discardRuntimeBuffer(conversation: ConversationRef): void
+  discardRuntimeBuffer(effect: DiscardConversationRuntimeBufferEffect): void
   abort(effect: AbortConversationExecutionEffect): void
 }
 
@@ -105,6 +110,7 @@ export interface ConversationRuntimePortSet {
   readonly presentation: ConversationPresentationPort
   scheduleNextTurn(conversation: ConversationRef, input: ConversationInput): void
   scheduleNextStep(conversation: ConversationRef, turnId: ConversationTurnId, input: ConversationInput): void
+  dropInputs(conversation: ConversationRef, inputs: readonly ConversationInput[]): void
   scheduleRuntimeTurn(
     conversation: ConversationRef,
     input: ConversationInput,

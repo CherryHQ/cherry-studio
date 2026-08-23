@@ -1,0 +1,291 @@
+import { serializeError } from '@main/ai/utils/serializeError'
+import {
+  type ConversationEffectId,
+  type ConversationExecutionId,
+  type ConversationRef,
+  type ConversationTurnId
+} from '@shared/ai/conversation'
+
+import {
+  type ConversationExecutionSink,
+  type ConversationPortResolver,
+  type ConversationRuntimeIdFactory,
+  ConversationTerminalPersistenceResultKind
+} from './conversationPorts'
+import {
+  type ConversationCommand,
+  ConversationCommandType,
+  type ConversationEffect,
+  ConversationEffectType
+} from './conversationState'
+import { ConversationTerminalPersistenceCoordinator } from './ConversationTerminalPersistenceCoordinator'
+
+/** Executes committed effects and reports exact result commands to one Conversation actor. */
+export class ConversationEffectExecutor {
+  private readonly persistence = new ConversationTerminalPersistenceCoordinator()
+
+  constructor(
+    private readonly conversation: ConversationRef,
+    private readonly ports: ConversationPortResolver,
+    private readonly ids: ConversationRuntimeIdFactory,
+    private readonly dispatch: (command: ConversationCommand) => void
+  ) {}
+
+  execute(effect: ConversationEffect): void {
+    const ports = this.ports.resolve(this.conversation)
+    switch (effect.type) {
+      case ConversationEffectType.StartExecution: {
+        const sink = this.executionSink(effect.turnId, effect.executionId, effect.effectId)
+        try {
+          ports.execution.start(effect, sink)
+          if (effect.interactionId) {
+            this.dispatch({
+              type: ConversationCommandType.InteractionResumeSucceeded,
+              turnId: effect.turnId,
+              interactionId: effect.interactionId,
+              resumeEffectId: effect.effectId,
+              statusEffectId: this.ids.effect()
+            })
+          }
+        } catch (error) {
+          if (effect.interactionId) {
+            this.dispatch({
+              type: ConversationCommandType.InteractionResumeFailed,
+              turnId: effect.turnId,
+              interactionId: effect.interactionId,
+              resumeEffectId: effect.effectId
+            })
+          } else {
+            sink.startFailed(serializeError(error))
+          }
+        }
+        return
+      }
+
+      case ConversationEffectType.RequestYield:
+        ports.execution.requestYield(effect.conversation, effect.turnId)
+        return
+
+      case ConversationEffectType.RedirectInput:
+        this.dispatch({
+          type: ports.execution.redirect(effect)
+            ? ConversationCommandType.RedirectAccepted
+            : ConversationCommandType.RedirectRejected,
+          turnId: effect.turnId,
+          inputId: effect.input.id
+        })
+        return
+
+      case ConversationEffectType.ResumeExecution:
+        try {
+          ports.execution.resume(effect)
+          this.dispatch({
+            type: ConversationCommandType.InteractionResumeSucceeded,
+            turnId: effect.turnId,
+            interactionId: effect.interactionId,
+            resumeEffectId: effect.effectId,
+            statusEffectId: this.ids.effect()
+          })
+        } catch {
+          this.dispatch({
+            type: ConversationCommandType.InteractionResumeFailed,
+            turnId: effect.turnId,
+            interactionId: effect.interactionId,
+            resumeEffectId: effect.effectId
+          })
+        }
+        return
+
+      case ConversationEffectType.SuspendExecution: {
+        let suspended = false
+        try {
+          suspended = ports.execution.suspend(effect)
+        } catch {
+          suspended = false
+        }
+        this.dispatch(
+          suspended
+            ? {
+                type: ConversationCommandType.RuntimeSuspensionSucceeded,
+                suspendEffectId: effect.effectId,
+                scheduleEffectId: this.ids.effect()
+              }
+            : {
+                type: ConversationCommandType.RuntimeSuspensionFailed,
+                suspendEffectId: effect.effectId,
+                discardEffectId: this.ids.effect()
+              }
+        )
+        return
+      }
+
+      case ConversationEffectType.ResumeSuspendedExecution:
+        try {
+          ports.execution.resumeSuspended(effect)
+        } catch (error) {
+          this.dispatch({
+            type: ConversationCommandType.ExecutionStartFailed,
+            turnId: effect.turnId,
+            executionId: effect.executionId,
+            runEffectId: effect.runEffectId,
+            error: serializeError(error),
+            persistenceEffectId: this.ids.effect()
+          })
+        }
+        return
+
+      case ConversationEffectType.DiscardRuntimeBuffer:
+        ports.execution.discardRuntimeBuffer(effect)
+        return
+
+      case ConversationEffectType.ScheduleRuntimeTurn:
+        ports.scheduleRuntimeTurn(effect.conversation, effect.input, effect.suspendEffectId)
+        return
+
+      case ConversationEffectType.AbortExecution:
+        ports.execution.abort(effect)
+        return
+
+      case ConversationEffectType.PersistTerminal:
+        this.persistence.submit(
+          effect,
+          () => ports.terminalPersistence.persistTerminal(effect),
+          (result) => {
+            switch (result.kind) {
+              case ConversationTerminalPersistenceResultKind.Durable:
+                this.dispatch({
+                  type: ConversationCommandType.PersistenceSucceeded,
+                  turnId: effect.turnId,
+                  executionId: effect.executionId,
+                  persistenceEffectId: effect.effectId,
+                  statusEffectId: this.ids.effect(),
+                  executionTerminalEffectId: this.ids.effect(),
+                  turnTerminalEffectId: this.ids.effect(),
+                  quiescenceEffectId: this.ids.effect(),
+                  scheduleEffectId: this.ids.effect(),
+                  scheduleStepEffectId: this.ids.effect()
+                })
+                return
+              case ConversationTerminalPersistenceResultKind.Failed:
+                this.dispatch({
+                  type: ConversationCommandType.PersistenceFailed,
+                  turnId: effect.turnId,
+                  executionId: effect.executionId,
+                  persistenceEffectId: effect.effectId
+                })
+                return
+              case ConversationTerminalPersistenceResultKind.Abandoned:
+                this.dispatch({
+                  type: ConversationCommandType.PersistenceAbandoned,
+                  turnId: effect.turnId,
+                  executionId: effect.executionId,
+                  persistenceEffectId: effect.effectId,
+                  executionTerminalEffectId: this.ids.effect(),
+                  turnTerminalEffectId: this.ids.effect(),
+                  quiescenceEffectId: this.ids.effect(),
+                  scheduleEffectId: this.ids.effect()
+                })
+                return
+            }
+          }
+        )
+        return
+
+      case ConversationEffectType.FinalizeTerminalPersistence:
+        this.persistence.finalize(effect.effectId)
+        return
+
+      case ConversationEffectType.ScheduleNextTurn:
+        ports.scheduleNextTurn(effect.conversation, effect.input)
+        return
+
+      case ConversationEffectType.ScheduleNextStep:
+        ports.scheduleNextStep(effect.conversation, effect.turnId, effect.input)
+        return
+
+      case ConversationEffectType.DropInputs:
+        ports.dropInputs(effect.conversation, effect.inputs)
+        return
+
+      case ConversationEffectType.PublishStatus:
+        ports.presentation.publishStatus(effect)
+        return
+
+      case ConversationEffectType.PublishExecutionTerminal:
+        ports.presentation.publishExecutionTerminal(effect)
+        return
+
+      case ConversationEffectType.PublishTurnTerminal:
+        ports.presentation.publishTurnTerminal(effect)
+        return
+
+      case ConversationEffectType.PublishQuiescence:
+        ports.presentation.publishQuiescence(effect.conversation, effect.turnId)
+        return
+    }
+  }
+
+  retryBlockedPersistence(): void {
+    this.persistence.retryBlocked()
+  }
+
+  inFlightPersistenceOperations() {
+    return this.persistence.inFlightOperations()
+  }
+
+  private executionSink(
+    turnId: ConversationTurnId,
+    executionId: ConversationExecutionId,
+    runEffectId: ConversationEffectId
+  ): ConversationExecutionSink {
+    return {
+      firstChunk: () => {
+        this.dispatch({
+          type: ConversationCommandType.ExecutionFirstChunk,
+          turnId,
+          executionId,
+          runEffectId,
+          statusEffectId: this.ids.effect()
+        })
+      },
+      interactionOpened: (interaction) => {
+        this.dispatch({
+          type: ConversationCommandType.InteractionOpened,
+          turnId,
+          interaction,
+          statusEffectId: this.ids.effect()
+        })
+      },
+      interactionCompleted: (interactionId) => {
+        this.dispatch({
+          type: ConversationCommandType.InteractionCompleted,
+          turnId,
+          executionId,
+          interactionId,
+          runEffectId,
+          statusEffectId: this.ids.effect()
+        })
+      },
+      terminal: (outcome) => {
+        this.dispatch({
+          type: ConversationCommandType.ExecutionTerminal,
+          turnId,
+          executionId,
+          runEffectId,
+          outcome,
+          persistenceEffectId: this.ids.effect()
+        })
+      },
+      startFailed: (error) => {
+        this.dispatch({
+          type: ConversationCommandType.ExecutionStartFailed,
+          turnId,
+          executionId,
+          runEffectId,
+          error,
+          persistenceEffectId: this.ids.effect()
+        })
+      }
+    }
+  }
+}

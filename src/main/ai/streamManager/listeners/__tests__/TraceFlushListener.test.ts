@@ -22,12 +22,20 @@ describe('TraceFlushListener', () => {
     mocks.saveSpans.mockResolvedValue(undefined)
   })
 
-  it('flushes the topic trace cache when the topic turn is done', async () => {
+  it('flushes trace spans for completed chat topics', async () => {
     const listener = new TraceFlushListener('topic-1')
 
     await listener.onTopicQuiesced({ status: ConversationOutcomeKind.Success })
 
     expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')
+  })
+
+  it('flushes trace spans for completed agent-session topics', async () => {
+    const listener = new TraceFlushListener('session-1')
+
+    await listener.onTopicQuiesced({ status: ConversationOutcomeKind.Success })
+
+    expect(mocks.saveSpans).toHaveBeenCalledWith('session-1')
   })
 
   it('flushes when the cleanup port is invoked for a paused topic', async () => {
@@ -38,7 +46,7 @@ describe('TraceFlushListener', () => {
     expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')
   })
 
-  it('does not throw when trace persistence fails', async () => {
+  it('does not let trace flush failure block terminal completion', async () => {
     mocks.saveSpans.mockRejectedValueOnce(new Error('trace write failed'))
     const listener = new TraceFlushListener('topic-1')
 

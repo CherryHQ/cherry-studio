@@ -29,6 +29,20 @@ const failure = {
 } as const
 
 describe('ConversationTerminalPersistenceCoordinator', () => {
+  it('registers the operation before invoking the persistence port', async () => {
+    const coordinator = new ConversationTerminalPersistenceCoordinator()
+    let registeredAtInvocation: readonly string[] = []
+    const persist = vi.fn(async () => {
+      registeredAtInvocation = coordinator.inFlightOperations().map(({ id }) => id)
+      return { kind: ConversationTerminalPersistenceResultKind.Durable } as const
+    })
+
+    coordinator.submit(effect, persist, vi.fn())
+    await vi.waitFor(() => expect(persist).toHaveBeenCalledOnce())
+
+    expect(registeredAtInvocation).toEqual([effect.effectId])
+  })
+
   it('retries the same effect descriptor and publishes durable exactly once', async () => {
     const persist = vi
       .fn()

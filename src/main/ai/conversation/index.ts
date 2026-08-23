@@ -6,7 +6,22 @@ export type {
   ConversationStreamOpener
 } from './AiExecutionManager'
 export { AiExecutionManager } from './AiExecutionManager'
+export { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
+export type {
+  ConversationDispatchAdmission,
+  ConversationDispatchCommitReservation,
+  ConversationHistoryCommitReservation,
+  ConversationRuntimeTurnReservation,
+  ReservedExecutionIdentity
+} from './ConversationActor'
+export {
+  ConversationActor,
+  ConversationAdmissionOperationKind,
+  ConversationExecutionAdmissionKind,
+  ConversationHistoryCommitKind
+} from './ConversationActor'
 export { ConversationAdmissionError } from './ConversationAdmissionError'
+export type { ConversationExecutionDriver } from './ConversationExecutionDriverRegistry'
 export type {
   AbortConversationExecutionEffect,
   ConversationExecutionPort,
@@ -17,6 +32,7 @@ export type {
   ConversationRuntimePortSet,
   ConversationTerminalPersistencePort,
   ConversationTerminalPersistenceResult,
+  DiscardConversationRuntimeBufferEffect,
   PersistConversationTerminalEffect,
   PublishConversationExecutionTerminalEffect,
   PublishConversationStatusEffect,
@@ -28,8 +44,12 @@ export type {
   SuspendConversationExecutionEffect
 } from './conversationPorts'
 export { ConversationTerminalPersistenceResultKind } from './conversationPorts'
-export { ConversationRuntime } from './ConversationRuntime'
-export type { AgentConversationInteractionState, ConversationTurnTerminalEvent } from './ConversationRuntimeService'
+export type {
+  AgentConversationInteractionState,
+  ConversationNamingTaskExecutor,
+  ConversationQuiescenceTaskExecutor,
+  ConversationTurnTerminalEvent
+} from './ConversationRuntimeService'
 export { ConversationRuntimeService } from './ConversationRuntimeService'
 export type {
   ConversationActivity,

@@ -344,8 +344,8 @@ export function useChatWriteActions(params: Params): Result {
         })
         if (ack.mode === ConversationOpenMode.Blocked) throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
-          activeExecutions: ack.activeExecutions,
-          activeNodeDecision: ack.activeNodeDecision
+          activeExecutions: ack.mode === ConversationOpenMode.Started ? ack.activeExecutions : undefined,
+          activeNodeDecision: ack.mode === ConversationOpenMode.Started ? ack.activeNodeDecision : undefined
         })
         return
       }
@@ -364,8 +364,8 @@ export function useChatWriteActions(params: Params): Result {
         })
         if (ack.mode === ConversationOpenMode.Blocked) throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
-          activeExecutions: ack.activeExecutions,
-          activeNodeDecision: ack.activeNodeDecision
+          activeExecutions: ack.mode === ConversationOpenMode.Started ? ack.activeExecutions : undefined,
+          activeNodeDecision: ack.mode === ConversationOpenMode.Started ? ack.activeNodeDecision : undefined
         })
         return
       }
@@ -440,8 +440,8 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       await seedReservedMessages(ack.reservedMessages ?? [], {
-        activeExecutions: ack.activeExecutions,
-        activeNodeDecision: ack.activeNodeDecision
+        activeExecutions: ack.mode === ConversationOpenMode.Started ? ack.activeExecutions : undefined,
+        activeNodeDecision: ack.mode === ConversationOpenMode.Started ? ack.activeNodeDecision : undefined
       })
     },
     [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
@@ -476,8 +476,8 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       await seedReservedMessages(ack.reservedMessages ?? [], {
-        activeExecutions: ack.activeExecutions,
-        activeNodeDecision: ack.activeNodeDecision
+        activeExecutions: ack.mode === ConversationOpenMode.Started ? ack.activeExecutions : undefined,
+        activeNodeDecision: ack.mode === ConversationOpenMode.Started ? ack.activeNodeDecision : undefined
       })
     },
     [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]

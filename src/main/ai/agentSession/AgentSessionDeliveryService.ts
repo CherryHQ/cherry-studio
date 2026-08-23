@@ -7,7 +7,7 @@ import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorks
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentSessionDeliveryReplyPolicy } from '@shared/ai/agentSessionDelivery'
 import { AgentSessionDeliveryOutcome, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
-import { ConversationKind, ConversationOutcomeKind } from '@shared/ai/conversation'
+import { ConversationKind, ConversationOutcomeKind, ConversationTerminalDurability } from '@shared/ai/conversation'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
@@ -82,6 +82,7 @@ export class AgentSessionDeliveryService extends BaseService {
     this.registerDisposable(
       runtime.onTurnTerminal((event) => {
         if (event.conversation.kind !== ConversationKind.Agent) return
+        if (event.durability === ConversationTerminalDurability.DeferredRecovery) return
         this.track(
           `terminal:${event.turnId}`,
           this.handleTurnTerminal(event).finally(() => this.kick(event.conversation.id))
@@ -411,6 +412,7 @@ export class AgentSessionDeliveryService extends BaseService {
   }
 
   private async handleTurnTerminal(event: ConversationTurnTerminalEvent): Promise<void> {
+    if (event.durability === ConversationTerminalDurability.DeferredRecovery) return
     for (const assistantMessageId of event.outputNodeIds) {
       const request = agentSessionMessageService.findDeliveringSessionDeliveryByTurnRef(assistantMessageId)
       if (!request) continue

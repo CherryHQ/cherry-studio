@@ -62,6 +62,7 @@ export class WebContentsListener implements StreamListener {
         this.pending.identifier === next.identifier &&
         this.pending.identity.turnId === next.identity.turnId &&
         this.pending.identity.executionId === next.identity.executionId &&
+        this.pending.identity.modelId === next.identity.modelId &&
         this.pending.identity.outputNodeId === next.identity.outputNodeId
       ) {
         this.pending.text += next.text

@@ -10,7 +10,13 @@ import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSett
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
 import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import { ConversationKind, ConversationOpenTrigger, type ConversationRef } from '@shared/ai/conversation'
+import {
+  ConversationActiveNodeMove,
+  ConversationKind,
+  ConversationOpenTrigger,
+  ConversationOutcomeKind,
+  type ConversationRef
+} from '@shared/ai/conversation'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
@@ -19,14 +25,20 @@ import { v7 as uuidv7 } from 'uuid'
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBackend'
-import type { CherryUIMessage, StreamListener } from '../types'
+import type { CherryUIMessage } from '../types'
 import {
-  type CommittedDispatch,
+  type CommittedConversationIntent,
   type ConversationExecutionContext,
+  ConversationExecutionDriverBindingKind,
+  type ConversationExecutionPreparationDescriptor,
+  ConversationExecutionPreparationKind,
   ConversationHistoryAdapterKind,
   type ConversationHistoryPort,
-  type DispatchContext,
-  type ValidatedDispatch
+  type ConversationIntentValidationContext,
+  type ConversationTerminalPersistenceDescriptor,
+  ConversationTerminalPersistenceKind,
+  type ConversationTerminalWrite,
+  type ValidatedConversationIntent
 } from './ConversationHistoryPort'
 import type { MainDispatchRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels } from './modelResolution'
@@ -41,11 +53,11 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
     return conversation.kind === ConversationKind.Chat && temporaryChatService.hasTopic(conversation.id)
   }
 
-  async validateDispatch(
+  async validateIntent(
     req: MainDispatchRequest,
-    ctx: DispatchContext,
+    ctx: ConversationIntentValidationContext,
     signal: AbortSignal
-  ): Promise<ValidatedDispatch> {
+  ): Promise<ValidatedConversationIntent> {
     signal.throwIfAborted()
     if (req.trigger !== ConversationOpenTrigger.SubmitMessage) {
       throw new Error(`${req.trigger} is not supported for temporary chats`)
@@ -68,11 +80,10 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
     }
   }
 
-  commitDispatch(
-    subscriber: StreamListener,
-    validation: ValidatedDispatch,
-    context: DispatchContext
-  ): CommittedDispatch {
+  commitIntent(
+    validation: ValidatedConversationIntent,
+    context: ConversationIntentValidationContext
+  ): CommittedConversationIntent {
     if (validation.kind !== ConversationHistoryAdapterKind.TemporaryChat) {
       throw new Error(`Temporary Chat received ${validation.kind} validation`)
     }
@@ -144,20 +155,6 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
       parts: message.data.parts ?? []
     }))
     const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
-    const listeners: StreamListener[] = [subscriber]
-    const persistencePorts = [
-      new PersistenceListener({
-        topicId: req.conversation.id,
-        modelId: model.id,
-        backend: new TemporaryChatBackend({
-          topicId: req.conversation.id,
-          messageId,
-          modelId: model.id,
-          messageSnapshot
-        })
-      })
-    ]
-
     const reservedMessages: CherryUIMessage[] = [skeleton.user, skeleton.assistant].map((message) => ({
       id: message.id,
       role: toContentRole(message.role),
@@ -169,34 +166,87 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
         messageSnapshot: message.messageSnapshot ?? undefined
       }
     }))
-    return {
-      reservation: {
-        conversation: req.conversation,
-        models: [{ modelId: model.id, outputNodeId: messageId }],
-        listeners,
-        persistencePorts,
-        cleanupPorts: [],
-        reservedMessages
-      },
-      prepareExecutionContext: async (signal) => {
-        signal.throwIfAborted()
-        const streamRequest: AiStreamRequest = {
-          chatId: req.conversation.id,
-          trigger: 'submit-message',
-          assistantId,
-          uniqueModelId: model.id,
-          messageId,
-          messages: history,
-          knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
-          reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
-          ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
-        }
-        return {
-          conversation: req.conversation,
-          models: [{ modelId: model.id, request: streamRequest }]
-        } satisfies ConversationExecutionContext
-      }
+    const preparation: ConversationExecutionPreparationDescriptor = {
+      kind: ConversationExecutionPreparationKind.TemporaryChat,
+      conversation: req.conversation,
+      modelId: model.id,
+      outputNodeId: messageId,
+      assistantId,
+      messages: history,
+      knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
+      reasoningEffort: req.reasoningEffort,
+      fastMode: req.fastMode === true
     }
+    return {
+      conversation: req.conversation,
+      input: { historyNodeId: skeleton.user.id },
+      executions: [
+        {
+          modelId: model.id,
+          outputNodeId: messageId,
+          preparation,
+          preparationIndex: 0,
+          persistence: {
+            kind: ConversationTerminalPersistenceKind.TemporaryChat,
+            topicId: req.conversation.id,
+            messageId,
+            modelId: model.id,
+            messageSnapshot
+          },
+          driver: { kind: ConversationExecutionDriverBindingKind.Chat }
+        }
+      ],
+      reservedMessages,
+      activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+      postCommitTasks: []
+    }
+  }
+
+  async prepareExecutionContext(
+    descriptor: ConversationExecutionPreparationDescriptor,
+    signal: AbortSignal
+  ): Promise<ConversationExecutionContext> {
+    if (descriptor.kind !== ConversationExecutionPreparationKind.TemporaryChat) {
+      throw new Error(`Temporary Chat cannot prepare ${descriptor.kind}`)
+    }
+    signal.throwIfAborted()
+    const request: AiStreamRequest = {
+      chatId: descriptor.conversation.id,
+      trigger: ConversationOpenTrigger.SubmitMessage,
+      assistantId: descriptor.assistantId,
+      uniqueModelId: descriptor.modelId,
+      messageId: descriptor.outputNodeId,
+      messages: [...descriptor.messages],
+      knowledgeBaseIds: descriptor.knowledgeBaseIds ? [...descriptor.knowledgeBaseIds] : undefined,
+      reasoningEffort: descriptor.reasoningEffort,
+      ...(descriptor.fastMode ? { fastMode: true } : {})
+    }
+    return {
+      conversation: descriptor.conversation,
+      models: [{ modelId: descriptor.modelId, request }]
+    }
+  }
+
+  async persistTerminal(
+    descriptor: ConversationTerminalPersistenceDescriptor,
+    terminal: ConversationTerminalWrite
+  ): Promise<void> {
+    if (descriptor.kind !== ConversationTerminalPersistenceKind.TemporaryChat) {
+      throw new Error(`Temporary Chat cannot persist ${descriptor.kind}`)
+    }
+    const port = new PersistenceListener({
+      topicId: descriptor.topicId,
+      modelId: descriptor.modelId,
+      backend: new TemporaryChatBackend({
+        topicId: descriptor.topicId,
+        messageId: descriptor.messageId,
+        modelId: descriptor.modelId,
+        messageSnapshot: descriptor.messageSnapshot
+      })
+    })
+    if (terminal.status === ConversationOutcomeKind.Success) await port.onDone(terminal)
+    else if (terminal.status === ConversationOutcomeKind.Paused) await port.onPaused(terminal)
+    else await port.onError(terminal)
   }
 }
 

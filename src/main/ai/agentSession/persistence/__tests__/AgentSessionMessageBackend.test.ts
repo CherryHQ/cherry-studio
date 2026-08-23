@@ -112,6 +112,57 @@ describe('AgentSessionMessageBackend', () => {
     })
   })
 
+  it('persists assistant turns with the latest resume token', () => {
+    seedPendingPlaceholder()
+    let resumeToken = 'resume-before-terminal'
+    const backend = new AgentSessionMessageBackend({
+      sessionId: SESSION_ID,
+      assistantMessageId: ASSISTANT_MESSAGE_ID,
+      modelId: MODEL_ID,
+      runtimeResumeToken: () => resumeToken
+    })
+    resumeToken = 'resume-at-terminal'
+
+    backend.persistAssistant({ finalMessage: finalMessage('answer'), status: ConversationOutcomeKind.Success })
+
+    expect(assistantRows()[0]).toMatchObject({
+      status: 'success',
+      runtimeResumeToken: 'resume-at-terminal'
+    })
+  })
+
+  it('persists errored assistant turns with the latest resume token', () => {
+    seedPendingPlaceholder()
+    let resumeToken = 'resume-before-error'
+    const backend = new AgentSessionMessageBackend({
+      sessionId: SESSION_ID,
+      assistantMessageId: ASSISTANT_MESSAGE_ID,
+      modelId: MODEL_ID,
+      runtimeResumeToken: () => resumeToken
+    })
+    resumeToken = 'resume-at-error'
+
+    backend.persistAssistant({ finalMessage: finalMessage('partial'), status: ConversationOutcomeKind.Error })
+
+    expect(assistantRows()[0]).toMatchObject({
+      status: 'error',
+      runtimeResumeToken: 'resume-at-error'
+    })
+  })
+
+  it('persists empty paused terminals to the active assistant placeholder', () => {
+    seedPendingPlaceholder()
+    const backend = new AgentSessionMessageBackend({
+      sessionId: SESSION_ID,
+      assistantMessageId: ASSISTANT_MESSAGE_ID,
+      modelId: MODEL_ID
+    })
+
+    backend.persistAssistant({ status: ConversationOutcomeKind.Paused })
+
+    expect(assistantRows()[0]).toMatchObject({ status: 'paused', data: { parts: [] }, modelId: MODEL_ID })
+  })
+
   it('drives a pending placeholder to terminal error via the fallback path', () => {
     seedPendingPlaceholder()
     const backend = new AgentSessionMessageBackend({ sessionId: SESSION_ID, assistantMessageId: ASSISTANT_MESSAGE_ID })

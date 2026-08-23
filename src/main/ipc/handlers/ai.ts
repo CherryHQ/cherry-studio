@@ -177,7 +177,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.attach requires a managed window')
-    return application.get('ConversationRuntimeService').attach(wc, request.conversation)
+    return application.get('ConversationRuntimeService').attach(wc, request.conversation, request.cursors)
   },
   'ai.stream.detach': async (request, { senderId }) => {
     // Best-effort: a gone window has no listener to remove, so a missing WebContents is a no-op.
@@ -195,7 +195,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── Tool calls — deferred output lookup + approval decisions. ──
   'ai.tool.get_result': async ({ conversation, messageId, toolCallId }) => {
     // Active stream first: it is the only source holding the value before the message persists.
-    const live = application.get('ConversationRuntimeService').getDeferredToolOutput(conversation, toolCallId)
+    const live = application
+      .get('ConversationRuntimeService')
+      .getDeferredToolOutput(conversation, messageId, toolCallId)
     if (live.found) return live
     return findPersistedToolOutput(conversation, messageId, toolCallId)
   },

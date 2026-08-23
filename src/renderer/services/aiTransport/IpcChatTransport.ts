@@ -77,7 +77,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     logger.info('reconnectToStream called', { topicId })
 
     const releaseAttachment = streamAttachmentService.acquire(conversation)
-    const result = await ipcApi.request('ai.stream.attach', { conversation }).catch((error) => {
+    const result = await ipcApi.request('ai.stream.attach', { conversation, cursors: [] }).catch((error) => {
       releaseAttachment()
       throw error
     })

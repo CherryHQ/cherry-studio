@@ -68,14 +68,17 @@ export enum ConversationRuntimeOwnership {
 export enum ConversationCommandType {
   TurnCommitted = 'turn-committed',
   InputCommitted = 'input-committed',
+  InputDropped = 'input-dropped',
   StepCommitted = 'step-committed',
   StepFailed = 'step-failed',
   ExecutionsAdded = 'executions-added',
+  ExecutionRestarted = 'execution-restarted',
   ExecutionFirstChunk = 'execution-first-chunk',
   ExecutionStartFailed = 'execution-start-failed',
   RedirectAccepted = 'redirect-accepted',
   RedirectRejected = 'redirect-rejected',
   InteractionOpened = 'interaction-opened',
+  InteractionCompleted = 'interaction-completed',
   InteractionResolved = 'interaction-resolved',
   InteractionResumeSucceeded = 'interaction-resume-succeeded',
   InteractionResumeFailed = 'interaction-resume-failed',
@@ -109,6 +112,7 @@ export enum ConversationEffectType {
   ScheduleRuntimeTurn = 'schedule-runtime-turn',
   ScheduleNextTurn = 'schedule-next-turn',
   ScheduleNextStep = 'schedule-next-step',
+  DropInputs = 'drop-inputs',
   PublishStatus = 'publish-status',
   PublishExecutionTerminal = 'publish-execution-terminal',
   PublishTurnTerminal = 'publish-turn-terminal',
@@ -117,6 +121,7 @@ export enum ConversationEffectType {
 
 export enum ConversationEventType {
   InputEnqueued = 'input-enqueued',
+  InputDropped = 'input-dropped',
   TurnOpened = 'turn-opened',
   ExecutionChanged = 'execution-changed',
   InteractionChanged = 'interaction-changed',
@@ -340,9 +345,13 @@ export type ConversationEffect =
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ResumeSuspendedExecution
       readonly executionId: ConversationExecutionId
+      readonly runEffectId: ConversationEffectId
       readonly suspendEffectId: ConversationEffectId
     })
-  | (ConversationEffectIdentity & { readonly type: ConversationEffectType.DiscardRuntimeBuffer })
+  | (ConversationEffectIdentity & {
+      readonly type: ConversationEffectType.DiscardRuntimeBuffer
+      readonly preemptionId: ConversationEffectId
+    })
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ScheduleRuntimeTurn
       readonly input: ConversationInput
@@ -355,6 +364,10 @@ export type ConversationEffect =
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ScheduleNextStep
       readonly input: ConversationInput
+    })
+  | (ConversationEffectIdentity & {
+      readonly type: ConversationEffectType.DropInputs
+      readonly inputs: readonly ConversationInput[]
     })
   | (ConversationEffectIdentity & { readonly type: ConversationEffectType.PublishStatus })
   | (ConversationEffectIdentity & {
@@ -374,6 +387,7 @@ export type ConversationEffect =
 
 export type ConversationEvent =
   | { readonly type: ConversationEventType.InputEnqueued; readonly input: ConversationInput }
+  | { readonly type: ConversationEventType.InputDropped; readonly input: ConversationInput }
   | { readonly type: ConversationEventType.TurnOpened; readonly turnId: ConversationTurnId }
   | {
       readonly type: ConversationEventType.ExecutionChanged
@@ -406,6 +420,14 @@ export type ConversationCommand =
       readonly runtimeCanRedirect?: boolean
     }
   | {
+      readonly type: ConversationCommandType.InputDropped
+      readonly turnId: ConversationTurnId
+      readonly inputId: ConversationInputId
+      readonly dropEffectId: ConversationEffectId
+      readonly scheduleEffectId: ConversationEffectId
+      readonly quiescenceEffectId: ConversationEffectId
+    }
+  | {
       readonly type: ConversationCommandType.StepCommitted
       readonly turnId: ConversationTurnId
       readonly inputId: ConversationInputId
@@ -418,11 +440,17 @@ export type ConversationCommand =
       readonly error: SerializedError
       readonly turnTerminalEffectId: ConversationEffectId
       readonly quiescenceEffectId: ConversationEffectId
+      readonly scheduleEffectId: ConversationEffectId
     }
   | {
       readonly type: ConversationCommandType.ExecutionsAdded
       readonly turnId: ConversationTurnId
       readonly executions: readonly ConversationExecutionPlan[]
+    }
+  | {
+      readonly type: ConversationCommandType.ExecutionRestarted
+      readonly turnId: ConversationTurnId
+      readonly execution: ConversationExecutionPlan
     }
   | {
       readonly type: ConversationCommandType.ExecutionFirstChunk
@@ -453,6 +481,14 @@ export type ConversationCommand =
       readonly type: ConversationCommandType.InteractionOpened
       readonly turnId: ConversationTurnId
       readonly interaction: ConversationInteractionFact
+      readonly statusEffectId: ConversationEffectId
+    }
+  | {
+      readonly type: ConversationCommandType.InteractionCompleted
+      readonly turnId: ConversationTurnId
+      readonly executionId: ConversationExecutionId
+      readonly interactionId: ConversationInteractionId
+      readonly runEffectId: ConversationEffectId
       readonly statusEffectId: ConversationEffectId
     }
   | {
@@ -509,6 +545,7 @@ export type ConversationCommand =
       readonly executionTerminalEffectId: ConversationEffectId
       readonly turnTerminalEffectId: ConversationEffectId
       readonly quiescenceEffectId: ConversationEffectId
+      readonly scheduleEffectId: ConversationEffectId
     }
   | {
       readonly type: ConversationCommandType.RuntimePreemptionRequested
@@ -542,7 +579,7 @@ export type ConversationCommand =
     }
   | {
       readonly type: ConversationCommandType.RuntimeOwnershipReleased
-      readonly suspendEffectId?: ConversationEffectId
+      readonly suspendEffectId: ConversationEffectId
       readonly resumeEffectId: ConversationEffectId
       readonly quiescenceEffectId: ConversationEffectId
     }
@@ -560,6 +597,8 @@ export type ConversationCommand =
       readonly persistenceEffectIds: ReadonlyMap<ConversationExecutionId, ConversationEffectId>
       readonly turnTerminalEffectId: ConversationEffectId
       readonly quiescenceEffectId: ConversationEffectId
+      readonly discardEffectId: ConversationEffectId
+      readonly dropEffectId: ConversationEffectId
     }
 
 export interface ConversationTransition {
@@ -599,8 +638,13 @@ const stateHasTurn = (
 ): state is Extract<ConversationState, { phase: ConversationPhase.Running | ConversationPhase.Stopping }> =>
   state.phase === ConversationPhase.Running || state.phase === ConversationPhase.Stopping
 
-const foregroundStartingExecution = (turn: ConversationTurn): ConversationExecution | undefined =>
-  [...turn.executions.values()].find((execution) => execution.phase === ConversationExecutionPhase.Starting)
+const foregroundStartingExecution = (
+  turn: ConversationTurn
+): Extract<ConversationExecution, { phase: ConversationExecutionPhase.Starting }> | undefined =>
+  [...turn.executions.values()].find(
+    (execution): execution is Extract<ConversationExecution, { phase: ConversationExecutionPhase.Starting }> =>
+      execution.phase === ConversationExecutionPhase.Starting
+  )
 
 const runtimeTurn = (
   command: Extract<ConversationCommand, { type: ConversationCommandType.RuntimeTurnCommitted }>
@@ -653,6 +697,7 @@ const resumeForeground = (
         turnId: state.suspendedTurn.id,
         executionId: execution.id,
         effectId: resumeEffectId,
+        runEffectId: execution.runEffectId,
         suspendEffectId: state.suspendEffectId
       }
     ]
@@ -884,14 +929,18 @@ const settleTurn = (
   if (!allExecutionsSettled(state.turn) || state.turn.interactions.size > 0) return unchanged(state)
   const outcome = settledTurnOutcome(state.turn)
   const durability = settledTurnDurability(state.turn)
-  const nextInput = state.inbox.nextTurn[0]
+  const pendingInputs = [...state.inbox.nextTurn, ...state.inbox.nextStep]
+  const shouldDropInputs =
+    state.profile.kind === ConversationKind.Chat && outcome.kind !== ConversationOutcomeKind.Success
+  const retainedNextTurn = shouldDropInputs ? [] : pendingInputs
+  const nextInput = retainedNextTurn[0]
   const shouldSchedule = nextInput !== undefined && state.phase !== ConversationPhase.Stopping
   const quiescent = !shouldSchedule && !hasQuiescenceBlockingActivity(state)
   const nextState: ConversationState = {
     ref: state.ref,
     profile: state.profile,
     phase: ConversationPhase.Idle,
-    inbox: { nextTurn: state.inbox.nextTurn, nextStep: [] },
+    inbox: { nextTurn: retainedNextTurn, nextStep: [] },
     activities: state.activities,
     lastTurnId: state.turn.id
   }
@@ -906,7 +955,15 @@ const settleTurn = (
       quiescent
     }
   ]
-  if (shouldSchedule && nextInput && scheduleEffectId) {
+  if (shouldDropInputs && pendingInputs.length > 0 && scheduleEffectId) {
+    effects.push({
+      type: ConversationEffectType.DropInputs,
+      conversation: state.ref,
+      turnId: state.turn.id,
+      effectId: scheduleEffectId,
+      inputs: pendingInputs
+    })
+  } else if (shouldSchedule && nextInput && scheduleEffectId) {
     effects.push({
       type: ConversationEffectType.ScheduleNextTurn,
       conversation: state.ref,
@@ -1046,6 +1103,57 @@ export function transitionConversation(state: ConversationState, command: Conver
       }
     }
 
+    case ConversationCommandType.InputDropped: {
+      if (
+        state.phase !== ConversationPhase.Idle ||
+        state.lastTurnId !== command.turnId ||
+        state.inbox.nextTurn[0]?.id !== command.inputId
+      ) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      const [dropped, ...nextTurn] = state.inbox.nextTurn
+      if (!dropped) return unchanged(state, ConversationCommandRejection.Stale)
+      const next = { ...state, inbox: { ...state.inbox, nextTurn } }
+      const nextInput = nextTurn[0]
+      const quiescent = !nextInput && !hasQuiescenceBlockingActivity(next)
+      return {
+        state: next,
+        events: [
+          { type: ConversationEventType.InputDropped, input: dropped },
+          ...(quiescent ? ([{ type: ConversationEventType.ConversationQuiesced }] as const) : [])
+        ],
+        effects: [
+          {
+            type: ConversationEffectType.DropInputs,
+            conversation: state.ref,
+            turnId: command.turnId,
+            effectId: command.dropEffectId,
+            inputs: [dropped]
+          },
+          ...(nextInput
+            ? [
+                {
+                  type: ConversationEffectType.ScheduleNextTurn as const,
+                  conversation: state.ref,
+                  turnId: command.turnId,
+                  effectId: command.scheduleEffectId,
+                  input: nextInput
+                }
+              ]
+            : quiescent
+              ? [
+                  {
+                    type: ConversationEffectType.PublishQuiescence as const,
+                    conversation: state.ref,
+                    turnId: command.turnId,
+                    effectId: command.quiescenceEffectId
+                  }
+                ]
+              : [])
+        ]
+      }
+    }
+
     case ConversationCommandType.StepCommitted: {
       if (state.phase !== ConversationPhase.Running || state.turn.id !== command.turnId) {
         return unchanged(state, ConversationCommandRejection.Stale)
@@ -1112,7 +1220,8 @@ export function transitionConversation(state: ConversationState, command: Conver
           turn: { ...state.turn, terminalOverride: { kind: ConversationOutcomeKind.Error, error: command.error } }
         },
         command.turnTerminalEffectId,
-        command.quiescenceEffectId
+        command.quiescenceEffectId,
+        command.scheduleEffectId
       )
     }
 
@@ -1148,6 +1257,49 @@ export function transitionConversation(state: ConversationState, command: Conver
           executionId: execution.id,
           effectId: execution.startEffectId
         }))
+      }
+    }
+
+    case ConversationCommandType.ExecutionRestarted: {
+      if (state.phase !== ConversationPhase.Running || state.turn.id !== command.turnId) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      const current = state.turn.executions.get(command.execution.id)
+      if (
+        current?.phase !== ConversationExecutionPhase.Settled ||
+        current.outputNodeId !== command.execution.outputNodeId ||
+        current.driver !== command.execution.driver ||
+        current.modelId !== command.execution.modelId
+      ) {
+        return unchanged(state, ConversationCommandRejection.Invalid)
+      }
+      const executions = new Map(state.turn.executions)
+      executions.set(command.execution.id, {
+        id: command.execution.id,
+        outputNodeId: command.execution.outputNodeId,
+        driver: command.execution.driver,
+        modelId: command.execution.modelId,
+        phase: ConversationExecutionPhase.Starting,
+        runEffectId: command.execution.startEffectId
+      })
+      return {
+        state: { ...state, turn: { ...state.turn, executions } },
+        events: [
+          {
+            type: ConversationEventType.ExecutionChanged,
+            executionId: command.execution.id,
+            phase: ConversationExecutionPhase.Starting
+          }
+        ],
+        effects: [
+          {
+            type: ConversationEffectType.StartExecution,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            executionId: command.execution.id,
+            effectId: command.execution.startEffectId
+          }
+        ]
       }
     }
 
@@ -1304,6 +1456,67 @@ export function transitionConversation(state: ConversationState, command: Conver
       }
     }
 
+    case ConversationCommandType.InteractionCompleted: {
+      if (state.phase !== ConversationPhase.Running || state.turn.id !== command.turnId) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      const execution = state.turn.executions.get(command.executionId)
+      const interaction = state.turn.interactions.get(command.interactionId)
+      if (
+        !execution ||
+        (execution.phase !== ConversationExecutionPhase.Active &&
+          execution.phase !== ConversationExecutionPhase.WaitingInteraction) ||
+        execution.runEffectId !== command.runEffectId ||
+        !interaction ||
+        interaction.executionId !== execution.id ||
+        interaction.phase === ConversationInteractionPhase.Resolving
+      ) {
+        return unchanged(state, ConversationCommandRejection.Stale)
+      }
+      const interactions = new Map(state.turn.interactions)
+      interactions.delete(interaction.id)
+      const executions = new Map(state.turn.executions)
+      if (execution.phase === ConversationExecutionPhase.WaitingInteraction) {
+        const remainingIds = execution.interactionIds.filter((id) => id !== interaction.id)
+        executions.set(
+          execution.id,
+          remainingIds.length > 0
+            ? { ...execution, interactionIds: remainingIds }
+            : {
+                id: execution.id,
+                outputNodeId: execution.outputNodeId,
+                driver: execution.driver,
+                modelId: execution.modelId,
+                phase: ConversationExecutionPhase.Active,
+                runEffectId: execution.runEffectId
+              }
+        )
+      }
+      return {
+        state: { ...state, turn: { ...state.turn, executions, interactions } },
+        events: [
+          { type: ConversationEventType.InteractionChanged, interactionId: interaction.id },
+          ...(execution.phase === ConversationExecutionPhase.WaitingInteraction && execution.interactionIds.length === 1
+            ? [
+                {
+                  type: ConversationEventType.ExecutionChanged as const,
+                  executionId: execution.id,
+                  phase: ConversationExecutionPhase.Active
+                }
+              ]
+            : [])
+        ],
+        effects: [
+          {
+            type: ConversationEffectType.PublishStatus,
+            conversation: state.ref,
+            turnId: state.turn.id,
+            effectId: command.statusEffectId
+          }
+        ]
+      }
+    }
+
     case ConversationCommandType.InteractionResolved: {
       if (state.phase !== ConversationPhase.Running || state.turn.id !== command.turnId) {
         return unchanged(state, ConversationCommandRejection.Stale)
@@ -1318,7 +1531,7 @@ export function transitionConversation(state: ConversationState, command: Conver
       }
       const interactions = new Map(state.turn.interactions)
       const remainingIds = execution.interactionIds.filter((id) => id !== interaction.id)
-      if (remainingIds.length > 0) {
+      if (remainingIds.length > 0 && interaction.resumeMode === ConversationInteractionResumeMode.NewRun) {
         interactions.delete(interaction.id)
         const executions = new Map(state.turn.executions)
         executions.set(execution.id, { ...execution, interactionIds: remainingIds })
@@ -1387,25 +1600,28 @@ export function transitionConversation(state: ConversationState, command: Conver
       const interactions = new Map(state.turn.interactions)
       interactions.delete(interaction.id)
       const executions = new Map(state.turn.executions)
+      const remainingIds = execution.interactionIds.filter((id) => id !== interaction.id)
       executions.set(
         execution.id,
-        interaction.resumeMode === ConversationInteractionResumeMode.NewRun
-          ? {
-              id: execution.id,
-              outputNodeId: execution.outputNodeId,
-              driver: execution.driver,
-              modelId: execution.modelId,
-              phase: ConversationExecutionPhase.Starting,
-              runEffectId: command.resumeEffectId
-            }
-          : {
-              id: execution.id,
-              outputNodeId: execution.outputNodeId,
-              driver: execution.driver,
-              modelId: execution.modelId,
-              phase: ConversationExecutionPhase.Active,
-              runEffectId: execution.runEffectId
-            }
+        remainingIds.length > 0
+          ? { ...execution, interactionIds: remainingIds }
+          : interaction.resumeMode === ConversationInteractionResumeMode.NewRun
+            ? {
+                id: execution.id,
+                outputNodeId: execution.outputNodeId,
+                driver: execution.driver,
+                modelId: execution.modelId,
+                phase: ConversationExecutionPhase.Starting,
+                runEffectId: command.resumeEffectId
+              }
+            : {
+                id: execution.id,
+                outputNodeId: execution.outputNodeId,
+                driver: execution.driver,
+                modelId: execution.modelId,
+                phase: ConversationExecutionPhase.Active,
+                runEffectId: execution.runEffectId
+              }
       )
       return {
         state: { ...state, turn: { ...state.turn, executions, interactions } },
@@ -1678,6 +1894,13 @@ export function transitionConversation(state: ConversationState, command: Conver
           ],
           effects: [
             {
+              type: ConversationEffectType.ScheduleNextStep,
+              conversation: state.ref,
+              turnId: state.turn.id,
+              effectId: command.scheduleStepEffectId,
+              input: nextStepInput
+            },
+            {
               type: ConversationEffectType.PublishExecutionTerminal,
               conversation: state.ref,
               turnId: state.turn.id,
@@ -1686,13 +1909,6 @@ export function transitionConversation(state: ConversationState, command: Conver
               outcome: execution.outcome,
               durability,
               audience: ConversationTerminalAudience.All
-            },
-            {
-              type: ConversationEffectType.ScheduleNextStep,
-              conversation: state.ref,
-              turnId: state.turn.id,
-              effectId: command.scheduleStepEffectId,
-              input: nextStepInput
             }
           ]
         }
@@ -1701,11 +1917,14 @@ export function transitionConversation(state: ConversationState, command: Conver
         next,
         command.turnTerminalEffectId,
         command.quiescenceEffectId,
-        command.type === ConversationCommandType.PersistenceSucceeded ? command.scheduleEffectId : undefined
+        command.scheduleEffectId
       )
       return {
         ...settled,
         effects: [
+          ...settled.effects.filter(
+            ({ type }) => type === ConversationEffectType.ScheduleNextTurn || type === ConversationEffectType.DropInputs
+          ),
           {
             type: ConversationEffectType.PublishExecutionTerminal,
             conversation: state.ref,
@@ -1719,7 +1938,9 @@ export function transitionConversation(state: ConversationState, command: Conver
                 ? ConversationTerminalAudience.All
                 : ConversationTerminalAudience.InternalOnly
           },
-          ...settled.effects
+          ...settled.effects.filter(
+            ({ type }) => type !== ConversationEffectType.ScheduleNextTurn && type !== ConversationEffectType.DropInputs
+          )
         ]
       }
     }
@@ -1866,7 +2087,8 @@ export function transitionConversation(state: ConversationState, command: Conver
             type: ConversationEffectType.DiscardRuntimeBuffer,
             conversation: state.ref,
             turnId: state.turn.id,
-            effectId: command.discardEffectId
+            effectId: command.discardEffectId,
+            preemptionId: command.suspendEffectId
           }
         ]
       }
@@ -1951,13 +2173,15 @@ export function transitionConversation(state: ConversationState, command: Conver
             turnId: state.turn.id,
             executionId: execution.id,
             effectId: command.resumeEffectId,
+            runEffectId: execution.runEffectId,
             suspendEffectId: command.suspendEffectId
           },
           {
             type: ConversationEffectType.DiscardRuntimeBuffer,
             conversation: state.ref,
             turnId: state.turn.id,
-            effectId: command.discardEffectId
+            effectId: command.discardEffectId,
+            preemptionId: command.suspendEffectId
           }
         ]
       }
@@ -1968,7 +2192,7 @@ export function transitionConversation(state: ConversationState, command: Conver
         return unchanged(state, ConversationCommandRejection.Stale)
       }
       if (state.runMode === ConversationRunMode.Preempting) {
-        if (command.suspendEffectId && command.suspendEffectId !== state.suspendEffectId) {
+        if (command.suspendEffectId !== state.suspendEffectId) {
           return unchanged(state, ConversationCommandRejection.Stale)
         }
         return state.runtimeOwnership === ConversationRuntimeOwnership.Released
@@ -1978,7 +2202,7 @@ export function transitionConversation(state: ConversationState, command: Conver
       if (state.runMode !== ConversationRunMode.RuntimePreempted) {
         return unchanged(state, ConversationCommandRejection.Stale)
       }
-      if (command.suspendEffectId && command.suspendEffectId !== state.suspendEffectId) {
+      if (command.suspendEffectId !== state.suspendEffectId) {
         return unchanged(state, ConversationCommandRejection.Stale)
       }
       if (state.runtimeOwnership === ConversationRuntimeOwnership.Released) return unchanged(state)
@@ -2017,17 +2241,41 @@ export function transitionConversation(state: ConversationState, command: Conver
     }
 
     case ConversationCommandType.KickInbox: {
-      if (state.phase !== ConversationPhase.Idle) return unchanged(state, ConversationCommandRejection.Busy)
-      const input = state.inbox.nextTurn[0]
+      if (state.phase === ConversationPhase.Idle) {
+        const input = state.inbox.nextTurn[0]
+        if (!input) return unchanged(state, ConversationCommandRejection.Stale)
+        return {
+          state,
+          events: [],
+          effects: [
+            {
+              type: ConversationEffectType.ScheduleNextTurn,
+              conversation: state.ref,
+              turnId: state.lastTurnId ?? toConversationTurnId('inbox-kick'),
+              effectId: command.scheduleEffectId,
+              input
+            }
+          ]
+        }
+      }
+      if (
+        state.phase !== ConversationPhase.Running ||
+        state.runMode !== ConversationRunMode.Foreground ||
+        state.turn.interactions.size > 0 ||
+        !allExecutionsSettled(state.turn)
+      ) {
+        return unchanged(state, ConversationCommandRejection.Busy)
+      }
+      const input = state.inbox.nextStep[0]
       if (!input) return unchanged(state, ConversationCommandRejection.Stale)
       return {
         state,
         events: [],
         effects: [
           {
-            type: ConversationEffectType.ScheduleNextTurn,
+            type: ConversationEffectType.ScheduleNextStep,
             conversation: state.ref,
-            turnId: state.lastTurnId ?? toConversationTurnId('inbox-kick'),
+            turnId: state.turn.id,
             effectId: command.scheduleEffectId,
             input
           }
@@ -2036,16 +2284,41 @@ export function transitionConversation(state: ConversationState, command: Conver
     }
 
     case ConversationCommandType.Stop: {
+      const pendingInputs = [...state.inbox.nextTurn, ...state.inbox.nextStep]
+      const droppedEvents: ConversationEvent[] = pendingInputs.map((input) => ({
+        type: ConversationEventType.InputDropped,
+        input
+      }))
       if (state.phase === ConversationPhase.Idle) {
-        return state.inbox.nextTurn.length === 0 && state.inbox.nextStep.length === 0
-          ? unchanged(state)
-          : {
-              state: { ...state, inbox: { nextTurn: [], nextStep: [] } },
-              events: [],
-              effects: []
+        if (pendingInputs.length === 0) return unchanged(state)
+        if (!state.lastTurnId) return unchanged(state, ConversationCommandRejection.Invalid)
+        return {
+          state: { ...state, inbox: { nextTurn: [], nextStep: [] } },
+          events: droppedEvents,
+          effects: [
+            {
+              type: ConversationEffectType.DropInputs,
+              conversation: state.ref,
+              turnId: state.lastTurnId,
+              effectId: command.dropEffectId,
+              inputs: pendingInputs
             }
+          ]
+        }
       }
       if (state.phase === ConversationPhase.Stopping) return unchanged(state)
+      const dropEffects: ConversationEffect[] =
+        pendingInputs.length === 0
+          ? []
+          : [
+              {
+                type: ConversationEffectType.DropInputs,
+                conversation: state.ref,
+                turnId: state.turn.id,
+                effectId: command.dropEffectId,
+                inputs: pendingInputs
+              }
+            ]
       const stoppedCurrent = stopTurn(
         state,
         state.turn,
@@ -2094,8 +2367,19 @@ export function transitionConversation(state: ConversationState, command: Conver
             turn: stoppedCurrent.turn,
             suspendedTurn: { ...stoppedSuspended.turn, executions: suspendedExecutions }
           },
-          events: [],
-          effects: [...stoppedCurrent.effects, ...suspendedEffects]
+          events: droppedEvents,
+          effects: [
+            ...dropEffects,
+            ...stoppedCurrent.effects,
+            ...suspendedEffects,
+            {
+              type: ConversationEffectType.DiscardRuntimeBuffer,
+              conversation: state.ref,
+              turnId: state.suspendedTurn.id,
+              effectId: command.discardEffectId,
+              preemptionId: state.suspendEffectId
+            }
+          ]
         }
       }
       const stopping: Extract<ConversationState, { phase: ConversationPhase.Stopping }> = {
@@ -2106,11 +2390,16 @@ export function transitionConversation(state: ConversationState, command: Conver
       }
       const settled = settleTurn(stopping, command.turnTerminalEffectId, command.quiescenceEffectId)
       return settled.state.phase === ConversationPhase.Idle
-        ? { ...settled, effects: [...stoppedCurrent.effects, ...settled.effects] }
+        ? {
+            ...settled,
+            events: [...droppedEvents, ...settled.events],
+            effects: [...dropEffects, ...stoppedCurrent.effects, ...settled.effects]
+          }
         : {
             state: stopping,
-            events: [],
+            events: droppedEvents,
             effects: [
+              ...dropEffects,
               ...stoppedCurrent.effects,
               ...(state.runMode === ConversationRunMode.Preempting
                 ? [
@@ -2118,7 +2407,8 @@ export function transitionConversation(state: ConversationState, command: Conver
                       type: ConversationEffectType.DiscardRuntimeBuffer,
                       conversation: state.ref,
                       turnId: state.turn.id,
-                      effectId: command.quiescenceEffectId
+                      effectId: command.discardEffectId,
+                      preemptionId: state.suspendEffectId
                     } as const
                   ]
                 : [])

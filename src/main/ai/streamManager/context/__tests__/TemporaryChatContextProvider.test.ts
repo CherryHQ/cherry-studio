@@ -31,7 +31,7 @@ vi.mock('@main/data/services/ModelService', () => ({
 }))
 
 const { TemporaryChatContextProvider } = await import('../TemporaryChatContextProvider')
-const { PersistenceListener } = await import('../../listeners/PersistenceListener')
+const { assertPureCommittedIntent } = await import('./assertPureCommittedIntent')
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -57,14 +57,14 @@ function openReq(overrides: Partial<MainDispatchRequest> = {}): MainDispatchRequ
 
 async function prepare(
   provider: InstanceType<typeof TemporaryChatContextProvider>,
-  subscriber = makeSubscriber(),
+  _subscriber = makeSubscriber(),
   req = openReq(),
   hasLiveStream = false
 ) {
   const context = { hasLiveStream }
-  const validated = await provider.validateDispatch(req, context, new AbortController().signal)
-  const committed = provider.commitDispatch(subscriber, validated, context)
-  return committed.prepareExecutionContext(new AbortController().signal)
+  const validated = await provider.validateIntent(req, context, new AbortController().signal)
+  const committed = provider.commitIntent(validated, context)
+  return provider.prepareExecutionContext(committed.executions[0].preparation, new AbortController().signal)
 }
 
 describe('TemporaryChatContextProvider', () => {
@@ -187,12 +187,13 @@ describe('TemporaryChatContextProvider', () => {
   })
 
   it('commits user and assistant skeleton atomically before preparing the execution context', async () => {
-    const subscriber = makeSubscriber()
     const request = openReq()
     const dispatchContext = { hasLiveStream: false }
-    const validated = await provider.validateDispatch(request, dispatchContext, new AbortController().signal)
-    const committed = provider.commitDispatch(subscriber, validated, dispatchContext)
-    const executionContext = await committed.prepareExecutionContext(new AbortController().signal)
+    const validated = await provider.validateIntent(request, dispatchContext, new AbortController().signal)
+    const committed = provider.commitIntent(validated, dispatchContext)
+    assertPureCommittedIntent(committed)
+    const execution = committed.executions[0]
+    const executionContext = await provider.prepareExecutionContext(execution.preparation, new AbortController().signal)
 
     expect(executionContext.conversation).toEqual({ kind: ConversationKind.Chat, id: '1' })
     expect(provider.isPersistentConversation).toBe(false)
@@ -206,15 +207,8 @@ describe('TemporaryChatContextProvider', () => {
     expect(executionContext.models).toHaveLength(1)
     expect(executionContext.models[0].modelId).toBe('openai::gpt-4o')
 
-    expect(committed.reservation.listeners).toEqual([subscriber])
-    const persistencePorts = committed.reservation.persistencePorts
-    expect(persistencePorts).toHaveLength(1)
-    // Persistence is strategy-based: a PersistenceListener wrapping the
-    // in-memory temp backend. We assert via the public `backendKind` getter
-    // rather than reaching into private fields.
-    const persist = persistencePorts?.[0]
-    expect(persist).toBeInstanceOf(PersistenceListener)
-    expect((persist as InstanceType<typeof PersistenceListener>).backendKind).toBe('temp')
+    expect(committed.reservedMessages).toHaveLength(2)
+    expect(execution.persistence).toMatchObject({ kind: 'temporary-chat', messageId: execution.outputNodeId })
 
     // The model context includes the committed user but not the pending assistant skeleton.
     const streamRequest = executionContext.models[0].request

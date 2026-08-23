@@ -38,6 +38,7 @@ export type {
   ConversationStatusSnapshotEntry,
   ExecutionAttachSnapshot,
   ExecutionAttachTerminal,
+  ExecutionReplayCursor,
   PromptStreamAbortRequest,
   PromptStreamChunkPayload,
   PromptStreamDonePayload,

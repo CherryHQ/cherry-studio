@@ -1,4 +1,5 @@
 import {
+  ConversationAdmissionReason,
   ConversationExecutionPhase,
   ConversationKind,
   ConversationOutcomeKind,
@@ -15,11 +16,13 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  ConversationActor,
+  ConversationExecutionAdmissionKind,
   ConversationExecutionDriverKind,
   type ConversationExecutionSink,
+  ConversationHistoryCommitKind,
   ConversationInputProvenance,
   ConversationResponderKind,
-  ConversationRuntime,
   type ConversationRuntimeIdFactory,
   type ConversationRuntimePortSet,
   type ConversationTerminalPersistenceResult,
@@ -33,12 +36,24 @@ describe('ConversationRuntime', () => {
   let sequence: number
   let sinks: ConversationExecutionSink[]
   let ports: ConversationRuntimePortSet
-  let runtime: ConversationRuntime
+  let actors: Map<string, ConversationActor>
+
+  const actorFor = (ref: ConversationRef) => {
+    const key = `${ref.kind}:${ref.id}`
+    let actor = actors.get(key)
+    if (!actor) {
+      actor = new ConversationActor(ref, () => {}, { ports: { resolve: () => ports }, ids })
+      actors.set(key, actor)
+    }
+    return actor
+  }
+
+  let ids: ConversationRuntimeIdFactory
 
   beforeEach(() => {
     sequence = 0
     sinks = []
-    const ids: ConversationRuntimeIdFactory = {
+    ids = {
       turn: () => toConversationTurnId(`turn-${++sequence}`),
       execution: () => toConversationExecutionId(`execution-${++sequence}`),
       effect: () => toConversationEffectId(`effect-${++sequence}`),
@@ -71,14 +86,14 @@ describe('ConversationRuntime', () => {
       },
       scheduleNextTurn: vi.fn(),
       scheduleNextStep: vi.fn(),
+      dropInputs: vi.fn(),
       scheduleRuntimeTurn: vi.fn()
     }
-    runtime = new ConversationRuntime({ resolve: () => ports }, ids)
+    actors = new Map()
   })
 
   function open(ref: ConversationRef = chat) {
-    return runtime.openTurn(
-      ref,
+    return actorFor(ref).openTurn(
       {
         id: toConversationInputId('user-1'),
         historyNodeId: 'user-1',
@@ -112,17 +127,50 @@ describe('ConversationRuntime', () => {
     expect(ports.execution.start).toHaveBeenCalledOnce()
   })
 
+  it('keeps dispatch classification and identity reservation inside the Actor without mutating state', () => {
+    const actor = actorFor(chat)
+    const reservation = actor.reserveDispatch({
+      turnKind: ConversationTurnKind.Submit,
+      anchorNodeId: null,
+      responder: ConversationResponderKind.Interactive,
+      executionModelIds: ['provider::model'],
+      runtimeCanRedirect: false
+    })
+
+    expect(reservation.kind).toBe(ConversationHistoryCommitKind.FreshTurn)
+    expect(actor.inspect().phase).toBe(ConversationPhase.Idle)
+  })
+
+  it('rejects a duplicate live model from the Actor admission preview', () => {
+    open()
+
+    expect(() =>
+      actorFor(chat).reserveDispatch({
+        turnKind: ConversationTurnKind.Regenerate,
+        anchorNodeId: 'user-1',
+        responder: ConversationResponderKind.Interactive,
+        executionModelIds: ['provider::model'],
+        executionMutation: {
+          kind: ConversationExecutionAdmissionKind.Append,
+          outputNodeId: 'missing-assistant',
+          persistedSiblingsGroupId: 1
+        },
+        runtimeCanRedirect: false
+      })
+    ).toThrow(expect.objectContaining({ reason: ConversationAdmissionReason.ModelAlreadyInLiveGroup }))
+  })
+
   it('routes first chunk and durable terminal results back through exact identities', async () => {
     open()
     sinks[0]?.firstChunk()
-    const active = runtime.inspect(chat)
+    const active = actorFor(chat).inspect()
     if (active.phase !== ConversationPhase.Running) throw new Error('turn missing')
     expect(active.turn.executions.get(toConversationExecutionId('execution-1'))?.phase).toBe(
       ConversationExecutionPhase.Active
     )
 
     sinks[0]?.terminal({ kind: ConversationOutcomeKind.Success })
-    await vi.waitFor(() => expect(runtime.inspect(chat).phase).toBe(ConversationPhase.Idle))
+    await vi.waitFor(() => expect(actorFor(chat).inspect().phase).toBe(ConversationPhase.Idle))
     expect(ports.presentation.publishExecutionTerminal).toHaveBeenCalledWith(
       expect.objectContaining({ durability: ConversationTerminalDurability.Durable })
     )
@@ -132,8 +180,7 @@ describe('ConversationRuntime', () => {
   it('keeps a rejected Agent redirect as a future turn owned by the aggregate', () => {
     vi.mocked(ports.execution.redirect).mockReturnValue(false)
     open(agent)
-    runtime.commitInput(
-      agent,
+    actorFor(agent).commitInput(
       {
         id: toConversationInputId('user-2'),
         historyNodeId: 'user-2',
@@ -143,15 +190,14 @@ describe('ConversationRuntime', () => {
       { runtimeCanRedirect: true }
     )
 
-    const state = runtime.inspect(agent)
+    const state = actorFor(agent).inspect()
     expect(state.inbox.nextStep).toEqual([])
     expect(state.inbox.nextTurn.map(({ id }) => id)).toEqual([toConversationInputId('user-2')])
   })
 
   it('schedules an accepted Agent NextStep only after the predecessor is durable', async () => {
     open(agent)
-    runtime.commitInput(
-      agent,
+    actorFor(agent).commitInput(
       {
         id: toConversationInputId('user-2'),
         historyNodeId: 'user-2',
@@ -163,14 +209,14 @@ describe('ConversationRuntime', () => {
     sinks[0]?.terminal({ kind: ConversationOutcomeKind.Success })
 
     await vi.waitFor(() => expect(ports.scheduleNextStep).toHaveBeenCalledOnce())
-    expect(runtime.inspect(agent).phase).toBe(ConversationPhase.Running)
+    expect(actorFor(agent).inspect().phase).toBe(ConversationPhase.Running)
   })
 
   it('Stop interrupts Starting resources without a preparation cancellation protocol', () => {
     open()
-    runtime.stop(chat, 'user-stop')
+    actorFor(chat).stop('user-stop')
 
-    expect(runtime.inspect(chat).phase).toBe(ConversationPhase.Stopping)
+    expect(actorFor(chat).inspect().phase).toBe(ConversationPhase.Stopping)
     expect(ports.execution.abort).toHaveBeenCalledWith(
       expect.objectContaining({ executionId: toConversationExecutionId('execution-1'), reason: 'user-stop' })
     )

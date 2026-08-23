@@ -1,6 +1,13 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
-import { ConversationKind, ConversationOpenTrigger, ConversationTargetMode } from '@shared/ai/conversation'
+import {
+  ConversationKind,
+  ConversationOpenTrigger,
+  ConversationTargetMode,
+  toConversationExecutionId,
+  toConversationTurnId
+} from '@shared/ai/conversation'
 import type {
+  AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
@@ -166,6 +173,12 @@ const conversationRefSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal(ConversationKind.Agent), id: z.string().min(1) })
 ])
 
+const executionReplayCursorSchema = z.strictObject({
+  turnId: z.string().min(1).transform(toConversationTurnId),
+  executionId: z.string().min(1).transform(toConversationExecutionId),
+  throughChunkSeq: z.number().int().nonnegative()
+})
+
 export const aiRequestSchemas = {
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
@@ -254,7 +267,10 @@ export const aiRequestSchemas = {
     output: z.custom<AiStreamOpenResponse>()
   }),
   'ai.stream.attach': defineRoute({
-    input: z.strictObject({ conversation: conversationRefSchema }),
+    input: z.strictObject({
+      conversation: conversationRefSchema,
+      cursors: z.array(executionReplayCursorSchema)
+    }) satisfies z.ZodType<AiStreamAttachRequest>,
     output: z.custom<AiStreamAttachResponse>()
   }),
   'ai.stream.detach': defineRoute({
