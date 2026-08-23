@@ -19,7 +19,7 @@
     },
     "builtin": {
       "cherry_assistant": {
-        "description": "Yerleşik Cherry Studio danışmanı. Sorunları tanılar, işlemlerde rehberlik eder, SSS'leri toplar, hata/özellik istekleri gönderir ve Skills arayıp oluşturur"
+        "description": "Yerleşik Cherry Studio danışmanı. Sorunları tanılar, işlemlerde rehberlik eder, SSS'leri toplar, hata/özellik istekleri gönderir ve becerileri arayıp oluşturur"
       },
       "cherry_support": {
         "description": "Kurulum rehberliği, sorun giderme, SSS'ler ve geri bildirim için resmî Cherry Studio destek ajanı"
@@ -1850,7 +1850,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
-    "api_gateway_required": "Bu model, şu anda devre dışı olan Cherry Studio'nun yerel API Gateway'i üzerinden köprülenmelidir. Bu ajanı çalıştırmak için etkinleştirin.",
+    "api_gateway_required": "Bu model, şu anda devre dışı olan Cherry Studio'nun yerel API Ağ Geçidi'ni kullanarak köprülenmelidir. Bu ajanı çalıştırmak için etkinleştirin.",
     "availableProviders": "Kullanılabilir Sağlayıcılar",
     "availableTools": "Kullanılabilir Araçlar",
     "backup": {
@@ -5632,7 +5632,7 @@
         "fd": "Hızlı dosya bulucu, find alternatifi.",
         "gh": "Depo ve iş akışı yönetimi için GitHub CLI.",
         "hermes": "Nous Research tarafından geliştirilen, deneyimlerden beceriler oluşturan ve oturumlar arasında bilgiyi koruyan, kendini geliştiren AI kodlama ajanı.",
-        "lark-cli": "Messenger, Docs, Base, Sheets, Calendar ve daha fazlasını 200+ komut ve AI Agent becerileriyle kapsayan resmî Lark/Feishu CLI.",
+        "lark-cli": "Messenger, Docs, Base, Sheets, Calendar ve daha fazlasını 200+ komut ve AI ajanı becerileriyle kapsayan resmî Lark/Feishu CLI.",
         "ntn": "Kimlik doğrulama, Workers yönetimi ve terminalden tam Notion API erişimi için resmî Notion CLI.",
         "openclaw": "Sohbet, ses, tuval, kamera ve ekran yakalama özelliklerine sahip, platformlar arası kişisel AI asistanı.",
         "opencode": "Otomatik iş akışları için GitHub Actions entegrasyonuyla 75+ modeli destekleyen açık kaynaklı AI kodlama ajanı.",
