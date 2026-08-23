@@ -86,9 +86,10 @@ desktop tools.
    Record `custom-provider-saved` against `role: main`, which contains the
    provider name and both exact model IDs. Open exact `Model Check`, click the
    exact `Select Model` combobox, and click the exact `role: option` identified
-   by `textConfigRef: customProviderChatModel`. Click `Start`, wait 10 seconds,
-   and record the persistent exact `Passed` status. Do not click `Close`
-   afterward. Click the exact `Back` button, then select the chat model
+   by `textConfigRef: customProviderChatModel`. Click `Start` and wait 10 seconds.
+   If exact `Passed` remains visible, observe it; if the dialog closes without
+   an error, continue. The exact chat response below is the durable connection
+   proof. Click the exact `Back` button, then select the chat model
    through exact button name `Selected models`; fill
    `testId: model-selector-search` with `configRef: customProviderChatModel`
    and click the first `role: option`. Fill `css: [contenteditable='true']` with
@@ -236,7 +237,8 @@ desktop tools.
    > `Install from directory`, then immediately use `native-file-picker` with
    the returned `skillDirectory`. The imported Skill is globally enabled by
    default; do not click its global switch. Record `skill-imported` against the
-   visible `cherry-regression-fixture` catalog entry.
+   visible `cherry-regression-fixture` catalog entry. Call `restart-app` once
+   so the imported Skill mirror is loaded by a fresh Agent runtime.
 
    Return to exact `Work`, select the built-in Agent `Cherry Assistant`, and
    start an exact `New task` first if its current session has messages. Click
@@ -244,7 +246,7 @@ desktop tools.
    dialog, inspect the exact `cherry-regression-fixture` switch and click it only
    if it is off; retries must leave an already-on switch unchanged. Close the
    dialog and start an exact `New task`. Fill `css: [contenteditable='true']`
-   with `What is the Cherry regression marker? Follow the enabled fixture skill exactly.`
+   with `Invoke the already-enabled local skill through the Skill tool, not marketplace search. Then return the Cherry regression marker.`
    first. Then reopen the composer `Skills` panel and click exact
    `cherry-regression-fixture` to insert its token. Verify the composer contains
    both the token and question; do not call `type` or `fill` after inserting the

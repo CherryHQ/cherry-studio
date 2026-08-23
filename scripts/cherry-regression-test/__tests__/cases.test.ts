@@ -40,23 +40,23 @@ describe('regression test manifest', () => {
     ).toEqual([
       ['S-01'],
       ['APP-01'],
-      ['M-01'],
       ['N-01'],
+      ['CODE-01', 'CODE-02'],
+      ['CODE-03'],
       ['M-02'],
       ['C-01'],
-      ['A-02'],
       ['C-02'],
       ['C-03'],
       ['T-01', 'T-02'],
       ['K-01'],
       ['K-02'],
       ['MCP-01'],
-      ['CODE-03'],
+      ['A-02'],
+      ['M-01'],
       ['A-04'],
       ['A-05'],
       ['A-03'],
       ['P-01', 'P-02'],
-      ['CODE-01', 'CODE-02'],
       ['A-01']
     ])
   })
@@ -87,6 +87,13 @@ describe('regression test manifest', () => {
     expect(REGRESSION_CASES.slice(1).every(({ profile }) => profile === 'authenticated')).toBe(true)
   })
 
+  it('restarts before CherryIN and uses the chat response as custom-provider connection proof', () => {
+    expect(REGRESSION_CASES.find(({ id }) => id === 'M-01')?.restartBefore).toBe(true)
+    expect(REGRESSION_CASES.find(({ id }) => id === 'M-02')?.evidence.map(({ id }) => id)).not.toContain(
+      'custom-provider-connection'
+    )
+  })
+
   it('schedules every task exactly once in workflow order', () => {
     const workflow = readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8')
     const scheduledTasks = [...workflow.matchAll(/^\s+REGRESSION_TASK: ([a-z0-9-]+)$/gm)].map((match) => match[1])
@@ -99,6 +106,7 @@ describe('regression test manifest', () => {
     expect(scheduledTasks).toEqual(TASK_IDS)
     expect(selectedTasks).toEqual(TASK_IDS)
     expect(taskOptions).toEqual(TASK_SELECTIONS)
+    expect(workflow).toContain('max-parallel: 1')
     expect(workflow.match(/continue-on-error: true/g)).toHaveLength(1)
     expect(workflow).toContain('--task "$TEST_TASK"')
   })

@@ -24,6 +24,9 @@ describe('regression fixtures', () => {
       expect(readFileSync(join(manifest.skillDirectory, 'SKILL.md'), 'utf8')).toContain(
         'name: cherry-regression-fixture'
       )
+      expect(readFileSync(join(manifest.skillDirectory, 'SKILL.md'), 'utf8')).toContain(
+        'installed local skill, not a marketplace lookup'
+      )
       expect(filesWithMarker).toEqual([join(paths.fixtures, 'knowledge', 'ground-truth.txt')])
     } finally {
       rmSync(directory, { force: true, recursive: true })

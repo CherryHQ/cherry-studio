@@ -3,6 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSyn
 import { join, resolve } from 'node:path'
 
 import {
+  agentRetryDelaySeconds,
   assertAgentPreflightOutput,
   assertAgentTaskOutput,
   buildTaskSkillInstructions,
@@ -285,7 +286,6 @@ async function runAgentTaskCommand(): Promise<void> {
   const timeoutMinutes = agentTaskTimeoutMinutes(task)
   const redact = createRedactor(getSensitiveConfigValues(config))
   const initialRun = readRun(paths.runState)
-  const retryDelaySeconds = initialRun.metadata.platform === 'windows' ? 90 : 60
   let agentFailure: string | undefined
   let run = initialRun
 
@@ -370,6 +370,7 @@ async function runAgentTaskCommand(): Promise<void> {
     if (!shouldRetry) break
 
     const reason = agentFailure ?? 'returned before completing every applicable case'
+    const retryDelaySeconds = agentRetryDelaySeconds(result, initialRun.metadata.platform)
     process.stdout.write(
       `Test agent ${reason}; retrying ${task} in a fresh session after ${retryDelaySeconds} seconds\n`
     )

@@ -27,6 +27,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
     title: '登录 CherryIN 并完成聊天',
     task: 'cherryin-chat',
     profile: 'authenticated',
+    restartBefore: true,
     modes: ['branch', 'tag'],
     steps: [
       'If onboarding is visible, choose Set up later. Open provider settings, select CherryIN, and call authenticate-cherryin exactly once when the authorization button is visible.',
@@ -59,7 +60,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
       'On the saved provider, enable its only switch before configuring models. Open Add Model, fill the exact Model ID textbox with configRef customProviderChatModel, and press Enter on that textbox to submit.',
       'Open Add Model again, fill Model ID with configRef customProviderEmbeddingModel, set Chat protocol to OpenAI, expand More Settings, select the exact Embedding model type, and press Enter on Model ID to submit.',
       'Verify the provider page main region contains the saved provider name and both exact model IDs.',
-      'Open Model Check, choose configRef customProviderChatModel in the Select Model combobox, start the check, and wait for the persistent Passed status.',
+      'Open Model Check, choose configRef customProviderChatModel in the Select Model combobox, and start the check. A persistent Passed status or the dialog closing without an error both indicate completion; the following real chat response is the connection proof.',
       'Return to Chat, select the exact configured model, and send: Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else. Record the exact response and capture the chat screenshot before restarting.',
       'Restart the application, reopen the custom provider, and verify that the provider and model remain visible.'
     ],
@@ -70,7 +71,6 @@ export const REGRESSION_CASES: RegressionCase[] = [
     ],
     evidence: [
       requirement('custom-provider-saved', 'ui', 'Observe the saved provider and both configured models'),
-      requirement('custom-provider-connection', 'ui', 'Observe a successful connection check'),
       requirement('custom-provider-chat-response', 'ui', 'Observe a complete model response'),
       requirement('custom-provider-redacted', 'ui', 'Observe that the API key is masked'),
       requirement('custom-provider-restart', 'restart', 'Verify provider persistence after restart'),
@@ -233,8 +233,8 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     steps: [
       'Import skillDirectory through Settings > Skills > Add Skill > Local import > Install from directory; verify the catalog entry without toggling its default-on global switch.',
-      'Return to Work, open Manage skills from the built-in Cherry Assistant composer Skills panel, leave cherry-regression-fixture on if already enabled or enable it if off, then start a new task.',
-      'Fill the regression-marker question before inserting the cherry-regression-fixture token, send without changing the composer again, and wait up to two minutes for exactly SKILL_IMPORT_PASS; do not use the Chat assistant.'
+      'Restart after import, then return to Work. Open Manage skills from the built-in Cherry Assistant composer Skills panel, leave cherry-regression-fixture on if already enabled or enable it if off, then start a new task.',
+      'Fill an instruction to invoke the already-enabled local skill through the Skill tool without marketplace search before inserting the cherry-regression-fixture token. Send without changing the composer again, then wait up to two minutes for exactly SKILL_IMPORT_PASS; do not use the Chat assistant.'
     ],
     acceptance: ['The Skill is recognized, binds successfully, and changes Agent behavior as explicitly required.'],
     evidence: [

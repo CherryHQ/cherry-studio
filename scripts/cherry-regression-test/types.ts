@@ -5,23 +5,23 @@ export const EVIDENCE_KINDS = ['file', 'process', 'restart', 'screenshot', 'ui']
 export const TASK_IDS = [
   'startup-smoke',
   'mini-app',
-  'cherryin-chat',
   'notes',
+  'code-cli',
+  'openclaw',
   'custom-provider-chat',
   'custom-assistant',
-  'skill-import',
   'quick-assistant',
   'selection-assistant',
   'translation',
   'knowledge-import',
   'knowledge-qa',
   'everything-mcp',
-  'openclaw',
+  'skill-import',
+  'cherryin-chat',
   'pi-runtime',
   'deepseek-harness-runtime',
   'claude-agent-runtime',
   'image-generation',
-  'code-cli',
   'agent-ppt'
 ] as const
 export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
@@ -47,6 +47,7 @@ export interface RegressionCase {
   profile: TestProfile
   modes: RunMode[]
   requiredCapabilities?: string[]
+  restartBefore?: boolean
   steps: string[]
   acceptance: string[]
   evidence: EvidenceRequirement[]

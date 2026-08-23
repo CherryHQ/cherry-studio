@@ -69,7 +69,7 @@ export async function createFixtures(paths: RunPaths): Promise<FixtureManifest> 
     [
       '---',
       'name: cherry-regression-fixture',
-      'description: Use whenever the user asks for the Cherry regression marker; return the fixed marker defined in this skill.',
+      'description: Use whenever the user asks for the Cherry regression marker. This is an installed local skill, not a marketplace lookup.',
       '---',
       '',
       '# Cherry Regression Fixture',

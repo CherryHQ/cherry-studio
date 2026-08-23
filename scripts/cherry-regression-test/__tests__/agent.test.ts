@@ -2,10 +2,12 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import {
+  agentRetryDelaySeconds,
   assertAgentPreflightOutput,
   assertAgentTaskOutput,
   buildTaskSkillInstructions,
   describeAgentFailure,
+  isQuotaAgentFailure,
   isRetryableAgentFailure
 } from '../agent'
 import { TASK_IDS } from '../types'
@@ -90,6 +92,20 @@ describe('test agent preflight', () => {
         limits
       )
     ).toBe('returned an error: API Error: usage allocated quota exceeded')
+    expect(
+      describeAgentFailure(
+        {
+          signal: null,
+          status: 1,
+          stdout: JSON.stringify({
+            is_error: false,
+            api_error_status: 429,
+            result: 'API Error: Request rejected (429)'
+          })
+        },
+        limits
+      )
+    ).toBe('hit provider quota (HTTP 429)')
   })
 
   it('retries only bounded or quota-related agent failures', () => {
@@ -123,6 +139,11 @@ describe('test agent preflight', () => {
     ).toBe(false)
     expect(isRetryableAgentFailure(processResult({ is_error: true, errors: ['provider unavailable'] }))).toBe(false)
     expect(isRetryableAgentFailure({ signal: null, status: 1, stdout: 'not json' })).toBe(false)
+    expect(isQuotaAgentFailure(processResult({ is_error: true, api_error_status: 429 }))).toBe(true)
+    expect(isQuotaAgentFailure(processResult({ is_error: true, subtype: 'error_max_turns' }))).toBe(false)
+    expect(agentRetryDelaySeconds(processResult({ is_error: true, api_error_status: 429 }), 'macos')).toBe(300)
+    expect(agentRetryDelaySeconds(processResult({ is_error: true, subtype: 'error_max_turns' }), 'macos')).toBe(60)
+    expect(agentRetryDelaySeconds(processResult({ is_error: true, subtype: 'error_max_turns' }), 'windows')).toBe(90)
   })
 })
 

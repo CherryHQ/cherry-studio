@@ -1,4 +1,4 @@
-import type { TaskId } from './types'
+import type { Platform, TaskId } from './types'
 
 interface AgentPreflightOutput {
   api_error_status?: number
@@ -104,8 +104,24 @@ export function isRetryableAgentFailure(result: AgentProcessResult): boolean {
   }
 
   if (output.subtype === 'error_max_turns') return true
+  return isQuotaAgentFailure(result)
+}
+
+export function isQuotaAgentFailure(result: AgentProcessResult): boolean {
+  let output: AgentPreflightOutput
+  try {
+    output = parseAgentOutput(result.stdout)
+  } catch {
+    return false
+  }
+
   if (output.api_error_status === 429) return true
   return output.terminal_reason === 'api_error' && /(?:\b429\b|quota exceeded)/i.test(output.result ?? '')
+}
+
+export function agentRetryDelaySeconds(result: AgentProcessResult, platform: Platform): number {
+  if (isQuotaAgentFailure(result)) return 300
+  return platform === 'windows' ? 90 : 60
 }
 
 export function describeAgentFailure(
@@ -126,6 +142,7 @@ export function describeAgentFailure(
       ? `reached maximum number of turns (${output.num_turns})`
       : 'reached maximum number of turns'
   }
+  if (isQuotaAgentFailure(result)) return 'hit provider quota (HTTP 429)'
   if (output?.is_error) {
     const detail = output.errors?.filter(Boolean).join('; ')
     const resultDetail = output.result?.trim()

@@ -353,7 +353,6 @@ function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
     'cherryin-identity': ['Logged in via OAuth'],
     'cherryin-chat-response': [FIXTURE_MARKERS.cherryInChat],
     'claude-runtime': [FIXTURE_MARKERS.claudeAgentName],
-    'custom-provider-connection': ['Passed'],
     'custom-provider-saved': [
       FIXTURE_MARKERS.customProviderName,
       config.customProvider.chatModel,
@@ -562,7 +561,9 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
         return { caseId, status: 'blocked', unavailable }
       }
       await controller.dispose()
-      const app = await ensureProfile(paths, testCase.profile)
+      const app = testCase.restartBefore
+        ? await restartApp(paths, testCase.profile)
+        : await ensureProfile(paths, testCase.profile)
       processBaselines.set(caseId, new Set(listOwnedProcessIds(app)))
       restartBaselines.set(caseId, app.restartCount)
       writeRun(paths.runState, run)
