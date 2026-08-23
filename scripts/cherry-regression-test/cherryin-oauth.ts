@@ -179,7 +179,9 @@ export async function completeCherryInOauth(
     redirectUrl(authorization, authUrl, 'CherryIN OAuth authorization redirect was missing'),
     'CherryIN OAuth authorization redirect was rejected'
   )
-  if (loginUrl.pathname !== '/oauth/login') throw new Error('CherryIN OAuth authorization redirect was rejected')
+  if (!['/oauth/login', '/register'].includes(loginUrl.pathname)) {
+    throw new Error('CherryIN OAuth authorization redirect was rejected')
+  }
   const loginChallenge = loginUrl.searchParams.get('login_challenge')
   if (!loginChallenge) throw new Error('CherryIN OAuth login challenge was missing')
 

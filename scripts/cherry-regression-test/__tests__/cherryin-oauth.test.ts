@@ -4,7 +4,7 @@ import { completeCherryInOauth, dispatchCherryInOauthCallback } from '../cherryi
 
 const STATE = 'state-31415'
 const AUTHORIZATION_URL = `https://open.cherryin.ai/oauth2/auth?state=${STATE}&client_id=cherry-studio`
-const LOGIN_URL = 'https://open.cherryin.ai/oauth/login?login_challenge=login-27182'
+const LOGIN_URL = 'https://open.cherryin.ai/register?login_challenge=login-27182'
 const CONSENT_URL = 'https://open.cherryin.ai/oauth/consent?consent_challenge=consent-16180'
 
 function jsonResponse(data: Record<string, unknown>): Response {
@@ -26,7 +26,7 @@ function createOauthFetch(
         status: 302
       })
     }
-    if (url.pathname === '/oauth/login') return new Response('<main>Login</main>')
+    if (['/oauth/login', '/register'].includes(url.pathname)) return new Response('<main>Login</main>')
     if (url.pathname === '/api/oauth/login' && method === 'GET') return jsonResponse({ client_name: 'Cherry Studio' })
     if (url.pathname === '/api/oauth/login' && method === 'POST') {
       return jsonResponse(options.loginData ?? { redirect_to: CONSENT_URL })
