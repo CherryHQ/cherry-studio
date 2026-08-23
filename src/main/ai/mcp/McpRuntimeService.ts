@@ -877,6 +877,28 @@ export class McpRuntimeService extends BaseService {
     const closeCallbackServer = () => (callbackServerClose ??= callbackServer.close().catch(() => undefined))
     const wasStopped = () => (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration
     const abortController = new AbortController()
+    const finishAuthUnlessCancelled = (authCode: string) =>
+      new Promise<void>((resolve, reject) => {
+        const onAbort = () => {
+          abortController.signal.removeEventListener('abort', onAbort)
+          reject(abortController.signal.reason ?? new OAuthCancelledError('OAuth completion was cancelled'))
+        }
+        abortController.signal.addEventListener('abort', onAbort, { once: true })
+        if (abortController.signal.aborted) {
+          onAbort()
+          return
+        }
+        void transport.finishAuth(authCode).then(
+          () => {
+            abortController.signal.removeEventListener('abort', onAbort)
+            resolve()
+          },
+          (error) => {
+            abortController.signal.removeEventListener('abort', onAbort)
+            reject(error)
+          }
+        )
+      })
     const cancel = async () => {
       if (active) {
         active = false
@@ -893,7 +915,7 @@ export class McpRuntimeService extends BaseService {
         if (!active || this.stopping || wasStopped()) return
         getServerLogger(server).debug(`Background OAuth listener received auth code — completing auth`)
         try {
-          await transport.finishAuth(authCode)
+          await finishAuthUnlessCancelled(authCode)
           await Promise.all([closeClient(), closeCallbackServer()])
           if (!active || this.stopping || wasStopped()) return
           getServerLogger(server).info(`OAuth token stored; triggering automatic server reconnect`)
