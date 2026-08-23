@@ -453,7 +453,20 @@
       "fast": "Rapid",
       "faster": "Mai rapid",
       "label": "Viteză",
+      "service_tier": {
+        "auto": "Automat",
+        "fast": "Rapid",
+        "flex": "Flexibil",
+        "label": "Nivel de serviciu",
+        "standard": "Standard"
+      },
       "smarter": "Mai inteligent",
+      "summary": {
+        "auto": "Automat",
+        "concise": "Concis",
+        "detailed": "Detaliat",
+        "label": "Rezumatul gândirii"
+      },
       "title": "Setări de răspuns"
     },
     "tasks": {
@@ -1021,6 +1034,9 @@
       "mcp_prompts": {
         "description": "Inserați un prompt publicat de un server MCP",
         "empty": "Niciun prompt MCP disponibil",
+        "fill_arguments": "Completați argumentele promptului",
+        "fill_arguments_description": "Completați valorile acestui prompt înainte de a-l insera",
+        "insert": "Inserează",
         "insert_failed": "Nu s-a putut insera promptul",
         "title": "Prompturi MCP"
       },
@@ -6274,22 +6290,57 @@
     },
     "prompts": {
       "add": "Adaugă Prompt",
+      "binding": {
+        "bind": "Asociază promptul",
+        "manageTargets": "Gestionează destinațiile pentru {{title}}",
+        "noLinked": "Nu există prompturi asociate",
+        "noMore": "Nu mai sunt prompturi disponibile",
+        "noTargets": "Nu există destinații disponibile",
+        "remove": "Elimină promptul {{title}}",
+        "search": "Caută prompturi",
+        "searchTargets": "Caută asistenți sau agenți",
+        "tabTitle": "Prompturi",
+        "targetCount": "{{count}} destinații",
+        "targets": "Disponibil pentru",
+        "unassigned": "Neatribuit"
+      },
       "contentLabel": "Conținut",
-      "contentPlaceholder": "Introdu conținutul promptului. Acceptă ${variables}; apasă Tab pentru a trece între variabile. Exemplu:\nAjută-mă să planific un traseu de la ${from} la ${to} și trimite-l la ${email}.",
+      "contentPlaceholder": "Introdu conținutul promptului",
       "delete": "Șterge Prompt",
       "deleteConfirm": "Promptul va fi șters permanent. Continuați?",
+      "deleteGlobalConfirm": "Aceasta îl elimină din toate contextele și acțiunea nu poate fi anulată.",
+      "deleteRestrictedConfirm": "Aceasta îl elimină din toate contextele asociate și acțiunea nu poate fi anulată.",
+      "deleteSharedConfirm": "Aceasta îl elimină din {{count}} contexte asociate și acțiunea nu poate fi anulată.",
       "edit": "Editează Prompt",
       "errors": {
+        "bindFailed": "Asocierea promptului a eșuat",
         "createFailed": "Nu s-a reușit crearea promptului",
         "deleteFailed": "Nu s-a putut șterge promptul",
+        "loadBindingsFailed": "Încărcarea destinațiilor disponibile a eșuat",
         "loadFailed": "Nu s-au putut încărca prompturile",
+        "reorderFailed": "Nu s-a reușit reordonarea solicitărilor",
+        "unbindFailed": "Eliminarea asocierii promptului a eșuat",
         "updateFailed": "Nu s-a reușit actualizarea promptului"
       },
       "manage": "Gestionează prompturile",
+      "noPrompts": "Nu există prompturi",
+      "reorder": "Trage {{title}} pentru a-l reordona",
+      "searchPlaceholder": "Caută în titlurile sau conținutul prompturilor",
       "title": "Gestionarea prompturilor",
       "titleLabel": "Titlu",
       "titlePlaceholder": "Introdu titlul promptului",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Global",
+          "label": "Utilizează global"
+        },
+        "makeGlobalConfirmDescription": "Transformarea acestui prompt în unul global îl păstrează disponibil peste tot, dar elimină definitiv cele {{count}} asocieri de context și ordinea lor. Continui?",
+        "makeGlobalConfirmTitle": "Transformi promptul în unul global?",
+        "restricted": {
+          "badge": "Selectat"
+        }
+      }
     },
     "provider": {
       "add": {
@@ -6331,10 +6382,6 @@
             "token_threshold": "Prag de Token Cache",
             "token_threshold_help": "Mesajele care depășesc acest număr de tokenuri vor fi memorate în cache. Setează valoarea la 0 pentru a dezactiva memorarea în cache."
           },
-          "array_content": {
-            "help": "Furnizorul acceptă ca câmpul content al mesajului să fie de tip array?",
-            "label": "Acceptă conținut mesaj în format array"
-          },
           "developer_role": {
             "help": "Furnizorul acceptă mesaje cu rolul: \"developer\"?",
             "label": "Suportă mesaj dezvoltator"
@@ -6344,17 +6391,13 @@
             "label": "Suportă enable_thinking"
           },
           "label": "Setări API",
-          "service_tier": {
-            "help": "Dacă furnizorul acceptă configurarea parametrului service_tier. Când este activat, acest parametru poate fi ajustat în setările nivelului de serviciu de pe pagina de chat. (Doar modele OpenAI)",
-            "label": "Suportă service_tier"
+          "reasoning_summary": {
+            "help": "Trimite reasoning.summary către acest endpoint Responses. Activează numai dacă serverul acceptă acest parametru OpenAI.",
+            "label": "Acceptă rezumatul raționamentului"
           },
           "stream_options": {
             "help": "Furnizorul acceptă parametrul stream_options?",
             "label": "Suportă stream_options"
-          },
-          "verbosity": {
-            "help": "Dacă furnizorul acceptă parametrul verbosity",
-            "label": "Suportă verbosity"
           }
         },
         "url": {
@@ -7075,9 +7118,8 @@
       "explore": {
         "analysis": "Analiză",
         "chart": "Grafic",
-        "clearDate": "Eliminați filtrul de dată",
-        "drilldownTitle": "Detaliere {{date}}",
         "entries": "Cereri",
+        "granularity": "Granularitate",
         "groupBy": "Grupați după",
         "loadMore": "Încarcă mai mult",
         "loading": "Se încarcă...",
@@ -7087,7 +7129,6 @@
         "noEntries": "Nicio intrare",
         "noEntriesDescription": "Încearcă un interval mai larg sau un alt furnizor.",
         "rollup": "Agregare",
-        "selectedDate": "Data selectată: {{date}}",
         "shareLabel": "Distribuie",
         "title": "Explorează",
         "top": "Vârf",
@@ -7101,7 +7142,6 @@
         "source": "Asistent / Agent"
       },
       "heatmap": {
-        "ariaDate": "Utilizare în data de {{date}}",
         "title": "Activitate zilnică"
       },
       "metric": {

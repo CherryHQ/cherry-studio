@@ -36,7 +36,7 @@ import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -52,6 +52,7 @@ export interface ChatTurnInput {
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
+    serviceTier?: ServiceTierSelection
     fastMode?: boolean
     chatTarget?: ComposerChatTarget
   }
@@ -324,6 +325,7 @@ export function useChatRuntimeState({
         topicId: conversation.topicId,
         mentionedModelIds: options?.mentionedModels,
         reasoningEffort: options?.reasoningEffort,
+        serviceTier: options?.serviceTier,
         ...(options?.fastMode ? { fastMode: true as const } : {})
       }
 
@@ -470,7 +472,7 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        await turnController.send({ text, options })
+        return await turnController.send({ text, options })
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err

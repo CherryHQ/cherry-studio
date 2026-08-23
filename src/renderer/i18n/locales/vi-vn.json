@@ -453,7 +453,20 @@
       "fast": "Nhanh",
       "faster": "Nhanh hơn",
       "label": "Tốc độ",
+      "service_tier": {
+        "auto": "Tự động",
+        "fast": "Nhanh",
+        "flex": "Linh hoạt",
+        "label": "Cấp dịch vụ",
+        "standard": "Tiêu chuẩn"
+      },
       "smarter": "Thông minh hơn",
+      "summary": {
+        "auto": "Tự động",
+        "concise": "Ngắn gọn",
+        "detailed": "Chi tiết",
+        "label": "Tóm tắt suy luận"
+      },
       "title": "Cài đặt phản hồi"
     },
     "tasks": {
@@ -1021,6 +1034,9 @@
       "mcp_prompts": {
         "description": "Chèn prompt do máy chủ MCP cung cấp",
         "empty": "Không có prompt MCP nào",
+        "fill_arguments": "Điền tham số prompt",
+        "fill_arguments_description": "Nhập các tham số của prompt trước khi chèn",
+        "insert": "Chèn",
         "insert_failed": "Không thể chèn prompt",
         "title": "Prompt MCP"
       },
@@ -6274,22 +6290,57 @@
     },
     "prompts": {
       "add": "Thêm Lời Nhắc",
+      "binding": {
+        "bind": "Liên kết lời nhắc",
+        "manageTargets": "Quản lý đích cho {{title}}",
+        "noLinked": "Chưa liên kết lời nhắc nào",
+        "noMore": "Không còn lời nhắc khả dụng",
+        "noTargets": "Không có đích khả dụng",
+        "remove": "Gỡ lời nhắc {{title}}",
+        "search": "Tìm kiếm lời nhắc",
+        "searchTargets": "Tìm kiếm trợ lý hoặc tác nhân",
+        "tabTitle": "Lời nhắc",
+        "targetCount": "{{count}} đích",
+        "targets": "Khả dụng cho",
+        "unassigned": "Chưa chỉ định"
+      },
       "contentLabel": "Nội dung",
-      "contentPlaceholder": "Nhập nội dung lời nhắc. Hỗ trợ ${variables}; nhấn Tab để chuyển giữa các biến. Ví dụ:\nHãy giúp tôi lên kế hoạch lộ trình từ ${from} đến ${to}, và gửi nó tới ${email}.",
+      "contentPlaceholder": "Nhập nội dung lời nhắc",
       "delete": "Xóa lời nhắc",
       "deleteConfirm": "Lời nhắc sẽ bị xóa vĩnh viễn. Tiếp tục?",
+      "deleteGlobalConfirm": "Thao tác này xóa lời nhắc khỏi mọi ngữ cảnh và không thể hoàn tác.",
+      "deleteRestrictedConfirm": "Thao tác này xóa lời nhắc khỏi mọi ngữ cảnh đã liên kết và không thể hoàn tác.",
+      "deleteSharedConfirm": "Thao tác này xóa lời nhắc khỏi {{count}} ngữ cảnh đã liên kết và không thể hoàn tác.",
       "edit": "Chỉnh sửa Lời nhắc",
       "errors": {
+        "bindFailed": "Không thể liên kết lời nhắc",
         "createFailed": "Không thể tạo lời nhắc",
         "deleteFailed": "Không xóa được lời nhắc",
+        "loadBindingsFailed": "Không thể tải các đích khả dụng",
         "loadFailed": "Không tải được lời nhắc",
+        "reorderFailed": "Không thể sắp xếp lại các lời nhắc",
+        "unbindFailed": "Không thể gỡ liên kết lời nhắc",
         "updateFailed": "Không thể cập nhật lời nhắc"
       },
       "manage": "Quản lý Prompt",
+      "noPrompts": "Không có lời nhắc",
+      "reorder": "Kéo {{title}} để sắp xếp lại",
+      "searchPlaceholder": "Tìm theo tiêu đề hoặc nội dung lời nhắc",
       "title": "Quản lý Prompt",
       "titleLabel": "Tiêu đề",
       "titlePlaceholder": "Nhập tiêu đề lời nhắc",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Toàn cục",
+          "label": "Sử dụng toàn cục"
+        },
+        "makeGlobalConfirmDescription": "Đặt lời nhắc này thành toàn cục sẽ giữ nó khả dụng ở mọi nơi, nhưng xóa vĩnh viễn {{count}} liên kết ngữ cảnh cùng thứ tự của chúng. Tiếp tục?",
+        "makeGlobalConfirmTitle": "Đặt lời nhắc thành toàn cục?",
+        "restricted": {
+          "badge": "Đã chọn"
+        }
+      }
     },
     "provider": {
       "add": {
@@ -6331,10 +6382,6 @@
             "token_threshold": "Ngưỡng Token Bộ nhớ đệm",
             "token_threshold_help": "Các tin nhắn vượt quá số lượng token này sẽ được lưu vào bộ nhớ đệm. Đặt thành 0 để tắt bộ nhớ đệm."
           },
-          "array_content": {
-            "help": "Nhà cung cấp có hỗ trợ trường nội dung của tin nhắn ở dạng mảng không?",
-            "label": "Hỗ trợ nội dung tin nhắn định dạng mảng"
-          },
           "developer_role": {
             "help": "Nhà cung cấp có hỗ trợ tin nhắn với vai trò: \"developer\" không?",
             "label": "Thông báo hỗ trợ nhà phát triển"
@@ -6344,17 +6391,13 @@
             "label": "Hỗ trợ bật enable_thinking"
           },
           "label": "Cài đặt API",
-          "service_tier": {
-            "help": "Liệu nhà cung cấp có hỗ trợ cấu hình tham số service_tier hay không. Khi được bật, tham số này có thể điều chỉnh trong cài đặt service tier trên trang chat. (Chỉ dành cho mô hình OpenAI)",
-            "label": "Hỗ trợ service_tier"
+          "reasoning_summary": {
+            "help": "Gửi reasoning.summary đến điểm cuối Responses này. Chỉ bật khi máy chủ chấp nhận tham số OpenAI này.",
+            "label": "Hỗ trợ tóm tắt suy luận"
           },
           "stream_options": {
             "help": "Nhà cung cấp có hỗ trợ tham số stream_options không?",
             "label": "Hỗ trợ stream_options"
-          },
-          "verbosity": {
-            "help": "Cho dù nhà cung cấp có hỗ trợ tham số độ chi tiết hay không",
-            "label": "Hỗ trợ chế độ chi tiết"
           }
         },
         "url": {
@@ -7075,9 +7118,8 @@
       "explore": {
         "analysis": "Phân tích",
         "chart": "Biểu đồ",
-        "clearDate": "Xóa bộ lọc ngày",
-        "drilldownTitle": "Phân tích chi tiết {{date}}",
         "entries": "Yêu cầu",
+        "granularity": "Độ chi tiết",
         "groupBy": "Nhóm theo",
         "loadMore": "Tải thêm",
         "loading": "Đang tải...",
@@ -7087,7 +7129,6 @@
         "noEntries": "Không có mục nào",
         "noEntriesDescription": "Thử một cửa sổ rộng hơn hoặc một nhà cung cấp khác.",
         "rollup": "Cuộn lên / Tổng hợp (tùy ngữ cảnh)",
-        "selectedDate": "Ngày đã chọn: {{date}}",
         "shareLabel": "Chia sẻ",
         "title": "Khám phá",
         "top": "Đầu",
@@ -7101,7 +7142,6 @@
         "source": "Trợ lý / Agent"
       },
       "heatmap": {
-        "ariaDate": "Sử dụng vào {{date}}",
         "title": "Hoạt động hàng ngày"
       },
       "metric": {

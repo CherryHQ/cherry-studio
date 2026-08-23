@@ -127,7 +127,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     ])
   })
 
-  it('maps thinking and redacted_thinking blocks to reasoning parts', () => {
+  it('maps thinking and redacted_thinking blocks to reasoning parts preserving replay metadata', () => {
     const msgs = converter.toUIMessages(
       params({
         messages: [
@@ -141,9 +141,27 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         ] as MessageCreateParams['messages']
       })
     )
+    // signature/redactedData must survive into providerMetadata — @ai-sdk/anthropic
+    // silently drops reasoning parts without them, breaking thinking replay (#18150).
     expect(msgs[0].parts).toEqual([
-      { type: 'reasoning', text: 'hmm' },
-      { type: 'reasoning', text: 'xxx' }
+      { type: 'reasoning', text: 'hmm', providerMetadata: { anthropic: { signature: 's' } } },
+      { type: 'reasoning', text: '', providerMetadata: { anthropic: { redactedData: 'xxx' } } }
+    ])
+  })
+
+  it('preserves an empty thinking signature so the block still replays upstream', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'thinking', thinking: 'hmm', signature: '' }]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+    expect(msgs[0].parts).toEqual([
+      { type: 'reasoning', text: 'hmm', providerMetadata: { anthropic: { signature: '' } } }
     ])
   })
 
