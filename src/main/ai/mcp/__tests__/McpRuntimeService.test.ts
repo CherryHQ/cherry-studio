@@ -1267,6 +1267,162 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(restartSpy).not.toHaveBeenCalled()
   })
 
+  it('does not let stale background OAuth overwrite a newer connection', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    let backgroundSignal: AbortSignal | undefined
+    let resolveBackgroundCode!: (code: string) => void
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce((_timeoutMs: number, signal?: AbortSignal) => {
+        backgroundSignal = signal
+        return new Promise<string>((resolve, reject) => {
+          resolveBackgroundCode = resolve
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+      })
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableUnauthorized = false
+    await expect((service as any).getOrCreateClient(server)).resolves.toBeDefined()
+
+    expect(backgroundSignal?.aborted).toBe(true)
+    mcpSdkMock.state.finishAuthError = new Error('stale token exchange failed')
+    resolveBackgroundCode('stale-background-auth-code')
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+    expect(mcpSdkMock.state.finishAuthStarted).not.toHaveBeenCalled()
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'connected'
+    })
+  })
+
+  it('does not let an older connection cancel a newer configuration OAuth listener', async () => {
+    const olderConnect = createDeferred<void>()
+    mcpSdkMock.state.connectPromise = olderConnect.promise
+
+    const service = new McpRuntimeService()
+    const olderServer = urlServer('streamableHttp')
+    const newerServer = { ...olderServer, baseUrl: `${olderServer.baseUrl}?updated=true` }
+    const olderClient = (service as any).getOrCreateClient(olderServer)
+    const olderAssertion = expect(olderClient).rejects.toMatchObject({ name: 'OAuthCancelledError' })
+    await vi.waitFor(() => expect(mcpSdkMock.state.connectStarted).toHaveBeenCalledTimes(1))
+
+    let newerBackgroundSignal: AbortSignal | undefined
+    mcpSdkMock.state.connectPromise = undefined
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce(
+        (_timeoutMs: number, signal?: AbortSignal) =>
+          new Promise<string>((_, reject) => {
+            newerBackgroundSignal = signal
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+    await expect((service as any).getOrCreateClient(newerServer)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableUnauthorized = false
+    olderConnect.resolve()
+    await olderAssertion
+
+    expect(newerBackgroundSignal?.aborted).toBe(false)
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${newerServer.id}` as any)).toMatchObject({
+      state: 'pending-auth'
+    })
+
+    await (service as any).onStop()
+  })
+
+  it('shares an in-flight OAuth listener close across newer configurations', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    const callbackClose = createDeferred<void>()
+    callbackServerMock.close.mockReturnValueOnce(callbackClose.promise)
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce(
+        (_timeoutMs: number, signal?: AbortSignal) =>
+          new Promise<string>((_, reject) => {
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+    const clientCountBeforeReconnect = mcpSdkMock.clients.length
+
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableUnauthorized = false
+    const newerServer = { ...server, baseUrl: `${server.baseUrl}?revision=2` }
+    const newestServer = { ...server, baseUrl: `${server.baseUrl}?revision=3` }
+    const newerConnect = (service as any).getOrCreateClient(newerServer)
+    const newerAssertion = expect(newerConnect).rejects.toMatchObject({ name: 'OAuthCancelledError' })
+    await vi.waitFor(() => expect(callbackServerMock.close).toHaveBeenCalledTimes(1))
+
+    const newestConnect = (service as any).getOrCreateClient(newestServer)
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    expect(mcpSdkMock.clients).toHaveLength(clientCountBeforeReconnect)
+
+    callbackClose.resolve()
+    await newerAssertion
+    await expect(newestConnect).resolves.toBeDefined()
+  })
+
+  it('does not let a stale cached-client probe overwrite newer pending-auth', async () => {
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    const cachedClient = (await (service as any).getOrCreateClient(server)) as MockClient
+    const ping = createDeferred<object>()
+    cachedClient.ping.mockReturnValueOnce(ping.promise)
+
+    const staleProbe = (service as any).getOrCreateClient(server)
+    const staleProbeAssertion = expect(staleProbe).rejects.toMatchObject({ name: 'OAuthCancelledError' })
+    await vi.waitFor(() => expect(cachedClient.ping).toHaveBeenCalledTimes(1))
+
+    let backgroundSignal: AbortSignal | undefined
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce(
+        (_timeoutMs: number, signal?: AbortSignal) =>
+          new Promise<string>((_, reject) => {
+            backgroundSignal = signal
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+    const newerServer = { ...server, baseUrl: `${server.baseUrl}?updated=true` }
+    await expect((service as any).getOrCreateClient(newerServer)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+
+    ping.resolve({})
+    await staleProbeAssertion
+    expect(backgroundSignal?.aborted).toBe(false)
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'pending-auth'
+    })
+
+    await (service as any).onStop()
+  })
+
   it('marks non-timeout background callback failures as errors', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true

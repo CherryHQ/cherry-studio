@@ -203,8 +203,12 @@ export class McpRuntimeService extends BaseService {
   // Cancel callback waits per server. Stops, removals, and restarts use them
   // to prevent stale OAuth attempts from racing fresh connections.
   private pendingOAuthListeners = new Map<string, Set<() => Promise<void>>>()
+  private pendingOAuthCancellations = new Map<string, Promise<void>>()
   private pendingOAuthCompletions = new Map<string, Set<Promise<void>>>()
   private oauthCancellationGenerations = new Map<string, number>()
+  // Different configuration fingerprints can connect concurrently; only the newest
+  // attempt for a server id may publish state or control its OAuth listener.
+  private connectionAttemptGenerations = new Map<string, number>()
   // In-flight liveness probes, deduped per server key. Deliberately separate from
   // pendingClients: removeServer awaits that map, and it must not wait out a ping.
   private pendingProbes: Map<string, Promise<Client | undefined>> = new Map()
@@ -235,6 +239,8 @@ export class McpRuntimeService extends BaseService {
     this.serverStopGenerations.clear()
     this.stoppingServerIds.clear()
     this.oauthCancellationGenerations.clear()
+    this.connectionAttemptGenerations.clear()
+    this.pendingOAuthCancellations.clear()
     this.oauthShutdownController = new AbortController()
   }
 
@@ -244,9 +250,11 @@ export class McpRuntimeService extends BaseService {
     const cancellations = [...this.pendingOAuthListeners.values()].flatMap((pending) =>
       [...pending].map((cancel) => cancel())
     )
+    const inFlightCancellations = [...this.pendingOAuthCancellations.values()]
     this.pendingOAuthListeners.clear()
     this.abortActiveToolCalls()
-    await Promise.allSettled(cancellations)
+    await Promise.allSettled([...inFlightCancellations, ...cancellations])
+    this.pendingOAuthCancellations.clear()
     const completions = [...this.pendingOAuthCompletions.values()].flatMap((pending) => [...pending])
     await Promise.allSettled(completions)
     this.pendingOAuthCompletions.clear()
@@ -424,7 +432,15 @@ export class McpRuntimeService extends BaseService {
 
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
-      const reused = await this.probeLiveClient(server, serverKey, existingClient)
+      let reused: Client | undefined
+      try {
+        reused = await this.probeLiveClient(server, serverKey, existingClient)
+      } catch (error) {
+        if (error instanceof OAuthCancelledError && this.clients.get(serverKey) !== existingClient) {
+          return this.getOrCreateClient(server)
+        }
+        throw error
+      }
       if (reused) {
         return reused
       }
@@ -470,9 +486,20 @@ export class McpRuntimeService extends BaseService {
     serverKey: string,
     existingClient: Client
   ): Promise<Client | undefined> {
+    const attemptGeneration = (this.connectionAttemptGenerations.get(server.id) ?? 0) + 1
+    this.connectionAttemptGenerations.set(server.id, attemptGeneration)
+    const isCurrentAttempt = () => this.connectionAttemptGenerations.get(server.id) === attemptGeneration
+    await this.cancelPendingOAuthListener(server.id)
+    if (!isCurrentAttempt()) {
+      throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
+    }
+
     try {
       // add short timeout to prevent hanging
       const pingResult = await existingClient.ping({ timeout: PING_TIMEOUT_MS })
+      if (!isCurrentAttempt()) {
+        throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
+      }
       getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
       if (pingResult) {
         // The ping's await is long enough for restartServer/stopServer to have closed and
@@ -485,6 +512,9 @@ export class McpRuntimeService extends BaseService {
         return existingClient
       }
     } catch (error) {
+      if (!isCurrentAttempt() || error instanceof OAuthCancelledError) {
+        throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
+      }
       getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
     }
 
@@ -492,6 +522,9 @@ export class McpRuntimeService extends BaseService {
     // closing by key alone would take down the fresh client it just installed.
     if (this.clients.get(serverKey) === existingClient) {
       await this.discardStaleClient(serverKey)
+    }
+    if (!isCurrentAttempt()) {
+      throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
     }
     return undefined
   }
@@ -501,6 +534,14 @@ export class McpRuntimeService extends BaseService {
     // stale-client cleanup awaits, by which time removeServer may have completed.
     if (this.removedServerIds.has(server.id)) {
       throw new Error(`MCP server ${server.name} has been removed`)
+    }
+
+    const attemptGeneration = (this.connectionAttemptGenerations.get(server.id) ?? 0) + 1
+    this.connectionAttemptGenerations.set(server.id, attemptGeneration)
+    const isCurrentAttempt = () => this.connectionAttemptGenerations.get(server.id) === attemptGeneration
+    await this.cancelPendingOAuthListener(server.id)
+    if (!isCurrentAttempt()) {
+      throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
     }
 
     this.setServerStatus(server.id, 'connecting')
@@ -529,7 +570,12 @@ export class McpRuntimeService extends BaseService {
       })
 
     try {
-      await this.connectWithFallback({ client, server, sdk, authProvider, createServerTransport })
+      await this.connectWithFallback({ client, server, sdk, authProvider, createServerTransport, attemptGeneration })
+
+      if (!isCurrentAttempt()) {
+        await client.close()
+        throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
+      }
 
       if (this.stopping || this.isStopped || this.isDestroyed) {
         await client.close()
@@ -572,6 +618,9 @@ export class McpRuntimeService extends BaseService {
       })
       return client
     } catch (error) {
+      if (!isCurrentAttempt()) {
+        throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
+      }
       if (!(error instanceof OAuthFlowControlError)) {
         this.setServerStatus(server.id, 'error', error)
       }
@@ -597,13 +646,15 @@ export class McpRuntimeService extends BaseService {
     server,
     sdk,
     authProvider,
-    createServerTransport
+    createServerTransport,
+    attemptGeneration
   }: {
     client: Client
     server: McpServer
     sdk: McpClientSdk
     authProvider: McpOAuthClientProvider
     createServerTransport: (typeOverride?: McpServerType) => Promise<McpTransport>
+    attemptGeneration: number
   }): Promise<void> {
     // Bound the MCP `initialize` request so a non-responsive server fails fast via the
     // SDK's own abort path instead of hanging. Use a 180s floor (activation runs once,
@@ -632,15 +683,19 @@ export class McpRuntimeService extends BaseService {
           isMcpOAuthEnabled(server) &&
           (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
         ) {
-          logger.debug(`Authentication required for server: ${server.name}`)
           try {
+            if (this.connectionAttemptGenerations.get(server.id) !== attemptGeneration) {
+              throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
+            }
+            logger.debug(`Authentication required for server: ${server.name}`)
             await this.finishOAuth({
               client,
               server,
               transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
               authProvider,
               createServerTransport,
-              typeOverride: candidateType
+              typeOverride: candidateType,
+              attemptGeneration
             })
           } catch (oauthError) {
             if (!(oauthError instanceof OAuthPendingAuthError)) {
@@ -677,7 +732,8 @@ export class McpRuntimeService extends BaseService {
     transport,
     authProvider,
     createServerTransport,
-    typeOverride
+    typeOverride,
+    attemptGeneration
   }: {
     client: Client
     server: McpServer
@@ -685,6 +741,7 @@ export class McpRuntimeService extends BaseService {
     authProvider: McpOAuthClientProvider
     createServerTransport: (typeOverride?: McpServerType) => Promise<McpTransport>
     typeOverride?: McpServerType
+    attemptGeneration: number
   }): Promise<void> {
     getServerLogger(server).debug(`Starting OAuth flow`)
     const shutdownSignal = this.oauthShutdownController.signal
@@ -692,6 +749,7 @@ export class McpRuntimeService extends BaseService {
     const cancellationGeneration = await this.cancelPendingOAuthListener(server.id)
     if (
       (this.oauthCancellationGenerations.get(server.id) ?? 0) !== cancellationGeneration ||
+      this.connectionAttemptGenerations.get(server.id) !== attemptGeneration ||
       (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration ||
       shutdownSignal.aborted ||
       this.stopping ||
@@ -727,6 +785,9 @@ export class McpRuntimeService extends BaseService {
       if ((this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration) {
         return new OAuthCancelledError(`MCP server ${server.name} was stopped`)
       }
+      if (this.connectionAttemptGenerations.get(server.id) !== attemptGeneration) {
+        return new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
+      }
       if (this.removedServerIds.has(server.id)) {
         return new OAuthCancelledError(`MCP server ${server.name} was removed`)
       }
@@ -758,6 +819,7 @@ export class McpRuntimeService extends BaseService {
       if (
         shutdownSignal.aborted ||
         graceAbortController.signal.aborted ||
+        this.connectionAttemptGenerations.get(server.id) !== attemptGeneration ||
         (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration ||
         this.stoppingServerIds.has(server.id) ||
         this.removedServerIds.has(server.id)
@@ -780,6 +842,7 @@ export class McpRuntimeService extends BaseService {
     if (
       shutdownSignal.aborted ||
       graceAbortController.signal.aborted ||
+      this.connectionAttemptGenerations.get(server.id) !== attemptGeneration ||
       (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration ||
       this.stoppingServerIds.has(server.id) ||
       this.removedServerIds.has(server.id)
@@ -803,7 +866,14 @@ export class McpRuntimeService extends BaseService {
           `or open MCP settings and re-enable the server to retry.`
       )
       this.setServerStatus(server.id, 'pending-auth', pendingError)
-      await this.scheduleBackgroundOAuthCompletion({ client, server, transport, callbackServer, stopGeneration })
+      await this.scheduleBackgroundOAuthCompletion({
+        client,
+        server,
+        transport,
+        callbackServer,
+        stopGeneration,
+        attemptGeneration
+      })
       throw pendingError
     }
 
@@ -870,13 +940,15 @@ export class McpRuntimeService extends BaseService {
     server,
     transport,
     callbackServer,
-    stopGeneration
+    stopGeneration,
+    attemptGeneration
   }: {
     client: Client
     server: McpServer
     transport: SSEClientTransport | StreamableHTTPClientTransport
     callbackServer: CallBackServer
     stopGeneration: number
+    attemptGeneration: number
   }): Promise<void> {
     const cancellationGeneration = await this.cancelPendingOAuthListener(server.id)
 
@@ -888,6 +960,7 @@ export class McpRuntimeService extends BaseService {
       this.oauthShutdownController.signal.aborted ||
       this.stoppingServerIds.has(server.id) ||
       this.removedServerIds.has(server.id) ||
+      this.connectionAttemptGenerations.get(server.id) !== attemptGeneration ||
       (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration
     ) {
       await callbackServer.close().catch(() => undefined)
@@ -900,6 +973,7 @@ export class McpRuntimeService extends BaseService {
     const closeClient = () => (clientClose ??= client.close().catch(() => undefined))
     const closeCallbackServer = () => (callbackServerClose ??= callbackServer.close().catch(() => undefined))
     const wasStopped = () => (this.serverStopGenerations.get(server.id) ?? 0) !== stopGeneration
+    const wasSuperseded = () => this.connectionAttemptGenerations.get(server.id) !== attemptGeneration
     const abortController = new AbortController()
     const finishAuthUnlessCancelled = (authCode: string) =>
       new Promise<void>((resolve, reject) => {
@@ -936,22 +1010,22 @@ export class McpRuntimeService extends BaseService {
     const completion = callbackServer
       .waitForAuthCode(remaining, abortController.signal)
       .then(async (authCode) => {
-        if (!active || this.stopping || wasStopped()) return
+        if (!active || this.stopping || wasStopped() || wasSuperseded()) return
         getServerLogger(server).debug(`Background OAuth listener received auth code — completing auth`)
         try {
           await finishAuthUnlessCancelled(authCode)
           await Promise.all([closeClient(), closeCallbackServer()])
-          if (!active || this.stopping || wasStopped()) return
+          if (!active || this.stopping || wasStopped() || wasSuperseded()) return
           getServerLogger(server).info(`OAuth token stored; triggering automatic server reconnect`)
           await this.restartServerIfCurrent(server.id, stopGeneration)
         } catch (err) {
-          if (!active || this.stopping || wasStopped()) return
+          if (!active || this.stopping || wasStopped() || wasSuperseded()) return
           getServerLogger(server).error(`Background OAuth completion failed`, err as Error)
           this.setServerStatus(server.id, 'error', err)
         }
       })
       .catch((err) => {
-        if (!active || this.stopping || wasStopped()) return
+        if (!active || this.stopping || wasStopped() || wasSuperseded()) return
         if (err instanceof OAuthCallbackTimeoutError) {
           getServerLogger(server).warn(`Background OAuth listener expired without receiving a code`, {
             err: String(err)
@@ -980,10 +1054,25 @@ export class McpRuntimeService extends BaseService {
   private async cancelPendingOAuthListener(serverId: string): Promise<number> {
     const generation = (this.oauthCancellationGenerations.get(serverId) ?? 0) + 1
     this.oauthCancellationGenerations.set(serverId, generation)
+    const inFlightCancellation = this.pendingOAuthCancellations.get(serverId)
     const pending = this.pendingOAuthListeners.get(serverId)
-    if (pending) {
-      this.pendingOAuthListeners.delete(serverId)
-      await Promise.allSettled([...pending].map((cancel) => cancel()))
+    if (!pending) {
+      if (inFlightCancellation) await inFlightCancellation
+      return generation
+    }
+
+    this.pendingOAuthListeners.delete(serverId)
+    const cancellation = Promise.allSettled([
+      ...(inFlightCancellation ? [inFlightCancellation] : []),
+      ...[...pending].map((cancel) => cancel())
+    ]).then(() => undefined)
+    this.pendingOAuthCancellations.set(serverId, cancellation)
+    try {
+      await cancellation
+    } finally {
+      if (this.pendingOAuthCancellations.get(serverId) === cancellation) {
+        this.pendingOAuthCancellations.delete(serverId)
+      }
     }
     return generation
   }
