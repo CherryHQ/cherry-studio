@@ -94,11 +94,8 @@ function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id
 }
 
 /**
- * The opened-file header menu resolves open targets on every right-click. Cache
- * the resolved items briefly so rapid clicks don't re-issue the
- * `external_app.target.list` IPC round-trip; caching the promise also dedupes
- * overlapping lookups for the same path. `loadOpenTargetMenuItems` never
- * rejects (it maps failures to an empty list), so caching the promise is safe.
+ * Cache resolved open-target menu items briefly so rapid right-clicks skip the
+ * `external_app.target.list` IPC; sharing the in-flight promise dedupes lookups.
  */
 const OPEN_TARGET_MENU_ITEMS_TTL_MS = 5_000
 const OPEN_TARGET_MENU_ITEMS_CACHE_LIMIT = 32
@@ -108,16 +105,21 @@ interface OpenTargetMenuItemsCacheEntry {
 }
 const openTargetMenuItemsCache = new Map<string, OpenTargetMenuItemsCacheEntry>()
 
+function clearOpenTargetMenuItemsCache(): void {
+  openTargetMenuItemsCache.clear()
+}
+
 /** Test-only: drop all cached open-target menu lookups. */
 export function clearOpenTargetMenuItemsCacheForTests(): void {
-  openTargetMenuItemsCache.clear()
+  clearOpenTargetMenuItemsCache()
 }
 
 function loadOpenTargetMenuItemsCached(
   options: Parameters<typeof loadOpenTargetMenuItems>[0],
   language: string | undefined
 ) {
-  const key = `${options.pathKind}\0${options.targetPath}\0${language ?? ''}`
+  // `encodeURIComponent` keeps distinct paths from colliding via delimiters.
+  const key = `${options.pathKind}\0${encodeURIComponent(options.targetPath)}\0${language ?? ''}`
   const cached = openTargetMenuItemsCache.get(key)
   if (cached && Date.now() - cached.at < OPEN_TARGET_MENU_ITEMS_TTL_MS) return cached.promise
 
@@ -134,7 +136,12 @@ function loadOpenTargetMenuItemsCached(
     }
   }
 
-  const promise = loadOpenTargetMenuItems(options)
+  // Failures resolve to `[]` — evict them so the next right-click retries the
+  // IPC instead of silently reusing the failed result within the TTL.
+  const promise = loadOpenTargetMenuItems(options).then((items) => {
+    if (!items.length) openTargetMenuItemsCache.delete(key)
+    return items
+  })
   openTargetMenuItemsCache.set(key, { at: Date.now(), promise })
   return promise
 }
@@ -299,6 +306,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     }
   }, [fileSession?.metadataRecoveryPending, fileSession?.saveError, t])
 
+  // Open-target items embed workspace-bound paths and closures — drop the
+  // module-level cache when the workspace root changes so they can't leak.
+  useEffect(() => {
+    clearOpenTargetMenuItemsCache()
+  }, [previewWorkspacePath])
+
   useEffect(() => {
     if (!overlayWorkspacePath || !overlayFilePath) return
     overlayRef.current?.focus()
@@ -311,10 +324,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const fileSessionFlush = fileSession?.flush
   const fileSessionDiscard = fileSession?.discard
   const editorLoading = fileSession?.status === 'loading'
-  // Context-menu items outlive their opening render (the menu portal stays open
-  // across renders), so every value they read at click time must live in a ref —
-  // a stale closure here would reload away an unsaved draft or act on a
-  // previously opened file.
+  // Menu items outlive their opening render (the portal stays up across
+  // renders), so every value they read at click time must live in a ref.
   const editModeRef = useRef(editMode)
   editModeRef.current = editMode
   const editorLoadingRef = useRef(editorLoading)
@@ -438,15 +449,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
   const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
 
-  // Right-click menu for the opened-file header ("tab"): the same external
-  // open targets as the file-tree rows, plus tab actions (edit/preview toggle,
-  // refresh, close). Tab actions are the synchronous baseline; open targets
-  // resolve asynchronously and are best-effort — an unresolvable path must
-  // never wipe the whole menu.
-  //
-  // Items come from a factory: click-time behavior always reads the refs above,
-  // while the displayed label/icon/enabled come from an explicit snapshot (the
-  // latest render for the pending baseline, live refs for mid-flight rebuilds).
+  // Header right-click menu: synchronous tab actions as baseline, best-effort async open targets.
+  // The items factory snapshots display state but reads refs at click time so portals never act stale.
   const buildTabActionItems = useCallback(
     (snapshot?: {
       canEditSelection?: boolean
@@ -456,8 +460,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       const canEdit = snapshot?.canEditSelection ?? canEditSelectionRef.current
       const currentMode = snapshot?.editMode ?? editModeRef.current
       const isLoading = snapshot?.editorLoading ?? editorLoadingRef.current
-      const label = t(currentMode === 'preview' ? 'common.edit' : 'common.preview')
-      const ModeIcon = currentMode === 'preview' ? SquarePen : Eye
+      // Label and action must promise the same thing: navigate to the mode this
+      // item was built for, even if the toolbar toggled while the menu was open.
+      const targetMode = currentMode === 'preview' ? 'edit' : 'preview'
+      const label = t(targetMode === 'edit' ? 'common.edit' : 'common.preview')
+      const ModeIcon = targetMode === 'edit' ? SquarePen : Eye
       return [
         ...(canEdit
           ? [
@@ -467,11 +474,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 label,
                 icon: <ModeIcon size={14} />,
                 enabled: !isLoading,
-                // The target mode is derived from the ref at click time — the
-                // toolbar may have toggled the mode while this snapshot was open.
                 onSelect: () => {
                   if (editorLoadingRef.current) return
-                  handleEditorModeChange(editModeRef.current === 'preview' ? 'edit' : 'preview')
+                  handleEditorModeChange(targetMode)
                 }
               }
             ]
@@ -496,10 +501,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [handleClosePreview, handleEditorModeChange, handleRefresh, t]
   )
 
-  // Pending baseline rendered synchronously while open targets resolve.
+  // Pending baseline rendered synchronously while open targets resolve; the
+  // menus are disabled without a selection, so skip building items entirely.
   const tabActionItems = useMemo(
-    () => buildTabActionItems({ canEditSelection, editMode, editorLoading }),
-    [buildTabActionItems, canEditSelection, editMode, editorLoading]
+    () => (overlaySelection ? buildTabActionItems({ canEditSelection, editMode, editorLoading }) : []),
+    [buildTabActionItems, canEditSelection, editMode, editorLoading, overlaySelection]
   )
 
   // Open-target items can outlive their opening render (the menu stays open
@@ -516,16 +522,15 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     } catch (error) {
       logger.warn('Failed to resolve open targets for the opened-file header menu', error as Error)
     }
-    // The selection changed while the lookup was in flight: the resolved items
-    // point at the previous path, so drop them and rebuild the baseline from
-    // live refs instead of returning a stale snapshot.
+    // Selection changed mid-flight: the resolved items point at the previous
+    // path, so rebuild the baseline from live refs instead.
     if (currentPreviewKeyRef.current !== previewKey) return buildTabActionItems()
     return [
       ...openTargetItems,
       ...(openTargetItems.length ? [{ type: 'separator' } as const] : []),
       ...buildTabActionItems()
     ]
-  }, [buildTabActionItems, i18n, overlaySelection, previewKey, t])
+  }, [buildTabActionItems, i18n.language, overlaySelection, previewKey, t])
 
   const paneHeader =
     props.headerVariant === 'pane' ? (

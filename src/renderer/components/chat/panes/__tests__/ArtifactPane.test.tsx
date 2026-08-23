@@ -602,10 +602,8 @@ vi.mock('@renderer/components/OpenTarget', () => ({
   }
 }))
 
-// Minimal stand-in for the command context menu: resolves lazy extra items on
-// right-click and renders them with menuitem roles so tests can drive the same
-// interaction without the command registry. Mirrors the real menu's pending
-// behavior: `pendingExtraItems` render synchronously until the lazy items land.
+// Minimal stand-in for the command context menu: resolves lazy extra items on right-click and
+// renders them with menuitem roles. Mirrors pending items and the real menu's request-id guard.
 vi.mock('@renderer/components/command', () => ({
   CommandContextMenu: ({
     children,
@@ -619,13 +617,17 @@ vi.mock('@renderer/components/command', () => ({
     getExtraItems?: (event: unknown) => MaybePromise<readonly CommandContextMenuExtraItem[]>
   }) => {
     const [items, setItems] = useState<readonly CommandContextMenuExtraItem[]>([])
+    const requestIdRef = useRef(0)
     if (disabled) return <>{children}</>
     return (
       <div
         onContextMenu={(event) => {
           event.preventDefault()
+          const requestId = ++requestIdRef.current
           setItems(pendingExtraItems ?? [])
-          void Promise.resolve(getExtraItems?.(event) ?? []).then(setItems)
+          void Promise.resolve(getExtraItems?.(event) ?? []).then((resolved) => {
+            if (requestId === requestIdRef.current) setItems(resolved)
+          })
         }}>
         {children}
         {items.length > 0 ? (
@@ -1369,7 +1371,7 @@ describe('ArtifactPane', () => {
     expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.read')).toHaveLength(1)
   })
 
-  it('applies the current editor mode when the toolbar toggles under an open menu', async () => {
+  it('keeps the toggle label and action consistent when the toolbar toggles under an open menu', async () => {
     mockWorkspaceTree('/tmp/workspace', ['draft.md'])
     mocks.fsReadText.mockResolvedValue('# small')
     mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
@@ -1380,18 +1382,19 @@ describe('ArtifactPane', () => {
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
 
-    // Resolve the menu while in preview: the frozen snapshot offers "edit".
+    // Resolve the menu while in preview: the snapshot offers "edit".
     fireEvent.contextMenu(within(overlay).getByText('draft.md'))
-    const staleToggle = await screen.findByRole('menuitem', { name: 'common.edit' })
+    const toggleItem = await screen.findByRole('menuitem', { name: 'common.edit' })
 
     // Toggle to edit through the toolbar while the snapshot stays open, then
-    // click the stale item: it must go back to preview, not repeat "edit".
+    // click its item: it must honor its visible label ("go to edit") instead
+    // of surprising the user with the opposite action.
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
     expect(await within(overlay).findByTestId('code-editor')).toBeInTheDocument()
 
-    fireEvent.click(staleToggle)
-    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/draft.md')
-    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
+    fireEvent.click(toggleItem)
+    expect(screen.getByTestId('code-editor')).toBeInTheDocument()
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
   })
 
   it('drops in-flight open targets and rebuilds tab actions when the file switches mid-lookup', async () => {
