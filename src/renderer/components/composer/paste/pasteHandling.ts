@@ -38,17 +38,13 @@ export const handlePaste = async (
   t?: (key: string) => string
 ): Promise<boolean> => {
   try {
+    const isSupportedImage = (file: File) =>
+      file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
-    // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
-    // supported image in that case; letting the editor handle the text flavor can render a preview
-    // without ever adding an attachment to composer state.
-    const hasSupportedClipboardImage = clipboardFiles.some(
-      (file) => file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))
-    )
 
-    // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
-    const clipboardText = event.clipboardData?.getData('text')
-    if (clipboardText && !hasSupportedClipboardImage) {
+    // 截图剪贴板会同时暴露文本 flavor 和图像字节，此时丢掉文本，否则只渲染预览不产生附件。
+    const clipboardText = clipboardFiles.some(isSupportedImage) ? '' : event.clipboardData?.getData('text')
+    if (clipboardText) {
       // 1. 文本粘贴
       if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {
         if (!supportExts.includes(PASTED_TEXT_FILE_EXTENSION)) return false
@@ -86,7 +82,7 @@ export const handlePaste = async (
           // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
             // 图像生成也支持图像编辑
-            if (file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))) {
+            if (isSupportedImage(file)) {
               const tempFilePath = await window.api.file.createTempFile(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
