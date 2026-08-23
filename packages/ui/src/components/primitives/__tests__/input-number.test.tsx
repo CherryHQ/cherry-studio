@@ -308,6 +308,28 @@ describe('InputNumber', () => {
     }
   })
 
+  // An empty field has no base, and a base outside the range must not be dragged
+  // backwards by the clamp: an arrow may not move the value against its direction.
+  it.each([
+    ['from empty, Up lands on min', '', 1, 5, undefined, '{ArrowUp}', '5'],
+    ['from empty, Down lands on max', '', 1, 1, 10, '{ArrowDown}', '10'],
+    ['from empty with no bound, Up steps from zero', '', 1, undefined, undefined, '{ArrowUp}', '1'],
+    ['Down below min does not raise the value', '0', 1, 5, undefined, '{ArrowDown}', '0'],
+    ['Up above max does not lower the value', '100', 1, 1, 10, '{ArrowUp}', '100'],
+    ['Down above max still enters the range', '100', 1, 1, 10, '{ArrowDown}', '10'],
+    ['from empty with no bound that way, Down offers nothing', '', 1, 5, undefined, '{ArrowDown}', '']
+  ])('%s', async (_name, typed, step, min, max, key, expected) => {
+    const user = userEvent.setup()
+    render(<InputNumber aria-label="amount" min={min} max={max} step={step} value={null} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    if (typed) await user.type(input, typed)
+    await user.keyboard(key)
+
+    expect(input).toHaveValue(expected)
+  })
+
   it('refuses to step when the range is empty', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const user = userEvent.setup()
@@ -374,17 +396,6 @@ describe('InputNumber', () => {
     await user.type(input, '0.1')
     await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
     expect(input).toHaveValue('0')
-  })
-
-  it('steps an empty field up from min rather than from zero', async () => {
-    const user = userEvent.setup()
-    render(<Controlled min={5} max={20} step={1} />)
-
-    const input = screen.getByLabelText('amount')
-    await user.click(input)
-    await user.keyboard('{ArrowUp}')
-
-    expect(input).toHaveValue('6')
   })
 
   it('reports a step like a keystroke and settles it only when focus leaves', async () => {

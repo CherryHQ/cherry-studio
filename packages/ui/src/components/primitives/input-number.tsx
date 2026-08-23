@@ -138,6 +138,9 @@ function toNumber(raw: string): number | null {
 
 const decimalsOf = (value: number) => String(value).split('.')[1]?.length ?? 0
 
+const inRange = (value: number, min?: number, max?: number) =>
+  (min === undefined || value >= min) && (max === undefined || value <= max)
+
 /**
  * Moves to the next value on the grid `step` describes, in the direction of travel —
  * the same rule `stepUp`/`stepDown` follow on a native number input. The grid is
@@ -147,6 +150,9 @@ const decimalsOf = (value: number) => String(value).split('.')[1]?.length ?? 0
  * `3.7` with `step={1}` the next value is 4, not 4.7 — nor 5, which is what rounding
  * the sum to the step's precision used to produce. Rounding still finishes the job,
  * since `0.1` in binary floating point otherwise surfaces as `0.30000000000000004`.
+ *
+ * A base already outside the range is left where it is rather than clamped, so an
+ * arrow never moves the value against its own direction.
  */
 function stepFrom(base: number, step: number, min?: number, max?: number): number {
   const anchor = min ?? 0
@@ -158,9 +164,11 @@ function stepFrom(base: number, step: number, min?: number, max?: number): numbe
   const next = step > 0 ? Math.floor(offsets + epsilon) + 1 : Math.ceil(offsets - epsilon) - 1
   const decimals = Math.max(decimalsOf(size), decimalsOf(anchor))
   const stepped = Number((anchor + next * size).toFixed(decimals))
-  if (min !== undefined && stepped < min) return min
-  if (max !== undefined && stepped > max) return max
-  return stepped
+  const clamped = min !== undefined && stepped < min ? min : max !== undefined && stepped > max ? max : stepped
+  // An arrow must never move the value against its own direction. A base already
+  // outside the range would otherwise be dragged backwards by the clamp: pressing
+  // Down on a value below `min` would raise it.
+  return (step > 0 ? clamped < base : clamped > base) ? base : clamped
 }
 
 function InputNumber({
@@ -229,7 +237,16 @@ function InputNumber({
       event.preventDefault()
       if (isEmptyRange(min, max)) return
       const delta = (step ?? 1) * (event.key === 'ArrowUp' ? 1 : -1)
-      const next = stepFrom(toNumber(text) ?? value ?? min ?? 0, delta, min, max)
+      // An empty field has no base to step from, so the first press lands on the
+      // bound it is heading for — otherwise `min` itself is unreachable by arrow.
+      const current = toNumber(text) ?? value
+      const bound = event.key === 'ArrowUp' ? min : max
+      const next = current === null ? (bound ?? stepFrom(0, delta, min, max)) : stepFrom(current, delta, min, max)
+      // With no bound that way, stepping from an assumed zero can leave the range
+      // entirely. There is no value to offer, so the field stays empty.
+      if (current === null && bound === undefined && !inRange(next, min, max)) {
+        return
+      }
       setDraft(format(next))
       onValueChange?.(next)
     }
