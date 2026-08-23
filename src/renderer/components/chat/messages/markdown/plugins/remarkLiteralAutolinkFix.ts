@@ -124,7 +124,7 @@ function repairTailNodes(nodes: PhrasingContent[]): PhrasingContent[] {
   for (const node of nodes) {
     if (node.type === 'link' && isSwallowedLiteralAutolink(node)) {
       const prev = repaired[repaired.length - 1]
-      const opener = prev?.type === 'text' ? (prev as Text) : undefined
+      const opener = toTextNode(prev)
       if (opener?.value.endsWith(CLOSER)) {
         const cut = computeCut(node)
         if (cut) {
@@ -153,12 +153,21 @@ function repairTailNodes(nodes: PhrasingContent[]): PhrasingContent[] {
   return repaired
 }
 
+// An extractor instead of an assertion: tsgo and typescript-eslint resolve the mdast/unist
+// union differently, so a direct `as Text` at the call site trips one toolchain or the other.
+function toTextNode(node: unknown): Text | undefined {
+  if (typeof node === 'object' && node !== null && 'type' in node && (node as { type: string }).type === 'text') {
+    return node as Text
+  }
+  return undefined
+}
+
 function buildFix(node: Link, index: number, parent: Parent, source: string): FixPlan | undefined {
   if (!isSwallowedLiteralAutolink(node)) return undefined
   // Without an opener hugging the link there is no evidence the stars were emphasis, and an
   // escaped run (`\**`) must not be consumed even when its rendered value looks like markers.
   const prev = parent.children[index - 1]
-  const opener = prev?.type === 'text' ? (prev as Text) : undefined
+  const opener = toTextNode(prev)
   if (!opener?.value.endsWith(CLOSER)) return undefined
   // Reject a run whose marker at the end of its source span is escaped (`\**`) — escaped stars
   // render as `**` but are literal text, not emphasis. Only that exact case; a backslash or
