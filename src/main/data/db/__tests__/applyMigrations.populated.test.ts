@@ -426,7 +426,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('preserves populated prompts when adding visibility and bindings', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0015_chief_morgan_stark'))
     sqlite
       .prepare(
         `INSERT INTO prompt (id, title, content, order_key, created_at, updated_at)
