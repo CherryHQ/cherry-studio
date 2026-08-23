@@ -102,13 +102,15 @@ describe('writeCliConfigDraft', () => {
         }
       }
     })
-    // The disk write is main-process now (`code_cli.write_config` carries
-    // `{ target, content }`, never a path). Translate each target back to the
+    // The disk mutation is main-process now (`code_cli.write_config` carries
+    // a target, never a path). Translate each write target back to the
     // same `/resolved~/…` path so the content fixtures stay unchanged.
     mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
       for (const file of input.files) {
-        written = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
-        writes.push(written)
+        if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
+        const nextWrite = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
+        written = nextWrite
+        writes.push(nextWrite)
       }
       return { success: true }
     })
@@ -457,8 +459,9 @@ describe('writeCliConfigDraft', () => {
       expect(writes).toEqual([])
     })
 
-    it('merges OPENAI_API_KEY into auth.json, preserving unrelated OAuth keys', async () => {
+    it('switches auth.json from ChatGPT OAuth to API-key mode while preserving the official login', async () => {
       existing['/resolved~/.codex/auth.json'] = JSON.stringify({
+        auth_mode: 'chatgpt',
         tokens: { id_token: 'oauth-jwt', access_token: 'oauth-access' }
       })
       mockGet({
@@ -473,6 +476,7 @@ describe('writeCliConfigDraft', () => {
       })
 
       const authParsed = JSON.parse(findWrite('auth.json')!.content)
+      expect(authParsed.auth_mode).toBe('apikey')
       expect(authParsed.tokens).toEqual({ id_token: 'oauth-jwt', access_token: 'oauth-access' })
       expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
     })
@@ -831,6 +835,24 @@ describe('writeCliConfigDraft', () => {
 
       const parsed = JSON.parse(opencodeWrite().content)
       expect(parsed.permission).toBe('ask')
+    })
+
+    it('writes automatic compaction to the OpenCode config file', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { autoCompact: true }
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      expect(parsed.compaction.auto).toBe(true)
+      expect(parsed).not.toHaveProperty('autoCompact')
     })
   })
 

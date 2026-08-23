@@ -1,5 +1,6 @@
 /** Migrates legacy v1 Dexie `files` table into the v2 `file_entry` SQLite table. */
 
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -14,23 +15,12 @@ import { inArray, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
+import { hasLostOriginalFilename, legacyStorageNames, normalizeExt } from './mappings/legacyFileMappings'
 
 const logger = loggerService.withContext('FileMigrator')
 
 const BATCH_SIZE = 500
 const VALIDATE_SAMPLE_LIMIT = 10
-
-/**
- * Strip legacy leading dot and OS-ignored trailing dot/space from extension,
- * return null for empty/extensionless. Legacy v1 ext field looks like '.pdf'
- * or '.txt' or '' for extensionless.
- */
-function normalizeExt(ext: string | undefined | null): string | null {
-  if (!ext || ext.trim() === '') return null
-  const stripped = ext.startsWith('.') ? ext.slice(1) : ext
-  const normalized = stripped.replace(/[\s.]+$/, '')
-  return normalized.length > 0 ? normalized : null
-}
 
 /**
  * Parse an ISO date string to ms epoch.
@@ -68,6 +58,37 @@ function basenameAnySep(p: string): string {
 function stripExt(base: string): string {
   const dot = base.lastIndexOf('.')
   return dot > 0 ? base.slice(0, dot) : base
+}
+
+/**
+ * Copy a blob found under a raw v1 storage name to the canonical `{id}.{ext}` the v2 runtime
+ * resolves. Returns the failure reason, or null on success.
+ *
+ * tmp + fsync + rename, not a direct `copyFileSync` onto the target (file-manager-architecture
+ * §5.1): a crash mid-copy must never leave a truncated file at the canonical name, because the
+ * next run's candidate walk would prefer it over the intact raw blob and migrate corrupted bytes
+ * under the v1 `size`. Any residue is a `.tmp-{uuid}` the FS orphan sweep already collects.
+ */
+function copyToCanonicalName(src: string, dest: string): string | null {
+  const tmp = `${dest}.tmp-${randomUUID()}`
+  try {
+    fs.copyFileSync(src, tmp, fs.constants.COPYFILE_EXCL)
+    const fd = fs.openSync(tmp, 'r+')
+    try {
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
+    fs.renameSync(tmp, dest)
+    return null
+  } catch (error) {
+    try {
+      fs.unlinkSync(tmp)
+    } catch {
+      // Best-effort: the sweep reclaims a stranded `.tmp-{uuid}`.
+    }
+    return error instanceof Error ? error.message : String(error)
+  }
 }
 
 /**
@@ -151,21 +172,31 @@ function toFileEntry(
 
   // Origin discrimination. v1 has no external entries (rows persisted only
   // after upload), and v1 runtime locates physical files by storage name
-  // (`row.name` = `{id}{ext}`), never via the `path` column — so a backup
-  // restored across platforms carries foreign-separator paths that fail the
-  // prefix check even though the file sits right here (#15733). Trust the
-  // filesystem over the stale path string before declaring a row orphaned.
+  // (`{id}{ext}`), never via the `path` column — so a backup restored across
+  // platforms carries foreign-separator paths that fail the prefix check even
+  // though the file sits right here (#15733). Trust the filesystem over the
+  // stale path string before declaring a row orphaned.
+  //
+  // The storage name is rebuilt from the id rather than read off `row.name`
+  // (see `legacyStorageNames`): v1's duplicate-upload path writes a
+  // double-extension `name` that points nowhere, so trusting it strands the
+  // physical file for the FS orphan sweep to reclaim.
   const internalPrefix = path.join(userData, 'Data', 'Files')
-  const physicalPath = path.join(internalPrefix, row.name)
-  const isInternal = row.path.startsWith(internalPrefix) || fs.existsSync(physicalPath)
+  const candidatePaths = legacyStorageNames(row).map((storageName) => path.join(internalPrefix, storageName))
+  const canonicalPath = candidatePaths[0]
+  const existingPath = candidatePaths.find((candidate) => fs.existsSync(candidate))
+  const physicalPath = existingPath ?? canonicalPath
+  const isInternal = row.path.startsWith(internalPrefix) || existingPath !== undefined
 
   if (!isInternal) {
     // Neither under the internal dir nor physically present: dead metadata
     // left by incomplete v1 deletes. Do not fabricate an external entry —
     // downstream migrators (Chat/Painting) already resolve file associations
     // against file_entry, so skipping cannot create dangling FKs.
+    // Carry `origin_name`: this warning is the only trace a permanently dropped row leaves, and a
+    // uuid alone tells the user nothing about which of their files went missing.
     onWarning(
-      `Orphan file row id=${row.id}: no physical file and path is not internal; skipping. path=${JSON.stringify(row.path)}`
+      `Orphan file row id=${row.id} (${JSON.stringify(row.origin_name || row.name)}): no physical file and path is not internal; skipping. path=${JSON.stringify(row.path)}`
     )
     return null
   }
@@ -193,10 +224,38 @@ function toFileEntry(
     }
   }
 
+  // The blob may sit under the raw name (`{id}.exe ` — POSIX keeps the trailing space) while `ext`
+  // migrates normalized; copy, not rename, so an aborted migration leaves v1's own lookup intact.
+  if (existingPath !== undefined && existingPath !== canonicalPath) {
+    const copyFailure = copyToCanonicalName(existingPath, canonicalPath)
+    if (copyFailure !== null) {
+      onWarning(
+        `Failed to copy file id=${row.id} to its v2 storage name (${existingPath} -> ${canonicalPath}): ` +
+          `${copyFailure}. The row still migrates and the original file is intact, but the file cannot be ` +
+          `opened until it is copied to the new name.`
+      )
+    }
+  }
+
+  const name = deriveSafeName(row.origin_name || row.name, row.id, onWarning)
+
+  // Emitted after every skip branch that can actually fire, so a row reported here really did
+  // migrate. (The schema probe below still returns null, but it is unreachable by construction —
+  // see its own comment; if that ever changes, move this warning past it.) The same
+  // corrupted `origin_name` also reaches ChatMappings' `filename`, which deliberately stays quiet:
+  // it would repeat once per message referencing the file, while this fires once per file row.
+  if (hasLostOriginalFilename(row)) {
+    onWarning(
+      `Original filename lost for file id=${row.id}: a legacy v1 bug overwrote it with the internal storage name ` +
+        `when the same file was uploaded twice, and it cannot be recovered. The file contents are intact and it ` +
+        `now appears as ${JSON.stringify(name)} in Files, where you can rename it.`
+    )
+  }
+
   const entry: PreparedFileEntry = {
     id: row.id,
     origin: 'internal',
-    name: deriveSafeName(row.origin_name || row.name, row.id, onWarning),
+    name,
     ext,
     cleanupPolicy: 'manual',
     size,

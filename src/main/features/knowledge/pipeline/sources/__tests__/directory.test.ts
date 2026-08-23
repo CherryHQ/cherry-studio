@@ -106,6 +106,18 @@ describe('chooseDirectoryPathPrefix', () => {
     expect(chooseDirectoryPathPrefix(createDirectoryOwner('C:\\'), new Set())).toBe('C')
   })
 
+  it('keeps a Windows-illegal character the local filesystem accepts', () => {
+    // Native expansion reads a folder that exists here, so its name is legal here — no
+    // `sanitizeFilename`. Migration cannot make that assumption (a v1 row may carry a path from
+    // another OS) and does sanitize, so the same folder is `a_b` when migrated and `a<b` after a
+    // container reindex. Pinned on both sides: `KnowledgeMappings.test.ts` holds the counterpart.
+    vi.mocked(path.resolve).mockImplementation(realPath.posix.resolve)
+    vi.mocked(path.basename).mockImplementation(realPath.posix.basename)
+    vi.mocked(path.parse).mockImplementation(realPath.posix.parse)
+
+    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/a<b'), new Set())).toBe('a<b')
+  })
+
   it('rejects the reserved .cherry prefix before it can be persisted', () => {
     expect(() => chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/.cherry'), new Set())).toThrow(
       'Knowledge relative path is reserved: .cherry'

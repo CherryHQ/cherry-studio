@@ -21,6 +21,27 @@ export interface InferenceModelSource {
   revision: string
 }
 
+export type LocalInferenceProfileId = 'cpu' | 'directml' | 'coreml'
+export type LocalInferenceDevice = 'cpu' | 'dml' | 'coreml'
+export type LocalInferenceExecutionProvider = 'cpu' | 'dml' | 'coreml' | { name: 'coreml'; coreMlFlags: number }
+
+export interface LocalInferenceSessionOptions {
+  executionProviders: LocalInferenceExecutionProvider[]
+  enableMemPattern?: boolean
+  executionMode?: 'sequential'
+}
+
+/** Runtime options resolved in the main process for the worker's two inference backends. */
+export interface LocalInferenceRuntimeProfile {
+  id: LocalInferenceProfileId
+  /** transformers.js device selector. */
+  transformersDevice: LocalInferenceDevice
+  /** ppu-paddle-ocr options and the default transformers.js session options. */
+  sessionOptions: LocalInferenceSessionOptions
+  /** transformers.js override; defaults to {@link sessionOptions} when absent. */
+  embeddingSessionOptions?: LocalInferenceSessionOptions
+}
+
 // -- main → worker --------------------------------------------------------
 
 /** One-time setup sent right after the worker spawns. */
@@ -34,6 +55,8 @@ export interface InferenceInitMessage {
    * `CHERRY_ONNXRUNTIME_BINDING_PATH` in the worker's own env before its first lazy
    * require of `@huggingface/transformers`/`ppu-paddle-ocr` (see OnnxRuntimeBinaryService). */
   onnxRuntimeBindingPath: string
+  /** Platform-resolved runtime configuration for embedding and OCR. */
+  runtimeProfile: LocalInferenceRuntimeProfile
   /** ProxyService-owned routing decision; the worker never parses proxy or bypass config. */
   proxyRouting: ProxyRoutingSnapshot
 }
@@ -86,13 +109,26 @@ export interface OcrModelPaths {
   charactersDictionary: string
 }
 
-/** Recognize text in an image file; loads the PaddleOCR pipeline first if needed. */
+/** One recognized text run with its box in the source image's pixel space. */
+export interface OcrLine {
+  text: string
+  box: { x: number; y: number; width: number; height: number }
+  confidence: number
+}
+
+/**
+ * Where the image comes from. A discriminated union, not two optional fields:
+ * the latter would let `{}` and `{ imagePath, imageBytes }` typecheck, pushing
+ * the "exactly one" rule into a runtime check nobody remembers to write.
+ */
+export type OcrRecognizeSource = { kind: 'path'; imagePath: string } | { kind: 'bytes'; imageBytes: Uint8Array }
+
+/** Recognize text in an image; `bytes` exists so in-memory captures never touch disk. */
 export interface OcrRecognizeMessage {
   type: 'ocr.recognize'
   id: string
   modelPaths: OcrModelPaths
-  /** Absolute path to the image file; the worker reads it into a buffer. */
-  imagePath: string
+  source: OcrRecognizeSource
 }
 
 export type InferenceRequest =
@@ -131,6 +167,8 @@ export interface InferenceResultMessage {
   embeddings?: number[][] | null
   /** Recognized text (`ocr.recognize`). */
   text?: string | null
+  /** Recognized runs with their boxes (`ocr.recognize`), grouped as the engine grouped them. */
+  lines?: OcrLine[][] | null
   /** Token counts, one per input text (`embedding.countTokens`). */
   tokenCounts?: number[] | null
 }

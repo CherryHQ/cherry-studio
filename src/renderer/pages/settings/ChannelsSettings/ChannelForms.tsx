@@ -9,9 +9,10 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Switch
 } from '@cherrystudio/ui'
-import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
+import { PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -86,12 +87,7 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
         <SelectContent>
           <SelectItem value={INHERIT_PERMISSION_MODE_VALUE}>{t('agent.channels.security.inheritFromAgent')}</SelectItem>
           {permissionModeCards.map((card) => (
-            <SelectItem key={card.mode} value={card.mode}>
-              <div className="flex items-center gap-2">
-                <PermissionModeIcon mode={card.mode} size={14} />
-                <PermissionModeOptionLabel card={card} t={t} withDescription={false} />
-              </div>
-            </SelectItem>
+            <PermissionModeSelectItem key={card.mode} card={card} compact t={t} />
           ))}
         </SelectContent>
       </Select>
@@ -373,6 +369,9 @@ export const DiscordForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =
 
 export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+  const cfg = channel.config
+  const mentionOnly = (cfg.mention_only as boolean) ?? true
+
   return (
     <ChannelFieldsForm
       channel={channel}
@@ -397,6 +396,18 @@ export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
         extraHint: t('agent.channels.qq.whoamiTip'),
         fullWidth: true
       }}
+      extraContent={
+        <div className="col-span-2 flex items-center gap-3 pt-1">
+          <Switch
+            checked={mentionOnly}
+            onCheckedChange={(checked) => onConfigChange({ config: { ...cfg, mention_only: checked } })}
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm">{t('agent.channels.qq.mentionOnlyLabel')}</span>
+            <span className="text-muted-foreground text-xs">{t('agent.channels.qq.mentionOnlyHint')}</span>
+          </div>
+        </div>
+      }
     />
   )
 }

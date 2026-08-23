@@ -7,6 +7,7 @@ import { Elysia } from 'elysia'
 import { v4 as uuidv4 } from 'uuid'
 
 import { gatewayErrorHandler } from './errors'
+import { McpSessionStore } from './McpSessionStore'
 import { authorizeApiRequest } from './middleware/auth'
 import {
   buildOpenApiDocument,
@@ -19,6 +20,7 @@ import {
 import { chatRoutes } from './routes/chat'
 import { geminiRoutes } from './routes/gemini'
 import { knowledgeRoutes } from './routes/knowledge'
+import { createMcpRoutes } from './routes/mcp'
 import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
 import { responsesRoutes } from './routes/responses'
@@ -31,28 +33,35 @@ const logger = loggerService.withContext('ApiGateway')
  * shaped by the single root `gatewayErrorHandler` (see `buildApp`), which selects
  * the dialect by path.
  */
-const v1Routes = new Elysia({ prefix: '/v1' })
-  // `@elysia/bearer` derives `bearer` from `Authorization: Bearer …` / `?access_token`.
-  .use(bearer())
-  .guard({
-    as: 'scoped',
-    beforeHandle: ({ bearer, headers, set }) => {
-      const failure = authorizeApiRequest(headers['x-api-key'], bearer)
-      if (!failure) return undefined
-      set.status = failure.status
-      return { error: failure.error }
-    }
-  })
-  .use(messagesRoutes)
-  .use(chatRoutes)
-  .use(responsesRoutes)
-  .use(modelsRoutes)
-  .use(knowledgeRoutes)
+const buildV1Routes = (mcpSessions: McpSessionStore) =>
+  new Elysia({ prefix: '/v1' })
+    // `@elysia/bearer` derives `bearer` from `Authorization: Bearer …` / `?access_token`.
+    .use(bearer())
+    .guard({
+      as: 'scoped',
+      beforeHandle: ({ bearer, headers, set }) => {
+        const failure = authorizeApiRequest(headers['x-api-key'], bearer)
+        if (!failure) return undefined
+        set.status = failure.status
+        return { error: failure.error }
+      }
+    })
+    .use(messagesRoutes)
+    .use(chatRoutes)
+    .use(responsesRoutes)
+    .use(modelsRoutes)
+    .use(knowledgeRoutes)
+    .use(createMcpRoutes(mcpSessions))
 
 /** Where the gateway listens; used to render an absolute OpenAPI server URL. */
 interface BuildAppOptions {
   host?: string
   port?: number
+  /**
+   * Live MCP sessions. `server.ts` passes the store it owns so gateway shutdown closes
+   * them; omitting it (tests, `buildApp()` with no args) gets a throwaway store.
+   */
+  mcpSessions?: McpSessionStore
 }
 
 /**
@@ -68,7 +77,11 @@ interface BuildAppOptions {
  *
  * Exported for both the runtime server (`server.ts`) and the integration tests.
  */
-export function buildApp({ host = '127.0.0.1', port = 23333 }: BuildAppOptions = {}) {
+export function buildApp({
+  host = '127.0.0.1',
+  port = 23333,
+  mcpSessions = new McpSessionStore()
+}: BuildAppOptions = {}) {
   const app = new Elysia({ adapter: node() })
     .use(
       cors({
@@ -81,6 +94,11 @@ export function buildApp({ host = '127.0.0.1', port = 23333 }: BuildAppOptions =
         // boundary here (the API key is; non-browser clients ignore CORS entirely), so
         // reflecting the requested headers is the correct, maintenance-free choice.
         allowedHeaders: true,
+        // Must be an explicit list, not the default `true`. That default reflects the
+        // *request's* header names, and an `initialize` request cannot carry `mcp-session-id`
+        // yet — so a browser client would be unable to read the id the server just issued,
+        // would send every later request without it, and would orphan the session.
+        exposeHeaders: ['mcp-session-id', 'x-request-id'],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       })
     )
@@ -146,7 +164,9 @@ export function buildApp({ host = '127.0.0.1', port = 23333 }: BuildAppOptions =
           messages: 'POST /v1/messages',
           generate_content: 'POST /v1beta/models/{model}:generateContent',
           knowledge_bases: 'GET /v1/knowledge-bases',
-          knowledge_search: 'POST /v1/knowledge-bases/search'
+          knowledge_search: 'POST /v1/knowledge-bases/search',
+          mcp_servers: 'GET /v1/mcps',
+          mcp_proxy: 'POST /v1/mcps/{server_id}/mcp'
         }
       }),
       { detail: { tags: [DOC_TAGS.cherry], summary: 'API Info', description: DOC_DESCRIPTIONS.info } }
@@ -158,7 +178,7 @@ export function buildApp({ host = '127.0.0.1', port = 23333 }: BuildAppOptions =
     // `?key=` credentials). Registering `/v1beta` first keeps it out of that guard's
     // reach; the `local` gemini guard does not leak back onto `/v1`.
     .use(geminiRoutes)
-    .use(v1Routes)
+    .use(buildV1Routes(mcpSessions))
 
   return app
 }

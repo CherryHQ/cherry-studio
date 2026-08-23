@@ -187,7 +187,7 @@ type Story = StoryObj<typeof AllIconsShowcase>
  * ## 使用示例
  *
  * ```tsx
- * import { Anthropic } from '@cherrystudio/ui/icons'
+ * import { Anthropic } from '@cherrystudio/ui/icons/providers'
  *
  * // 通过 fontSize 控制大小
  * <div style={{ fontSize: 24 }}>
@@ -214,7 +214,7 @@ export const AllLogos: Story = {
  * 默认导出的 `<Anthropic />` 会根据 Tailwind 的 `dark:` 修饰符自动切换。
  *
  * ```tsx
- * import { Anthropic } from '@cherrystudio/ui/icons'
+ * import { Anthropic } from '@cherrystudio/ui/icons/providers'
  *
  * <Anthropic />                    // 自动:dark mode 下显示 Dark,否则 Light
  * <Anthropic variant="light" />    // 强制 Light
@@ -235,7 +235,7 @@ export const LightVsDark: StoryObj<typeof LightVsDarkShowcase> = {
  * 通过 `size` 控制头像大小，图标填满 Avatar 容器。
  *
  * ```tsx
- * import { Anthropic } from '@cherrystudio/ui/icons'
+ * import { Anthropic } from '@cherrystudio/ui/icons/providers'
  *
  * <Anthropic.Avatar size={32} />
  * <Anthropic.Avatar size={48} shape="rounded" />

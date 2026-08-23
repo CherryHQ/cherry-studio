@@ -1,13 +1,13 @@
 import { fileURLToPath } from 'node:url'
 
-import {
-  type Options,
-  type Query,
-  query as createClaudeQuery,
-  type SDKAssistantMessage,
-  type SDKPartialAssistantMessage,
-  type SDKResultMessage,
-  type SDKUserMessage
+import type {
+  Options,
+  Query,
+  query,
+  SDKAssistantMessage,
+  SDKPartialAssistantMessage,
+  SDKResultMessage,
+  SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -19,6 +19,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { buildAgentUserContent, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -41,6 +42,8 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
+import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -274,42 +277,8 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
   }
 }
 
-class AsyncEventQueue<T> implements AsyncIterable<T> {
-  private readonly items: T[] = []
-  private readonly waiters: Array<(result: IteratorResult<T>) => void> = []
-  private closed = false
-
-  push(item: T): void {
-    if (this.closed) return
-    const waiter = this.waiters.shift()
-    if (waiter) {
-      waiter({ value: item, done: false })
-      return
-    }
-    this.items.push(item)
-  }
-
-  close(): void {
-    if (this.closed) return
-    this.closed = true
-    while (this.waiters.length > 0) {
-      this.waiters.shift()?.({ value: undefined as T, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<T> {
-    return {
-      next: () => {
-        const item = this.items.shift()
-        if (item) return Promise.resolve({ value: item, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as T, done: true })
-        return new Promise<IteratorResult<T>>((resolve) => {
-          this.waiters.push(resolve)
-        })
-      }
-    }
-  }
-}
+// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
+export { buildAgentUserContent }
 
 class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
   private readonly messages: SDKUserMessage[] = []
@@ -355,6 +324,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
+  /** SDK `query` factory captured at connect — the sync stale-resume retry cannot await the import. */
+  private createQuery?: typeof query
   private closePromise?: Promise<void>
   /** The exact spawn options of the live query — resume recovery re-spawns from these. */
   private spawnOptions?: Options
@@ -394,6 +365,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async start(): Promise<this> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
+    // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
+    // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
@@ -401,7 +374,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds
-    )
+    ).catch((error) => {
+      if (error instanceof ApiGatewayNotRunningError) {
+        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+      }
+      throw error
+    })
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
@@ -439,6 +417,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
     this.spawnOptions = options
+    // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
+    const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
+    this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
@@ -732,6 +713,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,
@@ -753,7 +735,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
   private tryRecoverWithoutResume(error: unknown): boolean {
-    if (this.resumeRecoveryRetried || !this.resumeToken || !this.spawnOptions || this.abortController.signal.aborted) {
+    const createClaudeQuery = this.createQuery
+    if (
+      this.resumeRecoveryRetried ||
+      !this.resumeToken ||
+      !this.spawnOptions ||
+      !createClaudeQuery ||
+      this.abortController.signal.aborted
+    ) {
       return false
     }
     const reason = getResumeRecoveryReason(error)
@@ -828,6 +817,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
     this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
+    this.approvalEmitter.emitInput = (request) =>
+      this.eventQueue.push({
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          providerExecuted: true,
+          dynamic: true
+        }
+      })
   }
 
   /**
@@ -1057,7 +1058,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({
       type: 'usage',
       invocation: {
-        requestId: pending.requestId,
+        requestId: `claude-agent:${pending.requestId}`,
         model: pending.model,
         messageAssociation: pending.messageAssociation,
         ...(usage ? { usage } : {}),
@@ -1241,9 +1242,11 @@ async function materializeUserContent(
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
-    const note = `Unavailable attachments: ${names.join(', ')}`
+    const renderedNames = message.delivery ? names.map((name) => JSON.stringify(name)) : names
+    const note = `Unavailable attachments: ${renderedNames.join(', ')}`
     textContent = textContent.trim() ? `${textContent}\n\n${note}` : note
   }
+  textContent = wrapAgentSessionDeliveryContent(message, textContent)
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
 }

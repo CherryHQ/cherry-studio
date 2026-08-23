@@ -19,7 +19,7 @@ import type { PropsWithChildren } from 'react'
 import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import TopicBranchPanel from './TopicBranchPanel'
+const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 
 const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
@@ -124,19 +124,22 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   if (!scope.topicId) return null
 
   return (
-    <TopicBranchPanel
-      open={active}
-      topicId={scope.topicId}
-      topicName={scope.topicName}
-      liveState={branchLiveState}
-      focusKey={canvasFocusKey}
-      layoutReady={canvasLayoutReady}
-      onLocateMessage={callbacks.onLocateMessage}
-    />
+    <Suspense fallback={null}>
+      <TopicBranchPanel
+        open={active}
+        topicId={scope.topicId}
+        topicName={scope.topicName}
+        liveState={branchLiveState}
+        focusKey={canvasFocusKey}
+        layoutReady={canvasLayoutReady}
+        onLocateMessage={callbacks.onLocateMessage}
+      />
+    </Suspense>
   )
 }
 
-function TopicTraceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  if (!active) return null
   return (
     <Suspense fallback={null}>
       <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />

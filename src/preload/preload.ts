@@ -8,13 +8,15 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
+import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BackupResult, LocalBackupConfig, S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
   AbsoluteFilePath,
   CreateInternalEntryIpcParams,
+  DirectoryEntry,
+  DirectoryListOptions,
   EnsureExternalEntryIpcParams,
   GetPhysicalPathIpcParams
 } from '@shared/types/file'
@@ -34,21 +36,6 @@ import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
-
-type DirectoryListOptions = {
-  recursive?: boolean
-  maxDepth?: number
-  includeHidden?: boolean
-  includeFiles?: boolean
-  includeDirectories?: boolean
-  maxEntries?: number
-  searchPattern?: string
-}
-
-type DirectoryEntry = {
-  path: string
-  isDirectory: boolean
-}
 
 type ShortcutRegistrationConflictPayload = {
   key: ShortcutPreferenceKey
@@ -208,9 +195,6 @@ const api = {
   // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
   // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
   // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
-  externalApps: {
-    detectInstalled: (): Promise<ExternalAppInfo[]> => ipcRenderer.invoke(IpcChannel.ExternalApps_DetectInstalled)
-  },
   nutstore: {
     getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),
     decryptToken: (token: string) => ipcRenderer.invoke(IpcChannel.Nutstore_DecryptToken, token),
@@ -222,7 +206,8 @@ const api = {
   //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
-    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
+    getData: (topicId: string, traceId: string, cursor?: TraceDataCursor): Promise<TraceDataResult> =>
+      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, cursor),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   shortcut: {

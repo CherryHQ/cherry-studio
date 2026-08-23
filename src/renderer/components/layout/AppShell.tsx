@@ -1,13 +1,16 @@
+import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
+import { ipcApi } from '@renderer/ipc'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
@@ -37,6 +40,7 @@ export const AppShell = () => {
     openTab
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+  const canCycleTabs = tabs.length > 1 && !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
   if (activeTab && !isSettingsTabActive) {
@@ -51,7 +55,24 @@ export const AppShell = () => {
     () => (isSettingsTabActive && activeTab ? [activeTab] : tabs),
     [activeTab, isSettingsTabActive, tabs]
   )
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const isFullscreen = useNativeFullscreen()
+  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
+  const [, setSplitMiniAppId] = useCache('mini_app.split_id')
+
+  // Split state is window-wide and does not follow the last mini-app tab out, so
+  // the next mini app would open into a stale split with its app still pooled.
+  const clearSplitWithLastMiniAppTab = useCallback(
+    (id: string, url: string | undefined) => {
+      if (!splitOpen || !miniAppIdFromTabUrl(url)) return
+      const hasOtherMiniAppTab = tabs.some(
+        (candidate) => candidate.id !== id && miniAppIdFromTabUrl(candidate.url) !== null
+      )
+      if (hasOtherMiniAppTab) return
+      setSplitOpen(false)
+      setSplitMiniAppId('')
+    },
+    [setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
+  )
 
   const handleCloseTab = useCallback(
     (id: string) => {
@@ -60,20 +81,22 @@ export const AppShell = () => {
         closeTabs([id], previousWorkspaceTabIdRef.current)
         return
       }
+      clearSplitWithLastMiniAppTab(id, tab?.url)
       closeTab(id)
     },
-    [closeTab, closeTabs, tabs]
+    [clearSplitWithLastMiniAppTab, closeTab, closeTabs, tabs]
   )
 
   const handleDetachTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
+      clearSplitWithLastMiniAppTab(id, tab?.url)
       detachTab(id)
       if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
         setActiveTab(previousWorkspaceTabIdRef.current)
       }
     },
-    [detachTab, setActiveTab, tabs]
+    [clearSplitWithLastMiniAppTab, detachTab, setActiveTab, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
@@ -81,37 +104,29 @@ export const AppShell = () => {
     void GlobalSearchPopup.show()
   }, [isSettingsTabActive])
 
+  // Pinned tabs join the same flat cycle, matching Chrome / VS Code Ctrl+Tab.
+  const cycleTab = useCallback(
+    (direction: 'next' | 'prev') => {
+      if (tabs.length <= 1) return
+      const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
+      if (currentIndex === -1) return
+
+      const offset = direction === 'next' ? 1 : -1
+      const nextIndex = (currentIndex + offset + tabs.length) % tabs.length
+      setActiveTab(tabs[nextIndex].id)
+    },
+    [tabs, activeTabId, setActiveTab]
+  )
+
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
+  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 
   useEffect(() => {
     if (isSettingsTabActive) {
       GlobalSearchPopup.hide()
     }
   }, [isSettingsTabActive])
-
-  useEffect(() => {
-    if (!isMac) return
-
-    let cancelled = false
-    void ipcApi
-      .request('window.is_full_screen')
-      .then((value) => {
-        if (!cancelled) {
-          setIsFullscreen(value)
-        }
-      })
-      .catch(() => undefined)
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useIpcOn('window.fullscreen_changed', (value) => {
-    if (isMac) {
-      setIsFullscreen(value)
-    }
-  })
 
   // The compact minimum tracks the active tab's route here, at window level.
   // It must not live in the pages themselves: they sit inside <Activity>, whose
