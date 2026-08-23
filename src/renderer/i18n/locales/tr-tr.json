@@ -5671,6 +5671,10 @@
         "global": "Genel Yazı Tipi",
         "select": "Yazı Tipi Seç",
         "title": "Yazı Tipi Ayarları"
+      },
+      "list_position": {
+        "chat": "Konuşma listesi konumu",
+        "work": "Görev listesi konumu"
       }
     },
     "fetch": {
