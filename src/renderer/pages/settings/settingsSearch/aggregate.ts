@@ -1,7 +1,7 @@
 import { settingsMenu } from '../settingsMenu'
 import type { SettingsSearchSection, SettingsSearchSectionModule } from './types'
 
-const globModules = import.meta.glob('../**/*.search.ts', { eager: true }) as Record<string, unknown>
+const globModules = import.meta.glob('../**/*.search.ts', { eager: true })
 
 // Merge leaves per route; module keys sorted so multi-file sections keep a
 // deterministic declaration order regardless of glob iteration order.

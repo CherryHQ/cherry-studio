@@ -6,8 +6,6 @@ import type { SettingsSearchEntry } from '../settingsSearch/types'
 // (v1 remigration) and modal-only actions stay out per D8.
 export const route = '/settings/data'
 
-const cloudBackup = 'settings.data.divider.cloud_storage'
-
 export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'data-backup-restore',

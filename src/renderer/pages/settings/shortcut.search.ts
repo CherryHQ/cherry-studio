@@ -1,6 +1,6 @@
 import { COMMAND_DEFINITIONS } from '@shared/utils/command'
 
-import type { SettingsSearchEntry } from '../settingsSearch/types'
+import type { SettingsSearchEntry } from './settingsSearch/types'
 
 export const route = '/settings/shortcut'
 
@@ -18,9 +18,15 @@ const categoryToBreadcrumbKey = (categoryKey: string): string => {
     : 'settings.shortcuts.categories.assistant'
 }
 
-export const entries: SettingsSearchEntry[] = COMMAND_DEFINITIONS.filter(
-  (definition) => definition.keybinding && definition.keybinding.editable !== false
-).map((definition) => ({
+// Command definition literals don't all carry `editable` on their keybinding
+type CommandDefinition = (typeof COMMAND_DEFINITIONS)[number]
+
+const hasEditableKeybinding = (definition: CommandDefinition): boolean => {
+  const keybinding = definition.keybinding as { editable?: boolean } | undefined
+  return !!keybinding && keybinding.editable !== false
+}
+
+export const entries: SettingsSearchEntry[] = COMMAND_DEFINITIONS.filter(hasEditableKeybinding).map((definition) => ({
   anchorId: definition.id.replace(/[._]/g, '-'),
   titleKey: definition.titleKey,
   groupKey: categoryToBreadcrumbKey(definition.categoryKey)

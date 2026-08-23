@@ -46,7 +46,7 @@ const SettingsSearchBox = () => {
     if (!trimmed) return
 
     const handle = setTimeout(() => {
-      navigate({
+      void navigate({
         to: '/settings/search',
         search: { q: trimmed },
         replace: hasPushedRef.current
@@ -60,7 +60,7 @@ const SettingsSearchBox = () => {
     setValue('')
     hasPushedRef.current = false
     if (router.history.canGoBack()) router.history.back()
-    else navigate({ to: '/settings/general' })
+    else void navigate({ to: '/settings/general' })
   }
 
   return (
