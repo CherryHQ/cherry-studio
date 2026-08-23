@@ -26,7 +26,6 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
-import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
 import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   lazy,
@@ -420,9 +419,8 @@ export function HtmlArtifactPopupOutlet() {
         html={popupSession.html}
         onSave={popupSession.onSave}
         editable={popupSession.editable}
-        // Upstream-intentional: the maximize popup's custom renderPreview opens the
-        // interactive tier directly (approve-on-close memory). Only the code-block card
-        // path defers to the explicit run action — this one keeps upstream behavior.
+        // Upstream-intentional: maximize opens the interactive tier directly (with
+        // approve-on-close memory); the card path instead defers to its run action.
         canCapturePreview={!requiresInteractivePreview}
         renderPreview={(iframeRef) => (
           <HtmlArtifactPreviewSurface
@@ -462,7 +460,10 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
   const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
   const hasContent = html.trim().length > 0
   const previewHtml = useStreamingPacedHtml(html, isStreaming)
-  const requiresUserConsent = useMemo(() => kind === 'document' && htmlArtifactRequiresUserConsent(html), [html, kind])
+  const requiresUserConsent = useMemo(
+    () => kind === 'document' && htmlArtifactPreviewRequiresInteractive(html),
+    [html, kind]
+  )
   const approvedInteractiveHtml = popupContext.approvedInteractiveHtmlById[artifactId]
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved

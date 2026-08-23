@@ -200,14 +200,11 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     />
   )
 
-  // Security default: the popup opens in the script-less tier. Active content only
-  // reaches the webview through the explicit "run interactive preview" action below —
-  // mirroring the inline consent card instead of treating "open" as authorization.
+  // Security default: static tier on open; only the explicit run action authorizes
+  // the webview (mirrors the inline consent card — "open" is not authorization).
   const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
   const [interactiveAuthorized, setInteractiveAuthorized] = useState(false)
-  // The interactive (webview) tier exposes no capture iframe, so the capture menu only
-  // makes sense on the script-less frame — both for the default surface and callers.
-  // An explicit canCapturePreview={false} from any caller is still honored.
+  // The webview tier has no capture iframe; an explicit canCapturePreview={false} wins.
   const effectiveCanCapturePreview = renderPreview
     ? canCapturePreview
     : canCapturePreview && !(requiresInteractivePreview && interactiveAuthorized)
@@ -226,12 +223,12 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
           forwardBoundaryWheel={false}
         />
         {requiresInteractivePreview && !interactiveAuthorized && (
-          <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center p-3">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-3">
             <Button
               type="button"
               variant="secondary"
               size="sm"
-              className="border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
+              className="pointer-events-auto border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
               aria-label={t('html_artifacts.interactive_preview.action')}
               onClick={() => setInteractiveAuthorized(true)}>
               <ShieldAlert className="size-3.5 text-warning" />

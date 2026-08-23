@@ -27,14 +27,12 @@ type HtmlArtifactBridgeMessage =
       value: number
     }
 
-/** True when the surface must use the hardened webview tier: the content itself needs the
- *  relaxed environment — scripts/embeds (`script`/`iframe`/`object`/`embed`, `on*`
- *  handlers, `javascript:` URLs), meta-refresh, external resource URLs, or external CSS
- *  `url()`s — regardless of fragment/document classification (the restricted-CSP frame
- *  would block external resources, breaking them). Only mount this surface after explicit
- *  user consent — opening the popup IS the consent — so such a fragment keeps working
- *  there too. Non-consented inline surfaces keep fragments script-less instead (see
- *  HtmlArtifactView's kind-gated inline tier). Fail-closed on content-parse errors. */
+/** True when the content needs the hardened webview tier: scripts/embeds (`script`/
+ *  `iframe`/`object`/`embed`, `on*` handlers, `javascript:` URLs), meta-refresh, external
+ *  resource URLs, or external CSS `url()`s — regardless of fragment/document
+ *  classification (the restricted-CSP frame would block external resources). A content
+ *  check only; the consent decision is the caller's `authorized` prop. Fail-closed on
+ *  content-parse errors. */
 export function htmlArtifactPreviewRequiresInteractive(html: string): boolean {
   return htmlArtifactRequiresUserConsent(html)
 }
@@ -284,9 +282,11 @@ export const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
  * - active content — fragment or document — renders in the hardened `<webview>`
  *   partition instead: scripts run, but without the preload bridge.
  *
- * Consent contract: this surface grants the interactive tier on its own, so only mount
- * it after an explicit user action — opening the popup IS the consent. Non-consented
- * inline surfaces must keep fragments script-less (HtmlArtifactView's kind-gated tier).
+ * Consent contract: the interactive tier activates only when `authorized` is true —
+ * never by mounting. Pass it true solely as the result of a semantically explicit user
+ * action (the card popup's "run interactive preview" button, the maximize outlet's
+ * documented open-interactive behavior); unauthorized callers get the script-less
+ * fallback. Mount location alone carries no authority.
  */
 export const HtmlArtifactPreviewSurface = memo(function HtmlArtifactPreviewSurface({
   html,
