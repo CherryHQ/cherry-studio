@@ -30,6 +30,14 @@ vi.mock('../ContextManagementSettings', () => ({
   )
 }))
 
+vi.mock('../../MemorySettings/MemorySettings', () => ({
+  default: () => (
+    <section>
+      <h2>settings.memory.title</h2>
+    </section>
+  )
+}))
+
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: () => <hr />,
   SettingGroup: ({ children }: { children: ReactNode }) => <section>{children}</section>,
@@ -76,6 +84,7 @@ describe('GeneralSettings', () => {
       'settings.launch.title',
       'settings.proxy.mode.title',
       'settings.models.context_management.title',
+      'settings.memory.title',
       'settings.developer.title'
     ])
   })
