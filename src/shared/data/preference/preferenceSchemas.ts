@@ -419,6 +419,8 @@ export interface PreferenceSchemas {
     // redux/settings/readClipboardAtStartup
     'feature.quick_assistant.read_clipboard_at_startup': boolean
     // target-key-definitions/complex/complex
+    'feature.memory.enabled': boolean
+    // target-key-definitions/complex/complex
     'feature.screenshot.auto_ocr': boolean
     // target-key-definitions/complex/complex
     'feature.screenshot.enabled': boolean
@@ -751,6 +753,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.quick_assistant.enabled': false,
     'feature.quick_assistant.model_id': null,
     'feature.quick_assistant.read_clipboard_at_startup': true,
+    'feature.memory.enabled': false,
     'feature.screenshot.auto_ocr': true,
     'feature.screenshot.enabled': false,
     'feature.selection.action_items': [

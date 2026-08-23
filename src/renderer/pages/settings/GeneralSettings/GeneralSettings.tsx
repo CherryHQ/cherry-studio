@@ -21,6 +21,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
+import MemorySettings from '../MemorySettings/MemorySettings'
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
@@ -213,6 +214,8 @@ const GeneralSettings: FC = () => {
       </SettingGroup>
 
       <ContextManagementSettings />
+
+      <MemorySettings />
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>

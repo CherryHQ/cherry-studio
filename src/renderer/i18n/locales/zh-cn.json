@@ -5974,6 +5974,12 @@
       "updateSuccess": "服务器更新成功",
       "url": "URL"
     },
+    "memory": {
+      "description": "管理跨会话持久记忆的提取与召回。",
+      "enabled": "全局记忆",
+      "hint": "本功能仅对助手生效，Agent 请使用文件记忆（SOUL / USER / FACT / JOURNAL）。",
+      "title": "记忆"
+    },
     "menuGroups": {
       "automation": "效率",
       "capabilities": "工具",
