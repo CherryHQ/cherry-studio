@@ -144,7 +144,7 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..4e36fecc5c4a6afddf54a067db4ab5a9
    RefusalContentParam,
 +  ReasoningItemParam,
  } from './open-responses-api';
- 
+
  export async function convertToOpenResponsesInput({
 @@ -80,10 +81,20 @@ export async function convertToOpenResponsesInput({
          const assistantContent: Array<
@@ -152,7 +152,7 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..4e36fecc5c4a6afddf54a067db4ab5a9
          > = [];
 +        const reasoningItems: Array<ReasoningItemParam> = [];
          const toolCalls: Array<FunctionCallItemParam> = [];
- 
+
          for (const part of content) {
            switch (part.type) {
 +            case 'reasoning': {
@@ -170,7 +170,7 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..4e36fecc5c4a6afddf54a067db4ab5a9
 @@ -104,6 +115,10 @@ export async function convertToOpenResponsesInput({
            }
          }
- 
+
 +        for (const reasoningItem of reasoningItems) {
 +          input.push(reasoningItem);
 +        }
@@ -184,7 +184,7 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..eac6ff3712948c9652b93310a2cbb79c
 +++ b/src/responses/open-responses-language-model.ts
 @@ -338,6 +338,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
      };
- 
+
      let isActiveReasoning = false;
 +    let activeReasoningId: string | null = null;
      let hasToolCalls = false;
@@ -204,11 +204,11 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..eac6ff3712948c9652b93310a2cbb79c
                isActiveReasoning = false;
 +              activeReasoningId = null;
              }
- 
+
              // Text events
 @@ -501,8 +504,9 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
            },
- 
+
            flush(controller) {
 -            if (isActiveReasoning) {
 -              controller.enqueue({ type: 'reasoning-end', id: 'reasoning-0' });
@@ -216,5 +216,5 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..eac6ff3712948c9652b93310a2cbb79c
 +              // Upstream hardcodes 'reasoning-0'; the step assembler only knows the real id.
 +              controller.enqueue({ type: 'reasoning-end', id: activeReasoningId });
              }
- 
+
              controller.enqueue({

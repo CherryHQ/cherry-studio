@@ -4,204 +4,21 @@
  * Called from before-pack.js (and the dev script) to bundle binaries into resources/binaries/.
  *
  * Usage:
- *   node scripts/download-binaries.js [platform] [arch] [--packaging]
+ *   node scripts/download-binaries.js [platform] [arch]
  *   e.g. node scripts/download-binaries.js darwin arm64
- *
- * Without --packaging (dev), downloads go to a cache shared by every git worktree
- * of this repository and are hard-linked into resources/binaries/, so a second
- * worktree costs links instead of a fresh download. before-pack.js passes
- * --packaging to route new downloads straight into resources/; links a previous
- * dev run left there are up to date and stay, since packaging only reads them.
  */
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { Transform, Writable } = require('stream')
+const { pipeline } = require('stream/promises')
+const { constants, createZstdCompress } = require('zlib')
 const { execFileSync } = require('child_process')
+const tar = require('tar')
 
-const REPO_ROOT = path.join(__dirname, '..')
-const BINARIES_ROOT = path.join(REPO_ROOT, 'resources', 'binaries')
-
-// Staging lives under a per-checkout id, not a pid: the same worktree must find
-// its own partial download again to resume it, while two worktrees running
-// against the shared cache at once must never write the same path.
-const STAGING_PREFIX = '.staging-'
-// A tree being replaced is parked under this prefix for the moment between the
-// two renames. A crash there leaves one behind, so it shares the staging rule:
-// cache-internal, never mirrored, swept when a run finishes.
-const RETIRED_PREFIX = '.retired-'
-
-// Long enough that a worktree parked for a couple of weeks keeps its download,
-// short enough that abandoned versions do not pile up.
-const UNREFERENCED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000
-
-// What a developer loses when an optional tool fails to download.
-const IMPACT = {
-  bun: 'Dependencies presets and JS tooling',
-  uv: 'Python tooling and Dependencies presets',
-  rg: 'in-app search',
-  mingit: 'the bundled git fallback (system git still works)'
-}
-const STAGING_DIR = STAGING_PREFIX + crypto.createHash('sha256').update(REPO_ROOT).digest('hex').slice(0, 8)
-
-/**
- * Cache root shared by all worktrees: `<git-common-dir>/cherry-binaries`.
- * The common dir is the one .git that every worktree points back to — a
- * worktree's own gitdir is private to it and would defeat the sharing.
- * Returns null outside a git checkout (e.g. a source tarball), where the
- * caller falls back to downloading into resources/ directly.
- */
-function resolveSharedCacheRoot() {
-  try {
-    const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore']
-    }).trim()
-    if (!commonDir) return null
-    return path.join(path.resolve(REPO_ROOT, commonDir), 'cherry-binaries')
-  } catch (error) {
-    // Not a git checkout is legitimate (a source tarball); anything else — git
-    // missing, safe.directory refusal — silently disables sharing, so say so.
-    console.warn(`Shared binary cache unavailable, downloading into resources/: ${error.message}`)
-    return null
-  }
-}
-
-/** Link one file, falling back to a copy where hard links are unavailable. */
-function linkFile(src, dest, stats) {
-  const srcStat = fs.statSync(src)
-  const destStat = fs.statSync(dest, { throwIfNoEntry: false })
-  if (destStat) {
-    // ino is 0 on filesystems that do not report one; never treat that as a match.
-    if (srcStat.ino !== 0 && destStat.ino === srcStat.ino) return
-    // A copied bundle never matches inodes, so compare size+mtime too or every run
-    // re-copies ~200MB. getTime(), since utimesSync loses sub-ms precision.
-    if (destStat.size === srcStat.size && destStat.mtime.getTime() === srcStat.mtime.getTime()) return
-    fs.rmSync(dest, { recursive: true, force: true })
-  }
-  fs.mkdirSync(path.dirname(dest), { recursive: true })
-  try {
-    fs.linkSync(src, dest)
-    stats.linked += 1
-  } catch {
-    fs.copyFileSync(src, dest)
-    fs.utimesSync(dest, srcStat.atime, srcStat.mtime)
-    stats.copied += 1
-  }
-}
-
-/** Mirror a whole tree, dropping destination entries the source no longer has. */
-function linkTree(srcDir, destDir, stats) {
-  fs.mkdirSync(destDir, { recursive: true })
-  const entries = fs.readdirSync(srcDir, { withFileTypes: true })
-  const wanted = new Set(entries.map((entry) => entry.name))
-  for (const stale of fs.readdirSync(destDir)) {
-    if (!wanted.has(stale)) fs.rmSync(path.join(destDir, stale), { recursive: true, force: true })
-  }
-  for (const entry of entries) {
-    const src = path.join(srcDir, entry.name)
-    const dest = path.join(destDir, entry.name)
-    if (entry.isDirectory()) linkTree(src, dest, stats)
-    else linkFile(src, dest, stats)
-  }
-}
-
-/**
- * Assemble the bundle from the shared cache: hard-link each tool's cached
- * version into `bundleDir` and write its version marker. Only tools present in
- * the cache are touched, so a tool that failed to download leaves whatever the
- * bundle already had rather than losing it.
- */
-function materialize(tools, platformKey, cacheRoot, bundleDir) {
-  fs.mkdirSync(bundleDir, { recursive: true })
-  const stats = { linked: 0, copied: 0 }
-  for (const tool of tools) {
-    const pkg = tool.packages[platformKey]
-    if (!pkg) continue
-    const versionDir = cachedVersionDir(cacheRoot, platformKey, tool)
-    if (!fs.existsSync(versionDir)) continue
-
-    if (pkg.dir) linkTree(path.join(versionDir, pkg.dir), path.join(bundleDir, pkg.dir), stats)
-    else for (const binary of pkg.binaries) linkFile(path.join(versionDir, binary), path.join(bundleDir, binary), stats)
-
-    for (const binary of pkg.binaries) chmodExec(path.join(bundleDir, binary))
-    // Marker last: a reader seeing the new version finds every binary in place.
-    fs.writeFileSync(path.join(bundleDir, tool.versionFile), tool.version, 'utf8')
-  }
-  return stats
-}
-
-/** Where the shared cache keeps one immutable copy of one tool version. */
-function cachedVersionDir(cacheRoot, platformKey, tool) {
-  return path.join(cacheRoot, platformKey, tool.name, tool.version)
-}
-
-/**
- * Reclaim cached versions nothing uses. A cached file hard-linked into any
- * worktree has nlink > 1, so nlink === 1 across the whole version means no
- * worktree references it. The age check covers filesystems without hard links,
- * where a copied bundle leaves nlink at 1 and the count proves nothing.
- */
-function sweepUnreferencedVersions(cacheRoot, maxAgeMs) {
-  const cutoff = Date.now() - maxAgeMs
-  let reclaimed = 0
-  // Every platform, not just this run's: a tree built for another platform would
-  // otherwise sit here forever with nothing to visit it.
-  for (const platformKey of readdirOrEmpty(cacheRoot)) {
-    const platformDir = path.join(cacheRoot, platformKey)
-    if (!statOrNull(platformDir)?.isDirectory()) continue
-    for (const toolName of readdirOrEmpty(platformDir)) {
-      if (toolName.startsWith(STAGING_PREFIX) || toolName.startsWith(RETIRED_PREFIX)) continue
-      const toolDir = path.join(platformDir, toolName)
-      if (!statOrNull(toolDir)?.isDirectory()) continue
-      for (const version of readdirOrEmpty(toolDir)) {
-        const versionDir = path.join(toolDir, version)
-        const versionStat = statOrNull(versionDir)
-        if (!versionStat || versionStat.mtimeMs > cutoff) continue
-        if (hasReferencedFile(versionDir)) continue
-        fs.rmSync(versionDir, { recursive: true, force: true })
-        reclaimed += 1
-      }
-      rmdirIfEmpty(toolDir)
-    }
-    rmdirIfEmpty(platformDir)
-  }
-  return reclaimed
-}
-
-// A worktree sweeping the shared cache walks entries another worktree may delete
-// or repopulate under it, so every step of the walk treats gone as nothing to do.
-function statOrNull(target) {
-  return fs.statSync(target, { throwIfNoEntry: false }) ?? null
-}
-
-function readdirOrEmpty(dir, options) {
-  try {
-    return fs.readdirSync(dir, options)
-  } catch {
-    return []
-  }
-}
-
-function rmdirIfEmpty(dir) {
-  try {
-    if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir)
-  } catch {
-    // vanished, or a concurrent run's download landed in it between the two calls
-  }
-}
-
-function hasReferencedFile(dir) {
-  for (const entry of readdirOrEmpty(dir, { withFileTypes: true })) {
-    const target = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (hasReferencedFile(target)) return true
-    } else if ((statOrNull(target)?.nlink ?? 0) > 1) {
-      return true
-    }
-  }
-  return false
-}
+const MANIFEST_SCHEMA_VERSION = 2
+const MANIFEST_FILE = 'manifest.json'
+const ZSTD_LEVEL = 10
 
 // ── Tool definitions ─────────────────────────────────────────────────
 // Each tool declares: version, per-platform packages, and how to build
@@ -430,8 +247,8 @@ const TOOLS = [
     // Git for Windows MinGit — non-interactive, multi-file Git distribution.
     // Bundled as a fallback when the user has no system git (see
     // src/main/utils/bundledGit.ts). Windows-only: macOS/Linux use the system git. Unlike
-    // the single-binary tools above it ships its whole tree under <key>/git/,
-    // so it is run in place from resources rather than copied into cherry.bin.
+    // the single-binary tools above, its whole tree is archived and installed into a
+    // versioned Toolchain cache before use.
     name: 'mingit',
     version: MINGIT_VERSION,
     versionFile: '.mingit-version',
@@ -469,29 +286,280 @@ function chmodExec(filePath) {
   if (process.platform !== 'win32') fs.chmodSync(filePath, 0o755)
 }
 
+function hashingTransform(hash, onChunk) {
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      hash.update(chunk)
+      onChunk?.(chunk.length)
+      callback(null, chunk)
+    }
+  })
+}
+
+async function sha256File(filePath) {
+  const hash = crypto.createHash('sha256')
+  await pipeline(
+    fs.createReadStream(filePath),
+    new Writable({
+      write(chunk, _encoding, callback) {
+        hash.update(chunk)
+        callback()
+      }
+    })
+  )
+  return hash.digest('hex')
+}
+
+function createZstdStream() {
+  return createZstdCompress({
+    params: {
+      [constants.ZSTD_c_compressionLevel]: ZSTD_LEVEL,
+      [constants.ZSTD_c_checksumFlag]: 1,
+      [constants.ZSTD_c_contentSizeFlag]: 1
+    }
+  })
+}
+
+function writeRawArchive(sourcePath, archivePath) {
+  const rawHash = crypto.createHash('sha256')
+  const archiveHash = crypto.createHash('sha256')
+  const stat = fs.statSync(sourcePath)
+
+  if (path.resolve(sourcePath) === path.resolve(archivePath)) {
+    return sha256File(sourcePath).then((hash) => ({ archiveSha256: hash, sha256: hash, size: stat.size }))
+  }
+
+  const tmpPath = `${archivePath}.tmp-${process.pid}`
+  try {
+    const source = fs.createReadStream(sourcePath)
+    const destination = fs.createWriteStream(tmpPath)
+    return pipeline(source, hashingTransform(rawHash), hashingTransform(archiveHash), destination)
+      .then(() => {
+        fs.rmSync(archivePath, { force: true })
+        fs.renameSync(tmpPath, archivePath)
+        return {
+          archiveSha256: archiveHash.digest('hex'),
+          sha256: rawHash.digest('hex'),
+          size: stat.size
+        }
+      })
+      .finally(() => fs.rmSync(tmpPath, { force: true }))
+  } catch (error) {
+    fs.rmSync(tmpPath, { force: true })
+    throw error
+  }
+}
+
+async function writeZstdArchive(source, archivePath) {
+  const tmpPath = `${archivePath}.tmp-${process.pid}`
+  const rawHash = crypto.createHash('sha256')
+  const archiveHash = crypto.createHash('sha256')
+  let rawSize = 0
+  try {
+    await pipeline(
+      source,
+      hashingTransform(rawHash, (size) => {
+        rawSize += size
+      }),
+      createZstdStream(),
+      hashingTransform(archiveHash),
+      fs.createWriteStream(tmpPath)
+    )
+    fs.rmSync(archivePath, { force: true })
+    fs.renameSync(tmpPath, archivePath)
+    return {
+      archiveSha256: archiveHash.digest('hex'),
+      sha256: rawHash.digest('hex'),
+      size: rawSize
+    }
+  } finally {
+    fs.rmSync(tmpPath, { force: true })
+  }
+}
+
+async function bundleFilesArtifact({ version, files, outputDir }) {
+  const bundledFiles = []
+  for (const file of files) {
+    const compression = file.compression || 'zstd'
+    const archive = file.archive || (compression === 'none' ? file.output : `${path.basename(file.output)}.zst`)
+    const archivePath = path.join(outputDir, archive)
+    const metadata =
+      compression === 'none'
+        ? await writeRawArchive(file.source, archivePath)
+        : await writeZstdArchive(fs.createReadStream(file.source), archivePath)
+    bundledFiles.push({
+      output: file.output,
+      archive,
+      compression,
+      ...metadata,
+      mode: file.mode ?? 0o755
+    })
+  }
+  return { kind: 'files', version, files: bundledFiles }
+}
+
+function listTarEntries(rootDir, stripRoot = false) {
+  const parent = stripRoot ? rootDir : path.dirname(rootDir)
+  const entries = []
+
+  function visit(absolutePath) {
+    const relativePath = path.relative(parent, absolutePath).split(path.sep).join('/')
+    entries.push(relativePath)
+    if (!fs.statSync(absolutePath).isDirectory()) return
+    for (const entry of fs.readdirSync(absolutePath).sort()) {
+      visit(path.join(absolutePath, entry))
+    }
+  }
+
+  if (stripRoot) {
+    for (const entry of fs.readdirSync(rootDir).sort()) visit(path.join(rootDir, entry))
+  } else {
+    visit(rootDir)
+  }
+  return entries
+}
+
+async function listTreeFiles(rootDir, stripRoot = false) {
+  const parent = stripRoot ? rootDir : path.dirname(rootDir)
+  const files = []
+
+  async function visit(absolutePath) {
+    const stat = fs.lstatSync(absolutePath)
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(absolutePath).sort()) {
+        await visit(path.join(absolutePath, entry))
+      }
+      return
+    }
+    if (!stat.isFile()) throw new Error(`Unsupported bundled tree entry: ${absolutePath}`)
+    files.push({
+      path: path.relative(parent, absolutePath).split(path.sep).join('/'),
+      sha256: await sha256File(absolutePath),
+      size: stat.size,
+      mode: stat.mode & 0o777
+    })
+  }
+
+  if (stripRoot) {
+    for (const entry of fs.readdirSync(rootDir).sort()) await visit(path.join(rootDir, entry))
+  } else {
+    await visit(rootDir)
+  }
+  return files
+}
+
+async function bundleTreeArtifact({ version, rootDir, archive, entrypoints, outputDir, stripRoot = false }) {
+  const archivePath = path.join(outputDir, archive)
+  const files = await listTreeFiles(rootDir, stripRoot)
+  const source = tar.c(
+    {
+      cwd: stripRoot ? rootDir : path.dirname(rootDir),
+      noDirRecurse: true,
+      noMtime: true,
+      portable: true
+    },
+    listTarEntries(rootDir, stripRoot)
+  )
+  const metadata = await writeZstdArchive(source, archivePath)
+  return { kind: 'tree', version, compression: 'zstd', archive, ...metadata, entrypoints, files }
+}
+
+function emptyManifest(platform, arch) {
+  return { schemaVersion: MANIFEST_SCHEMA_VERSION, platform, arch, artifacts: {} }
+}
+
+function readManifest(outputDir, platform, arch) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(outputDir, MANIFEST_FILE), 'utf8'))
+    if (
+      manifest.schemaVersion === MANIFEST_SCHEMA_VERSION &&
+      manifest.platform === platform &&
+      manifest.arch === arch &&
+      manifest.artifacts &&
+      typeof manifest.artifacts === 'object'
+    ) {
+      return manifest
+    }
+  } catch {
+    // Missing or stale manifests are rebuilt from the pinned tool definitions.
+  }
+  return emptyManifest(platform, arch)
+}
+
+function writeManifest(outputDir, manifest) {
+  const manifestPath = path.join(outputDir, MANIFEST_FILE)
+  const tmpPath = `${manifestPath}.tmp-${process.pid}`
+  try {
+    fs.writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+    fs.rmSync(manifestPath, { force: true })
+    fs.renameSync(tmpPath, manifestPath)
+  } finally {
+    fs.rmSync(tmpPath, { force: true })
+  }
+}
+
+function artifactArchiveEntries(artifact) {
+  if (!artifact) return []
+  return artifact.kind === 'files'
+    ? artifact.files.map((file) => ({ archive: file.archive, sha256: file.archiveSha256 }))
+    : [{ archive: artifact.archive, sha256: artifact.archiveSha256 }]
+}
+
+function singleFileCompression() {
+  // The outer installer/package already compresses single-file native payloads.
+  return 'none'
+}
+
+function removeSupersededArchives(outputDir, previousArtifact, nextArtifact) {
+  const nextArchives = new Set(artifactArchiveEntries(nextArtifact).map(({ archive }) => archive))
+  for (const { archive } of artifactArchiveEntries(previousArtifact)) {
+    if (!nextArchives.has(archive)) fs.rmSync(path.join(outputDir, archive), { force: true })
+  }
+}
+
+function isBundledArtifactCurrent(tool, pkg, artifact, outputDir, platform) {
+  if (!artifact || artifact.version !== tool.version) return false
+  if (pkg.archive === 'zip-tree') {
+    return (
+      artifact.kind === 'tree' &&
+      artifact.compression === 'zstd' &&
+      artifact.entrypoints?.length === pkg.binaries.length &&
+      artifact.entrypoints.every((entrypoint) => pkg.binaries.includes(entrypoint)) &&
+      Array.isArray(artifact.files) &&
+      artifact.files.length > 0 &&
+      artifact.entrypoints.every((entrypoint) => artifact.files.some((file) => file.path === entrypoint)) &&
+      fs.existsSync(path.join(outputDir, artifact.archive))
+    )
+  }
+  if (artifact.kind !== 'files' || artifact.files.length !== pkg.binaries.length) return false
+  return pkg.binaries.every((binary) => {
+    const file = artifact.files.find((candidate) => candidate.output === binary)
+    const expectedCompression = platform ? singleFileCompression(platform) : file?.compression || 'zstd'
+    return file && file.compression === expectedCompression && fs.existsSync(path.join(outputDir, file.archive))
+  })
+}
+
+function removeRawToolFiles(pkg, outputDir) {
+  if (pkg.archive === 'zip-tree') {
+    fs.rmSync(path.join(outputDir, pkg.dir), { recursive: true, force: true })
+  } else {
+    for (const binary of pkg.binaries) fs.rmSync(path.join(outputDir, binary), { force: true })
+  }
+}
+
+function removeIntermediateToolFiles(pkg, outputDir, compression) {
+  if (pkg.archive === 'zip-tree' || compression === 'zstd') removeRawToolFiles(pkg, outputDir)
+}
+
 function isUpToDate(binaryPaths, versionPath, expectedVersion) {
-  if (binaryPaths.some((binaryPath) => !fs.existsSync(binaryPath))) return false
-  // No marker path means the directory itself is version-scoped.
-  if (!versionPath) return true
   if (!fs.existsSync(versionPath)) return false
+  if (binaryPaths.some((binaryPath) => !fs.existsSync(binaryPath))) return false
   return fs.readFileSync(versionPath, 'utf8').trim() === expectedVersion
 }
 
 function download(url, dest) {
   console.log(`  Downloading: ${url}`)
-  try {
-    // -C - resumes a partial file, so an interrupted transfer over a slow link
-    // does not restart from zero. `dest` is always version-scoped, so a resume
-    // can only ever continue the same asset.
-    execFileSync('curl', ['-fSL', '-C', '-', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
-  } catch (error) {
-    // 33 = the server refused the resume, which a plain download fixes. Anything
-    // else (a dropped connection above all) must propagate with the partial
-    // intact. Bad resumed bytes are caught by verifyHash, which deletes them.
-    if (error.status !== 33) throw error
-    fs.rmSync(dest, { force: true })
-    execFileSync('curl', ['-fSL', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
-  }
+  execFileSync('curl', ['-fSL', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
 }
 
 function extract(archivePath, archive, outputDir, pkg) {
@@ -549,198 +617,113 @@ function extract(archivePath, archive, outputDir, pkg) {
   }
 }
 
-/**
- * Fetch one tool into `outputDir`, which holds exactly this version: the shared
- * cache gives each version its own directory, and a packaging run writes the
- * bundle it is building. `versionFile` publishes a marker alongside the
- * binaries, which the flat bundle needs to tell versions apart and the cache
- * does not, since its directory name already carries the version.
- */
-function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {}) {
+async function downloadTool(tool, platformKey, outputDir, previousArtifact) {
   const pkg = tool.packages[platformKey]
   if (!pkg) {
     if (tool.required) {
       throw new Error(`[${tool.name}] No binary for "${platformKey}". Add an entry to packages.`)
     }
     console.log(`[${tool.name}] No binary for "${platformKey}", skipping`)
-    return
+    return null
   }
 
-  // Before the up-to-date check: debris from a run that died mid-commit lives
-  // here, and a later cache hit would otherwise skip past it forever.
-  sweepRetired(outputDir)
+  const platform = platformKey.split('-')[0]
+  const compression = pkg.archive === 'zip-tree' ? 'zstd' : singleFileCompression(platform)
+
+  if (isBundledArtifactCurrent(tool, pkg, previousArtifact, outputDir, platform)) {
+    const archivesMatch = await artifactArchivesMatch(previousArtifact, outputDir)
+    if (archivesMatch) {
+      removeIntermediateToolFiles(pkg, outputDir, compression)
+      fs.rmSync(path.join(outputDir, tool.versionFile), { force: true })
+      console.log(`[${tool.name}] ${tool.version} bundled payload already exists`)
+      return previousArtifact
+    }
+    console.warn(`[${tool.name}] Cached compressed payload failed checksum verification; rebuilding`)
+  }
 
   const binaryPaths = pkg.binaries.map((binary) => path.join(outputDir, binary))
-  const versionPath = versionFile ? path.join(outputDir, versionFile) : null
+  const primaryDest = binaryPaths[0]
+  const versionPath = path.join(outputDir, tool.versionFile)
 
-  if (isUpToDate(binaryPaths, versionPath, tool.version)) {
+  const rawFilesAreCurrent = isUpToDate(binaryPaths, versionPath, tool.version)
+  if (rawFilesAreCurrent) {
     for (const binaryPath of binaryPaths) chmodExec(binaryPath)
-    // A partial download of a version already installed has nothing left to
-    // resume, and a cache hit is the one path that would otherwise never clear
-    // it — leaving verifyBundledBinaries to reject the bundle on every run.
-    discardStaging(outputDir, tool.name)
     console.log(`[${tool.name}] ${tool.version} already installed`)
-    return
+    // The raw files are an intermediate cache only. They are compressed below.
   }
 
-  fs.mkdirSync(outputDir, { recursive: true })
-  // Staging keeps a partial download off the published paths, and keys it by
-  // checkout so a rerun resumes its own transfer instead of another worktree's.
-  const staging = path.join(outputDir, STAGING_DIR, tool.name)
-  fs.mkdirSync(staging, { recursive: true })
-
-  if (pkg.archive === 'none') {
-    const staged = path.join(staging, `${pkg.binaries[0]}.${tool.version}.part`)
-    download(pkg.url, staged)
-    verifyHash(staged, pkg.sha256)
-    fs.renameSync(staged, path.join(staging, pkg.binaries[0]))
-  } else {
-    const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
-    const archivePath = path.join(staging, `${tool.name}-${tool.version}.${ext}`)
-    download(pkg.url, archivePath)
-    verifyHash(archivePath, pkg.sha256)
-    extract(archivePath, pkg.archive, staging, pkg)
-    fs.unlinkSync(archivePath)
-  }
-
-  commitStaged(staging, outputDir, pkg)
-  for (const binaryPath of binaryPaths) chmodExec(binaryPath)
-
-  if (versionPath) {
-    // Rename, never write in place: an in-place write keeps the marker's inode
-    // and would push the new version through any hard link to it. Last, so a
-    // reader seeing the new version finds every binary already committed.
-    const stagedMarker = path.join(staging, path.basename(versionPath))
-    fs.writeFileSync(stagedMarker, tool.version, 'utf8')
-    fs.renameSync(stagedMarker, versionPath)
-  }
-
-  // Only on success: an interrupted run keeps its partial file to resume from.
-  discardStaging(outputDir, tool.name)
-  console.log(`[${tool.name}] Installed ${pkg.binaries.join(', ')} ${tool.version}`)
-}
-
-/** Drop this checkout's staging for one tool, and the parent once it is empty. */
-function discardStaging(outputDir, toolName) {
-  fs.rmSync(path.join(outputDir, STAGING_DIR, toolName), { recursive: true, force: true })
-  rmdirIfEmpty(path.join(outputDir, STAGING_DIR))
-}
-
-/**
- * Move verified staging results into place with rename, so nothing reads a
- * half-written file. Atomicity is per file, not per tool: a multi-file tool
- * commits as a sequence of renames, and zip-tree has a gap between retiring the
- * old tree and moving the new one in, both observable to a concurrent run.
- * Since the cache keys each version separately, such a run publishes the same
- * bytes, so the outcome converges. zip-tree retires rather than merges, so a
- * shrinking release leaves no orphans.
- */
-function commitStaged(staging, outputDir, pkg) {
-  if (pkg.dir) {
-    const finalDir = path.join(outputDir, pkg.dir)
-    const retired = path.join(outputDir, `${RETIRED_PREFIX}${process.pid}-${pkg.dir}`)
-    const hadPrevious = fs.existsSync(finalDir)
-    if (hadPrevious) fs.renameSync(finalDir, retired)
-    try {
-      fs.renameSync(path.join(staging, pkg.dir), finalDir)
-    } catch (error) {
-      // finalDir was moved aside, so anything there now came from a concurrent
-      // run publishing the same version — take it. Without that move, the same
-      // error means the retire step failed and the old tree is still live.
-      const publishedByPeer = (error.code === 'ENOTEMPTY' || error.code === 'EEXIST') && hadPrevious
-      if (!publishedByPeer) {
-        if (hadPrevious && !fs.existsSync(finalDir)) fs.renameSync(retired, finalDir)
-        throw error
-      }
+  if (!rawFilesAreCurrent) {
+    if (pkg.archive === 'none') {
+      download(pkg.url, primaryDest)
+      verifyHash(primaryDest, pkg.sha256)
+    } else {
+      const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
+      const archivePath = path.join(outputDir, `${tool.name}.${ext}`)
+      download(pkg.url, archivePath)
+      verifyHash(archivePath, pkg.sha256)
+      extract(archivePath, pkg.archive, outputDir, pkg)
+      fs.unlinkSync(archivePath)
     }
-    fs.rmSync(retired, { recursive: true, force: true })
-    return
+
+    for (const b of pkg.binaries) chmodExec(path.join(outputDir, b))
+    fs.writeFileSync(versionPath, tool.version, 'utf8')
   }
-  for (const binary of pkg.binaries) {
-    fs.renameSync(path.join(staging, binary), path.join(outputDir, binary))
-  }
+
+  const artifact =
+    pkg.archive === 'zip-tree'
+      ? await bundleTreeArtifact({
+          version: tool.version,
+          rootDir: path.join(outputDir, pkg.dir),
+          archive: `${tool.name}.tar.zst`,
+          entrypoints: pkg.binaries,
+          outputDir
+        })
+      : await bundleFilesArtifact({
+          version: tool.version,
+          files: pkg.binaries.map((binary) => ({
+            source: path.join(outputDir, binary),
+            output: binary,
+            archive: compression === 'none' ? binary : `${binary}.zst`,
+            compression
+          })),
+          outputDir
+        })
+
+  removeIntermediateToolFiles(pkg, outputDir, compression)
+  fs.rmSync(versionPath, { force: true })
+  removeSupersededArchives(outputDir, previousArtifact, artifact)
+  console.log(`[${tool.name}] Bundled ${pkg.binaries.join(', ')} ${tool.version} (${compression})`)
+  return artifact
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
 
-function main() {
-  const argv = process.argv.slice(2)
-  const positional = argv.filter((arg) => !arg.startsWith('--'))
-  const packaging = argv.includes('--packaging')
-  const platform = positional[0] || process.platform
-  const arch = positional[1] || process.arch
+async function main() {
+  const platform = process.argv[2] || process.platform
+  const arch = process.argv[3] || process.arch
   const platformKey = `${platform}-${arch}`
 
   console.log(`Downloading binaries for ${platformKey}...`)
 
-  const bundleDir = path.join(BINARIES_ROOT, platformKey)
-  const cacheRoot = packaging ? null : resolveSharedCacheRoot()
-  const failed = []
+  const outputDir = path.join(__dirname, '..', 'resources', 'binaries', platformKey)
+  fs.mkdirSync(outputDir, { recursive: true })
+  const previousManifest = readManifest(outputDir, platform, arch)
+  const manifest = emptyManifest(platform, arch)
 
   for (const tool of TOOLS) {
-    const outputDir = cacheRoot ? cachedVersionDir(cacheRoot, platformKey, tool) : bundleDir
     try {
-      downloadTool(tool, platformKey, outputDir, { versionFile: cacheRoot ? null : tool.versionFile })
-      if (cacheRoot && tool.packages[platformKey]) touch(outputDir)
+      const artifact = await downloadTool(tool, platformKey, outputDir, previousManifest.artifacts[tool.name])
+      if (artifact) manifest.artifacts[tool.name] = artifact
     } catch (error) {
-      if (tool.required) throw error
-      failed.push({ name: tool.name, message: error.message })
+      if (tool.required) {
+        throw error
+      }
+      console.warn(`[${tool.name}] Download failed (non-fatal): ${error.message}`)
     }
   }
 
-  const downloadDir = cacheRoot ? path.join(cacheRoot, platformKey) : bundleDir
-
-  if (!cacheRoot) {
-    report(failed, `All binaries downloaded to ${bundleDir}`)
-    return
-  }
-
-  const stats = materialize(TOOLS, platformKey, cacheRoot, bundleDir)
-  let reclaimed = 0
-  try {
-    reclaimed = sweepUnreferencedVersions(cacheRoot, UNREFERENCED_CACHE_TTL_MS)
-  } catch (error) {
-    // The bundle is already assembled; reclaiming disk must never be what turns
-    // a finished run into a failed one.
-    console.warn(`Cache reclaim skipped: ${error.message}`)
-  }
-
-  const how =
-    stats.copied > 0 ? `${stats.linked} linked, ${stats.copied} copied (hard links unavailable)` : 'hard-linked'
-  report(failed, `Bundle ${how} from ${downloadDir}${reclaimed ? `, reclaimed ${reclaimed} unused version(s)` : ''}`)
-}
-
-/** Retired trees exist only between two renames; anything left is debris. */
-function sweepRetired(dir) {
-  if (!fs.existsSync(dir)) return
-  for (const entry of fs.readdirSync(dir)) {
-    if (entry.startsWith(RETIRED_PREFIX)) fs.rmSync(path.join(dir, entry), { recursive: true, force: true })
-  }
-}
-
-function touch(dir) {
-  const now = new Date()
-  try {
-    fs.utimesSync(dir, now, now)
-  } catch {
-    // a read-only cache still works, it just cannot be aged out
-  }
-}
-
-/**
- * A failed optional tool leaves the app without that CLI, so it gets a block of
- * its own rather than one warn line buried in curl progress output.
- */
-function report(failed, summary) {
-  console.log(summary)
-  if (failed.length === 0) return
-  console.warn(`\n${'='.repeat(60)}`)
-  for (const { name, message } of failed) {
-    console.warn(`  ${name} FAILED — ${IMPACT[name] ?? 'this tool is unavailable'}`)
-    console.warn(`    ${message}`)
-  }
-  console.warn(`  Retry with: pnpm download:binaries`)
-  console.warn(`${'='.repeat(60)}\n`)
+  writeManifest(outputDir, manifest)
+  console.log(`All binaries downloaded to ${outputDir}`)
 }
 
 /**
@@ -750,71 +733,92 @@ function report(failed, summary) {
  * outage during download would otherwise produce a working build with no rg
  * (search breaks) and no error. Call this from before-pack.js after main().
  */
-function verifyBundledBinaries(platform, arch, options = {}) {
+async function verifyBundledArtifacts(platform, arch, options = {}) {
   // `tools` / `resourcesDir` injectable for tests; production callers pass none.
-  const { tools = TOOLS, resourcesDir = BINARIES_ROOT } = options
+  const {
+    tools = TOOLS,
+    resourcesDir = path.join(__dirname, '..', 'resources', 'binaries'),
+    requiredArtifactNames = []
+  } = options
   const platformKey = `${platform}-${arch}`
   const outputDir = path.join(resourcesDir, platformKey)
-  const problems = []
+  const manifest = readManifest(outputDir, platform, arch)
+  const missing = []
 
   for (const tool of tools) {
     const pkg = tool.packages[platformKey]
     if (!pkg) {
       // isWindowsOnly tools (MinGit) legitimately have no package on macOS/Linux.
-      if (!tool.isWindowsOnly) problems.push(`${tool.name} (no package for ${platformKey})`)
+      if (!tool.isWindowsOnly) missing.push(`${tool.name} (no package for ${platformKey})`)
       continue
     }
-    for (const binary of pkg.binaries) {
-      if (!fs.existsSync(path.join(outputDir, binary))) problems.push(path.join(platformKey, binary))
+    const artifact = manifest.artifacts[tool.name]
+    if (!isBundledArtifactCurrent(tool, pkg, artifact, outputDir, platform)) {
+      missing.push(`${tool.name} (missing or stale compressed payload for ${platformKey})`)
+      continue
     }
-    // BinaryManager refuses to extract a tool whose marker is missing, so a
-    // bundle without one ships a dead toolchain and no error until runtime.
-    const markerPath = path.join(outputDir, tool.versionFile)
-    if (!fs.existsSync(markerPath)) {
-      problems.push(`${path.join(platformKey, tool.versionFile)} (missing; the app would never extract ${tool.name})`)
-    } else {
-      const marked = fs.readFileSync(markerPath, 'utf8').trim()
-      if (marked !== tool.version) {
-        problems.push(`${path.join(platformKey, tool.versionFile)} says ${marked}, expected ${tool.version}`)
+    for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
+      const archivePath = path.join(outputDir, archive)
+      if (!sha256 || (await sha256File(archivePath)) !== sha256) {
+        missing.push(`${path.join(platformKey, archive)} (checksum mismatch)`)
+      }
+    }
+    if (pkg.archive === 'zip-tree') {
+      if (fs.existsSync(path.join(outputDir, pkg.dir))) missing.push(`${tool.name} (raw tree still present)`)
+    } else if (pkg.binaries.some((binary) => fs.existsSync(path.join(outputDir, `${binary}.zst`)))) {
+      missing.push(`${tool.name} (compressed single-file payload still present)`)
+    }
+  }
+
+  for (const artifactName of requiredArtifactNames) {
+    const artifact = manifest.artifacts[artifactName]
+    if (
+      !artifact ||
+      artifactArchiveEntries(artifact).some(({ archive }) => !fs.existsSync(path.join(outputDir, archive)))
+    ) {
+      missing.push(`${artifactName} (missing compressed payload for ${platformKey})`)
+      continue
+    }
+    for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
+      if (!sha256 || (await sha256File(path.join(outputDir, archive))) !== sha256) {
+        missing.push(`${path.join(platformKey, archive)} (checksum mismatch)`)
       }
     }
   }
 
-  // electron-builder packs resources/ wholesale, so an interrupted download
-  // would otherwise ship its partial archives inside the app.
-  if (fs.existsSync(outputDir)) {
-    for (const entry of fs.readdirSync(outputDir)) {
-      if (entry.startsWith(STAGING_PREFIX) || entry.startsWith(RETIRED_PREFIX)) {
-        problems.push(`${path.join(platformKey, entry)} (download debris that would be packaged)`)
-      }
-    }
+  if (missing.length > 0) {
+    throw new Error(`Bundled binaries missing after download for ${platformKey}:\n  ${missing.join('\n  ')}`)
   }
+  console.log(`Verified all bundled compressed artifacts for ${platformKey}`)
+}
 
-  if (problems.length > 0) {
-    throw new Error(`Bundled binaries are not shippable for ${platformKey}:\n  ${problems.join('\n  ')}`)
+async function artifactArchivesMatch(artifact, outputDir) {
+  for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
+    if (!sha256 || (await sha256File(path.join(outputDir, archive))) !== sha256) return false
   }
-  console.log(`Verified all bundled binaries exist for ${platformKey}`)
+  return true
 }
 
 module.exports = {
-  cachedVersionDir,
-  download,
-  downloadTool,
+  artifactArchiveEntries,
+  bundleFilesArtifact,
+  bundleTreeArtifact,
   extract,
-  materialize,
-  sweepUnreferencedVersions,
-  verifyBundledBinaries,
+  readManifest,
+  sha256File,
+  verifyBundledArtifacts,
+  writeManifest,
+  singleFileCompression,
+  MANIFEST_SCHEMA_VERSION,
   TOOLS
 }
 
 // Only auto-download when run directly (node scripts/download-binaries.js ...).
-// before-pack.js requires this module for verifyBundledBinaries without
+// before-pack.js requires this module for verifyBundledArtifacts without
 // triggering a download for the build host's platform.
 if (require.main === module) {
-  try {
-    main()
-  } catch (error) {
+  main().catch((error) => {
     console.error('Failed to download binaries:', error.message)
     process.exit(1)
-  }
+  })
 }

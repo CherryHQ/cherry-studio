@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   appGet: vi.fn(),
   createFileTx: vi.fn(),
-  getBinaryPath: vi.fn(),
   isInChina: vi.fn(),
   modelGetByKey: vi.fn(),
   notifyDataApiDataChange: vi.fn(),
@@ -38,7 +37,6 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notif
 vi.mock('@data/services/TranslateHistoryService', () => ({
   translateHistoryService: { createFileTx: mocks.createFileTx }
 }))
-vi.mock('@main/utils/binaryResolver', () => ({ getBinaryPath: mocks.getBinaryPath }))
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: mocks.isInChina } }))
 vi.mock('@main/utils/processRunner', () => ({
   crossPlatformSpawn: mocks.spawn,
@@ -67,7 +65,7 @@ const HISTORY_ID = '019606a0-0000-7000-8000-000000000003'
 /** Where `getPhysicalPath` puts an internal entry — `{userData}/Data/Files/{id}.{ext}` in production. */
 const managedPath = (id: string) => path.join(TEST_ROOT, 'files', `${id}.pdf`)
 
-const binaryManager = { getToolSnapshots: vi.fn() }
+const binaryManager = { getToolSnapshots: vi.fn(), resolveBinaryPath: vi.fn() }
 const apiGateway = {
   acquireLease: vi.fn(),
   ensureValidApiKey: vi.fn(),
@@ -127,7 +125,7 @@ describe('PdfTranslationService', () => {
     fileManager.permanentDelete.mockResolvedValue(undefined)
     dbService.withWriteTx.mockImplementation((fn: (handle: unknown) => unknown) => fn(tx))
     mocks.createFileTx.mockReturnValue({ id: HISTORY_ID })
-    mocks.getBinaryPath.mockResolvedValue(MANAGED_BINARY)
+    binaryManager.resolveBinaryPath.mockResolvedValue(MANAGED_BINARY)
     mocks.isInChina.mockResolvedValue(false)
     mocks.modelGetByKey.mockReturnValue({
       id: 'openai::gpt-4.1-internal',
@@ -560,7 +558,7 @@ describe('PdfTranslationService', () => {
       code: translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
     })
 
-    expect(mocks.getBinaryPath).not.toHaveBeenCalled()
+    expect(binaryManager.resolveBinaryPath).not.toHaveBeenCalled()
     expect(mocks.spawn).not.toHaveBeenCalled()
   })
 

@@ -1,7 +1,7 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import os from 'os'
@@ -623,7 +623,9 @@ export interface RipgrepResult {
 }
 
 export async function getRipgrepBinaryPath(): Promise<string> {
-  return getBinaryPath('rg')
+  const binaryPath = await application.get('BinaryManager').resolveBinaryPath('rg')
+  if (!binaryPath) throw new Error('Ripgrep binary not available')
+  return binaryPath
 }
 
 export async function runRipgrep(args: string[]): Promise<RipgrepResult> {

@@ -57,6 +57,7 @@ import {
 } from './DshCherryToolBridge'
 import { DshSubagentCoordinator, type DshSubagentSink } from './dshChildFlow'
 import { captureDshConnectionSnapshot, DshInvalidConnectionSnapshotError } from './dshConnectionSignature'
+import { ensureDshRuntime } from './dshRuntime'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
@@ -218,6 +219,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+    const runtimeRoot = await ensureDshRuntime()
     await warmDshMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const snapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
@@ -304,7 +306,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       permissionMode: this.permissionMode,
       persona,
       customBase: prompt.base.kind === 'custom',
-      skillDirs: snapshot.additionalSkillPaths
+      skillDirs: snapshot.additionalSkillPaths,
+      runtimeRoot
     })
     this.compositionPath = path.join(dshRoot, 'compositions', `${this.input.sessionId}.${this.generation}.yml`)
     await mkdir(path.dirname(this.compositionPath), { recursive: true })
@@ -342,16 +345,17 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
-        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
+        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge),
+        runtimeRoot
       })
       await this.bridge.listen()
 
-      const sdk = await loadDshSdk()
+      const sdk = await loadDshSdk(runtimeRoot)
       // Complete replacement env — deliberate credential scope: the child sees
       // only the routed API key and the bridge socket, never Cherry's own env.
       const client = new sdk.HarnessClient({
         command: process.execPath,
-        args: [resolveDshRuntimeBinPath(), this.compositionPath],
+        args: [resolveDshRuntimeBinPath(runtimeRoot), this.compositionPath],
         cwd: workspacePath,
         env: {
           ...(process.env.PATH !== undefined ? { PATH: process.env.PATH } : {}),

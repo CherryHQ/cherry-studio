@@ -97,7 +97,7 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..2e4f1a303666d5dde57f7eee1aed7bd9
 +  reasoningEncryptedContent: import_v420.z.string().nullish(),
 +  rawReasoningContent: import_v420.z.boolean().nullish()
  });
- 
+
  // src/responses/map-openai-responses-finish-reason.ts
 @@ -3778,6 +3798,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
          summary_index: import_v421.z.number(),
@@ -237,7 +237,7 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0f9e7c9d4055f92619e7389799bc227c
 +  reasoningEncryptedContent: z20.string().nullish(),
 +  rawReasoningContent: z20.boolean().nullish()
  });
- 
+
  // src/responses/map-openai-responses-finish-reason.ts
 @@ -3855,6 +3875,11 @@ var openaiResponsesChunkSchema = lazySchema19(
          summary_index: z21.number(),
@@ -377,7 +377,7 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..fb4082853ddb20ce66c7ae7e5b2581e4
 +  reasoningEncryptedContent: import_v416.z.string().nullish(),
 +  rawReasoningContent: import_v416.z.boolean().nullish()
  });
- 
+
  // src/responses/map-openai-responses-finish-reason.ts
 @@ -3720,6 +3740,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
          summary_index: import_v417.z.number(),
@@ -517,7 +517,7 @@ index db50beda01459008c836cd5648e024340fe31e90..8944669a00acc033bbd2c2faa04c04a2
 +  reasoningEncryptedContent: z16.string().nullish(),
 +  rawReasoningContent: z16.boolean().nullish()
  });
- 
+
  // src/responses/map-openai-responses-finish-reason.ts
 @@ -3746,6 +3766,11 @@ var openaiResponsesChunkSchema = lazySchema15(
          summary_index: z17.number(),
@@ -563,7 +563,7 @@ index 96077d47c9e104143430d261e040b9ae89340940..31417bad69cc06d5213be0b17b3ef08a
 --- a/src/chat/openai-chat-language-model.ts
 +++ b/src/chat/openai-chat-language-model.ts
 @@ -180,7 +180,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
- 
+
      // remove unsupported settings for reasoning models
      // see https://platform.openai.com/docs/guides/reasoning#limitations
 -    if (isReasoningModel) {
@@ -591,7 +591,7 @@ index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb
 +++ b/src/image/openai-image-model.ts
 @@ -116,7 +116,11 @@ export class OpenAIImageModel implements ImageModelV3 {
        });
- 
+
        return {
 -        images: response.data.map(item => item.b64_json),
 +        images: response.data.flatMap(item => {
@@ -604,7 +604,7 @@ index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb
            response.usage != null
 @@ -178,7 +182,11 @@ export class OpenAIImageModel implements ImageModelV3 {
      });
- 
+
      return {
 -      images: response.data.map(item => item.b64_json),
 +      images: response.data.flatMap(item => {
@@ -621,7 +621,7 @@ index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d
 +++ b/src/responses/convert-to-openai-responses-input.ts
 @@ -191,9 +191,14 @@ export async function convertToOpenAIResponsesInput({
                }
- 
+
                input.push({
 +                // Ark rejects assistant input items that omit either field (#18253);
 +                // both are the canonical Responses shape OpenAI accepts. Only the
@@ -633,7 +633,7 @@ index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d
 +                status: 'completed',
                  ...(phase != null && { phase }),
                });
- 
+
 @@ -538,6 +543,17 @@ export async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts,
@@ -658,7 +658,7 @@ index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d
    reasoningEncryptedContent: z.string().nullish(),
 +  rawReasoningContent: z.boolean().nullish(),
  });
- 
+
  export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
 index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d508936d7cb2df 100644
@@ -681,7 +681,7 @@ index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..ee29c4bf14104ceb2e5ce1dafe816828
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
 @@ -358,7 +358,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
- 
+
      // remove unsupported settings for reasoning models
      // see https://platform.openai.com/docs/guides/reasoning#limitations
 -    if (isReasoningModel) {

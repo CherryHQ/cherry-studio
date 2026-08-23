@@ -10,19 +10,21 @@
  * an absolute file URL at generation time: the packaged app runs the
  * composition from a foreign config dir where bare names are not resolvable.
  */
+import { createRequire } from 'node:module'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { type BridgePermissionMode, resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { isWin } from '@main/core/platform'
-import { toAsarUnpackedPath } from '@main/utils/asar'
 import type { DshApi } from '@shared/ai/dshModelCompatibility'
 import { stringify } from 'yaml'
 
 import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
 
 /** Resolve a composition plugin specifier to its packaged on-disk entry. */
-export function resolveDshPluginPath(specifier: string): string {
-  return toAsarUnpackedPath(resolveDshRuntimeEntry(specifier))
+export function resolveDshPluginPath(specifier: string, runtimeRoot?: string): string {
+  if (!runtimeRoot) return resolveDshRuntimeEntry(specifier)
+  return createRequire(path.join(runtimeRoot, 'package.json')).resolve(specifier)
 }
 
 /** Convert a plugin entry path into the URL form required by Node's ESM loader. */
@@ -31,8 +33,8 @@ export function toDshPluginUrl(pluginPath: string, windows = isWin): string {
 }
 
 /** Resolve the `dsh-jsonrpc-agent` runtime bin spawned via `ELECTRON_RUN_AS_NODE`. */
-export function resolveDshRuntimeBinPath(): string {
-  return resolveDshPluginPath('@deepseek-ai/dsh-sdk-jsonrpc-demo/bin')
+export function resolveDshRuntimeBinPath(runtimeRoot?: string): string {
+  return resolveDshPluginPath('@deepseek-ai/dsh-sdk-jsonrpc-demo/bin', runtimeRoot)
 }
 
 export interface DshCompositionInput {
@@ -55,6 +57,8 @@ export interface DshCompositionInput {
   customBase: boolean
   /** Canonical dirs of the agent's enabled Cherry-managed skills (composition customSkillDirs). */
   skillDirs: readonly string[]
+  /** Packaged runtime cache root; omitted in development. */
+  runtimeRoot?: string
   /** Platform override for composition contract tests. */
   platform?: NodeJS.Platform
 }
@@ -129,7 +133,7 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
   const isWindows = input.platform === undefined ? isWin : input.platform === 'win32'
   const entry = (id: string, specifier: string, config?: Record<string, unknown>): DshCompositionEntry => ({
     id,
-    name: toDshPluginUrl(resolveDshPluginPath(specifier), isWindows),
+    name: toDshPluginUrl(resolveDshPluginPath(specifier, input.runtimeRoot), isWindows),
     ...(config ? { config } : {})
   })
 

@@ -1,11 +1,18 @@
 const { Arch } = require('electron-builder')
-const { execSync } = require('child_process')
+const { execFileSync, execSync } = require('child_process')
 const fs = require('fs')
-const { createRequire } = require('module')
 const path = require('path')
 const { parse } = require('yaml')
 
+const { dshRuntimePackageExcludeFilters } = require('../packages/dsh-bridge/scripts/runtimeBuilder.cjs')
 const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+const {
+  bundleFilesArtifact,
+  readManifest,
+  singleFileCompression,
+  verifyBundledArtifacts,
+  writeManifest
+} = require('./download-binaries')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -115,6 +122,14 @@ const keepPackages = (platform, arch) => {
   ]
 }
 
+const nativePackageExcludeFilters = (platform, arch) => {
+  const currentKeepPackages = new Set(keepPackages(platform, arch))
+  return packages
+    .filter((packageName) => !currentKeepPackages.has(packageName))
+    .map((packageName) => `!node_modules/${packageName}/**`)
+}
+exports.nativePackageExcludeFilters = nativePackageExcludeFilters
+
 // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
 // pnpm ignores that setting once node_modules exists, so it can't be flipped per pack pass.
 // Anything kept for this arch but never installed is a native module the app would fail to
@@ -135,61 +150,63 @@ const assertPrebuiltPackages = (platform, arch) => {
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 exports.keepPackages = keepPackages
 
-const resolvePackageManifest = (packageName, require_) => {
-  for (const searchPath of require_.resolve.paths(packageName) ?? []) {
-    const candidate = path.join(searchPath, ...packageName.split('/'), 'package.json')
-    if (!fs.existsSync(candidate)) continue
+const claudeNativePackageName = (platform, arch) => `@anthropic-ai/claude-agent-sdk-${platform}-${arch}`
+exports.claudeNativePackageName = claudeNativePackageName
 
-    const manifestPath = fs.realpathSync(candidate)
-    return { manifest: JSON.parse(fs.readFileSync(manifestPath, 'utf8')), manifestPath }
-  }
+const readPackageVersion = (projectRoot, packageName) => {
+  const manifestPath = path.join(projectRoot, 'node_modules', packageName, 'package.json')
+  if (!fs.existsSync(manifestPath)) throw new Error(`Missing package manifest: ${manifestPath}`)
+  return JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version
 }
 
-const collectDshRuntimePackageNames = (projectRoot) => {
-  const rootManifestPath = path.join(projectRoot, 'package.json')
-  const rootRequire = createRequire(rootManifestPath)
-  const packageNames = new Set()
-  const requiredPeers = new Set()
-  const visitedManifests = new Set()
-
-  const visit = (packageName, require_, optional = false) => {
-    const resolved = resolvePackageManifest(packageName, require_)
-    if (!resolved) {
-      if (optional) return
-      throw new Error(`Missing DSH runtime package ${packageName}`)
-    }
-
-    packageNames.add(packageName)
-    if (visitedManifests.has(resolved.manifestPath)) return
-    visitedManifests.add(resolved.manifestPath)
-
-    const packageRequire = createRequire(resolved.manifestPath)
-    for (const dependency of Object.keys(resolved.manifest.dependencies ?? {})) {
-      visit(dependency, packageRequire)
-    }
-    for (const dependency of Object.keys(resolved.manifest.optionalDependencies ?? {})) {
-      visit(dependency, packageRequire, true)
-    }
-    for (const peer of Object.keys(resolved.manifest.peerDependencies ?? {})) {
-      if (!resolved.manifest.peerDependenciesMeta?.[peer]?.optional) requiredPeers.add(peer)
-    }
+const assertClaudeAgentSdkNativeVersion = (platform, arch, options = {}) => {
+  const projectRoot = options.projectRoot ?? path.join(__dirname, '..')
+  const sdkPackage = '@anthropic-ai/claude-agent-sdk'
+  const nativePackage = claudeNativePackageName(platform, arch)
+  const sdkVersion = readPackageVersion(projectRoot, sdkPackage)
+  const nativeVersion = readPackageVersion(projectRoot, nativePackage)
+  if (sdkVersion !== nativeVersion) {
+    throw new Error(
+      `Claude Agent SDK native package version mismatch for ${platform}-${arch}: ` +
+        `${sdkPackage}@${sdkVersion} != ${nativePackage}@${nativeVersion}`
+    )
   }
 
-  visit('@cherrystudio/dsh-bridge', rootRequire)
-
-  const missingPeers = [...requiredPeers].filter((peer) => !packageNames.has(peer)).sort()
-  if (missingPeers.length) throw new Error(`Missing production DSH peer dependencies: ${missingPeers.join(', ')}`)
-
-  return [...packageNames].sort()
+  const binaryName = platform === 'win32' ? 'claude.exe' : 'claude'
+  const binaryPath = path.join(projectRoot, 'node_modules', nativePackage, binaryName)
+  if (!fs.existsSync(binaryPath)) throw new Error(`Claude Code native binary missing: ${binaryPath}`)
+  return { binaryName, binaryPath, nativePackage, version: sdkVersion }
 }
-exports.collectDshRuntimePackageNames = collectDshRuntimePackageNames
+exports.assertClaudeAgentSdkNativeVersion = assertClaudeAgentSdkNativeVersion
 
-const buildDshAsarUnpackPatterns = (projectRoot) =>
-  collectDshRuntimePackageNames(projectRoot).flatMap((packageName) => [
-    `node_modules/${packageName}/**`,
-    `node_modules/**/node_modules/${packageName}/**`
-  ])
-exports.buildDshAsarUnpackPatterns = buildDshAsarUnpackPatterns
+const bundleClaudeAgentSdk = async (platform, arch, options = {}) => {
+  const projectRoot = options.projectRoot ?? path.join(__dirname, '..')
+  const resourcesDir = options.resourcesDir ?? path.join(projectRoot, 'resources', 'binaries')
+  const platformKey = `${platform}-${arch}`
+  const outputDir = path.join(resourcesDir, platformKey)
+  const claude = assertClaudeAgentSdkNativeVersion(platform, arch, { projectRoot })
+  const compression = singleFileCompression(platform)
+  fs.mkdirSync(outputDir, { recursive: true })
+
+  const artifact = await bundleFilesArtifact({
+    version: claude.version,
+    files: [
+      {
+        source: claude.binaryPath,
+        output: claude.binaryName,
+        archive: compression === 'none' ? claude.binaryName : 'claude.zst',
+        compression,
+        mode: 0o755
+      }
+    ],
+    outputDir
+  })
+  const manifest = readManifest(outputDir, platform, arch)
+  manifest.artifacts.claude = artifact
+  writeManifest(outputDir, manifest)
+  return artifact
+}
+exports.bundleClaudeAgentSdk = bundleClaudeAgentSdk
 
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
@@ -198,18 +215,6 @@ exports.default = async function (context) {
   const projectRoot = path.join(__dirname, '..')
 
   assertPrebuiltPackages(platform, arch)
-
-  const configuredAsarUnpack = context.packager.config.asarUnpack
-  const dshAsarUnpack = buildDshAsarUnpackPatterns(projectRoot)
-  context.packager.config.asarUnpack = [
-    ...(Array.isArray(configuredAsarUnpack)
-      ? configuredAsarUnpack
-      : configuredAsarUnpack
-        ? [configuredAsarUnpack]
-        : []),
-    ...dshAsarUnpack
-  ]
-  process.stdout.write(`Unpacking ${dshAsarUnpack.length / 2} DSH runtime dependency packages\n`)
 
   if (platform === 'linux') {
     const linuxArch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
@@ -223,11 +228,21 @@ exports.default = async function (context) {
   }
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
-  execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch} --packaging`, {
-    stdio: 'inherit'
-  })
-  // Fail the build rather than ship a half-empty resources/binaries/<platform>.
-  require('./download-binaries').verifyBundledBinaries(platform, arch)
+  execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
+  await bundleClaudeAgentSdk(platform, arch)
+  execFileSync(
+    process.execPath,
+    [
+      path.join(projectRoot, 'packages', 'dsh-bridge', 'scripts', 'buildRuntime.cjs'),
+      '--platform',
+      platform,
+      '--arch',
+      arch
+    ],
+    { cwd: projectRoot, stdio: 'inherit' }
+  )
+  // Fail the build rather than ship a half-empty or corrupt payload set.
+  await verifyBundledArtifacts(platform, arch)
 
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错
@@ -241,15 +256,7 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
-  const arm64KeepPackages = keepPackages(platform, 'arm64')
-  const arm64ExcludePackages = packages
-    .filter((p) => !arm64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
-
-  const x64KeepPackages = keepPackages(platform, 'x64')
-  const x64ExcludePackages = packages
-    .filter((p) => !x64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
+  const nativeExcludePackages = nativePackageExcludeFilters(platform, arch)
 
   const currentPlatformKey = `${platform}-${arch}`
   // win32-arm64 is in this list so `build:win` (--x64 --arm64) can package it. The
@@ -260,9 +267,15 @@ exports.default = async function (context) {
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
-  if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
-  } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
-  }
+  const excludeDshRuntimeVariants = allBinaryPlatforms
+    .filter((p) => p !== currentPlatformKey)
+    .map((p) => `!node_modules/@cherrystudio/dsh-bridge/dist/runtime/${p}/**`)
+
+  const dshExcludePackages = dshRuntimePackageExcludeFilters(projectRoot)
+  await excludePackages([
+    ...nativeExcludePackages,
+    ...dshExcludePackages,
+    ...excludeDshRuntimeVariants,
+    ...excludeBundledBinaryFilters
+  ])
 }

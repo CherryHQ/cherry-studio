@@ -295,7 +295,7 @@ export async function buildClaudeCodeSessionSettings(
     cwd,
     additionalDirectories: [agentDataPath],
     env,
-    pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
+    pathToClaudeCodeExecutable: await resolveClaudeExecutablePath(),
     systemPrompt,
     // Support loads only Cherry-owned plugin configuration. AGENTS.md context is injected above
     // by AgentsMdLoader, so disabling filesystem settings does not remove workspace instructions.

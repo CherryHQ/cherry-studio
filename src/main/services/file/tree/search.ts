@@ -18,9 +18,9 @@ import { spawn } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
 import type { AbsoluteFilePath, DirectoryEntry, DirectoryListOptions } from '@shared/types/file'
 
 import { defaultRipgrepGlobArgs } from './gitignore'
@@ -81,12 +81,9 @@ const EXCLUDED_DIRS = new Set([
 // ─── Ripgrep binary + execution ────────────────────────────────────────────
 
 // Ripgrep is a BinaryManager-managed tool: bundled into `cherry.bin` at boot
-// and overridable by a mise-installed copy. `getBinaryPath('rg')` resolves
-// that single source of truth (mise shim → cherry.bin); a bare `rg` fallback
-// fails the existsSync check below, surfacing as "binary not available".
+// and overridable by a verified mise-installed copy.
 async function resolveRipgrepBinary(): Promise<string | null> {
-  const binaryPath = await getBinaryPath('rg')
-  return fs.existsSync(binaryPath) ? binaryPath : null
+  return application.get('BinaryManager').resolveBinaryPath('rg')
 }
 
 interface RipgrepResult {
