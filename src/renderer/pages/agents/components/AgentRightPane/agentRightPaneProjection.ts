@@ -273,12 +273,14 @@ function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOut
   return undefined
 }
 
-/** The prompt of a SendMessage that resumed THIS agent — the request to show between rounds. */
-function getResumeReceiptPromptText(part: CherryMessagePart, launchedAgentId: string): string | undefined {
+/** Whether this part is a SendMessage receipt that resumed THIS agent — the round boundary. */
+function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): boolean {
   const record = part as { toolName?: unknown; output?: unknown }
-  if (record.toolName !== AgentToolsType.SendMessage) return undefined
-  if (getResumedAgentId(record.output) !== launchedAgentId) return undefined
+  return record.toolName === AgentToolsType.SendMessage && getResumedAgentId(record.output) === launchedAgentId
+}
 
+/** The request to show between rounds — the sent message, falling back to its summary. */
+function getResumeReceiptPromptText(part: CherryMessagePart): string | undefined {
   const input = (part as { input?: unknown }).input
   const prompt = isRecord(input) ? (input.message ?? input.summary) : undefined
   return typeof prompt === 'string' && prompt.trim() ? prompt.trim() : undefined
@@ -287,7 +289,8 @@ function getResumeReceiptPromptText(part: CherryMessagePart, launchedAgentId: st
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
-  selectedToolCallId?: string
+  selectedToolCallId?: string,
+  resolvedSelectedOutput?: unknown
 ): AgentToolFlowProjection {
   const toolNodes: AgentToolFlowNode[] = []
   const childrenByParent = new Map<string, string[]>()
@@ -356,7 +359,7 @@ export function buildAgentToolFlowProjection(
     // receipt resolving to the launch splits the timeline, so its prompt lands between rounds.
     // The launch receipt's own result text is NOT appended — it duplicates the agent's final
     // message already present above and goes stale across continuations.
-    const launchedAgentId = extractLaunchedAgentId(selectedToolPart)
+    const launchedAgentId = extractLaunchedAgentId(selectedToolPart, resolvedSelectedOutput)
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
@@ -385,10 +388,9 @@ export function buildAgentToolFlowProjection(
       for (const part of parts) {
         const toolCallId = getToolCallId(part)
 
-        // A resume receipt is not itself part of the flow, but it marks where a new round starts.
-        const resumePrompt =
-          launchedAgentId && isToolUIPart(part) ? getResumeReceiptPromptText(part, launchedAgentId) : undefined
-        if (resumePrompt !== undefined) {
+        // A resume receipt is not itself part of the flow, but it marks where a new round starts —
+        // splitting happens on the receipt match even when its prompt text is absent.
+        if (launchedAgentId && isToolUIPart(part) && isResumeReceiptFor(part, launchedAgentId)) {
           for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
           resumeCount += 1
           segmentIndex += 1
@@ -396,7 +398,7 @@ export function buildAgentToolFlowProjection(
           const resumeMessage = createFlowTextMessage(
             `${selectedToolCallId}:agent-flow-resume-${resumeCount}`,
             'user',
-            resumePrompt,
+            getResumeReceiptPromptText(part),
             selectedCreatedAt
           )
           if (resumeMessage) {

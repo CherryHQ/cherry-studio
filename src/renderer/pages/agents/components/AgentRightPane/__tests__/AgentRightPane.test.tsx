@@ -154,7 +154,8 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>,
+  Alert: ({ message }: { message?: string }) => <div>{message}</div>
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -917,9 +918,9 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent(title)
   })
 
-  // The launch receipt's own result text is no longer projected into the flow (it duplicates the
-  // agent's final message), so the pane no longer resolves deferred outputs for it.
-  it('projects the selected flow without resolving its deferred output', async () => {
+  // The resolved output feeds resume-round splitting (the receipt carries the agent id), even
+  // though its text is no longer rendered in the flow.
+  it('resolves a deferred selected flow output by its stored address', async () => {
     const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
     const flowPart = {
       type: 'dynamic-tool',
@@ -944,10 +945,15 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
+    await waitFor(() => expect(getToolResultMock).toHaveBeenCalledWith(deferredToolResult))
     await waitFor(() =>
-      expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(messages, { m1: [flowPart] }, 'flow-1')
+      expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(
+        messages,
+        { m1: [flowPart] },
+        'flow-1',
+        'Loaded flow result'
+      )
     )
-    expect(getToolResultMock).not.toHaveBeenCalled()
   })
 
   it('marks direct artifact opening as user initiated', async () => {

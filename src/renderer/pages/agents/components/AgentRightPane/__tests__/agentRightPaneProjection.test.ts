@@ -169,10 +169,42 @@ describe('agent right pane projections', () => {
     ])
     const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
     expect(texts('call_launch:agent-flow-prompt')).toEqual(['Launch the review'])
-    // The launch result belongs to the final round only — never duplicated onto the earlier one.
+    // The receipt's own result text is not appended anywhere — it duplicates the agent's final
+    // message above and would go stale across continuations.
     expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings'])
     expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Please finalize the four conclusions'])
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+  })
+
+  // Oversized receipts arrive as deferred envelopes; the resolved output must still carry the
+  // agent id so the continuation splits the timeline.
+  it('splits resume rounds for a deferred launch receipt via the resolved output', () => {
+    const deferred = { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'call_launch' } }
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, deferred),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+    const resolvedOutput = 'reviewing... agentId: af5051807ed7aaa30 (use SendMessage to continue)'
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch', resolvedOutput)
+
+    // The receipt splits the rounds even though this particular send carried no prompt text
+    // (no resume user message is rendered for it).
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-assistant-1'
+    ])
   })
 
   it('uses a lazily resolved selected output and preserves child parts untouched', () => {
