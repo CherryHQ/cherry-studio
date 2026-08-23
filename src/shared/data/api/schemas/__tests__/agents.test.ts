@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentConfigurationSchema, AgentEntitySchema, ListAgentsQuerySchema, UpdateAgentSchema } from '../agents'
+import {
+  AGENT_LANGUAGE_MAX_LENGTH,
+  AgentConfigurationSchema,
+  AgentEntitySchema,
+  ListAgentsQuerySchema,
+  UpdateAgentSchema
+} from '../agents'
 
 describe('AgentEntitySchema', () => {
   const baseAgent = {
@@ -45,6 +51,18 @@ describe('AgentEntitySchema', () => {
   it('validates the persisted agent service tier', () => {
     expect(AgentConfigurationSchema.parse({ service_tier: 'fast' }).service_tier).toBe('fast')
     expect(AgentConfigurationSchema.safeParse({ service_tier: 'invalid' }).success).toBe(false)
+  })
+
+  it('bounds the per-agent language label: trimmed, nullable, length-capped', () => {
+    expect(AgentConfigurationSchema.parse({ language: '  Thai  ' }).language).toBe('Thai')
+    expect(AgentConfigurationSchema.parse({ language: null }).language).toBeNull()
+    expect(AgentConfigurationSchema.parse({ language: undefined }).language).toBeUndefined()
+    expect(AgentConfigurationSchema.parse({ language: 'x'.repeat(AGENT_LANGUAGE_MAX_LENGTH) }).language).toHaveLength(
+      AGENT_LANGUAGE_MAX_LENGTH
+    )
+    expect(AgentConfigurationSchema.safeParse({ language: 'x'.repeat(AGENT_LANGUAGE_MAX_LENGTH + 1) }).success).toBe(
+      false
+    )
   })
 
   it('accepts first-level configuration patches and preserves explicit removals', () => {

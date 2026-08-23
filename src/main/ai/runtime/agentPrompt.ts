@@ -5,8 +5,6 @@ import { resolveEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { languageEnglishNameMap } from '@shared/utils/languages'
 
 const logger = loggerService.withContext('AgentPrompt')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
@@ -110,11 +108,8 @@ ${instructions}
 </agent_instructions>`
 }
 
-export { resolveEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
-
 function getLanguageInstruction(agent: AgentEntity): string {
   const language = resolveEffectiveAgentLanguage(agent)
   if (!language) return ''
-  const displayName = languageEnglishNameMap[language as LanguageVarious] ?? language
-  return `By default, respond in ${displayName}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
+  return `By default, respond in ${language}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
 }

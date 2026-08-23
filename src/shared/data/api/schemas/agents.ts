@@ -44,6 +44,9 @@ export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
+/** Upper bound for a per-agent reply-language label; mirrored by the global resolver in `@main/ai/utils/agentLanguage`. */
+export const AGENT_LANGUAGE_MAX_LENGTH = 50
+
 export const AgentConfigurationSchema = z
   .object({
     avatar: z.string().optional(),
@@ -62,7 +65,7 @@ export const AgentConfigurationSchema = z
     heartbeat_enabled: z.boolean().optional(),
     heartbeat_interval: z.number().optional(),
     builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional(),
-    language: z.string().nullable().optional()
+    language: z.string().trim().max(AGENT_LANGUAGE_MAX_LENGTH).nullable().optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must

@@ -510,13 +510,13 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).not.toContain('By default, respond in English.')
   })
 
-  it('per-agent language set to auto suppresses the global language', async () => {
+  it('per-agent language set to null suppresses the global language', async () => {
     mocks.preferenceGet.mockReturnValue('English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
       instructions: 'Be helpful.',
-      configuration: { language: 'auto' }
+      configuration: { language: null }
     })
 
     await new PiRuntimeConnection(input).start()

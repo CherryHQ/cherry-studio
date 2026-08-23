@@ -99,7 +99,14 @@ describe('capturePiConnectionSnapshot', () => {
       () => mocks.listLocalSkillPaths.mockResolvedValueOnce(['/workspace/.agents/skills/review']),
       () => mocks.findMcp.mockReturnValueOnce({ id: 'mcp-1', name: 'server', updatedAt: 2 }),
       () => mocks.listTools.mockReturnValueOnce([{ name: 'changed' }]),
-      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id })
+      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id }),
+      // Rebuild fact: a language change must invalidate the warm connection so the new
+      // language instruction is baked into the next system prompt.
+      () =>
+        mocks.getAgent.mockReturnValueOnce({
+          ...agent,
+          configuration: { ...agent.configuration, language: 'Thai' }
+        })
     ]
 
     for (const mutate of mutations) {

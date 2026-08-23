@@ -1267,7 +1267,7 @@ describe('deriveConnectionConfig', () => {
       model: 'provider-1::model-1',
       disabledTools: [],
       mcps: [],
-      configuration: { language: 'en-US' }
+      configuration: { language: 'English' }
     })
     const english = await deriveSignature()
 
@@ -1276,7 +1276,7 @@ describe('deriveConnectionConfig', () => {
       model: 'provider-1::model-1',
       disabledTools: [],
       mcps: [],
-      configuration: { language: 'zh-CN' }
+      configuration: { language: '中文' }
     })
     const chinese = await deriveSignature()
 
