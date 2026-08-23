@@ -54,6 +54,7 @@ const translateCoreMock = vi.hoisted(() => ({
   detectLanguage: vi.fn(),
   setTimeoutTimer: vi.fn(),
   translateText: vi.fn(),
+  updateHistory: vi.fn(),
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
@@ -132,7 +133,7 @@ vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
       return 'unknown'
     }
   },
-  useTranslateHistory: () => ({ add: translateCoreMock.addHistory })
+  useTranslateHistory: () => ({ add: translateCoreMock.addHistory, update: translateCoreMock.updateHistory })
 }))
 
 vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
@@ -496,6 +497,8 @@ describe('TranslatePage', () => {
     translateCoreMock.setTimeoutTimer.mockReset()
     translateCoreMock.translateText.mockReset()
     translateCoreMock.translateText.mockResolvedValue('translated text')
+    translateCoreMock.updateHistory.mockReset()
+    translateCoreMock.updateHistory.mockResolvedValue(undefined)
     translateCoreMock.isAbortError.mockReset()
     translateCoreMock.isAbortError.mockReturnValue(false)
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
@@ -1239,12 +1242,20 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('skips source detection and stores no source language for single-direction translation', async () => {
+  it('stores single-direction history before detecting and backfills its source language', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'auto',
       'feature.translate.page.target_language': 'en-us'
     })
+    translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-1' })
+    let resolveDetection!: (language: string) => void
+    translateCoreMock.detectLanguage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDetection = resolve
+      })
+    )
+
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
@@ -1258,7 +1269,6 @@ describe('TranslatePage', () => {
         expect.any(AbortSignal)
       )
     )
-    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
@@ -1268,6 +1278,59 @@ describe('TranslatePage', () => {
         targetLanguage: 'en-us'
       })
     )
+    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('hello'))
+    expect(translateCoreMock.addHistory.mock.invocationCallOrder[0]).toBeLessThan(
+      translateCoreMock.detectLanguage.mock.invocationCallOrder[0]
+    )
+    expect(translateCoreMock.updateHistory).not.toHaveBeenCalled()
+
+    await act(async () => resolveDetection('zh-cn'))
+
+    await waitFor(() =>
+      expect(translateCoreMock.updateHistory).toHaveBeenCalledWith('history-1', { sourceLanguage: 'zh-cn' })
+    )
+  })
+
+  it.each([
+    ['unknown detection', () => Promise.resolve('unknown')],
+    ['failed detection', () => Promise.reject(new Error('detect failed'))]
+  ])('leaves single-direction history unchanged after %s', async (_caseName, detectResult) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-1' })
+    translateCoreMock.detectLanguage.mockImplementationOnce(detectResult)
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('hello'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(translateCoreMock.updateHistory).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('ignores a deleted history row during source-language backfill', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    translateCoreMock.addHistory.mockResolvedValueOnce({ id: 'history-deleted' })
+    translateCoreMock.updateHistory.mockRejectedValueOnce(new Error('history not found'))
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.updateHistory).toHaveBeenCalledWith('history-deleted', { sourceLanguage: 'en-us' })
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('continues translating with the selected target when auto detection returns unknown in bidirectional mode', async () => {
@@ -1593,6 +1656,17 @@ describe('TranslatePage', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('auto')
     expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+  })
+
+  it('does not reset the shared source preference when text history has no source language', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.source_language', 'zh-cn')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
   })
 
   it('falls back to a concrete target language when reusing history with a null target and current unknown target', async () => {
