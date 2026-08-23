@@ -470,7 +470,8 @@ export const exportMarkdownContentAsFile = async (title: string, markdown: strin
 /** Containing directory of a saved file path, tolerating both path separators. */
 const dirOf = (filePath: string): string => {
   const idx = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
-  return idx > 0 ? filePath.slice(0, idx) : filePath
+  // idx 0 is the POSIX-root file case (`/a.md`) — the root itself is the parent.
+  return idx > 0 ? filePath.slice(0, idx) : idx === 0 ? '/' : filePath
 }
 
 /**

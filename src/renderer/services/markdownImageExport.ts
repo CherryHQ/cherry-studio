@@ -37,7 +37,6 @@ const AGENT_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL
 export type ExportableImageRef = {
   /** Dedup key: fileEntryId when known, else the part url. */
   key: string
-  source: 'file-part' | 'generate-image'
   /** Authoritative src (`file://` / `data:` / `https:`) handed to `getImageBlobFromSource`. */
   url: string
   filename?: string
@@ -125,7 +124,6 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
           const fileEntryId = readCherryMeta(part)?.fileEntryId
           push({
             key: fileEntryId ?? filePart.url,
-            source: 'file-part',
             url: filePart.url,
             filename: filePart.filename,
             mime: filePart.mediaType
@@ -137,7 +135,6 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
                 // MCP inline payload — the data URL is the authoritative bytes already.
                 push({
                   key: item.key,
-                  source: 'generate-image',
                   url: item.url,
                   filename: item.filename,
                   mime: item.mime
@@ -146,7 +143,6 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
                 const physicalPath = await window.api.file.getPhysicalPath({ id: item.entryId })
                 push({
                   key: item.key,
-                  source: 'generate-image',
                   url: toFileUrl(physicalPath),
                   filename: item.filename
                 })

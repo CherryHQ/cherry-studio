@@ -125,7 +125,6 @@ describe('collectExportableImages', () => {
     expect(refs).toEqual([
       {
         key: 'entry-a',
-        source: 'file-part',
         url: 'file:///data/Files/a.png',
         filename: 'photo.png',
         mime: 'image/png'
@@ -146,11 +145,11 @@ describe('collectExportableImages', () => {
     const message = view([generateImagePart([{ id: 'gen-1', name: 'painting.png' }])], 'assistant')
 
     const { refs } = await collectExportableImages([message])
+    expect(fileApi.getPhysicalPath).toHaveBeenCalledWith({ id: 'gen-1' })
 
     expect(refs).toEqual([
       {
         key: 'gen-1',
-        source: 'generate-image',
         url: 'file:///data/Files/gen-1.png',
         filename: 'painting.png'
       }
@@ -205,6 +204,19 @@ describe('collectExportableImages', () => {
     expect(refs.map((r) => r.key)).toEqual(['file:///data/Files/a.png', 'file:///data/Files/b.png'])
   })
 
+  it('recognizes the mcp-prefixed agent generate_image tool name', async () => {
+    fileApi.getPhysicalPath.mockResolvedValue('/data/Files/gen-9.png')
+    const part = {
+      ...generateImagePart([{ id: 'gen-9', name: 'a.png' }]),
+      type: 'tool-mcp__cherry-tools__generate_image'
+    }
+    const message = view([part], 'assistant')
+
+    const { refs } = await collectExportableImages([message])
+
+    expect(refs).toEqual([{ key: 'gen-9', url: 'file:///data/Files/gen-9.png', filename: 'a.png' }])
+  })
+
   it('collects MCP inline generate_image payloads as data URLs (render parity)', async () => {
     const raw = PNG_1PX.slice('data:image/png;base64,'.length)
     const message = view(
@@ -216,9 +228,7 @@ describe('collectExportableImages', () => {
 
     expect(unresolvedCount).toBe(0)
     // identical inline payloads collapse to one data-URL ref; no FileEntry lookup happens
-    expect(refs).toEqual([
-      { key: PNG_1PX, source: 'generate-image', url: PNG_1PX, filename: undefined, mime: 'image/png' }
-    ])
+    expect(refs).toEqual([{ key: PNG_1PX, url: PNG_1PX, filename: undefined, mime: 'image/png' }])
     expect(fileApi.getPhysicalPath).not.toHaveBeenCalled()
   })
 
@@ -237,9 +247,7 @@ describe('collectExportableImages', () => {
     const { refs, unresolvedCount } = await collectExportableImages([message])
 
     expect(unresolvedCount).toBe(0)
-    expect(refs).toEqual([
-      { key: PNG_1PX, source: 'generate-image', url: PNG_1PX, filename: undefined, mime: 'image/png' }
-    ])
+    expect(refs).toEqual([{ key: PNG_1PX, url: PNG_1PX, filename: undefined, mime: 'image/png' }])
   })
 })
 
@@ -344,6 +352,36 @@ describe('serializeMessagesWithImages', () => {
     expect(new Set(names).size).toBe(2)
   })
 
+  it('still allocates distinct assets when images share filename and MIME type (folder)', async () => {
+    const PNG_1PX_RAW_B = PNG_1PX_RAW.slice(0, -2) + 'gg'
+    const PNG_1PX_B = `data:image/png;base64,${PNG_1PX_RAW_B}`
+    const message = view([
+      imageFilePart(PNG_1PX, 'entry-a', 'photo.png'),
+      imageFilePart(PNG_1PX_B, 'entry-b', 'photo.png')
+    ])
+    const { refs } = await collectExportableImages([message])
+
+    const { pendingWrites } = await serializeMessagesWithImages([message], 'folder', refs)
+
+    expect(refs).toHaveLength(2)
+    const names = pendingWrites.map((write) => write.fileName)
+    expect(names).toHaveLength(2)
+    expect(new Set(names).size).toBe(2)
+  })
+
+  it('reuses one asset per FileEntry across messages (folder)', async () => {
+    const first = view([{ type: 'text', text: 'first' }, imageFilePart(PNG_1PX, 'shared-entry')])
+    const second = view([{ type: 'text', text: 'second' }, imageFilePart(PNG_1PX, 'shared-entry')])
+    const { refs } = await collectExportableImages([first, second])
+
+    const { overrides, pendingWrites } = await serializeMessagesWithImages([first, second], 'folder', refs)
+
+    expect(refs).toHaveLength(1)
+    expect(pendingWrites).toHaveLength(1)
+    const link = overrides.get(first.id)!.match(/\(assets\/(img-[a-z0-9-]+\.png)\)/)![1]
+    expect(overrides.get(second.id)).toContain(`(assets/${link})`)
+  })
+
   it('serializes generate_image outputs in both modes (folder)', async () => {
     fileApi.getPhysicalPath.mockResolvedValue('/data/Files/gen-1.png')
     ipcApiRequest.mockResolvedValue({ ok: true, data: { content: new Uint8Array([1, 2, 3]), mime: 'image/png' } })
@@ -380,6 +418,43 @@ describe('serializeMessagesWithImages', () => {
     expect(overrides.has(textOnly.id)).toBe(false)
     expect(overrides.has(withImage.id)).toBe(true)
   })
+
+  it('rewrites composer skill tokens in the override text like the plain export path', async () => {
+    const message = view(
+      [
+        {
+          type: 'text',
+          text: 'Use the find-skills skill. **hello**',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'skill:find-skills',
+                    kind: 'skill',
+                    label: 'find-skills',
+                    index: 0,
+                    textOffset: 0,
+                    promptText: 'Use the find-skills skill.'
+                  }
+                ]
+              }
+            }
+          }
+        },
+        imageFilePart(PNG_1PX, 'entry-a')
+      ],
+      'user'
+    )
+    const { refs } = await collectExportableImages([message])
+
+    const { overrides } = await serializeMessagesWithImages([message], 'folder', refs)
+
+    const content = overrides.get(message.id)!
+    expect(content).toContain('/find-skills/ **hello**')
+    expect(content).not.toContain('Use the find-skills skill.')
+  })
 })
 
 // --- writeImageAssets ---
@@ -390,7 +465,7 @@ describe('writeImageAssets', () => {
     const pendingWrites = [
       {
         fileName: 'img-a.png',
-        ref: { key: 'k', source: 'file-part', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
+        ref: { key: 'k', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
       }
     ]
 
@@ -404,7 +479,7 @@ describe('writeImageAssets', () => {
   it('keeps going when one image fails to write and reports the count', async () => {
     ipcApiRequest.mockResolvedValue({ ok: true, data: { content: new Uint8Array([1]), mime: 'image/png' } })
     fileApi.write.mockRejectedValueOnce(new Error('disk full'))
-    const ref = { key: 'k', source: 'file-part', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
+    const ref = { key: 'k', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
 
     const failedCount = await writeImageAssets('/tmp/exports', [
       { fileName: 'img-a.png', ref },
@@ -424,7 +499,7 @@ describe('writeImageAssets', () => {
 
   it('reports every image as failed when mkdir fails, without throwing', async () => {
     fileApi.mkdir.mockRejectedValueOnce(new Error('permission denied'))
-    const ref = { key: 'k', source: 'file-part', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
+    const ref = { key: 'k', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
 
     const failedCount = await writeImageAssets('/tmp/exports', [
       { fileName: 'img-a.png', ref },

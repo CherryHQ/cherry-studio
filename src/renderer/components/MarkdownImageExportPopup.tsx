@@ -61,7 +61,11 @@ const MarkdownImageExportContainer: React.FC<
         </DialogHeader>
         <div className="space-y-4">
           <DialogDescription>{i18n.t('chat.topics.export.image_mode.count', { count: imageCount })}</DialogDescription>
-          <RadioGroup value={mode} onValueChange={(value) => setMode(value as ImageExportMode)} className="gap-2">
+          <RadioGroup
+            value={mode}
+            onValueChange={(value) => setMode(value as ImageExportMode)}
+            aria-label={i18n.t('chat.topics.export.image_mode.title')}
+            className="gap-2">
             {options.map((option) => (
               <label
                 key={option.value}
