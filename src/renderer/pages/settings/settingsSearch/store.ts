@@ -1,7 +1,9 @@
 /**
  * Module-level store sharing keyboard selection and jump intents between the
  * sidebar search box (settings layout) and the results page (child route).
- * Tab-scoped by construction: every tab keeps its own renderer instance.
+ * Shared across all tabs of one window: safety relies on React <Activity>
+ * unmounting the hidden tab's effects (jump handler unregisters, results
+ * republish on reactivation).
  */
 import { useSyncExternalStore } from 'react'
 

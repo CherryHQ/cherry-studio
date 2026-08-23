@@ -10,9 +10,9 @@ const SEARCH_DEBOUNCE_MS = 150
 
 /**
  * Sidebar search input. Local state echoes keystrokes instantly; the URL is a
- * debounced mirror (navigating per keystroke would re-persist the whole tab
- * list through the TabRouter sync loop on every key). First keystroke pushes
- * onto history, subsequent ones replace, so back returns to the origin page.
+ * debounced mirror (per-keystroke navigation would re-persist the whole tab
+ * list through the TabRouter sync loop). First debounced entry pushes onto
+ * history, subsequent ones replace, so back returns to the origin section.
  */
 const SettingsSearchBox = () => {
   const navigate = useNavigate()
@@ -22,32 +22,49 @@ const SettingsSearchBox = () => {
   const { t } = useTranslation()
 
   const isSearchPage = location.pathname === '/settings/search'
-  const initialQuery = typeof search.q === 'string' ? search.q : ''
+  const urlQuery = isSearchPage && typeof search.q === 'string' ? search.q : ''
+  const [value, setValue] = useState(urlQuery)
+  // A deep link lands on the search page with the URL already on the history
+  // stack, so the first debounced navigate must replace, not push
+  const hasPushedRef = useRef(isSearchPage)
 
-  const [value, setValue] = useState(initialQuery)
-  const hasPushedRef = useRef(false)
-
-  // Deep link straight into the search page: seed the input from the URL once
+  // Navigation that does not end on the search page (menu click, result jump)
+  // drops pending keystrokes — else the debounce timer hijacks the trip later
+  const prevPathnameRef = useRef(location.pathname)
   useEffect(() => {
-    if (isSearchPage && initialQuery && !value) setValue(initialQuery)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Clear the input only on the transition out of the search page (menu click
-  // or result jump). While typing, the debounced navigate has not landed yet —
-  // isSearchPage is still false — so a level-based check would wipe every keystroke.
-  const wasSearchPageRef = useRef(isSearchPage)
-  useEffect(() => {
-    if (wasSearchPageRef.current && !isSearchPage) {
+    const pathnameChanged = prevPathnameRef.current !== location.pathname
+    prevPathnameRef.current = location.pathname
+    if (!pathnameChanged) return
+    if (isSearchPage) {
+      if (!value && urlQuery) setValue(urlQuery)
+    } else if (value) {
       setValue('')
       hasPushedRef.current = false
     }
-    wasSearchPageRef.current = isSearchPage
-  }, [isSearchPage])
+  }, [location.pathname, isSearchPage, value, urlQuery])
+
+  const exitSearch = () => {
+    // Only leave when the user actually searched: an empty-box Esc or one
+    // before the debounce pushed must not walk the history back.
+    const shouldLeave = hasPushedRef.current || isSearchPage
+    setValue('')
+    hasPushedRef.current = false
+    if (!shouldLeave) return
+    if (router.history.canGoBack()) router.history.back()
+    else void navigate({ to: '/settings/general' })
+  }
 
   useEffect(() => {
     const trimmed = value.trim()
-    if (!trimmed) return
+    if (!trimmed) {
+      // Cleared the box while viewing results: leave rather than showing a
+      // stale list under an empty input
+      if (isSearchPage) {
+        if (router.history.canGoBack()) router.history.back()
+        else void navigate({ to: '/settings/general' })
+      }
+      return
+    }
 
     const handle = setTimeout(() => {
       void navigate({
@@ -58,14 +75,7 @@ const SettingsSearchBox = () => {
       hasPushedRef.current = true
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(handle)
-  }, [value, navigate])
-
-  const exitSearch = () => {
-    setValue('')
-    hasPushedRef.current = false
-    if (router.history.canGoBack()) router.history.back()
-    else void navigate({ to: '/settings/general' })
-  }
+  }, [value, navigate, isSearchPage, router])
 
   return (
     <div className="px-2.5 pb-1">

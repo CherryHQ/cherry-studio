@@ -28,10 +28,8 @@ const SettingsFocusScroll = () => {
       if (el) {
         el.scrollIntoView({ block: 'center' })
         el.classList.add(HIGHLIGHT_CLASS)
-        // Highlight timer is deliberately NOT cleared by the cleanup below:
-        // consuming the focus id re-runs this effect immediately, and killing
-        // the timer there would freeze the class on. SettingsFocusScroll unmounts
-        // together with the settings DOM, so a fired-and-forgotten timer is safe.
+        // Not cleared below: consuming the focus id re-runs this effect at once
+        // and would kill the fresh timer; the settings DOM dies with this mount.
         setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), HIGHLIGHT_MS)
         setPendingFocus(undefined)
         return

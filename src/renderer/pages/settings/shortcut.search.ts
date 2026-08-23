@@ -10,6 +10,10 @@ export const route = '/settings/shortcut'
  * mirrors the row id: command ids are dot/underscore-separated, dom ids dash
  * them. Breadcrumb groups mirror useCommandShortcuts' grouping: general/chat/
  * topic by categoryKey, everything else (incl. feature.*) falls to assistant.
+ *
+ * Feature-gated commands stay indexed on purpose: their rows render whenever
+ * the owning feature is enabled, and a disabled-feature jump degrades to the
+ * plain list (silent give-up) per the focus-scroll contract.
  */
 const categoryToBreadcrumbKey = (categoryKey: string): string => {
   const known = categoryKey.replace(/^settings\.shortcuts\./, 'settings.shortcuts.categories.')

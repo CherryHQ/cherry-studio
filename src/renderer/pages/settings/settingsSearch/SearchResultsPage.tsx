@@ -57,8 +57,13 @@ const SearchResultsPage = () => {
   }
 
   return (
-    <SettingsContentColumn aria-label={t('settings.search.results')}>
-      <div ref={listRef} role="listbox" className="flex flex-col gap-0.5" data-ui="settings.search.results">
+    <SettingsContentColumn>
+      <div
+        ref={listRef}
+        role="listbox"
+        aria-label={t('settings.search.results')}
+        className="flex flex-col gap-0.5"
+        data-ui="settings.search.results">
         {results.map((result, index) => (
           <button
             key={`${result.route}-${result.focusId ?? 'section'}-${index}`}

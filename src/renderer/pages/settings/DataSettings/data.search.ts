@@ -84,19 +84,6 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.webdav.title'
   },
   {
-    anchorId: 'nutstore-path',
-    titleKey: 'settings.data.nutstore.path.label',
-    panel: 'nutstore',
-    groupKey: 'settings.data.nutstore.title',
-    aliases: ['坚果云']
-  },
-  {
-    anchorId: 'nutstore-username',
-    titleKey: 'settings.data.nutstore.username',
-    panel: 'nutstore',
-    groupKey: 'settings.data.nutstore.title'
-  },
-  {
     anchorId: 's3-endpoint',
     titleKey: 'settings.data.s3.endpoint.label',
     panel: 's3',
