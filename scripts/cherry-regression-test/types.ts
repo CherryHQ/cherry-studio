@@ -6,23 +6,23 @@ export const TASK_IDS = [
   'startup-smoke',
   'mini-app',
   'notes',
-  'cherryin-chat',
   'custom-provider-chat',
   'custom-assistant',
   'skill-import',
   'quick-assistant',
   'selection-assistant',
+  'translation',
   'knowledge-import',
   'knowledge-qa',
   'everything-mcp',
+  'openclaw',
+  'cherryin-chat',
   'pi-runtime',
   'deepseek-harness-runtime',
   'claude-agent-runtime',
-  'agent-ppt',
-  'translation',
   'image-generation',
   'code-cli',
-  'openclaw'
+  'agent-ppt'
 ] as const
 export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
 

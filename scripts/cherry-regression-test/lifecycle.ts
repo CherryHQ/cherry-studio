@@ -101,6 +101,14 @@ function windowsProcessExecutablePath(pid: number): string {
   }
 }
 
+function macosProcessExecutablePath(pid: number): string {
+  try {
+    return execFileSync('ps', ['-o', 'comm=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
+  } catch {
+    return ''
+  }
+}
+
 function assertOwnedProcess(record: AppRecord, pid: number, kind: 'electron' | 'runner'): void {
   const command = processCommand(pid, record.platform)
   const expected =
@@ -401,8 +409,31 @@ export function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): void 
   if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')
   assertOwnedProcess(record, record.electronPid, 'electron')
   if (record.platform === 'macos') {
+    const executablePath =
+      record.mode === 'branch' ? macosProcessExecutablePath(record.electronPid) : record.executablePath
+    const isVerifiedExecutable =
+      record.mode === 'branch'
+        ? basename(executablePath ?? '') === 'Electron' && isPathInside(record.targetRoot, executablePath ?? '')
+        : Boolean(record.executablePath && resolve(executablePath ?? '') === resolve(record.executablePath))
+    if (!executablePath || !isVerifiedExecutable) {
+      throw new Error('Owned macOS Electron executable could not be verified')
+    }
+    const userDataArgument = record.args.find((arg) => arg.startsWith('--user-data-dir='))
+    if (record.mode === 'tag' && !userDataArgument) throw new Error('Owned macOS application profile is missing')
+    const args =
+      record.mode === 'branch' ? [record.targetRoot, url] : ([userDataArgument, url].filter(Boolean) as string[])
     try {
-      execFileSync('open', [url], { stdio: 'ignore', timeout: 15_000 })
+      execFileSync(executablePath, args, {
+        cwd: record.cwd,
+        env: {
+          ...process.env,
+          ...(record.mode === 'branch'
+            ? { CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` }
+            : {})
+        },
+        stdio: 'ignore',
+        timeout: 15_000
+      })
       return
     } catch {
       throw new Error('Failed to deliver the protocol callback to the owned Cherry Studio instance')

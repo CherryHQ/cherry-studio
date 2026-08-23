@@ -21,23 +21,23 @@ on:
           - startup-smoke
           - mini-app
           - notes
-          - cherryin-chat
           - custom-provider-chat
           - custom-assistant
           - skill-import
           - quick-assistant
           - selection-assistant
+          - translation
           - knowledge-import
           - knowledge-qa
           - everything-mcp
+          - openclaw
+          - cherryin-chat
           - pi-runtime
           - deepseek-harness-runtime
           - claude-agent-runtime
-          - agent-ppt
-          - translation
           - image-generation
           - code-cli
-          - openclaw
+          - agent-ppt
 
 permissions:
   contents: read
@@ -226,6 +226,10 @@ jobs:
         if: needs.resolve.outputs.mode == 'branch'
         run: pnpm --dir target-app install --frozen-lockfile
 
+      - name: Download application binaries
+        if: needs.resolve.outputs.mode == 'branch'
+        run: pnpm --dir target-app download:binaries
+
       - name: Download and install release
         if: needs.resolve.outputs.mode == 'tag'
         shell: bash
@@ -304,21 +308,7 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 04 — CherryIN chat
-        if: >-
-          !cancelled() && steps.agent_settings.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat')
-        timeout-minutes: 20
-        shell: bash
-        env:
-          REGRESSION_TASK: cherryin-chat
-        run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
-          --run-dir "$RUN_DIR"
-          --task "$REGRESSION_TASK"
-          --claude-path "${{ steps.claude.outputs.path }}"
-
-      - name: Run task 05 — custom provider chat
+      - name: Run task 04 — custom provider chat
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-provider-chat')
@@ -332,7 +322,7 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 06 — custom assistant
+      - name: Run task 05 — custom assistant
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-assistant')
@@ -346,7 +336,7 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 07 — Skill import
+      - name: Run task 06 — Skill import
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'skill-import')
@@ -360,7 +350,7 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 08 — quick assistant
+      - name: Run task 07 — quick assistant
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'quick-assistant')
@@ -374,7 +364,7 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 09 — selection assistant
+      - name: Run task 08 — selection assistant
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'selection-assistant')
@@ -382,6 +372,20 @@ jobs:
         shell: bash
         env:
           REGRESSION_TASK: selection-assistant
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 09 — translation
+        if: >-
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'translation')
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: translation
         run: >-
           pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
@@ -430,7 +434,35 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 13 — Pi runtime
+      - name: Run task 13 — OpenClaw
+        if: >-
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'openclaw')
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: openclaw
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 14 — CherryIN chat
+        if: >-
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat')
+        timeout-minutes: 20
+        shell: bash
+        env:
+          REGRESSION_TASK: cherryin-chat
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 15 — Pi runtime
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'pi-runtime')
@@ -444,7 +476,7 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 14 — DeepSeek Harness runtime
+      - name: Run task 16 — DeepSeek Harness runtime
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'deepseek-harness-runtime')
@@ -458,7 +490,7 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 15 — Claude Agent runtime
+      - name: Run task 17 — Claude Agent runtime
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime')
@@ -466,34 +498,6 @@ jobs:
         shell: bash
         env:
           REGRESSION_TASK: claude-agent-runtime
-        run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
-          --run-dir "$RUN_DIR"
-          --task "$REGRESSION_TASK"
-          --claude-path "${{ steps.claude.outputs.path }}"
-
-      - name: Run task 16 — Agent PPT
-        if: >-
-          !cancelled() && steps.agent_settings.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'agent-ppt')
-        timeout-minutes: 20
-        shell: bash
-        env:
-          REGRESSION_TASK: agent-ppt
-        run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
-          --run-dir "$RUN_DIR"
-          --task "$REGRESSION_TASK"
-          --claude-path "${{ steps.claude.outputs.path }}"
-
-      - name: Run task 17 — translation
-        if: >-
-          !cancelled() && steps.agent_settings.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'translation')
-        timeout-minutes: 20
-        shell: bash
-        env:
-          REGRESSION_TASK: translation
         run: >-
           pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
@@ -528,14 +532,14 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 20 — OpenClaw
+      - name: Run task 20 — Agent PPT
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'openclaw')
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'agent-ppt')
         timeout-minutes: 20
         shell: bash
         env:
-          REGRESSION_TASK: openclaw
+          REGRESSION_TASK: agent-ppt
         run: >-
           pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"

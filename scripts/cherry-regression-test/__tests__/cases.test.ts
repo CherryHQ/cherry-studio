@@ -41,23 +41,23 @@ describe('regression test manifest', () => {
       ['S-01'],
       ['APP-01'],
       ['N-01'],
-      ['M-01'],
       ['M-02'],
       ['C-01'],
       ['A-02'],
       ['C-02'],
       ['C-03'],
+      ['T-01', 'T-02'],
       ['K-01'],
       ['K-02'],
       ['MCP-01'],
+      ['CODE-03'],
+      ['M-01'],
       ['A-04'],
       ['A-05'],
       ['A-03'],
-      ['A-01'],
-      ['T-01', 'T-02'],
       ['P-01', 'P-02'],
       ['CODE-01', 'CODE-02'],
-      ['CODE-03']
+      ['A-01']
     ])
   })
 
@@ -107,5 +107,12 @@ describe('regression test manifest', () => {
     const selectionCase = REGRESSION_CASES.find(({ id }) => id === 'C-03')
 
     expect(selectionCase?.evidence.find(({ id }) => id === 'selection-source-preserved')?.kind).toBe('file')
+  })
+
+  it('verifies Code CLI working directories from owned process commands', () => {
+    for (const caseId of ['CODE-01', 'CODE-02']) {
+      const codeCase = REGRESSION_CASES.find(({ id }) => id === caseId)
+      expect(codeCase?.evidence.find(({ id }) => id.endsWith('-directory'))?.kind).toBe('process')
+    }
   })
 })

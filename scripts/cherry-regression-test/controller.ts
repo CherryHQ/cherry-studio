@@ -138,12 +138,19 @@ export class RegressionController {
       account: this.config.cherryIn.account,
       password: this.config.cherryIn.password
     })
-    sendProtocolUrlToOwnedApp(readAppRecord(this.paths), callback)
+    const appRecord = readAppRecord(this.paths)
+    sendProtocolUrlToOwnedApp(appRecord, callback)
 
     const deadline = Date.now() + 60_000
+    const retryAt = Date.now() + 10_000
+    let retriedDelivery = false
     do {
       const observation = await client.inspect(loginButton)
       if (observation.count === 0) return { authenticated: true }
+      if (!retriedDelivery && Date.now() >= retryAt) {
+        sendProtocolUrlToOwnedApp(appRecord, callback)
+        retriedDelivery = true
+      }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
     } while (Date.now() < deadline)
     throw new Error('CherryIN authorization callback did not complete within 60000ms')

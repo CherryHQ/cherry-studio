@@ -323,11 +323,11 @@ desktop tools.
    `Save`, then exact `Enable` for that provider.
 
    Click exact `Launch`, then exact `Select Folder`, and immediately use
-   `native-file-picker` with `agentWorkspace`. Before submitting the dialog,
-   record `claude-code-directory` or `codex-directory` against its visible
-   `agent-workspace` value. Click the dialog's exact `Launch`, wait 5 seconds,
-   record the corresponding process evidence, and capture `claude-code` or
-   `codex`. Do not look for Code in the fixed sidebar and do not inspect the
+   `native-file-picker` with `agentWorkspace`. Click the dialog's exact
+   `Launch` and wait 5 seconds. Record both the corresponding tool process and
+   `claude-code-directory` or `codex-directory` as process evidence; the driver
+   verifies the live command includes `agent-workspace`. Capture `claude-code`
+   or `codex`. Do not look for Code in the fixed sidebar and do not inspect the
    external terminal through CDP.
 20. For CODE-03, click exact `Launchpad` > `Code` > `OpenClaw`. The workflow
    has already installed OpenClaw; do not click Install or Retry. Configure
@@ -340,9 +340,10 @@ desktop tools.
    capture `openclaw`. Return to the main Code page, click exact `Stop`, wait 5
    seconds, and record `openclaw-stopped` as process evidence.
 21. For N-01, click exact `Launchpad` > `Notes`. Click
-   `css: [data-ui='notes.navigation'] svg.lucide-file-plus-2` once. Fill the
-   only `css: [data-ui='notes.view'] input` with
-   `Cherry Regression Note 31415`, then press Enter against it. Fill
+   `css: [data-ui='notes.navigation'] div:has(> svg.lucide-file-plus-2)` once.
+   Fill the only `css: [data-ui='notes.view'] input` with
+   `Cherry Regression Note 31415`, press Enter against it, and wait 1 second
+   for the renamed file session to settle. Fill
    `css: [data-ui='notes.editor'] [contenteditable='true']` with
    `NOTE_AUTOSAVE_PASS_27182` and wait 3 seconds once. Navigate to Chat, return
    through Launchpad > Notes, click exact `Cherry Regression Note 31415`, and

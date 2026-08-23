@@ -167,4 +167,51 @@ describe('owned application lifecycle', () => {
       })
     )
   })
+
+  it('delivers a protocol URL directly to the owned macOS development instance', () => {
+    const electronPid = 42_001
+    const targetRoot = '/tmp/target-app'
+    const executablePath = `${targetRoot}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`
+    const record: AppRecord = {
+      schemaVersion: 1,
+      ownership: 'agent',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'authenticated',
+      runKey: 'test-run',
+      targetRoot,
+      command: 'pnpm',
+      args: ['debug'],
+      cwd: targetRoot,
+      runnerPid: 42_000,
+      electronPid,
+      cdpPort: 9222,
+      targetUrl: 'http://127.0.0.1:9222',
+      logPath: '/tmp/run/electron.log',
+      startedAt: '2026-08-22T00:00:00.000Z',
+      restartCount: 0
+    }
+    const callback = 'cherrystudio://oauth/callback?code=test-code&state=test-state'
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+    execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+      if (file === executablePath) return ''
+      if (file === 'lsof') return String(electronPid)
+      if (file === 'ps' && args.includes('command=')) return `${executablePath} ${targetRoot}`
+      if (file === 'ps' && args.includes('comm=')) return executablePath
+      throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
+    })
+
+    sendProtocolUrlToOwnedApp(record, callback)
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      executablePath,
+      [targetRoot, callback],
+      expect.objectContaining({
+        cwd: targetRoot,
+        env: expect.objectContaining({ CS_DEV_USER_DATA_SUFFIX: 'Regression-test-run-authenticated' }),
+        stdio: 'ignore'
+      })
+    )
+  })
 })

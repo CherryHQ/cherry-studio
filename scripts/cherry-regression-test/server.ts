@@ -302,8 +302,12 @@ function processContract(evidenceId: string): { commandFragment: string; expecte
   switch (evidenceId) {
     case 'claude-code-process':
       return { commandFragment: 'claude', expectedRunning: true }
+    case 'claude-code-directory':
+      return { commandFragment: 'agent-workspace', expectedRunning: true }
     case 'codex-process':
       return { commandFragment: 'codex', expectedRunning: true }
+    case 'codex-directory':
+      return { commandFragment: 'agent-workspace', expectedRunning: true }
     case 'openclaw-gateway':
       return { commandFragment: 'openclaw', expectedRunning: true }
     case 'openclaw-stopped':
@@ -348,9 +352,7 @@ function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
     'cherryin-connection': ['Passed'],
     'cherryin-identity': ['Logged in via OAuth'],
     'cherryin-chat-response': [FIXTURE_MARKERS.cherryInChat],
-    'claude-code-directory': ['agent-workspace'],
     'claude-runtime': [FIXTURE_MARKERS.claudeAgentName],
-    'codex-directory': ['agent-workspace'],
     'custom-provider-connection': ['Passed'],
     'custom-provider-saved': [
       FIXTURE_MARKERS.customProviderName,

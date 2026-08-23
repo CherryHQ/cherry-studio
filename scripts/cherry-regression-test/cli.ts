@@ -2,7 +2,12 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { assertAgentPreflightOutput, assertAgentTaskOutput, describeAgentFailure } from './agent'
+import {
+  assertAgentPreflightOutput,
+  assertAgentTaskOutput,
+  buildTaskSkillInstructions,
+  describeAgentFailure
+} from './agent'
 import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
@@ -229,7 +234,10 @@ async function runAgentTaskCommand(): Promise<void> {
   if (!settings.env) throw new Error(`Agent settings are missing environment values for ${task}`)
 
   const config = loadTestConfig(settings.env)
-  const skillInstructions = readFileSync(resolve('.agents/skills/cherry-regression-test/SKILL.md'), 'utf8')
+  const skillInstructions = buildTaskSkillInstructions(
+    readFileSync(resolve('.agents/skills/cherry-regression-test/SKILL.md'), 'utf8'),
+    task
+  )
   const environment = {
     ...process.env,
     ...settings.env,

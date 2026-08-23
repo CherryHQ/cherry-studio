@@ -402,12 +402,12 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     steps: [
       'Open Launchpad > Code > Claude Code; configure and enable Cherry Regression Custom Provider 31415 with configRef customProviderChatModel.',
-      'Launch with agentWorkspace, record the directory before submitting, then verify the preinstalled Claude Code process remains running.'
+      'Launch with agentWorkspace, then verify the preinstalled Claude Code process remains running from that directory.'
     ],
     acceptance: ['The real process remains running in the selected working directory without a blocking setup error.'],
     evidence: [
       requirement('claude-code-process', 'process', 'Observe a live Claude Code process'),
-      requirement('claude-code-directory', 'ui', 'Observe the selected working directory in the terminal'),
+      requirement('claude-code-directory', 'process', 'Observe the working directory in the live process command'),
       screenshot('claude-code')
     ]
   },
@@ -419,12 +419,12 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     steps: [
       'Open Launchpad > Code > OpenAI Codex; configure and enable Unified Gateway with configRef customProviderChatModel.',
-      'Launch with agentWorkspace, record the directory before submitting, then verify the preinstalled Codex process remains running.'
+      'Launch with agentWorkspace, then verify the preinstalled Codex process remains running from that directory.'
     ],
     acceptance: ['The real process remains running in the selected working directory without immediately exiting.'],
     evidence: [
       requirement('codex-process', 'process', 'Observe a live Codex process'),
-      requirement('codex-directory', 'ui', 'Observe the selected working directory in the terminal'),
+      requirement('codex-directory', 'process', 'Observe the working directory in the live process command'),
       screenshot('codex')
     ]
   },

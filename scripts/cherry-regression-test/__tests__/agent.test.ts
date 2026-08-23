@@ -1,4 +1,13 @@
-import { assertAgentPreflightOutput, assertAgentTaskOutput, describeAgentFailure } from '../agent'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+import {
+  assertAgentPreflightOutput,
+  assertAgentTaskOutput,
+  buildTaskSkillInstructions,
+  describeAgentFailure
+} from '../agent'
+import { TASK_IDS } from '../types'
 
 describe('test agent preflight', () => {
   it('accepts only the expected successful response', () => {
@@ -60,5 +69,38 @@ describe('test agent preflight', () => {
         limits
       )
     ).toBe('returned an error: provider unavailable')
+    expect(
+      describeAgentFailure(
+        {
+          signal: null,
+          status: 1,
+          stdout: JSON.stringify({ is_error: true, result: 'API Error: usage allocated quota exceeded' })
+        },
+        limits
+      )
+    ).toBe('returned an error: API Error: usage allocated quota exceeded')
+  })
+})
+
+describe('test agent skill prompt', () => {
+  const source = readFileSync(resolve('.agents/skills/cherry-regression-test/SKILL.md'), 'utf8')
+
+  it('includes only common guidance and the assigned task section', () => {
+    const prompt = buildTaskSkillInstructions(source, 'quick-assistant')
+
+    expect(prompt).toContain('1. Call `get-run-context`')
+    expect(prompt).toContain('8. For C-02')
+    expect(prompt).toContain('22. Use `system-action`')
+    expect(prompt).not.toContain('6. For M-02')
+    expect(prompt).not.toContain('21. For N-01')
+    expect(prompt.length).toBeLessThan(source.length / 2)
+  })
+
+  it('builds a bounded prompt for every task', () => {
+    for (const task of TASK_IDS) {
+      const prompt = buildTaskSkillInstructions(source, task)
+      expect(prompt).toContain('## Keep execution bounded')
+      expect(prompt).not.toContain('description: Run Cherry Studio critical-path')
+    }
   })
 })
