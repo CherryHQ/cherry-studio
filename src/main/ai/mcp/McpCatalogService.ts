@@ -246,6 +246,12 @@ export class McpCatalogService extends BaseService {
 
     try {
       const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
+      const runtimeStatus = application.get('CacheService').getShared(mcpStatusCacheKey(server.id)) as
+        | McpRuntimeStatus
+        | undefined
+      if (runtimeStatus && runtimeStatus.state !== 'connected') {
+        return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
+      }
       this.writeToolsCache(server.id, tools, tools.length === 0 ? EMPTY_TOOLS_RETRY_MS : 0)
       this.runtimeService().setServerStatus(server.id, 'connected')
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)

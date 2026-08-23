@@ -194,6 +194,27 @@ describe('McpCatalogService', () => {
     }
   )
 
+  it('does not publish a stale successful refresh over pending-auth', async () => {
+    getById.mockReturnValue(server())
+    let resolveList!: (value: { tools: ReturnType<typeof sdkTool>[] }) => void
+    listTools.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveList = resolve
+      })
+    )
+
+    const service = new McpCatalogService()
+    const refresh = service.refreshTools('server-1')
+    await vi.waitFor(() => expect(listTools).toHaveBeenCalledTimes(1))
+
+    cacheStore.set('mcp.status.server-1', { state: 'pending-auth', lastCheckedAt: Date.now() })
+    resolveList({ tools: [sdkTool('stale-search')] })
+    await refresh
+
+    expect(cacheStore.get('mcp.tools.server-1')).toBeUndefined()
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+  })
+
   it('prewarms active server tools into shared cache', async () => {
     listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
     listTools.mockResolvedValue({ tools: [sdkTool('search')] })
