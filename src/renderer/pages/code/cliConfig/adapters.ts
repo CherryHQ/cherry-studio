@@ -199,7 +199,7 @@ const claudeAdapter: CliConfigAdapter = {
     if (!context.apiKey) throw new Error('Claude Code config is missing the API key')
   },
   async buildOwnLoginDraft(configBlob) {
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFiles(['claude-settings'])
     const existing = readAndParseDraftFile('claude-settings', parseJsonOrThrow, undefined, read)
     return [
       makeDraftFile(
@@ -305,7 +305,7 @@ const codexAdapter: CliConfigAdapter = {
     if (!context.apiKey) throw new Error('Codex config is missing the API key')
   },
   async buildOwnLoginDraft(configBlob) {
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFiles(['codex-config'])
     const config = readAndParseDraftFile('codex-config', parseTomlOrThrow, undefined, read)
     return [makeDraftFile('codex-config', stringifyToml(buildCodexOwnLoginConfig(config, configBlob)), read)]
   },
@@ -546,7 +546,7 @@ const geminiAdapter: CliConfigAdapter = {
     if (!context.apiKey) throw new Error('Gemini CLI config is missing the API key')
   },
   async buildOwnLoginDraft(configBlob) {
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFiles(['gemini-settings'])
     const settings = readAndParseDraftFile('gemini-settings', parseJsonOrThrow, undefined, read)
     return [makeDraftFile('gemini-settings', renderJsonFile(buildGeminiOwnLoginSettings(settings, configBlob)), read)]
   },
@@ -641,7 +641,7 @@ const qwenAdapter: CliConfigAdapter = {
     }
   },
   async buildOwnLoginDraft(configBlob) {
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFiles(['qwen-settings'])
     const existing = readAndParseDraftFile('qwen-settings', parseJsonOrThrow, undefined, read)
     return [makeDraftFile('qwen-settings', renderJsonFile(buildQwenOwnLoginConfig(existing, configBlob)), read)]
   },
@@ -736,7 +736,7 @@ const kimiAdapter: CliConfigAdapter = {
     }
   },
   async buildOwnLoginDraft(configBlob) {
-    const read = await readConfigFiles(this.targets)
+    const read = await readConfigFiles(['kimi-config'])
     const existing = readAndParseDraftFile('kimi-config', parseTomlOrThrow, undefined, read)
     return [makeDraftFile('kimi-config', stringifyToml(buildKimiOwnLoginConfig(existing, configBlob)), read)]
   },

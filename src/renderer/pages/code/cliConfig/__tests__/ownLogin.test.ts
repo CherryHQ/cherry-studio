@@ -160,4 +160,26 @@ describe('readOwnLoginCliConfigDraft (adapter disk-read glue)', () => {
       /not supported/i
     )
   })
+
+  it('reads only the tool-param file: a failing credential sibling must not abort the draft', async () => {
+    // codex-auth is credential-only and never consumed by the own-login draft; an
+    // EACCES on it must not block rebuilding codex-config's tool params.
+    mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => {
+      if (input.targets.includes('codex-auth')) throw new Error('EACCES: permission denied')
+      return {
+        files: input.targets.map((target) => ({
+          target,
+          path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+          content: ''
+        }))
+      }
+    })
+
+    const files = await readOwnLoginCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, configBlob: {} })
+
+    expect(files).toHaveLength(1)
+    expect(files[0].target).toBe('codex-config')
+    const requested = mocks.request.mock.calls.flatMap(([, input]) => (input as { targets: CliConfigTarget[] }).targets)
+    expect(requested).not.toContain('codex-auth')
+  })
 })
