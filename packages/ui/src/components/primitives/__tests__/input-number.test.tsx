@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -328,6 +328,50 @@ describe('InputNumber', () => {
     await user.keyboard(key)
 
     expect(input).toHaveValue(expected)
+  })
+
+  // A caller whose `value` only catches up after a round trip would otherwise render
+  // the old value between blur and that round trip finishing.
+  it('holds the settled value while an async commit is in flight', async () => {
+    const user = userEvent.setup()
+    let finish: () => void = () => {}
+    const onBlur = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)))
+    // `value` deliberately never moves: it stands in for a caller still fetching.
+    render(<InputNumber aria-label="amount" min={0} step={1} value={0} onBlur={onBlur} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.clear(input)
+    await user.type(input, '30')
+    await user.tab()
+
+    expect(input).toHaveValue('30')
+    expect(input).toHaveAttribute('aria-busy', 'true')
+
+    await act(async () => finish())
+
+    expect(input).toHaveValue('0')
+    expect(input).not.toHaveAttribute('aria-busy')
+  })
+
+  it('lets a re-focused field keep what is being typed when the commit settles', async () => {
+    const user = userEvent.setup()
+    let finish: () => void = () => {}
+    const onBlur = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)))
+    render(<InputNumber aria-label="amount" min={0} step={1} value={0} onBlur={onBlur} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.type(input, '30')
+    await user.tab()
+
+    await user.click(input)
+    await user.clear(input)
+    await user.type(input, '7')
+    await act(async () => finish())
+
+    expect(input).toHaveValue('7')
+    expect(input).not.toHaveAttribute('aria-busy')
   })
 
   it('refuses to step when the range is empty', async () => {

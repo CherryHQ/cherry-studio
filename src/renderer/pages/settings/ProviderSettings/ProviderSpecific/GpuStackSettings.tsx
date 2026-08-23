@@ -22,8 +22,9 @@ const GpuStackSettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
 
   const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
-  // `onBlur` fires once per edit with the normalized value, so the field needs
-  // no local draft: a failed save leaves the saved value shown.
+  // `onBlur` fires once per edit with the normalized value, so the field needs no
+  // local draft. It is handed back the promise, so it holds the committed value
+  // until the provider query catches up; a failed save falls back to the saved one.
   const handleCommit = async (value: number | null) => {
     const next = value ?? 0
     if (next === keepAliveTime) return
@@ -44,7 +45,7 @@ const GpuStackSettings: FC<Props> = ({ providerId }) => {
           value={keepAliveTime}
           min={0}
           step={5}
-          onBlur={(v) => void handleCommit(v)}
+          onBlur={handleCommit}
         />
         <InputGroupAddon align="inline-end">
           <InputGroupText>{t('gpustack.keep_alive_time.placeholder')}</InputGroupText>

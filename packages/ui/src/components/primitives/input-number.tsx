@@ -69,6 +69,12 @@ interface InputNumberProps
   /**
    * Fires on blur/Enter with the normalized value; route it back into `value` to render it.
    *
+   * Return the commit's promise when it is async and the field will hold the settled
+   * value until it settles, marking itself `aria-busy`/`data-busy` meanwhile. Without
+   * that, a caller whose `value` only catches up after a round trip renders the *old*
+   * value in between — the field drops its own copy on blur, before the caller has a
+   * new one. Returning nothing keeps the synchronous behaviour.
+   *
    * Nearly every caller wants this one: it is the only callback that normalizes,
    * so without it `min`/`max`/`step` never reach a committed value. Skipping it
    * therefore means not caring what those bounds do — and the check for that is
@@ -76,7 +82,7 @@ interface InputNumberProps
    * is worse than decorative: they still publish an `aria` range that nothing
    * enforces.
    */
-  onBlur?: (value: number | null) => void
+  onBlur?: (value: number | null) => void | Promise<unknown>
   /** The floor a committed or stepped value is clamped up to, negatives included. Also published as `aria-valuemin`. */
   min?: number
   /** The ceiling a committed or stepped value is clamped down to. Also published as `aria-valuemax`. */
@@ -138,6 +144,9 @@ function toNumber(raw: string): number | null {
 
 const decimalsOf = (value: number) => String(value).split('.')[1]?.length ?? 0
 
+const isPromise = (value: unknown): value is Promise<unknown> =>
+  typeof (value as Promise<unknown> | undefined)?.then === 'function'
+
 const inRange = (value: number, min?: number, max?: number) =>
   (min === undefined || value >= min) && (max === undefined || value <= max)
 
@@ -197,6 +206,10 @@ function InputNumber({
   // What the current edit started from. `value` has already moved for callers that
   // write on every `onValueChange`, so Escape cannot restore from the prop.
   const preEdit = React.useRef<number | null>(null)
+  const [busy, setBusy] = React.useState(false)
+  // Bumped by every focus and blur, so a commit that settles after the user has come
+  // back cannot clear the text they are typing now.
+  const generation = React.useRef(0)
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.value
@@ -216,8 +229,22 @@ function InputNumber({
   }
 
   const handleBlur = () => {
-    setDraft(null)
-    onBlur?.(parse(text, min, max, step))
+    const settled = parse(text, min, max, step)
+    const commit = onBlur?.(settled)
+    if (!isPromise(commit)) {
+      setDraft(null)
+      return
+    }
+    // Hold the settled value until the caller's `value` can catch up.
+    const current = ++generation.current
+    setDraft(format(settled))
+    setBusy(true)
+    const release = () => {
+      if (generation.current !== current) return
+      setBusy(false)
+      setDraft(null)
+    }
+    commit.then(release, release)
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -259,12 +286,16 @@ function InputNumber({
       type="text"
       inputMode={allowsDecimal(step) ? 'decimal' : 'numeric'}
       role="spinbutton"
+      aria-busy={busy || undefined}
+      data-busy={busy || undefined}
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={toNumber(text) ?? undefined}
       value={text}
-      className={cn(sizeClasses[size], className)}
+      className={cn(sizeClasses[size], 'data-[busy=true]:cursor-progress data-[busy=true]:opacity-40', className)}
       onFocus={(event) => {
+        generation.current += 1
+        setBusy(false)
         preEdit.current = value
         setDraft(format(value))
         onFocus?.(event)
