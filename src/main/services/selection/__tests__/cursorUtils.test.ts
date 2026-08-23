@@ -28,9 +28,13 @@ describe('cursorUtils — isIBeamHotspot', () => {
   })
 
   it('rejects non-I-beam hotspot at exact tolerance boundary (strict <)', () => {
-    // At exactly 0.6 away, the native < kEpsilon check rejects — mirror that.
-    expect(isIBeamHotspot({ x: 12 + __internal.HOTSPOT_TOLERANCE, y: 11 })).toBe(false)
-    expect(isIBeamHotspot({ x: 12, y: 11 + __internal.HOTSPOT_TOLERANCE })).toBe(false)
+    // At exactly 0.6 away the native fabs(dx) < kEpsilon check rejects (strict <).
+    // Use an explicit offset just beyond the tolerance to avoid binary floating
+    // point rounding of 12 + 0.6 landing inside the window.
+    const epsilon = 1e-12
+    const beyond = __internal.HOTSPOT_TOLERANCE + epsilon
+    expect(isIBeamHotspot({ x: 12 + beyond, y: 11 })).toBe(false)
+    expect(isIBeamHotspot({ x: 12, y: 11 + beyond })).toBe(false)
   })
 
   it('tolerance can be overridden', () => {
