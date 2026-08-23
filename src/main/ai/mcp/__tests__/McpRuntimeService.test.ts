@@ -1519,7 +1519,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     await secondStop
   })
 
-  it('cancels every registered grace wait for concurrent configurations of the same server', async () => {
+  it('keeps only the newest grace wait for concurrent configurations and cancels it on stop', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
     const graceSignals: AbortSignal[] = []
@@ -1539,14 +1539,14 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     const firstAssertion = expect(firstConnect).rejects.toThrow()
     const secondAssertion = expect(secondConnect).rejects.toThrow()
 
-    await vi.waitFor(() => expect(callbackServerMock.waitForAuthCode).toHaveBeenCalled())
+    await vi.waitFor(() => expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(1))
     const stop = service.stopServer(server.id)
 
     await Promise.all([firstAssertion, secondAssertion])
     await stop
-    expect(graceSignals.length).toBeGreaterThan(0)
+    expect(graceSignals).toHaveLength(1)
     expect(graceSignals.every((signal) => signal.aborted)).toBe(true)
-    expect(callbackServerMock.close).toHaveBeenCalledTimes(graceSignals.length)
+    expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
       state: 'disabled'
     })
@@ -1585,6 +1585,42 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
       state: 'disabled'
     })
+    const statesAfterStop = MockMainCacheServiceUtils.getBroadcastHistory()
+      .slice(broadcastsBeforeStop)
+      .map(({ message }) => (message.value as { state?: string } | undefined)?.state)
+    expect(statesAfterStop).toEqual(['disabled'])
+  })
+
+  it('does not publish an inline OAuth reconnect that finishes after stop begins', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    const finishAuth = createDeferred<void>()
+    const reconnect = createDeferred<void>()
+    mcpSdkMock.state.finishAuthPromise = finishAuth.promise
+    callbackServerMock.waitForAuthCode.mockResolvedValueOnce('auth-code')
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    getByIdMock.mockReturnValue(server)
+    const connect = (service as any).getOrCreateClient(server)
+    const connectAssertion = expect(connect).rejects.toThrow(`MCP server ${server.name} was stopped`)
+
+    await vi.waitFor(() => expect(mcpSdkMock.state.finishAuthStarted).toHaveBeenCalledTimes(1))
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableUnauthorized = false
+    mcpSdkMock.state.connectPromise = reconnect.promise
+    finishAuth.resolve()
+    await vi.waitFor(() => expect(mcpSdkMock.state.connectStarted).toHaveBeenCalledTimes(1))
+
+    const broadcastsBeforeStop = MockMainCacheServiceUtils.getBroadcastHistory().length
+    const stop = service.stopServer(server.id)
+    reconnect.resolve()
+    await Promise.all([connectAssertion, stop])
+
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }, { kind: 'streamableHttp' }])
+    expect(mcpSdkMock.clients.at(-1)?.close).toHaveBeenCalledTimes(2)
+    expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
+    expect((service as any).clients.size).toBe(0)
     const statesAfterStop = MockMainCacheServiceUtils.getBroadcastHistory()
       .slice(broadcastsBeforeStop)
       .map(({ message }) => (message.value as { state?: string } | undefined)?.state)
