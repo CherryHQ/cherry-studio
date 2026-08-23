@@ -144,6 +144,10 @@ export interface ChatVirtualizerRuntime<T> {
   beginScrollbarDrag(): void
   /** Finish a native scrollbar drag and anchor the viewport at its final position. */
   endScrollbarDrag(): void
+  /** Mark Chromium middle-click autoscroll as active so freeze logic yields. */
+  beginAutoscroll(): void
+  /** Clear the autoscroll flag and re-anchor the viewport. */
+  endAutoscroll(): void
 }
 
 const SCROLL_WHEEL_DEBOUNCE_MS = 100
@@ -207,6 +211,7 @@ export function useChatVirtualizerRuntime<T>({
   const pendingUserInputRef = useRef<PendingUserInput | null>(null)
   const userScrollGestureRef = useRef(false)
   const scrollbarDragActiveRef = useRef(false)
+  const autoscrollActiveRef = useRef(false)
   const readNavigationActiveRef = useRef(false)
   const explicitNavigationBaseRef = useRef<ExplicitNavigationBase | null>(null)
   const lastScrollOffsetRef = useRef(0)
@@ -214,6 +219,7 @@ export function useChatVirtualizerRuntime<T>({
     pendingUserInputRef.current = { at: performance.now(), direction }
   }, [])
   const isUserScrollIntentPending = useCallback((direction: ScrollDirection = 'none') => {
+    if (autoscrollActiveRef.current) return true
     const input = pendingUserInputRef.current
     if (!input) return false
     const directionMatches = input.direction === 'none' || direction === 'none' || input.direction === direction
@@ -377,7 +383,13 @@ export function useChatVirtualizerRuntime<T>({
     const content = contentRef.current
     const handle = vlistHandleRef.current
     if (!frozen || !el || !handle) return
-    if (smoothScroll.isAnimating() || userScrollGestureRef.current || scrollbarDragActiveRef.current) return
+    if (
+      smoothScroll.isAnimating() ||
+      userScrollGestureRef.current ||
+      scrollbarDragActiveRef.current ||
+      autoscrollActiveRef.current
+    )
+      return
 
     const itemIndex = findDataIndexByKey(frozen.itemKey)
     if (itemIndex < 0) {
@@ -466,6 +478,17 @@ export function useChatVirtualizerRuntime<T>({
   const endScrollbarDrag = useCallback(() => {
     if (!scrollbarDragActiveRef.current) return
     scrollbarDragActiveRef.current = false
+    settleUserScrollGesture()
+  }, [settleUserScrollGesture])
+
+  const beginAutoscroll = useCallback(() => {
+    autoscrollActiveRef.current = true
+    markUserInput()
+  }, [markUserInput])
+
+  const endAutoscroll = useCallback(() => {
+    if (!autoscrollActiveRef.current) return
+    autoscrollActiveRef.current = false
     settleUserScrollGesture()
   }, [settleUserScrollGesture])
 
@@ -573,7 +596,8 @@ export function useChatVirtualizerRuntime<T>({
     if (!content || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => {
       const isReading = !viewportFollow.isFollowing()
-      const shouldHoldRestingViewport = isReading && !userScrollGestureRef.current && !scrollbarDragActiveRef.current
+      const shouldHoldRestingViewport =
+        isReading && !userScrollGestureRef.current && !scrollbarDragActiveRef.current && !autoscrollActiveRef.current
       if (shouldHoldRestingViewport) {
         // Restore range from the currently committed DOM before re-asserting
         // scrollTop. Disclosure collapse may already have let the browser clamp
@@ -700,7 +724,11 @@ export function useChatVirtualizerRuntime<T>({
     ) {
       pendingUserInputRef.current = null
     }
-    const isUserInitiated = scrollbarDragActiveRef.current || userScrollGestureRef.current || hasRecentUserScrollIntent
+    const isUserInitiated =
+      scrollbarDragActiveRef.current ||
+      autoscrollActiveRef.current ||
+      userScrollGestureRef.current ||
+      hasRecentUserScrollIntent
     const wheelDir = lastWheelDirRef.current
     const direction = wheelDir !== 'none' ? wheelDir : deltaDirection
     if (hasRecentUserScrollIntent && pendingUserInput?.direction === 'none' && direction !== 'none') {
@@ -1031,7 +1059,9 @@ export function useChatVirtualizerRuntime<T>({
     scrollByWheel,
     markUserInput,
     beginScrollbarDrag,
-    endScrollbarDrag
+    endScrollbarDrag,
+    beginAutoscroll,
+    endAutoscroll
   }
 }
 

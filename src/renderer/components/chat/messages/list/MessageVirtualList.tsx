@@ -156,6 +156,7 @@ export function MessageVirtualList<T>({
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { beginScrollbarDrag, endScrollbarDrag, scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
+  const { beginAutoscroll, endAutoscroll } = runtime
   // Latch the captured node like TabRouter does: a background tab detaches the
   // ref (element === null) while its DOM node lives on, and clearing this state
   // would unmount the virtualizer below — discarding virtua's measurements and
@@ -274,7 +275,57 @@ export function MessageVirtualList<T>({
     scrollerElement.addEventListener('focusin', onFocusIn)
     scrollerElement.addEventListener('focusout', onFocusOut)
     scrollerElement.addEventListener('keydown', onKeyDown)
+    // Chromium middle-click autoscroll synthesizes scrollTop directly without wheel
+    // or pointer drag events. The freeze logic would otherwise snap it back every
+    // frame. Track the middle-button autoscroll lifecycle: on Windows a quick
+    // press+release enters autoscroll mode and a second middle press (or Esc /
+    // any other click) exits it — so ending on mouseup would be too early.
+    let autoscrollArmed = false
+    const onAutoscrollMouseDown = (event: MouseEvent) => {
+      const isMiddle = event.button === 1
+      const insideScroller = scrollerElement.contains(event.target as Node)
+      if (isMiddle && insideScroller) {
+        const target = event.target instanceof Element ? event.target : null
+        if (target?.closest('a,button,[role="button"]')) return
+        // Toggle: second middle press exits autoscroll (Chromium's dismiss gesture).
+        if (autoscrollArmed) {
+          autoscrollArmed = false
+          endAutoscroll()
+          return
+        }
+        autoscrollArmed = true
+        beginAutoscroll()
+        return
+      }
+      // Non-middle click or click outside scroller while autoscroll is active
+      // dismisses it (Chromium parity).
+      if (autoscrollArmed) {
+        autoscrollArmed = false
+        endAutoscroll()
+      }
+    }
+    const onKeyDownAutoscrollDismiss = (event: KeyboardEvent) => {
+      if (autoscrollArmed && event.key === 'Escape') {
+        autoscrollArmed = false
+        endAutoscroll()
+      }
+    }
+    const onWindowBlur = () => {
+      if (autoscrollArmed) {
+        autoscrollArmed = false
+        endAutoscroll()
+      }
+    }
+    // Single document-level listener covers both inside and outside clicks;
+    // a separate scroller listener would double-fire for inside clicks.
+    ownerDocument.addEventListener('mousedown', onAutoscrollMouseDown, { passive: true })
+    ownerDocument.addEventListener('keydown', onKeyDownAutoscrollDismiss)
+    ownerDocument.defaultView?.addEventListener('blur', onWindowBlur)
     return () => {
+      if (autoscrollArmed) {
+        autoscrollArmed = false
+        endAutoscroll()
+      }
       focusOwnerObserver.disconnect()
       scrollerElement.removeEventListener('pointerdown', onPointerDown)
       scrollerElement.removeEventListener('pointermove', onPointerMove)
@@ -283,8 +334,11 @@ export function MessageVirtualList<T>({
       scrollerElement.removeEventListener('focusin', onFocusIn)
       scrollerElement.removeEventListener('focusout', onFocusOut)
       scrollerElement.removeEventListener('keydown', onKeyDown)
+      ownerDocument.removeEventListener('mousedown', onAutoscrollMouseDown)
+      ownerDocument.removeEventListener('keydown', onKeyDownAutoscrollDismiss)
+      ownerDocument.defaultView?.removeEventListener('blur', onWindowBlur)
     }
-  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement])
+  }, [beginAutoscroll, beginScrollbarDrag, endAutoscroll, endScrollbarDrag, markUserInput, scrollerElement])
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom()
