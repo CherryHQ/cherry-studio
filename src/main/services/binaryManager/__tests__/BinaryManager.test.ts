@@ -138,9 +138,10 @@ const { findCommandInShellEnv, findExecutable, findMiseExecutable } = await impo
 const { regionService } = await import('@main/services/RegionService')
 const { getRawShellEnv, refreshShellEnv } = await import('@main/utils/shellEnv')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
-const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
+const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv, getBinaryName } = await import('@main/utils/binaryEnv')
 
 const mockApplicationPath = (key: string, ...segments: string[]) => path.join('/mock', key, ...segments)
+const mockBundledPath = (name: string) => mockApplicationPath('cherry.bin', getBinaryName(name))
 
 beforeEach(() => {
   vi.mocked(application.getPath).mockImplementation((key, filename) =>
@@ -196,7 +197,7 @@ function registerBundled(
   service: InstanceType<typeof BinaryManager>,
   name: string,
   version = '1.2.3',
-  binaryPath = mockApplicationPath('cherry.bin', name),
+  binaryPath = mockBundledPath(name),
   internal = false
 ): void {
   ;(service as any).bundledBinaries.set(name, { path: binaryPath, version, internal })
@@ -544,7 +545,7 @@ describe('BinaryManager', () => {
         [
           mockApplicationPath('feature.binary.data', 'shims', 'myfd'),
           mockApplicationPath('feature.binary.data', 'shims', 'node'),
-          mockApplicationPath('cherry.bin', 'bun')
+          mockBundledPath('bun')
         ].includes(candidate)
       )
       registerBundled(service, 'bun')
@@ -562,7 +563,7 @@ describe('BinaryManager', () => {
       await expect(service.getToolSnapshots(['bun', 'missing'])).resolves.toEqual({
         bun: {
           name: 'bun',
-          availability: { source: 'bundled', path: mockApplicationPath('cherry.bin', 'bun'), version: '1.2.3' },
+          availability: { source: 'bundled', path: mockBundledPath('bun'), version: '1.2.3' },
           application: { status: 'absent' }
         },
         missing: {
@@ -949,9 +950,7 @@ describe('BinaryManager', () => {
       MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         bun: { status: 'failed', action: 'install', error: 'offline' }
       })
-      ;(mockFs.existsSync as any).mockImplementation(
-        (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
-      )
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === mockBundledPath('bun'))
       registerBundled(service, 'bun')
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
 
@@ -971,9 +970,7 @@ describe('BinaryManager', () => {
         { name: 'fd', tool: 'fd' },
         { name: 'gone', tool: 'gone' }
       ]
-      ;(mockFs.existsSync as any).mockImplementation(
-        (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
-      )
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === mockBundledPath('bun'))
       registerBundled(service, 'bun')
       vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
         name === 'fd' ? '/usr/local/bin/fd' : null
@@ -987,7 +984,7 @@ describe('BinaryManager', () => {
         stderr: ''
       })
       ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
-        if (candidate !== mockApplicationPath('cherry.bin', 'bun')) throw new Error('ENOENT')
+        if (candidate !== mockBundledPath('bun')) throw new Error('ENOENT')
       })
 
       const snapshots = await service.getToolSnapshots(['bun', 'fd'])
@@ -995,7 +992,7 @@ describe('BinaryManager', () => {
       expect(snapshots.fd?.definition).toBeUndefined()
       expect(snapshots.bun?.availability).toEqual({
         source: 'bundled',
-        path: mockApplicationPath('cherry.bin', 'bun'),
+        path: mockBundledPath('bun'),
         version: '1.2.3'
       })
       expect(snapshots.fd?.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
@@ -1185,9 +1182,7 @@ describe('BinaryManager', () => {
       it('reports unknown/backend_unavailable for every name and never runs mise when mise is missing', async () => {
         const service = new BinaryManager()
         // miseBin stays null.
-        ;(mockFs.existsSync as any).mockImplementation(
-          (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
-        )
+        ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === mockBundledPath('bun'))
         registerBundled(service, 'bun')
         vi.mocked(findCommandInShellEnv).mockResolvedValue(null)
 
@@ -1197,7 +1192,7 @@ describe('BinaryManager', () => {
         // Bundled/system availability is still resolved independently of the fact.
         expect(snapshots.bun).toEqual({
           name: 'bun',
-          availability: { source: 'bundled', path: mockApplicationPath('cherry.bin', 'bun'), version: '1.2.3' },
+          availability: { source: 'bundled', path: mockBundledPath('bun'), version: '1.2.3' },
           application: { status: 'unknown', reason: 'backend_unavailable' }
         })
         expect(snapshots.fd).toEqual({
@@ -1211,7 +1206,7 @@ describe('BinaryManager', () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
         ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
-        ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
+        ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === mockBundledPath('bun'))
         mockFs.readFileSync.mockImplementation((candidate: string) =>
           candidate === '/mock/cherry.bin/.bun-version'
             ? '1.2.3'
@@ -1229,7 +1224,7 @@ describe('BinaryManager', () => {
 
         expect(snapshots.bun).toEqual({
           name: 'bun',
-          availability: { source: 'bundled', path: mockApplicationPath('cherry.bin', 'bun'), version: '1.2.3' },
+          availability: { source: 'bundled', path: mockBundledPath('bun'), version: '1.2.3' },
           application: { status: 'unknown', reason: 'query_failed' }
         })
         expect(snapshots.fd).toEqual({
@@ -2899,7 +2894,7 @@ describe('BinaryManager', () => {
   })
 
   describe('installWithMise', () => {
-    const UV_BIN = '/mock/cherry.bin/uv'
+    const UV_BIN = mockBundledPath('uv')
     const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
     const BABELDOC = { name: 'babeldoc-stream', tool: 'pipx:babeldoc-stream' }
     const uvCalls = (subcommand: string) =>
@@ -3190,7 +3185,7 @@ describe('BinaryManager', () => {
     const TSINGHUA = 'https://pypi.tuna.tsinghua.edu.cn/simple'
     const TENCENT = 'https://mirrors.cloud.tencent.com/pypi/simple'
     const OFFICIAL = 'https://pypi.org/simple'
-    const UV_BIN = '/mock/cherry.bin/uv'
+    const UV_BIN = mockBundledPath('uv')
     const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
 
     let originalEnv: NodeJS.ProcessEnv
@@ -3797,9 +3792,7 @@ describe('BinaryManager', () => {
             ]
           : []
       )
-      ;(mockFs.existsSync as any).mockImplementation(
-        (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
-      )
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === mockBundledPath('bun'))
       registerBundled(service, 'bun', '1.3.0')
 
       const inventory = await service.getToolInventory()
@@ -3907,8 +3900,8 @@ describe('BinaryManager', () => {
       )
       expect((service as any).bundledBinaries).toEqual(
         new Map([
-          ['uv', { path: mockApplicationPath('cherry.bin', 'uv'), version: '0.8.0', internal: false }],
-          ['uvx', { path: mockApplicationPath('cherry.bin', 'uvx'), version: '0.8.0', internal: false }]
+          ['uv', { path: mockBundledPath('uv'), version: '0.8.0', internal: false }],
+          ['uvx', { path: mockBundledPath('uvx'), version: '0.8.0', internal: false }]
         ])
       )
     })
@@ -3951,12 +3944,12 @@ describe('BinaryManager', () => {
       mockFs.existsSync.mockReturnValue(true)
 
       await (service as any).extractBundledBinaries()
-      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockApplicationPath('cherry.bin', 'bun'))
+      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockBundledPath('bun'))
       await (service as any).onStop()
       await expect(service.resolveBinaryPath('bun')).resolves.toBeNull()
       await (service as any).onInit()
 
-      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockApplicationPath('cherry.bin', 'bun'))
+      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockBundledPath('bun'))
       const bunArtifact = (bundledManifestRef.value as { artifacts: { bun: unknown } }).artifacts.bun
       expect(mockEnsureBundledFiles.mock.calls.filter(([, artifact]) => artifact === bunArtifact)).toHaveLength(2)
     })
@@ -3969,7 +3962,7 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = {}
       const shimPath = mockApplicationPath('feature.binary.data', 'shims', 'bun')
       ;(mockFs.existsSync as any).mockImplementation((candidate: string) =>
-        [shimPath, mockApplicationPath('cherry.bin', 'bun')].includes(candidate)
+        [shimPath, mockBundledPath('bun')].includes(candidate)
       )
       registerBundled(service, 'bun')
       mockExecFileAsync.mockResolvedValue({ stdout: '/mock/mise/installs/bun/1.0.0/bin/bun\n', stderr: '' })
@@ -3983,12 +3976,12 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = {}
       const shimPath = mockApplicationPath('feature.binary.data', 'shims', 'bun')
       ;(mockFs.existsSync as any).mockImplementation((candidate: string) =>
-        [shimPath, mockApplicationPath('cherry.bin', 'bun')].includes(candidate)
+        [shimPath, mockBundledPath('bun')].includes(candidate)
       )
       registerBundled(service, 'bun')
       mockExecFileAsync.mockRejectedValue(new Error('broken shim'))
 
-      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockApplicationPath('cherry.bin', 'bun'))
+      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockBundledPath('bun'))
     })
 
     it('removes an invalid bundled entry and returns null', async () => {
