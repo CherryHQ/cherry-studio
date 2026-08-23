@@ -9,7 +9,7 @@ import type {
   ResourceItem,
   ResourceType
 } from '@renderer/types/resourceCatalog'
-import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
+import { AssistantTransferError, serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { InstalledSkill } from '@shared/data/types/agent'
@@ -142,7 +142,13 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
+        toast.error(
+          error instanceof AssistantTransferError && error.code === 'image_avatar_not_supported'
+            ? t('library.export_assistant_image_avatar_unsupported')
+            : error instanceof Error
+              ? error.message
+              : t('library.export_assistant_failed')
+        )
       }
     },
     [groupById, t]

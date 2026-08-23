@@ -46,4 +46,34 @@ ALTER TABLE `__new_assistant` RENAME TO `assistant`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `assistant_created_at_idx` ON `assistant` (`created_at`);--> statement-breakpoint
 CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);--> statement-breakpoint
-ALTER TABLE `agent` ADD `avatar_emoji` text DEFAULT '🤖';
+ALTER TABLE `agent` ADD `avatar_emoji` text DEFAULT '🤖';--> statement-breakpoint
+UPDATE `agent`
+SET
+	`avatar_emoji` = CASE WHEN json_valid(`configuration`) THEN COALESCE(NULLIF(TRIM(json_extract(`configuration`, '$.avatar')), ''), '🤖') ELSE '🤖' END,
+	`configuration` = CASE WHEN json_valid(`configuration`) THEN json_remove(`configuration`, '$.avatar') ELSE '{}' END;--> statement-breakpoint
+UPDATE `message`
+SET `message_snapshot` = json_remove(
+	json_set(
+		`message_snapshot`,
+		'$.avatar',
+		json_object(
+			'kind', 'emoji',
+			'emoji', COALESCE(NULLIF(TRIM(json_extract(`message_snapshot`, '$.emoji')), ''), '🤖')
+		)
+	),
+	'$.emoji'
+)
+WHERE `message_snapshot` IS NOT NULL;--> statement-breakpoint
+UPDATE `agent_session_message`
+SET `message_snapshot` = json_remove(
+	json_set(
+		`message_snapshot`,
+		'$.avatar',
+		json_object(
+			'kind', 'emoji',
+			'emoji', COALESCE(NULLIF(TRIM(json_extract(`message_snapshot`, '$.emoji')), ''), '🤖')
+		)
+	),
+	'$.emoji'
+)
+WHERE `message_snapshot` IS NOT NULL;

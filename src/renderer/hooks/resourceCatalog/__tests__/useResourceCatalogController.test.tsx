@@ -216,6 +216,35 @@ describe('useResourceCatalogController', () => {
     })
   })
 
+  it('reports image-avatar export as unsupported instead of invalid input', async () => {
+    const imageAssistant = {
+      ...assistantResource,
+      avatar: {
+        kind: 'image',
+        fileId: '019606a0-0000-7000-8000-000000000001',
+        src: 'file:///avatar.webp'
+      },
+      raw: {
+        ...assistantResource.raw,
+        avatar: {
+          kind: 'image',
+          fileId: '019606a0-0000-7000-8000-000000000001',
+          src: 'file:///avatar.webp'
+        }
+      }
+    } as unknown as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    act(() => {
+      result.current.gridProps.onExport(imageAssistant)
+    })
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('library.export_assistant_image_avatar_unsupported')
+    })
+    expect(controllerMocks.saveFile).not.toHaveBeenCalled()
+  })
+
   it('counts non-empty groups and resolves the exported assistant group name', async () => {
     controllerMocks.dataApiGet.mockResolvedValueOnce([
       {

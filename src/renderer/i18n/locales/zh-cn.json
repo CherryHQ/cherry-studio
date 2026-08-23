@@ -2954,6 +2954,7 @@
       "title": "暂无资源"
     },
     "export_assistant_failed": "导出助手失败",
+    "export_assistant_image_avatar_unsupported": "暂不支持导出使用图片头像的助手",
     "group_picker": {
       "no_groups": "暂无分组"
     },

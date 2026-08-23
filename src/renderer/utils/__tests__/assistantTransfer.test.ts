@@ -115,16 +115,32 @@ describe('assistantTransfer', () => {
     expect(draft.groupName).toBe('写作')
   })
 
-  it('rejects a legacy import with an empty emoji', () => {
-    expect(() =>
-      parseAssistantImportContent(
-        JSON.stringify({
-          name: '无图标助手',
-          emoji: '',
-          prompt: 'legacy prompt'
-        })
+  it('uses the legacy default when an import omits or empties emoji', () => {
+    for (const record of [
+      { name: '无图标助手', prompt: 'legacy prompt' },
+      { name: '空图标助手', emoji: '', prompt: 'legacy prompt' }
+    ]) {
+      const [draft] = parseAssistantImportContent(JSON.stringify(record))
+      expect(draft.dto.avatar).toEqual({ kind: 'emoji', emoji: '🤖' })
+    }
+  })
+
+  it('rejects image-avatar export with a dedicated compatibility error', () => {
+    try {
+      serializeAssistantForExport(
+        createAssistant({
+          avatar: {
+            kind: 'image',
+            fileId: '019606a0-0000-7000-8000-000000000001',
+            src: 'file:///avatar.webp'
+          }
+        }),
+        []
       )
-    ).toThrowError(AssistantTransferError)
+      expect.unreachable('expected image-avatar export to fail')
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'image_avatar_not_supported' })
+    }
   })
 
   it('ignores v2-only fields from imported content and still uses legacy defaults', () => {

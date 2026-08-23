@@ -2954,6 +2954,7 @@
       "title": "Sem recursos"
     },
     "export_assistant_failed": "Falha ao exportar assistente",
+    "export_assistant_image_avatar_unsupported": "A exportação de assistentes com avatares de imagem ainda não é suportada",
     "group_picker": {
       "no_groups": "Nenhum grupo ainda"
     },
