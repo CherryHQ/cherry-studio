@@ -405,6 +405,20 @@ function evaluationValue<T>(evaluation: RuntimeEvaluation): T {
   return evaluation.result.value as T
 }
 
+export async function evaluateCdpExpression<T>(webSocketDebuggerUrl: string, expression: string): Promise<T> {
+  const connection = await CdpConnection.open(webSocketDebuggerUrl)
+  try {
+    const evaluation = await connection.send<RuntimeEvaluation>('Runtime.evaluate', {
+      awaitPromise: true,
+      expression,
+      returnByValue: true
+    })
+    return evaluationValue<T>(evaluation)
+  } finally {
+    connection.close()
+  }
+}
+
 function keyDefinition(key: string): { code: string; key: string; text?: string; windowsVirtualKeyCode: number } {
   const special: Record<string, { code: string; key: string; text?: string; windowsVirtualKeyCode: number }> = {
     ArrowDown: { code: 'ArrowDown', key: 'ArrowDown', windowsVirtualKeyCode: 40 },

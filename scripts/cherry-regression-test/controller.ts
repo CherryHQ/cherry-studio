@@ -139,7 +139,7 @@ export class RegressionController {
       password: this.config.cherryIn.password
     })
     const appRecord = readAppRecord(this.paths)
-    sendProtocolUrlToOwnedApp(appRecord, callback)
+    await sendProtocolUrlToOwnedApp(appRecord, callback)
 
     const deadline = Date.now() + 60_000
     const retryAt = Date.now() + 10_000
@@ -148,7 +148,7 @@ export class RegressionController {
       const observation = await client.inspect(loginButton)
       if (observation.count === 0) return { authenticated: true }
       if (!retriedDelivery && Date.now() >= retryAt) {
-        sendProtocolUrlToOwnedApp(appRecord, callback)
+        await sendProtocolUrlToOwnedApp(appRecord, callback)
         retriedDelivery = true
       }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))

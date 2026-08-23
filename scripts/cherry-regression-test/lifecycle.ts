@@ -12,11 +12,13 @@ import {
 } from 'node:fs'
 import { basename, dirname, join, resolve, win32 } from 'node:path'
 
+import { evaluateCdpExpression } from './cdp-client'
 import type { RunPaths } from './paths'
 import { isPathInside } from './paths'
 import type { Platform, RunMode, TestProfile } from './types'
 
 const CDP_PORT = 9222
+const MAIN_INSPECTOR_PORT = 9229
 
 export interface InstallationRecord {
   artifactName: string
@@ -101,14 +103,6 @@ function windowsProcessExecutablePath(pid: number): string {
   }
 }
 
-function macosProcessExecutablePath(pid: number): string {
-  try {
-    return execFileSync('ps', ['-o', 'comm=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
-  } catch {
-    return ''
-  }
-}
-
 function assertOwnedProcess(record: AppRecord, pid: number, kind: 'electron' | 'runner'): void {
   const command = processCommand(pid, record.platform)
   const expected =
@@ -176,7 +170,7 @@ function isDescendant(pid: number, ancestorPid: number, platform: Platform): boo
   return false
 }
 
-function findCdpPid(platform: Platform): number | undefined {
+function findListeningPid(platform: Platform, port: number): number | undefined {
   try {
     const output =
       platform === 'windows'
@@ -186,11 +180,11 @@ function findCdpPid(platform: Platform): number | undefined {
               '-NoProfile',
               '-NonInteractive',
               '-Command',
-              `(Get-NetTCPConnection -LocalPort ${CDP_PORT} -State Listen | Select-Object -First 1 -ExpandProperty OwningProcess)`
+              `(Get-NetTCPConnection -LocalPort ${port} -State Listen | Select-Object -First 1 -ExpandProperty OwningProcess)`
             ],
             { encoding: 'utf8', timeout: 10_000 }
           )
-        : execFileSync('lsof', ['-nP', `-iTCP:${CDP_PORT}`, '-sTCP:LISTEN', '-t'], {
+        : execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], {
             encoding: 'utf8',
             timeout: 10_000
           })
@@ -199,6 +193,10 @@ function findCdpPid(platform: Platform): number | undefined {
   } catch {
     return undefined
   }
+}
+
+function findCdpPid(platform: Platform): number | undefined {
+  return findListeningPid(platform, CDP_PORT)
 }
 
 async function readCdpTargets(): Promise<Array<{ title: string; type: string; url: string }>> {
@@ -405,32 +403,67 @@ export function readAppRecord(paths: RunPaths): AppRecord {
   return record
 }
 
-export function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): void {
+interface InspectorTarget {
+  type: string
+  webSocketDebuggerUrl?: string
+}
+
+async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: string): Promise<void> {
+  if (findListeningPid(record.platform, MAIN_INSPECTOR_PORT) !== record.electronPid) {
+    throw new Error('Owned Cherry Studio instance does not own the main-process inspector')
+  }
+
+  const response = await fetch(`http://127.0.0.1:${MAIN_INSPECTOR_PORT}/json/list`, {
+    signal: AbortSignal.timeout(5_000)
+  })
+  if (!response.ok) throw new Error(`Main-process inspector discovery failed with HTTP ${response.status}`)
+  const targets = (await response.json()) as InspectorTarget[]
+  const target = targets.find((candidate) => candidate.type === 'node' && candidate.webSocketDebuggerUrl)
+  if (!target?.webSocketDebuggerUrl) throw new Error('Main-process inspector target is unavailable')
+
+  const debuggerUrl = new URL(target.webSocketDebuggerUrl)
+  if (
+    debuggerUrl.protocol !== 'ws:' ||
+    !['127.0.0.1', 'localhost', '[::1]', '::1'].includes(debuggerUrl.hostname) ||
+    debuggerUrl.port !== String(MAIN_INSPECTOR_PORT)
+  ) {
+    throw new Error('Main-process inspector target is not loopback-owned')
+  }
+
+  const delivered = await evaluateCdpExpression<boolean>(
+    debuggerUrl.toString(),
+    `(() => {
+      const electron = process.mainModule?.require?.('electron')
+      if (!electron?.app) throw new Error('Electron app is unavailable in the main-process inspector')
+      return electron.app.emit('open-url', { preventDefault() {} }, ${JSON.stringify(url)})
+    })()`
+  )
+  if (!delivered) throw new Error('Owned Cherry Studio instance has no protocol URL listener')
+}
+
+export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): Promise<void> {
   if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')
   assertOwnedProcess(record, record.electronPid, 'electron')
+  if (record.mode === 'branch') {
+    await sendProtocolUrlThroughMainInspector(record, url)
+    return
+  }
+
   if (record.platform === 'macos') {
-    const executablePath =
-      record.mode === 'branch' ? macosProcessExecutablePath(record.electronPid) : record.executablePath
-    const isVerifiedExecutable =
-      record.mode === 'branch'
-        ? basename(executablePath ?? '') === 'Electron' && isPathInside(record.targetRoot, executablePath ?? '')
-        : Boolean(record.executablePath && resolve(executablePath ?? '') === resolve(record.executablePath))
+    const executablePath = record.executablePath
+    const isVerifiedExecutable = Boolean(
+      record.executablePath && resolve(executablePath ?? '') === resolve(record.executablePath)
+    )
     if (!executablePath || !isVerifiedExecutable) {
       throw new Error('Owned macOS Electron executable could not be verified')
     }
     const userDataArgument = record.args.find((arg) => arg.startsWith('--user-data-dir='))
-    if (record.mode === 'tag' && !userDataArgument) throw new Error('Owned macOS application profile is missing')
-    const args =
-      record.mode === 'branch' ? [record.targetRoot, url] : ([userDataArgument, url].filter(Boolean) as string[])
+    if (!userDataArgument) throw new Error('Owned macOS application profile is missing')
+    const args = [userDataArgument, url]
     try {
       execFileSync(executablePath, args, {
         cwd: record.cwd,
-        env: {
-          ...process.env,
-          ...(record.mode === 'branch'
-            ? { CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` }
-            : {})
-        },
+        env: { ...process.env },
         stdio: 'ignore',
         timeout: 15_000
       })
@@ -441,32 +474,20 @@ export function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): void 
   }
 
   const executablePath = windowsProcessExecutablePath(record.electronPid)
-  const relativeExecutable = win32.relative(win32.resolve(record.targetRoot), win32.resolve(executablePath))
-  const isVerifiedExecutable =
-    record.mode === 'branch'
-      ? win32.basename(executablePath).toLowerCase() === 'electron.exe' &&
-        !relativeExecutable.startsWith('..') &&
-        !win32.isAbsolute(relativeExecutable)
-      : Boolean(
-          record.executablePath &&
-            win32.resolve(executablePath).toLowerCase() === win32.resolve(record.executablePath).toLowerCase()
-        )
+  const isVerifiedExecutable = Boolean(
+    record.executablePath &&
+      win32.resolve(executablePath).toLowerCase() === win32.resolve(record.executablePath).toLowerCase()
+  )
   if (!executablePath || !isVerifiedExecutable) {
     throw new Error('Owned Windows Electron executable could not be verified')
   }
   const userDataArgument = record.args.find((arg) => arg.startsWith('--user-data-dir='))
-  if (record.mode === 'tag' && !userDataArgument) throw new Error('Owned Windows application profile is missing')
-  const args =
-    record.mode === 'branch' ? [record.targetRoot, url] : ([userDataArgument, url].filter(Boolean) as string[])
+  if (!userDataArgument) throw new Error('Owned Windows application profile is missing')
+  const args = [userDataArgument, url]
   try {
     execFileSync(executablePath, args, {
       cwd: record.cwd,
-      env: {
-        ...process.env,
-        ...(record.mode === 'branch'
-          ? { CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` }
-          : {})
-      },
+      env: { ...process.env },
       stdio: 'ignore',
       timeout: 15_000,
       windowsHide: true

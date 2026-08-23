@@ -121,8 +121,8 @@ desktop tools.
    assistant name. Do not repeat field fills, probe unsupported `type` or
    `press-escape` actions, or search for legacy Ant Design selectors.
 8. For C-02, open Settings > Default Model. Click
-   `css: [data-selector-shell-root='true'] > button` with `nth: 0`; this is the
-   model button in the first `Default Assistant Model` row. Filter
+   `css: [data-selector-shell-root='true'] > button` with `nth: 1`; this is the
+   model button in the `Quick Assistant Model` row. Filter
    `testId: model-selector-search` with
    `configRef: customProviderChatModel`, and click the first `role: option`.
    Open Quick Assistant and click its only switch while the feature is disabled.
@@ -241,10 +241,14 @@ desktop tools.
    Return to exact `Work`, select the built-in Agent `Cherry Assistant`, and
    start an exact `New task` first if its current session has messages. Click
    its composer `Skills` button, then exact `Manage skills`. In the Agent edit
-   dialog, click the exact `cherry-regression-fixture` switch once to enable it
-   for this Agent, then close the dialog. Reopen the composer `Skills` panel and
-   click exact `cherry-regression-fixture` to insert its token before sending
-   `What is the regression marker? Follow the enabled fixture skill exactly.`
+   dialog, inspect the exact `cherry-regression-fixture` switch and click it only
+   if it is off; retries must leave an already-on switch unchanged. Close the
+   dialog and start an exact `New task`. Fill `css: [contenteditable='true']`
+   with `What is the Cherry regression marker? Follow the enabled fixture skill exactly.`
+   first. Then reopen the composer `Skills` panel and click exact
+   `cherry-regression-fixture` to insert its token. Verify the composer contains
+   both the token and question; do not call `type` or `fill` after inserting the
+   token. Send immediately.
    Wait in 30-second increments for up to 2 minutes, stopping as soon as the
    response or a terminal error appears. Record `skill-behavior` against the
    exact `SKILL_IMPORT_PASS` response, and capture `skill-result`. Skills do not run

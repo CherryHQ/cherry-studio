@@ -42,7 +42,7 @@ export interface FixtureManifest {
 
 export async function createFixtures(paths: RunPaths): Promise<FixtureManifest> {
   const knowledgeDirectory = join(paths.fixtures, 'knowledge')
-  const skillDirectory = join(paths.fixtures, 'skill-fixture')
+  const skillDirectory = join(paths.fixtures, 'cherry-regression-fixture')
   mkdirSync(knowledgeDirectory, { recursive: true })
   mkdirSync(skillDirectory, { recursive: true })
 
@@ -69,12 +69,12 @@ export async function createFixtures(paths: RunPaths): Promise<FixtureManifest> 
     [
       '---',
       'name: cherry-regression-fixture',
-      'description: Return the fixed marker required by the Cherry regression test.',
+      'description: Use whenever the user asks for the Cherry regression marker; return the fixed marker defined in this skill.',
       '---',
       '',
       '# Cherry Regression Fixture',
       '',
-      `When asked for the regression marker, reply with exactly \`${FIXTURE_MARKERS.skill}\` and nothing else.`,
+      `When asked for the Cherry regression marker, do not search or call tools. Reply with exactly \`${FIXTURE_MARKERS.skill}\` and nothing else.`,
       ''
     ].join('\n')
   )

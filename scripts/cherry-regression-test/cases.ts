@@ -105,7 +105,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     requiredCapabilities: ['globalShortcut'],
     steps: [
-      'Set Default Assistant Model to configRef customProviderChatModel, enable Quick Assistant in Default Model mode, then search Keyboard Shortcuts for Quick Assistant and enable its existing Cmd/Ctrl+E binding.',
+      'Set Quick Assistant Model to configRef customProviderChatModel, enable Quick Assistant in Default Model mode, then search Keyboard Shortcuts for Quick Assistant and enable its existing Cmd/Ctrl+E binding.',
       'Open the external selection fixture, invoke Quick Assistant with Meta+lowercase e on macOS or Control+lowercase e on Windows, and ask for exactly QUICK_ASSISTANT_PASS.',
       'Capture the response, press Escape once to return and once to close, then restart Cherry Studio and repeat the external invocation and prompt.'
     ],
@@ -233,8 +233,8 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     steps: [
       'Import skillDirectory through Settings > Skills > Add Skill > Local import > Install from directory; verify the catalog entry without toggling its default-on global switch.',
-      'Return to Work, open Manage skills from the built-in Cherry Assistant composer Skills panel, enable cherry-regression-fixture for this Agent, then reopen Skills and insert the fixture token.',
-      'Ask for the regression marker and wait up to two minutes for exactly SKILL_IMPORT_PASS; do not use the Chat assistant.'
+      'Return to Work, open Manage skills from the built-in Cherry Assistant composer Skills panel, leave cherry-regression-fixture on if already enabled or enable it if off, then start a new task.',
+      'Fill the regression-marker question before inserting the cherry-regression-fixture token, send without changing the composer again, and wait up to two minutes for exactly SKILL_IMPORT_PASS; do not use the Chat assistant.'
     ],
     acceptance: ['The Skill is recognized, binds successfully, and changes Agent behavior as explicitly required.'],
     evidence: [

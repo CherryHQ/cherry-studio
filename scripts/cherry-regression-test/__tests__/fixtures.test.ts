@@ -20,6 +20,10 @@ describe('regression fixtures', () => {
       expect(manifest.knowledgeDirectory).toBe(join(paths.fixtures, 'knowledge'))
       expect(manifest.geminiImageFile).toBe(join(paths.evidence, 'downloads', 'gemini-image.png'))
       expect(manifest.image2File).toBe(join(paths.evidence, 'downloads', 'image2-image.png'))
+      expect(manifest.skillDirectory).toBe(join(paths.fixtures, 'cherry-regression-fixture'))
+      expect(readFileSync(join(manifest.skillDirectory, 'SKILL.md'), 'utf8')).toContain(
+        'name: cherry-regression-fixture'
+      )
       expect(filesWithMarker).toEqual([join(paths.fixtures, 'knowledge', 'ground-truth.txt')])
     } finally {
       rmSync(directory, { force: true, recursive: true })

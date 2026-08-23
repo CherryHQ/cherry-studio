@@ -19,4 +19,23 @@ describe('sensitive output redaction', () => {
       text: 'key=[REDACTED]'
     })
   })
+
+  it('removes OAuth material discovered only in application logs', () => {
+    const redact = createRedactor([])
+    const output = redact(
+      [
+        'Authorization: Bearer dynamic-access-token',
+        'callback cherrystudio://oauth/callback?code=dynamic-code&state=dynamic-state',
+        "body: { key: 'dynamic-provider-key-1234567890', label: 'OAuth' }",
+        'input: { "access_token": "dynamic-json-token", "key": "Escape" }'
+      ].join('\n')
+    )
+
+    expect(output).not.toContain('dynamic-access-token')
+    expect(output).not.toContain('dynamic-code')
+    expect(output).not.toContain('dynamic-state')
+    expect(output).not.toContain('dynamic-provider-key-1234567890')
+    expect(output).not.toContain('dynamic-json-token')
+    expect(output).toContain('"key": "Escape"')
+  })
 })
