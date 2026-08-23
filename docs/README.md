@@ -197,8 +197,8 @@
 
 | Document | Description |
 |----------|-------------|
-| [Memory Reference](./references/memory/README.md) | Entry point for the four memory mechanisms — Global Memory, Agent File Memory, Knowledge Base, and MCP Memory |
-| [Memory Feature Overview](./references/memory/overview.md) | Comparison of the four memory mechanisms in Cherry Studio — Global Memory, Agent File Memory, Knowledge Base, and MCP Memory |
+| [Memory Reference](./references/memory/README.md) | Entry point for the memory mechanisms — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature |
+| [Memory Feature Overview](./references/memory/overview.md) | Comparison of the three memory mechanisms in Cherry Studio — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature |
 
 ### Provider Model
 
