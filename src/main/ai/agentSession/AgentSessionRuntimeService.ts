@@ -1571,13 +1571,13 @@ export class AgentSessionRuntimeService extends BaseService {
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
-      void this.closeRuntimeConnection(connection, entry.sessionId)
+      await this.closeRuntimeConnection(connection, entry.sessionId)
       return false
     }
 
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
     if (this.currentConnection(entry) !== connection) {
-      void this.closeRuntimeConnection(connection, entry.sessionId)
+      await this.closeRuntimeConnection(connection, entry.sessionId)
       return false
     }
     entry.usageCapture = connection.usageCapture
@@ -3100,14 +3100,14 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
     application.get('CacheService').deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId))
 
+    const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
     const connection = this.closeConnection(entry, false)
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
-    this.connectionAttempts.delete(entry.sessionId)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    return Promise.all([backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]).then(
-      () => undefined
-    )
+    const closings: Promise<unknown>[] = [backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]
+    if (connectionAttempt) closings.push(connectionAttempt)
+    return Promise.allSettled(closings).then(() => undefined)
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {

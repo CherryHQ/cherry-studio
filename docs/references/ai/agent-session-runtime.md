@@ -710,7 +710,9 @@ Service stop and destroy close all runtime entries.
 Repeated `closeSession()` calls join the in-flight close; if a replacement entry was created meanwhile,
 its close is chained behind the prior one so callers wait for every connection generation to settle.
 An immediate retry may create its entry while that close is still draining, but it cannot connect until
-the predecessor has closed; the predecessor's observed resume token is handed to that successor directly.
+the predecessor has closed. Teardown also joins an in-flight `driver.connect()` and closes any stale
+connection it produces before releasing the successor; the predecessor's observed resume token is handed
+to that successor directly.
 
 `ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,

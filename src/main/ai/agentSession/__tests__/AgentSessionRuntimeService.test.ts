@@ -4046,15 +4046,20 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it('closes a late runtime connection when the user aborts before connect resolves', async () => {
-    const events = createAsyncQueue<any>()
-    const connection = {
-      events: events.iterable,
+  it('waits for a late aborted connection to close before connecting an immediate retry', async () => {
+    const firstConnectionClose = createDeferred<void>()
+    const firstConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(() => firstConnectionClose.promise)
+    }
+    const secondConnection = {
+      events: createAsyncQueue<any>().iterable,
       send: vi.fn(),
       close: vi.fn()
     }
-    const pendingConnection = createDeferred<typeof connection>()
-    const connect = vi.fn().mockReturnValue(pendingConnection.promise)
+    const pendingConnection = createDeferred<typeof firstConnection>()
+    const connect = vi.fn().mockReturnValueOnce(pendingConnection.promise).mockResolvedValueOnce(secondConnection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
       capabilities: ['agent-session'],
@@ -4078,11 +4083,37 @@ describe('AgentSessionRuntimeService', () => {
     controller.abort('user-requested')
     expect(service.inspect('session-1')).toBeUndefined()
 
-    pendingConnection.resolve(connection)
+    const retry = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const retryReader = service
+      .openTurnStream({
+        sessionId: 'session-1',
+        turnId: retry.turnId,
+        signal: new AbortController().signal
+      })
+      .getReader()
 
-    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
-    expect(connection.send).not.toHaveBeenCalled()
+    await expect(retryReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(connect).toHaveBeenCalledOnce()
+
+    pendingConnection.resolve(firstConnection)
+    await vi.waitFor(() => expect(firstConnection.close).toHaveBeenCalledOnce())
+    expect(connect).toHaveBeenCalledOnce()
+
+    firstConnectionClose.resolve()
+
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(secondConnection.send).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: false })
+    )
+    expect(firstConnection.send).not.toHaveBeenCalled()
+    void service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
+    await retryReader.cancel().catch(() => undefined)
   })
 
   describe('steer soft-queue — live follow-up (pure streaming-input, no interrupt)', () => {

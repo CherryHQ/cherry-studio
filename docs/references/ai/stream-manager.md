@@ -935,11 +935,15 @@ entry is evicted; subsequent `attach` returns `not-found` and the
 renderer reads from the DB through `useQuery` (PersistenceListener has
 already written by then).
 
-If the user stops and immediately retries on the same topic, `send`
-takes the start branch: `evictStream` first clears the grace-period
-remnant (cancels the cleanup timer and drops the entry from
-`activeStreams`), then the new stream is created — the old never blocks
-the new.
+After a naturally terminal stream, or after an awaited user Stop has crossed its
+teardown barrier, a same-topic retry takes the start branch: `evictStream` first
+clears the grace-period remnant (cancels the cleanup timer and drops the entry
+from `activeStreams`), then creates the new stream. The grace-period entry never
+blocks the new generation; an in-progress user Stop intentionally does, through
+the topic dispatch lock, until terminal persistence and, for Agent sessions,
+runtime teardown settle. See [IPC Transport → User Stop](./ipc-transport.md#user-stop) for why the
+Renderer sends and awaits an explicit abort request even after calling AI SDK's
+`stop()`.
 
 ## Edge case cheat sheet
 
