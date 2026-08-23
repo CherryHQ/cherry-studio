@@ -42,6 +42,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cherry-regression-test-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 jobs:
   resolve:
     if: >-
@@ -253,7 +257,7 @@ jobs:
 
       - name: Run task 01 — app startup smoke
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'startup-smoke')
         timeout-minutes: 10
         shell: bash
@@ -267,7 +271,7 @@ jobs:
 
       - name: Run task 02 — CherryIN chat
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat')
         timeout-minutes: 15
         shell: bash
@@ -281,7 +285,7 @@ jobs:
 
       - name: Run task 03 — custom provider chat
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-provider-chat')
         timeout-minutes: 15
         shell: bash
@@ -295,7 +299,7 @@ jobs:
 
       - name: Run task 04 — custom assistant
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-assistant')
         timeout-minutes: 15
         shell: bash
@@ -309,7 +313,7 @@ jobs:
 
       - name: Run task 05 — quick assistant
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'quick-assistant')
         timeout-minutes: 15
         shell: bash
@@ -323,7 +327,7 @@ jobs:
 
       - name: Run task 06 — selection assistant
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'selection-assistant')
         timeout-minutes: 15
         shell: bash
@@ -337,7 +341,7 @@ jobs:
 
       - name: Run task 07 — knowledge import
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-import')
         timeout-minutes: 15
         shell: bash
@@ -351,7 +355,7 @@ jobs:
 
       - name: Run task 08 — knowledge Q&A
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-qa')
         timeout-minutes: 15
         shell: bash
@@ -365,7 +369,7 @@ jobs:
 
       - name: Run task 09 — Everything MCP
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp')
         timeout-minutes: 15
         shell: bash
@@ -379,7 +383,7 @@ jobs:
 
       - name: Run task 10 — Agent PPT
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'agent-ppt')
         timeout-minutes: 20
         shell: bash
@@ -393,7 +397,7 @@ jobs:
 
       - name: Run task 11 — Skill import
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'skill-import')
         timeout-minutes: 15
         shell: bash
@@ -407,7 +411,7 @@ jobs:
 
       - name: Run task 12 — Claude Agent runtime
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime')
         timeout-minutes: 20
         shell: bash
@@ -421,7 +425,7 @@ jobs:
 
       - name: Run task 13 — Pi runtime
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'pi-runtime')
         timeout-minutes: 20
         shell: bash
@@ -435,7 +439,7 @@ jobs:
 
       - name: Run task 14 — DeepSeek Harness runtime
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'deepseek-harness-runtime')
         timeout-minutes: 20
         shell: bash
@@ -449,7 +453,7 @@ jobs:
 
       - name: Run task 15 — image generation
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'image-generation')
         timeout-minutes: 20
         shell: bash
@@ -463,7 +467,7 @@ jobs:
 
       - name: Run task 16 — translation
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'translation')
         timeout-minutes: 20
         shell: bash
@@ -477,7 +481,7 @@ jobs:
 
       - name: Run task 17 — mini app
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mini-app')
         timeout-minutes: 15
         shell: bash
@@ -491,7 +495,7 @@ jobs:
 
       - name: Run task 18 — Claude Code and Codex
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'code-cli')
         timeout-minutes: 20
         shell: bash
@@ -505,7 +509,7 @@ jobs:
 
       - name: Run task 19 — OpenClaw
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'openclaw')
         timeout-minutes: 20
         shell: bash
@@ -519,7 +523,7 @@ jobs:
 
       - name: Run task 20 — notes
         if: >-
-          always() && steps.agent_settings.outcome == 'success' &&
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'notes')
         timeout-minutes: 15
         shell: bash
