@@ -12,6 +12,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { MemorySettings } from '@renderer/pages/settings/MemorySettings'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -21,7 +22,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
-import MemorySettings from '../MemorySettings/MemorySettings'
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 

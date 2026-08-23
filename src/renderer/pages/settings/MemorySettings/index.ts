@@ -1,1 +1,1 @@
-export { default } from './MemorySettings'
+export { default as MemorySettings } from './MemorySettings'
