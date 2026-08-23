@@ -19,7 +19,7 @@ Cherry Studio implements a structured branching strategy to maintain code qualit
 - `release/*`: Release branches
   - Created from the exact current `main` head by the **Pre Release** workflow; do not create them by hand in the normal flow
   - Contains stable code ready for release
-  - Only accepts documentation updates and bug fixes
+  - Only accepts reviewed hotfix backports and release metadata updates; documentation changes continue through `main`
   - Thoroughly tested before production deployment
 
 For details about the `testplan` branch used in the Test Plan, please refer to the [Test Plan](./test-plan.md).
@@ -58,7 +58,7 @@ When contributing to Cherry Studio, please follow these guidelines:
    - Created only by **Pre Release** from the exact validated `main` head
    - Naming format: `release/v<semantic-version>`
    - Used for final preparation work before version release
-   - Only accepts bug fixes and documentation updates
+   - Only accepts reviewed hotfix backports and release metadata updates; documentation changes continue through `main`
    - Build and tag releases from this branch, never from `main`
    - Merged `hotfix:` PRs are automatically labeled and get a backport PR only when exactly one draft semantic-version release has a matching active release branch
    - Merge the backport PR only after its PR CI passes, wait for push CI on the resulting release-branch head, then rebuild the draft release

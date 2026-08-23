@@ -99,8 +99,8 @@ Do not start a release build while CI is queued, running, cancelled, or failing.
 The first release-branch CI run happens before a draft GitHub Release exists, so automatic backporting cannot safely select that branch yet. If code must change for this initial CI run to pass:
 
 1. Fix the root cause through a pull request to `main` titled `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>`. The workflow adds the `hotfix` label, but it does not backport yet because there is no matching draft.
-2. After the hotfix merges, create a topic branch from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch. Run `PR_BODY="$(gh pr view <number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` on that branch to add its bilingual note to the prepared release metadata.
-3. Push a signed, DCO-signed commit and open a pull request from that topic branch to `release/v<version>`.
+2. After the hotfix merges, create `backport/v<version>/pr-<source-number>` from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch. Run `PR_BODY="$(gh pr view <number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` on that branch to add its bilingual note to the prepared release metadata.
+3. Push a signed, DCO-signed commit and open a pull request from that topic branch to `release/v<version>`. Put `<!-- release-backport-source-pr: <source-number> -->` on its own line in the pull request body so the lifecycle tracker automatically maintains the source hotfix's `backport/v<version>` and `backported/v<version>` labels.
 4. Review the release-specific diff, merge it after CI passes, and wait for CI on the new release branch head.
 5. Start the initial **Release** build. Once its draft exists, later merged hotfix pull requests use the automatic backport flow.
 
@@ -170,7 +170,7 @@ After the backport pull request is created:
 3. Merge the backport pull request. The source hotfix PR changes from `backport/v<version>` to `backported/v<version>` only after this merge.
 4. Wait for **CI** on the resulting release branch head to succeed.
 5. Run **Release** again from `release/v<version>`.
-6. Select `all` unless only one platform artifact needs to be refreshed, then recheck the updated draft release.
+6. Select `all` because the backport changed the release-branch head, then recheck the updated draft release. Single-platform retries are only for the exact commit already referenced by the draft tag.
 
 Closing an automatic backport pull request without merging changes the source hotfix PR to `backport-failed/v<version>`. Reopening it restores the open `backport/v<version>` state. The workflow does not add `backport/v<version>` until an actual backport pull request exists. A preparation failure before a pull request exists sets `backport-failed/v<version>`; if a backport pull request is already open, a rerun reconciles the source PR back to the open `backport/v<version>` state.
 
@@ -223,7 +223,7 @@ To finish the release:
 
 That squash commit is the release-note boundary used by the next **Pre Release** run. Do not start the next release until this synchronization is complete.
 
-If the metadata files already match `main`, **Post Release** exits without opening a pull request. If a previous metadata pull request was closed without merging, rerunning the failed **Post Release** run may reset the sync branch and create a replacement pull request.
+If the metadata files already match `main`, **Post Release** exits without opening a pull request. If a previous metadata pull request was closed without merging, use GitHub's **Re-run all jobs** control, or `gh run rerun <run-id>`, on the original **Post Release** run to reset the sync branch and create a replacement pull request.
 
 ## Failure Guide
 

@@ -165,13 +165,13 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 
 ### Step 6: Create Release Branch
 
-1. For an interactive local run, repeat Step 1 items 1-4 in full immediately before creating the branch, including the all-version unfinished branch/draft comparison. The target branch being absent is not a substitute for that complete recheck. Then create and push a signed, DCO-compliant release commit:
+1. For an interactive local run, repeat Step 1 items 1-4 immediately before creating the branch, including the all-version unfinished branch/draft comparison. Because Step 4 has intentionally prepared and validated release metadata, replace Step 1's clean-worktree assertion with `git status --short` and stop unless every listed path is one of the four allowed release metadata files. The target branch being absent is not a substitute for the complete remote-state recheck. Then create and push a signed, DCO-compliant release commit:
    ```bash
    git fetch origin refs/heads/main:refs/remotes/origin/main --tags
    test "$(git branch --show-current)" = main
-   test -z "$(git status --porcelain)"
    test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
    test -z "$(git ls-remote --heads origin refs/heads/release/v{version})"
+   git status --short
    git checkout -b release/v{version}
    git add package.json electron-builder.yml resources/cherry-studio/release-history.json resources/builtin-agents/cherry-assistant/product-manifest.json
    git commit -S --signoff -m "chore(release): prepare v{version}"

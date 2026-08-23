@@ -128,6 +128,12 @@ jobs:
           REPO: ${{ github.repository }}
           SYNC_BRANCH: ${{ steps.release-ref.outputs.sync-branch }}
         run: |
+          CURRENT_MAIN="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$CURRENT_MAIN" != "$MAIN_SHA" ]; then
+            echo "main moved from $MAIN_SHA to $CURRENT_MAIN while release metadata was being prepared; rerun Post Release" >&2
+            exit 1
+          fi
+
           if gh api "repos/$REPO/git/ref/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
             gh api --method PATCH "repos/$REPO/git/refs/heads/$SYNC_BRANCH" -f sha="$MAIN_SHA" -F force=true >/dev/null
           else

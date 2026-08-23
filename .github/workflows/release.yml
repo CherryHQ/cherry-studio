@@ -568,7 +568,7 @@ jobs:
           RELEASE_JSON="$(jq -cn --argjson draft "$RELEASE_DRAFT" '{draft: $draft}')" \
             node scripts/release/validate-release-state.js build-completion
 
-      - name: Move draft tag after artifact upload
+      - name: Move draft tag with lease after artifact upload
         shell: bash
         env:
           EXPECTED_TAG_SHA: ${{ needs.prepare.outputs.remote-tag-sha }}
@@ -578,6 +578,9 @@ jobs:
           RELEASE_ID: ${{ steps.uploaded-draft.outputs.id }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
+          RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
+          RELEASE_JSON="$RELEASE" TAG="$TAG" node scripts/release/validate-release-state.js build-completion
+
           REMOTE_TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
           if [ "$PLATFORM" = "all" ]; then
             if [ -z "$EXPECTED_TAG_SHA" ]; then
@@ -589,7 +592,27 @@ jobs:
               echo "Tag $TAG moved from $EXPECTED_TAG_SHA to $REMOTE_TAG_SHA during the build" >&2
               exit 1
             elif [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
-              gh api --method PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+              REPOSITORY_ID="$(gh api "repos/$REPO" --jq '.node_id')"
+              jq -n \
+                --arg repositoryId "$REPOSITORY_ID" \
+                --arg name "refs/tags/$TAG" \
+                --arg beforeOid "$EXPECTED_TAG_SHA" \
+                --arg afterOid "$GITHUB_SHA" \
+                '{
+                  query: "mutation($input: UpdateRefsInput!) { updateRefs(input: $input) { clientMutationId } }",
+                  variables: {
+                    input: {
+                      repositoryId: $repositoryId,
+                      refUpdates: [{
+                        name: $name,
+                        beforeOid: $beforeOid,
+                        afterOid: $afterOid,
+                        force: true
+                      }]
+                    }
+                  }
+                }' > "$RUNNER_TEMP/move-release-tag.json"
+              gh api graphql --input "$RUNNER_TEMP/move-release-tag.json" >/dev/null
             fi
           elif [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
             echo "Single-platform retries must not move $TAG away from its existing release commit" >&2

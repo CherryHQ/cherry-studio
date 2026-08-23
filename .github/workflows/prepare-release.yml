@@ -271,7 +271,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: prepared-release-${{ github.sha }}
-          path: prepared-release
+          path: ${{ runner.temp }}/prepared-release
 
       - name: Validate prepared release artifact
         id: release-files
@@ -318,7 +318,7 @@ jobs:
           const fs = require('node:fs')
           const path = require('node:path')
 
-          const artifactRoot = path.resolve('prepared-release')
+          const artifactRoot = path.resolve(process.env.RUNNER_TEMP, 'prepared-release')
           const allowedFiles = [
             'electron-builder.yml',
             'package.json',

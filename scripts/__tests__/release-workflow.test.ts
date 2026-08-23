@@ -97,7 +97,7 @@ afterEach(() => {
 })
 
 describe('backport patch preparation', () => {
-  it('applies the complete result of a squash merge without unrelated main changes', () => {
+  it('applies the complete squash result without backporting unrelated main changes', () => {
     const fixture = createGitFixture()
     const base = git(fixture.repo, 'rev-parse', 'HEAD')
     git(fixture.repo, 'checkout', '-b', 'feature')
@@ -106,14 +106,17 @@ describe('backport patch preparation', () => {
     write(fixture.repo, 'second.txt', 'second\n')
     commit(fixture.repo, 'second fix')
     git(fixture.repo, 'checkout', 'main')
+    write(fixture.repo, 'main-only.txt', 'not part of the fix\n')
+    const mainOnlySha = commit(fixture.repo, 'unrelated main work')
     git(fixture.repo, 'merge', '--squash', 'feature')
     const mergeSha = commit(fixture.repo, 'squashed hotfix')
     markOriginMain(fixture.repo, mergeSha)
     git(fixture.repo, 'checkout', '-b', 'release', base)
 
-    expect(runBackport(fixture, mergeSha, 2)).toMatchObject({ hasChanges: true, patchBase: base })
+    expect(runBackport(fixture, mergeSha, 2)).toMatchObject({ hasChanges: true, patchBase: mainOnlySha })
     expect(fs.readFileSync(path.join(fixture.repo, 'app.txt'), 'utf8')).toBe('first\n')
     expect(fs.readFileSync(path.join(fixture.repo, 'second.txt'), 'utf8')).toBe('second\n')
+    expect(fs.existsSync(path.join(fixture.repo, 'main-only.txt'))).toBe(false)
   })
 
   it('uses a merge commit first parent so main-only work is not backported', () => {
@@ -281,6 +284,7 @@ describe('hotfix release notes', () => {
       chinese: '[聊天] 修复重启后消息消失的问题。'
     })
     expect(() => extractHotfixReleaseNote('```release-note\nNONE\n```')).toThrow('language markers')
+    expect(() => extractHotfixReleaseNote(`${HOTFIX_BODY}\n\n${HOTFIX_BODY}`)).toThrow('exactly one release-note block')
   })
 
   it.each([
@@ -667,6 +671,15 @@ describe('release publication state', () => {
   )
 
   it('allows all-platform draft movement but restricts single-platform retries to the existing tag', () => {
+    expect(() =>
+      validateBuildStart({
+        platform: 'all',
+        release: null,
+        remoteTagSha: '',
+        tag: 'v1.2.0',
+        workflowSha
+      })
+    ).not.toThrow()
     expect(() =>
       validateBuildStart({
         platform: 'all',
