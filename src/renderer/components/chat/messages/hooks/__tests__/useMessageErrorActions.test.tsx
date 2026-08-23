@@ -137,7 +137,7 @@ describe('useMessageErrorActions', () => {
   it('navigates through the router when the surface has one', () => {
     const { result } = renderHook(() => useMessageErrorActions())
 
-    result.current.navigateErrorTarget?.('/settings/provider')
+    void result.current.navigateErrorTarget?.('/settings/provider')
 
     expect(routerState.router?.navigate).toHaveBeenCalledWith({ to: '/settings/provider' })
     expect(routerState.openRoute).not.toHaveBeenCalled()
@@ -149,7 +149,7 @@ describe('useMessageErrorActions', () => {
     routerState.router = undefined
     const { result } = renderHook(() => useMessageErrorActions())
 
-    result.current.navigateErrorTarget?.('/settings/provider')
+    void result.current.navigateErrorTarget?.('/settings/provider')
 
     expect(routerState.openRoute).toHaveBeenCalledWith('/settings/provider')
   })

@@ -30,6 +30,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { clampInto } from '@main/core/window/windowBoundsTracker'
+import type { WindowId } from '@shared/ipc/types'
 import { app, BrowserWindow, type Rectangle, screen, shell } from 'electron'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
@@ -151,8 +152,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
     // and any future re-creation path uniformly.
     const wm = application.get('WindowManager')
     this.registerDisposable(
-      wm.onWindowCreatedByType(WindowType.QuickAssistant, ({ window }) => {
-        this.setupQuickAssistant(window)
+      wm.onWindowCreatedByType(WindowType.QuickAssistant, ({ id, window }) => {
+        this.setupQuickAssistant(id, window)
       })
     )
 
@@ -333,7 +334,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * listeners. Invoked once per fresh window from the onWindowCreatedByType
    * subscription registered in onInit.
    */
-  private setupQuickAssistant(window: BrowserWindow) {
+  private setupQuickAssistant(windowId: WindowId, window: BrowserWindow) {
     this.setupQuickAssistantWebContents(window)
 
     // Declarative window infra (initial alwaysOnTop level, cross-workspace visibility,
@@ -352,8 +353,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
       this.hasBlurredSinceShow = true
       // The composer's screenshot button blurs this window by opening the capture
       // overlay; hiding there would take the user's draft off screen mid-capture. A
-      // capture another window asked for is an ordinary focus loss.
-      if (this.windowId && application.get('ScreenshotOverlayService').isSessionRequestedBy(this.windowId)) return
+      // capture another window asked for is an ordinary focus loss. Uses the id this
+      // window was created with, not `this.windowId`, which open() assigns afterwards.
+      if (application.get('ScreenshotOverlayService').isSessionRequestedBy(windowId)) return
       if (!this.isPinnedQuickAssistant) {
         this.hideQuickAssistant()
       }

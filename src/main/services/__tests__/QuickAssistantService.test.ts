@@ -2,9 +2,9 @@ import { BaseService } from '@main/core/lifecycle'
 import { type Rectangle, screen } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, screenshotSessionActiveMock } = vi.hoisted(() => ({
+const { appGetMock, screenshotSessionRequestedByMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  screenshotSessionActiveMock: vi.fn()
+  screenshotSessionRequestedByMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -31,31 +31,49 @@ const createWindow = () => {
   }
 }
 
+const setupQuickAssistant = (service: QuickAssistantService, window: ReturnType<typeof createWindow>['window']) =>
+  (
+    service as unknown as {
+      setupQuickAssistant: (windowId: string, target: typeof window) => void
+    }
+  ).setupQuickAssistant('quick-assistant-window', window)
+
 describe('QuickAssistantService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     appGetMock.mockImplementation((name: string) => {
-      if (name === 'ScreenshotOverlayService') return { isSessionActive: screenshotSessionActiveMock }
+      if (name === 'ScreenshotOverlayService') return { isSessionRequestedBy: screenshotSessionRequestedByMock }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
 
-  it('keeps the quick assistant visible while its required screenshot service owns a capture session', () => {
+  it('keeps the quick assistant visible while it owns a capture session', () => {
     const service = new QuickAssistantService()
     const hideQuickAssistant = vi.spyOn(service, 'hideQuickAssistant').mockImplementation(() => {})
     const { listeners, window } = createWindow()
-    screenshotSessionActiveMock.mockReturnValue(true)
+    screenshotSessionRequestedByMock.mockReturnValue(true)
 
-    ;(
-      service as unknown as {
-        setupQuickAssistant: (target: typeof window) => void
-      }
-    ).setupQuickAssistant(window)
+    setupQuickAssistant(service, window)
     listeners.get('blur')?.()
 
-    expect(appGetMock).toHaveBeenCalledWith('ScreenshotOverlayService')
+    // Asked with the id this window was created with — `this.windowId` is only assigned
+    // after open() returns, so a guard reading it would skip the check entirely.
+    expect(screenshotSessionRequestedByMock).toHaveBeenCalledWith('quick-assistant-window')
     expect(hideQuickAssistant).not.toHaveBeenCalled()
+  })
+
+  it('hides on blur when the capture session belongs to another window', () => {
+    const service = new QuickAssistantService()
+    const hideQuickAssistant = vi.spyOn(service, 'hideQuickAssistant').mockImplementation(() => {})
+    const { listeners, window } = createWindow()
+    screenshotSessionRequestedByMock.mockReturnValue(false)
+
+    setupQuickAssistant(service, window)
+    listeners.get('blur')?.()
+
+    // Someone else's capture is an ordinary focus loss.
+    expect(hideQuickAssistant).toHaveBeenCalled()
   })
 
   it('summons the quick assistant at the bottom center of the cursor display', () => {
@@ -119,7 +137,7 @@ describe('QuickAssistantService', () => {
     }
     appGetMock.mockImplementation((name: string) => {
       if (name === 'WindowManager') return { getWindow: () => window }
-      if (name === 'ScreenshotOverlayService') return { isSessionActive: screenshotSessionActiveMock }
+      if (name === 'ScreenshotOverlayService') return { isSessionRequestedBy: screenshotSessionRequestedByMock }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const service = new QuickAssistantService()
@@ -149,7 +167,7 @@ describe('QuickAssistantService', () => {
     }
     appGetMock.mockImplementation((name: string) => {
       if (name === 'WindowManager') return { getWindow: () => window }
-      if (name === 'ScreenshotOverlayService') return { isSessionActive: screenshotSessionActiveMock }
+      if (name === 'ScreenshotOverlayService') return { isSessionRequestedBy: screenshotSessionRequestedByMock }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const service = new QuickAssistantService()
