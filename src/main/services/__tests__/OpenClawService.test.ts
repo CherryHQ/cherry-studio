@@ -1107,10 +1107,27 @@ describe('OpenClawService gateway status state machine', () => {
     it('keeps the running gateway port when the preference changes mid-run', () => {
       ;(service as any).gatewayStatus = 'running'
       ;(service as any).gatewayPort = 18888
+      // A valid changed preference: without the running guard this would be adopted.
+      vi.mocked(application.get).mockImplementationOnce(
+        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      )
 
       ;(service as any).onGatewayPortPreferenceChanged()
 
       expect((service as any).gatewayPort).toBe(18888)
+    })
+
+    it('adopts a port change deferred during a run once the gateway becomes idle', () => {
+      ;(service as any).gatewayStatus = 'running'
+      ;(service as any).gatewayPort = 18888
+      // Preference changed to 19999 mid-run (deferred), then the gateway stopped.
+      vi.mocked(application.get).mockImplementationOnce(
+        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      )
+
+      ;(service as any).setGatewayStatus('stopped')
+
+      expect((service as any).gatewayPort).toBe(19999)
     })
   })
 

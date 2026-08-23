@@ -433,6 +433,8 @@ export class OpenClawService extends BaseService {
     if (!options?.force && this.gatewayStatus === status) return
     this.gatewayStatus = status
     this.gatewayTransitionId++
+    // Becoming idle is the moment a port preference change deferred during a run takes effect.
+    if (status === 'stopped' || status === 'error') this.syncGatewayPortFromPreference()
     try {
       application.get('IpcApiService').broadcast('openclaw.status_changed', { status: this.gatewayStatus })
     } catch (err) {
@@ -455,12 +457,6 @@ export class OpenClawService extends BaseService {
     return this.gatewayTransitionId !== before.transitionId || this.gatewayPort !== before.port
   }
 
-  /**
-   * One periodic probe tick: reconcile the recorded status with the gateway's
-   * actual health so externally-started gateways are discovered (and dead ones
-   * reported) without the renderer polling. `starting` is skipped to match
-   * getStatus()'s guard.
-   */
   /** Apply a fresh probe result against the pre-probe status (generation already verified by callers). */
   private reconcileGatewayStatus(health: HealthInfo['status'], statusBefore: GatewayStatus): void {
     if (health === 'healthy' && statusBefore !== 'running') {
@@ -472,6 +468,12 @@ export class OpenClawService extends BaseService {
     }
   }
 
+  /**
+   * One periodic probe tick: reconcile the recorded status with the gateway's
+   * actual health so externally-started gateways are discovered (and dead ones
+   * reported) without the renderer polling. `starting` is skipped to match
+   * getStatus()'s guard.
+   */
   private async probeGatewayTick(): Promise<void> {
     if (this.gatewayStatus === 'starting') return
     const generationBefore = this.gatewayGeneration()
