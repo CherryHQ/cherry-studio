@@ -71,7 +71,7 @@ describe('resume presentation inside a completed tool group', () => {
     render(
       <FullPartsMapProvider value={parts}>
         <PartsProvider value={parts}>
-          <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} showLatestWhenComplete />
+          <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} />
         </PartsProvider>
       </FullPartsMapProvider>
     )
@@ -86,7 +86,7 @@ describe('resume presentation inside a completed tool group', () => {
     render(
       <FullPartsMapProvider value={null}>
         <PartsProvider value={null}>
-          <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} showLatestWhenComplete />
+          <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} />
         </PartsProvider>
       </FullPartsMapProvider>
     )
