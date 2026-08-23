@@ -26,9 +26,8 @@ import { visit } from 'unist-util-visit'
  */
 
 const CLOSER = '**'
-// When these follow the closing markers the stars likely continue the URL
-// (scheme/port/query/path/extension — note `.`, `-`, `_`), so we leave the link alone;
-// anything else — letters, CJK, brackets, whitespace, end of text — is prose resuming.
+// Chars after the markers that continue a URL (scheme/port/query/path/extension); anything
+// else — letters, CJK, brackets, whitespace, EOF — is prose resuming.
 const URL_CONTINUATION_REGEX = /^[/:#?&=%@+~.\-_]/
 
 interface FixPlan {
@@ -71,11 +70,8 @@ function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Tex
   return linkStart !== undefined && linkStart === node.children[0].position?.start.offset
 }
 
-// The swallowed closer is the FIRST marker run followed by non-URL text. Earlier runs in the
-// path (`https://x.com/a/**/b`) are skipped as URL continuations; in a chained shape
-// (`…x**(y)**https://b.com/z**`) the first boundary run ends the href and hands the rest to
-// the tail, which is itself repaired recursively. `indexOf` strictly increases, so the scan
-// cannot loop.
+// Cut at the FIRST boundary run — earlier runs are URL continuations (`/a/**/b`) and a chained
+// tail is repaired recursively by the caller. `indexOf` strictly increases, so no looping.
 function findCloserRun(url: string): { start: number; tailStart: number } | undefined {
   let index = url.indexOf(CLOSER)
   while (index >= 0) {
@@ -98,9 +94,7 @@ interface Cut {
   tail: string
 }
 
-// Compute the href/label cuts plus the residual tail. The label is cut with the exact same
-// scan so it never diverges from the href (www labels only differ by the scheme prefix, which
-// neither scan depends on).
+// Cut href and label with the same scan so they never diverge; also returns the residual tail.
 function computeCut(node: Link & { children: [Text] }): Cut | undefined {
   const closer = findCloserRun(node.url)
   if (!closer) return undefined
@@ -114,10 +108,8 @@ function computeCut(node: Link & { children: [Text] }): Cut | undefined {
   }
 }
 
-// Repair a flat inline sequence in place (used for a tail that may itself contain another
-// swallowed `**url**`): find a swallowed link preceded by a marker-ending text, cut it, wrap
-// it in strong, and recurse on the remainder. Tail nodes carry positions into the tail
-// substring, so the escape check runs against that substring as its own source.
+// Repair one flat inline sequence for chains of back-to-back bolded urls: cut, wrap in
+// strong, recurse on the tail. The escape check uses the tail substring as its own source.
 function repairTailNodes(nodes: PhrasingContent[], tailSource: string): PhrasingContent[] {
   const repaired: PhrasingContent[] = []
   for (const node of nodes) {
@@ -163,10 +155,8 @@ function toTextNode(node: unknown): Text | undefined {
   return undefined
 }
 
-// True when the trailing marker run in this raw source span is escaped — i.e. an odd number
-// of backslashes sits right before it (`\**`, `\*\*`). An even count (`\\**`) is a literal
-// backslash followed by real emphasis, which must still be repaired. Positions cover the raw
-// characters, so the escaped backslashes are present in the span.
+// True when an odd number of backslashes sits right before the trailing marker run (`\**`);
+// an even count (`\\**`) is a literal backslash plus real emphasis and must still be repaired.
 function markerRunIsEscaped(span: string): boolean {
   let stars = 0
   while (stars < span.length && span[span.length - 1 - stars] === '*') stars++
