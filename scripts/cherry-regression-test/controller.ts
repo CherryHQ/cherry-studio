@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { type CdpLocatorDescriptor, ElectronCdpClient } from './cdp-client'
+import { completeCherryInOauth, dispatchCherryInOauthCallback } from './cherryin-oauth'
 import type { ConfigRef, RegressionTestConfig } from './config'
 import { getConfigRef } from './config'
 import { type FileEvidenceOptions, validateFileEvidence } from './file-evidence'
@@ -120,6 +121,31 @@ export class RegressionController {
 
   async inspect(descriptor: LocatorDescriptor = {}): Promise<UiObservation> {
     return this.redact(await this.inspectRaw(descriptor))
+  }
+
+  async authenticateCherryIn(): Promise<{ authenticated: true }> {
+    const loginButton: CdpLocatorDescriptor = {
+      exact: true,
+      name: 'Authorize with CherryIN',
+      role: 'button',
+      scope: 'main'
+    }
+    const client = this.connect()
+    await client.waitFor(loginButton, false)
+    const authorizationUrl = await client.captureWindowOpenUrl(loginButton)
+    const callback = await completeCherryInOauth(authorizationUrl, {
+      account: this.config.cherryIn.account,
+      password: this.config.cherryIn.password
+    })
+    dispatchCherryInOauthCallback(callback)
+
+    const deadline = Date.now() + 60_000
+    do {
+      const observation = await client.inspect(loginButton)
+      if (observation.count === 0) return { authenticated: true }
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
+    } while (Date.now() < deadline)
+    throw new Error('CherryIN authorization callback did not complete within 60000ms')
   }
 
   async interact(request: InteractionRequest): Promise<unknown> {

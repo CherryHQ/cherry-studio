@@ -25,20 +25,24 @@ desktop tools.
 4. Supply configured values only through `configRef`; locators may use
    `nameConfigRef` or `textConfigRef`. Never request, reveal, copy, or type a
    credential or API key as a literal value.
-5. Use `system-action` only for the case's external shortcut, external text, or
+5. For the CherryIN login case, choose `Set up later` if onboarding is visible,
+   open Settings > Model Provider > CherryIN, and call `authenticate-cherryin`
+   once `Authorize with CherryIN` is visible. Do not search Cherry Studio or an
+   external browser for account and password fields.
+6. Use `system-action` only for the case's external shortcut, external text, or
    native file-picker step. Use fixture and workspace paths returned by
    `get-run-context`.
-6. For persistence checks, call `restart-app`, reopen the relevant UI, then
+7. For persistence checks, call `restart-app`, reopen the relevant UI, then
    record the declared `restart` evidence.
-7. Record every evidence item declared by the case. UI and restart evidence
+8. Record every evidence item declared by the case. UI and restart evidence
    must assert meaningful visible text; file and process evidence must use the
    real output or owned process. Navigate away from credential fields and
    account details before taking screenshots. A narrative claim is never evidence.
-8. If an observation fails, inspect the current state and retry only after a
+9. If an observation fails, inspect the current state and retry only after a
    real corrective interaction. Otherwise complete the case as `failed`. Use
    `blocked` only for an unavailable external capability or prerequisite, not
    for an application defect.
-9. Call `complete-case` exactly once with the actual result. `passed` is valid
+10. Call `complete-case` exactly once with the actual result. `passed` is valid
    only after all declared machine evidence passes.
 
 ## Keep execution bounded

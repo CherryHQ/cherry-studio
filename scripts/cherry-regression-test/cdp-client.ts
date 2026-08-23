@@ -286,11 +286,15 @@ export function runDomOperation(request: DomOperationRequest): unknown {
       throw new Error('fill target is not editable')
     }
   } else if (request.operation === 'check' || request.operation === 'uncheck') {
-    if (!(selected instanceof HTMLInputElement) || !['checkbox', 'radio'].includes(selected.type)) {
-      throw new Error(`${request.operation} target is not a checkbox or radio`)
-    }
     const desired = request.operation === 'check'
-    if (selected.checked !== desired) selected.click()
+    if (selected instanceof HTMLInputElement && ['checkbox', 'radio'].includes(selected.type)) {
+      if (selected.checked !== desired) selected.click()
+    } else if (selected instanceof HTMLElement && ['checkbox', 'radio', 'switch'].includes(role(selected))) {
+      const checked = selected.getAttribute('aria-checked') === 'true'
+      if (checked !== desired) selected.click()
+    } else {
+      throw new Error(`${request.operation} target is not a checkbox, radio, or switch`)
+    }
   } else if (request.operation === 'select') {
     if (request.value === undefined) throw new Error('select requires value')
     if (!(selected instanceof HTMLSelectElement)) throw new Error('select target is not a select element')
@@ -554,6 +558,48 @@ export class ElectronCdpClient {
         })
       }
       return { title: result.title, url: result.url }
+    })
+  }
+
+  async captureWindowOpenUrl(descriptor: CdpLocatorDescriptor): Promise<string> {
+    return this.withTarget(descriptor.scope, async (connection) => {
+      const captureKey = '__cherryRegressionWindowOpenCapture'
+      await this.evaluate<boolean>(
+        connection,
+        `(() => {
+          const key = ${JSON.stringify(captureKey)};
+          const previous = window[key];
+          if (previous?.original) window.open = previous.original;
+          const capture = { original: window.open, url: '' };
+          Object.defineProperty(window, key, { configurable: true, value: capture });
+          window.open = (url) => { capture.url = String(url ?? ''); return null; };
+          return true;
+        })()`
+      )
+      try {
+        await this.dispatchClick(connection, await this.domOperation(connection, descriptor, 'click'))
+        const deadline = Date.now() + 15_000
+        do {
+          const value = await this.evaluate<string>(
+            connection,
+            `String(window[${JSON.stringify(captureKey)}]?.url ?? '')`
+          )
+          if (value) return value
+          await delay(250)
+        } while (Date.now() < deadline)
+        throw new Error('CherryIN authorization did not open within 15000ms')
+      } finally {
+        await this.evaluate<boolean>(
+          connection,
+          `(() => {
+            const key = ${JSON.stringify(captureKey)};
+            const capture = window[key];
+            if (capture?.original) window.open = capture.original;
+            delete window[key];
+            return true;
+          })()`
+        ).catch(() => undefined)
+      }
     })
   }
 

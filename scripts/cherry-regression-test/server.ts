@@ -141,6 +141,12 @@ const toolDefinitions = [
     }
   },
   {
+    name: 'authenticate-cherryin',
+    description:
+      'Complete CherryIN OAuth with the configured regression account after its provider page shows Authorize with CherryIN. Credentials remain hidden from the agent and logs.',
+    inputSchema: { type: 'object', additionalProperties: false }
+  },
+  {
     name: 'system-action',
     description:
       'Operate the hosted runner desktop for a global shortcut, external text selection, Escape, or a native file picker.',
@@ -540,6 +546,10 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
     }
     case 'interact':
       return controller.interact(interactionSchema.parse(rawArguments) as InteractionRequest)
+    case 'authenticate-cherryin':
+      if (task !== 'cherryin-chat') throw new Error('CherryIN authentication is only available in cherryin-chat')
+      requireRunningCase('M-01')
+      return controller.authenticateCherryIn()
     case 'system-action': {
       const input = z
         .object({

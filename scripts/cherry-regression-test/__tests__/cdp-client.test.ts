@@ -18,10 +18,15 @@ describe('direct CDP DOM operations', () => {
       <label for="api-key">API key</label>
       <input id="api-key" type="password" />
       <label><input id="enabled" type="checkbox" /> Enabled</label>
+      <button id="custom-enabled" role="checkbox" aria-checked="false">Custom enabled</button>
       <select aria-label="Model"><option value="chat-model">Chat model</option></select>
     `
     vi.spyOn(Element.prototype, 'getClientRects').mockReturnValue({ length: 1 } as DOMRectList)
     Element.prototype.scrollIntoView = vi.fn()
+    document.querySelector('#custom-enabled')?.addEventListener('click', (event) => {
+      const target = event.currentTarget as HTMLElement
+      target.setAttribute('aria-checked', String(target.getAttribute('aria-checked') !== 'true'))
+    })
   })
 
   it('finds visible controls by accessible role and name', () => {
@@ -51,6 +56,16 @@ describe('direct CDP DOM operations', () => {
     expect(inputEvent).toHaveBeenCalledOnce()
     expect(document.querySelector<HTMLInputElement>('#enabled')?.checked).toBe(true)
     expect(document.querySelector<HTMLSelectElement>('select')?.value).toBe('chat-model')
+  })
+
+  it('toggles ARIA checkbox controls used by custom settings components', () => {
+    const checkbox = document.querySelector<HTMLElement>('#custom-enabled')!
+
+    runDomOperation({ descriptor: { exact: true, name: 'Custom enabled', role: 'checkbox' }, operation: 'check' })
+    expect(checkbox.getAttribute('aria-checked')).toBe('true')
+
+    runDomOperation({ descriptor: { exact: true, name: 'Custom enabled', role: 'checkbox' }, operation: 'uncheck' })
+    expect(checkbox.getAttribute('aria-checked')).toBe('false')
   })
 
   it('combines role or CSS selectors with visible text', () => {

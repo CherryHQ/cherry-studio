@@ -33,6 +33,7 @@ const AGENT_ALLOWED_TOOLS = [
   'mcp__cherry-regression__begin-case',
   'mcp__cherry-regression__inspect-ui',
   'mcp__cherry-regression__interact',
+  'mcp__cherry-regression__authenticate-cherryin',
   'mcp__cherry-regression__system-action',
   'mcp__cherry-regression__restart-app',
   'mcp__cherry-regression__record-evidence',
