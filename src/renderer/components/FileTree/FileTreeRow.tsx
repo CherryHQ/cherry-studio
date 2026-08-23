@@ -5,6 +5,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { ChevronRight } from 'lucide-react'
 import type React from 'react'
+import { useState } from 'react'
 
 import type { FileTreeAnimationSlot, FileTreeNode, FileTreeRenameSlot } from './types'
 
@@ -29,6 +30,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
   const { node, depth, isExpanded, isSelected, isDragging, dragPosition, toggleExpanded, selectNode, dragHandleProps } =
     args
 
+  const [menuOpen, setMenuOpen] = useState(false)
   const isFolder = node.kind === 'folder'
   const isRenaming = renameSlot ? renameSlot.isRenaming(node) : false
   const effectiveDragHandleProps = isRenaming ? { ...dragHandleProps, draggable: false } : dragHandleProps
@@ -87,6 +89,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
         isFolder
           ? 'text-foreground hover:bg-accent/50'
           : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
+        menuOpen && 'bg-accent/50 text-foreground',
         isSelected && 'bg-accent/60 text-accent-foreground',
         isDragging && 'opacity-50',
         dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
@@ -146,7 +149,10 @@ export function FileTreeRow(props: FileTreeRowProps) {
   }
 
   return (
-    <CommandContextMenu location="webcontents.context" getExtraItems={() => getMenuItems(node)}>
+    <CommandContextMenu
+      location="webcontents.context"
+      getExtraItems={() => getMenuItems(node)}
+      onOpenChange={setMenuOpen}>
       {row}
     </CommandContextMenu>
   )

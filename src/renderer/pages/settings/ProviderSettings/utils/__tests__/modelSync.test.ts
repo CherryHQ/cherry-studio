@@ -276,6 +276,39 @@ describe('toCreateModelDto', () => {
     expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL])
   })
 
+  it('persists a discovered context window so the runtime can send num_ctx', () => {
+    // Ollama's window is read from /api/show at listing time, not supplied by the registry;
+    // dropping it here leaves the stored row without one and num_ctx is never sent (#18643).
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::qwen3:32b' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3:32b',
+      name: 'qwen3:32b',
+      capabilities: [],
+      contextWindow: 40960,
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto.contextWindow).toBe(40960)
+  })
+
+  it('omits contextWindow when the model has none', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::acme:latest' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'acme:latest',
+      name: 'acme:latest',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto).not.toHaveProperty('contextWindow')
+  })
+
   it('keeps registry capabilities inherited for a preset-backed thinking model', () => {
     const dto = toCreateModelDto('ollama', {
       id: 'ollama::qwen3:32b' as UniqueModelId,

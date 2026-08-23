@@ -121,6 +121,10 @@ export function buildPathRegistry() {
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
     'feature.binary.mingit': path.join(appUserDataToolchain, 'mingit'),
+    // Cherry-provisioned CPython for pipx tools. mise is never told about it —
+    // naming a Python runtime there is what makes mise fetch its own from
+    // GitHub releases (see binaryManager/pythonRuntime.ts).
+    'feature.binary.data.uv_python': path.join(appUserDataToolchainMise, 'uv-python'),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).

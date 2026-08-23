@@ -1,7 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
+import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -72,7 +72,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
       },
       apiKeys: [{ id: 'gateway', isEnabled: true }],
       authType: 'api-key',
-      apiFeatures: DEFAULT_API_FEATURES,
+      reportsActualCost: false,
       settings: DEFAULT_PROVIDER_SETTINGS,
       isEnabled: true
     }
