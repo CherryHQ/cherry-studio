@@ -320,6 +320,8 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  // Subset of `pendingClients` started with `passiveEnv` — see getOrCreateClient.
+  private passivePendingClients: Set<string> = new Set()
   // Keyed by toolCallKey(callId, scope). Caller-supplied call ids are NOT process-wide
   // unique (AI SDK providers may reuse ids like "call_0" across topics), so scoped callers
   // are namespaced, and every concurrent call registers its own controller under its key
@@ -344,6 +346,7 @@ export class McpRuntimeService extends BaseService {
     await this.waitForPendingClients()
     await this.closeAllClients()
     this.pendingClients.clear()
+    this.passivePendingClients.clear()
     this.clients.clear()
     this.serverLogs.clear()
   }
@@ -459,6 +462,14 @@ export class McpRuntimeService extends BaseService {
     const pendingClient = this.pendingClients.get(serverKey)
     if (pendingClient) {
       this.setServerStatus(server.id, 'connecting')
+      // A warmer's connect ran on a cached PATH, so adopting it would report its
+      // stale-PATH failure as this caller's. Let it settle and resolve again: a
+      // client it managed to connect is reused, a failed one is retried fresh.
+      if (this.passivePendingClients.has(serverKey) && !options?.passiveEnv) {
+        getServerLogger(server).debug(`Not adopting a background warmer's pending connection`)
+        await pendingClient.catch(() => undefined)
+        return this.getOrCreateClient(server, options)
+      }
       getServerLogger(server).silly(`Waiting for pending client initialization`)
       return pendingClient
     }
@@ -937,11 +948,15 @@ export class McpRuntimeService extends BaseService {
       } finally {
         // Clean up the pending promise when done
         this.pendingClients.delete(serverKey)
+        this.passivePendingClients.delete(serverKey)
       }
     })()
 
     // Store the pending promise
     this.pendingClients.set(serverKey, initPromise)
+    if (options?.passiveEnv) {
+      this.passivePendingClients.add(serverKey)
+    }
 
     return initPromise
   }

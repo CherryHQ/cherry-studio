@@ -212,6 +212,37 @@ describe('McpRuntimeService stdio environment', () => {
     expect(shellEnvMock.getShellEnv).toHaveBeenLastCalledWith({ fresh: false })
   })
 
+  it('does not let a user-triggered connect inherit a warmer’s pending connection', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    // Hold the warmer's connect open, then fail it the way a stale PATH does.
+    let failWarmer: (error: Error) => void = () => {}
+    const connectSpy = vi
+      .spyOn(mcpSdkMock.Client.prototype, 'connect')
+      .mockImplementationOnce(() => new Promise((_, reject) => (failWarmer = reject)))
+
+    const warming = service.withClient(server.id, async () => 'warm', { passiveEnv: true })
+    await vi.waitFor(() => expect(connectSpy).toHaveBeenCalled())
+
+    // The user activates the server while that connect is still in flight.
+    const activation = service.withClient(server.id, async () => 'user')
+    failWarmer(new Error('spawn ENOENT'))
+
+    await expect(warming).rejects.toThrow()
+    // The activation must re-resolve on its own fresh capture, not inherit the failure.
+    await expect(activation).resolves.toBe('user')
+    expect(shellEnvMock.getShellEnv).toHaveBeenLastCalledWith({ fresh: true })
+    connectSpy.mockRestore()
+  })
+
   it('preserves distinct PATH key casing on POSIX', async () => {
     const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     shellEnvMock.getShellEnv.mockResolvedValue({ PATH: '/shell/bin', Path: 'shell-metadata' })
