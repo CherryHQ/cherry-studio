@@ -80,6 +80,7 @@ import {
   type GlobalSearchTimeFilter,
   useGlobalSearchPanelData
 } from './useGlobalSearchPanelData'
+import { useImeAwareDebouncedValue } from './useImeAwareDebouncedValue'
 
 type GlobalSearchPanelProps = {
   onClose: () => void
@@ -312,7 +313,13 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const searchListRef = useRef<DynamicVirtualListRef>(null)
   const [query, setQuery] = useState('')
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
-  const deferredQuery = useDeferredValue(query.trim())
+  // Debounce the query sent to the search backend and hold it during IME
+  // composition so pinyin intermediates don't fire per-keystroke FTS queries.
+  // `useDeferredValue` stays downstream to keep heavy result renders off the
+  // typing path; the two compose (request-rate control + render scheduling).
+  const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
+    useImeAwareDebouncedValue(query.trim())
+  const deferredQuery = useDeferredValue(debouncedQuery)
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
   const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
@@ -972,6 +979,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           <Input
             ref={inputRef}
             value={query}
+            {...searchInputCompositionHandlers}
             onChange={(event) => {
               const nextQuery = event.target.value.trimStart()
               setQuery(nextQuery)
