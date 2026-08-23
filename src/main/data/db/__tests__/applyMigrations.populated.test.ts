@@ -106,6 +106,30 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    const insert = sqlite.prepare(
+      `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
+       VALUES (?, ?, 'stdio', 'npx', ?, 1, ?, ?)`
+    )
+    insert.run('55555555-5555-7555-8555-555555555555', 'hand-added', 'manual', now, now)
+    insert.run('66666666-6666-7666-8666-666666666666', 'from-protocol', 'protocol', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT name, install_source FROM mcp_server ORDER BY name').all()).toEqual([
+      { name: 'from-protocol', install_source: 'protocol' },
+      { name: 'hand-added', install_source: 'manual' }
+    ])
+    // The whole point of the migration: install_mcp_server writes this value, so
+    // without it every AI-assisted install fails at insert time.
+    expect(() =>
+      insert.run('77777777-7777-7777-8777-777777777777', 'ai-installed', 'ai_assisted', now, now)
+    ).not.toThrow()
+    expect(() => insert.run('88888888-8888-7888-8888-888888888888', 'bogus', 'whatever', now, now)).toThrow()
+  })
+
   it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
     const now = Date.now()
@@ -401,6 +425,68 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
+  it('preserves populated prompts when adding visibility and bindings', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    sqlite
+      .prepare(
+        `INSERT INTO prompt (id, title, content, order_key, created_at, updated_at)
+         VALUES
+          ('prompt-migrate-one', 'First title', 'First content', 'a0', 101, 201),
+          ('prompt-migrate-two', 'Second title', 'Second content', 'a1', 102, 202)`
+      )
+      .run()
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(
+      sqlite
+        .prepare(
+          `SELECT id, title, content, visibility, order_key, created_at, updated_at FROM prompt ORDER BY order_key`
+        )
+        .all()
+    ).toEqual([
+      {
+        id: 'prompt-migrate-one',
+        title: 'First title',
+        content: 'First content',
+        visibility: 'global',
+        order_key: 'a0',
+        created_at: 101,
+        updated_at: 201
+      },
+      {
+        id: 'prompt-migrate-two',
+        title: 'Second title',
+        content: 'Second content',
+        visibility: 'global',
+        order_key: 'a1',
+        created_at: 102,
+        updated_at: 202
+      }
+    ])
+
+    const tableDefinitions = sqlite
+      .prepare(`SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name IN ('prompt', 'prompt_binding')`)
+      .all() as Array<{ name: string; sql: string }>
+    expect(tableDefinitions.find((table) => table.name === 'prompt')?.sql).toContain('prompt_visibility_check')
+    expect(tableDefinitions.find((table) => table.name === 'prompt_binding')?.sql).toContain(
+      'prompt_binding_target_type_check'
+    )
+    expect(
+      sqlite
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name IN ('prompt', 'prompt_binding')`)
+        .all()
+        .map((row) => (row as { name: string }).name)
+    ).toEqual(
+      expect.arrayContaining([
+        'prompt_order_key_idx',
+        'prompt_binding_target_idx',
+        'prompt_binding_target_order_key_idx'
+      ])
+    )
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
   it('moves legacy sticky session pointers into the constrained relation', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0005_slow_obadiah_stane'))
     const now = Date.now()
@@ -492,6 +578,9 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills conversation activity from message phases without losing populated rows', () => {
+    // Pinned to the 0007 backfill migration: the default tip baseline would drift
+    // forward past it once a later migration exists, and the NOT NULL
+    // last_activity_at recreate would reject the seed rows below.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0007_flimsy_mentor'))
 
     sqlite

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import React, { useEffect } from 'react'
+import React, { Activity, useEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT, QUICK_PANEL_SAFE_MARGIN } from '../heights'
@@ -35,12 +35,14 @@ vi.mock('@renderer/components/VirtualList', async () => {
       children,
       list,
       size,
-      ref
+      ref,
+      scrollerStyle
     }: {
       children: (item: QuickPanelListItem, index: number) => React.ReactNode
       list: QuickPanelListItem[]
       size?: number
       ref?: React.Ref<{ scrollToIndex: (index: number) => void; scrollToOffset: (offset: number) => void }>
+      scrollerStyle?: React.CSSProperties
     }) => {
       React.useImperativeHandle(ref, () => ({
         scrollToIndex: virtualListMocks.scrollToIndex,
@@ -48,7 +50,7 @@ vi.mock('@renderer/components/VirtualList', async () => {
       }))
 
       return (
-        <div data-size={size} data-testid="quick-panel-virtual-list">
+        <div data-size={size} data-testid="quick-panel-virtual-list" style={scrollerStyle}>
           {list.map((item, index) => (
             <React.Fragment key={item.id ?? index}>{children(item, index)}</React.Fragment>
           ))}
@@ -189,6 +191,45 @@ function ImmediateOpenDispatchHarness({ onHandled }: { onHandled: (handled: bool
   }, [dispatchKeyDown, onHandled, open, registerKeyDownHandler])
 
   return null
+}
+
+function ActivityTabSwitchHarness({ onNavigate }: { onNavigate: () => void }) {
+  const [activeTab, setActiveTab] = useState<'source' | 'target'>('source')
+
+  return (
+    <>
+      <button type="button" onClick={() => setActiveTab('source')}>
+        Return to source tab
+      </button>
+      <output aria-label="Active tab">{activeTab}</output>
+      <Activity mode={activeTab === 'source' ? 'visible' : 'hidden'}>
+        <QuickPanelProvider>
+          <SingleOpenTabSwitchPanel
+            onNavigate={() => {
+              onNavigate()
+              setActiveTab('target')
+            }}
+          />
+        </QuickPanelProvider>
+      </Activity>
+    </>
+  )
+}
+
+function SingleOpenTabSwitchPanel({ onNavigate }: { onNavigate: () => void }) {
+  const { open } = useQuickPanel()
+  const hasOpenedRef = useRef(false)
+
+  useEffect(() => {
+    if (hasOpenedRef.current) return
+    hasOpenedRef.current = true
+    open({
+      list: [{ id: 'navigate', label: 'Open target tab', icon: null, action: onNavigate }],
+      symbol: '/'
+    })
+  }, [onNavigate, open])
+
+  return <QuickPanelView />
 }
 
 describe('QuickPanelView', () => {
@@ -1124,29 +1165,64 @@ describe('QuickPanelView', () => {
     expect(firstRow?.className).not.toContain('hover:bg-accent')
   })
 
-  it('blocks pointer events only while the panel is visible', async () => {
+  it('makes the hidden panel subtree inert and disables virtual-list pointer events', async () => {
     const items: QuickPanelListItem[] = [{ id: 'first', label: 'First action', icon: '1', action: vi.fn() }]
+    let quickPanel: QuickPanelContextType | undefined
 
     const { rerender } = render(
       <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
         <QuickPanelView />
       </QuickPanelProvider>
     )
 
     const hiddenPanel = screen.getByTestId('quick-panel')
+    expect(hiddenPanel).toHaveAttribute('inert')
     expect(hiddenPanel.className).toContain('pointer-events-none')
     expect(hiddenPanel.className).not.toContain('pointer-events-auto')
 
     rerender(
       <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
         <PanelHarness captureDispatch={vi.fn()} items={items} />
       </QuickPanelProvider>
     )
 
     await screen.findByText('First action')
     const visiblePanel = screen.getByTestId('quick-panel')
+    expect(visiblePanel).not.toHaveAttribute('inert')
     expect(visiblePanel.className).toContain('pointer-events-auto')
     expect(visiblePanel.className).not.toContain('pointer-events-none')
+
+    fireEvent.mouseMove(screen.getByTestId('quick-panel-body'))
+    expect(screen.getByTestId('quick-panel-virtual-list')).toHaveStyle({ pointerEvents: 'auto' })
+
+    act(() => {
+      quickPanel?.close('esc')
+    })
+
+    expect(visiblePanel).toHaveAttribute('inert')
+    expect(screen.getByTestId('quick-panel-virtual-list')).toHaveStyle({ pointerEvents: 'none' })
+  })
+
+  it('clears a closed action when its selection hides and restores the tab Activity', async () => {
+    const onNavigate = vi.fn()
+
+    render(<ActivityTabSwitchHarness onNavigate={onNavigate} />)
+
+    const staleAction = await screen.findByRole('button', { name: 'Open target tab' })
+    fireEvent.mouseMove(screen.getByTestId('quick-panel-body'))
+    vi.useFakeTimers()
+
+    fireEvent.click(staleAction)
+    expect(screen.getByRole('status', { name: 'Active tab' })).toHaveTextContent('target')
+    expect(onNavigate).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to source tab' }))
+
+    expect(screen.getByRole('status', { name: 'Active tab' })).toHaveTextContent('source')
+    expect(screen.queryByRole('button', { name: 'Open target tab' })).not.toBeInTheDocument()
+    expect(onNavigate).toHaveBeenCalledTimes(1)
   })
 
   it('does not select always-visible items with Tab when the panel is collapsed', async () => {

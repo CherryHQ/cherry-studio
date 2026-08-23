@@ -17,6 +17,7 @@ export const zhCN = {
   'migration.buttons.retry': '重试',
   'migration.buttons.skip_migration': '跳过迁移',
   'migration.buttons.start_migration': '开始迁移',
+  'migration.completed.agent_database_unreadable': '旧版 Agent 数据库无法读取，未导入其中的数据；原始数据库文件已保留',
   'migration.completed.agent_files_skipped_one': '已跳过 1 个路径重叠的 Agent 文件目标；旧版源数据已保留',
   'migration.completed.agent_files_skipped_other': '已跳过 {{count}} 个路径重叠的 Agent 文件目标；旧版源数据已保留',
   'migration.completed.description': '迁移完成，你的数据已经全部就位。重启应用即可开始使用 V2。',
@@ -162,6 +163,8 @@ export const enUS = {
   'migration.buttons.retry': 'Retry',
   'migration.buttons.skip_migration': 'Skip migration',
   'migration.buttons.start_migration': 'Start Migration',
+  'migration.completed.agent_database_unreadable':
+    'The legacy Agent database was unreadable and was not imported; the original database file was preserved',
   'migration.completed.agent_files_skipped_one':
     'Skipped 1 overlapping Agent filesystem target; legacy source data was preserved',
   'migration.completed.agent_files_skipped_other':

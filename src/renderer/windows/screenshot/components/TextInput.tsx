@@ -9,6 +9,8 @@
  * by a non-composing keydown, or by the next composition starting. A blur rejects it.
  */
 
+import { ipcApi } from '@renderer/ipc'
+import { isMac } from '@renderer/utils/platform'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -44,6 +46,16 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
   /** Guards against committing twice when blur and an explicit flush race. */
   const committedRef = useRef(false)
   const isComposingRef = useRef(false)
+  /**
+   * Whether the overlay has already been stepped below the IME candidate window.
+   *
+   * Driven by the first composition rather than by the editor opening, so someone
+   * typing without an IME never pays for this at all — the step-down uncovers the
+   * Dock and the menu bar, which then take the clicks over the strips they occupy.
+   * It is never undone mid-edit: restoring on `compositionend` would flash both of
+   * them on and off between every word of a sentence.
+   */
+  const steppedDownRef = useRef(false)
   /** A composition ended and its result is not trusted yet. See the file header. */
   const pendingAcceptRef = useRef(false)
   const acceptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -63,6 +75,18 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
       onConfirmRef.current(text)
     } else {
       onCancelRef.current()
+    }
+  }, [])
+
+  /**
+   * Restore the level when the editor closes, but only if a composition ever stepped
+   * it down — see {@link steppedDownRef} for why the step-down is not done on mount.
+   */
+  useEffect(() => {
+    if (!isMac) return
+    return () => {
+      if (!steppedDownRef.current) return
+      void ipcApi.request('screenshot.text_editing', { editing: false })
     }
   }, [])
 
@@ -126,6 +150,12 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
     }
 
     const onCompositionStart = () => {
+      // The candidate window sits below the overlay's level; step down once, on the
+      // first composition, so this costs nothing for a user with no IME.
+      if (isMac && !steppedDownRef.current) {
+        steppedDownRef.current = true
+        void ipcApi.request('screenshot.text_editing', { editing: true })
+      }
       // A new composition proves focus never left, so the previous result is good.
       // Without this, two IME words typed within the accept delay lose the first.
       acceptPending()
