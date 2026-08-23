@@ -129,6 +129,18 @@ describe('remarkLiteralAutolinkFix', () => {
     expect(parse(source)).toEqual(parseWithoutPlugin(source))
   })
 
+  it('repairs an opener after an even backslash run — `\\\\**` is a literal slash plus real emphasis', () => {
+    const source = '\\\\**https://a.com/x**(y)'
+    expect(inlineChildren(source).map(shape)).toEqual([
+      { type: 'text', value: '\\' },
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
+      },
+      { type: 'text', value: '(y)' }
+    ])
+  })
+
   it('does not reject an opener just because a backslash or entity sits earlier in the span', () => {
     for (const lead of ['&amp;**', '\\q**']) {
       const source = `${lead}https://a.com/x**(y)`

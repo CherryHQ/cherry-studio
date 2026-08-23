@@ -117,15 +117,16 @@ function computeCut(node: Link & { children: [Text] }): Cut | undefined {
 // Repair a flat inline sequence in place (used for a tail that may itself contain another
 // swallowed `**url**`): find a swallowed link preceded by a marker-ending text, cut it, wrap
 // it in strong, and recurse on the remainder. Tail nodes carry positions into the tail
-// substring, so the escaped-opener check is skipped here — false positives are both rare and
-// fail closed.
-function repairTailNodes(nodes: PhrasingContent[]): PhrasingContent[] {
+// substring, so the escape check runs against that substring as its own source.
+function repairTailNodes(nodes: PhrasingContent[], tailSource: string): PhrasingContent[] {
   const repaired: PhrasingContent[] = []
   for (const node of nodes) {
     if (node.type === 'link' && isSwallowedLiteralAutolink(node)) {
       const prev = repaired[repaired.length - 1]
       const opener = toTextNode(prev)
-      if (opener?.value.endsWith(CLOSER)) {
+      const openerSource =
+        opener?.position && tailSource.slice(opener.position.start.offset, opener.position.end.offset)
+      if (opener && openerSource && opener.value.endsWith(CLOSER) && !markerRunIsEscaped(openerSource)) {
         const cut = computeCut(node)
         if (cut) {
           const text = node.children[0]
@@ -141,7 +142,7 @@ function repairTailNodes(nodes: PhrasingContent[]): PhrasingContent[] {
           }
           const strong: Strong = { type: 'strong', children: [node] }
           repaired.push(strong)
-          repaired.push(...repairTailNodes(parseInlineTail(cut.tail)))
+          repaired.push(...repairTailNodes(parseInlineTail(cut.tail), cut.tail))
           continue
         }
       }
@@ -162,6 +163,21 @@ function toTextNode(node: unknown): Text | undefined {
   return undefined
 }
 
+// True when the trailing marker run in this raw source span is escaped — i.e. an odd number
+// of backslashes sits right before it (`\**`, `\*\*`). An even count (`\\**`) is a literal
+// backslash followed by real emphasis, which must still be repaired. Positions cover the raw
+// characters, so the escaped backslashes are present in the span.
+function markerRunIsEscaped(span: string): boolean {
+  let stars = 0
+  while (stars < span.length && span[span.length - 1 - stars] === '*') stars++
+  // Count the backslash run immediately before the stars; an odd run escapes them.
+  let slashes = 0
+  while (slashes < span.length - stars && span[span.length - stars - slashes - 1] === '\\') {
+    slashes++
+  }
+  return slashes % 2 === 1
+}
+
 function buildFix(node: Link, index: number, parent: Parent, source: string): FixPlan | undefined {
   if (!isSwallowedLiteralAutolink(node)) return undefined
   // Without an opener hugging the link there is no evidence the stars were emphasis, and an
@@ -169,14 +185,10 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
   const prev = parent.children[index - 1]
   const opener = toTextNode(prev)
   if (!opener?.value.endsWith(CLOSER)) return undefined
-  // Reject a run whose marker at the end of its source span is escaped (`\**`) — escaped stars
-  // render as `**` but are literal text, not emphasis. Only that exact case; a backslash or
-  // character reference earlier in the span (`\q**`, `&amp;**`) must not disqualify real emphasis.
+  // Reject a run whose marker is escaped (`\**`, `\*\*`); a backslash or character reference
+  // earlier in the span (`\\**`, `\q**`, `&amp;**`) must not disqualify real emphasis.
   const openerSource = opener.position && source.slice(opener.position.start.offset, opener.position.end.offset)
-  if (!openerSource) return undefined
-  let starCount = 0
-  while (starCount < openerSource.length && openerSource[openerSource.length - 1 - starCount] === '*') starCount++
-  if (openerSource[openerSource.length - 1 - starCount] === '\\') return undefined
+  if (!openerSource || markerRunIsEscaped(openerSource)) return undefined
 
   const cut = computeCut(node)
   if (!cut) return undefined
@@ -188,7 +200,7 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
   delete node.position
   delete text.position
 
-  const tailNodes = repairTailNodes(parseInlineTail(cut.tail))
+  const tailNodes = repairTailNodes(parseInlineTail(cut.tail), cut.tail)
 
   const strong: Strong = { type: 'strong', children: [node] }
   const head: RootContent[] = []
