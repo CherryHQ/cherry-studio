@@ -31,6 +31,7 @@ const fakes = vi.hoisted(() => {
     controller: ReadableStreamDefaultController<unknown>
     closed: boolean
   }
+  type RefreshRequest = { reason: string; turnIds: readonly string[] }
 
   class FakeConversationStreamSubscription {
     readonly branches = new Map<string, Branch>()
@@ -38,7 +39,7 @@ const fakes = vi.hoisted(() => {
     readonly terminalListeners = new Set<(terminal: Terminal) => void>()
     readonly stateListeners = new Set<() => void>()
     readonly quiescedListeners = new Set<(turnId: string) => void>()
-    readonly refreshRequiredListeners = new Set<(turnIds: readonly string[]) => void>()
+    readonly refreshRequiredListeners = new Set<(request: RefreshRequest) => void>()
     conversationOpen = false
     listenCalls = 0
     disposed = false
@@ -113,7 +114,7 @@ const fakes = vi.hoisted(() => {
       return () => this.quiescedListeners.delete(listener)
     }
 
-    onRefreshRequired(listener: (turnIds: readonly string[]) => void) {
+    onRefreshRequired(listener: (request: RefreshRequest) => void) {
       this.refreshRequiredListeners.add(listener)
       return () => this.refreshRequiredListeners.delete(listener)
     }
@@ -155,8 +156,8 @@ const fakes = vi.hoisted(() => {
       for (const listener of this.quiescedListeners) listener(turnId)
     }
 
-    requestRefresh(turnId: string) {
-      for (const listener of this.refreshRequiredListeners) listener([turnId])
+    requestRefresh(turnId: string, reason = 'replay-gap') {
+      for (const listener of this.refreshRequiredListeners) listener({ reason, turnIds: [turnId] })
     }
   }
 
@@ -165,6 +166,11 @@ const fakes = vi.hoisted(() => {
 })
 
 vi.mock('../ConversationStreamSubscription', () => ({
+  ConversationStreamRefreshReason: {
+    AttachUnavailable: 'attach-unavailable',
+    NotFound: 'not-found',
+    ReplayGap: 'replay-gap'
+  },
   ConversationStreamSubscription: fakes.FakeConversationStreamSubscription
 }))
 
@@ -361,6 +367,39 @@ describe('ExecutionStreamOverlayService', () => {
     } as CherryUIMessageChunk)
     await nextCommit()
     expect(overlayText(service, conversation, 'assistant-1')).toBe('before-after')
+  })
+
+  it('refreshes before retiring an optimistic execution that Main reports as NotFound', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('not-found')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+    let finishRefresh!: () => void
+    const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
+
+    service.acquire(conversation)
+    service.registerRefreshPort(conversation, refresh)
+    service.seedReservations(
+      conversation,
+      [assistant('assistant-1')],
+      [activeExecution],
+      { move: ConversationActiveNodeMove.Advance },
+      null,
+      () => [assistant('assistant-1')]
+    )
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+
+    subscription.requestRefresh(activeExecution.turnId, 'not-found')
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+    expect(service.getView(conversation).activeNodeOverride).toEqual({
+      previousActiveNodeId: null,
+      activeNodeId: 'assistant-1'
+    })
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(true)
+
+    finishRefresh()
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+    expect(service.getView(conversation).activeNodeOverride).toBeNull()
   })
 
   it('starts an in-place retry from empty parts even when cached history still has the old failure', async () => {

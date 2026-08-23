@@ -1656,7 +1656,6 @@ describe('AiExecutionManager', () => {
     )
     expect(cursorSnapshot.replay).toMatchObject({ throughChunkSeq: 4, truncated: false })
     expect(cursorSnapshot.replay.chunks).toMatchObject([
-      { chunkSeq: 3, chunk: { type: 'text-start', id: 'text-1' } },
       { chunkSeq: 3, throughChunkSeq: 3, chunk: { type: 'text-delta', delta: 'world' } },
       { chunkSeq: 4, throughChunkSeq: 4, chunk: { type: 'text-end' } }
     ])

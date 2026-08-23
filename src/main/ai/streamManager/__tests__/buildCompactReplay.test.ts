@@ -215,13 +215,42 @@ describe('buildCompactReplay', () => {
           payload({ type: 'text-delta', id: 'p1', delta: 'abcd' }),
           payload({ type: 'text-delta', id: 'p1', delta: 'efgh' })
         ],
-        4
+        { maxDeltaBytes: 4 }
       )
 
       expect(chunks(result)).toEqual([
         { type: 'text-start', id: 'p1' },
         { type: 'text-delta', id: 'p1', delta: 'abcd' },
         { type: 'text-delta', id: 'p1', delta: 'efgh' }
+      ])
+    })
+
+    it('continues an already-applied part without synthesizing a duplicate start', () => {
+      nextChunkSeq = 0
+      payload({ type: 'text-start', id: 'p1' })
+      const delta = payload({ type: 'text-delta', id: 'p1', delta: 'suffix' })
+      const end = payload({ type: 'text-end', id: 'p1' })
+
+      expect(chunks(buildCompactReplay([delta, end], { cursor: 1 }))).toEqual([
+        { type: 'text-delta', id: 'p1', delta: 'suffix' },
+        { type: 'text-end', id: 'p1' }
+      ])
+    })
+
+    it('continues an already-applied tool input without requiring its start in the suffix', () => {
+      nextChunkSeq = 0
+      payload({ type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' })
+      const delta = payload({ type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' })
+      const available = payload({
+        type: 'tool-input-available',
+        toolCallId: 'tc1',
+        toolName: 'search',
+        input: { q: 'hello' }
+      })
+
+      expect(chunks(buildCompactReplay([delta, available], { cursor: 1 }))).toEqual([
+        { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' },
+        { type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } }
       ])
     })
   })

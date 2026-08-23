@@ -37,7 +37,7 @@ vi.mock('../StreamAttachmentService', () => ({
   streamAttachmentService: { acquire: (...args: unknown[]) => attachment.acquire(...args) }
 }))
 
-import { ConversationStreamSubscription } from '../ConversationStreamSubscription'
+import { ConversationStreamRefreshReason, ConversationStreamSubscription } from '../ConversationStreamSubscription'
 
 const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
 const turn1 = toConversationTurnId('turn-1')
@@ -445,7 +445,10 @@ describe('ConversationStreamSubscription legacy behavior contracts', () => {
     sub.onRefreshRequired(refresh)
     sub.register(projection())
     await tick()
-    expect(refresh).toHaveBeenCalledWith([turn1])
+    expect(refresh).toHaveBeenCalledWith({
+      reason: ConversationStreamRefreshReason.NotFound,
+      turnIds: [turn1]
+    })
     expect(sub.hasOpenBranch(executionA)).toBe(true)
     expect(sub.isSettled(executionA)).toBe(false)
     sub.dispose()

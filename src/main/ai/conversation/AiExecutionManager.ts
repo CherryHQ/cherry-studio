@@ -616,7 +616,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
     const suffix = resource.buffer.filter((payload) => payload.chunkSeq > cursor)
     const chunks = buildCompactReplay(
       suffix.flatMap((payload) => splitDeltaPayload(payload, MAX_REPLAY_DELTA_BYTES)),
-      MAX_REPLAY_DELTA_BYTES
+      { cursor, maxDeltaBytes: MAX_REPLAY_DELTA_BYTES }
     )
     const firstAvailableChunkSeq = resource.buffer[0]?.chunkSeq ?? resource.nextChunkSeq + 1
     let nextCoveredChunkSeq = cursor + 1

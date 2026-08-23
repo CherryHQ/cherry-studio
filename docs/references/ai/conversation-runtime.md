@@ -182,9 +182,12 @@ Each execution replay reports `throughChunkSeq`,
 `firstAvailableChunkSeq`, and `truncated`. The resource retains at most 10,000
 raw sequenced provider events. It filters `chunkSeq > requested cursor`, then
 semantically compacts the suffix and splits text/reasoning/tool deltas at 16
-KiB without crossing a sequence boundary. Renderer buffers events during
-attach, applies the snapshot and replay, and then applies only events above
-that execution's high-water. IPC errors remain retryable renderer-local state.
+KiB without crossing a sequence boundary. For a nonzero cursor, replay
+continues the Renderer-owned semantic part instead of synthesizing another
+start. Renderer buffers events during attach, reports only its continuously
+applied cursor, applies the snapshot and replay, and then drains buffered
+events without crossing a gap. IPC errors remain retryable renderer-local
+state; NotFound performs durable refresh before exact-turn retirement.
 
 ## Ports
 

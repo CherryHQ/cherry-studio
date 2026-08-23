@@ -72,18 +72,21 @@ which sends `detach` only after the last window-local owner releases it.
 `ai.stream.attach` returns a discriminated `Live`, `Settled`, or `NotFound`
 snapshot. Main registers the observer before capturing each execution's replay
 high-water. Renderer temporarily buffers live events, applies snapshot and
-replay, and then accepts only `chunkSeq` values above that execution's
-`throughChunkSeq`.
+replay, and then accepts only chunks above that execution's continuously
+applied `throughChunkSeq`. A later chunk cannot advance the cursor across a
+gap; it waits for replay to restore the missing prefix.
 
 - Live may include settled siblings beside live executions.
 - Settled includes every execution terminal plus the turn terminal; it never
   invents empty final messages.
-- NotFound triggers a durable refresh. It is neither EOF nor Success.
+- NotFound triggers a durable refresh followed by exact-turn retirement. It is
+  neither EOF nor Success.
 - IPC failure stays retryable and releases the failed attachment lease.
 - The resource ring retains at most 10,000 raw sequenced provider events. Main
   filters by the renderer's per-execution cursor before semantic compaction;
   text/reasoning/tool deltas are split at 16 KiB without crossing a sequence
-  boundary, and truncation is explicit.
+  boundary. A nonzero cursor continues already-open semantic parts without
+  synthesizing another start; truncation is explicit.
 
 ## Shared status projection
 

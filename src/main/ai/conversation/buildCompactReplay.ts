@@ -146,10 +146,17 @@ export function mergeDeltaPayload(
   return undefined
 }
 
+export interface CompactReplayOptions {
+  readonly cursor?: number
+  readonly maxDeltaBytes?: number
+}
+
 export function buildCompactReplay(
   buffer: readonly StreamChunkPayload[],
-  maxDeltaBytes?: number
+  options: CompactReplayOptions = {}
 ): StreamChunkPayload[] {
+  const { cursor = 0, maxDeltaBytes } = options
+  const continuesAppliedPrefix = cursor > 0
   const compact: StreamChunkPayload[] = []
   let pending: StreamChunkPayload | undefined
   const openParts = new Set<string>()
@@ -196,7 +203,9 @@ export function buildCompactReplay(
         const key = openPartKey(payload, kind, chunk.id)
         if (!openParts.has(key)) {
           openParts.add(key)
-          compact.push({ ...payload, chunk: { type: `${kind}-start`, id: chunk.id } })
+          if (!continuesAppliedPrefix) {
+            compact.push({ ...payload, chunk: { type: `${kind}-start`, id: chunk.id } })
+          }
         }
         pending = payload
         break
@@ -204,7 +213,9 @@ export function buildCompactReplay(
       case 'text-end':
       case 'reasoning-end': {
         flushPending()
-        if (!openParts.has(openPartKey(payload, chunk.type === 'text-end' ? 'text' : 'reasoning', chunk.id))) break
+        const key = openPartKey(payload, chunk.type === 'text-end' ? 'text' : 'reasoning', chunk.id)
+        if (!openParts.has(key) && !continuesAppliedPrefix) break
+        openParts.delete(key)
         compact.push(payload)
         break
       }
@@ -215,7 +226,9 @@ export function buildCompactReplay(
         break
       case 'tool-input-delta': {
         flushPending()
-        if (!openToolInputs.has(scopedKey(payload, `tool:${chunk.toolCallId}`))) break
+        const key = scopedKey(payload, `tool:${chunk.toolCallId}`)
+        if (!openToolInputs.has(key) && !continuesAppliedPrefix) break
+        openToolInputs.add(key)
         pending = payload
         break
       }

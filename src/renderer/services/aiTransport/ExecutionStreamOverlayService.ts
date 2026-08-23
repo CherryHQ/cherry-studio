@@ -10,7 +10,11 @@ import type { ActiveNodeDecision, ConversationExecutionProjection } from '@share
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart, readUIMessageStream } from 'ai'
 
-import { ConversationStreamSubscription, type ExecutionTerminal } from './ConversationStreamSubscription'
+import {
+  ConversationStreamRefreshReason,
+  ConversationStreamSubscription,
+  type ExecutionTerminal
+} from './ConversationStreamSubscription'
 import { projectActiveExecutions } from './executionProjection'
 
 const logger = loggerService.withContext('ExecutionStreamOverlayService')
@@ -666,9 +670,13 @@ export class ExecutionStreamOverlayService {
     sub.onConversationQuiesced((turnId) => {
       if (this.#entries.get(key) === entry) this.#beginHandoff(entry, turnId)
     })
-    sub.onRefreshRequired((turnIds) => {
+    sub.onRefreshRequired(({ reason, turnIds }) => {
       if (this.#entries.get(key) !== entry) return
-      if (turnIds.length > 0) this.#refreshProjection(entry)
+      if (reason === ConversationStreamRefreshReason.NotFound) {
+        for (const turnId of turnIds) this.#beginHandoff(entry, turnId)
+      } else if (turnIds.length > 0) {
+        this.#refreshProjection(entry)
+      }
     })
     return entry
   }

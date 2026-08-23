@@ -30,6 +30,7 @@ const fake = vi.hoisted(() => {
     controller: ReadableStreamDefaultController<unknown>
     closed: boolean
   }
+  type RefreshRequest = { reason: string; turnIds: readonly string[] }
 
   class Subscription {
     readonly branches = new Map<string, Branch>()
@@ -37,7 +38,7 @@ const fake = vi.hoisted(() => {
     readonly terminalListeners = new Set<(terminal: Terminal) => void>()
     readonly stateListeners = new Set<() => void>()
     readonly quiescedListeners = new Set<(turnId: string) => void>()
-    readonly refreshListeners = new Set<(turnIds: readonly string[]) => void>()
+    readonly refreshListeners = new Set<(request: RefreshRequest) => void>()
     conversationOpen = false
 
     constructor(readonly conversation: ConversationRef) {
@@ -111,7 +112,7 @@ const fake = vi.hoisted(() => {
       return () => this.quiescedListeners.delete(listener)
     }
 
-    onRefreshRequired(listener: (turnIds: readonly string[]) => void) {
+    onRefreshRequired(listener: (request: RefreshRequest) => void) {
       this.refreshListeners.add(listener)
       return () => this.refreshListeners.delete(listener)
     }
@@ -160,6 +161,11 @@ const fake = vi.hoisted(() => {
 })
 
 vi.mock('@renderer/services/aiTransport/ConversationStreamSubscription', () => ({
+  ConversationStreamRefreshReason: {
+    AttachUnavailable: 'attach-unavailable',
+    NotFound: 'not-found',
+    ReplayGap: 'replay-gap'
+  },
   ConversationStreamSubscription: fake.Subscription
 }))
 

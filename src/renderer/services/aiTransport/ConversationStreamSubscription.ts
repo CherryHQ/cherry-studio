@@ -44,7 +44,19 @@ export interface ExecutionTerminal {
 type TerminalListener = (terminal: ExecutionTerminal) => void
 type ConversationStateListener = () => void
 type ConversationQuiescedListener = (turnId: ConversationTurnId) => void
-type RefreshRequiredListener = (turnIds: readonly ConversationTurnId[]) => void
+
+export enum ConversationStreamRefreshReason {
+  AttachUnavailable = 'attach-unavailable',
+  NotFound = 'not-found',
+  ReplayGap = 'replay-gap'
+}
+
+export interface ConversationStreamRefreshRequest {
+  readonly reason: ConversationStreamRefreshReason
+  readonly turnIds: readonly ConversationTurnId[]
+}
+
+type RefreshRequiredListener = (request: ConversationStreamRefreshRequest) => void
 
 enum ConversationAttachmentPhase {
   Detached = 'detached',
@@ -69,6 +81,7 @@ interface Branch {
   stream: ReadableStream<UIMessageChunk>
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
   lastChunkSeq: number
+  readonly pendingChunks: Map<number, StreamChunkPayload>
   closed: boolean
 }
 
@@ -78,6 +91,7 @@ const createBranch = (projection: ConversationExecutionProjection): Branch => {
     stream: undefined as never,
     controller: null,
     lastChunkSeq: 0,
+    pendingChunks: new Map(),
     closed: false
   }
   branch.stream = new ReadableStream<UIMessageChunk>({
@@ -103,6 +117,7 @@ export class ConversationStreamSubscription {
   #attachmentPhase = ConversationAttachmentPhase.Detached
   #attachInFlight: Promise<void> | null = null
   #attachBuffer: BufferedAttachmentEvent[] | null = null
+  #deferredTerminalEvents: BufferedAttachmentEvent[] = []
   #attachRetryTimer: number | null = null
   #attachAttempts = 0
   #releaseAttachment: (() => void) | null = null
@@ -198,6 +213,7 @@ export class ConversationStreamSubscription {
     this.#stateListeners.clear()
     this.#quiescedListeners.clear()
     this.#refreshRequiredListeners.clear()
+    this.#deferredTerminalEvents = []
     this.#clearAttachRetry()
     this.#detach()
     for (const unsubscribe of this.#ipcUnsubs) unsubscribe()
@@ -229,8 +245,35 @@ export class ConversationStreamSubscription {
     const branch = this.#getOrCreateBranch(projection)
     const throughChunkSeq = payload.throughChunkSeq ?? payload.chunkSeq
     if (throughChunkSeq <= branch.lastChunkSeq) return
-    branch.lastChunkSeq = throughChunkSeq
+    if (payload.chunkSeq > branch.lastChunkSeq + 1) {
+      branch.pendingChunks.set(payload.chunkSeq, payload)
+      this.#reattachForReplayGap()
+      return
+    }
     branch.controller?.enqueue(payload.chunk)
+    branch.lastChunkSeq = throughChunkSeq
+    this.#drainPendingChunks(branch)
+  }
+
+  #drainPendingChunks(branch: Branch): void {
+    for (const sequence of [...branch.pendingChunks.keys()]) {
+      if (sequence <= branch.lastChunkSeq) branch.pendingChunks.delete(sequence)
+    }
+    while (true) {
+      const payload = branch.pendingChunks.get(branch.lastChunkSeq + 1)
+      if (!payload) return
+      branch.pendingChunks.delete(payload.chunkSeq)
+      branch.controller?.enqueue(payload.chunk)
+      branch.lastChunkSeq = payload.throughChunkSeq ?? payload.chunkSeq
+    }
+  }
+
+  #reattachForReplayGap(): void {
+    if (this.#attachmentPhase === ConversationAttachmentPhase.Attached) {
+      this.#attachmentPhase = ConversationAttachmentPhase.Detached
+      this.#attachAttempts = 0
+    }
+    void this.#ensureAttached()
   }
 
   #settle(terminal: ExecutionTerminal): void {
@@ -338,13 +381,15 @@ export class ConversationStreamSubscription {
     const buffered = this.#attachBuffer ?? []
     this.#attachBuffer = null
     if (result.status === ConversationAttachStatus.NotFound) {
+      this.#deferredTerminalEvents = []
       this.#attachAttempts = 0
       this.#attachmentPhase = ConversationAttachmentPhase.Detached
       this.#releaseAttachmentLease()
       this.#setConversationOpen(false)
-      this.#publishRefreshRequired([
-        ...new Set([...this.#branches.values()].map(({ projection }) => projection.turnId))
-      ])
+      this.#publishRefreshRequired(
+        [...new Set([...this.#branches.values()].map(({ projection }) => projection.turnId))],
+        ConversationStreamRefreshReason.NotFound
+      )
       for (const event of buffered) this.#applyAttachEvent(event)
       return
     }
@@ -355,11 +400,17 @@ export class ConversationStreamSubscription {
     this.#setConversationOpen(result.status === ConversationAttachStatus.Live)
     if (result.status === ConversationAttachStatus.Settled) this.#publishQuiescence(result.turnId)
     for (const event of buffered) this.#applyAttachEvent(event)
+    const deferredTerminals = this.#deferredTerminalEvents
+    this.#deferredTerminalEvents = []
+    for (const event of deferredTerminals) this.#applyAttachEvent(event)
   }
 
   #applyExecutionSnapshot(snapshot: ExecutionAttachSnapshot): void {
-    this.#applyReplay(snapshot)
-    if (snapshot.replay.truncated) this.#publishRefreshRequired([snapshot.projection.turnId])
+    if (snapshot.replay.truncated) {
+      this.#publishRefreshRequired([snapshot.projection.turnId], ConversationStreamRefreshReason.ReplayGap)
+    } else {
+      this.#applyReplay(snapshot)
+    }
     switch (snapshot.state) {
       case ConversationExecutionAttachState.Live:
         return
@@ -375,15 +426,25 @@ export class ConversationStreamSubscription {
     if (this.#terminals.has(snapshot.projection.executionId)) return
     const branch = this.#getOrCreateBranch(snapshot.projection)
     const baseline = branch.lastChunkSeq
+    let coveredChunkSeq = baseline
     for (const payload of snapshot.replay.chunks) {
       if (!conversationRefsEqual(payload.conversation, this.conversation)) continue
       if (payload.executionId !== snapshot.projection.executionId) continue
       const throughChunkSeq = payload.throughChunkSeq ?? payload.chunkSeq
       if (throughChunkSeq <= baseline) continue
-      if (payload.chunkSeq <= baseline) continue
+      if (payload.chunkSeq <= baseline || payload.chunkSeq > coveredChunkSeq + 1) {
+        this.#publishRefreshRequired([snapshot.projection.turnId], ConversationStreamRefreshReason.ReplayGap)
+        return
+      }
       branch.controller?.enqueue(payload.chunk)
+      coveredChunkSeq = Math.max(coveredChunkSeq, throughChunkSeq)
     }
-    branch.lastChunkSeq = Math.max(branch.lastChunkSeq, snapshot.replay.throughChunkSeq)
+    if (coveredChunkSeq < snapshot.replay.throughChunkSeq) {
+      this.#publishRefreshRequired([snapshot.projection.turnId], ConversationStreamRefreshReason.ReplayGap)
+      return
+    }
+    branch.lastChunkSeq = coveredChunkSeq
+    this.#drainPendingChunks(branch)
   }
 
   #settleFromSnapshot(projection: ConversationExecutionProjection, terminal: ExecutionAttachTerminal): void {
@@ -400,9 +461,9 @@ export class ConversationStreamSubscription {
     })
   }
 
-  #publishRefreshRequired(turnIds: readonly ConversationTurnId[]): void {
+  #publishRefreshRequired(turnIds: readonly ConversationTurnId[], reason: ConversationStreamRefreshReason): void {
     if (turnIds.length === 0) return
-    for (const listener of this.#refreshRequiredListeners) listener(turnIds)
+    for (const listener of this.#refreshRequiredListeners) listener({ reason, turnIds })
   }
 
   #scheduleAttachRetry(): void {
@@ -455,12 +516,16 @@ export class ConversationStreamSubscription {
         const buffered = this.#attachBuffer ?? []
         this.#attachBuffer = null
         this.#releaseAttachmentLease()
-        for (const event of buffered) this.#applyAttachEvent(event)
+        for (const event of buffered) {
+          if (event.type === BufferedAttachmentEventType.Chunk) this.#applyAttachEvent(event)
+          else this.#deferredTerminalEvents.push(event)
+        }
         if (this.#attachAttempts >= MAX_ATTACH_ATTEMPTS) {
           this.#attachmentPhase = ConversationAttachmentPhase.Detached
-          this.#publishRefreshRequired([
-            ...new Set([...this.#branches.values()].map(({ projection }) => projection.turnId))
-          ])
+          this.#publishRefreshRequired(
+            [...new Set([...this.#branches.values()].map(({ projection }) => projection.turnId))],
+            ConversationStreamRefreshReason.AttachUnavailable
+          )
         } else this.#scheduleAttachRetry()
       } finally {
         if (generation === this.#attachmentGeneration) this.#attachInFlight = null

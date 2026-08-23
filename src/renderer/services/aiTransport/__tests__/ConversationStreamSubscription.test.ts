@@ -6,7 +6,7 @@ import {
   toConversationExecutionId,
   toConversationTurnId
 } from '@shared/ai/conversation'
-import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { AiStreamAttachResponse, StreamChunkPayload } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +30,7 @@ vi.mock('../StreamAttachmentService', () => ({
   streamAttachmentService: { acquire: () => () => {} }
 }))
 
-import { ConversationStreamSubscription } from '../ConversationStreamSubscription'
+import { ConversationStreamRefreshReason, ConversationStreamSubscription } from '../ConversationStreamSubscription'
 
 const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
 const turnId = toConversationTurnId('turn-1')
@@ -94,7 +94,7 @@ describe('ConversationStreamSubscription', () => {
     expect(subscription.isSettled(executionId)).toBe(true)
   })
 
-  it('replays buffered chunks using monotonic execution chunk sequence', async () => {
+  it('does not apply a truncated replay as though its missing prefix were complete', async () => {
     ipc.attach.mockResolvedValue({
       status: ConversationAttachStatus.Live,
       turnId,
@@ -122,12 +122,18 @@ describe('ConversationStreamSubscription', () => {
       ]
     })
     const subscription = new ConversationStreamSubscription(conversation)
-    const reader = subscription.register(projection).getReader()
+    const refreshRequired = vi.fn()
+    subscription.onRefreshRequired(refreshRequired)
+    subscription.register(projection)
 
-    await expect(reader.read()).resolves.toMatchObject({
-      value: { type: 'text-delta', delta: 'replay' }
-    })
-    await reader.cancel()
+    await vi.waitFor(() =>
+      expect(refreshRequired).toHaveBeenCalledWith({
+        reason: ConversationStreamRefreshReason.ReplayGap,
+        turnIds: [turnId]
+      })
+    )
+    expect(subscription.hasOpenBranch(executionId)).toBe(true)
+    subscription.dispose()
   })
 
   it('applies replay before live chunks received while attach is in flight', async () => {
@@ -250,7 +256,7 @@ describe('ConversationStreamSubscription', () => {
     subscription.dispose()
   })
 
-  it('sends the live high-water cursor and applies only the replay suffix', async () => {
+  it('reports only the contiguous cursor and replays a missing prefix before buffered live chunks', async () => {
     vi.useFakeTimers()
     ipc.attach.mockRejectedValueOnce(new Error('first attach failed')).mockResolvedValueOnce({
       status: ConversationAttachStatus.Live,
@@ -261,6 +267,26 @@ describe('ConversationStreamSubscription', () => {
           projection,
           replay: {
             chunks: [
+              {
+                conversation,
+                turnId,
+                executionId,
+                modelId: projection.modelId,
+                outputNodeId: projection.outputNodeId,
+                chunkSeq: 1,
+                throughChunkSeq: 1,
+                chunk: { type: 'text-start', id: 'text-1' }
+              } satisfies StreamChunkPayload,
+              {
+                conversation,
+                turnId,
+                executionId,
+                modelId: projection.modelId,
+                outputNodeId: projection.outputNodeId,
+                chunkSeq: 2,
+                throughChunkSeq: 2,
+                chunk: { type: 'text-delta', id: 'text-1', delta: 'live' }
+              } satisfies StreamChunkPayload,
               {
                 conversation,
                 turnId,
@@ -294,15 +320,16 @@ describe('ConversationStreamSubscription', () => {
       chunkSeq: 2,
       chunk: { type: 'text-delta', id: 'text-1', delta: 'live' }
     } satisfies StreamChunkPayload)
-    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'live' } })
 
     await vi.advanceTimersByTimeAsync(250)
     await vi.waitFor(() => expect(ipc.attach).toHaveBeenCalledTimes(2))
     expect(ipc.attach).toHaveBeenLastCalledWith({
       conversation,
-      cursors: [{ turnId, executionId, throughChunkSeq: 2 }]
+      cursors: [{ turnId, executionId, throughChunkSeq: 0 }]
     })
     expect(refreshRequired).not.toHaveBeenCalled()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-start' } })
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'live' } })
     await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'snapshot-suffix' } })
 
     emit('ai.stream.chunk', {
@@ -320,6 +347,90 @@ describe('ConversationStreamSubscription', () => {
     vi.useRealTimers()
   })
 
+  it('defers a terminal from a failed attach until replay restores the missing prefix', async () => {
+    vi.useFakeTimers()
+    let rejectAttach!: (error: Error) => void
+    ipc.attach
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectAttach = reject
+          })
+      )
+      .mockResolvedValueOnce({
+        status: ConversationAttachStatus.Settled,
+        turnId,
+        executions: [
+          {
+            state: ConversationExecutionAttachState.Settled,
+            projection,
+            replay: {
+              chunks: [
+                {
+                  conversation,
+                  turnId,
+                  executionId,
+                  modelId: projection.modelId,
+                  outputNodeId: projection.outputNodeId,
+                  chunkSeq: 1,
+                  throughChunkSeq: 1,
+                  chunk: { type: 'text-start', id: 'text-1' }
+                },
+                {
+                  conversation,
+                  turnId,
+                  executionId,
+                  modelId: projection.modelId,
+                  outputNodeId: projection.outputNodeId,
+                  chunkSeq: 2,
+                  throughChunkSeq: 2,
+                  chunk: { type: 'text-delta', id: 'text-1', delta: 'complete' }
+                }
+              ],
+              throughChunkSeq: 2,
+              firstAvailableChunkSeq: 1,
+              truncated: false
+            },
+            terminal: { status: ConversationStreamTerminalStatus.Done }
+          }
+        ],
+        terminal: { status: ConversationStreamTerminalStatus.Done }
+      } satisfies AiStreamAttachResponse)
+    const subscription = new ConversationStreamSubscription(conversation)
+    const reader = subscription.register(projection).getReader()
+    await Promise.resolve()
+
+    emit('ai.stream.chunk', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      chunkSeq: 2,
+      chunk: { type: 'text-delta', id: 'text-1', delta: 'complete' }
+    } satisfies StreamChunkPayload)
+    emit('ai.stream.done', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      status: ConversationStreamTerminalStatus.Done,
+      turnTerminal: true
+    })
+    rejectAttach(new Error('attach failed'))
+    await Promise.resolve()
+    expect(subscription.isSettled(executionId)).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(250)
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-start' } })
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'complete' } })
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
+    expect(subscription.isSettled(executionId)).toBe(true)
+    subscription.dispose()
+    vi.useRealTimers()
+  })
+
   it('bounds automatic attach retries and requests durable refresh without settling the branch', async () => {
     vi.useFakeTimers()
     ipc.attach.mockRejectedValue(new Error('ipc down'))
@@ -331,7 +442,10 @@ describe('ConversationStreamSubscription', () => {
     await vi.advanceTimersByTimeAsync(2_000)
 
     expect(ipc.attach).toHaveBeenCalledTimes(4)
-    expect(refreshRequired).toHaveBeenCalledExactlyOnceWith([turnId])
+    expect(refreshRequired).toHaveBeenCalledExactlyOnceWith({
+      reason: ConversationStreamRefreshReason.AttachUnavailable,
+      turnIds: [turnId]
+    })
     expect(subscription.hasOpenBranch(executionId)).toBe(true)
     expect(subscription.isSettled(executionId)).toBe(false)
     subscription.dispose()
@@ -345,7 +459,12 @@ describe('ConversationStreamSubscription', () => {
     subscription.onRefreshRequired(refreshRequired)
     subscription.register(projection)
 
-    await vi.waitFor(() => expect(refreshRequired).toHaveBeenCalledWith([turnId]))
+    await vi.waitFor(() =>
+      expect(refreshRequired).toHaveBeenCalledWith({
+        reason: ConversationStreamRefreshReason.NotFound,
+        turnIds: [turnId]
+      })
+    )
     expect(subscription.isSettled(executionId)).toBe(false)
     expect(subscription.hasOpenBranch(executionId)).toBe(true)
     subscription.dispose()
