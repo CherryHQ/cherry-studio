@@ -1,16 +1,14 @@
 import { EventEmitter } from 'events'
-import type http from 'http'
+import http from 'http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CallBackServer, OAuthCallbackTimeoutError } from '../callback'
 
 class TestCallBackServer extends CallBackServer {
   override initialize(): Promise<http.Server> {
-    return Promise.resolve(
-      Object.assign(new EventEmitter(), {
-        close: vi.fn((callback?: (error?: Error) => void) => callback?.())
-      }) as unknown as http.Server
-    )
+    return Promise.resolve({
+      close: vi.fn((callback?: (error?: Error) => void) => callback?.())
+    } as unknown as http.Server)
   }
 }
 
@@ -33,6 +31,7 @@ describe('CallBackServer.waitForAuthCode', () => {
   afterEach(async () => {
     vi.useRealTimers()
     await server.close()
+    vi.restoreAllMocks()
   })
 
   it('resolves with the code when auth-code-received fires before the timeout', async () => {
@@ -61,23 +60,26 @@ describe('CallBackServer.waitForAuthCode', () => {
   })
 
   it('rejects and removes listeners when the callback server fails after listening', async () => {
-    const httpServer = Object.assign(new EventEmitter(), {
+    let httpServer: http.Server
+    httpServer = Object.assign(new EventEmitter(), {
+      listen: vi.fn((_port: number, _host: string, callback: () => void) => {
+        callback()
+        return httpServer
+      }),
       close: vi.fn((callback?: (error?: Error) => void) => callback?.())
     }) as unknown as http.Server
-    server = new (class extends CallBackServer {
-      override initialize(): Promise<http.Server> {
-        return Promise.resolve(httpServer)
-      }
-    })({ port: 0, path: '/oauth/callback', events })
+    vi.spyOn(http, 'createServer').mockReturnValue(httpServer)
+    server = new CallBackServer({ port: 0, path: '/oauth/callback', events })
+    await server.getServer
     const failure = new Error('callback server stopped unexpectedly')
     const promise = server.waitForAuthCode(1000)
+    const assertion = expect(promise).rejects.toBe(failure)
 
-    await Promise.resolve()
     httpServer.emit('error', failure)
+    await vi.advanceTimersByTimeAsync(1000)
 
-    await expect(promise).rejects.toBe(failure)
+    await assertion
     expect(events.listenerCount('auth-code-received')).toBe(0)
-    expect(httpServer.listenerCount('error')).toBe(0)
   })
 
   it('does not reject after resolving (timer is cleared on success)', async () => {

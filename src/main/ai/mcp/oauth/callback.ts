@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
-import type EventEmitter from 'events'
+import { EventEmitter } from 'events'
 import http from 'http'
 import { URL } from 'url'
 
@@ -18,6 +18,8 @@ export class OAuthCallbackTimeoutError extends Error {
 export class CallBackServer {
   private server: Promise<http.Server>
   private events: EventEmitter
+  private serverEvents = new EventEmitter()
+  private serverError?: Error
   private closePromise?: Promise<void>
 
   constructor(options: OAuthCallbackServerOptions) {
@@ -102,6 +104,8 @@ export class CallBackServer {
     // Handle server errors
     server.on('error', (error) => {
       logger.error('OAuth callback server error:', error)
+      this.serverError = error
+      this.serverEvents.emit('server-error', error)
     })
 
     return new Promise<http.Server>((resolve, reject) => {
@@ -151,12 +155,11 @@ export class CallBackServer {
   async waitForAuthCode(timeoutMs = 60_000, signal?: AbortSignal): Promise<string> {
     return new Promise((resolve, reject) => {
       let settled = false
-      let listeningServer: http.Server | undefined
       const cleanup = () => {
         clearTimeout(timer)
         this.events.off('auth-code-received', onCode)
         signal?.removeEventListener('abort', onAbort)
-        listeningServer?.off('error', onServerError)
+        this.serverEvents.off('server-error', onServerError)
       }
       const onCode = (code: string) => {
         if (settled) return
@@ -183,13 +186,14 @@ export class CallBackServer {
         reject(new OAuthCallbackTimeoutError(timeoutMs))
       }, timeoutMs)
       this.events.once('auth-code-received', onCode)
-      void this.server.then((server) => {
-        if (settled) return
-        listeningServer = server
-        server.once('error', onServerError)
-      }, onServerError)
+      this.serverEvents.once('server-error', onServerError)
+      void this.server.catch(onServerError)
       signal?.addEventListener('abort', onAbort, { once: true })
-      if (signal?.aborted) onAbort()
+      if (signal?.aborted) {
+        onAbort()
+      } else if (this.serverError) {
+        onServerError(this.serverError)
+      }
     })
   }
 }
