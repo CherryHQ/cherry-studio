@@ -51,15 +51,13 @@ function stripPositions(nodes: PhrasingContent[]): void {
 function parseInlineTail(value: string): PhrasingContent[] {
   const tree = tailProcessor.parse(value)
   const paragraphs = tree.children.filter((child): child is Paragraph => child.type === 'paragraph')
-  const nodes: PhrasingContent[] =
-    paragraphs.length === tree.children.length
-      ? paragraphs.flatMap((child) => child.children)
-      : // Structural content (list/quote/code) is vanishingly rare in a swallowed tail; degrade
-        // to the plain text so no user-visible suffix is dropped.
-        [{ type: 'text', value }]
-  // Positions from the sub-parse point into the tail substring, not the source document.
-  stripPositions(nodes)
-  return nodes
+  // Positions are kept for now — the origin gate needs them — and stripped by
+  // `repairTailNodes` once the (possibly chained) repairs are done.
+  return paragraphs.length === tree.children.length
+    ? paragraphs.flatMap((child) => child.children)
+    : // Structural content (list/quote/code) is vanishingly rare in a swallowed tail; degrade
+      // to the plain text so no user-visible suffix is dropped.
+      [{ type: 'text', value }]
 }
 
 function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Text] } {
@@ -73,22 +71,86 @@ function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Tex
   return linkStart !== undefined && linkStart === node.children[0].position?.start.offset
 }
 
-// The swallowed closer is the last marker run before prose resumes; earlier runs may be part
-// of the path (`https://x.com/a/**/b`). Scan backwards until one is followed by non-URL text.
+// The swallowed closer is the FIRST marker run followed by non-URL text. Earlier runs in the
+// path (`https://x.com/a/**/b`) are skipped as URL continuations; in a chained shape
+// (`…x**(y)**https://b.com/z**`) the first boundary run ends the href and hands the rest to
+// the tail, which is itself repaired recursively. `indexOf` strictly increases, so the scan
+// cannot loop.
 function findCloserRun(url: string): { start: number; tailStart: number } | undefined {
-  let index = url.lastIndexOf(CLOSER)
-  // `index === 0` must terminate the scan: a backward `lastIndexOf(CLOSER, -1)` rounds back
-  // to 0 and would loop forever. GFM URLs never start with `**`, so it is defensive only.
+  let index = url.indexOf(CLOSER)
   while (index >= 0) {
     const after = url[index + CLOSER.length]
-    if (index === 0 || after === undefined || !URL_CONTINUATION_REGEX.test(after)) {
+    if (after === undefined || !URL_CONTINUATION_REGEX.test(after)) {
       let start = index
       while (start > 0 && url[start - 1] === '*') start--
-      return { start, tailStart: index + CLOSER.length }
+      let tailStart = index + CLOSER.length
+      while (tailStart < url.length && url[tailStart] === '*') tailStart++
+      return { start, tailStart }
     }
-    index = url.lastIndexOf(CLOSER, index - 1)
+    index = url.indexOf(CLOSER, index + 1)
   }
   return undefined
+}
+
+interface Cut {
+  url: string
+  text: string
+  tail: string
+}
+
+// Compute the href/label cuts plus the residual tail. The label is cut with the exact same
+// scan so it never diverges from the href (www labels only differ by the scheme prefix, which
+// neither scan depends on).
+function computeCut(node: Link & { children: [Text] }): Cut | undefined {
+  const closer = findCloserRun(node.url)
+  if (!closer) return undefined
+  const text = node.children[0]
+  const textRun = findCloserRun(text.value)
+  if (!textRun || textRun.start <= 0) return undefined
+  return {
+    url: node.url.slice(0, closer.start),
+    text: text.value.slice(0, textRun.start),
+    tail: node.url.slice(closer.tailStart)
+  }
+}
+
+// Repair a flat inline sequence in place (used for a tail that may itself contain another
+// swallowed `**url**`): find a swallowed link preceded by a marker-ending text, cut it, wrap
+// it in strong, and recurse on the remainder. Tail nodes carry positions into the tail
+// substring, so the escaped-opener check is skipped here — false positives are both rare and
+// fail closed.
+function repairTailNodes(nodes: PhrasingContent[]): PhrasingContent[] {
+  const repaired: PhrasingContent[] = []
+  for (const node of nodes) {
+    if (node.type === 'link' && isSwallowedLiteralAutolink(node)) {
+      const prev = repaired[repaired.length - 1]
+      const opener = prev?.type === 'text' ? (prev as Text) : undefined
+      if (opener?.value.endsWith(CLOSER)) {
+        const cut = computeCut(node)
+        if (cut) {
+          const text = node.children[0]
+          node.url = cut.url
+          text.value = cut.text
+          delete node.position
+          delete text.position
+          const lead = opener.value.replace(/\*{2,}$/, '')
+          if (lead) {
+            opener.value = lead
+          } else {
+            repaired.pop()
+          }
+          const strong: Strong = { type: 'strong', children: [node] }
+          repaired.push(strong)
+          repaired.push(...repairTailNodes(parseInlineTail(cut.tail)))
+          continue
+        }
+      }
+    }
+    repaired.push(node)
+  }
+  // Positions from the sub-parse point into the tail substring, not the source document.
+  stripPositions(repaired)
+  return repaired
 }
 
 function buildFix(node: Link, index: number, parent: Parent, source: string): FixPlan | undefined {
@@ -107,24 +169,17 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
   while (starCount < openerSource.length && openerSource[openerSource.length - 1 - starCount] === '*') starCount++
   if (openerSource[openerSource.length - 1 - starCount] === '\\') return undefined
 
-  const closer = findCloserRun(node.url)
-  if (!closer) return undefined
+  const cut = computeCut(node)
+  if (!cut) return undefined
 
   const text = node.children[0]
-  // Locate the label cut with the exact same logic as the href so the two never diverge;
-  // a run that fails the boundary check on one side fails it on the other (www labels only
-  // differ by the scheme prefix, which this scan is independent of).
-  const textRun = findCloserRun(text.value)
-  if (!textRun) return undefined
-  const textCut = textRun.start
-  if (textCut <= 0) return undefined
-
-  const tailNodes = parseInlineTail(node.url.slice(closer.tailStart))
-  node.url = node.url.slice(0, closer.start)
-  text.value = text.value.slice(0, textCut)
+  node.url = cut.url
+  text.value = cut.text
   // Both spans covered the swallowed run, which no longer belongs to either node.
   delete node.position
   delete text.position
+
+  const tailNodes = repairTailNodes(parseInlineTail(cut.tail))
 
   const strong: Strong = { type: 'strong', children: [node] }
   const head: RootContent[] = []

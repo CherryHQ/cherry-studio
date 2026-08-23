@@ -153,6 +153,22 @@ describe('remarkLiteralAutolinkFix', () => {
     expect(labels.join('')).toContain('>q')
   })
 
+  it('repairs chained bolded urls — the citation-list shape', () => {
+    const source = '**https://a.com/x**(y)**https://b.com/z**(w)'
+    expect(inlineChildren(source).map(shape)).toEqual([
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
+      },
+      { type: 'text', value: '(y)' },
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'https://b.com/z', children: [{ type: 'text', value: 'https://b.com/z' }] }]
+      },
+      { type: 'text', value: '(w)' }
+    ])
+  })
+
   it('cuts label and href at the same marker run even with a second run later', () => {
     const source = '**http://a.com/x**(y)**.html'
     expect(inlineChildren(source).map(shape)).toEqual([
