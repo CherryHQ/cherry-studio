@@ -43,6 +43,7 @@ const AGENT_ALLOWED_TOOLS = [
 const AGENT_DISALLOWED_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent'] as const
 
 const HEAVY_AGENT_TASKS = new Set<TaskId>([
+  'cherryin-chat',
   'agent-ppt',
   'claude-agent-runtime',
   'pi-runtime',

@@ -36,9 +36,10 @@ desktop tools.
    `role: button`, `name: Add`, `exact: true` result. Do not clear the filter,
    scroll the list, select a fallback, or use `Add all models`. Close the drawer
    by pressing Escape against its search textbox. The clean provider now has
-   exactly one model, so open `Model Check`, leave its preselected model
-   unchanged, click `Start`, and wait for the persistent `Passed` button before
-   closing the dialog and recording connection evidence. In Chat, open the
+   exactly one model, so open `Model Check`, click `Check all models`, click
+   `Start`, and wait for the persistent `Passed` button before recording
+   connection evidence. Do not use the single-model check because its success
+   toast expires before the next agent turn. In Chat, open the
    `Selected models` button, fill `testId: model-selector-search` with
    `configRef: cherryInChatModel`, and click the first `role: option` result.
 6. Use `system-action` only for the case's external shortcut, external text, or
