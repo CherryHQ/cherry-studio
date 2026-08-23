@@ -29,7 +29,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'If onboarding is visible, choose Set up later. Open provider settings, select CherryIN, and call authenticate-cherryin when the authorization button is visible.',
+      'If onboarding is visible, choose Set up later. Open provider settings, select CherryIN, and call authenticate-cherryin exactly once when the authorization button is visible.',
       'Select the configured CherryIN chat model and run its connection check.',
       'Ask the default assistant to reply exactly CHERRYIN_CHAT_PASS, then restart the application.'
     ],

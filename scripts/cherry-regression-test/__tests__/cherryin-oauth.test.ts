@@ -6,6 +6,8 @@ const STATE = 'state-31415'
 const AUTHORIZATION_URL = `https://open.cherryin.ai/oauth2/auth?state=${STATE}&client_id=cherry-studio`
 const LOGIN_URL = 'https://open.cherryin.ai/register?login_challenge=login-27182'
 const CONSENT_URL = 'https://open.cherryin.ai/oauth/consent?consent_challenge=consent-16180'
+const LOGIN_CONTINUATION_URL = 'https://open.cherryin.ai/oauth2/auth?login_verifier=login-verifier-14142'
+const CONSENT_CONTINUATION_URL = 'https://open.cherryin.ai/oauth2/auth?consent_verifier=consent-verifier-17320'
 
 function jsonResponse(data: Record<string, unknown>): Response {
   return Response.json({ data, success: true })
@@ -18,6 +20,17 @@ function createOauthFetch(
     const url = new URL(input.toString())
     const method = init.method ?? 'GET'
     if (url.pathname === '/oauth2/auth') {
+      if (url.searchParams.has('login_verifier')) {
+        return new Response(null, { headers: { location: CONSENT_URL }, status: 302 })
+      }
+      if (url.searchParams.has('consent_verifier')) {
+        return new Response(null, {
+          headers: {
+            location: `cherrystudio://oauth/callback?code=code-14142&state=${options.callbackState ?? STATE}`
+          },
+          status: 302
+        })
+      }
       return new Response(null, {
         headers: {
           location: options.authorizationRedirect ?? LOGIN_URL,
@@ -29,16 +42,14 @@ function createOauthFetch(
     if (['/oauth/login', '/register'].includes(url.pathname)) return new Response('<main>Login</main>')
     if (url.pathname === '/api/oauth/login' && method === 'GET') return jsonResponse({ client_name: 'Cherry Studio' })
     if (url.pathname === '/api/oauth/login' && method === 'POST') {
-      return jsonResponse(options.loginData ?? { redirect_to: CONSENT_URL })
+      return jsonResponse(options.loginData ?? { redirect_to: LOGIN_CONTINUATION_URL })
     }
     if (url.pathname === '/oauth/consent') return new Response('<main>Consent</main>')
     if (url.pathname === '/api/oauth/consent' && method === 'GET') {
       return jsonResponse({ requested_scope: ['openid', 'tokens:read'] })
     }
     if (url.pathname === '/api/oauth/consent' && method === 'POST') {
-      return jsonResponse({
-        redirect_to: `cherrystudio://oauth/callback?code=code-14142&state=${options.callbackState ?? STATE}`
-      })
+      return jsonResponse({ redirect_to: CONSENT_CONTINUATION_URL })
     }
     throw new Error('Unexpected OAuth request')
   })

@@ -27,8 +27,9 @@ desktop tools.
    credential or API key as a literal value.
 5. For the CherryIN login case, choose `Set up later` if onboarding is visible,
    open Settings > Model Provider > CherryIN, and call `authenticate-cherryin`
-   once `Authorize with CherryIN` is visible. Do not search Cherry Studio or an
-   external browser for account and password fields.
+   exactly once after `Authorize with CherryIN` is visible. If it returns an
+   error, do not retry it; finish the case as failed. Do not search Cherry
+   Studio or an external browser for account and password fields.
 6. Use `system-action` only for the case's external shortcut, external text, or
    native file-picker step. Use fixture and workspace paths returned by
    `get-run-context`.

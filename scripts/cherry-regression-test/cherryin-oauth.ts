@@ -129,9 +129,39 @@ async function openPage(session: SameOriginSession, url: URL, phase: string): Pr
   if (!response.ok) throw new Error(`CherryIN OAuth ${phase} page was unavailable`)
 }
 
+async function resolveAuthorizationDestination(
+  session: SameOriginSession,
+  initialUrl: URL,
+  expectedState: string
+): Promise<URL> {
+  let nextUrl = initialUrl
+  for (let redirectCount = 0; redirectCount < 5; redirectCount += 1) {
+    if (nextUrl.protocol === 'cherrystudio:') return callbackUrl(nextUrl, expectedState)
+    const webUrl = trustedWebUrl(nextUrl, 'CherryIN OAuth authorization continuation was rejected')
+    if (webUrl.pathname === '/oauth/consent') return webUrl
+    if (webUrl.pathname !== '/oauth2/auth') {
+      throw new Error('CherryIN OAuth authorization continuation was rejected')
+    }
+    const response = await session.request(webUrl, 'authorization continuation')
+    nextUrl = redirectUrl(response, webUrl, 'CherryIN OAuth authorization continuation redirect was missing')
+  }
+  throw new Error('CherryIN OAuth authorization continuation exceeded the redirect limit')
+}
+
+async function requireCallback(
+  session: SameOriginSession,
+  redirect: string,
+  expectedState: string,
+  errorMessage: string
+): Promise<string> {
+  const destination = await resolveAuthorizationDestination(session, absoluteUrl(redirect, errorMessage), expectedState)
+  if (destination.protocol !== 'cherrystudio:') throw new Error(errorMessage)
+  return destination.toString()
+}
+
 async function finishConsent(session: SameOriginSession, nextUrl: URL, expectedState: string): Promise<string> {
-  if (nextUrl.protocol === 'cherrystudio:') return callbackUrl(nextUrl, expectedState).toString()
-  const consentUrl = trustedWebUrl(nextUrl, 'CherryIN OAuth consent redirect was rejected')
+  const consentUrl = await resolveAuthorizationDestination(session, nextUrl, expectedState)
+  if (consentUrl.protocol === 'cherrystudio:') return consentUrl.toString()
   if (consentUrl.pathname !== '/oauth/consent') throw new Error('CherryIN OAuth consent redirect was rejected')
   const consentChallenge = consentUrl.searchParams.get('consent_challenge')
   if (!consentChallenge) throw new Error('CherryIN OAuth consent challenge was missing')
@@ -144,7 +174,12 @@ async function finishConsent(session: SameOriginSession, nextUrl: URL, expectedS
     'CherryIN OAuth consent details were rejected'
   )
   if (typeof consent.redirect_to === 'string' && consent.redirect_to) {
-    return callbackUrl(consent.redirect_to, expectedState).toString()
+    return requireCallback(
+      session,
+      consent.redirect_to,
+      expectedState,
+      'CherryIN OAuth consent details did not return a callback'
+    )
   }
   const requestedScope = Array.isArray(consent.requested_scope)
     ? consent.requested_scope.filter((scope): scope is string => typeof scope === 'string')
@@ -157,10 +192,12 @@ async function finishConsent(session: SameOriginSession, nextUrl: URL, expectedS
     }),
     'CherryIN OAuth consent approval was rejected'
   )
-  return callbackUrl(
+  return requireCallback(
+    session,
     requiredRedirect(approval, 'CherryIN OAuth consent approval did not return a callback'),
-    expectedState
-  ).toString()
+    expectedState,
+    'CherryIN OAuth consent approval did not return a callback'
+  )
 }
 
 export async function completeCherryInOauth(
