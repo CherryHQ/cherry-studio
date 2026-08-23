@@ -220,14 +220,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!app) return
 
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
-      if (!options?.inNewTab) {
-        if (activeTab?.url === path) return
+      if (activeTab?.url === path) return
 
-        const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
-        if (existingTab) {
-          setActiveTab(existingTab.id)
-          return
-        }
+      const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
+      if (existingTab) {
+        setActiveTab(existingTab.id)
+        return
       }
 
       const title = app.nameKey ? t(app.nameKey) : app.name

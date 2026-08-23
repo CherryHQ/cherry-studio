@@ -1033,6 +1033,25 @@ describe('app Sidebar', () => {
     })
   })
 
+  it('reuses an existing mini app tab on middle-click instead of creating a duplicate', () => {
+    mocks.sidebarFavorites = []
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('mini-1')]
+    mocks.allApps = [{ appId: 'mini-1', name: 'Mini One', logo: 'logo-1.png', url: 'https://example.com/1' }]
+    mocks.activeTab = { id: 'chat', type: 'route', url: '/app/chat', title: 'Chat' }
+    mocks.tabs = [
+      mocks.activeTab,
+      { id: 'mini-existing', type: 'route', url: '/app/mini-app/mini-1', title: 'Mini One' }
+    ]
+
+    render(<Sidebar />)
+    const button = screen.getByTestId('sidebar-mini-app-mini-1')
+    fireEvent(button, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
+
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('mini-existing')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+  })
+
   it('opens a new tab on middle-click (auxclick with button 1) on an agent item', () => {
     mocks.sidebarFavorites = []
     mocks.sidebarAgentFavorites = [agentFavorite('agent-1')]
