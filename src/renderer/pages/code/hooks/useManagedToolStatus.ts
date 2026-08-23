@@ -16,6 +16,7 @@ export interface ManagedToolStatusState {
 }
 
 const SNAPSHOT_RETRY_MS = 2000
+const SNAPSHOT_MAX_ATTEMPTS = 5
 
 /**
  * Live status of a main-managed tool: one get_status snapshot on mount, then
@@ -24,16 +25,17 @@ const SNAPSHOT_RETRY_MS = 2000
  */
 export function useManagedToolStatus(tool: ManagedTool): ManagedToolStatusState {
   const [state, setState] = useState<ManagedToolStatusState>({ status: 'stopped' })
-  // An applied event is newer than any in-flight snapshot; set on the event path,
-  // read by the snapshot path to drop stale bootstrap replies.
+  // True once an event arrived after the current snapshot request was issued; the
+  // in-flight response is then older than that event and must not overwrite it.
   const eventApplied = useRef(false)
 
   useEffect(() => {
     let cancelled = false
     let retryTimer: ReturnType<typeof setTimeout> | undefined
-    eventApplied.current = false
+    let attempts = 0
 
     const readSnapshot = async (): Promise<void> => {
+      eventApplied.current = false // every request supersedes earlier events
       try {
         if (tool === 'deepseek-harness') {
           const snapshot = await ipcApi.request('deepseek_harness.get_status')
@@ -48,7 +50,10 @@ export function useManagedToolStatus(tool: ManagedTool): ManagedToolStatusState 
         // A failed snapshot leaves the default 'stopped' rendering with no event to
         // correct it (e.g. mount racing service readiness) — retry until it lands.
         logger.error(`Failed to read ${tool} status`, error as Error)
-        if (!cancelled && !eventApplied.current) retryTimer = setTimeout(readSnapshot, SNAPSHOT_RETRY_MS)
+        attempts += 1
+        if (!cancelled && !eventApplied.current && attempts < SNAPSHOT_MAX_ATTEMPTS) {
+          retryTimer = setTimeout(readSnapshot, SNAPSHOT_RETRY_MS)
+        }
       }
     }
 

@@ -1,14 +1,12 @@
 import { ipcApi } from '@renderer/ipc'
+import type { OutputFor } from '@shared/ipc/types'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { redactSecretText } from '@shared/utils/redaction'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
 
 /** One CLI config file as read through `code_cli.read_config`: content === null ⇔ the file does not exist. */
-export interface CliConfigReadFile {
-  path: string
-  content: string | null
-}
+export type CliConfigReadFile = Pick<OutputFor<'code_cli.read_config'>['files'][number], 'path' | 'content'>
 
 /** On-disk view of a batch read, keyed by target. */
 export type CliConfigReadFiles = Map<CliConfigTarget, CliConfigReadFile>

@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
@@ -29,6 +29,8 @@ describe('useManagedToolStatus', () => {
       mocks.events.set(event, handler)
     })
   })
+
+  afterEach(() => vi.useRealTimers())
 
   it('seeds from the get_status snapshot, then follows pushed events (deepseek-harness)', async () => {
     mocks.request.mockResolvedValue({ status: 'running', url: 'http://127.0.0.1:45231' })
@@ -113,6 +115,40 @@ describe('useManagedToolStatus', () => {
       await vi.advanceTimersByTimeAsync(2000)
     })
     expect(result.current).toEqual({ status: 'running' })
-    vi.useRealTimers()
+  })
+
+  it('applies a retry result even when an event landed between attempts', async () => {
+    vi.useFakeTimers()
+    mocks.request.mockRejectedValueOnce(new Error('transient')).mockResolvedValueOnce({ status: 'running' })
+    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    await act(async () => {
+      emit('openclaw.status_changed', { status: 'error' })
+    })
+    expect(result.current).toEqual({ status: 'error' })
+
+    // The retry is a fresh request issued after the event; its result must heal, not be latched out.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(result.current).toEqual({ status: 'running' })
+  })
+
+  it('stops retrying after the attempt cap', async () => {
+    vi.useFakeTimers()
+    mocks.request.mockRejectedValue(new Error('ipc unavailable'))
+    renderHook(() => useManagedToolStatus('openclaw'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000 * 10)
+    })
+
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'openclaw.get_status')).toHaveLength(5)
   })
 })

@@ -33,7 +33,8 @@ import {
   readConfigFiles,
   readValidatedJsonOrNull,
   readValidatedTomlOrNull,
-  renderJsonFile
+  renderJsonFile,
+  requireReadFile
 } from './file'
 import {
   applyManagedJsonSettings,
@@ -580,7 +581,7 @@ const geminiAdapter: CliConfigAdapter = {
   async buildClearFiles() {
     const read = await readConfigFiles(this.targets)
     const files: CliConfigWriteFile[] = []
-    const envText = read.get('gemini-env')?.content ?? null
+    const envText = requireReadFile('gemini-env', read).content
     if (envText !== null) {
       const envMap = parseDotenv(envText)
       for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
