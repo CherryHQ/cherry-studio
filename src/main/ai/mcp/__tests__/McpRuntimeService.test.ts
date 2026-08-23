@@ -1267,11 +1267,14 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(restartSpy).not.toHaveBeenCalled()
   })
 
-  it('does not block shutdown or write stale status when background finishAuth hangs', async () => {
+  it('does not block shutdown or write stale status when background finishAuth rejects after cancellation', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
     let resolveBackgroundCode!: (code: string) => void
-    mcpSdkMock.state.finishAuthPromise = new Promise<void>(() => undefined)
+    let rejectFinishAuth!: (reason?: unknown) => void
+    mcpSdkMock.state.finishAuthPromise = new Promise<void>((_, reject) => {
+      rejectFinishAuth = reject
+    })
     callbackServerMock.waitForAuthCode
       .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
       .mockImplementationOnce(
@@ -1299,6 +1302,8 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     ])
 
     expect(result).toBe('stopped')
+    rejectFinishAuth(new Error('late token exchange failure'))
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
     expect(restartSpy).not.toHaveBeenCalled()
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
       state: 'pending-auth'
@@ -1310,7 +1315,8 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
     let resolveBackgroundCode!: (code: string) => void
-    mcpSdkMock.state.finishAuthPromise = new Promise<void>(() => undefined)
+    const finishAuth = createDeferred<void>()
+    mcpSdkMock.state.finishAuthPromise = finishAuth.promise
     callbackServerMock.waitForAuthCode
       .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
       .mockImplementationOnce(
@@ -1337,6 +1343,8 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
       new Promise<'timed-out'>((resolve) => setTimeout(() => resolve('timed-out'), 100))
     ])
 
+    finishAuth.resolve()
+    await stop
     expect(result).toBe('stopped')
     expect(restartSpy).not.toHaveBeenCalled()
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
