@@ -2,11 +2,11 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { type CdpLocatorDescriptor, ElectronCdpClient } from './cdp-client'
-import { completeCherryInOauth, dispatchCherryInOauthCallback } from './cherryin-oauth'
+import { completeCherryInOauth } from './cherryin-oauth'
 import type { ConfigRef, RegressionTestConfig } from './config'
 import { getConfigRef } from './config'
 import { type FileEvidenceOptions, validateFileEvidence } from './file-evidence'
-import { readAppRecord } from './lifecycle'
+import { readAppRecord, sendProtocolUrlToOwnedApp } from './lifecycle'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
 import { observeOwnedProcess } from './process-evidence'
@@ -137,7 +137,7 @@ export class RegressionController {
       account: this.config.cherryIn.account,
       password: this.config.cherryIn.password
     })
-    dispatchCherryInOauthCallback(callback)
+    sendProtocolUrlToOwnedApp(readAppRecord(this.paths), callback)
 
     const deadline = Date.now() + 60_000
     do {

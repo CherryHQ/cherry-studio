@@ -329,7 +329,7 @@ function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
   const contracts: Record<string, string[]> = {
     'assistant-saved': [FIXTURE_MARKERS.assistantName],
     'assistant-prompt-response': [FIXTURE_MARKERS.assistantResponse],
-    'cherryin-identity': [config.cherryIn.account],
+    'cherryin-identity': ['Logged in via OAuth'],
     'cherryin-chat-response': [FIXTURE_MARKERS.cherryInChat],
     'claude-runtime': [FIXTURE_MARKERS.claudeAgentName],
     'codex-directory': ['agent-workspace'],

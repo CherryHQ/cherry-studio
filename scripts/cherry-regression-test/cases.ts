@@ -34,12 +34,12 @@ export const REGRESSION_CASES: RegressionCase[] = [
       'Ask the default assistant to reply exactly CHERRYIN_CHAT_PASS, then restart the application.'
     ],
     acceptance: [
-      'Identity, model list, and connection check are visible and valid.',
+      'OAuth login state, model list, and connection check are visible and valid.',
       'Chat returns a complete non-error response.',
       'CherryIN remains signed in after restart.'
     ],
     evidence: [
-      requirement('cherryin-identity', 'ui', 'Observe the signed-in CherryIN identity'),
+      requirement('cherryin-identity', 'ui', 'Observe the signed-in CherryIN OAuth state'),
       requirement('cherryin-connection', 'ui', 'Observe a successful model connection check'),
       requirement('cherryin-chat-response', 'ui', 'Observe a complete model response in Chat'),
       requirement('cherryin-restart', 'restart', 'Verify the CherryIN session after restart'),

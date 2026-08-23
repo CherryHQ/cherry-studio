@@ -12,7 +12,7 @@ vi.mock('node:child_process', async (importOriginal) => ({
   execFileSync: execFileSyncMock
 }))
 
-import { type AppRecord, ensureProfile, stopOwnedApp } from '../lifecycle'
+import { type AppRecord, ensureProfile, sendProtocolUrlToOwnedApp, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 afterEach(() => {
@@ -117,5 +117,54 @@ describe('owned application lifecycle', () => {
     } finally {
       rmSync(directory, { force: true, recursive: true })
     }
+  })
+
+  it('delivers a protocol URL to the owned Windows development instance', () => {
+    const electronPid = 42_001
+    const targetRoot = 'D:\\target-app'
+    const executablePath = `${targetRoot}\\node_modules\\electron\\dist\\electron.exe`
+    const record: AppRecord = {
+      schemaVersion: 1,
+      ownership: 'agent',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'windows',
+      profile: 'authenticated',
+      runKey: 'test-run',
+      targetRoot,
+      command: 'pnpm.cmd',
+      args: ['debug'],
+      cwd: targetRoot,
+      runnerPid: 42_000,
+      electronPid,
+      cdpPort: 9222,
+      targetUrl: 'http://127.0.0.1:9222',
+      logPath: 'D:\\run\\electron.log',
+      startedAt: '2026-08-22T00:00:00.000Z',
+      restartCount: 0
+    }
+    const callback = 'cherrystudio://oauth/callback?code=test-code&state=test-state'
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+    execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+      const script = String(args.at(-1))
+      if (file === executablePath) return ''
+      if (script.includes('Get-NetTCPConnection')) return String(electronPid)
+      if (script.includes('CommandLine')) return `${executablePath} ${targetRoot}`
+      if (script.includes('ExecutablePath')) return executablePath
+      throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
+    })
+
+    sendProtocolUrlToOwnedApp(record, callback)
+
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      executablePath,
+      [targetRoot, callback],
+      expect.objectContaining({
+        cwd: targetRoot,
+        env: expect.objectContaining({ CS_DEV_USER_DATA_SUFFIX: 'Regression-test-run-authenticated' }),
+        stdio: 'ignore',
+        windowsHide: true
+      })
+    )
   })
 })

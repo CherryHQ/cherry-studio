@@ -1,10 +1,7 @@
-import { execFileSync } from 'node:child_process'
-
 const CHERRYIN_ORIGIN = 'https://open.cherryin.ai'
 const CHERRYIN_CALLBACK = 'cherrystudio://oauth/callback'
 
 type FetchImplementation = (input: string | URL, init?: RequestInit) => Promise<Response>
-type CommandRunner = (file: string, args: string[]) => unknown
 
 export interface CherryInCredentials {
   account: string
@@ -258,25 +255,4 @@ export async function completeCherryInOauth(
     absoluteUrl(nextUrl, 'CherryIN OAuth login returned an invalid authorization redirect'),
     expectedState
   )
-}
-
-export function dispatchCherryInOauthCallback(
-  value: string,
-  platform: NodeJS.Platform = process.platform,
-  runCommand: CommandRunner = (file, args) => execFileSync(file, args, { stdio: 'ignore', timeout: 15_000 })
-): void {
-  const url = callbackUrl(value).toString()
-  try {
-    if (platform === 'darwin') {
-      runCommand('open', [url])
-      return
-    }
-    if (platform === 'win32') {
-      runCommand('rundll32.exe', ['url.dll,FileProtocolHandler', url])
-      return
-    }
-  } catch {
-    throw new Error('Failed to deliver the CherryIN OAuth callback to Cherry Studio')
-  }
-  throw new Error('CherryIN OAuth callback delivery is unsupported on this runner')
 }

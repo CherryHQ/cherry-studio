@@ -10,7 +10,7 @@ import {
   statSync,
   writeFileSync
 } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve, win32 } from 'node:path'
 
 import type { RunPaths } from './paths'
 import { isPathInside } from './paths'
@@ -79,6 +79,23 @@ function processCommand(pid: number, platform: Platform): string {
           { encoding: 'utf8', timeout: 10_000 }
         ).trim()
       : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
+  } catch {
+    return ''
+  }
+}
+
+function windowsProcessExecutablePath(pid: number): string {
+  try {
+    return execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").ExecutablePath`
+      ],
+      { encoding: 'utf8', timeout: 10_000 }
+    ).trim()
   } catch {
     return ''
   }
@@ -378,6 +395,54 @@ export function readAppRecord(paths: RunPaths): AppRecord {
   }
   if (!isPathInside(paths.root, record.logPath)) throw new Error('Application record points outside the run directory')
   return record
+}
+
+export function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): void {
+  if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  if (record.platform === 'macos') {
+    try {
+      execFileSync('open', [url], { stdio: 'ignore', timeout: 15_000 })
+      return
+    } catch {
+      throw new Error('Failed to deliver the protocol callback to the owned Cherry Studio instance')
+    }
+  }
+
+  const executablePath = windowsProcessExecutablePath(record.electronPid)
+  const relativeExecutable = win32.relative(win32.resolve(record.targetRoot), win32.resolve(executablePath))
+  const isVerifiedExecutable =
+    record.mode === 'branch'
+      ? win32.basename(executablePath).toLowerCase() === 'electron.exe' &&
+        !relativeExecutable.startsWith('..') &&
+        !win32.isAbsolute(relativeExecutable)
+      : Boolean(
+          record.executablePath &&
+            win32.resolve(executablePath).toLowerCase() === win32.resolve(record.executablePath).toLowerCase()
+        )
+  if (!executablePath || !isVerifiedExecutable) {
+    throw new Error('Owned Windows Electron executable could not be verified')
+  }
+  const userDataArgument = record.args.find((arg) => arg.startsWith('--user-data-dir='))
+  if (record.mode === 'tag' && !userDataArgument) throw new Error('Owned Windows application profile is missing')
+  const args =
+    record.mode === 'branch' ? [record.targetRoot, url] : ([userDataArgument, url].filter(Boolean) as string[])
+  try {
+    execFileSync(executablePath, args, {
+      cwd: record.cwd,
+      env: {
+        ...process.env,
+        ...(record.mode === 'branch'
+          ? { CS_DEV_USER_DATA_SUFFIX: `Regression-${record.runKey}-${record.profile}` }
+          : {})
+      },
+      stdio: 'ignore',
+      timeout: 15_000,
+      windowsHide: true
+    })
+  } catch {
+    throw new Error('Failed to deliver the protocol callback to the owned Cherry Studio instance')
+  }
 }
 
 export async function stopOwnedApp(paths: RunPaths): Promise<void> {

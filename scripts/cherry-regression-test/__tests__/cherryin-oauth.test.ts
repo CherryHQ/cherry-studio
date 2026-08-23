@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { completeCherryInOauth, dispatchCherryInOauthCallback } from '../cherryin-oauth'
+import { completeCherryInOauth } from '../cherryin-oauth'
 
 const STATE = 'state-31415'
 const AUTHORIZATION_URL = `https://open.cherryin.ai/oauth2/auth?state=${STATE}&client_id=cherry-studio`
@@ -112,16 +112,5 @@ describe('CherryIN OAuth automation', () => {
         { fetchImplementation: createOauthFetch({ callbackState: 'unexpected-state' }) }
       )
     ).rejects.toThrow('CherryIN OAuth callback state did not match the application request')
-  })
-
-  it('dispatches the validated callback through the hosted runner protocol handler', () => {
-    const runCommand = vi.fn()
-    const callback = `cherrystudio://oauth/callback?code=code-14142&state=${STATE}`
-
-    dispatchCherryInOauthCallback(callback, 'darwin', runCommand)
-    dispatchCherryInOauthCallback(callback, 'win32', runCommand)
-
-    expect(runCommand).toHaveBeenNthCalledWith(1, 'open', [callback])
-    expect(runCommand).toHaveBeenNthCalledWith(2, 'rundll32.exe', ['url.dll,FileProtocolHandler', callback])
   })
 })
