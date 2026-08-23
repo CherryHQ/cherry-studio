@@ -213,9 +213,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Open Work, select the built-in Cherry Assistant Agent, set its model and agent-workspace, then require a real web search.',
+      'Open Work, select the built-in Cherry Assistant Agent, start a new task if the current session has messages, set its model, and verify agent-workspace is visibly selected before sending.',
       'Require file or shell tools to create cherry-regression-31415.pptx with exact title Cherry Regression 31415 and exactly three slides; approve tools if prompted.',
-      'Verify search activity, validate the fixed PPTX path, and open or preview the generated deck.'
+      'Wait up to five minutes while processing, then verify search activity, validate the fixed PPTX path, and open or preview the generated deck.'
     ],
     acceptance: ['Search and generation tools run, and a valid non-empty PPTX with expected content opens.'],
     evidence: [
@@ -232,9 +232,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Import skillDirectory through Settings > Skills > Add Skill > Local import > Install from directory and enable cherry-regression-fixture globally.',
-      'Return to Work, enable cherry-regression-fixture from the built-in Cherry Assistant Agent Skills button, and ask for the regression marker.',
-      'Verify the Agent responds with exactly SKILL_IMPORT_PASS; do not use the Chat assistant.'
+      'Import skillDirectory through Settings > Skills > Add Skill > Local import > Install from directory; verify the catalog entry without toggling its default-on global switch.',
+      'Return to Work, open Manage skills from the built-in Cherry Assistant composer Skills panel, enable cherry-regression-fixture for this Agent, then reopen Skills and insert the fixture token.',
+      'Ask for the regression marker and wait up to two minutes for exactly SKILL_IMPORT_PASS; do not use the Chat assistant.'
     ],
     acceptance: ['The Skill is recognized, binds successfully, and changes Agent behavior as explicitly required.'],
     evidence: [

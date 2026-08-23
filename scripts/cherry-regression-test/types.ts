@@ -5,6 +5,7 @@ export const EVIDENCE_KINDS = ['file', 'process', 'restart', 'screenshot', 'ui']
 export const TASK_IDS = [
   'startup-smoke',
   'mini-app',
+  'cherryin-chat',
   'notes',
   'custom-provider-chat',
   'custom-assistant',
@@ -16,7 +17,6 @@ export const TASK_IDS = [
   'knowledge-qa',
   'everything-mcp',
   'openclaw',
-  'cherryin-chat',
   'pi-runtime',
   'deepseek-harness-runtime',
   'claude-agent-runtime',

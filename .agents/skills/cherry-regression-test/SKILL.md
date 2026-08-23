@@ -24,7 +24,10 @@ desktop tools.
    `css: "*"`; inspect the body once if no specific control is visible yet.
 4. Supply configured values only through `configRef`; locators may use
    `nameConfigRef` or `textConfigRef`. Never request, reveal, copy, or type a
-   credential or API key as a literal value.
+   credential or API key as a literal value. Only the `cherryin-chat` task may
+   call `authenticate-cherryin`. In every other task, if the configured CherryIN
+   model is unavailable, finish the case as `blocked` without opening CherryIN
+   authentication or filling any account, password, or API key field.
 5. For the CherryIN login case, choose `Set up later` if onboarding is visible,
    open Settings > Model Provider > CherryIN, and call `authenticate-cherryin`
    exactly once after `Authorize with CherryIN` is visible. If the first body
@@ -208,30 +211,43 @@ desktop tools.
    `everything-restart` only while that server shows `Connected`.
 13. For A-01, click exact `Back` if Settings is open, then exact `Work`, and
    select the built-in Agent `Cherry Assistant` there, not the Chat assistant.
+   If the current Agent session already has messages or the work-directory
+   selector is disabled, click the first visible exact `New task` button after
+   selecting `Cherry Assistant`, then verify the new composer is empty.
    If its model button says `Select Model`, filter `model-selector-search` with
    `configRef: cherryInChatModel` and select the first option. Set the work
    directory from `No work directory` > `Add new work directory` with the
    returned `agentWorkspace`; if `agent-workspace` is already an option, select
-   it directly.
+   it directly. Do not send the prompt until the visible directory label is
+   exactly `agent-workspace`.
 
    Send: `Use a real web search about Cherry Studio, then use file or shell
    tools to create a real PowerPoint file named cherry-regression-31415.pptx in
    the current working directory. Its exact title must be Cherry Regression
    31415 and it must contain exactly three slides. Do not merely describe the
-   deck.` Approve a real tool request if one appears and wait up to 30 seconds
-   once. Record `ppt-search-tool` only against a visible search activity card,
-   record `ppt-file` as file evidence without supplying a path, click the
+   deck.` Approve each distinct visible `Allow` request once. Wait in 30-second
+   increments for up to 5 minutes, stopping as soon as the generated file link
+   or a terminal error appears; do not start file evidence checks while the
+   Agent is still processing. Record `ppt-search-tool` only against a visible
+   search activity card, record `ppt-file` as file evidence without supplying a path, click the
    generated `cherry-regression-31415.pptx` link or preview, record `ppt-opened`
    after the exact title renders, and capture `ppt-result`.
 14. For A-02, open Settings > Skills, click exact `Add Skill` > `Local import`
    > `Install from directory`, then immediately use `native-file-picker` with
-   the returned `skillDirectory`. Enable the exact global switch for
-   `cherry-regression-fixture` if it is disabled and record `skill-imported`.
-   Return to exact `Work`, select the built-in Agent `Cherry Assistant`, click
-   its composer `Skills` button, and enable `cherry-regression-fixture` there.
-   Send `What is the regression marker? Follow the enabled fixture skill
-   exactly.` Wait 10 seconds once, record `skill-behavior` against the exact
-   `SKILL_IMPORT_PASS` response, and capture `skill-result`. Skills do not run
+   the returned `skillDirectory`. The imported Skill is globally enabled by
+   default; do not click its global switch. Record `skill-imported` against the
+   visible `cherry-regression-fixture` catalog entry.
+
+   Return to exact `Work`, select the built-in Agent `Cherry Assistant`, and
+   start an exact `New task` first if its current session has messages. Click
+   its composer `Skills` button, then exact `Manage skills`. In the Agent edit
+   dialog, click the exact `cherry-regression-fixture` switch once to enable it
+   for this Agent, then close the dialog. Reopen the composer `Skills` panel and
+   click exact `cherry-regression-fixture` to insert its token before sending
+   `What is the regression marker? Follow the enabled fixture skill exactly.`
+   Wait in 30-second increments for up to 2 minutes, stopping as soon as the
+   response or a terminal error appears. Record `skill-behavior` against the
+   exact `SKILL_IMPORT_PASS` response, and capture `skill-result`. Skills do not run
    in the Chat assistant, so never navigate to Chat for this case.
 15. For Agent runtime cases A-03 through A-05, reuse `agent-workspace` whenever
    its directory option exists. Otherwise click `No work directory` >

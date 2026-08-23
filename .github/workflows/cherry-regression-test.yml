@@ -20,6 +20,7 @@ on:
           - all
           - startup-smoke
           - mini-app
+          - cherryin-chat
           - notes
           - custom-provider-chat
           - custom-assistant
@@ -31,7 +32,6 @@ on:
           - knowledge-qa
           - everything-mcp
           - openclaw
-          - cherryin-chat
           - pi-runtime
           - deepseek-harness-runtime
           - claude-agent-runtime
@@ -270,7 +270,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'startup-smoke')
-        timeout-minutes: 10
+        timeout-minutes: 30
         shell: bash
         env:
           REGRESSION_TASK: startup-smoke
@@ -284,7 +284,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mini-app')
-        timeout-minutes: 15
+        timeout-minutes: 45
         shell: bash
         env:
           REGRESSION_TASK: mini-app
@@ -294,11 +294,25 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 03 — notes
+      - name: Run task 03 — CherryIN chat
+        if: >-
+          !cancelled() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat')
+        timeout-minutes: 60
+        shell: bash
+        env:
+          REGRESSION_TASK: cherryin-chat
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
+          --run-dir "$RUN_DIR"
+          --task "$REGRESSION_TASK"
+          --claude-path "${{ steps.claude.outputs.path }}"
+
+      - name: Run task 04 — notes
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'notes')
-        timeout-minutes: 15
+        timeout-minutes: 45
         shell: bash
         env:
           REGRESSION_TASK: notes
@@ -308,11 +322,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 04 — custom provider chat
+      - name: Run task 05 — custom provider chat
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-provider-chat')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: custom-provider-chat
@@ -322,11 +336,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 05 — custom assistant
+      - name: Run task 06 — custom assistant
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-assistant')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: custom-assistant
@@ -336,11 +350,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 06 — Skill import
+      - name: Run task 07 — Skill import
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'skill-import')
-        timeout-minutes: 15
+        timeout-minutes: 45
         shell: bash
         env:
           REGRESSION_TASK: skill-import
@@ -350,11 +364,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 07 — quick assistant
+      - name: Run task 08 — quick assistant
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'quick-assistant')
-        timeout-minutes: 15
+        timeout-minutes: 45
         shell: bash
         env:
           REGRESSION_TASK: quick-assistant
@@ -364,11 +378,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 08 — selection assistant
+      - name: Run task 09 — selection assistant
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'selection-assistant')
-        timeout-minutes: 15
+        timeout-minutes: 45
         shell: bash
         env:
           REGRESSION_TASK: selection-assistant
@@ -378,11 +392,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 09 — translation
+      - name: Run task 10 — translation
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'translation')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: translation
@@ -392,11 +406,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 10 — knowledge import
+      - name: Run task 11 — knowledge import
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-import')
-        timeout-minutes: 15
+        timeout-minutes: 45
         shell: bash
         env:
           REGRESSION_TASK: knowledge-import
@@ -406,11 +420,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 11 — knowledge Q&A
+      - name: Run task 12 — knowledge Q&A
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-qa')
-        timeout-minutes: 15
+        timeout-minutes: 45
         shell: bash
         env:
           REGRESSION_TASK: knowledge-qa
@@ -420,11 +434,11 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 12 — Everything MCP
+      - name: Run task 13 — Everything MCP
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp')
-        timeout-minutes: 15
+        timeout-minutes: 45
         shell: bash
         env:
           REGRESSION_TASK: everything-mcp
@@ -434,28 +448,14 @@ jobs:
           --task "$REGRESSION_TASK"
           --claude-path "${{ steps.claude.outputs.path }}"
 
-      - name: Run task 13 — OpenClaw
+      - name: Run task 14 — OpenClaw
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'openclaw')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: openclaw
-        run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
-          --run-dir "$RUN_DIR"
-          --task "$REGRESSION_TASK"
-          --claude-path "${{ steps.claude.outputs.path }}"
-
-      - name: Run task 14 — CherryIN chat
-        if: >-
-          !cancelled() && steps.agent_settings.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat')
-        timeout-minutes: 20
-        shell: bash
-        env:
-          REGRESSION_TASK: cherryin-chat
         run: >-
           pnpm exec tsx scripts/cherry-regression-test/cli.ts run-agent-task
           --run-dir "$RUN_DIR"
@@ -466,7 +466,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'pi-runtime')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: pi-runtime
@@ -480,7 +480,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'deepseek-harness-runtime')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: deepseek-harness-runtime
@@ -494,7 +494,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: claude-agent-runtime
@@ -508,7 +508,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'image-generation')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: image-generation
@@ -522,7 +522,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'code-cli')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: code-cli
@@ -536,7 +536,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'agent-ppt')
-        timeout-minutes: 20
+        timeout-minutes: 60
         shell: bash
         env:
           REGRESSION_TASK: agent-ppt

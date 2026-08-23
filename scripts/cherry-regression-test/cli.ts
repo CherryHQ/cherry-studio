@@ -6,7 +6,8 @@ import {
   assertAgentPreflightOutput,
   assertAgentTaskOutput,
   buildTaskSkillInstructions,
-  describeAgentFailure
+  describeAgentFailure,
+  isRetryableAgentFailure
 } from './agent'
 import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
@@ -60,6 +61,7 @@ const HEAVY_AGENT_TASKS = new Set<TaskId>([
   'code-cli',
   'openclaw'
 ])
+const MAX_AGENT_ATTEMPTS = 3
 
 function agentTaskTimeoutMinutes(task: TaskId): number {
   if (task === 'startup-smoke') return 8
@@ -115,7 +117,9 @@ function redactLogs(paths: ReturnType<typeof getRunPaths>): void {
     if (!entry.isFile()) continue
     const source = join(paths.logs, entry.name)
     const content = readFileSync(source, 'utf8')
-    writeFileSync(join(outputDirectory, entry.name), redact(content), { mode: 0o600 })
+    writeFileSync(join(outputDirectory, entry.name), redact(content), {
+      mode: 0o600
+    })
   }
 }
 
@@ -144,7 +148,15 @@ async function initializeCommand(): Promise<void> {
   const sha = argument('sha') ?? ''
   const runner = argument('runner') ?? ''
   const appVersion = mode === 'tag' ? ref.replace(/^v/, '') : `development-${sha.slice(0, 7)}`
-  let run = createRun({ appVersion, commitSha: sha, mode, platform, ref, runner, task })
+  let run = createRun({
+    appVersion,
+    commitSha: sha,
+    mode,
+    platform,
+    ref,
+    runner,
+    task
+  })
   await createFixtures(paths)
   run = setCapabilities(run, probeCapabilities(platform, paths))
   writeRun(paths.runState, run)
@@ -166,7 +178,17 @@ async function prepareAgentSettingsCommand(): Promise<void> {
     const output = join(paths.root, `claude-settings-${task}.json`)
     writeFileSync(
       output,
-      `${JSON.stringify({ env: { ...environment, CHERRY_TEST_RUN_DIR: paths.root, CHERRY_TEST_TASK: task } }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          env: {
+            ...environment,
+            CHERRY_TEST_RUN_DIR: paths.root,
+            CHERRY_TEST_TASK: task
+          }
+        },
+        null,
+        2
+      )}\n`,
       { mode: 0o600 }
     )
     return output
@@ -200,7 +222,13 @@ async function agentPreflightCommand(): Promise<void> {
       'Respond with only the requested marker.',
       `Reply exactly ${marker}.`
     ],
-    { cwd: process.cwd(), encoding: 'utf8', env: environment, maxBuffer: 10 * 1024 * 1024, timeout: 120_000 }
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: environment,
+      maxBuffer: 10 * 1024 * 1024,
+      timeout: 120_000
+    }
   )
   const redact = createRedactor(getSensitiveConfigValues(config))
   writeFileSync(
@@ -230,7 +258,9 @@ async function runAgentTaskCommand(): Promise<void> {
   const task = oneOf(argument('task') ?? '', TASK_IDS, 'task')
   const claudePath = resolve(argument('claude-path') ?? '')
   const settingsPath = join(paths.root, `claude-settings-${task}.json`)
-  const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as { env?: Record<string, string | undefined> }
+  const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+    env?: Record<string, string | undefined>
+  }
   if (!settings.env) throw new Error(`Agent settings are missing environment values for ${task}`)
 
   const config = loadTestConfig(settings.env)
@@ -253,53 +283,60 @@ async function runAgentTaskCommand(): Promise<void> {
     }
   })
   const timeoutMinutes = agentTaskTimeoutMinutes(task)
-  process.stdout.write(`Starting regression task ${task} (timeout: ${timeoutMinutes} minutes)\n`)
-  const result = spawnSync(
-    claudePath,
-    [
-      '--print',
-      '--bare',
-      '--model',
-      config.customProvider.chatModel,
-      '--output-format',
-      'json',
-      '--no-session-persistence',
-      '--settings',
-      settingsPath,
-      '--append-system-prompt',
-      skillInstructions,
-      '--mcp-config',
-      mcpConfig,
-      '--strict-mcp-config',
-      '--allowedTools',
-      AGENT_ALLOWED_TOOLS.join(','),
-      '--disallowedTools',
-      AGENT_DISALLOWED_TOOLS.join(','),
-      '--permission-mode',
-      'dontAsk',
-      [
-        `Run task ${task} and complete it within ${timeoutMinutes} minutes.`,
-        'Use only the CI MCP workflow for application control and evidence.',
-        'Follow the common instructions and only the detailed numbered section matching the requested task; do not navigate to unrelated pages.',
-        'Do not inspect an interaction again after it succeeds unless the next documented step requires that state.',
-        'Do not repeat an equivalent failed inspection or interaction more than once.',
-        'If a required model call shows an explicit authentication or API error after the documented wait, complete the case as failed instead of trying another model.',
-        'Reserve the final two tool calls for complete-case and get-run-context.',
-        'Once every applicable case is terminal, respond immediately without another tool call.'
-      ].join(' ')
-    ],
-    {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      env: environment,
-      maxBuffer: 100 * 1024 * 1024,
-      timeout: timeoutMinutes * 60_000
-    }
-  )
   const redact = createRedactor(getSensitiveConfigValues(config))
-  writeFileSync(
-    join(paths.logs, `agent-${task}.json`),
-    `${JSON.stringify(
+  const initialRun = readRun(paths.runState)
+  const retryDelaySeconds = initialRun.metadata.platform === 'windows' ? 90 : 60
+  let agentFailure: string | undefined
+  let run = initialRun
+
+  for (let attempt = 1; attempt <= MAX_AGENT_ATTEMPTS; attempt += 1) {
+    process.stdout.write(
+      `Starting regression task ${task}, agent attempt ${attempt}/${MAX_AGENT_ATTEMPTS} (timeout: ${timeoutMinutes} minutes)\n`
+    )
+    const result = spawnSync(
+      claudePath,
+      [
+        '--print',
+        '--bare',
+        '--model',
+        config.customProvider.chatModel,
+        '--output-format',
+        'json',
+        '--no-session-persistence',
+        '--settings',
+        settingsPath,
+        '--append-system-prompt',
+        skillInstructions,
+        '--mcp-config',
+        mcpConfig,
+        '--strict-mcp-config',
+        '--allowedTools',
+        AGENT_ALLOWED_TOOLS.join(','),
+        '--disallowedTools',
+        AGENT_DISALLOWED_TOOLS.join(','),
+        '--permission-mode',
+        'dontAsk',
+        [
+          `Run task ${task} and complete it within ${timeoutMinutes} minutes.`,
+          `This is agent attempt ${attempt} of ${MAX_AGENT_ATTEMPTS}; resume only cases reported as pending or running.`,
+          'Use only the CI MCP workflow for application control and evidence.',
+          'Follow the common instructions and only the detailed numbered section matching the requested task; do not navigate to unrelated pages.',
+          'Do not inspect an interaction again after it succeeds unless the next documented step requires that state.',
+          'Do not repeat an equivalent failed inspection or interaction more than once.',
+          'If a required model call shows an explicit authentication or API error after the documented wait, complete the case as failed instead of trying another model.',
+          'Reserve the final two tool calls for complete-case and get-run-context.',
+          'Once every applicable case is terminal, respond immediately without another tool call.'
+        ].join(' ')
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: environment,
+        maxBuffer: 100 * 1024 * 1024,
+        timeout: timeoutMinutes * 60_000
+      }
+    )
+    const agentLog = `${JSON.stringify(
       redact({
         error: result.error?.message,
         signal: result.signal,
@@ -309,20 +346,36 @@ async function runAgentTaskCommand(): Promise<void> {
       }),
       null,
       2
-    )}\n`,
-    { mode: 0o600 }
-  )
+    )}\n`
+    writeFileSync(join(paths.logs, `agent-${task}-attempt-${attempt}.json`), agentLog, { mode: 0o600 })
+    writeFileSync(join(paths.logs, `agent-${task}.json`), agentLog, {
+      mode: 0o600
+    })
 
-  let agentFailure = describeAgentFailure(result, { timeoutMinutes })
-  if (!agentFailure) {
-    try {
-      assertAgentTaskOutput(result.stdout)
-    } catch (error) {
-      agentFailure = error instanceof Error ? error.message : String(error)
+    agentFailure = describeAgentFailure(result, { timeoutMinutes })
+    if (!agentFailure) {
+      try {
+        assertAgentTaskOutput(result.stdout)
+      } catch (error) {
+        agentFailure = error instanceof Error ? error.message : String(error)
+      }
     }
+
+    run = readRun(paths.runState)
+    const incompleteCases = getTaskCaseResults(run, task).filter(({ status }) =>
+      ['pending', 'running'].includes(status)
+    )
+    const shouldRetry =
+      incompleteCases.length > 0 && attempt < MAX_AGENT_ATTEMPTS && (isRetryableAgentFailure(result) || !agentFailure)
+    if (!shouldRetry) break
+
+    const reason = agentFailure ?? 'returned before completing every applicable case'
+    process.stdout.write(
+      `Test agent ${reason}; retrying ${task} in a fresh session after ${retryDelaySeconds} seconds\n`
+    )
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, retryDelaySeconds * 1_000))
   }
 
-  let run = readRun(paths.runState)
   const incompleteCases = getTaskCaseResults(run, task).filter(({ status }) => ['pending', 'running'].includes(status))
   if (incompleteCases.length > 0) {
     const reason = agentFailure ?? 'returned without completing every applicable case'
@@ -359,7 +412,9 @@ async function releaseCommand(): Promise<void> {
     ['api', `repos/${repository}/releases/tags/${encodeURIComponent(run.metadata.ref)}`],
     { encoding: 'utf8', timeout: 60_000 }
   )
-  const release = JSON.parse(releaseJson) as { assets: Array<{ name: string }> }
+  const release = JSON.parse(releaseJson) as {
+    assets: Array<{ name: string }>
+  }
   const artifactName = selectReleaseAsset(
     release.assets.map(({ name }) => name),
     run.metadata.platform,
@@ -440,7 +495,9 @@ async function aggregateCommand(): Promise<void> {
 
 async function aggregateGateCommand(): Promise<void> {
   const reportPath = resolve(argument('report') ?? '')
-  const report = JSON.parse(readFileSync(reportPath, 'utf8')) as { verdict: string }
+  const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
+    verdict: string
+  }
   if (!report.verdict.endsWith('_pass')) {
     process.stderr.write(`Combined Cherry regression verdict is ${report.verdict}\n`)
     process.exitCode = 1

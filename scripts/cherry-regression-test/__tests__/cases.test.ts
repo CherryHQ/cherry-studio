@@ -40,6 +40,7 @@ describe('regression test manifest', () => {
     ).toEqual([
       ['S-01'],
       ['APP-01'],
+      ['M-01'],
       ['N-01'],
       ['M-02'],
       ['C-01'],
@@ -51,7 +52,6 @@ describe('regression test manifest', () => {
       ['K-02'],
       ['MCP-01'],
       ['CODE-03'],
-      ['M-01'],
       ['A-04'],
       ['A-05'],
       ['A-03'],

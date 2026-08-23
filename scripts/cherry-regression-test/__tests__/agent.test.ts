@@ -5,7 +5,8 @@ import {
   assertAgentPreflightOutput,
   assertAgentTaskOutput,
   buildTaskSkillInstructions,
-  describeAgentFailure
+  describeAgentFailure,
+  isRetryableAgentFailure
 } from '../agent'
 import { TASK_IDS } from '../types'
 
@@ -54,7 +55,11 @@ describe('test agent preflight', () => {
         {
           signal: null,
           status: 1,
-          stdout: JSON.stringify({ is_error: true, subtype: 'error_max_turns', num_turns: 51 })
+          stdout: JSON.stringify({
+            is_error: true,
+            subtype: 'error_max_turns',
+            num_turns: 51
+          })
         },
         limits
       )
@@ -64,7 +69,10 @@ describe('test agent preflight', () => {
         {
           signal: null,
           status: 1,
-          stdout: JSON.stringify({ is_error: true, errors: ['provider unavailable'] })
+          stdout: JSON.stringify({
+            is_error: true,
+            errors: ['provider unavailable']
+          })
         },
         limits
       )
@@ -74,11 +82,47 @@ describe('test agent preflight', () => {
         {
           signal: null,
           status: 1,
-          stdout: JSON.stringify({ is_error: true, result: 'API Error: usage allocated quota exceeded' })
+          stdout: JSON.stringify({
+            is_error: true,
+            result: 'API Error: usage allocated quota exceeded'
+          })
         },
         limits
       )
     ).toBe('returned an error: API Error: usage allocated quota exceeded')
+  })
+
+  it('retries only bounded or quota-related agent failures', () => {
+    const processResult = (stdout: Record<string, unknown>, error?: string) => ({
+      error: error ? { message: error } : undefined,
+      signal: null,
+      status: 1,
+      stdout: JSON.stringify(stdout)
+    })
+
+    expect(isRetryableAgentFailure(processResult({}, 'spawnSync claude ETIMEDOUT'))).toBe(true)
+    expect(isRetryableAgentFailure(processResult({ is_error: true, subtype: 'error_max_turns' }))).toBe(true)
+    expect(isRetryableAgentFailure(processResult({ is_error: true, api_error_status: 429 }))).toBe(true)
+    expect(
+      isRetryableAgentFailure(
+        processResult({
+          is_error: true,
+          terminal_reason: 'api_error',
+          result: 'API Error: Request rejected (429) · usage allocated quota exceeded'
+        })
+      )
+    ).toBe(true)
+    expect(
+      isRetryableAgentFailure(
+        processResult({
+          is_error: true,
+          terminal_reason: 'api_error',
+          result: 'API Error: unauthorized'
+        })
+      )
+    ).toBe(false)
+    expect(isRetryableAgentFailure(processResult({ is_error: true, errors: ['provider unavailable'] }))).toBe(false)
+    expect(isRetryableAgentFailure({ signal: null, status: 1, stdout: 'not json' })).toBe(false)
   })
 })
 

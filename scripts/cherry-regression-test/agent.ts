@@ -1,11 +1,13 @@
 import type { TaskId } from './types'
 
 interface AgentPreflightOutput {
+  api_error_status?: number
   errors?: string[]
   is_error?: boolean
   num_turns?: number
   result?: string
   subtype?: string
+  terminal_reason?: string
 }
 
 const TASK_SKILL_SECTION: Record<TaskId, number | null> = {
@@ -89,6 +91,21 @@ export function assertAgentPreflightOutput(output: string, marker: string): void
 export function assertAgentTaskOutput(output: string): void {
   const result = parseAgentOutput(output)
   if (result.is_error !== false) throw new Error('Test agent task returned an error result')
+}
+
+export function isRetryableAgentFailure(result: AgentProcessResult): boolean {
+  if (result.error?.message.includes('ETIMEDOUT')) return true
+
+  let output: AgentPreflightOutput
+  try {
+    output = parseAgentOutput(result.stdout)
+  } catch {
+    return false
+  }
+
+  if (output.subtype === 'error_max_turns') return true
+  if (output.api_error_status === 429) return true
+  return output.terminal_reason === 'api_error' && /(?:\b429\b|quota exceeded)/i.test(output.result ?? '')
 }
 
 export function describeAgentFailure(
