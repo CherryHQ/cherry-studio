@@ -24,12 +24,14 @@ export const TASK_IDS = [
   'openclaw',
   'notes'
 ] as const
+export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
 
 export type Platform = (typeof PLATFORMS)[number]
 export type RunMode = (typeof RUN_MODES)[number]
 export type CaseStatus = (typeof CASE_STATUSES)[number]
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number]
 export type TaskId = (typeof TASK_IDS)[number]
+export type TaskSelection = (typeof TASK_SELECTIONS)[number]
 export type TestProfile = 'authenticated' | 'clean'
 
 export interface EvidenceRequirement {
@@ -77,6 +79,7 @@ export interface RunMetadata {
   platform: Platform
   ref: string
   runner: string
+  task: TaskSelection
   artifactName?: string
   artifactSha256?: string
 }

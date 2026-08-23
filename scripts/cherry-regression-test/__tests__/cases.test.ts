@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { REGRESSION_CASES } from '../cases'
-import { TASK_IDS } from '../types'
+import { TASK_IDS, TASK_SELECTIONS } from '../types'
 
 describe('regression test manifest', () => {
   it('contains every required critical path exactly once', () => {
@@ -90,8 +90,17 @@ describe('regression test manifest', () => {
   it('schedules every task exactly once in workflow order', () => {
     const workflow = readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8')
     const scheduledTasks = [...workflow.matchAll(/^\s+REGRESSION_TASK: ([a-z0-9-]+)$/gm)].map((match) => match[1])
+    const selectedTasks = [...workflow.matchAll(/\|\| needs\.resolve\.outputs\.task == '([a-z0-9-]+)'\)/g)].map(
+      (match) => match[1]
+    )
+    const taskInput = workflow.slice(workflow.indexOf('      task:'), workflow.indexOf('\npermissions:'))
+    const taskOptions = [...taskInput.matchAll(/^\s{10}- ([a-z0-9-]+)$/gm)].map((match) => match[1])
 
     expect(scheduledTasks).toEqual(TASK_IDS)
+    expect(selectedTasks).toEqual(TASK_IDS)
+    expect(taskOptions).toEqual(TASK_SELECTIONS)
+    expect(workflow.match(/continue-on-error: true/g)).toHaveLength(1)
+    expect(workflow).toContain('--task "$TEST_TASK"')
   })
 
   it('verifies the external selection fixture as a retained file', () => {

@@ -14,6 +14,11 @@ function commandAvailable(command: string, args: string[]): CapabilityResult {
   }
 }
 
+function probeNpx(platform: Platform): CapabilityResult {
+  if (platform !== 'windows') return commandAvailable('npx', ['--version'])
+  return commandAvailable(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npx --version'])
+}
+
 function probeDesktopAutomation(platform: Platform): CapabilityResult {
   try {
     if (platform === 'macos') {
@@ -94,7 +99,7 @@ export function probeCapabilities(platform: Platform, paths: RunPaths): Record<s
         : desktopAutomation.detail
     },
     directCdp,
-    npx: commandAvailable(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['--version']),
+    npx: probeNpx(platform),
     screenCapture,
     systemFilePicker: {
       available: desktopAutomation.available,

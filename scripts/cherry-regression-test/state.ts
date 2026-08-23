@@ -1,7 +1,16 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 
 import { getRegressionCase, REGRESSION_CASES } from './cases'
-import type { CapabilityResult, CaseStatus, EvidenceRecord, RegressionRun, RunMetadata, RunVerdict } from './types'
+import type {
+  CapabilityResult,
+  CaseResult,
+  CaseStatus,
+  EvidenceRecord,
+  RegressionRun,
+  RunMetadata,
+  RunVerdict,
+  TaskId
+} from './types'
 
 export function createRun(metadata: RunMetadata): RegressionRun {
   return {
@@ -14,8 +23,15 @@ export function createRun(metadata: RunMetadata): RegressionRun {
         testCase.id,
         {
           id: testCase.id,
-          status: testCase.modes.includes(metadata.mode) ? 'pending' : 'not_applicable',
-          summary: testCase.modes.includes(metadata.mode) ? '' : `Not applicable in ${metadata.mode} mode`,
+          status:
+            testCase.modes.includes(metadata.mode) && (metadata.task === 'all' || testCase.task === metadata.task)
+              ? 'pending'
+              : 'not_applicable',
+          summary: !testCase.modes.includes(metadata.mode)
+            ? `Not applicable in ${metadata.mode} mode`
+            : metadata.task !== 'all' && testCase.task !== metadata.task
+              ? `Not selected for task ${metadata.task}`
+              : '',
           evidence: []
         }
       ])
@@ -87,6 +103,24 @@ export function completeCase(
   }
 }
 
+export function getTaskCaseResults(run: RegressionRun, task: TaskId): CaseResult[] {
+  return REGRESSION_CASES.filter((testCase) => testCase.task === task).map((testCase) => run.cases[testCase.id])
+}
+
+export function blockIncompleteTaskCases(run: RegressionRun, task: TaskId, summary: string): RegressionRun {
+  const taskCaseIds = new Set(REGRESSION_CASES.filter((testCase) => testCase.task === task).map(({ id }) => id))
+  const finishedAt = new Date().toISOString()
+  const cases = Object.fromEntries(
+    Object.entries(run.cases).map(([caseId, result]) => {
+      if (!taskCaseIds.has(caseId) || (result.status !== 'pending' && result.status !== 'running')) {
+        return [caseId, result]
+      }
+      return [caseId, { ...result, status: 'blocked' as const, summary, finishedAt }]
+    })
+  )
+  return { ...run, cases }
+}
+
 export function finalizeRun(run: RegressionRun): RegressionRun {
   const cases = Object.fromEntries(
     Object.entries(run.cases).map(([caseId, result]) => {
@@ -96,7 +130,7 @@ export function finalizeRun(run: RegressionRun): RegressionRun {
         {
           ...result,
           status: 'blocked' as const,
-          summary: 'Not executed before finalization',
+          summary: 'Task did not finish before finalization',
           finishedAt: new Date().toISOString()
         }
       ]

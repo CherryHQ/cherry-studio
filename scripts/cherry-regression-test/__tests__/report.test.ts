@@ -1,4 +1,4 @@
-import { aggregateRuns, renderJUnit, renderMarkdown } from '../report'
+import { aggregateRuns, renderJUnit, renderMarkdown, renderTaskMarkdown } from '../report'
 import { completeCase, createRun, finalizeRun } from '../state'
 
 describe('regression report gate', () => {
@@ -10,7 +10,8 @@ describe('regression report gate', () => {
         mode: 'tag',
         platform: 'macos',
         ref: 'v2.0.8',
-        runner: 'macos-latest'
+        runner: 'macos-latest',
+        task: 'all'
       })
     )
     const windows = completeCase(
@@ -20,7 +21,8 @@ describe('regression report gate', () => {
         mode: 'tag',
         platform: 'windows',
         ref: 'v2.0.8',
-        runner: 'windows-latest'
+        runner: 'windows-latest',
+        task: 'all'
       }),
       'C-02',
       'blocked',
@@ -38,14 +40,34 @@ describe('regression report gate', () => {
         mode: 'branch',
         platform: 'windows',
         ref: 'main',
-        runner: 'windows-latest'
+        runner: 'windows-latest',
+        task: 'all'
       })
     )
 
     expect(renderMarkdown(run)).toContain('| M-01 | 登录 CherryIN 并完成聊天 | blocked |')
-    expect(renderMarkdown(run)).toContain('Not executed before finalization')
-    expect(renderJUnit(run)).toContain('<skipped message="Not executed before finalization"')
+    expect(renderMarkdown(run)).toContain('Task did not finish before finalization')
+    expect(renderJUnit(run)).toContain('<skipped message="Task did not finish before finalization"')
     expect(renderJUnit(run)).toContain('tests="23"')
+  })
+
+  it('renders an actionable task summary', () => {
+    const run = finalizeRun(
+      createRun({
+        appVersion: 'development',
+        commitSha: 'sha',
+        mode: 'branch',
+        platform: 'macos',
+        ref: 'main',
+        runner: 'macos-latest',
+        task: 'startup-smoke'
+      })
+    )
+
+    const markdown = renderTaskMarkdown(run, 'startup-smoke', 'reached maximum number of turns (13)')
+    expect(markdown).toContain('### Task `startup-smoke`')
+    expect(markdown).toContain('Agent execution: reached maximum number of turns (13)')
+    expect(markdown).toContain('| S-01 | blocked | Task did not finish before finalization |')
   })
 
   it('keeps a missing branch matrix in the development verdict namespace', () => {

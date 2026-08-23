@@ -9,7 +9,8 @@ import {
   PLATFORMS,
   type RegressionRun,
   type RunMode,
-  type RunVerdict
+  type RunVerdict,
+  type TaskId
 } from './types'
 
 function escapeMarkdown(value: string): string {
@@ -44,6 +45,7 @@ export function renderMarkdown(run: RegressionRun): string {
     `- Commit: ${run.metadata.commitSha}`,
     `- Application version: ${run.metadata.appVersion}`,
     `- Mode: ${run.metadata.mode}`,
+    `- Task selection: ${run.metadata.task}`,
     `- Verdict: **${verdict}**`,
     run.metadata.artifactName ? `- Release artifact: ${run.metadata.artifactName}` : '',
     run.metadata.artifactSha256 ? `- Artifact SHA-256: ${run.metadata.artifactSha256}` : '',
@@ -67,6 +69,26 @@ export function renderMarkdown(run: RegressionRun): string {
   ]
     .filter((line, index, lines) => line !== '' || lines[index - 1] !== '')
     .join('\n')
+}
+
+export function renderTaskMarkdown(run: RegressionRun, task: TaskId, agentResult: string): string {
+  const results = REGRESSION_CASES.filter((testCase) => testCase.task === task).map((testCase) => ({
+    testCase,
+    result: run.cases[testCase.id]
+  }))
+  return [
+    `### Task \`${task}\``,
+    '',
+    `Agent execution: ${escapeMarkdown(agentResult)}`,
+    '',
+    '| Case | Status | Result |',
+    '| --- | --- | --- |',
+    ...results.map(
+      ({ testCase, result }) =>
+        `| ${testCase.id} | ${result.status} | ${escapeMarkdown(result.summary || 'No result recorded')} |`
+    ),
+    ''
+  ].join('\n')
 }
 
 export function renderJUnit(run: RegressionRun): string {
@@ -127,11 +149,11 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
     '',
     `**Verdict: ${report.verdict}**`,
     '',
-    '| Platform | Mode | Ref | Commit | Verdict |',
-    '| --- | --- | --- | --- | --- |',
+    '| Platform | Mode | Task | Ref | Commit | Verdict |',
+    '| --- | --- | --- | --- | --- | --- |',
     ...report.runs.map(
       (run) =>
-        `| ${run.metadata.platform} | ${run.metadata.mode} | ${run.metadata.ref} | ${run.metadata.commitSha} | ${getRunVerdict(run)} |`
+        `| ${run.metadata.platform} | ${run.metadata.mode} | ${run.metadata.task} | ${run.metadata.ref} | ${run.metadata.commitSha} | ${getRunVerdict(run)} |`
     ),
     ...(report.missingPlatforms.length > 0
       ? ['', `Missing platform reports: ${report.missingPlatforms.join(', ')}`]

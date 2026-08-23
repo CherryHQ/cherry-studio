@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { assertAgentPreflightOutput, assertAgentTaskOutput } from './agent'
+import { assertAgentPreflightOutput, assertAgentTaskOutput, describeAgentFailure } from './agent'
 import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
@@ -11,9 +11,19 @@ import { installReleaseArtifact, launchApp, stopOwnedApp } from './lifecycle'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { createRedactor } from './redaction'
 import { parseRemoteRefs, resolveTrustedRef } from './ref'
-import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
-import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
-import { PLATFORMS, type RegressionRun, RUN_MODES, TASK_IDS, type TaskId } from './types'
+import { aggregateRuns, renderAggregateMarkdown, renderTaskMarkdown, writeReports } from './report'
+import {
+  blockIncompleteTaskCases,
+  createRun,
+  finalizeRun,
+  getRunVerdict,
+  getTaskCaseResults,
+  readRun,
+  setCapabilities,
+  updateRunMetadata,
+  writeRun
+} from './state'
+import { PLATFORMS, type RegressionRun, RUN_MODES, TASK_IDS, TASK_SELECTIONS, type TaskId } from './types'
 
 const AGENT_ALLOWED_TOOLS = [
   'Read',
@@ -120,11 +130,12 @@ async function initializeCommand(): Promise<void> {
   const paths = runDirectory()
   const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
   const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
+  const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
   const ref = argument('ref') ?? ''
   const sha = argument('sha') ?? ''
   const runner = argument('runner') ?? ''
   const appVersion = mode === 'tag' ? ref.replace(/^v/, '') : `development-${sha.slice(0, 7)}`
-  let run = createRun({ appVersion, commitSha: sha, mode, platform, ref, runner })
+  let run = createRun({ appVersion, commitSha: sha, mode, platform, ref, runner, task })
   await createFixtures(paths)
   run = setCapabilities(run, probeCapabilities(platform, paths))
   writeRun(paths.runState, run)
@@ -138,9 +149,11 @@ async function preflightCommand(): Promise<void> {
 
 async function prepareAgentSettingsCommand(): Promise<void> {
   const paths = runDirectory()
+  const run = readRun(paths.runState)
   const config = loadTestConfig()
   const environment = Object.fromEntries(REQUIRED_CONFIG.map((name) => [name, process.env[name]]))
-  const outputs = TASK_IDS.map((task) => {
+  const tasks: TaskId[] = run.metadata.task === 'all' ? [...TASK_IDS] : [run.metadata.task]
+  const outputs = tasks.map((task) => {
     const output = join(paths.root, `claude-settings-${task}.json`)
     writeFileSync(
       output,
@@ -150,7 +163,7 @@ async function prepareAgentSettingsCommand(): Promise<void> {
     return output
   })
   const redacted = createRedactor(getSensitiveConfigValues(config))
-  process.stdout.write(`${JSON.stringify(redacted({ outputs, tasks: TASK_IDS }))}\n`)
+  process.stdout.write(`${JSON.stringify(redacted({ outputs, tasks }))}\n`)
 }
 
 async function agentPreflightCommand(): Promise<void> {
@@ -230,6 +243,9 @@ async function runAgentTaskCommand(): Promise<void> {
     }
   })
   const limits = agentTaskLimits(task)
+  process.stdout.write(
+    `Starting regression task ${task} (max turns: ${limits.maxTurns}, timeout: ${limits.timeoutMinutes} minutes)\n`
+  )
   const result = spawnSync(
     claudePath,
     [
@@ -255,7 +271,13 @@ async function runAgentTaskCommand(): Promise<void> {
       AGENT_DISALLOWED_TOOLS.join(','),
       '--permission-mode',
       'dontAsk',
-      `Run task ${task}. Use only the CI MCP workflow for application control and evidence. Finish every applicable case with its actual status.`
+      [
+        `Run task ${task} with at most ${limits.maxTurns} turns.`,
+        'Use only the CI MCP workflow for application control and evidence.',
+        'Do not repeat an equivalent failed inspection or interaction more than once.',
+        'Reserve the final two tool calls for complete-case and get-run-context.',
+        'Once every applicable case is terminal, respond immediately without another tool call.'
+      ].join(' ')
     ],
     {
       cwd: process.cwd(),
@@ -281,11 +303,39 @@ async function runAgentTaskCommand(): Promise<void> {
     )}\n`,
     { mode: 0o600 }
   )
-  if (result.error || result.status !== 0) {
-    throw new Error(`Test agent failed for ${task}; inspect the redacted platform evidence`)
+
+  let agentFailure = describeAgentFailure(result, limits)
+  if (!agentFailure) {
+    try {
+      assertAgentTaskOutput(result.stdout)
+    } catch (error) {
+      agentFailure = error instanceof Error ? error.message : String(error)
+    }
   }
-  assertAgentTaskOutput(result.stdout)
-  process.stdout.write(`Test agent completed ${task}\n`)
+
+  let run = readRun(paths.runState)
+  const incompleteCases = getTaskCaseResults(run, task).filter(({ status }) => ['pending', 'running'].includes(status))
+  if (incompleteCases.length > 0) {
+    const reason = agentFailure ?? 'returned without completing every applicable case'
+    run = blockIncompleteTaskCases(run, task, `Test agent ${reason}`)
+    writeRun(paths.runState, run)
+  }
+
+  const results = getTaskCaseResults(run, task).filter(({ status }) => status !== 'not_applicable')
+  const taskMarkdown = redact(renderTaskMarkdown(run, task, agentFailure ?? 'completed'))
+  process.stdout.write(`${taskMarkdown}\n`)
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${taskMarkdown}\n`)
+
+  const nonPassing = results.filter(({ status }) => status !== 'passed')
+  if (nonPassing.length > 0) {
+    const statuses = nonPassing.map(({ id, status }) => `${id}=${status}`).join(', ')
+    throw new Error(`Regression task ${task} did not pass: ${statuses}`)
+  }
+  if (agentFailure) {
+    process.stderr.write(`Test agent ${agentFailure} after all ${task} cases were completed; accepting case results\n`)
+  } else {
+    process.stdout.write(`Test agent completed ${task}\n`)
+  }
 }
 
 async function releaseCommand(): Promise<void> {

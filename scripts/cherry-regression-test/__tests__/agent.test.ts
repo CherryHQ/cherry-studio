@@ -1,4 +1,4 @@
-import { assertAgentPreflightOutput, assertAgentTaskOutput } from '../agent'
+import { assertAgentPreflightOutput, assertAgentTaskOutput, describeAgentFailure } from '../agent'
 
 describe('test agent preflight', () => {
   it('accepts only the expected successful response', () => {
@@ -24,5 +24,41 @@ describe('test agent preflight', () => {
     expect(() => assertAgentTaskOutput('not json')).toThrow('Test agent did not return JSON')
     expect(() => assertAgentTaskOutput('{}')).toThrow('Test agent task returned an error result')
     expect(() => assertAgentTaskOutput('null')).toThrow('Test agent returned invalid JSON')
+  })
+
+  it('describes bounded agent failures without exposing raw output', () => {
+    const limits = { maxTurns: 50, timeoutMinutes: 13 }
+
+    expect(
+      describeAgentFailure(
+        {
+          error: { message: 'spawnSync claude ETIMEDOUT' },
+          signal: 'SIGTERM',
+          status: null,
+          stdout: ''
+        },
+        limits
+      )
+    ).toBe('timed out after 13 minutes')
+    expect(
+      describeAgentFailure(
+        {
+          signal: null,
+          status: 1,
+          stdout: JSON.stringify({ is_error: true, subtype: 'error_max_turns', num_turns: 51 })
+        },
+        limits
+      )
+    ).toBe('reached maximum number of turns (51)')
+    expect(
+      describeAgentFailure(
+        {
+          signal: null,
+          status: 1,
+          stdout: JSON.stringify({ is_error: true, errors: ['provider unavailable'] })
+        },
+        limits
+      )
+    ).toBe('returned an error: provider unavailable')
   })
 })

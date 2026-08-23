@@ -39,6 +39,17 @@ desktop tools.
 9. Call `complete-case` exactly once with the actual result. `passed` is valid
    only after all declared machine evidence passes.
 
+## Keep execution bounded
+
+- Do not repeat an equivalent failed inspection or interaction more than once.
+  After one genuinely different corrective attempt, finish the case as
+  `failed`, or `blocked` only when an external prerequisite is unavailable.
+- Prefer one scoped inspection over several broad inspections. Do not explore
+  unrelated navigation after the required control or feature is proven absent.
+- Reserve the final two tool calls for `complete-case` and the final
+  `get-run-context`. Once every applicable case is terminal, respond immediately
+  without calling another tool.
+
 At the end, call `get-run-context` again and make sure every applicable case in
 the assigned task is `passed`, `failed`, or `blocked`. Do not modify source
 files, test definitions, fixtures, run state, or reports.

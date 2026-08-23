@@ -11,6 +11,33 @@ on:
         required: true
         default: "main"
         type: string
+      task:
+        description: "Regression task to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - startup-smoke
+          - cherryin-chat
+          - custom-provider-chat
+          - custom-assistant
+          - quick-assistant
+          - selection-assistant
+          - knowledge-import
+          - knowledge-qa
+          - everything-mcp
+          - agent-ppt
+          - skill-import
+          - claude-agent-runtime
+          - pi-runtime
+          - deepseek-harness-runtime
+          - image-generation
+          - translation
+          - mini-app
+          - code-cli
+          - openclaw
+          - notes
 
 permissions:
   contents: read
@@ -26,6 +53,7 @@ jobs:
       name: ${{ steps.ref.outputs.name }}
       ref: ${{ steps.ref.outputs.ref }}
       sha: ${{ steps.ref.outputs.sha }}
+      task: ${{ steps.ref.outputs.task }}
     steps:
       - name: Check out workflow control plane
         uses: actions/checkout@v6
@@ -54,6 +82,7 @@ jobs:
           PUSH_REF_NAME: ${{ github.ref_name }}
           PUSH_SHA: ${{ github.sha }}
           REQUESTED_REF: ${{ inputs.ref }}
+          REQUESTED_TASK: ${{ inputs.task }}
         run: |
           if [[ "$EVENT_NAME" == "push" ]]; then
             {
@@ -61,6 +90,7 @@ jobs:
               echo "name=$PUSH_REF_NAME"
               echo "ref=$PUSH_REF"
               echo "sha=$PUSH_SHA"
+              echo "task=all"
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -68,6 +98,7 @@ jobs:
           pnpm exec tsx scripts/cherry-regression-test/cli.ts resolve-ref \
             --requested "$REQUESTED_REF" \
             --repository "${{ github.repository }}"
+          echo "task=$REQUESTED_TASK" >> "$GITHUB_OUTPUT"
 
   test:
     needs: resolve
@@ -138,6 +169,7 @@ jobs:
           TEST_REF_NAME: ${{ needs.resolve.outputs.name }}
           TEST_SHA: ${{ needs.resolve.outputs.sha }}
           TEST_RUNNER: ${{ matrix.runner }}
+          TEST_TASK: ${{ needs.resolve.outputs.task }}
         run: >-
           pnpm exec tsx scripts/cherry-regression-test/cli.ts initialize
           --run-dir "$RUN_DIR"
@@ -146,6 +178,7 @@ jobs:
           --ref "$TEST_REF_NAME"
           --sha "$TEST_SHA"
           --runner "$TEST_RUNNER"
+          --task "$TEST_TASK"
 
       - name: Validate required test configuration
         shell: bash
@@ -202,6 +235,7 @@ jobs:
           --run-key "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}"
 
       - name: Prepare isolated agent settings
+        id: agent_settings
         shell: bash
         env:
           CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
@@ -218,7 +252,9 @@ jobs:
           --run-dir "$RUN_DIR"
 
       - name: Run task 01 — app startup smoke
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'startup-smoke')
         timeout-minutes: 10
         shell: bash
         env:
@@ -230,7 +266,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 02 — CherryIN chat
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat')
         timeout-minutes: 15
         shell: bash
         env:
@@ -242,7 +280,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 03 — custom provider chat
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-provider-chat')
         timeout-minutes: 15
         shell: bash
         env:
@@ -254,7 +294,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 04 — custom assistant
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-assistant')
         timeout-minutes: 15
         shell: bash
         env:
@@ -266,7 +308,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 05 — quick assistant
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'quick-assistant')
         timeout-minutes: 15
         shell: bash
         env:
@@ -278,7 +322,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 06 — selection assistant
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'selection-assistant')
         timeout-minutes: 15
         shell: bash
         env:
@@ -290,7 +336,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 07 — knowledge import
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-import')
         timeout-minutes: 15
         shell: bash
         env:
@@ -302,7 +350,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 08 — knowledge Q&A
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-qa')
         timeout-minutes: 15
         shell: bash
         env:
@@ -314,7 +364,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 09 — Everything MCP
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp')
         timeout-minutes: 15
         shell: bash
         env:
@@ -326,7 +378,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 10 — Agent PPT
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'agent-ppt')
         timeout-minutes: 20
         shell: bash
         env:
@@ -338,7 +392,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 11 — Skill import
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'skill-import')
         timeout-minutes: 15
         shell: bash
         env:
@@ -350,7 +406,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 12 — Claude Agent runtime
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime')
         timeout-minutes: 20
         shell: bash
         env:
@@ -362,7 +420,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 13 — Pi runtime
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'pi-runtime')
         timeout-minutes: 20
         shell: bash
         env:
@@ -374,7 +434,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 14 — DeepSeek Harness runtime
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'deepseek-harness-runtime')
         timeout-minutes: 20
         shell: bash
         env:
@@ -386,7 +448,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 15 — image generation
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'image-generation')
         timeout-minutes: 20
         shell: bash
         env:
@@ -398,7 +462,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 16 — translation
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'translation')
         timeout-minutes: 20
         shell: bash
         env:
@@ -410,7 +476,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 17 — mini app
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mini-app')
         timeout-minutes: 15
         shell: bash
         env:
@@ -422,7 +490,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 18 — Claude Code and Codex
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'code-cli')
         timeout-minutes: 20
         shell: bash
         env:
@@ -434,7 +504,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 19 — OpenClaw
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'openclaw')
         timeout-minutes: 20
         shell: bash
         env:
@@ -446,7 +518,9 @@ jobs:
           --claude-path "${{ steps.claude.outputs.path }}"
 
       - name: Run task 20 — notes
-        continue-on-error: true
+        if: >-
+          always() && steps.agent_settings.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'notes')
         timeout-minutes: 15
         shell: bash
         env:
