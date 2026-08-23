@@ -229,7 +229,7 @@ describe('ConversationIsland', () => {
       const secondary = screen.getByRole('button', { name: 'Waiting: Review plan' })
       expectTextOrder(primary, ['Cherry Assistant', 'Responding', 'Research notes'])
       expectTextOrder(secondary, ['Planning Agent', 'Waiting', 'Review plan'])
-      expect(primary).toHaveClass('gap-1')
+      expect(primary).toHaveClass('gap-2')
       expect(within(primary).getByText('Cherry Assistant').parentElement).toHaveClass('gap-1')
       expect(within(secondary).getByText('Planning Agent').parentElement).toHaveClass('gap-1')
 
@@ -582,7 +582,7 @@ describe('ConversationIsland', () => {
       'Responding: Activity 5',
       'Responding: Activity 6'
     ])
-    for (const row of rows) expect(row).toHaveClass('h-[52px]', 'gap-1')
+    for (const row of rows) expect(row).toHaveClass('h-[52px]', 'gap-2')
     expect(within(rows[0]).getByText('Cherry Assistant').parentElement).toHaveClass('gap-1')
 
     // The row and scroller classes are the approved fixed-height four-row window layout contract.

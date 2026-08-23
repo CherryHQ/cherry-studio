@@ -328,7 +328,7 @@ export default function ConversationIsland() {
               data-state={activity.state}
               disabled={snapshot.exiting}
               onClick={() => void openExpandedActivity(activity)}
-              className={`h-[52px] min-h-[52px] w-full min-w-0 flex-col items-stretch justify-center gap-1 rounded-none px-3 py-0 font-normal text-xs shadow-none ${
+              className={`h-[52px] min-h-[52px] w-full min-w-0 flex-col items-stretch justify-center gap-2 rounded-none px-3 py-0 font-normal text-xs shadow-none ${
                 usesNotchLayout
                   ? 'text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white'
                   : 'text-popover-foreground hover:bg-accent focus-visible:bg-accent'
