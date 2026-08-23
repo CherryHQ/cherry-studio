@@ -63,6 +63,7 @@ import {
 } from '../components/EditDialogShared'
 import { GroupSelector } from '../components/GroupSelector'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
@@ -226,6 +227,7 @@ function AssistantEditDialogContent({
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'advanced', label: t('library.config.agent.model_config') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
+      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -379,6 +381,13 @@ function AssistantEditDialogContent({
             form={form}
             resource={resource}
             modelName={modelLabels.modelId}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
+        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
+          <PromptBindingTab
+            enabled={open && activeTab === 'prompts'}
+            target={{ type: 'assistant', id: resource.id }}
             portalContainer={dialogContentElement}
           />
         </TabsContent>
