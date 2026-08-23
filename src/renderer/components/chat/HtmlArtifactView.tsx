@@ -420,7 +420,9 @@ export function HtmlArtifactPopupOutlet() {
         html={popupSession.html}
         onSave={popupSession.onSave}
         editable={popupSession.editable}
-        authorized
+        // Upstream-intentional: the maximize popup's custom renderPreview opens the
+        // interactive tier directly (approve-on-close memory). Only the code-block card
+        // path defers to the explicit run action — this one keeps upstream behavior.
         canCapturePreview={!requiresInteractivePreview}
         renderPreview={(iframeRef) => (
           <HtmlArtifactPreviewSurface

@@ -43,16 +43,7 @@ describe('HtmlArtifactsPopup', () => {
 
   it('defaults to preview and switches to read-only source', async () => {
     const user = userEvent.setup()
-    render(
-      <HtmlArtifactsPopup
-        open
-        editable={false}
-        title="HTML Artifacts"
-        html="<h1>Hello</h1>"
-        authorized
-        onClose={vi.fn()}
-      />
-    )
+    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
 
     expect(screen.getByTitle('common.html_preview')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'html_artifacts.preview' })).toBeChecked()
@@ -71,7 +62,6 @@ describe('HtmlArtifactsPopup', () => {
         editable
         title="HTML Artifacts"
         html="<h1>Hello</h1>"
-        authorized
         onClose={vi.fn()}
         onSave={vi.fn()}
       />
@@ -92,7 +82,6 @@ describe('HtmlArtifactsPopup', () => {
         html="<h1>Hello</h1>"
         canCapturePreview={false}
         renderPreview={() => <div>Custom preview</div>}
-        authorized
         onClose={vi.fn()}
       />
     )
@@ -103,16 +92,7 @@ describe('HtmlArtifactsPopup', () => {
 
   it('keeps the popup open when the overlay is clicked', () => {
     const onClose = vi.fn()
-    render(
-      <HtmlArtifactsPopup
-        open
-        editable={false}
-        title="HTML Artifacts"
-        html="<h1>Hello</h1>"
-        authorized
-        onClose={onClose}
-      />
-    )
+    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={onClose} />)
     const overlay = document.querySelector('[data-slot="dialog-overlay"]')
 
     expect(overlay).toBeInTheDocument()
@@ -121,16 +101,7 @@ describe('HtmlArtifactsPopup', () => {
   })
 
   it('dismisses the capture menu after selecting a destination', () => {
-    render(
-      <HtmlArtifactsPopup
-        open
-        editable={false}
-        title="HTML Artifacts"
-        html="<h1>Hello</h1>"
-        authorized
-        onClose={vi.fn()}
-      />
-    )
+    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.capture.label' }))
     fireEvent.click(screen.getByRole('button', { name: /html_artifacts\.capture\.to_file/ }))
 
@@ -144,7 +115,6 @@ describe('HtmlArtifactsPopup', () => {
         editable={false}
         title="HTML Artifacts"
         html="<div><h2>Hello</h2></div>"
-        authorized
         onClose={vi.fn()}
       />
     )
@@ -162,7 +132,6 @@ describe('HtmlArtifactsPopup', () => {
         editable={false}
         title="HTML Artifacts"
         html="<div><h2>Hello</h2></div>"
-        authorized
         canCapturePreview={false}
         onClose={vi.fn()}
       />
@@ -172,17 +141,26 @@ describe('HtmlArtifactsPopup', () => {
     expect(screen.queryByRole('button', { name: 'html_artifacts.capture.label' })).not.toBeInTheDocument()
   })
 
-  it('keeps interactive fragments interactive: an active fragment opens in the hardened webview', () => {
+  it('opens active fragments static by default and only runs them via the explicit action', async () => {
+    const user = userEvent.setup()
     render(
       <HtmlArtifactsPopup
         open
         editable={false}
         title="HTML Artifacts"
         html={'<div><canvas id="c"></canvas><script>parent.api.fs.readText("/etc/hosts")</script></div>'}
-        authorized
         onClose={vi.fn()}
       />
     )
+
+    // Security default: script-less frame, no webview, capture still available.
+    const iframe = screen.getByTitle('common.html_preview')
+    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(iframe?.getAttribute('sandbox')).not.toContain('allow-scripts')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
 
     const webview = screen.getByTestId('interactive-html-webview')
     expect(webview).toHaveAttribute('partition', 'html-artifact-preview')
@@ -190,21 +168,24 @@ describe('HtmlArtifactsPopup', () => {
     expect(screen.queryByRole('button', { name: 'html_artifacts.capture.label' })).not.toBeInTheDocument()
   })
 
-  it('routes a script-bearing document to the hardened webview and drops the capture menu', () => {
+  it('keeps script-bearing documents static until the explicit action, then isolates them', async () => {
+    const user = userEvent.setup()
     render(
       <HtmlArtifactsPopup
         open
         editable={false}
         title="HTML Artifacts"
         html={'<!doctype html><html><body><script>parent.api.fs.readText("/etc/hosts")</script></body></html>'}
-        authorized
         onClose={vi.fn()}
       />
     )
 
-    const webview = screen.getByTestId('interactive-html-webview')
-    expect(webview).toHaveAttribute('partition', 'html-artifact-preview')
+    expect(screen.getByTitle('common.html_preview')).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+
+    expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
     expect(screen.queryByTitle('common.html_preview')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'html_artifacts.capture.label' })).not.toBeInTheDocument()
   })
 })

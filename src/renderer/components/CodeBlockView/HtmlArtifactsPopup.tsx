@@ -28,7 +28,18 @@ import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
-import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
+import {
+  Camera,
+  Check,
+  Code,
+  Eye,
+  Maximize2,
+  Minimize2,
+  SaveIcon,
+  ShieldAlert,
+  SquareSplitHorizontal,
+  X
+} from 'lucide-react'
 import { memo, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -100,10 +111,6 @@ interface HtmlArtifactsPopupProps {
   html: string
   onSave?: (html: string) => void
   editable?: boolean
-  /** Explicit user authorization for the interactive preview tier. The popup can only
-   *  be opened by a user action (card click / maximize), so its callers pass true —
-   *  each call site declares that authority explicitly instead of relying on comments. */
-  authorized: boolean
   canCapturePreview?: boolean
   renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
   onClose: () => void
@@ -117,7 +124,6 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   html,
   onSave,
   editable = true,
-  authorized,
   canCapturePreview = true,
   renderPreview,
   onClose
@@ -194,26 +200,46 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     />
   )
 
+  // Security default: the popup opens in the script-less tier. Active content only
+  // reaches the webview through the explicit "run interactive preview" action below —
+  // mirroring the inline consent card instead of treating "open" as authorization.
+  const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
+  const [interactiveAuthorized, setInteractiveAuthorized] = useState(false)
   // The interactive (webview) tier exposes no capture iframe, so the capture menu only
   // makes sense on the script-less frame — both for the default surface and callers.
   // An explicit canCapturePreview={false} from any caller is still honored.
-  const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
   const effectiveCanCapturePreview = renderPreview
     ? canCapturePreview
-    : canCapturePreview && !requiresInteractivePreview
+    : canCapturePreview && !(requiresInteractivePreview && interactiveAuthorized)
 
   const renderPreviewPanel = () =>
     renderPreview ? (
       renderPreview(previewFrameRef)
     ) : (
-      <HtmlArtifactPreviewSurface
-        iframeRef={previewFrameRef}
-        html={html}
-        title={t('common.html_preview')}
-        authorized={authorized}
-        emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
-        forwardBoundaryWheel={false}
-      />
+      <div className="relative h-full w-full">
+        <HtmlArtifactPreviewSurface
+          iframeRef={previewFrameRef}
+          html={html}
+          title={t('common.html_preview')}
+          authorized={interactiveAuthorized}
+          emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
+          forwardBoundaryWheel={false}
+        />
+        {requiresInteractivePreview && !interactiveAuthorized && (
+          <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center p-3">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
+              aria-label={t('html_artifacts.interactive_preview.action')}
+              onClick={() => setInteractiveAuthorized(true)}>
+              <ShieldAlert className="size-3.5 text-warning" />
+              {t('html_artifacts.interactive_preview.action')}
+            </Button>
+          </div>
+        )}
+      </div>
     )
 
   const renderContent = () => {
