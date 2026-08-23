@@ -1,5 +1,6 @@
 const { execFileSync, spawnSync } = require('node:child_process')
 const fs = require('node:fs')
+const path = require('node:path')
 
 const MAX_BUFFER = 128 * 1024 * 1024
 
@@ -9,6 +10,38 @@ function run(command, args, cwd) {
 
 function succeeds(command, args, cwd) {
   return spawnSync(command, args, { cwd, encoding: 'utf8', maxBuffer: MAX_BUFFER }).status === 0
+}
+
+function gitMode(cwd, args) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: MAX_BUFFER }).slice(0, 6)
+}
+
+function validateBackportChanges(cwd) {
+  const changedPaths = execFileSync('git', ['diff', '--cached', '--name-only', '--no-renames', '-z'], {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: MAX_BUFFER
+  })
+    .split('\0')
+    .filter(Boolean)
+  const regularModes = new Set(['100644', '100755'])
+
+  for (const filePath of changedPaths) {
+    const baseMode = gitMode(cwd, ['ls-tree', 'HEAD', '--', filePath])
+    const indexMode = gitMode(cwd, ['ls-files', '--stage', '--', filePath])
+    if ((baseMode && !regularModes.has(baseMode)) || (indexMode && !regularModes.has(indexMode))) {
+      throw new Error(`Cannot backport a symbolic link or gitlink: ${filePath}`)
+    }
+    if ((baseMode && indexMode && baseMode !== indexMode) || (!baseMode && indexMode !== '100644')) {
+      throw new Error(`Cannot backport a file mode change: ${filePath}`)
+    }
+    if (!indexMode) continue
+
+    const stats = fs.lstatSync(path.join(cwd, filePath))
+    if (!stats.isFile() || stats.isSymbolicLink()) {
+      throw new Error(`Cannot backport a non-regular file: ${filePath}`)
+    }
+  }
 }
 
 function resolvePatchBase({ cwd, mergeSha, prCommitCount, prNumber, getAssociatedPullRequests }) {
@@ -73,6 +106,13 @@ function applyBackportPatch({ cwd, mergeSha, patchBase, patchFile }) {
     return { hasChanges: false, status: 'already-present' }
   }
 
+  try {
+    validateBackportChanges(cwd)
+  } catch (error) {
+    execFileSync('git', ['reset', '--hard', 'HEAD'], { cwd, stdio: 'ignore' })
+    throw error
+  }
+
   return { hasChanges: true, status: 'applied' }
 }
 
@@ -129,4 +169,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { applyBackportPatch, prepareBackport, resolvePatchBase }
+module.exports = { applyBackportPatch, prepareBackport, resolvePatchBase, validateBackportChanges }

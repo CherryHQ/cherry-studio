@@ -102,7 +102,9 @@ jobs:
           done <<< "$DRAFT_TAGS"
 
           if [ "${#CANDIDATES[@]}" -eq 0 ]; then
-            echo "No draft semantic-version release has a matching release branch"
+            MESSAGE="No draft semantic-version release has a matching release branch"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$MESSAGE. No automatic backport was created."
+            echo "$MESSAGE"
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -120,9 +122,34 @@ jobs:
           HEAD_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
 
           PULL_REQUESTS="$(gh pr list --repo "$REPO" --base "$BRANCH" --head "$BACKPORT_BRANCH" --state all --json mergedAt,number,state,url)"
-          EXISTING_PR="$(jq -r '[.[] | select(.state == "OPEN" or .mergedAt != null)][0].url // empty' <<< "$PULL_REQUESTS")"
+          EXISTING_PR="$(jq -c '[.[] | select(.state == "OPEN" or .mergedAt != null)][0] // empty' <<< "$PULL_REQUESTS")"
           if [ -n "$EXISTING_PR" ]; then
-            echo "Backport pull request already exists: $EXISTING_PR"
+            EXISTING_PR_URL="$(jq -r '.url' <<< "$EXISTING_PR")"
+            PENDING_LABEL="backport/$TAG"
+            COMPLETE_LABEL="backported/$TAG"
+            FAILED_LABEL="backport-failed/$TAG"
+            LABELS="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels)"
+
+            gh label create "$PENDING_LABEL" --repo "$REPO" --color "FBCA04" --description "A backport pull request is open for $TAG" --force
+            gh label create "$COMPLETE_LABEL" --repo "$REPO" --color "0E8A16" --description "This fix was backported to $TAG" --force
+            remove_label() {
+              if jq -e --arg label "$1" 'any(.labels[]; .name == $label)' <<< "$LABELS" >/dev/null; then
+                gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$1"
+              fi
+            }
+
+            remove_label "$FAILED_LABEL"
+            if [ "$(jq -r '.mergedAt // empty' <<< "$EXISTING_PR")" != "" ]; then
+              remove_label "$PENDING_LABEL"
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$COMPLETE_LABEL"
+              gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Backport pull request is already merged into \`$BRANCH\`: $EXISTING_PR_URL"
+            else
+              remove_label "$COMPLETE_LABEL"
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$PENDING_LABEL"
+              gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Backport pull request is already open for \`$BRANCH\`: $EXISTING_PR_URL"
+            fi
+
+            echo "Backport pull request already exists: $EXISTING_PR_URL"
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -141,8 +168,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
           ref: ${{ steps.release-ref.outputs.head-sha }}
-          token: ${{ secrets.TOKEN_GITHUB_WRITE }}
 
       - name: Apply fix without committing
         id: apply-fix
@@ -256,29 +283,26 @@ jobs:
 
           const additions = []
           const deletions = []
+          const regularModes = new Set(['100644', '100755'])
 
           for (const filePath of changedPaths) {
-            if (!fs.existsSync(filePath)) {
+            const indexMode = execFileSync('git', ['ls-files', '--stage', '--', filePath], { encoding: 'utf8' })
+              .slice(0, 6)
+            const baseMode = execFileSync('git', ['ls-tree', 'HEAD', '--', filePath], { encoding: 'utf8' }).slice(0, 6)
+            if ((baseMode && !regularModes.has(baseMode)) || (indexMode && !regularModes.has(indexMode))) {
+              throw new Error(`Cannot backport a symbolic link or gitlink: ${filePath}`)
+            }
+            if ((baseMode && indexMode && baseMode !== indexMode) || (!baseMode && indexMode !== '100644')) {
+              throw new Error(`Cannot backport a file mode change: ${filePath}`)
+            }
+            if (!indexMode) {
               deletions.push({ path: filePath })
               continue
             }
 
             const stats = fs.lstatSync(filePath)
-            if (stats.isDirectory()) {
-              throw new Error(`Cannot backport a gitlink: ${filePath}`)
-            }
-            if (stats.isSymbolicLink()) {
-              throw new Error(`Cannot backport a symbolic link: ${filePath}`)
-            }
-
-            const indexMode = execFileSync('git', ['ls-files', '--stage', '--', filePath], { encoding: 'utf8' })
-              .slice(0, 6)
-            let baseMode = null
-            try {
-              baseMode = execFileSync('git', ['ls-tree', 'HEAD', '--', filePath], { encoding: 'utf8' }).slice(0, 6)
-            } catch {}
-            if ((baseMode && baseMode !== indexMode) || (!baseMode && indexMode !== '100644')) {
-              throw new Error(`Cannot backport a file mode change: ${filePath}`)
+            if (!stats.isFile() || stats.isSymbolicLink()) {
+              throw new Error(`Cannot backport a non-regular file: ${filePath}`)
             }
 
             const contents = fs.readFileSync(filePath)
@@ -523,21 +547,27 @@ jobs:
       startsWith(github.event.pull_request.base.ref, 'release/v') &&
       startsWith(github.event.pull_request.head.ref, 'backport/')
     runs-on: ubuntu-latest
+    concurrency:
+      group: backport-state-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     steps:
       - name: Synchronize source pull request status
         shell: bash
         env:
-          ACTION: ${{ github.event.action }}
-          BACKPORT_BODY: ${{ github.event.pull_request.body }}
-          BACKPORT_MERGED: ${{ github.event.pull_request.merged }}
-          BACKPORT_URL: ${{ github.event.pull_request.html_url }}
-          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          BACKPORT_PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ github.token }}
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           REPO: ${{ github.repository }}
         run: |
           export LC_ALL=C
+
+          BACKPORT_JSON="$(gh api "repos/$REPO/pulls/$BACKPORT_PR_NUMBER")"
+          BACKPORT_BODY="$(jq -r '.body // ""' <<< "$BACKPORT_JSON")"
+          BACKPORT_MERGED_AT="$(jq -r '.merged_at // ""' <<< "$BACKPORT_JSON")"
+          BACKPORT_STATE="$(jq -r '.state' <<< "$BACKPORT_JSON")"
+          BACKPORT_URL="$(jq -r '.html_url' <<< "$BACKPORT_JSON")"
+          BASE_BRANCH="$(jq -r '.base.ref' <<< "$BACKPORT_JSON")"
+          HEAD_BRANCH="$(jq -r '.head.ref' <<< "$BACKPORT_JSON")"
+          HEAD_REPO="$(jq -r '.head.repo.full_name // ""' <<< "$BACKPORT_JSON")"
 
           if [ "$HEAD_REPO" != "$REPO" ]; then
             echo "Ignoring backport-looking pull request from another repository"
@@ -589,7 +619,7 @@ jobs:
             fi
           }
 
-          if [ "$ACTION" != "closed" ]; then
+          if [ "$BACKPORT_STATE" = "open" ]; then
             if has_label "$PENDING_LABEL" && ! has_label "$COMPLETE_LABEL" && ! has_label "$FAILED_LABEL"; then
               exit 0
             fi
@@ -599,7 +629,7 @@ jobs:
             exit 0
           fi
 
-          if [ "$BACKPORT_MERGED" = "true" ]; then
+          if [ -n "$BACKPORT_MERGED_AT" ]; then
             if has_label "$COMPLETE_LABEL" && ! has_label "$PENDING_LABEL" && ! has_label "$FAILED_LABEL"; then
               exit 0
             fi

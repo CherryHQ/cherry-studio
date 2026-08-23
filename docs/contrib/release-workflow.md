@@ -160,7 +160,7 @@ Track the source pull request by its labels:
 | Label | Meaning | Operator action |
 | --- | --- | --- |
 | `backport/v<version>` | A backport pull request is open | Review the backport pull request and wait for CI |
-| `backported/v<version>` | The backport pull request was merged, or the fix was already present | Wait for release branch CI, then rebuild the draft |
+| `backported/v<version>` | The backport pull request was merged, or the fix was already present | After a merge, wait for release branch CI and rebuild; if the workflow says the fix was already present, no rebuild is needed |
 | `backport-failed/v<version>` | Automation failed before opening a pull request, or the backport pull request closed without merging | Inspect the workflow run, backport manually, or reopen the pull request |
 
 After the backport pull request is created:
@@ -172,7 +172,7 @@ After the backport pull request is created:
 5. Run **Release** again from `release/v<version>`.
 6. Select `all` unless only one platform artifact needs to be refreshed, then recheck the updated draft release.
 
-Closing an automatic backport pull request without merging changes the source hotfix PR to `backport-failed/v<version>`. Reopening it restores the open `backport/v<version>` state. The workflow does not add `backport/v<version>` until an actual backport pull request exists, and any later preparation failure transitions the source PR to `backport-failed/v<version>`.
+Closing an automatic backport pull request without merging changes the source hotfix PR to `backport-failed/v<version>`. Reopening it restores the open `backport/v<version>` state. The workflow does not add `backport/v<version>` until an actual backport pull request exists. A preparation failure before a pull request exists sets `backport-failed/v<version>`; if a backport pull request is already open, a rerun reconciles the source PR back to the open `backport/v<version>` state.
 
 ### Resolving a Backport Failure
 
@@ -181,10 +181,11 @@ When the source pull request receives `backport-failed/v<version>` before a back
 1. Create a temporary conflict-resolution branch from the current `release/v<version>` head.
 2. Apply only the hotfix pull request's intended changes. Do not merge `main` into the release branch.
 3. Resolve conflicts in favor of the release branch plus the required fix; do not bring unrelated later `main` changes into the release.
-4. Run validation appropriate to the changed files.
-5. Create a signed, DCO-signed commit and open a pull request targeting `release/v<version>` for review.
-6. After it is merged, wait for release branch CI and rebuild the draft release.
-7. On the source pull request, replace `backport-failed/v<version>` with `backported/v<version>` and comment with the manual resolution pull request or commit.
+4. Run `PR_BODY="$(gh pr view <source-number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` to add the source PR's bilingual note to `electron-builder.yml` and, for a stable release, release history.
+5. Run validation appropriate to all changed code and metadata files.
+6. Create a signed, DCO-signed commit and open a pull request targeting `release/v<version>` for review.
+7. After it is merged, wait for release branch CI and rebuild the draft release.
+8. On the source pull request, replace `backport-failed/v<version>` with `backported/v<version>` and comment with the manual resolution pull request or commit.
 
 If the workflow reports multiple active release branches, leave only the intended release active and rerun the failed workflow. If it reports no active draft release, no backport is performed.
 
@@ -218,7 +219,7 @@ To finish the release:
 2. Keep its title exactly `chore(release): sync v<version> metadata`.
 3. Keep the `release-metadata-boundary: v<version>` marker in its body.
 4. Wait for its CI checks to pass.
-5. Squash-merge it into `main` without changing the commit subject except for GitHub's optional ` (#<PR-number>)` suffix.
+5. When squash-merging, set the commit title to `chore(release): sync v<version> metadata` with only GitHub's optional ` (#<PR-number>)` suffix, and ensure the squash commit message body contains `release-metadata-boundary: v<version>` on its own line.
 
 That squash commit is the release-note boundary used by the next **Pre Release** run. Do not start the next release until this synchronization is complete.
 

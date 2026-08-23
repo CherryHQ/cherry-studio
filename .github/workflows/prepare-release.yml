@@ -182,7 +182,7 @@ jobs:
 
             The workflow already completed the branch, remote-head, tag, published-release, and active-release checks from Step 1. Do not repeat those checks or run any Git mutation.
 
-            Stop after updating package.json, electron-builder.yml, and (for stable releases) release-history.json. Do not edit the generated product manifest. Leave the changes uncommitted; the next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
+            Stop after updating package.json and electron-builder.yml, plus release-history.json only for a stable release. Do not edit the generated product manifest. Leave the changes uncommitted; the next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
 

@@ -120,50 +120,37 @@ jobs:
           ' <<< "$RELEASE_PAGES")"
 
           if [ "$OPERATION" = "publish" ]; then
-            if [ -z "$RELEASE" ] || [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
-              echo "Release $TAG must exist and still be a draft before publication" >&2
-              exit 1
-            fi
-
             TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
             BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-            if [ "$TAG_SHA" != "$GITHUB_SHA" ] || [ "$BRANCH_SHA" != "$GITHUB_SHA" ]; then
-              echo "Tag, release branch, and selected workflow commit must be identical before publication" >&2
-              exit 1
-            fi
-
             OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-            if [ -n "$OPEN_RELEASE_PRS" ]; then
-              echo "Release branch still has open pull requests:" >&2
-              echo "$OPEN_RELEASE_PRS" >&2
-              exit 1
-            fi
-
             EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
             RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
             BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
               [.[] | .workflow_runs[] | select(.display_title == $title and .conclusion == "success")][0] // empty
             ' <<< "$RELEASE_RUNS")"
-            if [ -z "$BUILD_RUN" ]; then
-              echo "No successful all-platform Release build exists for $GITHUB_SHA" >&2
-              exit 1
-            fi
-
-            if [ "$(jq '.assets | length' <<< "$RELEASE")" -eq 0 ]; then
-              echo "Draft release $TAG has no artifacts" >&2
-              exit 1
-            fi
+            BRANCH_SHA="$BRANCH_SHA" \
+            BUILD_RUN_JSON="$BUILD_RUN" \
+            EXPECTED_BUILD_TITLE="$EXPECTED_BUILD" \
+            OPEN_RELEASE_PULL_REQUESTS="$OPEN_RELEASE_PRS" \
+            RELEASE_JSON="$RELEASE" \
+            TAG="$TAG" \
+            TAG_SHA="$TAG_SHA" \
+            WORKFLOW_SHA="$GITHUB_SHA" \
+              node scripts/release/validate-release-state.js publish
 
             RELEASE="$(gh api "repos/$REPO/releases/$(jq -r '.id' <<< "$RELEASE")")"
             TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
             BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
             OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-            if [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ] || \
-               [ "$TAG_SHA" != "$GITHUB_SHA" ] || [ "$BRANCH_SHA" != "$GITHUB_SHA" ] || \
-               [ -n "$OPEN_RELEASE_PRS" ]; then
-              echo "Release state changed during publication validation" >&2
-              exit 1
-            fi
+            BRANCH_SHA="$BRANCH_SHA" \
+            BUILD_RUN_JSON="$BUILD_RUN" \
+            EXPECTED_BUILD_TITLE="$EXPECTED_BUILD" \
+            OPEN_RELEASE_PULL_REQUESTS="$OPEN_RELEASE_PRS" \
+            RELEASE_JSON="$RELEASE" \
+            TAG="$TAG" \
+            TAG_SHA="$TAG_SHA" \
+            WORKFLOW_SHA="$GITHUB_SHA" \
+              node scripts/release/validate-release-state.js publish
 
             GH_TOKEN="$PUBLISH_TOKEN" gh release edit "$TAG" --repo "$REPO" --draft=false --verify-tag
             if [ "$(gh api "repos/$REPO/releases/$(jq -r '.id' <<< "$RELEASE")" --jq '.draft')" != "false" ]; then
@@ -173,34 +160,19 @@ jobs:
             exit 0
           fi
 
-          if [ -n "$RELEASE" ] && [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
-            echo "Release $TAG is already published; create a new version instead" >&2
-            exit 1
-          fi
-
           REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
-          if [ -z "$RELEASE" ] && [ -n "$REMOTE_TAG_SHA" ] && [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
-            echo "Tag $TAG exists without a draft release and points to another commit" >&2
-            exit 1
-          fi
+          RELEASE_JSON="$RELEASE" \
+          REMOTE_TAG_SHA="$REMOTE_TAG_SHA" \
+          TAG="$TAG" \
+          WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-start
 
           git tag --force "$TAG" "$GITHUB_SHA"
           git push --force-with-lease="refs/tags/$TAG:$REMOTE_TAG_SHA" origin "refs/tags/$TAG"
 
           CURRENT_RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
           CURRENT_RELEASE="$(jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty' <<< "$CURRENT_RELEASE_PAGES")"
-          if [ -n "$CURRENT_RELEASE" ] && [ "$(jq -r '.draft' <<< "$CURRENT_RELEASE")" != "true" ]; then
-            CURRENT_TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
-            if [ "$CURRENT_TAG_SHA" = "$GITHUB_SHA" ]; then
-              if [ -n "$REMOTE_TAG_SHA" ]; then
-                gh api --method PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$REMOTE_TAG_SHA" -F force=true >/dev/null
-              else
-                gh api --method DELETE "repos/$REPO/git/refs/tags/$TAG" >/dev/null
-              fi
-            fi
-            echo "Release $TAG was published while its tag was being prepared; the tag update was rolled back" >&2
-            exit 1
-          fi
+          RELEASE_JSON="$CURRENT_RELEASE" TAG="$TAG" node scripts/release/validate-release-state.js build-completion
 
   release:
     needs: prepare

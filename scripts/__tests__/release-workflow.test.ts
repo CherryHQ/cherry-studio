@@ -12,6 +12,7 @@ import {
   updateHotfixReleaseMetadata
 } from '../release/hotfix-release-notes'
 import { validatePreparedRelease } from '../release/validate-prepared-release'
+import { validateBuildCompletion, validateBuildStart, validatePublishState } from '../release/validate-release-state'
 
 interface GitFixture {
   patchFile: string
@@ -179,6 +180,33 @@ describe('backport patch preparation', () => {
     expect(fs.readFileSync(path.join(fixture.repo, 'app.txt'), 'utf8')).toBe('setting=release\n')
     expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
   })
+
+  it('rejects a symbolic link before release metadata can be updated', () => {
+    const fixture = createGitFixture()
+    const base = git(fixture.repo, 'rev-parse', 'HEAD')
+    fs.symlinkSync('app.txt', path.join(fixture.repo, 'linked.txt'))
+    const mergeSha = commit(fixture.repo, 'add linked file')
+    markOriginMain(fixture.repo, mergeSha)
+    git(fixture.repo, 'checkout', '-b', 'release', base)
+
+    expect(() => runBackport(fixture, mergeSha, 1)).toThrow('Cannot backport a symbolic link or gitlink')
+    expect(fs.existsSync(path.join(fixture.repo, 'linked.txt'))).toBe(false)
+    expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
+  })
+
+  it('rejects an executable mode before release metadata can be updated', () => {
+    const fixture = createGitFixture()
+    const base = git(fixture.repo, 'rev-parse', 'HEAD')
+    write(fixture.repo, 'script.sh', '#!/bin/sh\n')
+    fs.chmodSync(path.join(fixture.repo, 'script.sh'), 0o755)
+    const mergeSha = commit(fixture.repo, 'add executable')
+    markOriginMain(fixture.repo, mergeSha)
+    git(fixture.repo, 'checkout', '-b', 'release', base)
+
+    expect(() => runBackport(fixture, mergeSha, 1)).toThrow('Cannot backport a file mode change')
+    expect(fs.existsSync(path.join(fixture.repo, 'script.sh'))).toBe(false)
+    expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
+  })
 })
 
 function hotfixBody(english: string, chinese: string): string {
@@ -233,7 +261,15 @@ describe('hotfix release notes', () => {
       '[聊天] 修复重启后消息消失的问题。'
     ],
     ['a Markdown bullet prefix', '- [Chat] Fix messages disappearing.', '[聊天] 修复消息消失的问题。'],
-    ['an empty component', '[] Fix messages disappearing.', '[聊天] 修复消息消失的问题。']
+    ['an empty component', '[] Fix messages disappearing.', '[聊天] 修复消息消失的问题。'],
+    ['a missing Chinese component', '[Chat] Fix messages disappearing.', '修复消息消失的问题。'],
+    [
+      'multiple Chinese lines',
+      '[Chat] Fix messages disappearing.',
+      '[聊天] 修复消息消失的问题。\n[聊天] 修复另一个问题。'
+    ],
+    ['a Chinese Markdown bullet prefix', '[Chat] Fix messages disappearing.', '- [聊天] 修复消息消失的问题。'],
+    ['an empty Chinese component', '[Chat] Fix messages disappearing.', '[] 修复消息消失的问题。']
   ])('rejects hotfix notes with %s', (_case, english, chinese) => {
     expect(() => extractHotfixReleaseNote(hotfixBody(english, chinese))).toThrow('one [Component] release-note line')
   })
@@ -260,15 +296,15 @@ describe('hotfix release notes', () => {
   })
 })
 
-function createPreparedReleaseFixture(targetVersion = '1.1.0'): GitFixture {
+function createPreparedReleaseFixture(targetVersion = '1.1.0', baseVersion = '1.0.0'): GitFixture {
   const fixture = createGitFixture()
-  const oldNotes = releaseNotes('1.0.0', 'Old fix.')
-  write(fixture.repo, 'package.json', `${JSON.stringify({ name: 'release-test', version: '1.0.0' }, null, 2)}\n`)
+  const oldNotes = releaseNotes(baseVersion, 'Old fix.')
+  write(fixture.repo, 'package.json', `${JSON.stringify({ name: 'release-test', version: baseVersion }, null, 2)}\n`)
   write(fixture.repo, 'electron-builder.yml', builderYaml(oldNotes))
   write(
     fixture.repo,
     'resources/cherry-studio/release-history.json',
-    `${JSON.stringify([{ version: '1.0.0', releaseNotes: oldNotes }], null, 2)}\n`
+    `${JSON.stringify([{ version: baseVersion, releaseNotes: oldNotes }], null, 2)}\n`
   )
   commit(fixture.repo, 'release metadata baseline')
 
@@ -282,7 +318,7 @@ function createPreparedReleaseFixture(targetVersion = '1.1.0'): GitFixture {
       `${JSON.stringify(
         [
           { version: targetVersion, releaseNotes: newNotes },
-          { version: '1.0.0', releaseNotes: oldNotes }
+          { version: baseVersion, releaseNotes: oldNotes }
         ],
         null,
         2
@@ -339,6 +375,16 @@ describe('prepared release validation', () => {
     )
   })
 
+  it('uses semantic rather than lexical version ordering', () => {
+    const upgradeFixture = createPreparedReleaseFixture('1.10.0', '1.9.0')
+    expect(() => validatePreparedRelease({ cwd: upgradeFixture.repo, targetVersion: '1.10.0' })).not.toThrow()
+
+    const downgradeFixture = createPreparedReleaseFixture('1.9.0', '1.10.0')
+    expect(() => validatePreparedRelease({ cwd: downgradeFixture.repo, targetVersion: '1.9.0' })).toThrow(
+      'must be greater than 1.10.0'
+    )
+  })
+
   it('rejects missing language markers and mismatched release-note headings', () => {
     const missingMarkerFixture = createPreparedReleaseFixture()
     const missingMarkerBuilder = path.join(missingMarkerFixture.repo, 'electron-builder.yml')
@@ -347,7 +393,7 @@ describe('prepared release validation', () => {
       fs.readFileSync(missingMarkerBuilder, 'utf8').replace('<!--LANG:zh-CN-->', '<!--LANG:missing-->')
     )
     expect(() => validatePreparedRelease({ cwd: missingMarkerFixture.repo, targetVersion: '1.1.0' })).toThrow(
-      'one ordered English and Chinese marker set'
+      'exactly one bilingual marker span'
     )
 
     const wrongHeadingFixture = createPreparedReleaseFixture()
@@ -360,6 +406,32 @@ describe('prepared release validation', () => {
     )
     expect(() => validatePreparedRelease({ cwd: wrongHeadingFixture.repo, targetVersion: '1.1.0' })).toThrow(
       'Chinese release notes do not identify Cherry Studio 1.1.0'
+    )
+  })
+
+  it('rejects release-note content outside the bilingual marker span', () => {
+    const prefixedFixture = createPreparedReleaseFixture()
+    const prefixedBuilder = path.join(prefixedFixture.repo, 'electron-builder.yml')
+    fs.writeFileSync(
+      prefixedBuilder,
+      fs
+        .readFileSync(prefixedBuilder, 'utf8')
+        .replace('    <!--LANG:en-->', '    Unexpected preface\n    <!--LANG:en-->')
+    )
+    expect(() => validatePreparedRelease({ cwd: prefixedFixture.repo, targetVersion: '1.1.0' })).toThrow(
+      'exactly one bilingual marker span'
+    )
+
+    const suffixedFixture = createPreparedReleaseFixture()
+    const suffixedBuilder = path.join(suffixedFixture.repo, 'electron-builder.yml')
+    fs.writeFileSync(
+      suffixedBuilder,
+      fs
+        .readFileSync(suffixedBuilder, 'utf8')
+        .replace('    <!--LANG:END-->', '    <!--LANG:END-->\n    Unexpected suffix')
+    )
+    expect(() => validatePreparedRelease({ cwd: suffixedFixture.repo, targetVersion: '1.1.0' })).toThrow(
+      'exactly one bilingual marker span'
     )
   })
 
@@ -391,6 +463,75 @@ describe('prepared release validation', () => {
 
     expect(() => validatePreparedRelease({ cwd: fixture.repo, targetVersion: '1.1.0-rc.1' })).toThrow(
       'unexpected set of source files'
+    )
+  })
+})
+
+describe('release publication state', () => {
+  const workflowSha = 'a'.repeat(40)
+  const expectedBuildTitle = `Release build all release/v1.2.0 @ ${workflowSha}`
+  const successfulBuild = {
+    conclusion: 'success',
+    display_title: expectedBuildTitle,
+    event: 'workflow_dispatch',
+    head_sha: workflowSha,
+    status: 'completed'
+  }
+  const draftRelease = { assets: [{ id: 1 }], draft: true }
+
+  it('accepts only an exact-head all-platform build with artifacts and no open release pull request', () => {
+    expect(() =>
+      validatePublishState({
+        branchSha: workflowSha,
+        buildRun: successfulBuild,
+        expectedBuildTitle,
+        openReleasePullRequests: '',
+        release: draftRelease,
+        tag: 'v1.2.0',
+        tagSha: workflowSha,
+        workflowSha
+      })
+    ).not.toThrow()
+  })
+
+  it.each([
+    ['a published release', { ...draftRelease, draft: false }, workflowSha, '', successfulBuild],
+    ['a mismatched tag', draftRelease, 'b'.repeat(40), '', successfulBuild],
+    ['an open release pull request', draftRelease, workflowSha, 'https://example.test/pr', successfulBuild],
+    ['a stale build', draftRelease, workflowSha, '', { ...successfulBuild, head_sha: 'b'.repeat(40) }],
+    ['a draft without artifacts', { assets: [], draft: true }, workflowSha, '', successfulBuild]
+  ])('rejects publication with %s', (_case, release, tagSha, openReleasePullRequests, buildRun) => {
+    expect(() =>
+      validatePublishState({
+        branchSha: workflowSha,
+        buildRun,
+        expectedBuildTitle,
+        openReleasePullRequests,
+        release,
+        tag: 'v1.2.0',
+        tagSha,
+        workflowSha
+      })
+    ).toThrow()
+  })
+
+  it('allows draft tag movement but rejects orphan tags and every published state', () => {
+    expect(() =>
+      validateBuildStart({ release: draftRelease, remoteTagSha: 'b'.repeat(40), tag: 'v1.2.0', workflowSha })
+    ).not.toThrow()
+    expect(() =>
+      validateBuildStart({ release: null, remoteTagSha: 'b'.repeat(40), tag: 'v1.2.0', workflowSha })
+    ).toThrow('exists without a draft release')
+    expect(() =>
+      validateBuildStart({
+        release: { ...draftRelease, draft: false },
+        remoteTagSha: workflowSha,
+        tag: 'v1.2.0',
+        workflowSha
+      })
+    ).toThrow('already published')
+    expect(() => validateBuildCompletion({ release: { draft: false }, tag: 'v1.2.0' })).toThrow(
+      'refusing any post-publication tag mutation'
     )
   })
 })
