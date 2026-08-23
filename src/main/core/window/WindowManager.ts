@@ -1375,6 +1375,11 @@ export class WindowManager extends BaseService {
           event.preventDefault()
           void shell.openExternal(url)
         }
+      } else {
+        // Non-web schemes (file:, custom protocols) have no legitimate in-window
+        // navigation path; deny like the window-open handler denies non-http(s) popups.
+        event.preventDefault()
+        logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
     })
 
@@ -1427,7 +1432,9 @@ export class WindowManager extends BaseService {
     // wrappers then transparently apply around any subsequent hide()/show()/close().
     // Also runs AFTER applyWindowBehavior so the behavior layer's initial setter
     // calls do not trigger the monkey-patched show/showInactive.
-    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks, managedWindow.metadata.behavior)
+    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks, managedWindow.metadata.behavior, () =>
+      this.behavior.getAlwaysOnTopLevelOverride(windowId)
+    )
 
     // 4c. Persist bounds on native close for singletons (GUI quit and
     // hide-to-tray, where the window is still alive). Attached to every singleton

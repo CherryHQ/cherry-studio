@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { Combobox, type ComboboxOption } from '../combobox'
+import { Label } from '../label'
 
 const options: ComboboxOption[] = [
   { value: 'alpha', label: 'Alpha' },
@@ -27,6 +28,25 @@ afterEach(() => {
 })
 
 describe('Combobox', () => {
+  it('uses external labels as accessible names for every trigger variant', () => {
+    render(
+      <>
+        <Label id="default-combobox-label">Default model</Label>
+        <Combobox aria-labelledby="default-combobox-label" options={options} value="beta" />
+
+        <Label id="search-combobox-label">Search model</Label>
+        <Combobox aria-labelledby="search-combobox-label" options={options} searchPlacement="trigger" />
+
+        <Label id="multiple-combobox-label">Multiple models</Label>
+        <Combobox aria-labelledby="multiple-combobox-label" multiple options={options} />
+      </>
+    )
+
+    expect(screen.getByRole('button', { name: 'Default model Beta' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Search model' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Multiple models' })).toBeInTheDocument()
+  })
+
   it('keeps the resting border when opened and reserves the theme border for keyboard focus', () => {
     render(<Combobox options={options} placeholder="Pick one" emptyText="No results" />)
 
@@ -155,6 +175,27 @@ describe('Combobox', () => {
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
   })
 
+  it('groups opaque options and searches their labels', async () => {
+    render(
+      <Combobox
+        options={[
+          { value: 'assistant:1', label: 'Research helper', group: 'Assistants' },
+          { value: 'agent:2', label: 'Code reviewer', group: 'Agents' }
+        ]}
+        searchPlaceholder="Search targets"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByRole('group', { name: 'Assistants' })).toHaveTextContent('Research helper')
+    expect(screen.getByRole('group', { name: 'Agents' })).toHaveTextContent('Code reviewer')
+
+    fireEvent.change(screen.getByPlaceholderText('Search targets'), { target: { value: 'research' } })
+
+    await waitFor(() => expect(screen.getByText('Research helper')).toBeInTheDocument())
+    expect(screen.queryByText('Code reviewer')).not.toBeInTheDocument()
+  })
+
   it('exposes selected multi-value removal as accessible controls', () => {
     const onChange = vi.fn()
 
@@ -182,6 +223,26 @@ describe('Combobox', () => {
     expect(onChange).toHaveBeenCalledWith(['beta'])
   })
 
+  it('exposes controlled multi-selection membership on every option', async () => {
+    render(
+      <Combobox
+        multiple
+        aria-label="Choose targets"
+        options={options}
+        value={['alpha', 'beta']}
+        placeholder="Pick values"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Choose targets' }))
+
+    const listbox = await screen.findByRole('listbox')
+    expect(listbox).toHaveAttribute('aria-multiselectable', 'true')
+    expect(screen.getByRole('option', { name: 'Alpha' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('option', { name: 'Beta' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('option', { name: 'Gamma' })).toHaveAttribute('aria-checked', 'false')
+  })
+
   it('allows selected multi-value removal labels to be localized', () => {
     render(
       <Combobox
@@ -196,6 +257,27 @@ describe('Combobox', () => {
 
     expect(screen.getByRole('button', { name: 'Clear Alpha' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove Alpha' })).not.toBeInTheDocument()
+  })
+
+  it('defers rendering multi-select options until the labeled popover opens', async () => {
+    const renderOption = vi.fn((option: ComboboxOption) => option.label)
+
+    render(
+      <Combobox
+        multiple
+        aria-label="Choose targets"
+        options={options}
+        placeholder="Pick values"
+        renderOption={renderOption}
+      />
+    )
+
+    const trigger = screen.getByRole('combobox', { name: 'Choose targets' })
+    expect(renderOption).not.toHaveBeenCalled()
+
+    fireEvent.click(trigger)
+
+    await waitFor(() => expect(renderOption).toHaveBeenCalledTimes(options.length))
   })
 
   it('matches the popover width to a percentage-width trigger', async () => {

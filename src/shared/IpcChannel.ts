@@ -139,9 +139,6 @@ export enum IpcChannel {
   TRACE_GET_DATA = 'trace:getData',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
 
-  // ExternalApps
-  ExternalApps_DetectInstalled = 'external-apps:detect-installed',
-
   // Global Skills
   Skill_ReadFile = 'skill:read-file',
   Skill_ListFiles = 'skill:list-files',

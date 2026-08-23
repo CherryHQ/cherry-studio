@@ -64,7 +64,6 @@ const makeChannel = (overrides: Record<string, unknown> = {}) => ({
   type: 'telegram',
   name: 'My Bot',
   agentId: 'agent-1',
-  sessionId: 'sess-1',
   workspace: { type: 'system' },
   config: { bot_token: 'token-abc' },
   isActive: true,
@@ -194,7 +193,7 @@ describe('AgentChannelWorkflowService', () => {
       expect(clearTaskSubscriptionsForChannelMock).not.toHaveBeenCalled()
     })
 
-    it('restores all fields (name/agentId/sessionId/config/isActive/activeChatIds/permissionMode) when syncChannel throws', async () => {
+    it('restores all fields when syncChannel throws', async () => {
       const existing = makeChannel()
       const updated = makeChannel({ name: 'New Name' })
       getChannelMock.mockReturnValue(existing)
@@ -212,7 +211,6 @@ describe('AgentChannelWorkflowService', () => {
       expect(restoreArgs).toMatchObject({
         name: existing.name,
         agentId: existing.agentId,
-        sessionId: existing.sessionId,
         config: existing.config,
         isActive: existing.isActive,
         activeChatIds: existing.activeChatIds,
@@ -220,15 +218,7 @@ describe('AgentChannelWorkflowService', () => {
       })
       // Ensure all 7 fields are present (no extras silently dropped)
       expect(Object.keys(restoreArgs)).toEqual(
-        expect.arrayContaining([
-          'name',
-          'agentId',
-          'sessionId',
-          'config',
-          'isActive',
-          'activeChatIds',
-          'permissionMode'
-        ])
+        expect.arrayContaining(['name', 'agentId', 'config', 'isActive', 'activeChatIds', 'permissionMode'])
       )
     })
 

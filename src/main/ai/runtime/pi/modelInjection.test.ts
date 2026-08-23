@@ -1,5 +1,5 @@
 import type { Model } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serviceMocks = vi.hoisted(() => ({
@@ -40,7 +40,7 @@ function makeProvider(overrides: Partial<Provider>): Provider {
   return {
     id: 'p',
     name: 'P',
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     ...overrides
   } as Provider
 }
@@ -212,7 +212,7 @@ describe('buildPiProviderInjection', () => {
   it.each([
     ['openai-chat-completions', 'openai-completions'],
     ['openai-responses', 'openai-responses']
-  ] as const)('maps the provider developer-role capability for %s', (endpointType, expectedApi) => {
+  ] as const)('maps the endpoint developer-role dialect for %s', (endpointType, expectedApi) => {
     const endpointConfigs = {
       [endpointType]: { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.example.com' }
     }
@@ -226,8 +226,9 @@ describe('buildPiProviderInjection', () => {
     const supported = buildPiProviderInjection(
       makeProvider({
         defaultChatEndpoint: endpointType,
-        endpointConfigs,
-        apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true }
+        endpointConfigs: {
+          [endpointType]: { ...endpointConfigs[endpointType], dialect: { developerRole: true } }
+        }
       }),
       model,
       REAL_KEY
@@ -469,7 +470,7 @@ function stubGrokCliServices(): void {
     id: 'grok-cli',
     name: 'Grok CLI',
     authMethods: ['oauth'],
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     defaultChatEndpoint: 'openai-responses',
     endpointConfigs: { 'openai-responses': { adapterFamily: 'grok', baseUrl: 'https://cli-chat-proxy.grok.com/v1' } }
   })

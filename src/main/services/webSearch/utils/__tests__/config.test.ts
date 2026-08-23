@@ -239,18 +239,28 @@ describe('webSearch config utils', () => {
     expect(provider.apiKeys).toEqual(['zhipu-llm-key'])
   })
 
-  it('keeps zhipu web search usable when no zhipu model provider row exists', async () => {
+  it('ignores stale web search keys when no zhipu model provider row exists', async () => {
     getLlmProviderApiKeys.mockImplementation(() => {
       throw new Error('Provider not found: zhipu')
     })
 
-    await expect(getProviderById('zhipu', mockPreferenceReader)).resolves.toMatchObject({
+    const provider = await getProviderById('zhipu', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return { zhipu: { apiKeys: ['stale-websearch-key'] } } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider).toMatchObject({
       id: 'zhipu',
       apiKeys: []
     })
   })
 
-  it('keeps zhipu web search own api keys over the model provider key', async () => {
+  it('ignores a stale web search key when the zhipu model provider key changes', async () => {
     getLlmProviderApiKeys.mockReturnValue([{ id: 'entry-1', key: 'zhipu-llm-key', isEnabled: true }])
 
     const provider = await getProviderById('zhipu', {
@@ -263,7 +273,7 @@ describe('webSearch config utils', () => {
       }
     })
 
-    expect(provider.apiKeys).toEqual(['zhipu-websearch-key'])
+    expect(provider.apiKeys).toEqual(['zhipu-llm-key'])
   })
 
   it('resolves default providers by capability', async () => {

@@ -9,12 +9,13 @@ import {
   RadioGroup,
   RadioGroupItem
 } from '@cherrystudio/ui'
+import { Deepseek } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { TFunction } from 'i18next'
 import { Check, Sparkles, Zap } from 'lucide-react'
-import { useId } from 'react'
+import { type ElementType, useId } from 'react'
 
 /**
  * Shared presentation for the agent runtimes.
@@ -24,16 +25,19 @@ import { useId } from 'react'
  * here means the two never drift into looking like different decisions.
  */
 
-const RUNTIME_ICONS: Record<AgentType, typeof Sparkles> = {
+const RUNTIME_ICONS = {
   'claude-code': Sparkles,
-  pi: Zap
-}
+  pi: Zap,
+  dsh: Deepseek
+} satisfies Record<AgentType, ElementType>
 
 const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
   // t('library.config.agent.field.runtime.option_description.claude_code')
   'claude-code': 'library.config.agent.field.runtime.option_description.claude_code',
   // t('library.config.agent.field.runtime.option_description.pi')
-  pi: 'library.config.agent.field.runtime.option_description.pi'
+  pi: 'library.config.agent.field.runtime.option_description.pi',
+  // t('library.config.agent.field.runtime.option_description.dsh')
+  dsh: 'library.config.agent.field.runtime.option_description.dsh'
 }
 
 const RUNTIMES = Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]
@@ -47,7 +51,7 @@ function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; 
       <ItemMedia
         variant={compact ? 'default' : 'icon'}
         className={cn(compact ? 'size-4.5 text-muted-foreground' : 'border-border-subtle bg-muted/60')}>
-        <Icon className={compact ? 'size-4.5' : undefined} />
+        <Icon className={cn(compact && 'size-4.5', runtime === 'dsh' && 'scale-150')} />
       </ItemMedia>
       <ItemContent className={cn('min-w-0 text-left', compact && 'gap-0.5')}>
         <ItemTitle className={compact ? 'block max-w-full truncate' : undefined}>

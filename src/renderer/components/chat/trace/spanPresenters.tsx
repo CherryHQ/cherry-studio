@@ -1,4 +1,3 @@
-import { SPAN_NAME_TURN } from '@mcp-trace/trace-core'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
@@ -99,7 +98,7 @@ const mcpPresenter: SpanPresenter = {
 
 /** The `ai.turn` root span: turn boundary plus identity/shape rows. */
 const turnPresenter: SpanPresenter = {
-  match: (node) => node.name === SPAN_NAME_TURN,
+  match: (node) => node.name === 'ai.turn',
   build: (node, t) => {
     const a = attrsOf(node)
     const rows: SpanDetailRow[] = []

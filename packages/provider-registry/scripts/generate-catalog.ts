@@ -32,7 +32,8 @@ import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
-import { canonOf, prefixHit, splitOverrideWireId } from './canonicalize'
+import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
+import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
 import {
   type CherryMeta,
   finalizeMeta,
@@ -300,6 +301,7 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
   for (const [p, v] of Object.entries(md)) {
     if (!ownerOf.has(p)) continue
     for (const [id, m] of Object.entries(v.models ?? {})) {
+      if (isModelsDevRoutingAlias(p, id)) continue
       if (crossVendorHost(id, ownerOf.get(p))) continue
       consider(id, parseMdEntry(m), p)
     }
@@ -330,7 +332,8 @@ async function assignCreators(index: Index, md: ModelsDevApi): Promise<Map<strin
     if (!creator.modelsDevProviders) continue
     const ids = new Set<string>()
     for (const p of creator.modelsDevProviders)
-      for (const id of Object.keys(md[p]?.models ?? {})) if (!crossVendorHost(id, creator.id)) ids.add(canonOf(id))
+      for (const id of Object.keys(md[p]?.models ?? {}))
+        if (!isModelsDevRoutingAlias(p, id) && !crossVendorHost(id, creator.id)) ids.add(canonOf(id))
     creatorProviderIds.set(creator.id, ids)
   }
   // each creator's own API list (most native; keyless → empty, falls back to the passes below)
@@ -528,20 +531,22 @@ function buildProviderModels(
     rows.push(o)
   }
   for (const p of PROVIDERS) {
-    const reasoningTemplates = (p.overrides ?? []).filter(
-      (override) => p.modelsDevProvider && !override.apiModelId && override.reasoningContracts
+    const modelTemplates = (p.overrides ?? []).filter(
+      (override) =>
+        p.modelsDevProvider && !override.apiModelId && (override.reasoningContracts || override.requestControls)
     )
-    const matchedTemplates = new Set<(typeof reasoningTemplates)[number]>()
+    const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
     for (const override of p.overrides ?? []) {
-      if (!reasoningTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
+      if (!modelTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
     }
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
     for (const [apiModelId, m] of Object.entries(src)) {
+      if (p.modelsDevProvider && isModelsDevRoutingAlias(p.modelsDevProvider, apiModelId)) continue
       const meta = parseMdEntry(m)
       if (!meta?.pricing) continue // no pricing → runtime resolves to base, no row needed
       const modelId = canonOf(apiModelId)
       if (!modelId) continue
-      const template = reasoningTemplates.find((override) => override.modelId === modelId)
+      const template = modelTemplates.find((override) => override.modelId === modelId)
       if (template) matchedTemplates.add(template)
       const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
       if (!baseIds.has(modelId)) {
@@ -550,7 +555,7 @@ function buildProviderModels(
       }
       addModel(row)
     }
-    for (const template of reasoningTemplates) {
+    for (const template of modelTemplates) {
       if (!matchedTemplates.has(template)) addOverride({ providerId: p.id, ...template })
     }
   }
@@ -662,14 +667,19 @@ void (async () => {
       delete rest.metadata
       return { ...rest, ...(metadata ? { metadata } : {}) }
     })
+  const providers = buildProviders()
+  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
+  if (serviceTierErrors.length > 0) {
+    throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)
+  }
+
   fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
   console.log(`\nWROTE ${MODELS_PATH} (${list.length} models).`)
 
-  const providers = buildProviders()
   fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers }))
   console.log(`WROTE ${PROVIDERS_PATH} (${providers.length} providers).`)
 
-  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
   fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize(pm))
   console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.overrides.length} rows).`)
 

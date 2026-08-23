@@ -35,6 +35,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -67,9 +68,7 @@ import {
   type ComposerUnifiedPanelSelectHandler,
   createComposerSuggestionQuickPanelItem,
   createUnifiedQuickPanelOpenOptions,
-  getComposerCursorTextOffset,
   getComposerInputLeafText,
-  getComposerInputText,
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
   hasComposerQuickPanelTriggerBoundary,
@@ -211,6 +210,8 @@ export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
   insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
+  /** The fallback textarea was focused — an eagerly mounted runtime must not steal focus otherwise. */
+  hadFocus?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -275,57 +276,6 @@ function hasComposerTokenBeforeSelection(editor: Editor) {
   if (!selection.empty) return false
 
   return selection.$from.nodeBefore?.type.name === COMPOSER_TOKEN_NODE_NAME
-}
-
-function insertComposerTokenAtCursor(
-  editor: Editor,
-  token: ComposerDraftToken,
-  options: { insertSeparator?: boolean } = {}
-) {
-  const chain = editor.chain().focus().insertComposerToken(token)
-  if (options.insertSeparator === false) {
-    chain.run()
-    return
-  }
-
-  chain.insertContent(' ').run()
-}
-
-function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {
-  const fromOffset = Math.max(0, Math.min(range.from, range.to))
-  const toOffset = Math.max(fromOffset, range.to)
-  if (fromOffset === toOffset) return
-
-  const from = getComposerPositionAtTextOffset(editor, fromOffset)
-  const to = getComposerPositionAtTextOffset(editor, toOffset)
-  if (to <= from) return
-
-  editor.chain().focus().deleteRange({ from, to }).run()
-}
-
-function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
-  return {
-    getText: () => getComposerInputText(editor),
-    getCursorOffset: () => getComposerCursorTextOffset(editor),
-    insertText: (insertedText) => {
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
-        )
-        .run()
-    },
-    insertToken: (token) => {
-      insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
-    },
-    deleteTriggerRange: (range) => {
-      deleteComposerTextRange(editor, range)
-    },
-    focus: () => {
-      editor.commands.focus()
-    }
-  }
 }
 
 function getComposerUnifiedPanelSearchText(
@@ -1758,7 +1708,9 @@ export default function ComposerSurfaceRuntime({
     extensions: editorExtensions,
     content: createComposerDraftContent({ text, tokens: draftTokens ?? [] }),
     editable,
-    immediatelyRender: false,
+    // Render the view synchronously: the fallback textarea unmounts in the same commit this
+    // runtime mounts, so a view that attaches a frame later leaves nothing focused in between.
+    immediatelyRender: true,
     enableSpellCheck,
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,
@@ -1786,36 +1738,44 @@ export default function ComposerSurfaceRuntime({
         trackedTokenSignatureRef.current = nextTrackedTokenSignature
       }
     },
-    onCreate: ({ editor: createdEditor }) => {
+    onCreate: () => {
       window.requestAnimationFrame(() => {
         startTransition(() => setEditorReady(true))
       })
-      const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
-      setTimeoutTimer(
-        'composerSurfaceFocus',
-        () => {
-          if (!createdEditor || createdEditor.isDestroyed || !shouldRestoreEditorFocus(focusRestoreSnapshot)) return
-          if (initialTextSelection) {
-            createdEditor
-              .chain()
-              .focus()
-              .setTextSelection({
-                from: getComposerPositionAtTextOffset(createdEditor, initialTextSelection.start),
-                to: getComposerPositionAtTextOffset(createdEditor, initialTextSelection.end)
-              })
-              .run()
-            return
-          }
-          createdEditor.commands.focus('end')
-        },
-        0
-      )
     }
   })
 
   useEffect(() => {
     editorRef.current = editor
   }, [editor])
+
+  // The fallback textarea is removed in the same commit that attaches this view, so focus has to
+  // land on it before paint — a deferred restore would leave a keystroke with nowhere to go.
+  const focusHandoffDoneRef = useRef(false)
+  useLayoutEffect(() => {
+    if (focusHandoffDoneRef.current) return
+    if (!editor || editor.isDestroyed) return
+    focusHandoffDoneRef.current = true
+    const active = document.activeElement
+    if (!document.hasFocus()) return
+    if (active && active !== document.body && !frameRef.current?.contains(active)) return
+    // An eagerly mounted runtime (restored draft after a topic/agent switch) must not steal the
+    // focus the fallback never held — hand off only after real fallback interaction.
+    if (deferredIntent && !deferredIntent.hadFocus) return
+
+    if (initialTextSelection) {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({
+          from: getComposerPositionAtTextOffset(editor, initialTextSelection.start),
+          to: getComposerPositionAtTextOffset(editor, initialTextSelection.end)
+        })
+        .run()
+      return
+    }
+    editor.commands.focus('end')
+  }, [deferredIntent, editor, frameRef, initialTextSelection])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -1860,26 +1820,7 @@ export default function ComposerSurfaceRuntime({
     if (!editor) return undefined
 
     return {
-      getText: () => getComposerInputText(editor),
-      getCursorOffset: () => getComposerCursorTextOffset(editor),
-      insertText: (insertedText) => {
-        editor
-          .chain()
-          .focus()
-          .insertContent(
-            createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
-          )
-          .run()
-      },
-      insertToken: (token) => {
-        insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
-      },
-      deleteTriggerRange: (range) => {
-        deleteComposerTextRange(editor, range)
-      },
-      focus: () => {
-        editor.commands.focus()
-      },
+      ...createComposerInputAdapter(editor),
       subscribeInput: (listener) => {
         inputListenersRef.current.add(listener)
         return () => {
@@ -2109,7 +2050,7 @@ export default function ComposerSurfaceRuntime({
 
   // Replay what the deferred fallback captured while this runtime was still loading. Both transfers
   // are re-dispatched on the editor DOM so they take the very same paths a live event would; the
-  // timer queues behind onCreate's focus restore so a paste lands on the caret the user left.
+  // timer queues behind the mount-time focus restore so a paste lands on the caret the user left.
   const unifiedPanelOpen = unifiedPanelControl.open
   useEffect(() => {
     if (!deferredIntent || !editor) return
@@ -2131,8 +2072,11 @@ export default function ComposerSurfaceRuntime({
           insertComposerTokenAtCursor(editor, pendingToken.token)
         }
         if (transfer?.kind === 'paste') {
+          // Do not bubble: ProseMirror listens on the view element itself, while the document-level
+          // paste handler would route the same payload to this composer a second time whenever the
+          // caret has not made it back into the editor.
           editor.view.dom.dispatchEvent(
-            new ClipboardEvent('paste', { clipboardData: transfer.data, bubbles: true, cancelable: true })
+            new ClipboardEvent('paste', { clipboardData: transfer.data, bubbles: false, cancelable: true })
           )
         } else if (transfer?.kind === 'drop') {
           editor.view.dom.dispatchEvent(
