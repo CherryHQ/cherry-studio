@@ -1,7 +1,7 @@
 import { application } from '@application'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
-import { clampThresholdPercent } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 
 import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
 import { resolveContextSettings } from './resolveContextSettings'

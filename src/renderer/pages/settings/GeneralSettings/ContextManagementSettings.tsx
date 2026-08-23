@@ -13,12 +13,12 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import {
-  clampThresholdPercent,
   MAX_COMPRESS_THRESHOLD_PERCENT,
   MIN_COMPRESS_THRESHOLD_PERCENT,
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

@@ -2744,6 +2744,7 @@
         "context_compress_model": "Modèle de compression",
         "context_compress_model_follow": "Par défaut",
         "context_compress_threshold": "Seuil de déclenchement de la compression",
+        "context_compress_threshold_follow_global": "Suivre le réglage global ({{percent}} %)",
         "context_count": "Nombre de contextes",
         "context_count_follow_global": "Suivre le réglage global ({{count}})",
         "context_count_unlimited": "Illimité",
@@ -2763,7 +2764,7 @@
             "hint": "Résumer automatiquement les tours de conversation précédents lorsqu'on approche de la limite de la fenêtre de contexte"
           },
           "context_compress_threshold": {
-            "hint": "Compresse dès que la conversation dépasse ce pourcentage de la fenêtre de contexte du modèle"
+            "hint": "Compresse dès que la conversation dépasse ce pourcentage du contexte d'entrée disponible (la fenêtre de contexte du modèle moins la sortie réservée)"
           },
           "context_count": {
             "hint": "Nombre de messages récents conservés comme contexte"
@@ -6183,7 +6184,7 @@
         "compress_model": "Modèle de compression",
         "compress_model_follow": "Suivre le modèle actuel",
         "compress_threshold": "Seuil de déclenchement de la compression",
-        "compress_threshold_description": "Compresse dès que la conversation dépasse ce pourcentage de la fenêtre de contexte du modèle. Les assistants peuvent le remplacer",
+        "compress_threshold_description": "Compresse dès que la conversation dépasse ce pourcentage du contexte d'entrée disponible (la fenêtre de contexte du modèle moins la sortie réservée). Les assistants peuvent le remplacer",
         "enabled": "Activer la gestion du contexte",
         "enabled_description": "Gère automatiquement le contexte de la conversation : décharge les sorties d’outils trop volumineuses et compresse l’historique à l’approche de la limite. Désactivée, rien n’est géré et les requêtes dépassant la fenêtre échouent",
         "max_messages": "Messages récents conservés",

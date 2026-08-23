@@ -36,12 +36,12 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
 import {
-  clampThresholdPercent,
   MAX_COMPRESS_THRESHOLD_PERCENT,
   MIN_COMPRESS_THRESHOLD_PERCENT,
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -98,7 +98,7 @@ type AssistantEditFormValues = {
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
   contextMaxMessages: number | null
-  contextCompressThresholdPercent: number
+  contextCompressThresholdPercent: number | null
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
@@ -848,7 +848,7 @@ function AssistantAdvancedFields({
           compressEnabled: globalCompressEnabled,
           maxMessages: globalMaxMessages,
           truncateThreshold: globalTruncateThreshold,
-          compressThreshold: globalCompressThreshold,
+          compressThreshold: clampThresholdPercent(globalCompressThreshold),
           compressModelId: globalCompressModelId || null
         }}
       />
@@ -899,7 +899,6 @@ function ContextManagementFields({
     if (checked && !hadStoredOverride.current) {
       form.setValue('contextCompressEnabled', globalDefaults.compressEnabled, { shouldDirty: true })
       form.setValue('contextTruncateThreshold', globalDefaults.truncateThreshold, { shouldDirty: true })
-      form.setValue('contextCompressThresholdPercent', globalDefaults.compressThreshold, { shouldDirty: true })
       form.setValue('contextCompressModelId', globalDefaults.compressModelId, { shouldDirty: true })
     }
     form.setValue('contextOverrideEnabled', checked, { shouldDirty: true })
@@ -1015,9 +1014,13 @@ function ContextManagementFields({
                       suffix="%"
                       align="start"
                       changeOnBlur
+                      // Empty = inherit; the placeholder names the global in force.
+                      placeholder={t('library.config.basic.context_compress_threshold_follow_global', {
+                        percent: globalDefaults.compressThreshold
+                      })}
                       className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                       value={field.value}
-                      onChange={(value) => field.onChange(clampThresholdPercent(value))}
+                      onChange={(value) => field.onChange(value === null ? null : clampThresholdPercent(value))}
                     />
                   </FormControl>
                   <FormMessage />

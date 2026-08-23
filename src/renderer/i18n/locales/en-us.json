@@ -2744,6 +2744,7 @@
         "context_compress_model": "Compression model",
         "context_compress_model_follow": "Follow current model",
         "context_compress_threshold": "Compression trigger threshold",
+        "context_compress_threshold_follow_global": "Follow global ({{percent}}%)",
         "context_count": "Recent messages kept",
         "context_count_follow_global": "Follow global ({{count}})",
         "context_count_unlimited": "Unlimited",
@@ -2763,7 +2764,7 @@
             "hint": "Summarize older turns automatically when nearing the context window"
           },
           "context_compress_threshold": {
-            "hint": "Compress once the conversation passes this percentage of the model context window"
+            "hint": "Compress once the conversation passes this percentage of the available input context (the model context window minus the reserved output)"
           },
           "context_count": {
             "hint": "Send only the most recent messages; earlier ones are excluded from context. Leave empty to follow the global setting"
@@ -6183,7 +6184,7 @@
         "compress_model": "Compression model",
         "compress_model_follow": "Follow current model",
         "compress_threshold": "Compression trigger threshold",
-        "compress_threshold_description": "Compress once the conversation passes this percentage of the model context window. Assistants can override this",
+        "compress_threshold_description": "Compress once the conversation passes this percentage of the available input context (the model context window minus the reserved output). Assistants can override this",
         "enabled": "Enable context management",
         "enabled_description": "Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
         "max_messages": "Recent messages kept",

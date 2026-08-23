@@ -219,6 +219,25 @@ describe('inLoopCompactionFeature', () => {
     expect(result).toEqual({ messages: compacted })
   })
 
+  // The keep budget is a fraction of the TRIGGER, not of the window: sized
+  // against the window (the old 0.3x) it EXCEEDS the trigger below 30%, so the
+  // fold kept the entire history — handing back a prompt still over budget for
+  // the next step to re-fold, one summarizer round trip per step.
+  it('keeps a fold target under the trigger at a low threshold', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 10 })
+    )
+    // Trigger = 10% of 100k = 10k; 20 turns x ~1k = ~20k is over it.
+    const messages = Array.from({ length: 20 }, (_, i) => (i % 2 === 0 ? userMessage(1000) : assistantMessage(1000)))
+    await prepareStep({ messages } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    // ~1k per kept turn, so staying under the 10k trigger means fewer than 10
+    // turns. A window-relative keep budget (30k > the whole prompt) kept all 20.
+    expect(compactModelMessages.mock.calls[0][2].keepRecentTurns).toBeLessThan(10)
+  })
+
   it('honors a configured threshold below the default', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockResolvedValue([userMessage(10)])

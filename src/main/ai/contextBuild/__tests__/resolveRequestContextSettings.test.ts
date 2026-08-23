@@ -151,4 +151,25 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
     const { contextSettings } = await resolveRequestContextSettings(model)
     expect(contextSettings.compress.thresholdPercent).toBe(expected)
   })
+
+  // The assistant layer is a JSON settings column that production never
+  // `.parse()`s, so a migration artifact or a direct DB edit reaches the
+  // trigger unchecked — clamping the globals alone leaves this path open.
+  it.each([
+    ['zero', 0, 10],
+    ['above 100', 250, 100],
+    ['not a number', Number.NaN, 80]
+  ])('clamps an out-of-range assistant trigger (%s)', async (_label, stored, expected) => {
+    setPrefs({ thresholdPercent: 80 })
+    const { contextSettings } = await resolveRequestContextSettings(model, {
+      compress: { thresholdPercent: stored }
+    })
+    expect(contextSettings.compress.thresholdPercent).toBe(expected)
+  })
+
+  it('inherits the global trigger when the assistant stores none', async () => {
+    setPrefs({ thresholdPercent: 55 })
+    const { contextSettings } = await resolveRequestContextSettings(model, { compress: { enabled: true } })
+    expect(contextSettings.compress.thresholdPercent).toBe(55)
+  })
 })

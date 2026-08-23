@@ -344,6 +344,25 @@ describe('context-management override (P2-D)', () => {
     expect(result?.dto.settings?.contextSettings).toBeNull()
   })
 
+  // A legacy override stored before the trigger existed must keep INHERITING it.
+  // Materializing the displayed value on an unrelated edit would freeze the
+  // assistant at whatever the global happened to be that day.
+  it('leaves an inherited trigger absent when another override field is edited', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        contextSettings: { truncateThreshold: 4000, compress: { enabled: true } }
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    expect(baseline.contextCompressThresholdPercent).toBeNull()
+
+    const form = { ...baseline, contextTruncateThreshold: 9000 }
+    const compress = diffAssistantUpdate(form, baseline, assistant)?.dto.settings?.contextSettings?.compress
+    expect(compress).toEqual({ enabled: true, modelId: null })
+    expect(compress).not.toHaveProperty('thresholdPercent')
+  })
+
   it('does not PATCH when sub-fields change while the override is off', () => {
     const baseline = initialAssistantFormState(createAssistant())
     const form = { ...baseline, contextTruncateThreshold: 999 }

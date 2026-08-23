@@ -55,8 +55,13 @@ export interface AssistantFormState {
    * not what happens when the context overflows, and it persists on its own.
    */
   contextMaxMessages: number | null
-  /** Compact once the prompt passes this percent of the model context window. */
-  contextCompressThresholdPercent: number
+  /**
+   * Compact once the prompt passes this percent of the available input context.
+   * null = inherit the global trigger — same three-state contract as
+   * `contextMaxMessages`, so editing a sibling field never freezes an
+   * inherited threshold at whatever the global happened to be.
+   */
+  contextCompressThresholdPercent: number | null
   /** null = no explicit pick (follow the global / current model). */
   contextCompressModelId: string | null
   // relations
@@ -93,8 +98,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
     contextMaxMessages: ctx?.maxMessages ?? null,
-    contextCompressThresholdPercent:
-      ctx?.compress?.thresholdPercent ?? DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent,
+    contextCompressThresholdPercent: ctx?.compress?.thresholdPercent ?? null,
     contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
@@ -177,7 +181,10 @@ export function diffAssistantUpdate(
                 compress: {
                   enabled: form.contextCompressEnabled,
                   modelId: form.contextCompressModelId,
-                  thresholdPercent: form.contextCompressThresholdPercent
+                  // Absent = inherit the global trigger; the UI's empty field.
+                  ...(form.contextCompressThresholdPercent !== null
+                    ? { thresholdPercent: form.contextCompressThresholdPercent }
+                    : {})
                 }
               }
             : form.contextMaxMessages !== null
