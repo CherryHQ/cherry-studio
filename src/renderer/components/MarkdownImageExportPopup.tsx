@@ -2,6 +2,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -59,9 +60,7 @@ const MarkdownImageExportContainer: React.FC<
           <DialogTitle>{i18n.t('chat.topics.export.image_mode.title')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <p className="text-muted-foreground text-sm">
-            {i18n.t('chat.topics.export.image_mode.count', { count: imageCount })}
-          </p>
+          <DialogDescription>{i18n.t('chat.topics.export.image_mode.count', { count: imageCount })}</DialogDescription>
           <RadioGroup value={mode} onValueChange={(value) => setMode(value as ImageExportMode)} className="gap-2">
             {options.map((option) => (
               <label

@@ -75,10 +75,31 @@ function isGenerateImageToolPart(part: unknown): boolean {
   return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === AGENT_GENERATE_IMAGE_TOOL_NAME
 }
 
-function parseGenerateImageIds(part: unknown): Array<{ id: string; name: string }> {
+/**
+ * One output item of a `generate_image` tool part, in either persisted shape:
+ * FileEntry references (`{id, name}`) or MCP inline content (`content[].image`,
+ * base64 payload mirrored into a data URL — same shapes MessageGenerateImage renders).
+ */
+type GenerateImageItem = { key: string; entryId?: string; url?: string; filename?: string; mime?: string }
+
+function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
   const { response } = extractOutputMetadata((part as { output?: unknown }).output)
   const parsed = generateImageOutputSchema.safeParse(response)
-  return parsed.success ? parsed.data : []
+  if (parsed.success) {
+    return parsed.data.map((item) => ({ key: item.id, entryId: item.id, filename: item.name }))
+  }
+  // extractOutputMetadata unwraps `{content: [...]}` into the array itself unless
+  // mcp metadata keeps the envelope — accept both shapes.
+  const content = Array.isArray(response) ? response : (response as { content?: unknown } | null | undefined)?.content
+  if (!Array.isArray(content)) return []
+  return content.flatMap((item) => {
+    if (item?.type === 'image' && typeof item.data === 'string' && item.data) {
+      const mime = typeof item.mimeType === 'string' && item.mimeType ? item.mimeType : 'image/png'
+      const url = `data:${mime};base64,${item.data}`
+      return [{ key: url, url, mime }]
+    }
+    return []
+  })
 }
 
 /**
@@ -110,14 +131,30 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
             mime: filePart.mediaType
           })
         } else if (isGenerateImageToolPart(part)) {
-          for (const item of parseGenerateImageIds(part)) {
+          for (const item of parseGenerateImageItems(part)) {
             try {
-              const physicalPath = await window.api.file.getPhysicalPath({ id: item.id })
-              push({ key: item.id, source: 'generate-image', url: toFileUrl(physicalPath), filename: item.name })
+              if (item.url) {
+                // MCP inline payload — the data URL is the authoritative bytes already.
+                push({
+                  key: item.key,
+                  source: 'generate-image',
+                  url: item.url,
+                  filename: item.filename,
+                  mime: item.mime
+                })
+              } else if (item.entryId) {
+                const physicalPath = await window.api.file.getPhysicalPath({ id: item.entryId })
+                push({
+                  key: item.key,
+                  source: 'generate-image',
+                  url: toFileUrl(physicalPath),
+                  filename: item.filename
+                })
+              }
             } catch (error) {
               // One dead FileEntry drops only its own image, never the siblings.
               unresolvedCount += 1
-              logger.warn('Failed to resolve a generate_image entry, skipping it', { id: item.id, error })
+              logger.warn('Failed to resolve a generate_image entry, skipping it', { key: item.key, error })
             }
           }
         }
@@ -223,8 +260,8 @@ export async function serializeMessagesWithImages(
           hasImage = true
         }
       } else if (isGenerateImageToolPart(part)) {
-        for (const item of parseGenerateImageIds(part)) {
-          const ref = refByKey.get(item.id)
+        for (const item of parseGenerateImageItems(part)) {
+          const ref = refByKey.get(item.key)
           if (!ref) continue
           const segment = await renderRef(ref)
           if (segment) {

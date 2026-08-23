@@ -77,6 +77,19 @@ function generateImagePart(items: Array<{ id: string; name: string }>, state = '
   }
 }
 
+/** MCP CallToolResult shape: inline base64 payloads instead of FileEntry references. */
+function generateImageInlinePart(images: Array<{ data: string; mimeType?: string }>, state = 'output-available') {
+  return {
+    type: 'tool-generate_image',
+    toolCallId: 'call-1',
+    state,
+    input: {},
+    output: {
+      content: images.map((img) => ({ type: 'image', data: img.data, mimeType: img.mimeType }))
+    }
+  }
+}
+
 // --- window.api stub (file save/write/mkdir/getPhysicalPath + ipc bridge) ---
 
 const fileApi: Record<string, ReturnType<typeof vi.fn>> = {
@@ -179,6 +192,34 @@ describe('collectExportableImages', () => {
     const { refs } = await collectExportableImages(messages)
 
     expect(refs).toHaveLength(1)
+  })
+
+  it('falls back to the part url as dedup key when no fileEntryId exists', async () => {
+    // No cherry meta on these parts — the url itself must dedupe identical attachments
+    // and stay distinct from a different image sharing no entry id either.
+    const sameUrl = [imageFilePart('file:///data/Files/a.png'), imageFilePart('file:///data/Files/a.png')]
+    const messages = [...sameUrl.map((p) => view([p])), view([imageFilePart('file:///data/Files/b.png')])]
+
+    const { refs } = await collectExportableImages(messages)
+
+    expect(refs.map((r) => r.key)).toEqual(['file:///data/Files/a.png', 'file:///data/Files/b.png'])
+  })
+
+  it('collects MCP inline generate_image payloads as data URLs (render parity)', async () => {
+    const raw = PNG_1PX.slice('data:image/png;base64,'.length)
+    const message = view(
+      [generateImageInlinePart([{ data: raw }]), generateImageInlinePart([{ data: raw, mimeType: 'image/png' }])],
+      'assistant'
+    )
+
+    const { refs, unresolvedCount } = await collectExportableImages([message])
+
+    expect(unresolvedCount).toBe(0)
+    // identical inline payloads collapse to one data-URL ref; no FileEntry lookup happens
+    expect(refs).toEqual([
+      { key: PNG_1PX, source: 'generate-image', url: PNG_1PX, filename: undefined, mime: 'image/png' }
+    ])
+    expect(fileApi.getPhysicalPath).not.toHaveBeenCalled()
   })
 })
 
@@ -294,6 +335,19 @@ describe('serializeMessagesWithImages', () => {
 
     const embed = await serializeMessagesWithImages([message], 'embed', refs)
     expect(embed.overrides.get(message.id)).toContain('![painting.png](data:image/png;base64,')
+  })
+
+  it('serializes MCP inline generate_image payloads in both modes', async () => {
+    const message = view([generateImageInlinePart([{ data: PNG_1PX_RAW }])], 'assistant')
+    const { refs } = await collectExportableImages([message])
+
+    const embed = await serializeMessagesWithImages([message], 'embed', refs)
+    expect(embed.overrides.get(message.id)).toContain(`![image](data:image/png;base64,${PNG_1PX_RAW})`)
+
+    const folder = await serializeMessagesWithImages([message], 'folder', refs)
+    expect(folder.overrides.get(message.id)).toMatch(/!\[image\]\(assets\/img-[a-z0-9-]+\.png\)/)
+    expect(folder.pendingWrites).toHaveLength(1)
+    expect(folder.pendingWrites[0].ref.url).toBe(PNG_1PX)
   })
 
   it('leaves messages without images unoverridden', async () => {
@@ -477,6 +531,29 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     expect(fileApi.write).toHaveBeenCalledTimes(1)
     expect(fileApi.write.mock.calls[0][0]).toBe(`/tmp/exports/assets/${link}`)
     expect(fileApi.write.mock.calls[0][1]).toBeInstanceOf(Uint8Array)
+  })
+
+  it('writes asset bytes identical to the source image (folder, save dialog branch)', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
+
+    const written = fileApi.write.mock.calls[0][1] as Uint8Array
+    const source = Uint8Array.from(atob(PNG_1PX_RAW), (c) => c.charCodeAt(0))
+    expect(Array.from(written)).toEqual(Array.from(source))
+  })
+
+  it('skips asset writing entirely when the save dialog is cancelled after picking folder mode', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue(null)
+
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
+
+    expect(fileApi.save).toHaveBeenCalledTimes(1)
+    expect(fileApi.mkdir).not.toHaveBeenCalled()
+    expect(fileApi.write).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('falls back to warning when an asset write fails but keeps the .md (folder)', async () => {
