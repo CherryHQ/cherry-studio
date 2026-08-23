@@ -113,8 +113,8 @@ src/main/ai/
 3. The admission actor validates without writes, previews the reducer transition
    with preallocated identities, and synchronously asks the Chat or Agent history
    adapter to commit the SQLite skeleton. Only after that durable boundary does
-   `ConversationRuntimeService` commit `TurnCommitted`, `InputCommitted`, or
-   `StepCommitted` to the aggregate.
+   the actor commit `TurnCommitted`, `InputCommitted`, or `StepCommitted` to
+   its aggregate.
 4. The committed aggregate emits `StartExecution`, which is executed by
    `AiExecutionManager`. Stateless Chat runs
    call `AiService.streamText`; stateful Agent runs delegate their driver
@@ -138,10 +138,11 @@ src/main/ai/
 
 - **Exact Conversation addressing.** Control and stream events carry a
   `ConversationRef`; Agent Sessions are not encoded as synthetic Topic IDs.
-- **One composed control owner.** `ConversationRuntimeService` combines each
-  Conversation's admission actor with the pure aggregate. Admission, inbox
-  placement, Stop, interactions, terminal outcome, persistence completion, and
-  quiescence are aggregate decisions. Resource state never decides them.
+- **One control owner per Conversation.** `ConversationActor` owns its aggregate,
+  admission FIFO, committed inputs, Stop, interactions, terminal outcome,
+  persistence completion, and quiescence. `ConversationRuntimeService` only
+  routes IPC/results and composes global lifecycle barriers. Resource state
+  never decides those facts.
 - **Main owns persistence.** Renderer closing or crashing does not abort the
   execution. Attachment is observational; terminal persistence does not depend
   on a window listener.

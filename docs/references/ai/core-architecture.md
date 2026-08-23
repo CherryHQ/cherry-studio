@@ -8,10 +8,10 @@ sources:
 
 # AI core architecture
 
-Chat and Agent share one business owner: `ConversationRuntimeService`. It uses
-one `ConversationActor` admission lane per conversation and the pure
-`ConversationRuntime` domain state machine. Existing Chat and Agent message
-tables remain the durable history stores.
+Chat and Agent share one owner model: one `ConversationActor` per conversation.
+The actor owns its aggregate and uses the pure `transitionConversation()`
+reducer. `ConversationRuntimeService` is the lifecycle/IPC facade. Existing Chat
+and Agent message tables remain the durable history stores.
 
 ```text
 Renderer / Channel / Schedule / Delivery
@@ -20,7 +20,7 @@ Renderer / Channel / Schedule / Delivery
   → side-effect-free validation
   → pure aggregate transition preview
   → synchronous history commit
-  → ConversationRuntime transition commit
+  → ConversationActor aggregate commit
   → typed execution / terminal-persistence / presentation effects
   → exact EffectId result command
 ```
@@ -29,9 +29,9 @@ Renderer / Channel / Schedule / Delivery
 
 | Owner | Authority |
 |---|---|
-| ConversationRuntimeService | composed business owner: admission actors, aggregate runtime, committed input/turn projections, final quiescence confirmation |
-| ConversationActor | one Conversation's pre-commit FIFO, operation identity/epoch, and Stop interrupt |
-| ConversationRuntime / aggregate | pure per-Conversation Inbox, logical Turn, executions, interactions, Stop, terminal, and domain quiescence |
+| ConversationActor | one Conversation's aggregate, admission FIFO/epoch, committed inputs, exact effect operations, Stop, and final quiescence confirmation |
+| transitionConversation reducer | pure per-Conversation Inbox, logical Turn, executions, interactions, Stop, terminal, and domain-quiescence transition |
+| ConversationRuntimeService | lifecycle/IPC facade, actor lookup/reclamation, port composition, and global fixed-point pause/drain |
 | Chat/Agent history adapters | existing SQLite tree or ordered Agent rows |
 | AiExecutionManager | provider stream, abort, replay buffer, listener fan-out, private run fence |
 | AgentConnectionManager | connection resources plus Agent-driver redirect, segment, reconcile, and projection effect execution |
@@ -47,9 +47,8 @@ Renderer / Channel / Schedule / Delivery
    preallocated turn, execution, and effect identities.
 3. The history adapter atomically commits the durable user/assistant skeleton;
    a failed transaction leaves the aggregate unchanged.
-4. `ConversationRuntimeService` commits the aggregate directly as `Running`
-   with `Starting` executions. The open acknowledgement now succeeds
-   immediately.
+4. The actor commits its aggregate as `Running` with `Starting` executions.
+   The open acknowledgement now succeeds immediately.
 5. Execution resources build context and open the provider under one
    `AbortSignal`. Preparation failure becomes the exact execution's Error
    terminal and never rolls back committed history.
@@ -57,9 +56,9 @@ Renderer / Channel / Schedule / Delivery
    aggregate.
 7. A terminal outcome is immutable. The history port persists it, and only the
    exact persistence result can publish execution/turn terminal state.
-8. Aggregate state determines domain quiescence;
-   `ConversationRuntimeService` additionally waits for durable inbox,
-   admission, and terminal operation registries to drain.
+8. Aggregate state determines domain quiescence; the actor additionally waits
+   for committed inputs and admission/effect/terminal operation registries to
+   drain. The facade only aggregates those registries for global pause/drain.
 
 ## Chat and Agent differences
 

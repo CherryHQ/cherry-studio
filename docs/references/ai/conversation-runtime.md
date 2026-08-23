@@ -16,7 +16,7 @@ flowchart LR
   A --> V["read-only validation"]
   V --> P["pure transition preview"]
   P --> H["synchronous HistoryPort commit"]
-  H --> R["ConversationRuntime commit"]
+  H --> R["ConversationActor aggregate commit"]
   R --> E["typed effects"]
   E --> X["execution / connection / persistence resources"]
   X --> C["exact result command"]
@@ -25,7 +25,7 @@ flowchart LR
   H -. "durable rows" .-> D["SQLite / SWR"]
 ```
 
-The actor is the owner; `ConversationRuntime` is its pure domain component.
+The actor is the owner; `transitionConversation()` is its pure reducer.
 Resource managers may acknowledge and execute an effect, but they never infer a
 new turn, Stop outcome, interaction continuation, or quiescence decision.
 
@@ -40,7 +40,8 @@ The unified runtime moves the boundary up to Conversation and Turn. Provider str
 ## Durable and live authority
 
 - Existing `message` and `agent_session_message` rows remain the durable truth. There is no conversation event log and no dual write.
-- `ConversationRuntimeService` is the process-local business owner. It composes one `ConversationActor` admission lane per `ConversationRef` with the pure `ConversationRuntime` aggregate map, exact input/turn projections, and the final quiescence gate. Each actor owns only its pre-commit FIFO, operation identity/epoch, and Stop interrupt.
+- Each `ConversationActor` is the process-local business owner for one `ConversationRef`. It owns the aggregate, admission FIFO and epoch, committed input identities, effect-operation registry, Stop interrupt, and final quiescence gate.
+- `ConversationRuntimeService` is the lifecycle and IPC facade. It resolves History/resource ports, routes exact commands to actors, and performs global pause/drain without storing another aggregate.
 - Stream chunks are data-plane traffic. The execution resource owns their ring and sequence; only first-chunk, interaction, and terminal control facts re-enter the Conversation owner.
 - Normal terminal notifications follow durable persistence. An explicit Stop may settle through deferred recovery after the existing exact retry policy; deferred results never produce external Channel delivery.
 
@@ -179,22 +180,30 @@ siblings, while Settled carries each execution terminal and the turn terminal.
 
 Each execution replay reports `throughChunkSeq`,
 `firstAvailableChunkSeq`, and `truncated`. The resource retains at most 10,000
-semantic entries and splits text/reasoning deltas at 16 KiB without collapsing
-tool or approval boundaries. Renderer buffers events during attach, applies the
-snapshot and replay, and then applies only events above that execution's
-high-water. IPC errors remain retryable renderer-local state.
+raw sequenced provider events. It filters `chunkSeq > requested cursor`, then
+semantically compacts the suffix and splits text/reasoning/tool deltas at 16
+KiB without crossing a sequence boundary. Renderer buffers events during
+attach, applies the snapshot and replay, and then applies only events above
+that execution's high-water. IPC errors remain retryable renderer-local state.
 
 ## Ports
 
-- `ConversationRuntimeService` executes the admission transaction and commits the
-  previewed command only after the synchronous history boundary succeeds.
+- `ConversationActor` serializes admission and installs the previewed state only
+  after the synchronous history boundary succeeds. `ConversationRuntimeService`
+  supplies the selected adapter operation and routes IPC/results to that actor.
 - Chat, Agent, and Temporary Chat history adapters validate without writes,
   commit skeletons synchronously, and build model context only from committed
-  identities. Agent connection resources never create message rows.
+  identities. Their commit result contains only immutable descriptors: initial
+  naming is a post-commit task, summary naming is an after-persist task, and
+  trace flushing is registered for quiescence. Agent connection resources never
+  create message rows.
 - `AiExecutionManager` owns provider-stream resources and a private `ExecutionRunId` stale fence.
-- `AgentConnectionManager` owns connection resources and executes Agent-driver effects: redirect,
-  reconcile, warm leases, driver event subscription, segment roll, and runtime metadata/history
-  projection. It never decides admission, terminal outcome, or quiescence.
+- `AgentConnectionManager` owns connection resources and executes exact Agent-driver effects:
+  redirect, reconcile, warm leases, driver event subscription, segment roll, and runtime metadata
+  projection. Parked foreground resources are keyed by the owning suspend `EffectId`; stale
+  suspend/resume/discard operations return typed stale results. It never decides admission,
+  terminal outcome, foreground resume, or quiescence. It receives the execution
+  owner's `AbortSignal` and cannot create or abort a second per-turn controller.
 - Renderer, Channel, trace, usage, and runtime metadata are output/projection ports.
 - Every asynchronous effect result returns `ConversationRef`, `TurnId`, optional `ExecutionId`, and `EffectId`; no result resolves the current conversation by lookup and inference.
 
@@ -202,7 +211,8 @@ high-water. IPC errors remain retryable renderer-local state.
 
 Domain quiescence requires Idle phase, empty inboxes, no blocking activity, and
 no execution waiting for terminal persistence. Final quiescence additionally
-requires the actor's admission and terminal operation registries to be empty.
+requires the actor's committed-input set and admission/effect/terminal
+operation registries to be empty.
 Subscriber presence, SharedCache values, active overlay state, connection
 liveness, and scheduler single-flight are not quiescence facts.
 
@@ -217,7 +227,8 @@ resource registry.
 
 A pause closes external admission before taking a registry snapshot. Work
 already inside the barrier may register terminal or recovery descendants, so
-drain repeatedly samples until all registries are empty. Timeout returns stable
-execution/effect/session/topic-naming operation IDs and backup fails closed;
+drain repeatedly samples until all registries are empty. Topic naming is an
+Actor-owned effect operation rather than a second naming-service registry.
+Timeout returns stable execution/effect/session operation IDs and backup fails closed;
 it must not proceed with a partial snapshot. Releasing the final pause hold
 kicks retained inbox work once.

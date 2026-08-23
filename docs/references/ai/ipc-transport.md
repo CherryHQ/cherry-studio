@@ -80,9 +80,10 @@ replay, and then accepts only `chunkSeq` values above that execution's
   invents empty final messages.
 - NotFound triggers a durable refresh. It is neither EOF nor Success.
 - IPC failure stays retryable and releases the failed attachment lease.
-- Replay retains at most 10,000 semantic entries. Text/reasoning deltas are
-  split at 16 KiB, while tool and approval boundaries remain distinct;
-  truncation is explicit.
+- The resource ring retains at most 10,000 raw sequenced provider events. Main
+  filters by the renderer's per-execution cursor before semantic compaction;
+  text/reasoning/tool deltas are split at 16 KiB without crossing a sequence
+  boundary, and truncation is explicit.
 
 ## Shared status projection
 

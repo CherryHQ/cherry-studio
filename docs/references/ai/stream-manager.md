@@ -21,10 +21,10 @@ interaction, persistence, and quiescence semantics.
 - provider stream consumption;
 - chunk sequence, replay buffer, listeners, and deferred tool outputs;
 - accumulated message and runtime timing;
-- driver redirect/resume callbacks.
+- named driver descriptors resolved by the driver registry.
 
 It reports only first-chunk, interaction, terminal, and start-failure facts to
-`ConversationRuntime`. It does not admit turns, select terminal durability, or
+the exact `ConversationActor`. It does not admit turns, select terminal durability, or
 decide quiescence.
 
 After the HistoryPort commits a skeleton, `ConversationRuntimeService` registers
@@ -32,6 +32,10 @@ an exact execution descriptor. The aggregate's `StartExecution` effect
 synchronously creates the resource and its AbortController before
 `ai.stream.open` acknowledges. Context build, compaction, driver binding, and
 provider open then run under that same signal.
+
+Agent drivers receive only that `AbortSignal`. `AgentConnectionManager` cannot
+create, retain, or abort a second per-turn controller; it reports resource facts
+through its injected Conversation result sink.
 
 ## PromptStreamManager
 
