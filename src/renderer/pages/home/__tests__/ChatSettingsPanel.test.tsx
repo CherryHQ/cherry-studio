@@ -1,5 +1,6 @@
 import type { Topic } from '@renderer/types/topic'
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -127,11 +128,13 @@ vi.mock('../components/TopicRightPane', () => {
 
 vi.mock('../ChatContent', () => ({
   default: ({
+    topic,
     onBranchLiveStateChange,
     onLocateMessageHandled,
     onOpenCitationsPanel,
     locateMessageId
   }: {
+    topic: Topic
     onBranchLiveStateChange?: (state: unknown) => void
     onLocateMessageHandled?: () => void
     onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
@@ -144,7 +147,9 @@ vi.mock('../ChatContent', () => ({
         <button type="button" onClick={() => onLocateMessageHandled?.()}>
           handled locate
         </button>
-        <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
+        <button
+          type="button"
+          onClick={() => onOpenCitationsPanel({ citations: [{ number: 1, url: `https://${topic.id}.example` }] })}>
           open citations
         </button>
         <button
@@ -165,8 +170,17 @@ vi.mock('../ChatContent', () => ({
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
-  default: ({ open, onClose, citations }: { open: boolean; onClose: () => void; citations: unknown[] }) => (
+  default: ({
+    open,
+    onClose,
+    citations
+  }: {
+    open: boolean
+    onClose: () => void
+    citations: Array<{ number: number; url: string }>
+  }) => (
     <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
+      {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
       {open && (
         <button type="button" onClick={onClose}>
           close citations
@@ -212,6 +226,20 @@ describe('Chat panels', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('closes citations when switching topics', async () => {
+    const user = userEvent.setup()
+    const view = renderChat(activeTopic)
+
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(screen.getByText('https://topic-1.example')).toBeInTheDocument()
+
+    view.rerender(<Chat activeTopic={{ ...activeTopic, id: 'topic-2' }} />)
+    expect(screen.queryByText('https://topic-1.example')).not.toBeInTheDocument()
+
+    view.rerender(<Chat activeTopic={activeTopic} />)
+    expect(screen.queryByText('https://topic-1.example')).not.toBeInTheDocument()
   })
 
   it('keeps navbar and branch pane actions visible for an empty persisted topic', () => {

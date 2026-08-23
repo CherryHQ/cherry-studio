@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { withSpanFunc } from '@mcp-trace/trace-core'
 import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
@@ -10,6 +10,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import * as z from 'zod'
 
+import { redactCacheKey } from './mcpRedact'
 import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
@@ -55,7 +56,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) return cachedData
     }
@@ -63,7 +64,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
@@ -176,9 +181,22 @@ export class McpCatalogService extends BaseService {
 
   private async listToolsImpl(server: McpServer, passiveEnv?: boolean): Promise<McpTool[]> {
     try {
-      const { tools } = await application
-        .get('McpRuntimeService')
-        .withClient(server.id, (client) => client.listTools(), { passiveEnv })
+      const { tools } = await application.get('McpRuntimeService').withClient(
+        server.id,
+        async (client) => {
+          // A server that publishes only prompts or resources answers `tools/list` with -32601, which
+          // used to surface as "start failed" and made it impossible to enable at all.
+          if (!client.getServerCapabilities()?.tools) {
+            logger.debug('Server does not declare tools capability, skipping list', {
+              serverId: server.id,
+              serverName: server.name
+            })
+            return { tools: [] as SDKTool[] }
+          }
+          return client.listTools()
+        },
+        { passiveEnv }
+      )
       return tools.map((tool: SDKTool) => {
         const serverTool: McpTool = {
           ...tool,

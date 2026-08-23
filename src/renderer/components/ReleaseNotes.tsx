@@ -1,6 +1,6 @@
+import { Markdown } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { ComponentPropsWithoutRef, FC } from 'react'
-import { Streamdown } from 'streamdown'
 
 const RELEASE_NOTE_CATEGORY_PREFIX = 'release-note-category:'
 const RELEASE_NOTE_CATEGORY_PATTERN = /^(\s*[-*+]\s+)\[([^\]`\r\n]{1,32})\](?=\s)/gm
@@ -32,14 +32,16 @@ type ReleaseNotesProps = {
   className?: string
 }
 
+// `<Markdown>` supplies the `markdown` class and the same single wrapper the old
+// hand-rolled `<div class="markdown">` did, so the `[&>div>…]` selectors still match.
 export const ReleaseNotes: FC<ReleaseNotesProps> = ({ content, className }) => (
-  <div
+  <Markdown
+    id="release-notes"
     className={cn(
-      'markdown text-muted-foreground text-sm leading-6 [&>div>p:first-child]:text-[15px] [&>div>p:not(:first-child)]:pt-2 [&>div>p]:font-medium [&>div>p]:text-foreground [&>div]:space-y-3 [&_li]:my-0! [&_li]:py-1 [&_ol]:my-0! [&_ol]:list-outside [&_ol]:pl-5 [&_p]:m-0! [&_ul]:my-0! [&_ul]:list-outside [&_ul]:pl-5',
+      'text-muted-foreground text-sm leading-6 [&>div>p:first-child]:text-[15px] [&>div>p:not(:first-child)]:pt-2 [&>div>p]:font-medium [&>div>p]:text-foreground [&>div]:space-y-3 [&_li]:my-0! [&_li]:py-1 [&_ol]:my-0! [&_ol]:list-outside [&_ol]:pl-5 [&_p]:m-0! [&_ul]:my-0! [&_ul]:list-outside [&_ul]:pl-5',
       className
-    )}>
-    <Streamdown mode="static" components={{ inlineCode: ReleaseNoteInlineCode }}>
-      {formatReleaseNoteCategories(content)}
-    </Streamdown>
-  </div>
+    )}
+    components={{ inlineCode: ReleaseNoteInlineCode }}>
+    {formatReleaseNoteCategories(content)}
+  </Markdown>
 )

@@ -8,10 +8,11 @@ const mocks = vi.hoisted(() => ({
   getModel: vi.fn(),
   getApiKeys: vi.fn(),
   listSkills: vi.fn(),
+  listLocalSkillPaths: vi.fn(),
   getSkillDirectory: vi.fn(),
   findMcp: vi.fn(),
   listTools: vi.fn(),
-  listChannels: vi.fn()
+  findBySessionId: vi.fn()
 }))
 
 vi.mock('@application', () => ({ application: { get: () => ({ listTools: mocks.listTools }) } }))
@@ -23,10 +24,14 @@ vi.mock('@data/services/ProviderService', () => ({
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getModel } }))
 vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { findByIdOrName: mocks.findMcp } }))
 vi.mock('@data/services/AgentChannelService', () => ({
-  agentChannelService: { listChannels: mocks.listChannels }
+  agentChannelService: { findBySessionId: mocks.findBySessionId }
 }))
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { list: mocks.listSkills, getSkillDirectory: mocks.getSkillDirectory }
+  skillService: {
+    list: mocks.listSkills,
+    listLocalSkillPaths: mocks.listLocalSkillPaths,
+    getSkillDirectory: mocks.getSkillDirectory
+  }
 }))
 
 const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
@@ -52,10 +57,11 @@ beforeEach(() => {
   mocks.getModel.mockResolvedValue({ id: 'provider::model', updatedAt: 1 })
   mocks.getApiKeys.mockReturnValue([{ id: 'key-1', key: 'secret', enabled: true }])
   mocks.listSkills.mockResolvedValue([{ id: 'skill-1', isEnabled: true, updatedAt: 1 }])
+  mocks.listLocalSkillPaths.mockResolvedValue([])
   mocks.getSkillDirectory.mockImplementation((folderName: string) => `/skills/${folderName}`)
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
-  mocks.listChannels.mockReturnValue([])
+  mocks.findBySessionId.mockReturnValue(null)
 })
 
 describe('capturePiConnectionSnapshot', () => {
@@ -81,9 +87,10 @@ describe('capturePiConnectionSnapshot', () => {
       () => mocks.getModel.mockResolvedValueOnce({ id: 'provider::model', updatedAt: 2 }),
       () => mocks.getApiKeys.mockReturnValueOnce([{ id: 'key-2', key: 'rotated', enabled: true }]),
       () => mocks.listSkills.mockResolvedValueOnce([{ id: 'skill-2', isEnabled: true, updatedAt: 1 }]),
+      () => mocks.listLocalSkillPaths.mockResolvedValueOnce(['/workspace/.agents/skills/review']),
       () => mocks.findMcp.mockReturnValueOnce({ id: 'mcp-1', name: 'server', updatedAt: 2 }),
       () => mocks.listTools.mockReturnValueOnce([{ name: 'changed' }]),
-      () => mocks.listChannels.mockReturnValueOnce([{ id: 'channel-1', sessionId: 'session-1' }])
+      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id })
     ]
 
     for (const mutate of mutations) {
@@ -96,7 +103,8 @@ describe('capturePiConnectionSnapshot', () => {
 
   it('returns the exact provider, model, skills, MCP, and channel facts signed by the snapshot', async () => {
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
-    mocks.listChannels.mockReturnValue([{ id: 'channel-1', sessionId: 'session-1' }])
+    mocks.listLocalSkillPaths.mockResolvedValue(['/workspace/.agents/skills/review'])
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', agentId: agent.id })
 
     const snapshot = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
 
@@ -104,9 +112,17 @@ describe('capturePiConnectionSnapshot', () => {
       provider: { id: 'provider' },
       model: { id: 'provider::model' },
       enabledApiKeys: [{ id: 'key-1', key: 'secret', enabled: true }],
-      additionalSkillPaths: ['/skills/pdf'],
+      additionalSkillPaths: ['/skills/pdf', '/workspace/.agents/skills/review'],
       linkedChannel: { id: 'channel-1' }
     })
     expect(snapshot.mcpServerSnapshots.get('mcp-1')).toMatchObject({ id: 'mcp-1', name: 'server' })
+  })
+
+  it('does not attach a session link owned by another agent', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', agentId: 'agent-2' })
+
+    await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.toMatchObject({
+      linkedChannel: null
+    })
   })
 })

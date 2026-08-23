@@ -49,10 +49,26 @@ describe('getPermissionModeCards', () => {
     expect(getPermissionModeCards(undefined).map((c) => c.mode)).toContain('plan')
   })
 
-  it('drops unsupported plan and classifier-driven auto modes for pi agents', () => {
+  it('drops the unsupported plan mode for pi agents but keeps auto', () => {
     const modes = getPermissionModeCards('pi').map((card) => card.mode)
     expect(modes).not.toContain('plan')
-    expect(modes).not.toContain('auto')
-    expect(modes).toEqual(expect.arrayContaining(['default', 'acceptEdits', 'bypassPermissions']))
+    expect(modes).toEqual(expect.arrayContaining(['default', 'acceptEdits', 'auto', 'bypassPermissions']))
+  })
+
+  it("describes pi's auto and bypass modes by what they actually do, not by Claude's mechanism", () => {
+    const claudeAuto = getPermissionModeCards('claude-code').find((card) => card.mode === 'auto')
+    const piAuto = getPermissionModeCards('pi').find((card) => card.mode === 'auto')
+    const piBypass = getPermissionModeCards('pi').find((card) => card.mode === 'bypassPermissions')
+    const claudeBypass = getPermissionModeCards('claude-code').find((card) => card.mode === 'bypassPermissions')
+
+    // pi's auto is deterministic, so it carries its own caveat (recognition is best-effort) rather
+    // than claude's "depends on the model" one.
+    expect(claudeAuto?.warningKey).toBeTruthy()
+    expect(piAuto?.warningKey).toBeTruthy()
+    expect(piAuto?.warningKey).not.toBe(claudeAuto?.warningKey)
+    expect(piAuto?.descriptionKey).not.toBe(claudeAuto?.descriptionKey)
+    // bypass now means the same thing on every runtime — approvals lifted, explicit safety blocks
+    // (disabled tools, global installs) still apply — so pi shares the generic copy.
+    expect(piBypass?.warningKey).toBe(claudeBypass?.warningKey)
   })
 })

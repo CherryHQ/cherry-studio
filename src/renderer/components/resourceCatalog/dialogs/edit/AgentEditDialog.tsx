@@ -11,6 +11,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
@@ -66,6 +67,7 @@ import {
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
@@ -303,6 +305,7 @@ function AgentEditDialogContent({
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
+      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -347,6 +350,39 @@ function AgentEditDialogContent({
     replaceFormBaseline({ ...formBaselineRef.current, skillIds: [...skillIdsFromQuery] })
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
+  }, [
+    baselineSkillAgentId,
+    form,
+    open,
+    replaceFormBaseline,
+    resource.id,
+    skillIdsFromQuery,
+    skillsLoading,
+    skillsRefreshing
+  ])
+
+  useEffect(() => {
+    if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId !== resource.id) return
+
+    // A globally disabled skill is absent from the agent projection. If it is
+    // re-enabled after this dialog initialized, restore the still-persisted
+    // agent preference without overwriting local edits or hidden selections.
+    const baselineSkillIds = formBaselineRef.current.skillIds
+    const baselineSkillIdSet = new Set(baselineSkillIds)
+    const newlyVisibleEnabledIds = skillIdsFromQuery.filter((id) => !baselineSkillIdSet.has(id))
+    if (newlyVisibleEnabledIds.length === 0) return
+
+    replaceFormBaseline({
+      ...formBaselineRef.current,
+      skillIds: [...baselineSkillIds, ...newlyVisibleEnabledIds]
+    })
+    const currentSkillIds = form.getValues('skillIds')
+    const currentSkillIdSet = new Set(currentSkillIds)
+    form.setValue(
+      'skillIds',
+      [...currentSkillIds, ...newlyVisibleEnabledIds.filter((id) => !currentSkillIdSet.has(id))],
+      { shouldDirty: false }
+    )
   }, [
     baselineSkillAgentId,
     form,
@@ -486,6 +522,13 @@ function AgentEditDialogContent({
           className="m-0 flex h-full min-h-0 flex-col">
           <AgentPromptField form={form} modelName={promptModelName ?? null} portalContainer={dialogContentElement} />
         </TabsContent>
+        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
+          <PromptBindingTab
+            enabled={open && activeTab === 'prompts'}
+            target={{ type: 'agent', id: resource.id }}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
         {isToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
             <AgentToolsFields
@@ -497,7 +540,6 @@ function AgentEditDialogContent({
               skillsLoading={skillsLoading}
               skillsReady={baselineSkillAgentId === resource.id}
               caps={caps}
-              agentType={resource.type}
             />
           </TabsContent>
         ) : null}
@@ -563,6 +605,7 @@ function AgentBasicFields({
         placeholder={t('library.config.agent.field.description.placeholder')}
         layout="row"
       />
+      <RuntimeField agentType={agentType} />
       <CompactModelField
         form={form}
         name="modelId"
@@ -621,6 +664,22 @@ function AgentBasicFields({
           onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
         />
       ) : null}
+    </div>
+  )
+}
+
+/** Runtime is fixed at creation, so the editor states which one the agent runs on and leaves it at
+ *  that — a summary card, with no control to mistake for a live one. */
+function RuntimeField({ agentType }: { agentType: AgentType }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className={editDialogFormRowClassName}>
+      <span className={editDialogFormRowLabelClassName}>{t('library.config.agent.field.runtime.label')}</span>
+      <AgentRuntimeSummary value={agentType} t={t} />
+      <span className="col-start-2 text-muted-foreground text-xs">
+        {t('library.config.agent.field.runtime.immutable_hint')}
+      </span>
     </div>
   )
 }
@@ -795,8 +854,7 @@ function AgentToolsFields({
   skills,
   skillsLoading,
   skillsReady,
-  caps,
-  agentType
+  caps
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
@@ -806,7 +864,6 @@ function AgentToolsFields({
   skillsLoading: boolean
   skillsReady: boolean
   caps: AgentRuntimeCapabilities
-  agentType: AgentType
 }) {
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
@@ -826,7 +883,7 @@ function AgentToolsFields({
   const builtinSections = useMemo(() => {
     const tools = caps
       .builtinTools()
-      .filter((tool) => agentType !== 'claude-code' || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+      .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
@@ -839,7 +896,7 @@ function AgentToolsFields({
           icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />
         }))
     })).filter((section) => section.items.length > 0)
-  }, [agentType, caps, t, hasKnowledgeScope])
+  }, [caps, t, hasKnowledgeScope])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]

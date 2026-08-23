@@ -13,7 +13,7 @@ import {
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { clearCliConfig } from '../cliConfig'
+import { clearCliConfig, resolveCliConfigApplyContext } from '../cliConfig'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
@@ -24,6 +24,7 @@ import { useCliVersionStatuses } from './useCliVersionStatuses'
 import { useConfigMetadata } from './useConfigMetadata'
 import { useConfigPanelController } from './useConfigPanelController'
 import { useCurrentCliConfigConnection } from './useCurrentCliConfigConnection'
+import { useDeepSeekHarnessController } from './useDeepSeekHarnessController'
 import { useLaunchDialogController } from './useLaunchDialogController'
 import { useOpenClawGatewayController } from './useOpenClawGatewayController'
 import { useRemoveCliToolDialog } from './useRemoveCliToolDialog'
@@ -35,7 +36,10 @@ type CliToolOption = (typeof CLI_TOOLS)[number]
 
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
 
-export function useCodeCliPageViewProps(): CodeCliPageViewProps {
+export function useCodeCliPageViewProps(
+  initialTool?: CodeCli,
+  onToolChange?: (tool: CodeCli) => void
+): CodeCliPageViewProps {
   const { t } = useTranslation()
   const toMeta = useCallback(
     (tool: CliToolOption): CodeToolMeta => ({
@@ -61,17 +65,19 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     setTerminal,
     selectFolder,
     selectedTerminal
-  } = useCodeCli()
+  } = useCodeCli(initialTool, onToolChange)
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const { providers, isLoading: isProvidersLoading } = useProviders()
   const apiGatewayBundle = useApiGatewayProvider()
   const {
     filterProviders,
+    filterProvidersForTool,
     makeModelFilter,
     resolveProviderMeta,
     resolveProviderMetaForTool,
     gatewayModelsById,
+    defaultGatewayModelId,
     isGatewayModelsLoading
   } = useConfigMetadata(selectedCliTool, providers, isProvidersLoading)
 
@@ -84,20 +90,24 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
       const currentId = state?.current
       if (!currentId) continue
       if (currentId === CLI_OWN_LOGIN_PROVIDER_ID) {
+        if (!LOGIN_CAPABLE_CLI_TOOLS.has(tool.value)) continue
         summaries[tool.value] = t('code.own_login.title', { toolName: t(tool.label) })
         continue
       }
       // The gateway is synthetic (absent from the real provider list); resolve its summary
       // from the bundle's provider so the sidebar still shows the selected model.
       const provider = isApiGatewayProviderId(currentId)
-        ? apiGatewayBundle?.provider
+        ? GATEWAY_CAPABLE_CLI_TOOLS.has(tool.value)
+          ? apiGatewayBundle?.provider
+          : undefined
         : providers.find((p) => p.id === currentId)
       if (!provider) continue
+      if (!isApiGatewayProviderId(currentId) && filterProvidersForTool(tool.value, [provider]).length === 0) continue
       const meta = resolveProviderMetaForTool(tool.value, provider, state.providers[currentId])
       summaries[tool.value] = meta.modelName || meta.providerName
     }
     return summaries
-  }, [configs, providers, apiGatewayBundle, resolveProviderMetaForTool, t])
+  }, [configs, providers, apiGatewayBundle, filterProvidersForTool, resolveProviderMetaForTool, t])
 
   const handleReorderError = useCallback(
     (error: unknown) => {
@@ -125,11 +135,29 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     prependedProviders
   })
 
-  const enabledProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
+  const selectedProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
+  const currentProviderIsPending = !!currentProviderId && !selectedProvider && isProvidersLoading
+  const defaultGatewayProvider =
+    !selectedProvider && !currentProviderIsPending && showGatewayCard ? apiGatewayBundle?.provider : undefined
+  const savedGatewayConfig = defaultGatewayProvider ? providerConfigs[defaultGatewayProvider.id] : undefined
+  const hasSavedGatewayContext = defaultGatewayProvider
+    ? !!resolveCliConfigApplyContext(selectedCliTool, defaultGatewayProvider.id, savedGatewayConfig, gatewayModelsById)
+    : false
+  const defaultGatewayConfig = useMemo(
+    () =>
+      hasSavedGatewayContext
+        ? savedGatewayConfig
+        : defaultGatewayModelId
+          ? { ...savedGatewayConfig, modelId: defaultGatewayModelId }
+          : null,
+    [hasSavedGatewayContext, savedGatewayConfig, defaultGatewayModelId]
+  )
+  const enabledProvider = selectedProvider ?? defaultGatewayProvider
+  const enabledProviderConfig = selectedProvider ? currentProviderConfig : defaultGatewayConfig
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useCurrentCliConfigConnection({
     enabledProvider,
     selectedCliTool,
-    currentProviderConfig,
+    currentProviderConfig: enabledProviderConfig,
     apiGatewayProvider: apiGatewayBundle
   })
 
@@ -138,8 +166,11 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     [selectedCliTool]
   )
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
-  const isOwnLoginSelected = currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID
-  const canLaunch = isProviderlessTool || isOwnLoginSelected || !!enabledProvider
+  const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
+  const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
+  const canLaunch =
+    (isProviderlessTool || isOwnLoginSelected || !!enabledProvider) &&
+    (!isDeepSeekHarnessTool || !!enabledProviderConfig?.modelId)
   const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
@@ -171,7 +202,12 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
   const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
   const showProviderSelectionHint =
-    versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
+    versionStatus.installed &&
+    !isProviderlessTool &&
+    hasRealSupportedProvider &&
+    !selectedProvider &&
+    !currentProviderIsPending &&
+    !defaultGatewayProvider
 
   const configPanel = useConfigPanelController({
     selectedCliTool,
@@ -193,7 +229,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     directory,
     enabledProvider,
     isOwnLoginSelected,
-    currentProviderConfig,
+    currentProviderConfig: enabledProviderConfig,
     selectedTerminal,
     apiGatewayProvider: apiGatewayBundle,
     gatewayModelsById,
@@ -205,25 +241,37 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const openClawGateway = useOpenClawGatewayController({
     selectedCliTool,
     enabledProvider,
-    currentProviderConfig,
+    currentProviderConfig: enabledProviderConfig,
     upsertProviderConfig,
     setCurrentProvider
   })
+  const deepSeekHarness = useDeepSeekHarnessController({
+    selectedCliTool,
+    enabledProvider,
+    currentProviderConfig: enabledProviderConfig,
+    upsertProviderConfig,
+    setCurrentProvider
+  })
+  const deepSeekHarnessActionsDisabled =
+    isDeepSeekHarnessTool && (deepSeekHarness.running || deepSeekHarness.starting || deepSeekHarness.stopping)
   const handleRemove = useCallback(
     async (toolId: CodeCli) => {
+      if (toolId === CodeCli.DEEPSEEK_HARNESS && !(await deepSeekHarness.onStop())) return
       const success = await remove(toolId)
       if (success && currentProviderId) {
-        try {
-          await clearCliConfig({ cliTool: toolId })
-        } catch (err) {
-          logger.error('Failed to clear CLI config on tool removal:', err as Error)
-          toast.error(t('code.clear_config_failed'))
+        if (toolId !== CodeCli.DEEPSEEK_HARNESS) {
+          try {
+            await clearCliConfig({ cliTool: toolId })
+          } catch (err) {
+            logger.error('Failed to clear CLI config on tool removal:', err as Error)
+            toast.error(t('code.clear_config_failed'))
+          }
         }
         await setCurrentProvider(null)
         setCurrentCliConfigConnection(null)
       }
     },
-    [remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection, t]
+    [deepSeekHarness, remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection, t]
   )
   const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
 
@@ -246,9 +294,15 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           versionCard: {
             visible: true,
             canLaunch,
-            launching: launchDialog.launching || openClawGateway.launching || openClawGateway.starting,
-            running: openClawGateway.running,
-            stopping: openClawGateway.stopping
+            launching:
+              launchDialog.launching ||
+              openClawGateway.launching ||
+              openClawGateway.starting ||
+              deepSeekHarness.launching ||
+              deepSeekHarness.starting,
+            running: openClawGateway.running || deepSeekHarness.running,
+            stopping: openClawGateway.stopping || deepSeekHarness.stopping,
+            upgradeDisabled: deepSeekHarnessActionsDisabled
           },
           installingTools: mergedInstallingTools,
           upgradingTools,
@@ -261,6 +315,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           providerConfigs,
           currentProviderId,
           currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
+          providerActionsDisabled: deepSeekHarnessActionsDisabled,
           resolveProviderMeta,
           // A failed update carries its target so Retry repeats the same targeted
           // install; a name-only retry would hit the applied no-op and clear the
@@ -277,9 +332,17 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
             versionStatus.applicationStatus === 'applied' || versionStatus.applicationStatus === 'broken'
               ? () => removeDialog.requestRemove(selectedCliTool)
               : undefined,
-          onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
-          onStop: () => void openClawGateway.onStop(),
-          onOpenDashboard: () => void openClawGateway.onOpenDashboard(),
+          onLaunch: () =>
+            defaultGatewayProvider && !defaultGatewayConfig
+              ? configPanel.onToggleCurrent(defaultGatewayProvider)
+              : isOpenClawTool
+                ? void openClawGateway.onLaunch()
+                : isDeepSeekHarnessTool
+                  ? void deepSeekHarness.onLaunch()
+                  : launchDialog.openLaunchDialog(),
+          onStop: () => (isDeepSeekHarnessTool ? void deepSeekHarness.onStop() : void openClawGateway.onStop()),
+          onOpenDashboard: () =>
+            isDeepSeekHarnessTool ? void deepSeekHarness.onOpenWebUi() : void openClawGateway.onOpenDashboard(),
           onConfigure: configPanel.openConfigurePanel,
           onToggleCurrent: configPanel.onToggleCurrent,
           onReorder: handleReorder
@@ -289,7 +352,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     launchDialogProps: launchDialog.launchDialogProps,
     removeDialogProps: removeDialog.removeDialogProps,
     configPanelKey: configPanel.configPanelKey,
-    configPanelProps: configPanel.configPanelProps,
+    configPanelProps: deepSeekHarnessActionsDisabled ? undefined : configPanel.configPanelProps,
     ownLoginConfigPanelProps: configPanel.ownLoginConfigPanelProps
   }
 }

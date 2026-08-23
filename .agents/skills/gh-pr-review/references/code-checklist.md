@@ -158,7 +158,7 @@ Improvements to code quality, performance, and maintainability.
 Coding standards and documentation consistency.
 
 ### C1. Project Conventions
-- Naming follows `docs/references/naming-conventions.md`, based on path zone and
+- Naming follows `docs/references/architecture/naming-conventions.md`, based on path zone and
   primary export role rather than nearby legacy precedent
 - Variable names semantically clear, no unnecessary abbreviations
 - Names in new code consistent with style in the same file

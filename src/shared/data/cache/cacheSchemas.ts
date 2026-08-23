@@ -140,6 +140,10 @@ export type UseCacheSchema = {
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
   'mini_app.current_id': string
+  /** Whether the mini app view is split into two panes. */
+  'mini_app.split_open': boolean
+  /** Mini app shown in the split pane. Empty while the pane awaits a pick. */
+  'mini_app.split_id': string
   'mini_app.show': boolean
   'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
   'mini_app.detected_region': MiniAppRegion | null
@@ -226,6 +230,8 @@ export const DefaultUseCache: UseCacheSchema = {
   // MiniApp management
   'mini_app.opened_keep_alive': [],
   'mini_app.current_id': '',
+  'mini_app.split_open': false,
+  'mini_app.split_id': '',
   'mini_app.show': false,
   'mini_app.opened_oneoff': null,
   'mini_app.detected_region': null,
@@ -407,9 +413,16 @@ export type RendererPersistCacheSchema = {
   'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
-  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
+  // Last successful external-open target per directory or file-extension scope.
+  'external_app.target.preferences': CacheValueTypes.ExternalOpenTargetPreferences
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
+  // Screenshot overlay tool preferences — persisted because muscle memory should survive restarts,
+  // and main's relay of renderer persist writes also keeps a session's per-display overlays in step.
+  'ui.screenshot.color_mode': 'hex' | 'rgb'
+  'ui.screenshot.annotation_color': string
+  'ui.screenshot.annotation_stroke_width': number
+  'ui.screenshot.annotation_font_size': number
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -448,8 +461,14 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.usage.entry_sort_order': 'desc',
   'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
-  'agent.open_external_app.last_used_target': null,
-  'ui.emoji.recently_used': []
+  'external_app.target.preferences': {},
+  'ui.emoji.recently_used': [],
+  'ui.screenshot.color_mode': 'hex',
+  // Each must be a member of the matching preset list in renderer/windows/screenshot/constants.ts,
+  // or the overlay opens with no swatch, width or size marked as current.
+  'ui.screenshot.annotation_color': '#F54A45',
+  'ui.screenshot.annotation_stroke_width': 4,
+  'ui.screenshot.annotation_font_size': 20
 }
 
 /**

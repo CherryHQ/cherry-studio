@@ -3,9 +3,9 @@
  *
  * Sources:
  *   Dexie quick_phrases                                 → global prompts
- *   Redux assistants.assistants[].regularPhrases       → global prompts
- *   Redux assistants.presets[].regularPhrases          → global prompts
- *   Redux assistants.defaultAssistant.regularPhrases   → global prompts
+ *   Redux assistants.assistants[].regularPhrases       → restricted prompts + Assistant bindings
+ *   Redux assistants.presets[].regularPhrases          → restricted prompts + Assistant bindings
+ *   Redux assistants.defaultAssistant.regularPhrases   → restricted prompts + Assistant bindings
  *
  * Mapping:
  *   QuickPhrase.id        → prompt.id (preserve unique UUIDs; regenerate invalid/conflicting IDs)
@@ -13,11 +13,13 @@
  *   QuickPhrase.content   → prompt.content (${var} syntax preserved)
  *   QuickPhrase.order     → drives global relative order; stamped as fractional-indexing `orderKey`
  *   QuickPhrase timestamps → prompt timestamps (preserve valid date values; repair missing/invalid values)
+ *   Source assistant id   → prompt_binding target (after AssistantMigrator remapping)
  */
 
-import { promptTable } from '@data/db/schemas/prompt'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import type { PromptVisibility } from '@shared/data/types/prompt'
 import {
   PROMPT_CONTENT_MAX,
   PROMPT_TITLE_MAX,
@@ -30,7 +32,7 @@ import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { assignOrderKeysInSequence } from '../utils/orderKey'
+import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('PromptMigrator')
@@ -38,18 +40,21 @@ const INSERT_BATCH_SIZE = 100
 const INVALID_SOURCE_PREVIEW_LIMIT = 5
 
 type PromptInsertRow = typeof promptTable.$inferInsert
+type PromptBindingInsertRow = typeof promptBindingTable.$inferInsert
+type PreparedPromptBinding = Omit<PromptBindingInsertRow, 'orderKey'>
 
 interface PreparedPhrase {
   id: string
   title: string
   content: string
+  visibility: PromptVisibility
   createdAt: number
   updatedAt: number
 }
 
 interface NormalizedLegacyPhrase {
   legacyId?: string
-  phrase: Omit<PreparedPhrase, 'id'>
+  phrase: Omit<PreparedPhrase, 'id' | 'visibility'>
   normalizedTitle: boolean
   normalizedTimestamps: boolean
 }
@@ -63,6 +68,8 @@ interface LegacyAssistantState {
 interface LegacyPhraseCandidate {
   phrase: unknown
   source: string
+  visibility: PromptVisibility
+  bindingAssistantId?: string
   invalidReason?: string
 }
 
@@ -81,12 +88,14 @@ export class PromptMigrator extends BaseMigrator {
   private promptCount = 0
   private skippedCount = 0
   private preparedPhrases: PreparedPhrase[] = []
+  private preparedBindings: PromptBindingInsertRow[] = []
 
   override reset(): void {
     this.sourceCount = 0
     this.promptCount = 0
     this.skippedCount = 0
     this.preparedPhrases = []
+    this.preparedBindings = []
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -100,25 +109,29 @@ export class PromptMigrator extends BaseMigrator {
       }
 
       // Keep the existing global prompt order stable. Assistant arrays already use
-      // canonical old → new order, so append them without sorting across scopes.
+      // canonical old → new order, so append them without sorting across visibility groups.
       const orderedGlobalPhrases = globalPhrases
-        .map((phrase, index) => ({ phrase, source: `quick_phrases[${index}]` }))
+        .map((phrase, index) => ({ phrase, source: `quick_phrases[${index}]`, visibility: 'global' as const }))
         .sort((a, b) => getLegacyOrder(b.phrase) - getLegacyOrder(a.phrase))
       const assistantState = ctx.sources.reduxState.getCategory<LegacyAssistantState>('assistants')
+      const assistantIdRemap =
+        (ctx.sharedData.get('legacyAssistantIdRemap') as Map<string, string> | undefined) ?? new Map<string, string>()
       const candidates: LegacyPhraseCandidate[] = [
         ...orderedGlobalPhrases,
-        ...collectAssistantPhraseCandidates(assistantState)
+        ...collectAssistantPhraseCandidates(assistantState, assistantIdRemap)
       ]
 
       this.sourceCount = candidates.length
       this.preparedPhrases = []
+      this.preparedBindings = []
 
       const fallbackTimestamp = Date.now()
       const reservedIds = collectReservedPromptIds(candidates)
-      const variantsByLegacyId = new Map<string, Set<string>>()
       const usedIds = new Set<string>()
+      const bindingKeys = new Set<string>()
+      const preparedBindings: PreparedPromptBinding[] = []
+      const validAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string> | undefined) ?? new Set<string>()
       let invalidCount = 0
-      let duplicateCount = 0
       let reassignedIdCount = 0
       let regeneratedIdCount = 0
       let normalizedTitleCount = 0
@@ -136,19 +149,11 @@ export class PromptMigrator extends BaseMigrator {
         }
 
         const { legacyId, phrase } = normalized.value
-        const fingerprint = JSON.stringify([phrase.title, phrase.content])
         let id: string
 
         if (legacyId) {
-          const existingVariants = variantsByLegacyId.get(legacyId)
-
-          if (existingVariants?.has(fingerprint)) {
-            duplicateCount++
-            continue
-          }
-
           const parsedId = PromptIdSchema.safeParse(legacyId)
-          if (parsedId.success && !existingVariants && !usedIds.has(parsedId.data)) {
+          if (parsedId.success && !usedIds.has(parsedId.data)) {
             id = parsedId.data
           } else {
             id = generateUniqueId(usedIds, reservedIds)
@@ -168,10 +173,6 @@ export class PromptMigrator extends BaseMigrator {
               })
             }
           }
-
-          const variants = existingVariants ?? new Set<string>()
-          variants.add(fingerprint)
-          variantsByLegacyId.set(legacyId, variants)
         } else {
           id = generateUniqueId(usedIds, reservedIds)
           regeneratedIdCount++
@@ -181,19 +182,29 @@ export class PromptMigrator extends BaseMigrator {
         usedIds.add(id)
         if (normalized.value.normalizedTitle) normalizedTitleCount++
         if (normalized.value.normalizedTimestamps) normalizedTimestampCount++
-        this.preparedPhrases.push({ id, ...phrase })
+        this.preparedPhrases.push({ id, ...phrase, visibility: candidate.visibility })
+        if (candidate.visibility === 'restricted') {
+          appendPreparedBinding(
+            preparedBindings,
+            bindingKeys,
+            id,
+            candidate.bindingAssistantId,
+            validAssistantIds,
+            assistantIdRemap
+          )
+        }
       }
 
-      this.skippedCount = invalidCount + duplicateCount
+      this.preparedBindings = assignOrderKeysByScope(
+        preparedBindings,
+        (binding) => `${binding.targetType}:${binding.targetId}`
+      )
+      this.skippedCount = invalidCount
       this.promptCount = this.preparedPhrases.length
 
       if (invalidCount > 0) {
         logger.warn('Skipped invalid quick phrases', { skipped: invalidCount, sources: invalidDetails })
       }
-      if (duplicateCount > 0) {
-        logger.info('Skipped duplicate quick phrases', { skipped: duplicateCount })
-      }
-
       logger.info('Prepared prompt migration', {
         sourceCount: this.sourceCount,
         count: this.promptCount,
@@ -201,7 +212,8 @@ export class PromptMigrator extends BaseMigrator {
         reassignedIds: reassignedIdCount,
         regeneratedIds: regeneratedIdCount,
         normalizedTitles: normalizedTitleCount,
-        repairedTimestamps: normalizedTimestampCount
+        repairedTimestamps: normalizedTimestampCount,
+        bindingCount: this.preparedBindings.length
       })
 
       return {
@@ -236,6 +248,7 @@ export class PromptMigrator extends BaseMigrator {
           id: row.id,
           title: row.title,
           content: row.content,
+          visibility: row.visibility,
           orderKey: row.orderKey,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt
@@ -258,9 +271,19 @@ export class PromptMigrator extends BaseMigrator {
             .values(rows.slice(start, start + INSERT_BATCH_SIZE))
             .run()
         }
+        for (let start = 0; start < this.preparedBindings.length; start += INSERT_BATCH_SIZE) {
+          tx.insert(promptBindingTable)
+            .values(this.preparedBindings.slice(start, start + INSERT_BATCH_SIZE))
+            .run()
+        }
       })
 
-      logger.info('Prompt migration completed', { processedCount: rows.length })
+      this.assertOwnedForeignKeys(ctx.db, [promptBindingTable])
+
+      logger.info('Prompt migration completed', {
+        processedCount: rows.length,
+        bindingCount: this.preparedBindings.length
+      })
       return { success: true, processedCount: rows.length }
     } catch (error) {
       const err = wrapExecuteError(error, stamped, rows.length)
@@ -308,6 +331,17 @@ export class PromptMigrator extends BaseMigrator {
         })
       }
 
+      const bindingResult = db.select({ count: sql<number>`count(*)` }).from(promptBindingTable).get()
+      const targetBindingCount = bindingResult?.count ?? 0
+      if (targetBindingCount !== this.preparedBindings.length) {
+        errors.push({
+          key: 'prompt_binding_count_mismatch',
+          expected: this.preparedBindings.length,
+          actual: targetBindingCount,
+          message: `Expected ${this.preparedBindings.length} prompt bindings, got ${targetBindingCount}`
+        })
+      }
+
       return {
         success: errors.length === 0,
         errors,
@@ -341,26 +375,42 @@ function getLegacyOrder(phrase: unknown): number {
   return typeof phrase.order === 'number' && Number.isFinite(phrase.order) ? phrase.order : 0
 }
 
-function collectAssistantPhraseCandidates(state: LegacyAssistantState | undefined): LegacyPhraseCandidate[] {
+function collectAssistantPhraseCandidates(
+  state: LegacyAssistantState | undefined,
+  assistantIdRemap: ReadonlyMap<string, string>
+): LegacyPhraseCandidate[] {
   if (!state) return []
 
   const candidates: LegacyPhraseCandidate[] = []
+  const selectedTargetIds = new Set<string>()
   const appendAssistant = (assistant: unknown, source: string): void => {
     if (!isRecord(assistant) || !Object.hasOwn(assistant, 'regularPhrases') || assistant.regularPhrases === undefined) {
       return
     }
 
+    const bindingAssistantId = typeof assistant.id === 'string' ? assistant.id : undefined
+    const targetId = bindingAssistantId ? (assistantIdRemap.get(bindingAssistantId) ?? bindingAssistantId) : undefined
+    if (targetId && selectedTargetIds.has(targetId)) return
+    if (Array.isArray(assistant.regularPhrases) && assistant.regularPhrases.length === 0) return
+
     if (!Array.isArray(assistant.regularPhrases)) {
       candidates.push({
         phrase: assistant.regularPhrases,
         source: `${source}.regularPhrases`,
+        visibility: 'restricted',
         invalidReason: 'regularPhrases is not an array'
       })
       return
     }
 
+    if (targetId) selectedTargetIds.add(targetId)
     assistant.regularPhrases.forEach((phrase, index) => {
-      candidates.push({ phrase, source: `${source}.regularPhrases[${index}]` })
+      candidates.push({
+        phrase,
+        source: `${source}.regularPhrases[${index}]`,
+        visibility: 'restricted',
+        bindingAssistantId
+      })
     })
   }
 
@@ -373,6 +423,24 @@ function collectAssistantPhraseCandidates(state: LegacyAssistantState | undefine
   appendAssistant(state.defaultAssistant, 'defaultAssistant')
 
   return candidates
+}
+
+function appendPreparedBinding(
+  bindings: PreparedPromptBinding[],
+  bindingKeys: Set<string>,
+  promptId: string,
+  legacyAssistantId: string | undefined,
+  validAssistantIds: ReadonlySet<string>,
+  assistantIdRemap: ReadonlyMap<string, string>
+): void {
+  if (!legacyAssistantId) return
+  const targetId = assistantIdRemap.get(legacyAssistantId) ?? legacyAssistantId
+  if (!validAssistantIds.has(targetId)) return
+
+  const key = `${promptId}:${targetId}`
+  if (bindingKeys.has(key)) return
+  bindingKeys.add(key)
+  bindings.push({ promptId, targetType: 'assistant', targetId })
 }
 
 function normalizeLegacyPhrase(
@@ -471,6 +539,7 @@ function getPromptContractErrors(row: {
   id?: unknown
   title?: unknown
   content?: unknown
+  visibility?: unknown
   orderKey?: unknown
   createdAt?: unknown
   updatedAt?: unknown
@@ -481,6 +550,7 @@ function getPromptContractErrors(row: {
   const titleResult = PromptTitleSchema.safeParse(row.title)
   if (!titleResult.success || titleResult.data !== row.title) errors.push('title')
   if (!PromptContentSchema.safeParse(row.content).success) errors.push('content')
+  if (!PromptSchema.shape.visibility.safeParse(row.visibility).success) errors.push('visibility')
   if (typeof row.orderKey !== 'string' || row.orderKey.length === 0) errors.push('orderKey')
   if (validTimestamp(row.createdAt) === undefined) errors.push('createdAt')
   if (validTimestamp(row.updatedAt) === undefined) errors.push('updatedAt')

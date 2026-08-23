@@ -8,20 +8,22 @@ import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceLis
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
 import {
+  cancelTopicRenaming,
   finishTopicRenaming,
   getTopicMessages,
   mapApiTopicToRendererTopic,
   startTopicRenaming,
   useTopicMutations
 } from '@renderer/hooks/useTopic'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
@@ -63,6 +65,7 @@ const AssistantHistoryRecords = ({
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
   const { t } = useTranslation()
+  const clearTopicMessages = useClearTopicMessages()
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('assistants')
 
@@ -86,6 +89,7 @@ const AssistantHistoryRecords = ({
     yuque: 'data.export.menus.yuque'
   })
   const { pinnedIds: topicPinnedIds, togglePin: toggleTopicPin } = usePins('topic')
+  const { items: optimisticTopics, rename: renameTopicOptimistically } = useOptimisticResourceName(rawTopics)
 
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
@@ -96,8 +100,9 @@ const AssistantHistoryRecords = ({
   const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
 
   const topics = useMemo<HistoryTopicItem[]>(
-    () => rawTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
-    [isTopicPinned, rawTopics]
+    () =>
+      optimisticTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
+    [isTopicPinned, optimisticTopics]
   )
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
   const assistantRankById = useMemo(
@@ -115,11 +120,24 @@ const AssistantHistoryRecords = ({
     [assistantRankById, groupNow, topics]
   )
 
-  // The shared mapped list carries `pinned: false`, so only pinned rows need a copy.
+  const optimisticTopicById = useMemo(
+    () => new Map(optimisticTopics.map((topic) => [topic.id, topic])),
+    [optimisticTopics]
+  )
+  // The shared mapped list carries `pinned: false`; copy only rows with an optimistic name or pin override.
   const rendererTopicById = useMemo(
     () =>
-      new Map(rendererTopics.map((topic) => [topic.id, isTopicPinned(topic.id) ? { ...topic, pinned: true } : topic])),
-    [isTopicPinned, rendererTopics]
+      new Map(
+        rendererTopics.map((topic) => {
+          const optimisticName = optimisticTopicById.get(topic.id)?.name
+          const pinned = isTopicPinned(topic.id)
+          return [
+            topic.id,
+            optimisticName !== topic.name || pinned ? { ...topic, name: optimisticName ?? topic.name, pinned } : topic
+          ]
+        })
+      ),
+    [isTopicPinned, optimisticTopicById, rendererTopics]
   )
   const getRendererTopic = useCallback(
     (topic: ApiTopic): RendererTopic =>
@@ -158,14 +176,14 @@ const AssistantHistoryRecords = ({
       const title = topic.name || t('chat.default.topic.name')
       if (conversationNav.openConversationTab(topic.id, title, { forceNew: true })) return
 
-      onRecordSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
+      onRecordSelect?.(getRendererTopic(topic))
       onClose()
     },
-    [conversationNav, onClose, onRecordSelect, rendererTopicById, t]
+    [conversationNav, getRendererTopic, onClose, onRecordSelect, t]
   )
 
   const updateTopic = useCallback(
-    (topic: RendererTopic) =>
+    (topic: Pick<RendererTopic, 'id' | 'isNameManuallyEdited' | 'name'>) =>
       patchTopic(topic.id, { name: topic.name, isNameManuallyEdited: topic.isNameManuallyEdited }),
     [patchTopic]
   )
@@ -262,9 +280,7 @@ const AssistantHistoryRecords = ({
     [batchUpdateTopics, t]
   )
 
-  const handleClearMessages = useCallback((topic: RendererTopic) => {
-    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [])
+  const handleClearMessages = useCallback((topic: RendererTopic) => clearTopicMessages(topic.id), [clearTopicMessages])
 
   const handleAutoRename = useCallback(
     async (topic: RendererTopic) => {
@@ -272,15 +288,27 @@ const AssistantHistoryRecords = ({
       if (messages.length < 2) return
 
       startTopicRenaming(topic.id)
+      let didPersistRename = false
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
-          void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          try {
+            await updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+            didPersistRename = true
+          } catch (err) {
+            logger.error('Failed to save automatically renamed topic from history records', { topicId: topic.id, err })
+            const message = err instanceof Error ? err.message : t('common.save_failed')
+            toast.error(message)
+          }
         } else if (summaryError) {
           toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
       } finally {
-        finishTopicRenaming(topic.id)
+        if (didPersistRename) {
+          finishTopicRenaming(topic.id)
+        } else {
+          cancelTopicRenaming(topic.id)
+        }
       }
     },
     [t, updateTopic]
@@ -288,12 +316,15 @@ const AssistantHistoryRecords = ({
 
   const handleRenameTopic = useCallback(
     async (topicId: string, name: string) => {
-      const topic = rendererTopicById.get(topicId)
+      const topic = topics.find((candidate) => candidate.id === topicId)
       const trimmedName = name.trim()
       if (!topic || !trimmedName || trimmedName === topic.name) return
 
       try {
-        await updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
+        await renameTopicOptimistically(topic, trimmedName, async () => {
+          await updateTopic({ id: topic.id, name: trimmedName, isNameManuallyEdited: true })
+          return true
+        })
         toast.success(t('common.saved'))
       } catch (err) {
         logger.error('Failed to rename topic from history records', { topicId, err })
@@ -301,7 +332,7 @@ const AssistantHistoryRecords = ({
         toast.error(message)
       }
     },
-    [rendererTopicById, t, updateTopic]
+    [renameTopicOptimistically, t, topics, updateTopic]
   )
 
   const getTopicActionContext = useCallback(

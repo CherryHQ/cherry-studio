@@ -1,5 +1,6 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -261,6 +262,7 @@ vi.mock('../components/AgentRightPane', () => {
       Viewport: () => <div data-testid="agent-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Shortcuts</button>
     },
+    AgentTaskProgressCapsule: () => null,
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,
@@ -287,9 +289,17 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
-  default: ({ onOpenCitationsPanel }: { onOpenCitationsPanel: (payload: { citations: unknown[] }) => void }) => (
+  default: ({
+    sessionId,
+    onOpenCitationsPanel
+  }: {
+    sessionId: string
+    onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
+  }) => (
     <div data-testid="agent-messages">
-      <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
+      <button
+        type="button"
+        onClick={() => onOpenCitationsPanel({ citations: [{ number: 1, url: `/tmp/${sessionId}.md` }] })}>
         open citations
       </button>
     </div>
@@ -297,8 +307,17 @@ vi.mock('../components/AgentSessionMessages', () => ({
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
-  default: ({ open, onClose, citations }: { open: boolean; onClose: () => void; citations: unknown[] }) => (
+  default: ({
+    open,
+    onClose,
+    citations
+  }: {
+    open: boolean
+    onClose: () => void
+    citations: Array<{ number: number; url: string }>
+  }) => (
     <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
+      {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
       {open && (
         <button type="button" onClick={onClose}>
           close citations
@@ -371,6 +390,22 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('closes citations when switching sessions', async () => {
+    const user = userEvent.setup()
+    const view = renderAgentChat()
+
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(screen.getByText('/tmp/session-1.md')).toBeInTheDocument()
+
+    view.rerender(
+      <AgentChat conversationBootstrap={createConversationBootstrap({ ...defaultSession, id: 'session-2' })} />
+    )
+    expect(screen.queryByText('/tmp/session-1.md')).not.toBeInTheDocument()
+
+    view.rerender(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+    expect(screen.queryByText('/tmp/session-1.md')).not.toBeInTheDocument()
   })
 
   it('uses page-owned resources without subscribing to agent and model', () => {

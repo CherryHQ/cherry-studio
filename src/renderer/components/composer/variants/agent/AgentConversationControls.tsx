@@ -1,7 +1,7 @@
 import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
 import { ModelSelector } from '@renderer/components/ModelSelector'
+import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { cn } from '@renderer/utils/style'
@@ -249,7 +249,14 @@ function WorkspaceControl({
         <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
       </Button>
     )
-    return <OpenExternalAppButton workdir={workspace.path} menuTrigger={openMenuTrigger} tooltip={workspaceWarning} />
+    return (
+      <OpenTargetButton
+        targetPath={workspace.path}
+        pathKind="directory"
+        menuTrigger={openMenuTrigger}
+        tooltip={workspaceWarning}
+      />
+    )
   }
 
   const trigger = (
