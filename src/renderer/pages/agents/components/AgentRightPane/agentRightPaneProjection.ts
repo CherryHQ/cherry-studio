@@ -181,12 +181,6 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   return textFromContent(input.prompt) ?? textFromContent(input.description)
 }
 
-function getToolOutputText(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
-  if (resolvedOutput !== undefined) return textFromContent(resolvedOutput)
-  if (!part) return undefined
-  return textFromContent(getToolPartOutput(part))
-}
-
 function createFlowTextMessage(
   id: string,
   role: CherryUIMessage['role'],
@@ -293,8 +287,7 @@ function getResumeReceiptPromptText(part: CherryMessagePart, launchedAgentId: st
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
-  selectedToolCallId?: string,
-  selectedToolOutput?: unknown
+  selectedToolCallId?: string
 ): AgentToolFlowProjection {
   const toolNodes: AgentToolFlowNode[] = []
   const childrenByParent = new Map<string, string[]>()
@@ -361,8 +354,9 @@ export function buildAgentToolFlowProjection(
 
     // Content is segmented by the resume requests that continued this agent: each SendMessage
     // receipt resolving to the launch splits the timeline, so its prompt lands between rounds.
-    const launchedAgentId = extractLaunchedAgentId(selectedToolPart, selectedToolOutput)
-    const outputText = getToolOutputText(selectedToolPart, selectedToolOutput)
+    // The launch receipt's own result text is NOT appended — it duplicates the agent's final
+    // message already present above and goes stale across continuations.
+    const launchedAgentId = extractLaunchedAgentId(selectedToolPart)
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
@@ -422,9 +416,6 @@ export function buildAgentToolFlowProjection(
         segments[segmentIndex].parts.push(getPartWithoutParentMetadata(part))
       }
     }
-    // The launch receipt's own result belongs to the final round only — attaching it before
-    // segmentation finishes would duplicate it onto every boundary-flushed segment.
-    if (outputText) segments.at(-1)?.parts.push({ type: 'text', text: outputText } as CherryMessagePart)
     for (; emittedSegments < segments.length; emittedSegments += 1) emitSegment(emittedSegments)
   }
 

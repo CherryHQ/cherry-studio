@@ -917,7 +917,9 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent(title)
   })
 
-  it('resolves a deferred selected flow output by its stored address', async () => {
+  // The launch receipt's own result text is no longer projected into the flow (it duplicates the
+  // agent's final message), so the pane no longer resolves deferred outputs for it.
+  it('projects the selected flow without resolving its deferred output', async () => {
     const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
     const flowPart = {
       type: 'dynamic-tool',
@@ -942,15 +944,10 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
-    await waitFor(() => expect(getToolResultMock).toHaveBeenCalledWith(deferredToolResult))
     await waitFor(() =>
-      expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(
-        messages,
-        { m1: [flowPart] },
-        'flow-1',
-        'Loaded flow result'
-      )
+      expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(messages, { m1: [flowPart] }, 'flow-1')
     )
+    expect(getToolResultMock).not.toHaveBeenCalled()
   })
 
   it('marks direct artifact opening as user initiated', async () => {

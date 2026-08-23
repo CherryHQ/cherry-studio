@@ -90,16 +90,13 @@ describe('agent right pane projections', () => {
 
     expect(projection.selectedToolCallIds).toEqual(new Set(['root', 'child']))
     expect(projection.messages.map((item) => item.id)).toEqual(['root:agent-flow-prompt', 'root:agent-flow-assistant'])
-    expect(projection.partsByMessageId['root:agent-flow-assistant']).toHaveLength(4)
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toHaveLength(3)
     expect(projection.partsByMessageId['root:agent-flow-assistant'][1]).not.toBe(parts[2])
     expect(getPartParentToolCallId(projection.partsByMessageId['root:agent-flow-assistant'][1])).toBeUndefined()
     expect(Object.values(projection.partsByMessageId).flat()).not.toContain(parts[0])
     expect(Object.values(projection.partsByMessageId).flat()).not.toContain(parts[4])
     expect((projection.partsByMessageId['root:agent-flow-prompt'][0] as { text?: string }).text).toBe(
       'Explore the repo'
-    )
-    expect((projection.partsByMessageId['root:agent-flow-assistant'][3] as { text?: string }).text).toBe(
-      'Done exploring'
     )
 
     const nextProjection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
@@ -175,7 +172,7 @@ describe('agent right pane projections', () => {
     // The launch result belongs to the final round only — never duplicated onto the earlier one.
     expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings'])
     expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Please finalize the four conclusions'])
-    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings', launchOutput])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
   it('uses a lazily resolved selected output and preserves child parts untouched', () => {
@@ -194,11 +191,12 @@ describe('agent right pane projections', () => {
     const parts = [selected, child]
     const messages = [message('m1', parts)]
 
-    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root', 'Loaded subagent summary')
+    // The launch receipt's own result text is no longer appended to the flow — it duplicates the
+    // agent's final message and goes stale across continuations.
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
 
     expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
-      expect.objectContaining({ toolCallId: 'child' }),
-      { type: 'text', text: 'Loaded subagent summary' }
+      expect.objectContaining({ toolCallId: 'child' })
     ])
   })
 

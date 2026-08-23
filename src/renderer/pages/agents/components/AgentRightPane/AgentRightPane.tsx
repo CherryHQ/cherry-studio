@@ -48,7 +48,6 @@ import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessi
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
-import { useToolResult } from '@renderer/hooks/useToolResult'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
@@ -56,7 +55,6 @@ import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
-import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -133,20 +131,6 @@ function getFlowTabValue(toolCallId: string): string {
 
 function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
   return input.title?.trim() || input.toolName?.trim() || input.toolCallId
-}
-
-function findDeferredToolResult(partsByMessageId: Record<string, CherryMessagePart[]>, toolCallId: string | undefined) {
-  if (!toolCallId) return undefined
-
-  for (const parts of Object.values(partsByMessageId)) {
-    for (const part of parts) {
-      const source = part as unknown as { toolCallId?: unknown; output?: unknown }
-      if (source.toolCallId !== toolCallId) continue
-      return isDeferredToolOutput(source.output) ? source.output.$deferredToolResult : undefined
-    }
-  }
-
-  return undefined
 }
 
 function isSameFileSelection(
@@ -788,18 +772,13 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const runtime = useAgentRightPaneRuntime()
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
-  const deferredToolResult = useMemo(
-    () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
-    [runtime.partsByMessageId, tab?.toolCallId]
-  )
-  const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined)
   const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
   const flow = useMemo(
     () =>
       !active && retainedFlowRef.current
         ? retainedFlowRef.current
-        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId, selectedToolOutput),
-    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId]
+        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId),
+    [active, runtime.messages, runtime.partsByMessageId, tab?.toolCallId]
   )
   useLayoutEffect(() => {
     if (active) retainedFlowRef.current = flow
