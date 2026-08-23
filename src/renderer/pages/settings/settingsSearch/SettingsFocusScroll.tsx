@@ -22,14 +22,17 @@ const SettingsFocusScroll = () => {
     if (!pendingFocusId) return
 
     let retryTimer: ReturnType<typeof setTimeout> | undefined
-    let highlightTimer: ReturnType<typeof setTimeout> | undefined
 
     const attempt = (retryIndex: number) => {
       const el = document.getElementById(pendingFocusId)
       if (el) {
         el.scrollIntoView({ block: 'center' })
         el.classList.add(HIGHLIGHT_CLASS)
-        highlightTimer = setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), HIGHLIGHT_MS)
+        // Highlight timer is deliberately NOT cleared by the cleanup below:
+        // consuming the focus id re-runs this effect immediately, and killing
+        // the timer there would freeze the class on. SettingsFocusScroll unmounts
+        // together with the settings DOM, so a fired-and-forgotten timer is safe.
+        setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), HIGHLIGHT_MS)
         setPendingFocus(undefined)
         return
       }
@@ -42,10 +45,7 @@ const SettingsFocusScroll = () => {
     }
     attempt(0)
 
-    return () => {
-      clearTimeout(retryTimer)
-      clearTimeout(highlightTimer)
-    }
+    return () => clearTimeout(retryTimer)
   }, [pendingFocusId, location.pathname])
 
   return null

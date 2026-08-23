@@ -33,13 +33,17 @@ const SettingsSearchBox = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Leaving the search page (menu click or result jump) clears the input
+  // Clear the input only on the transition out of the search page (menu click
+  // or result jump). While typing, the debounced navigate has not landed yet —
+  // isSearchPage is still false — so a level-based check would wipe every keystroke.
+  const wasSearchPageRef = useRef(isSearchPage)
   useEffect(() => {
-    if (!isSearchPage && value) {
+    if (wasSearchPageRef.current && !isSearchPage) {
       setValue('')
       hasPushedRef.current = false
     }
-  }, [isSearchPage, value])
+    wasSearchPageRef.current = isSearchPage
+  }, [isSearchPage])
 
   useEffect(() => {
     const trimmed = value.trim()
