@@ -179,6 +179,21 @@ describe('CodeBlock', () => {
       expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
     })
 
+    it('does not couple the settled chip to fences elsewhere in the part', () => {
+      // isIncomplete refers to the last block of a streaming part; a settled
+      // path in an earlier block must promote regardless of it.
+      mocks.isCodeFenceIncomplete = true
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className={undefined}
+          children={<span data-sd-animate="true">/Users/foo/bar.tsx</span>}
+        />
+      )
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+    })
+
     it('should render without a message list provider', () => {
       mocks.messageListActions = undefined
 

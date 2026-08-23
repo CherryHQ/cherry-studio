@@ -44,9 +44,9 @@ const CodeBlock: React.FC<Props> = ({
   isStreaming = false
 }) => {
   const children = rawChildren ?? ''
-  // Streamed inline code arrives as element children; text extraction keeps
-  // the analyses below working while the render branch keeps the spans.
-  const text = useMemo(() => getNodeText(children), [children])
+  // Each stream tick rebuilds the animate spans, so `children` gets a fresh
+  // reference and memoizing the walk would never hit; recompute per render.
+  const text = getNodeText(children)
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = text.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
@@ -80,11 +80,10 @@ const CodeBlock: React.FC<Props> = ({
   )
 
   // Widget rewrites swap the faded <code> for interactive chrome, so they wait
-  // until streaming settles to avoid mid-stream layout jumps.
+  // until this part settles; `isIncomplete` is per-block and implies
+  // `isStreaming`, so it adds nothing here.
   const inlinePath =
-    !isStreaming && !isIncomplete && (language === null || language === 'text') && text
-      ? normalizeInlineFilePath(text)
-      : null
+    !isStreaming && (language === null || language === 'text') && text ? normalizeInlineFilePath(text) : null
 
   if (inlinePath && isKnownNavigationPath(inlinePath)) {
     return <NavigateToolInline input={{ path: inlinePath }} />
