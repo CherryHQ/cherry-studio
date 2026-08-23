@@ -159,6 +159,7 @@ export const zhCN = {
       warning_copy: '复制全部提示',
       warning_copy_success: '迁移提示已复制',
       warning_copy_failed: '无法复制迁移提示',
+      agent_database_unreadable: '旧版 Agent 数据库无法读取，未导入其中的数据；原始数据库文件已保留',
       agent_files_skipped_one: '已跳过 1 个路径重叠的 Agent 文件目标；旧版源数据已保留',
       agent_files_skipped_other: '已跳过 {{count}} 个路径重叠的 Agent 文件目标；旧版源数据已保留'
     },
@@ -353,6 +354,8 @@ export const enUS = {
       warning_copy: 'Copy all notices',
       warning_copy_success: 'Migration notices copied',
       warning_copy_failed: 'Failed to copy migration notices',
+      agent_database_unreadable:
+        'The legacy Agent database was unreadable and was not imported; the original database file was preserved',
       agent_files_skipped_one: 'Skipped 1 overlapping Agent filesystem target; legacy source data was preserved',
       agent_files_skipped_other:
         'Skipped {{count}} overlapping Agent filesystem targets; legacy source data was preserved'
