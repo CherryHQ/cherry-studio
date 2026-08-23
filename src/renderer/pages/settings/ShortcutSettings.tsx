@@ -541,9 +541,10 @@ const ShortcutSettings: FC = () => {
       <div
         key={record.key}
         ref={record.command === focusedCommand ? focusedRowRef : undefined}
+        id={`setting-shortcut-${record.command.replace(/[._]/g, '-')}`}
         data-focused={record.command === focusedCommand || undefined}
         className={cn(
-          'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
+          'grid scroll-mt-6 grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
           !record.preference.enabled && 'opacity-60',
           !isLast && 'border-border-subtle border-b',
           record.command === focusedCommand &&
