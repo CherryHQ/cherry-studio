@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Close preview",
       "code": "Code",
+      "copy_path": "Copy Path",
+      "copy_relative_path": "Copy Relative Path",
       "default_app": "Default app",
       "edit": {
         "conflict": {

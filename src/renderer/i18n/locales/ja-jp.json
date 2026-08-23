@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "プレビューを閉じる",
       "code": "コード",
+      "copy_path": "パスをコピー",
+      "copy_relative_path": "相対パスをコピー",
       "default_app": "デフォルトアプリ",
       "edit": {
         "conflict": {

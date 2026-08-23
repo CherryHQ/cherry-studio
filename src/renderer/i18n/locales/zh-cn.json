@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "关闭预览",
       "code": "代码",
+      "copy_path": "复制路径",
+      "copy_relative_path": "复制相对路径",
       "default_app": "默认应用",
       "edit": {
         "conflict": {
