@@ -1,6 +1,6 @@
 /**
  * Resolve a Cherry `UniqueModelId` into the provider route a dsh composition's
- * `dsh-llm-pi-ai` entry needs. Cherry owns the model + API key; this module maps
+ * LLM entry needs. Cherry owns the model + credential; this module maps
  * Cherry's provider/model/endpoint data onto the hand-declared YAML route shape.
  *
  * Key ownership: the raw Cherry API key is returned SEPARATELY and never placed
@@ -19,15 +19,16 @@ import {
   type DshApi,
   hasDshTextInput,
   hasKnownDshContextWindow,
+  isDshGatewayRoutableModel,
   mapEndpointToDshApi,
   resolveDshEndpointType
 } from '@shared/ai/dshModelCompatibility'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { getRawModelId, isGatewayRoutableModel, isReasoningModel, isVisionModel } from '@shared/utils/model'
+import { getRawModelId, isReasoningModel, isVisionModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
@@ -71,7 +72,7 @@ export class DshMissingContextWindowError extends Error {
   }
 }
 
-/** Thrown when a model explicitly declares no text input, which DSH rc.6 requires. */
+/** Thrown when a model explicitly declares no text input, which DSH requires. */
 export class DshUnsupportedModelInputError extends Error {
   readonly modelId: string
 
@@ -85,6 +86,12 @@ export class DshUnsupportedModelInputError extends Error {
 export type DshInputModality = 'text' | 'image'
 export type DshReasoningEffort = Exclude<ReasoningEffort, 'none' | 'auto'> | 'off'
 export type DshReasoningEfforts = Partial<Record<DshReasoningEffort, string | null>>
+
+/** LLM plugin that owns the connection's provider route in the dsh composition. */
+export type DshProviderAdapter = 'pi-ai' | 'deepseek'
+
+/** Fixed route name owned by `@deepseek-ai/dsh-llm-deepseek`. */
+export const DSH_NATIVE_DEEPSEEK_PROVIDER = 'deepseek-official'
 
 const DSH_ADJUSTABLE_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 
@@ -101,7 +108,7 @@ function resolveDshAutoReasoningEffort(model: Model): Exclude<DshReasoningEffort
   return isDshAdjustableReasoningEffort(defaultEffort) ? defaultEffort : 'high'
 }
 
-/** Project Cherry's reasoning selection onto the levels supported by dsh rc.6. */
+/** Project Cherry's reasoning selection onto the levels supported by dsh. */
 export function resolveDshReasoningEffort(
   model: Model,
   selection: ReasoningEffortOption = 'default'
@@ -139,7 +146,7 @@ function buildDshReasoningEfforts(model: Model, selected?: DshReasoningEffort): 
   return efforts
 }
 
-/** Hand-declared `dsh-llm-pi-ai` route model entry (context window REQUIRED). */
+/** Hand-declared dsh route model entry (context window REQUIRED). */
 export interface DshModelConfig {
   id: string
   name?: string
@@ -150,6 +157,8 @@ export interface DshModelConfig {
 }
 
 export interface DshProviderInjection {
+  /** The dsh plugin that owns the provider route. */
+  adapter: DshProviderAdapter
   /** dsh provider route key (the `providers` dict key); Google uses pi-ai's catalog key. */
   providerName: string
   /** Resolved transport family; Google is selected by catalog key rather than an explicit `api` field. */
@@ -158,7 +167,7 @@ export interface DshProviderInjection {
   baseUrl: string
   /** Provider request headers, when Cherry configures extras. */
   headers?: Record<string, string>
-  /** The real Cherry API key — inject via child env `CHERRY_DSH_API_KEY`, never into the YAML. */
+  /** The selected provider or Gateway credential — inject via child env, never into the YAML. */
   apiKey: string
   /** The dsh model id to select for the session (Cherry's `apiModelId`). */
   modelId: string
@@ -173,6 +182,19 @@ export interface DshProviderInjection {
 
 function resolveDshEndpoint(provider: Provider, model: Model) {
   return resolveEffectiveEndpoint(provider, model, resolveDshEndpointType(provider, model))
+}
+
+function resolveDshAdapter(provider: Provider, endpoint: ReturnType<typeof resolveDshEndpoint>): DshProviderAdapter {
+  const adapterFamily = endpoint.endpointType
+    ? provider.endpointConfigs?.[endpoint.endpointType]?.adapterFamily
+    : undefined
+  const hasExtraHeaders = Object.keys(provider.settings?.extraHeaders ?? {}).length > 0
+  return provider.id === 'deepseek' &&
+    endpoint.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+    adapterFamily === 'deepseek' &&
+    !hasExtraHeaders
+    ? 'deepseek'
+    : 'pi-ai'
 }
 
 /**
@@ -202,10 +224,8 @@ export function buildDshProviderInjection(
   credentialReceipt?: AiUsageCredentialReceipt,
   reasoningEffort: ReasoningEffortOption = 'default'
 ): DshProviderInjection {
-  // Unsupported-provider beats missing-key: a login-based provider has no key
-  // by design, and "missing API key" would misdiagnose it. dsh runs as a
-  // subprocess with no per-request transport injection, so every login-based
-  // provider is undrivable (parity with shared `resolveDshApi`).
+  // Unsupported-provider beats missing-key: a login-based provider is served by
+  // the local Gateway and intentionally has no provider API key here.
   const resolvedEndpoint = resolveDshEndpoint(provider, model)
   const api = resolveDshInjectionApi(provider, model)
   if (!api) {
@@ -215,14 +235,20 @@ export function buildDshProviderInjection(
   if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
   if (!apiKey.trim()) throw new DshMissingApiKeyError(provider.id)
 
-  const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
+  const adapter = resolveDshAdapter(provider, resolvedEndpoint)
+  const baseUrl =
+    adapter === 'deepseek'
+      ? formatDeepSeekBaseUrl(resolvedEndpoint.baseUrl)
+      : formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
   const headers = provider.settings?.extraHeaders
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {
-    // rc.6 reaches Google Generate Content only through pi-ai's built-in catalog route.
-    providerName: api === 'google-generative-ai' ? 'google' : provider.id,
+    adapter,
+    // Google Generate Content is still reached through pi-ai's built-in catalog route.
+    providerName:
+      adapter === 'deepseek' ? DSH_NATIVE_DEEPSEEK_PROVIDER : api === 'google-generative-ai' ? 'google' : provider.id,
     api,
     baseUrl,
     ...(headers ? { headers } : {}),
@@ -271,13 +297,14 @@ export function buildDshGatewayInjection(
   gateway: { baseUrl: string; apiKey: string; usageHeaders: Record<string, string> },
   reasoningEffort: ReasoningEffortOption = 'default'
 ): DshProviderInjection {
-  if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
+  if (!isDshGatewayRoutableModel(provider, model)) throw new DshUnsupportedProviderError(provider.id)
   if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
   if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
 
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
   return {
+    adapter: 'pi-ai',
     providerName: provider.id,
     api: 'openai-completions',
     baseUrl: formatDshBaseUrl(gateway.baseUrl, 'openai-completions'),
@@ -298,7 +325,7 @@ export function buildDshGatewayInjection(
   }
 }
 
-/** dsh's LLM layer is pi-ai, so its transport-specific base URL rules apply. */
+/** Generic dsh routes use pi-ai's transport-specific base URL rules. */
 function formatDshBaseUrl(baseUrl: string, api: DshApi): string {
   switch (api) {
     case 'openai-completions':
@@ -313,6 +340,11 @@ function formatDshBaseUrl(baseUrl: string, api: DshApi): string {
   }
 }
 
+/** The native DeepSeek adapter appends `/chat/completions` and `/files` itself. */
+function formatDeepSeekBaseUrl(baseUrl: string): string {
+  return withoutTrailingApiVersion(formatApiHost(baseUrl, false))
+}
+
 /** Select one credential for already-captured provider/model facts without re-reading either row. */
 export async function resolveDshProviderInjectionFromSnapshot(
   sessionId: string,
@@ -322,7 +354,8 @@ export async function resolveDshProviderInjectionFromSnapshot(
   reasoningEffort: ReasoningEffortOption = 'default'
 ): Promise<DshProviderInjection> {
   if (resolveDshInjectionApi(provider, model) === undefined) {
-    // Claude's gateway sequence: consent (ApiGatewayNotRunningError), converge, materialize key.
+    assertDshGatewayModelUsable(provider, model)
+    // Gateway sequence: consent (ApiGatewayNotRunningError), converge, materialize key.
     const gateway = await resolveApiGatewayRuntime(sessionId)
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
@@ -340,6 +373,12 @@ export async function resolveDshProviderInjectionFromSnapshot(
   )
 }
 
+function assertDshGatewayModelUsable(provider: Provider, model: Model): void {
+  if (!isDshGatewayRoutableModel(provider, model)) throw new DshUnsupportedProviderError(provider.id)
+  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
+  if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
+}
+
 /**
  * Validate dsh compatibility without consuming ProviderService's round-robin
  * API key rotation. Dispatch validation runs before every turn; selecting the
@@ -354,9 +393,7 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
 
   // Unsupported beats missing-credential (parity with buildDshProviderInjection).
   if (resolveDshInjectionApi(provider, model) === undefined) {
-    if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
-    if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-    if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
+    assertDshGatewayModelUsable(provider, model)
     // Consent only (persisted intent) — no ensureRunning/ensureValidApiKey side effects here.
     if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return

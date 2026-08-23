@@ -20590,6 +20590,19 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
+            "controls": []
+          }
+        }
+      }
+    },
+    {
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "ox-alpha",
+      "name": "Ox Alpha",
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
             "controls": [
               {
                 "kind": "effort",
@@ -22093,15 +22106,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.010612
+          "perMillionTokens": 0.009772
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.05306
+          "perMillionTokens": 0.04886
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.10612
+          "perMillionTokens": 0.09772
         }
       },
       "providerId": "openrouter",
@@ -22127,15 +22140,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.008
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.055
+          "perMillionTokens": 0.04
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.08
         }
       },
       "providerId": "openrouter",
@@ -27664,15 +27677,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.048
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.24
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.2
+          "perMillionTokens": 0.96
         }
       },
       "providerId": "openrouter",
@@ -37345,5 +37358,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a5c82bc4c3148c26"
+  "version": "d0762cca4bc501e0"
 }

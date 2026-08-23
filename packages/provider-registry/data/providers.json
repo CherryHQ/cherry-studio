@@ -1339,6 +1339,7 @@
       ]
     },
     {
+      "authMethods": ["oauth"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Github Copilot - AI model provider",
       "endpointConfigs": {
@@ -2410,5 +2411,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "d4aebe86a12ca8f8"
+  "version": "f60f88edcb1ff3aa"
 }

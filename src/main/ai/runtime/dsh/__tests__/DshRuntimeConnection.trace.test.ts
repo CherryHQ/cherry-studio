@@ -91,12 +91,19 @@ vi.mock('../dshConnectionSignature', () => ({
 }))
 vi.mock('../modelInjection', () => ({
   resolveDshProviderInjectionFromSnapshot: vi.fn(() => ({
+    adapter: 'pi-ai',
     providerName: 'deepseek',
     api: 'openai-completions',
     baseUrl: 'https://api.deepseek.com',
     modelId: 'deepseek-chat',
     apiKey: 'key',
-    modelConfig: { id: 'deepseek-chat', contextWindow: 128_000, maxTokens: 8192 },
+    modelConfig: {
+      id: 'deepseek-chat',
+      contextWindow: 128_000,
+      maxTokens: 8192,
+      input: ['text'],
+      reasoningEfforts: false
+    },
     usageCapture: { owner: 'provider-calls' }
   }))
 }))

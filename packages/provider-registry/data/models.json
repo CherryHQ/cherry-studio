@@ -5044,14 +5044,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "audio-recognition",
-        "structured-output",
-        "file-input"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "file-input"],
       "contextWindow": 1048576,
       "family": "ling",
       "id": "inkling-small",
@@ -7718,11 +7711,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.055
+          "perMillionTokens": 0.04
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.08
         }
       },
       "reasoning": {
@@ -7741,7 +7734,7 @@
       "family": "deepseek-flash",
       "id": "deepseek-v4-flash-vision-exp",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 393216,
+      "maxOutputTokens": 262144,
       "metadata": {},
       "name": "DeepSeek V4 Flash Vision Exp",
       "openWeights": true,
@@ -21698,5 +21691,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "7a8ec69b5981aea8"
+  "version": "d7d3a802393edc62"
 }

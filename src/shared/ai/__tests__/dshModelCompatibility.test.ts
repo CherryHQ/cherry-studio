@@ -2,7 +2,7 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { isDshCompatibleModel, resolveDshApi } from '../dshModelCompatibility'
+import { isDshCompatibleModel, isDshGatewayRoutableModel, resolveDshApi } from '../dshModelCompatibility'
 
 function makeProvider(overrides: Partial<Provider>): Provider {
   return {
@@ -54,6 +54,19 @@ describe('isDshCompatibleModel', () => {
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
     } as Partial<Provider>)
     expect(isDshCompatibleModel(loginProvider, makeModel({}))).toBe(true)
+  })
+
+  it('does not advertise external-CLI models as Gateway-backed dsh models', () => {
+    const provider = makeProvider({
+      id: 'claude-code',
+      authMethods: ['external-cli'],
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
+    })
+    const model = makeModel({ providerId: 'claude-code', id: 'claude-code::claude-sonnet' })
+
+    expect(isDshGatewayRoutableModel(provider, model)).toBe(false)
+    expect(isDshCompatibleModel(provider, model)).toBe(false)
   })
 
   it('rejects models the gateway cannot route either', () => {
