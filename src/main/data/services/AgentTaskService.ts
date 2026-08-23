@@ -25,7 +25,7 @@ import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/
 import type { ListOptions } from '@shared/data/api/types'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
-const HEARTBEAT_TASK_NAME = 'heartbeat'
+const HEARTBEAT_PROMPT_SENTINEL = '__heartbeat__'
 
 type AgentTaskJobInputTemplate = {
   agentId: string
@@ -208,7 +208,10 @@ export class AgentTaskService {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
       if (!template) return false
       if (agentId !== undefined && template.agentId !== agentId) return false
-      if (!includeHeartbeat && s.name === HEARTBEAT_TASK_NAME) return false
+      // Keyed off the prompt sentinel rather than the name: names carry the agent
+      // id (uniqueness is per (type, name)), and every agent's heartbeat uses
+      // the sentinel as its actual discriminator.
+      if (!includeHeartbeat && template.prompt === HEARTBEAT_PROMPT_SENTINEL) return false
       return true
     })
 
