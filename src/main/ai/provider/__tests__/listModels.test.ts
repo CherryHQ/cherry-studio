@@ -780,6 +780,70 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
     })
   }
 
+  it('converts the gateway ratios into per-1M rates and refuses to guess a time-tiered one', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/api/pricing')) {
+        return Promise.resolve({
+          value: {
+            data: [
+              // ratio 1 = $2 / 1M; output and cache are multiples of the input rate.
+              { model_name: 'deepseek/deepseek-v3.2', model_ratio: 0.142857, completion_ratio: 1.5, cache_ratio: 0.1 },
+              {
+                // Billed against the Shanghai clock — no single rate to quote.
+                model_name: 'deepseek/deepseek-v4-pro',
+                model_ratio: 0.3375,
+                completion_ratio: 3,
+                billing_mode: 'tiered_expr',
+                billing_expr: 'hour("Asia/Shanghai") >= 9 ? tier("peak", p * 1.35) : tier("off_peak", p * 0.675)'
+              },
+              // Priced per request, which the per-token model cannot hold.
+              { model_name: 'openai/dall-e-3', quota_type: 1, model_price: 0.04 },
+              { model_name: 'unlisted-in-models', model_ratio: 1 }
+            ]
+          }
+        })
+      }
+      return Promise.resolve({
+        value: {
+          data: [
+            { id: 'deepseek/deepseek-v3.2' },
+            { id: 'deepseek/deepseek-v4-pro' },
+            { id: 'openai/dall-e-3' },
+            { id: 'no-price-published' }
+          ]
+        }
+      })
+    })
+
+    const models = await listModels(makeProvider({ id: 'cherryin' }))
+    const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
+
+    expect(priceOf('deepseek/deepseek-v3.2')).toEqual({
+      input: { currency: 'USD', perMillionTokens: 0.285714 },
+      output: { currency: 'USD', perMillionTokens: 0.428571 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.0285714 }
+    })
+    expect(priceOf('deepseek/deepseek-v4-pro')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+    expect(priceOf('openai/dall-e-3')).toBeUndefined()
+    expect(priceOf('no-price-published')).toBeUndefined()
+  })
+
+  it('still lists models when the gateway publishes no pricing endpoint', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.reject(new Error('404 not found'))
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+
+    const models = await listModels(makeProvider({ id: 'cherryin' }))
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
+    expect(models[0].pricing).toBeUndefined()
+  })
+
   it('marks normalized primary jina-rerank models while ignoring unknown endpoint routing metadata', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {

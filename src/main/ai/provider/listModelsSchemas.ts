@@ -241,6 +241,28 @@ export const AnthropicModelsResponseSchema = z.object({
   has_more: z.boolean().optional()
 })
 
+// === NewAPI (/api/pricing — public on every deployment of the gateway) ===
+
+export const NewApiPricingResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      model_name: z.string(),
+      /** 0 = metered per token, 1 = a flat price per request (`model_price`). */
+      quota_type: z.number().optional(),
+      /** Multiplier over the gateway's quota unit, not a currency amount. */
+      model_ratio: z.number().optional(),
+      completion_ratio: z.number().optional(),
+      cache_ratio: z.number().optional(),
+      /** Present when the rate depends on something the ratios can't express, e.g. time of day. */
+      billing_mode: z.string().optional(),
+      billing_expr: z.string().optional()
+    })
+  ),
+  /** Per-group multiplier applied on top of every ratio. */
+  group_ratio: z.record(z.string(), z.number()).optional(),
+  success: z.boolean().optional()
+})
+
 // === AIHubMix ===
 
 export const AIHubMixModelsResponseSchema = z.object({

@@ -52,6 +52,7 @@ import {
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
+  NewApiPricingResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OpenRouterModelsResponseSchema,
@@ -155,12 +156,6 @@ function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>)
   }
 }
 
-/**
- * A gateway's own price list is authoritative for its rates — the registry only carries the vendor's
- * list price, which resellers routinely diverge from. Rates are USD per 1M tokens; a listing that omits
- * either side of the pair carries no usable price at all, so the whole block is dropped rather than
- * half-filled (`0` would read as free).
- */
 /** OpenRouter quotes decimal strings per SINGLE token; everything downstream is per 1M. */
 function perMillion(perToken: string | undefined): number | undefined {
   if (perToken === undefined) return undefined
@@ -168,6 +163,12 @@ function perMillion(perToken: string | undefined): number | undefined {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed * 1_000_000 : undefined
 }
 
+/**
+ * A gateway's own price list is authoritative for its rates — the registry only carries the vendor's
+ * list price, which resellers routinely diverge from. Rates are USD per 1M tokens; a listing that omits
+ * either side of the pair carries no usable price at all, so the whole block is dropped rather than
+ * half-filled (`0` would read as free).
+ */
 function usdPricing(price: {
   input?: number
   output?: number
@@ -175,13 +176,44 @@ function usdPricing(price: {
   cacheWrite?: number
 }): Model['pricing'] | undefined {
   if (price.input === undefined || price.output === undefined) return undefined
-  const usd = (perMillionTokens: number) => ({ currency: CURRENCY.USD, perMillionTokens })
+  // Rates are derived by multiplication (ratios, per-token strings), so drop the binary-float residue
+  // that would otherwise be stored and shown verbatim: 0.142857 * 2 * 1.5 = 0.42857100000000004.
+  const usd = (perMillionTokens: number) => ({
+    currency: CURRENCY.USD,
+    perMillionTokens: Number(perMillionTokens.toPrecision(10))
+  })
   return {
     input: usd(price.input),
     output: usd(price.output),
     ...(price.cacheRead !== undefined ? { cacheRead: usd(price.cacheRead) } : {}),
     ...(price.cacheWrite !== undefined ? { cacheWrite: usd(price.cacheWrite) } : {})
   }
+}
+
+type NewApiPricingItem = z.infer<typeof NewApiPricingResponseSchema>['data'][number]
+
+/** One NewAPI ratio unit is $2 per 1M tokens; output and cache rates are multiples of the input rate. */
+const NEW_API_USD_PER_RATIO_UNIT = 2
+
+/**
+ * Rates from a NewAPI gateway's `/api/pricing`. Assumes the `default` group, whose multiplier is 1 on
+ * every deployment seen so far — a user placed in another group pays that group's multiple of this.
+ */
+function newApiPricing(entry: NewApiPricingItem): Model['pricing'] | undefined {
+  // Anything the flat ratios can't express (CherryIN prices DeepSeek V4 by time of day) has no single
+  // rate to state. Say so rather than quoting one of the tiers as if it always applied.
+  if (entry.billing_mode) {
+    const unknown = { currency: CURRENCY.USD, perMillionTokens: null }
+    return { input: unknown, output: unknown }
+  }
+  // quota_type 1 prices per request, which the per-token model can't hold.
+  if (entry.quota_type === 1 || entry.model_ratio === undefined) return undefined
+  const input = entry.model_ratio * NEW_API_USD_PER_RATIO_UNIT
+  return usdPricing({
+    input,
+    output: input * (entry.completion_ratio ?? 1),
+    cacheRead: entry.cache_ratio === undefined ? undefined : input * entry.cache_ratio
+  })
 }
 
 function dedup<T>(items: T[], getId: (item: T) => string | undefined): T[] {
@@ -505,19 +537,37 @@ const newApiFetcher: ModelFetcher = {
     p.id === SystemProviderIds.aionly,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
-      url: `${baseUrl}/models`,
-      headers: defaultHeaders(provider),
-      responseSchema: NewApiModelsResponseSchema,
-      abortSignal: signal
-    })
+    const [response, pricingResponse] = await Promise.all([
+      getFromApi({
+        url: `${baseUrl}/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: NewApiModelsResponseSchema,
+        abortSignal: signal
+      }),
+      // Public on the gateway itself, and the only place its resale rates are published — a deployment
+      // that doesn't serve it simply yields no rates.
+      getFromApi({
+        url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/pricing`,
+        headers: defaultAppHeaders(),
+        responseSchema: NewApiPricingResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        recoverOptionalModelListFailure<NewApiPricingItem>(error, {
+          providerId: provider.id,
+          endpoint: 'new-api-pricing'
+        })
+      )
+    ])
+    const pricingByModel = new Map(pricingResponse.data.map((entry) => [entry.model_name, newApiPricing(entry)]))
     return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
       const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
       const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+      const pricing = pricingByModel.get(m.id)
 
       return toModel(m.id, provider, {
         ownedBy: m.owned_by,
         endpointTypes,
+        ...(pricing ? { pricing } : {}),
         ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
       })
     })
