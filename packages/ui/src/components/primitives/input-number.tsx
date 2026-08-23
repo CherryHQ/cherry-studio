@@ -296,8 +296,10 @@ function InputNumber({
       onFocus={(event) => {
         generation.current += 1
         setBusy(false)
-        preEdit.current = value
-        setDraft(format(value))
+        // Seeded from what is on screen, not from `value`: a commit still in flight
+        // is showing its settled value while `value` is one round trip behind.
+        preEdit.current = toNumber(text)
+        setDraft(text)
         onFocus?.(event)
       }}
       onChange={handleChange}

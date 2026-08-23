@@ -354,6 +354,27 @@ describe('InputNumber', () => {
     expect(input).not.toHaveAttribute('aria-busy')
   })
 
+  it('keeps showing the committed value when the field is re-entered mid-commit', async () => {
+    const user = userEvent.setup()
+    const onBlur = vi.fn(() => new Promise<void>(() => {}))
+    render(<InputNumber aria-label="amount" min={0} step={1} value={0} onBlur={onBlur} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.clear(input)
+    await user.type(input, '30')
+    await user.tab()
+    await user.click(input)
+
+    // `value` is still 0 — one round trip behind — so seeding the edit from it
+    // would put the flash we just removed back on the way in.
+    expect(input).toHaveValue('30')
+
+    await user.type(input, '5')
+    await user.keyboard('{Escape}')
+    expect(input).toHaveValue('30')
+  })
+
   it('lets a re-focused field keep what is being typed when the commit settles', async () => {
     const user = userEvent.setup()
     let finish: () => void = () => {}
