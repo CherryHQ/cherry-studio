@@ -428,6 +428,28 @@ describe('FeishuAdapter', () => {
     })
   })
 
+  it('does not emit when resource loading outlives its connect run', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+    let finishResources!: () => void
+    vi.spyOn(adapter, 'downloadResources').mockReturnValue(
+      new Promise((resolve) => {
+        finishResources = () => resolve({ images: [], files: [] })
+      })
+    )
+
+    channelHandlers.message(incomingMessage())
+    await Promise.resolve()
+    await adapter.disconnect()
+    finishResources()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onMessage).not.toHaveBeenCalled()
+  })
+
   it('routes normalized slash commands without invoking the agent', async () => {
     const adapter = createAdapter()
     const onCommand = vi.fn()

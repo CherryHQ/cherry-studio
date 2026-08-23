@@ -44,7 +44,7 @@ describe('ChannelAdapter connect ownership', () => {
     await vi.waitFor(() => expect(adapter.pendingConnectCount()).toBe(2))
 
     adapter.resolveConnect(0)
-    await expect(first).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(first).resolves.toBeUndefined()
     expect(adapter.connected).toBe(false)
     expect(statuses).toEqual([])
 
@@ -64,7 +64,7 @@ describe('ChannelAdapter connect ownership', () => {
     await adapter.disconnect()
     adapter.resolveConnect(0)
 
-    await expect(connecting).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(connecting).resolves.toBeUndefined()
     expect(adapter.connected).toBe(false)
     expect(statuses).toEqual([])
   })

@@ -388,31 +388,31 @@ class QqAdapter extends ChannelAdapter {
         this.log.info('QQ session resumed')
         break
       case 'C2C_MESSAGE_CREATE':
-        await this.handleC2CMessage(data as QqMessage)
+        await this.handleC2CMessage(data as QqMessage, signal)
         break
       case 'GROUP_AT_MESSAGE_CREATE':
         // Dedup lives inside handleGroupMessage (same layer as handleGroupFullMessage).
-        await this.handleGroupMessage(data as QqMessage)
+        await this.handleGroupMessage(data as QqMessage, signal)
         break
       case 'GROUP_MESSAGE_CREATE':
-        await this.handleGroupFullMessage(data as QqMessage)
+        await this.handleGroupFullMessage(data as QqMessage, signal)
         break
       case 'AT_MESSAGE_CREATE':
-        await this.handleGuildMessage(data as QqMessage)
+        await this.handleGuildMessage(data as QqMessage, signal)
         break
       case 'DIRECT_MESSAGE_CREATE':
-        await this.handleDirectMessage(data as QqMessage)
+        await this.handleDirectMessage(data as QqMessage, signal)
         break
     }
   }
 
-  private async handleC2CMessage(msg: QqMessage): Promise<void> {
+  private async handleC2CMessage(msg: QqMessage, signal: AbortSignal): Promise<void> {
     const chatId = `c2c:${msg.author.user_openid}`
     if (!this.isAllowed(chatId, msg.author.user_openid)) return
-    await this.processMessage(msg, chatId, msg.author.user_openid ?? msg.author.id, msg.author.username ?? '')
+    await this.processMessage(msg, chatId, msg.author.user_openid ?? msg.author.id, msg.author.username ?? '', signal)
   }
 
-  private async handleGroupMessage(msg: QqMessage): Promise<void> {
+  private async handleGroupMessage(msg: QqMessage, signal: AbortSignal): Promise<void> {
     const chatId = `group:${msg.group_openid}`
     if (!this.isAllowed(chatId, msg.group_openid)) return
     // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message.
@@ -420,11 +420,11 @@ class QqAdapter extends ChannelAdapter {
     // event would otherwise observe "not seen" while the first copy is still in flight.
     // AT events are handled in both mention modes; mention_only only gates FULL events.
     if (!this.markIfNew(msg.id)) return
-    await this.processGroupMessage(msg, chatId)
+    await this.processGroupMessage(msg, chatId, signal)
   }
 
   /** Group full-message handler (GROUP_MESSAGE_CREATE — all group messages when full mode is on). */
-  private async handleGroupFullMessage(msg: QqMessage): Promise<void> {
+  private async handleGroupFullMessage(msg: QqMessage, signal: AbortSignal): Promise<void> {
     const chatId = `group:${msg.group_openid}`
     if (!this.isAllowed(chatId, msg.group_openid)) return
 
@@ -434,7 +434,7 @@ class QqAdapter extends ChannelAdapter {
     // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message
     if (!this.markIfNew(msg.id)) return
 
-    await this.processGroupMessage(msg, chatId)
+    await this.processGroupMessage(msg, chatId, signal)
   }
 
   /** Dedup gate shared by both group-message paths: false if already seen within the TTL window, otherwise marks and returns true. */
@@ -449,9 +449,15 @@ class QqAdapter extends ChannelAdapter {
    * twin event (or a platform re-push) can retry the message. The error is rethrown —
    * the rollback must not swallow it.
    */
-  private async processGroupMessage(msg: QqMessage, chatId: string): Promise<void> {
+  private async processGroupMessage(msg: QqMessage, chatId: string, signal: AbortSignal): Promise<void> {
     try {
-      await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+      await this.processMessage(
+        msg,
+        chatId,
+        msg.author.member_openid ?? msg.author.id,
+        msg.author.username ?? '',
+        signal
+      )
     } catch (err) {
       this.seenMsgIds.delete(msg.id)
       throw err
@@ -483,25 +489,26 @@ class QqAdapter extends ChannelAdapter {
     return true
   }
 
-  private async handleGuildMessage(msg: QqMessage): Promise<void> {
+  private async handleGuildMessage(msg: QqMessage, signal: AbortSignal): Promise<void> {
     const chatId = `channel:${msg.channel_id}`
     if (!this.isAllowed(chatId, msg.channel_id)) return
-    await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
+    await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '', signal)
   }
 
-  private async handleDirectMessage(msg: QqMessage): Promise<void> {
+  private async handleDirectMessage(msg: QqMessage, signal: AbortSignal): Promise<void> {
     const chatId = `dm:${msg.guild_id}`
     if (!this.isAllowed(chatId, msg.guild_id)) return
-    await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
+    await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '', signal)
   }
 
-  private async processMessage(msg: QqMessage, chatId: string, userId: string, userName: string): Promise<void> {
-    // Record the inbound id at receive time (for the passive-reply window), keyed so a later
-    // reply targets this exact message rather than whatever arrived most recently in the chat.
-    // Passive reply is the default path and needs no group-owner opt-in; active group push works
-    // only when the owner enables it (reopened 2026-06-22, rate-limited).
-    this.recordInbound(chatId, msg.id)
-
+  private async processMessage(
+    msg: QqMessage,
+    chatId: string,
+    userId: string,
+    userName: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     const text = this.parseContent(msg.content)
 
     if (isSlashCommand(text)) {
@@ -509,13 +516,18 @@ class QqAdapter extends ChannelAdapter {
         await this.sendWhoami(chatId, msg.id)
         return
       }
+      if (!this.isConnectRunActive(signal)) return
+      this.recordInbound(chatId, msg.id)
       this.emitCommand(chatId, userId, userName, text, msg.id)
       return
     }
 
-    const { images, files } = await this.downloadAttachments(msg.attachments)
+    const { images, files } = await this.downloadAttachments(msg.attachments, signal)
+    if (!this.isConnectRunActive(signal)) return
     if (!text && !images && !files) return
 
+    // Passive replies must bind to the exact message owned by this still-current connect run.
+    this.recordInbound(chatId, msg.id)
     this.emit('message', {
       chatId,
       userId,
@@ -542,13 +554,15 @@ class QqAdapter extends ChannelAdapter {
    * QQ CDN URLs may require the QQBot auth header.
    */
   private async downloadAttachments(
-    attachments?: QqAttachment[]
+    attachments: QqAttachment[] | undefined,
+    signal: AbortSignal
   ): Promise<{ images?: ImageAttachment[]; files?: FileAttachment[] }> {
     if (!attachments || attachments.length === 0) return {}
 
     const images: ImageAttachment[] = []
     const files: FileAttachment[] = []
     const token = await this.getAccessToken()
+    if (!this.isConnectRunActive(signal)) return {}
 
     await Promise.all(
       attachments
@@ -560,18 +574,21 @@ class QqAdapter extends ChannelAdapter {
             // inbound payload before we fetch with the bot token (and before the retry).
             const safeUrl = sanitizeRemoteUrl(url)
             const response = await net.fetch(safeUrl, {
-              headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId }
+              headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId },
+              signal
             })
             if (!response.ok) {
               // Retry without auth header (some CDN URLs are public)
-              const retry = await net.fetch(safeUrl)
+              const retry = await net.fetch(safeUrl, { signal })
               if (!retry.ok) return
               const buffer = Buffer.from(await retry.arrayBuffer())
+              if (!this.isConnectRunActive(signal)) return
               // `att.size` is attacker-supplied metadata; cap on the real downloaded bytes.
               if (buffer.length > MAX_FILE_SIZE_BYTES) return
               this.pushAttachment(att, buffer, images, files)
             } else {
               const buffer = Buffer.from(await response.arrayBuffer())
+              if (!this.isConnectRunActive(signal)) return
               if (buffer.length > MAX_FILE_SIZE_BYTES) return
               this.pushAttachment(att, buffer, images, files)
             }

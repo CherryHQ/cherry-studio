@@ -273,6 +273,30 @@ describe('SlackAdapter', () => {
     )
   })
 
+  it('does not emit when an in-flight message loses connect-run ownership', async () => {
+    const adapter = await connectAdapter()
+    const messageSpy = vi.fn()
+    adapter.on('message', messageSpy)
+    let finishUserLookup!: () => void
+    mockNetFetch.mockImplementation((url: string) => {
+      if (url.includes('users.info')) {
+        return new Promise((resolve) => {
+          finishUserLookup = () => resolve(mockJsonResponse({ ok: true, user: { real_name: 'Late User' } }))
+        })
+      }
+      return Promise.resolve(mockJsonResponse({ ok: true }))
+    })
+
+    simulateMessageEvent({ channel: 'C0ALLOWED', user: USER1_ID, text: 'late' })
+    await vi.waitFor(() => expect(finishUserLookup).toBeTypeOf('function'))
+    await adapter.disconnect()
+    finishUserLookup()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(messageSpy).not.toHaveBeenCalled()
+  })
+
   it('acknowledges incoming message envelopes', async () => {
     await connectAdapter()
     simulateMessageEvent({ channel: 'C0ALLOWED', user: USER1_ID, text: 'Hello' }, 'env-ack-test')

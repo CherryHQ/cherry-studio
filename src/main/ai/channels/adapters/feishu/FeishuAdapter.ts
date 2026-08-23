@@ -220,7 +220,7 @@ class FeishuAdapter extends ChannelAdapter {
     channel.on({
       message: (message) => {
         if (!this.isConnectRunActive(signal)) return
-        void this.handleMessage(message).catch((error) => {
+        void this.handleMessage(message, signal).catch((error) => {
           if (!this.isConnectRunActive(signal)) return
           this.log.error('Failed to handle Feishu message', {
             chatId: message.chatId,
@@ -451,7 +451,8 @@ class FeishuAdapter extends ChannelAdapter {
     await this.getChannel().send(chatId, { markdown: `**Error**: ${error}` }, replyOptions(opts))
   }
 
-  private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {
+  private async handleMessage(message: Lark.NormalizedMessage, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(message.chatId)) {
       this.log.debug('Dropping message from unauthorized chat', { chatId: message.chatId })
       return
@@ -462,6 +463,7 @@ class FeishuAdapter extends ChannelAdapter {
     const conversation = conversationId ? { conversationId: `thread:${conversationId}`, replyInThread: true } : {}
     if (isSlashCommand(text)) {
       const parts = text.split(/\s+/)
+      if (!this.isConnectRunActive(signal)) return
       this.emit('command', {
         chatId: message.chatId,
         ...conversation,
@@ -475,6 +477,7 @@ class FeishuAdapter extends ChannelAdapter {
     }
 
     const { images, files } = await this.downloadResources(message)
+    if (!this.isConnectRunActive(signal)) return
     if (!text && images.length === 0 && files.length === 0) return
     this.emit('message', {
       chatId: message.chatId,

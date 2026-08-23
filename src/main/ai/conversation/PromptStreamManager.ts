@@ -186,14 +186,22 @@ export class PromptStreamManager extends BaseService {
         })
       }
     } catch (error) {
-      const terminal: StreamErrorResult = {
-        status: ConversationOutcomeKind.Error,
-        error: serializeError(error),
-        finalMessage,
-        modelId: resource.modelId,
-        runtimeTiming: resource.timing.snapshot(),
-        turnTerminal: true
-      }
+      const terminal: StreamPausedResult | StreamErrorResult = signal.aborted
+        ? {
+            status: ConversationOutcomeKind.Paused,
+            finalMessage,
+            modelId: resource.modelId,
+            runtimeTiming: resource.timing.snapshot(),
+            turnTerminal: true
+          }
+        : {
+            status: ConversationOutcomeKind.Error,
+            error: serializeError(error),
+            finalMessage,
+            modelId: resource.modelId,
+            runtimeTiming: resource.timing.snapshot(),
+            turnTerminal: true
+          }
       await this.publish(resource, terminal)
     }
   }

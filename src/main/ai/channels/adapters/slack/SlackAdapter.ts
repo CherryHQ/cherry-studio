@@ -361,18 +361,19 @@ class SlackAdapter extends ChannelAdapter {
         break
       case 'events_api':
         if (envelope.payload?.event) {
-          await this.handleEvent(envelope.payload.event)
+          await this.handleEvent(envelope.payload.event, signal)
         }
         break
       case 'slash_commands':
         if (envelope.payload) {
-          await this.handleSlashCommand(envelope.payload)
+          await this.handleSlashCommand(envelope.payload, signal)
         }
         break
     }
   }
 
-  private async handleEvent(event: SlackMessageEvent): Promise<void> {
+  private async handleEvent(event: SlackMessageEvent, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     if (event.type !== 'message') return
     // Ignore subtypes (edits, deletes, bot_message, etc.) but allow file_share
     if (event.subtype && event.subtype !== 'file_share') return
@@ -384,9 +385,11 @@ class SlackAdapter extends ChannelAdapter {
 
     // Add 👀 reaction to acknowledge receipt
     await this.addReaction(chatId, event.ts)
+    if (!this.isConnectRunActive(signal)) return
 
     const userId = event.user ?? ''
     const userName = await this.resolveUserName(userId)
+    if (!this.isConnectRunActive(signal)) return
 
     // Strip bot mentions from text
     const rawText = event.text ?? ''
@@ -413,6 +416,7 @@ class SlackAdapter extends ChannelAdapter {
         await this.sendWhoami(chatId)
         return
       }
+      if (!this.isConnectRunActive(signal)) return
       const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
       this.emit('command', { chatId, userId, userName, command: cmd })
     } else {
@@ -433,11 +437,16 @@ class SlackAdapter extends ChannelAdapter {
         if (downloaded.length > 0) files = downloaded
       }
 
+      if (!this.isConnectRunActive(signal)) return
       this.emit('message', { chatId, userId, userName, text, images, files })
     }
   }
 
-  private async handleSlashCommand(payload: NonNullable<SlackSocketEnvelope['payload']>): Promise<void> {
+  private async handleSlashCommand(
+    payload: NonNullable<SlackSocketEnvelope['payload']>,
+    signal: AbortSignal
+  ): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     const command = payload.command?.replace('/', '') ?? ''
     const chatId = payload.channel_id ?? ''
     const userId = payload.user_id ?? ''
@@ -452,6 +461,7 @@ class SlackAdapter extends ChannelAdapter {
     }
 
     if (['new', 'compact', 'help'].includes(command)) {
+      if (!this.isConnectRunActive(signal)) return
       this.emit('command', {
         chatId,
         userId,

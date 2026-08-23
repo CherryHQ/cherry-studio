@@ -70,6 +70,12 @@ export class MockMainDbService {
 
   private constructor() {}
 
+  private assertReady(): void {
+    if (!this._isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+  }
+
   public static getInstance(): MockMainDbService {
     if (!MockMainDbService.instance) {
       MockMainDbService.instance = new MockMainDbService()
@@ -77,7 +83,10 @@ export class MockMainDbService {
     return MockMainDbService.instance
   }
 
-  public getDb = vi.fn(() => this.db)
+  public getDb = vi.fn(() => {
+    this.assertReady()
+    return this.db
+  })
 
   /**
    * Write transaction mock. Mirrors `DbService.withWriteTx`: when a real
@@ -87,6 +96,7 @@ export class MockMainDbService {
    * Tests can replace this mock with `vi.spyOn(...)` to assert call order, etc.
    */
   public withWriteTx = vi.fn(<T>(fn: (tx: unknown) => T): T => {
+    this.assertReady()
     const { result, committedEffects } = this.transactionEffectScope.collect((effects) => {
       const db = this.db as { transaction?: (fn: (tx: unknown) => unknown, options?: unknown) => unknown }
       const run = (tx: unknown) => {
@@ -110,6 +120,7 @@ export class MockMainDbService {
   })
 
   public withEffects = vi.fn(<T>(fn: (effects: { add: (effect: DataApiDataChangeEffect) => void }) => T): T => {
+    this.assertReady()
     if (this.transactionEffectScope.isCollecting) {
       throw new Error('withEffects cannot run inside withWriteTx — add effects through tx.effects')
     }
@@ -127,9 +138,13 @@ export class MockMainDbService {
   })
 
   /** Restore-facing APIs (see src/main/data/db/restore/README.md) — no-op spies. */
-  public createSnapshot = vi.fn()
+  public createSnapshot = vi.fn((_targetPath: string) => {
+    this.assertReady()
+  })
 
-  public checkpointTruncate = vi.fn()
+  public checkpointTruncate = vi.fn(() => {
+    this.assertReady()
+  })
 
   public get isReady() {
     return this._isReady

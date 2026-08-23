@@ -495,15 +495,16 @@ class DiscordAdapter extends ChannelAdapter {
         this.log.info('Discord session resumed')
         break
       case 'MESSAGE_CREATE':
-        await this.handleMessageCreate(data as DiscordMessage)
+        await this.handleMessageCreate(data as DiscordMessage, signal)
         break
       case 'INTERACTION_CREATE':
-        await this.handleInteraction(data as DiscordInteraction)
+        await this.handleInteraction(data as DiscordInteraction, signal)
         break
     }
   }
 
-  private async handleMessageCreate(msg: DiscordMessage): Promise<void> {
+  private async handleMessageCreate(msg: DiscordMessage, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     // Ignore bot messages (including own)
     if (msg.author.bot) return
 
@@ -519,6 +520,7 @@ class DiscordAdapter extends ChannelAdapter {
         await this.sendWhoami(chatId)
         return
       }
+      if (!this.isConnectRunActive(signal)) return
       const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
       this.emit('command', {
         chatId,
@@ -543,6 +545,7 @@ class DiscordAdapter extends ChannelAdapter {
         if (downloaded.length > 0) files = downloaded
       }
 
+      if (!this.isConnectRunActive(signal)) return
       this.emit('message', {
         chatId,
         userId: msg.author.id,
@@ -627,7 +630,8 @@ class DiscordAdapter extends ChannelAdapter {
     this.log.info('Registered Discord slash commands', { count: SLASH_COMMANDS.length })
   }
 
-  private async handleInteraction(interaction: DiscordInteraction): Promise<void> {
+  private async handleInteraction(interaction: DiscordInteraction, signal: AbortSignal): Promise<void> {
+    if (!this.isConnectRunActive(signal)) return
     // Must always ACK a PING
     if (interaction.type === INTERACTION_TYPE_PING) return
 
@@ -658,6 +662,7 @@ class DiscordAdapter extends ChannelAdapter {
 
     // For /new, /compact, /help — ACK with deferred response, then emit command
     await this.ackInteraction(interaction)
+    if (!this.isConnectRunActive(signal)) return
 
     this.emit('command', {
       chatId,

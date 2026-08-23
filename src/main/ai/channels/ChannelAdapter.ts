@@ -173,17 +173,21 @@ export abstract class ChannelAdapter extends EventEmitter {
     this.connectAbort = new AbortController()
     const signal = this.connectAbort.signal
 
-    const ready = await this.checkReady()
-    signal.throwIfAborted()
-    if (ready) {
-      await this.performConnect(signal)
-      signal.throwIfAborted()
-    } else {
-      this.performConnect(signal).catch((err) => {
-        if (this.isConnectRunActive(signal)) {
-          this.markDisconnected(err instanceof Error ? err.message : String(err), signal)
-        }
-      })
+    try {
+      const ready = await this.checkReady()
+      if (!this.isConnectRunActive(signal)) return
+      if (ready) {
+        await this.performConnect(signal)
+      } else {
+        this.performConnect(signal).catch((err) => {
+          if (this.isConnectRunActive(signal)) {
+            this.markDisconnected(err instanceof Error ? err.message : String(err), signal)
+          }
+        })
+      }
+    } catch (error) {
+      if (!this.isConnectRunActive(signal)) return
+      throw error
     }
   }
 
