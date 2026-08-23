@@ -84,6 +84,7 @@ patchedDependencies:
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
   streamdown@2.5.0: f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f
+  selection-hook@2.0.3: 562f6b2809617d54bbe89d7d2cd5fe96aedab70fb1fdbaa97ecfd031b186d722
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
 
 importers:
@@ -191,7 +192,7 @@ importers:
         version: 1.16.1
       selection-hook:
         specifier: 2.0.3
-        version: 2.0.3
+        version: 2.0.3(patch_hash=562f6b2809617d54bbe89d7d2cd5fe96aedab70fb1fdbaa97ecfd031b186d722)
       sharp:
         specifier: 0.35.3
         version: 0.35.3(@types/node@24.10.4)
@@ -30291,7 +30292,7 @@ snapshots:
     dependencies:
       parseley: 0.12.1
 
-  selection-hook@2.0.3:
+  selection-hook@2.0.3(patch_hash=562f6b2809617d54bbe89d7d2cd5fe96aedab70fb1fdbaa97ecfd031b186d722):
     dependencies:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4
