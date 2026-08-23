@@ -61,6 +61,10 @@ function createAuxClickHandler(entry: ResolvedSidebarEntry, guardClick: SidebarC
   })
 }
 
+function preventMiddleClickAutoscroll(e: React.MouseEvent) {
+  if (e.button === 1) e.preventDefault()
+}
+
 function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListProps) {
   return (
     <SidebarSortableList
@@ -78,6 +82,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 type="button"
                 aria-label={entry.label}
                 onClick={guardClick(entry.key, entry.onOpen)}
+                onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                   isActive
@@ -114,6 +119,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 label={entry.label}
                 active={isActive}
                 onClick={guardClick(entry.key, entry.onOpen)}
+                onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
                 className="rounded-xl data-[active=true]:bg-[var(--sidebar-active-bg)]"
               />

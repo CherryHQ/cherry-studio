@@ -34,6 +34,7 @@ vi.mock('@cherrystudio/ui', () => ({
     icon,
     label,
     onClick,
+    onMouseDown,
     onAuxClick,
     className,
     active
@@ -41,6 +42,7 @@ vi.mock('@cherrystudio/ui', () => ({
     icon?: ReactNode
     label: string
     onClick?: () => void
+    onMouseDown?: (e: React.MouseEvent) => void
     onAuxClick?: (e: React.MouseEvent) => void
     className?: string
     active?: boolean
@@ -50,6 +52,7 @@ vi.mock('@cherrystudio/ui', () => ({
       data-active={active ? 'true' : 'false'}
       className={className}
       onClick={onClick}
+      onMouseDown={onMouseDown}
       onAuxClick={onAuxClick}>
       {icon}
       <span>{label}</span>
@@ -588,9 +591,12 @@ describe('Sidebar resize handle', () => {
     const chatButton = screen.getByRole('button', { name: 'Chat' })
     const agentButton = screen.getByRole('button', { name: 'Agent' })
 
+    const mouseDown = new MouseEvent('mousedown', { button: 1, bubbles: true, cancelable: true })
+    fireEvent(chatButton, mouseDown)
     fireEvent(chatButton, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
     fireEvent(agentButton, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
 
+    expect(mouseDown.defaultPrevented).toBe(true)
     expect(onChatOpenNewTab).not.toHaveBeenCalled()
     expect(onAgentOpenNewTab).toHaveBeenCalledTimes(1)
   })
@@ -643,8 +649,11 @@ describe('Sidebar resize handle', () => {
     )
 
     const button = screen.getByRole('button', { name: 'Chat' })
+    const mouseDown = new MouseEvent('mousedown', { button: 1, bubbles: true, cancelable: true })
+    fireEvent(button, mouseDown)
     fireEvent(button, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
 
+    expect(mouseDown.defaultPrevented).toBe(true)
     expect(onChatOpenNewTab).toHaveBeenCalledTimes(1)
     expect(onChatOpen).not.toHaveBeenCalled()
   })
@@ -673,8 +682,11 @@ describe('Sidebar resize handle', () => {
     )
 
     const button = screen.getByRole('button', { name: /Chat/ })
+    const mouseDown = new MouseEvent('mousedown', { button: 1, bubbles: true, cancelable: true })
+    fireEvent(button, mouseDown)
     fireEvent(button, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
 
+    expect(mouseDown.defaultPrevented).toBe(true)
     expect(onChatOpenNewTab).toHaveBeenCalledTimes(1)
     expect(onChatOpen).not.toHaveBeenCalled()
   })
@@ -698,8 +710,11 @@ describe('Sidebar resize handle', () => {
     )
 
     const button = screen.getByRole('button', { name: 'Chat' })
+    const mouseDown = new MouseEvent('mousedown', { button: 2, bubbles: true, cancelable: true })
+    fireEvent(button, mouseDown)
     fireEvent(button, new MouseEvent('auxclick', { button: 2, bubbles: true, cancelable: true }))
 
+    expect(mouseDown.defaultPrevented).toBe(false)
     expect(onChatOpenNewTab).not.toHaveBeenCalled()
     expect(onChatOpen).not.toHaveBeenCalled()
   })
