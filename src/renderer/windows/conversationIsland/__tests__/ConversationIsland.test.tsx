@@ -230,8 +230,8 @@ describe('ConversationIsland', () => {
       expectTextOrder(primary, ['Cherry Assistant', 'Responding', 'Research notes'])
       expectTextOrder(secondary, ['Planning Agent', 'Waiting', 'Review plan'])
       expect(primary).toHaveClass('gap-2')
-      expect(within(primary).getByText('Cherry Assistant').parentElement).toHaveClass('gap-1')
-      expect(within(secondary).getByText('Planning Agent').parentElement).toHaveClass('gap-1')
+      expect(within(primary).getByText('Cherry Assistant').parentElement).toHaveClass('gap-0.5')
+      expect(within(secondary).getByText('Planning Agent').parentElement).toHaveClass('gap-0.5')
 
       // Permanent fill or weight would make Primary look selected instead of merely ordered first.
       expect(primary).not.toHaveClass('bg-accent', 'bg-white/10', 'font-medium')
@@ -397,7 +397,7 @@ describe('ConversationIsland', () => {
       expect(within(summary).getByText('Research Assistant')).toBeVisible()
       const avatar = within(summary).getByTestId('emoji-icon')
       expect(avatar).toHaveTextContent('🧠')
-      expect(avatar.closest('[aria-hidden="true"]')?.parentElement).toHaveClass('gap-1')
+      expect(avatar.closest('[aria-hidden="true"]')?.parentElement).toHaveClass('gap-0.5')
       expect(within(summary).getByTestId('state-indicator')).toBeInTheDocument()
       expect(within(summary).getByText('Responding')).toBeVisible()
 
@@ -583,7 +583,7 @@ describe('ConversationIsland', () => {
       'Responding: Activity 6'
     ])
     for (const row of rows) expect(row).toHaveClass('h-[52px]', 'gap-2')
-    expect(within(rows[0]).getByText('Cherry Assistant').parentElement).toHaveClass('gap-1')
+    expect(within(rows[0]).getByText('Cherry Assistant').parentElement).toHaveClass('gap-0.5')
 
     // The row and scroller classes are the approved fixed-height four-row window layout contract.
     expect(screen.getByRole('list')).toHaveClass('max-h-[208px]', 'overflow-y-auto')

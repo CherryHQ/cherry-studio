@@ -280,7 +280,7 @@ export default function ConversationIsland() {
         className="grid h-[38px] w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] text-xs">
         <div
           data-testid="notch-expanded-leading"
-          className={`flex min-w-0 items-center overflow-hidden pl-3 text-left ${isSingleDetail ? 'gap-1' : 'gap-2'}`}>
+          className={`flex min-w-0 items-center overflow-hidden pl-3 text-left ${isSingleDetail ? 'gap-0.5' : 'gap-2'}`}>
           {summaryLeading}
         </div>
         <div data-testid="notch-expanded-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
@@ -294,7 +294,7 @@ export default function ConversationIsland() {
       <div
         data-testid="capsule-expanded-header"
         className="flex h-[38px] w-full min-w-0 items-center justify-between gap-3 px-3 text-xs">
-        <div className={`flex min-w-0 items-center overflow-hidden text-left ${isSingleDetail ? 'gap-1' : 'gap-2'}`}>
+        <div className={`flex min-w-0 items-center overflow-hidden text-left ${isSingleDetail ? 'gap-0.5' : 'gap-2'}`}>
           {summaryLeading}
         </div>
         <div className="flex min-w-0 items-center justify-end gap-2 overflow-hidden text-muted-foreground">
@@ -335,7 +335,7 @@ export default function ConversationIsland() {
               }`}>
               <span className="flex w-full min-w-0 items-center justify-between gap-3 leading-4">
                 <span
-                  className={`flex min-w-0 items-center gap-1 overflow-hidden ${
+                  className={`flex min-w-0 items-center gap-0.5 overflow-hidden ${
                     usesNotchLayout ? 'text-white/60' : 'text-muted-foreground'
                   }`}>
                   <IdentityAvatar avatar={activity.identityAvatar} />
