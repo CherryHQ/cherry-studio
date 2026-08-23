@@ -1131,17 +1131,7 @@ describe('OpenClawService gateway status state machine', () => {
     })
   })
 
-  describe('probeGatewayTick (external gateway detection)', () => {
-    it('discovers an externally-started gateway and broadcasts running', async () => {
-      ;(service as any).gatewayStatus = 'stopped'
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
-
-      await (service as any).probeGatewayTick()
-
-      expect((service as any).gatewayStatus).toBe('running')
-      expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'running' })
-    })
-
+  describe('probeGatewayTick (liveness of a running gateway)', () => {
     it('marks a dead gateway stopped when the probe goes unhealthy', async () => {
       ;(service as any).gatewayStatus = 'running'
       checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
@@ -1152,8 +1142,11 @@ describe('OpenClawService gateway status state machine', () => {
       expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
     })
 
-    it('skips probing while the gateway is starting', async () => {
-      ;(service as any).gatewayStatus = 'starting'
+    // The tick only watches what this service believes it owns. Discovering a gateway
+    // started outside the app is getStatus()'s read-time job, so an idle service does
+    // no background IO at all — the interval must not probe on behalf of every user.
+    it.each(['stopped', 'error', 'starting'] as const)('does no IO while %s', async (status) => {
+      ;(service as any).gatewayStatus = status
 
       await (service as any).probeGatewayTick()
 
@@ -1161,9 +1154,9 @@ describe('OpenClawService gateway status state machine', () => {
       expect(broadcastMock).not.toHaveBeenCalled()
     })
 
-    it('broadcasts nothing when the probe result matches the recorded status', async () => {
-      ;(service as any).gatewayStatus = 'stopped'
-      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
+    it('broadcasts nothing while the gateway stays healthy', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
 
       await (service as any).probeGatewayTick()
 
@@ -1171,7 +1164,7 @@ describe('OpenClawService gateway status state machine', () => {
     })
 
     it('swallows a probe failure instead of throwing', async () => {
-      ;(service as any).gatewayStatus = 'stopped'
+      ;(service as any).gatewayStatus = 'running'
       checkHealthSpy.mockRejectedValue(new Error('ECONNREFUSED'))
 
       await expect((service as any).probeGatewayTick()).resolves.toBeUndefined()
@@ -1192,19 +1185,19 @@ describe('OpenClawService gateway status state machine', () => {
       expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'running' })
     })
 
-    it('discards a healthy probe when the gateway port changed mid-flight', async () => {
-      ;(service as any).gatewayStatus = 'stopped'
+    it('discards an unhealthy probe when the gateway port changed mid-flight', async () => {
+      ;(service as any).gatewayStatus = 'running'
       let resolveProbe!: (value: { status: string; gatewayPort: number }) => void
       checkHealthSpy.mockImplementationOnce(() => new Promise((resolve) => (resolveProbe = resolve)))
 
       const tick = (service as any).probeGatewayTick()
       ;(service as any).gatewayPort = 18888 // syncConfig-style port change during the probe
-      resolveProbe({ status: 'healthy', gatewayPort: 18790 })
+      resolveProbe({ status: 'unhealthy', gatewayPort: 18790 }) // result belongs to the old port
       await tick
 
-      expect((service as any).gatewayStatus).toBe('stopped')
+      expect((service as any).gatewayStatus).toBe('running')
       expect((service as any).gatewayPort).toBe(18888)
-      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'running' })
+      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
     })
 
     it('discards an unhealthy probe after a restart returned to the same status and port', async () => {

@@ -45,12 +45,12 @@ export function useOpenClawGatewayController({
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const [gatewayPort] = usePreference('feature.openclaw.gateway_port')
+  const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
   // Status comes from main-pushed events (single source of truth); only the local
   // launching/stopping intents live here, covering the gap until events arrive.
-  const { status } = useManagedToolStatus('openclaw')
+  const { status } = useManagedToolStatus('openclaw', isOpenClawTool)
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
-  const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
 
   const openDashboard = useCallback(async () => {
     const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')

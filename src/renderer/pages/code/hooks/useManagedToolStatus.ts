@@ -19,17 +19,21 @@ const SNAPSHOT_RETRY_MS = 2000
 const SNAPSHOT_MAX_ATTEMPTS = 5
 
 /**
- * Live status of a main-managed tool: one get_status snapshot on mount, then
- * main-pushed status_changed events. Crashes and externally-started gateways
- * surface as they happen — no renderer polling.
+ * Live status of a main-managed tool: a get_status snapshot whenever the tool
+ * becomes the selected one, then main-pushed status_changed events. The
+ * snapshot doubles as the discovery point for a gateway started outside the
+ * app, so nothing polls on either side.
+ *
+ * @param enabled whether this tool is the selected one; false reads nothing.
  */
-export function useManagedToolStatus(tool: ManagedTool): ManagedToolStatusState {
+export function useManagedToolStatus(tool: ManagedTool, enabled: boolean): ManagedToolStatusState {
   const [state, setState] = useState<ManagedToolStatusState>({ status: 'stopped' })
   // True once an event arrived after the current snapshot request was issued; the
   // in-flight response is then older than that event and must not overwrite it.
   const eventApplied = useRef(false)
 
   useEffect(() => {
+    if (!enabled) return
     let cancelled = false
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     let attempts = 0
@@ -62,18 +66,18 @@ export function useManagedToolStatus(tool: ManagedTool): ManagedToolStatusState 
       cancelled = true
       if (retryTimer) clearTimeout(retryTimer)
     }
-  }, [tool])
+  }, [tool, enabled])
 
   // Both subscriptions are registered (hooks cannot be conditional); the
   // inactive tool's handler is a no-op filter.
   useIpcOn('deepseek_harness.status_changed', (payload) => {
-    if (tool === 'deepseek-harness') {
+    if (enabled && tool === 'deepseek-harness') {
       eventApplied.current = true
       setState({ status: payload.status, ...(payload.url ? { url: payload.url } : {}) })
     }
   })
   useIpcOn('openclaw.status_changed', (payload) => {
-    if (tool === 'openclaw') {
+    if (enabled && tool === 'openclaw') {
       eventApplied.current = true
       setState({ status: payload.status })
     }

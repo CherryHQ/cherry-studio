@@ -409,7 +409,7 @@ export class OpenClawService extends BaseService {
         .get('PreferenceService')
         .subscribeChange('feature.openclaw.gateway_port', () => this.onGatewayPortPreferenceChanged())
     )
-    // Detect externally-started gateways without renderer polling; registerInterval is lifecycle-cleaned.
+    // Report a gateway that died without telling us; registerInterval is lifecycle-cleaned.
     this.registerInterval(() => this.probeGatewayTick(), GATEWAY_PROBE_INTERVAL_MS)
   }
 
@@ -469,13 +469,13 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * One periodic probe tick: reconcile the recorded status with the gateway's
-   * actual health so externally-started gateways are discovered (and dead ones
-   * reported) without the renderer polling. `starting` is skipped to match
-   * getStatus()'s guard.
+   * One periodic probe tick: liveness of the gateway this service believes is
+   * running, so a death nobody reported surfaces as an event. Discovery of a
+   * gateway this service never started is a read-time concern — `getStatus()`
+   * probes for it — so an idle service does no background IO.
    */
   private async probeGatewayTick(): Promise<void> {
-    if (this.gatewayStatus === 'starting') return
+    if (this.gatewayStatus !== 'running') return
     const generationBefore = this.gatewayGeneration()
     const statusBefore = this.gatewayStatus
     try {

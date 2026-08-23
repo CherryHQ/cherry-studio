@@ -43,12 +43,12 @@ export function useDeepSeekHarnessController({
 }: UseDeepSeekHarnessControllerOptions): DeepSeekHarnessController {
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
+  const isDeepSeekHarness = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
   // Status comes from main-pushed events (single source of truth); only the local
   // launching/stopping intents live here, covering the gap until events arrive.
-  const { status, url } = useManagedToolStatus('deepseek-harness')
+  const { status, url } = useManagedToolStatus('deepseek-harness', isDeepSeekHarness)
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
-  const isDeepSeekHarness = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
   const settings = useMemo(
     () => normalizeDeepSeekHarnessSettings(currentProviderConfig?.config),
     [currentProviderConfig?.config]

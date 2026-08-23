@@ -34,7 +34,7 @@ describe('useManagedToolStatus', () => {
 
   it('seeds from the get_status snapshot, then follows pushed events (deepseek-harness)', async () => {
     mocks.request.mockResolvedValue({ status: 'running', url: 'http://127.0.0.1:45231' })
-    const { result } = renderHook(() => useManagedToolStatus('deepseek-harness'))
+    const { result } = renderHook(() => useManagedToolStatus('deepseek-harness', true))
 
     await waitFor(() => expect(result.current).toEqual({ status: 'running', url: 'http://127.0.0.1:45231' }))
 
@@ -51,7 +51,7 @@ describe('useManagedToolStatus', () => {
 
   it('carries the snapshot status without a url for openclaw', async () => {
     mocks.request.mockResolvedValue({ status: 'starting' })
-    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+    const { result } = renderHook(() => useManagedToolStatus('openclaw', true))
 
     await waitFor(() => expect(result.current).toEqual({ status: 'starting' }))
 
@@ -63,7 +63,7 @@ describe('useManagedToolStatus', () => {
 
   it("ignores the other tool's events", async () => {
     mocks.request.mockResolvedValue({ status: 'stopped' })
-    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+    const { result } = renderHook(() => useManagedToolStatus('openclaw', true))
     await waitFor(() => expect(result.current).toEqual({ status: 'stopped' }))
 
     await act(async () => {
@@ -74,7 +74,7 @@ describe('useManagedToolStatus', () => {
 
   it('keeps the stopped default when the initial snapshot request fails, and still applies later events', async () => {
     mocks.request.mockRejectedValue(new Error('ipc unavailable'))
-    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+    const { result } = renderHook(() => useManagedToolStatus('openclaw', true))
 
     await act(async () => {})
     expect(result.current).toEqual({ status: 'stopped' })
@@ -88,7 +88,7 @@ describe('useManagedToolStatus', () => {
   it('drops the initial snapshot when an event already delivered newer state', async () => {
     let resolveSnapshot!: (value: { status: string }) => void
     mocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveSnapshot = resolve)))
-    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+    const { result } = renderHook(() => useManagedToolStatus('openclaw', true))
 
     await act(async () => {
       emit('openclaw.status_changed', { status: 'running' })
@@ -104,7 +104,7 @@ describe('useManagedToolStatus', () => {
   it('retries a failed initial snapshot until it lands', async () => {
     vi.useFakeTimers()
     mocks.request.mockRejectedValueOnce(new Error('service not ready yet')).mockResolvedValueOnce({ status: 'running' })
-    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+    const { result } = renderHook(() => useManagedToolStatus('openclaw', true))
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
@@ -120,7 +120,7 @@ describe('useManagedToolStatus', () => {
   it('applies a retry result even when an event landed between attempts', async () => {
     vi.useFakeTimers()
     mocks.request.mockRejectedValueOnce(new Error('transient')).mockResolvedValueOnce({ status: 'running' })
-    const { result } = renderHook(() => useManagedToolStatus('openclaw'))
+    const { result } = renderHook(() => useManagedToolStatus('openclaw', true))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -137,10 +137,36 @@ describe('useManagedToolStatus', () => {
     expect(result.current).toEqual({ status: 'running' })
   })
 
+  it('reads nothing and ignores events while the tool is not selected', async () => {
+    mocks.request.mockResolvedValue({ status: 'running' })
+    const { result } = renderHook(() => useManagedToolStatus('openclaw', false))
+
+    await act(async () => {})
+    expect(mocks.request).not.toHaveBeenCalled()
+
+    await act(async () => {
+      emit('openclaw.status_changed', { status: 'running' })
+    })
+    expect(result.current).toEqual({ status: 'stopped' })
+  })
+
+  it('snapshots when the tool becomes selected, discovering a gateway started outside the app', async () => {
+    mocks.request.mockResolvedValue({ status: 'running' })
+    const { result, rerender } = renderHook(({ enabled }) => useManagedToolStatus('openclaw', enabled), {
+      initialProps: { enabled: false }
+    })
+    await act(async () => {})
+    expect(result.current).toEqual({ status: 'stopped' })
+
+    rerender({ enabled: true })
+
+    await waitFor(() => expect(result.current).toEqual({ status: 'running' }))
+  })
+
   it('stops retrying after the attempt cap', async () => {
     vi.useFakeTimers()
     mocks.request.mockRejectedValue(new Error('ipc unavailable'))
-    renderHook(() => useManagedToolStatus('openclaw'))
+    renderHook(() => useManagedToolStatus('openclaw', true))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
