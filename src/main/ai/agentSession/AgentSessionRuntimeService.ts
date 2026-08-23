@@ -2001,6 +2001,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
     const accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    if (!accumulator) return
     try {
       accumulator.controller.enqueue(chunk)
     } catch (error) {
@@ -2016,13 +2017,26 @@ export class AgentSessionRuntimeService extends BaseService {
   private getOrCreateBackgroundFlowAccumulator(
     entry: AgentSessionRuntimeEntry,
     messageId: string
-  ): BackgroundFlowAccumulator {
+  ): BackgroundFlowAccumulator | null {
     const accumulators = entry.backgroundFlowAccumulators ?? new Map<string, BackgroundFlowAccumulator>()
     entry.backgroundFlowAccumulators = accumulators
     const existing = accumulators.get(messageId)
-    if (existing) return existing
+    // A closed accumulator is mid-drain: reusing it would enqueue into a closed controller and
+    // drop the chunk. It is replaced by a fresh one seeded from the persisted row instead.
+    if (existing && !existing.closed) return existing
 
-    const persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+    let persisted: { id: string; data: { parts?: CherryMessagePart[] } } | undefined
+    try {
+      persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+    } catch (error) {
+      // The row was deleted while its anchors survived a reconnect — the chunk has nowhere to go.
+      logger.warn('Detached subagent flow chunk lost its host message', {
+        sessionId: entry.sessionId,
+        messageId,
+        error
+      })
+      return null
+    }
     const seed: CherryUIMessage = {
       id: persisted.id,
       role: 'assistant',
@@ -2131,11 +2145,27 @@ export class AgentSessionRuntimeService extends BaseService {
         for (const accumulator of accumulators) {
           const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
           if (!parts) continue
-          agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          try {
+            agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          } catch (error) {
+            // One removed row must not abort the rest of the batch.
+            logger.warn('Failed to persist detached subagent flow parts', {
+              sessionId: entry.sessionId,
+              messageId: accumulator.messageId,
+              error
+            })
+            continue
+          }
           completedFlows.push({ messageId: accumulator.messageId, parts })
         }
 
-        entry.backgroundFlowAccumulators?.clear()
+        // Only drop the accumulators this flush closed — one created mid-drain belongs to newer
+        // chunks and must survive, or its content leaks silently.
+        for (const accumulator of accumulators) {
+          if (entry.backgroundFlowAccumulators?.get(accumulator.messageId) === accumulator) {
+            entry.backgroundFlowAccumulators.delete(accumulator.messageId)
+          }
+        }
         // Flow anchors are retained on purpose: a SendMessage resume re-streams under the original
         // tool-call id after these flows have drained, and must still find its host message.
         if (this.isCurrentEntry(entry)) {
@@ -2304,9 +2334,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
     void this.finishBackgroundFlows(entry)
-    // flowMessageIdsByToolCallId is deliberately kept: anchors outlive connections so a resumed
-    // subagent's detached stream still lands on its spawning message.
-    entry.persistedFlowMessageIds?.clear()
+    // flowMessageIdsByToolCallId and persistedFlowMessageIds are deliberately kept: both record
+    // session facts (which tool call owns which row, and that the row already exists) that do not
+    // change at a connection boundary. Clearing only the persisted gate would buffer resumed
+    // chunks for an existing row into pendingBackgroundFlowChunks forever.
     entry.pendingBackgroundFlowChunks?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {

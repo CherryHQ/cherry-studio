@@ -257,15 +257,20 @@ export function resolveFlowToolCallId(
     for (const part of parts) {
       const record = part as { toolCallId?: unknown; output?: unknown }
       if (typeof record.toolCallId !== 'string' || record.toolCallId !== toolCallId) continue
+      // Receipt outputs are small inline JSON, so no deferred-envelope resolution is needed here
+      // (unlike launch receipts, whose resolved output the flow view prefers).
       return resolveResumedAgent(record.output, partsByMessageId)
     }
   }
   return undefined
 }
 
-/** The agent id a launch receipt reports — the trailer string or a structured field. */
-function extractLaunchedAgentId(part: CherryMessagePart | undefined): string | undefined {
-  const output = part && (part as { output?: unknown }).output
+/**
+ * The agent id a launch receipt reports — the trailer string or a structured field. Prefers the
+ * caller-resolved output so deferred (oversized) receipts still split resume rounds correctly.
+ */
+function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
+  const output = resolvedOutput !== undefined ? resolvedOutput : part && (part as { output?: unknown }).output
   if (typeof output === 'string') return /agentId[:\s]+([a-zA-Z0-9-]{16,})/.exec(output)?.[1]
   if (isRecord(output)) {
     const direct = output.agentId ?? output.agent_id
@@ -356,7 +361,7 @@ export function buildAgentToolFlowProjection(
 
     // Content is segmented by the resume requests that continued this agent: each SendMessage
     // receipt resolving to the launch splits the timeline, so its prompt lands between rounds.
-    const launchedAgentId = extractLaunchedAgentId(selectedToolPart)
+    const launchedAgentId = extractLaunchedAgentId(selectedToolPart, selectedToolOutput)
     const outputText = getToolOutputText(selectedToolPart, selectedToolOutput)
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)

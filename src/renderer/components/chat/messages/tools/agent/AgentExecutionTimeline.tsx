@@ -18,6 +18,12 @@ import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
 
+function getStringArg(args: unknown, key: string): string | undefined {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
+  const value = (args as Record<string, unknown>)[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
 /**
  * The presentation of a send-then-resume receipt — "continue handling" verb plus the launch
  * identity — shared by the chat row and the tool-group header so a resume reads exactly like the
@@ -26,18 +32,22 @@ import { isCherrySessionToolResponse } from './sessionToolResult'
 export function buildResumeToolHeader(
   toolResponse: ToolResponseLike,
   fullPartsMap: Record<string, CherryMessagePart[]> | null,
-  t: ReturnType<typeof useTranslation>['t']
+  t: ReturnType<typeof useTranslation>['t'],
+  resumedLaunch?: { toolCallId: string; description?: string }
 ): { resumedLaunch: { toolCallId: string; description?: string }; header: ReactElement } | undefined {
-  const resumedLaunch = resolveResumedAgent(toolResponse.response, fullPartsMap)
-  if (!resumedLaunch?.description) return undefined
+  const resolved = resumedLaunch ?? resolveResumedAgent(toolResponse.response, fullPartsMap)
+  // The identity is the launch title; the resume request's summary stands in when the launch had
+  // none. Entry presence itself is decided by id resolution alone (openFlowOnClick).
+  const identity = resolved?.description ?? getStringArg(toolResponse.arguments, 'summary')
+  if (!resolved || !identity) return undefined
   return {
-    resumedLaunch,
+    resumedLaunch: resolved,
     header: (
       <ToolHeader
         label={t('message.tools.activity.continueHandle')}
         toolName={toolResponse.tool.name}
         args={toolResponse.arguments}
-        params={resumedLaunch.description}
+        params={identity}
         variant="collapse-label"
         showStatus={false}
       />
@@ -94,22 +104,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
   // Reuse the memoized launch resolution instead of re-scanning — buildResumeToolHeader keeps
   // its own scan for the group header, which has no memo here.
-  const resumeHeader =
-    resumedLaunch && typeof resumedLaunch.description === 'string'
-      ? {
-          resumedLaunch,
-          header: (
-            <ToolHeader
-              label={t('message.tools.activity.continueHandle')}
-              toolName={tool?.name}
-              args={args}
-              params={resumedLaunch.description}
-              variant="collapse-label"
-              showStatus={false}
-            />
-          )
-        }
-      : undefined
+  const resumeHeader = buildResumeToolHeader(toolResponse, fullPartsMap, t, resumedLaunch)
   return (
     <AgentToolCallCard
       toolCallId={toolResponse.toolCallId}

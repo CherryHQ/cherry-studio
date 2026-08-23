@@ -298,6 +298,34 @@ export function getResumedAgentId(output: unknown): string | undefined {
  * streaming under its launch tool-call id, so entries must point at that launch. Returns the
  * launch's toolCallId and description (which doubles as the agent's identity).
  */
+/** A candidate Agent/Task output is the launch receipt for `resumedAgentId` only when its shape
+ *  matches the CLI's receipt — the trailing `agentId: <id> (use SendMessage…)` string, or the
+ *  structured async-launch form. A mere mention of the id elsewhere must not hijack the entry. */
+function isLaunchReceiptFor(output: unknown, resumedAgentId: string): boolean {
+  if (typeof output === 'string') {
+    // `\\s` on purpose: inside a template literal a single backslash is an identity escape.
+    return (
+      new RegExp(`agentId[:\\s]+${escapeRegExp(resumedAgentId)}(?=[\\s(])`).test(output) &&
+      output.includes('use SendMessage')
+    )
+  }
+  if (isRecord(output)) {
+    const launch = output.status === 'async_launched' || output.status === 'remote_launched'
+    if (!launch) return false
+    const id = output.agentId ?? output.agent_id ?? output.taskId
+    return typeof id === 'string' && id === resumedAgentId
+  }
+  return false
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export function resolveResumedAgent(
   output: unknown,
   fullPartsMap: Record<string, CherryMessagePart[]> | null
@@ -313,7 +341,7 @@ export function resolveResumedAgent(
       if (
         (record.toolName === AgentToolsType.Agent || record.toolName === AgentToolsType.Task) &&
         typeof record.toolCallId === 'string' &&
-        JSON.stringify(record.output ?? '').includes(resumedAgentId)
+        isLaunchReceiptFor(record.output, resumedAgentId)
       ) {
         const input = record.input
         const description =
