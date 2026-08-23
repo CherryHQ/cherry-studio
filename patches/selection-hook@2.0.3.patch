@@ -1,0 +1,27 @@
+diff --git a/src/mac/lib/utils.mm b/src/mac/lib/utils.mm
+index 3e8f2c1..9a4b6c7 100644
+--- a/src/mac/lib/utils.mm
++++ b/src/mac/lib/utils.mm
+@@ -108,9 +108,19 @@ bool IsIBeamCursor(NSCursor *cursor)
+
+     NSPoint hotSpot = [cursor hotSpot];
+
+-    // macOS 26 IBeam {12,11}
+-    return NSEqualPoints(hotSpot, {4.0, 9.0}) || NSEqualPoints(hotSpot, {16.0, 16.0}) ||
+-           NSEqualPoints(hotSpot, {12.0, 11.0});
++    // macOS 26 IBeam {12,11} — use tolerance for fractional Retina hotspots
++    // (e.g. {11.5, 11.0} on macOS 26.6.2). See https://github.com/CherryHQ/cherry-studio/issues/19044
++    constexpr double kEpsilon = 0.6;
++    auto isNear = [](NSPoint a, NSPoint b) {
++        return std::fabs(a.x - b.x) < kEpsilon && std::fabs(a.y - b.y) < kEpsilon;
++    };
++
++    NSPoint knownHotSpots[] = {{4.0, 9.0}, {16.0, 16.0}, {12.0, 11.0}};
++    for (auto &known : knownHotSpots) {
++        if (isNear(hotSpot, known))
++            return true;
++    }
++    return false;
+ }
+
+ /**
