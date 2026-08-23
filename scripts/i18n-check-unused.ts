@@ -29,8 +29,8 @@ const COMMENT_T_CALL_RE = /\bt\s*\(\s*['"`]([^'"`]+)['"`]/g
 const DOTTED_KEY_RE = /(?<![\w.-])([A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)+)(?![\w.-])/g
 const DERIVED_KEY_SUFFIXES = ['_one', '_other']
 
-export type I18NValue = string | { [key: string]: I18NValue }
-export type I18N = { [key: string]: I18NValue }
+/** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
+export type I18N = { [key: string]: string }
 
 export interface UnusedI18nResult {
   allKeys: string[]
@@ -44,25 +44,6 @@ interface CliOptions {
   clean?: boolean
   groups?: string
   json?: boolean
-}
-
-function isI18nObject(value: I18NValue): value is I18N {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function flattenI18nKeys(obj: I18N, prefix = ''): string[] {
-  const keys: string[] = []
-
-  for (const [key, value] of Object.entries(obj)) {
-    const fullKey = prefix ? `${prefix}.${key}` : key
-    if (isI18nObject(value)) {
-      keys.push(...flattenI18nKeys(value, fullKey))
-    } else {
-      keys.push(fullKey)
-    }
-  }
-
-  return keys
 }
 
 function readJsonFile(filePath: string): I18N {
@@ -222,39 +203,10 @@ function collectShortcutReferences(localeKeys: Set<string>, usedKeys: Set<string
   }
 }
 
-function collectTranslationNamespaceAliases(
-  sourceFile: SourceFile,
-  topLevelNamespaces: Set<string>
-): Map<string, string> {
-  const aliases = new Map<string, string>()
-
-  sourceFile.forEachDescendant((node) => {
-    if (!Node.isVariableDeclaration(node)) return
-
-    const initializer = node.getInitializer()
-    if (!Node.isPropertyAccessExpression(initializer) || initializer.getName() !== 'translation') return
-
-    const nameNode = node.getNameNode()
-    if (!Node.isObjectBindingPattern(nameNode)) return
-
-    for (const element of nameNode.getElements()) {
-      const propertyNameNode = element.getPropertyNameNode()
-      const namespace = propertyNameNode ? getPropertyName(propertyNameNode) : element.getName()
-      const localNameNode = element.getNameNode()
-
-      if (!namespace || !topLevelNamespaces.has(namespace) || !Node.isIdentifier(localNameNode)) continue
-      aliases.set(localNameNode.getText(), namespace)
-    }
-  })
-
-  return aliases
-}
-
 export function collectUsedI18nKeysFromSource(sourceFile: SourceFile, localeKeys: Set<string>): Set<string> {
   const usedKeys = new Set<string>()
   const topLevelNamespaces = new Set([...localeKeys].map((key) => key.split('.')[0]))
   const isI18nLabelFile = sourceFile.getFilePath().endsWith(path.join('src/renderer/i18n/label.ts'))
-  const translationNamespaceAliases = collectTranslationNamespaceAliases(sourceFile, topLevelNamespaces)
 
   collectCommentReferences(sourceFile, localeKeys, usedKeys)
   collectExactSourceTextReferences(sourceFile, localeKeys, usedKeys)
@@ -290,8 +242,7 @@ export function collectUsedI18nKeysFromSource(sourceFile: SourceFile, localeKeys
     }
 
     if (Node.isPropertyAccessExpression(node) && Node.isIdentifier(node.getExpression())) {
-      const expressionName = node.getExpression().getText()
-      const namespace = translationNamespaceAliases.get(expressionName) ?? expressionName
+      const namespace = node.getExpression().getText()
       if (!topLevelNamespaces.has(namespace)) return
 
       const key = `${namespace}.${node.getName()}`
@@ -337,7 +288,7 @@ function groupKeys(keys: string[]): Record<string, string[]> {
 }
 
 export function createUnusedI18nResult(baseLocale: I18N, usedKeys: Iterable<string>): UnusedI18nResult {
-  const allKeys = flattenI18nKeys(baseLocale).sort()
+  const allKeys = Object.keys(baseLocale).sort()
   const usedKeyList = [...usedKeys].filter((key) => allKeys.includes(key)).sort()
   const usedKeySet = new Set(usedKeyList)
   const unusedKeys = allKeys.filter((key) => !usedKeySet.has(key))
@@ -351,38 +302,15 @@ export function createUnusedI18nResult(baseLocale: I18N, usedKeys: Iterable<stri
 }
 
 export function findUnusedI18nKeys(baseLocale: I18N, sourceFiles: string[]): UnusedI18nResult {
-  const allKeys = flattenI18nKeys(baseLocale).sort()
+  const allKeys = Object.keys(baseLocale).sort()
   const localeKeys = new Set(allKeys)
   return createUnusedI18nResult(baseLocale, collectUsedI18nKeys(sourceFiles, localeKeys))
-}
-
-function deleteNestedKey(obj: I18N, keyPath: string): void {
-  const parts = keyPath.split('.')
-  const stack: Array<{ object: I18N; key: string }> = []
-  let current = obj
-
-  for (const part of parts.slice(0, -1)) {
-    const next = current[part]
-    if (!isI18nObject(next)) return
-    stack.push({ object: current, key: part })
-    current = next
-  }
-
-  delete current[parts[parts.length - 1]]
-
-  for (let index = stack.length - 1; index >= 0; index--) {
-    const { object, key } = stack[index]
-    const value = object[key]
-    if (isI18nObject(value) && Object.keys(value).length === 0) {
-      delete object[key]
-    }
-  }
 }
 
 export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
   const next = structuredClone(locale)
   for (const key of keys) {
-    deleteNestedKey(next, key)
+    delete next[key]
   }
   return sortedObjectByKeys(next) as I18N
 }

@@ -109,7 +109,7 @@ const provider: Provider = {
   name: 'OpenAI',
   apiKeys: [],
   authType: 'api-key',
-  apiFeatures: {} as Provider['apiFeatures'],
+  reportsActualCost: false,
   settings: {} as Provider['settings'],
   isEnabled: true
 } as Provider

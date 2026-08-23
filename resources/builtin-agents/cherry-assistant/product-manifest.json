@@ -72,6 +72,7 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
@@ -106,7 +107,8 @@
         "defaultBinding": [
           "Escape"
         ],
-        "editable": false
+        "editable": false,
+        "when": "!webview.focused"
       }
     },
     {
@@ -359,6 +361,18 @@
       }
     },
     {
+      "id": "topic.clear_messages",
+      "titleKey": "chat.topics.clear.title",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "L"
+        ]
+      }
+    },
+    {
       "id": "topic.create",
       "titleKey": "settings.shortcuts.new_topic",
       "categoryKey": "settings.shortcuts.topic",
@@ -434,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "e251dda832e7c20c",
-    "count": 64,
+    "version": "b7b0b10f45468db6",
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
@@ -560,10 +574,6 @@
       {
         "id": "vertexai",
         "name": "VertexAI"
-      },
-      {
-        "id": "github",
-        "name": "Github Models"
       },
       {
         "id": "copilot",
