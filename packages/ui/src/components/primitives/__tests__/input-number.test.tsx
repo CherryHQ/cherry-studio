@@ -345,6 +345,38 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('5')
   })
 
+  // `String` turns anything below 1e-6 into exponential form, which would hand
+  // back `1e-7` to someone who typed the decimal out.
+  it('settles a small decimal without rewriting it into exponential form', async () => {
+    const user = userEvent.setup()
+
+    function Controlled() {
+      const [value, setValue] = useState<number | null>(0.5)
+      return <InputNumber aria-label="amount" min={0} max={1} step={0.05} value={value} onBlur={setValue} />
+    }
+    render(<Controlled />)
+
+    const input = screen.getByLabelText('amount')
+    await user.clear(input)
+    await user.type(input, '0.0000001')
+    await user.tab()
+
+    expect(input).toHaveValue('0.0000001')
+  })
+
+  // The grid arithmetic rounds to the step's decimals, and reading an exponential
+  // step as zero of them would round every result back to a whole number.
+  it('steps by a step too small to render without an exponent', async () => {
+    const user = userEvent.setup()
+    render(<InputNumber aria-label="amount" min={0} step={1e-7} value={0} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.keyboard('{ArrowUp}')
+
+    expect(input).toHaveValue('0.0000001')
+  })
+
   // A caller whose `value` only catches up after a round trip would otherwise render
   // the old value between blur and that round trip finishing.
   it('holds the settled value while an async commit is in flight', async () => {

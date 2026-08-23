@@ -107,7 +107,21 @@ const sizeClasses: Record<NonNullable<InputNumberProps['size']>, string> = {
   large: 'h-10 text-base'
 }
 
-const format = (value: number | null) => (value === null ? '' : String(value))
+/** Digits after the point, reading `1e-7` as seven rather than as none. */
+const decimalsOf = (value: number) => {
+  const [mantissa, exponent] = String(value).split('e')
+  const fraction = mantissa.split('.')[1]?.length ?? 0
+  return exponent ? Math.max(0, fraction - Number(exponent)) : fraction
+}
+
+// `String` switches to exponential below 1e-6, which would hand back `1e-7` to
+// someone who typed `0.0000001`. Magnitudes at the other end stay exponential —
+// `toFixed` returns those unchanged, and no field is asking for them.
+const format = (value: number | null) => {
+  if (value === null) return ''
+  const text = String(value)
+  return text.includes('e') ? value.toFixed(Math.min(100, decimalsOf(value))) : text
+}
 const allowsDecimal = (step?: number) => step === undefined || !Number.isInteger(step)
 
 const typablePattern = /^-?\d*\.?\d*(?:e[+-]?\d*)?$/i
@@ -141,8 +155,6 @@ function toNumber(raw: string): number | null {
   const parsed = Number(raw)
   return raw === '' || !Number.isFinite(parsed) ? null : parsed
 }
-
-const decimalsOf = (value: number) => String(value).split('.')[1]?.length ?? 0
 
 const isPromise = (value: unknown): value is Promise<unknown> =>
   typeof (value as Promise<unknown> | undefined)?.then === 'function'
