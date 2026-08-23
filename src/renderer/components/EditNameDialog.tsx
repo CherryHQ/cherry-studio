@@ -10,7 +10,7 @@ import {
   Label
 } from '@cherrystudio/ui'
 import type { FormEvent, KeyboardEvent } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface EditNameDialogProps {
@@ -39,25 +39,21 @@ const EditNameDialog = ({
   const [name, setName] = useState(initialName)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const isComposingRef = useRef(false)
 
   useEffect(() => {
     if (!open) {
       setName('')
       setHasAttemptedSubmit(false)
       setIsSubmitting(false)
-      isComposingRef.current = false
       return
     }
 
     setName(initialName)
     setHasAttemptedSubmit(false)
     setIsSubmitting(false)
-    isComposingRef.current = false
   }, [initialName, open])
 
   const submitName = async () => {
-    if (isComposingRef.current) return
     const trimmedName = name.trim()
     setHasAttemptedSubmit(true)
 
@@ -79,23 +75,14 @@ const EditNameDialog = ({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isComposingRef.current) return
     void submitName()
-  }
-
-  const handleCompositionStart = () => {
-    isComposingRef.current = true
-  }
-
-  const handleCompositionEnd = () => {
-    isComposingRef.current = false
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     // IME candidate confirmation still emits keydown; submitting there would save the raw pinyin
     // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
     // oxlint-disable-next-line no-deprecated
-    if (isComposingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
     if (event.key === ' ' || event.key === 'Spacebar') {
       event.stopPropagation()
       return
@@ -126,8 +113,6 @@ const EditNameDialog = ({
               className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground"
               placeholder={placeholder}
               value={name}
-              onCompositionStart={handleCompositionStart}
-              onCompositionEnd={handleCompositionEnd}
               onChange={(event) => {
                 setName(event.target.value)
                 setHasAttemptedSubmit(false)

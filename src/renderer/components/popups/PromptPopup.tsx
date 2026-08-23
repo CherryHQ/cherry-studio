@@ -39,7 +39,6 @@ const PromptPopupContainer: React.FC<Props> = ({
 }) => {
   const [value, setValue] = useState(defaultValue)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
-  const isComposingRef = useRef(false)
   const { t } = useTranslation()
   const {
     allowClear = true,
@@ -54,10 +53,7 @@ const PromptPopupContainer: React.FC<Props> = ({
   } = inputProps
 
   useEffect(() => {
-    if (!open) {
-      isComposingRef.current = false
-      return
-    }
+    if (!open) return
 
     window.setTimeout(() => {
       const textArea = textAreaRef.current
@@ -69,10 +65,7 @@ const PromptPopupContainer: React.FC<Props> = ({
     })
   }, [open])
 
-  const onOk = () => {
-    if (isComposingRef.current) return
-    resolve(value)
-  }
+  const onOk = () => resolve(value)
   const onCancel = () => resolve(null)
 
   const onOpenChange = (nextOpen: boolean) => {
@@ -87,10 +80,6 @@ const PromptPopupContainer: React.FC<Props> = ({
     if (event.defaultPrevented) {
       return
     }
-
-    // Don't submit the raw pinyin buffer while IME is composing
-    // oxlint-disable-next-line no-deprecated
-    if (isComposingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return
 
     const isEnterPressed = event.key === 'Enter'
     if (isEnterPressed) {
@@ -121,12 +110,6 @@ const PromptPopupContainer: React.FC<Props> = ({
             ref={textAreaRef}
             placeholder={inputPlaceholder}
             value={value}
-            onCompositionStart={() => {
-              isComposingRef.current = true
-            }}
-            onCompositionEnd={() => {
-              isComposingRef.current = false
-            }}
             onChange={(event) => {
               onChange?.(event)
               setValue(event.target.value)

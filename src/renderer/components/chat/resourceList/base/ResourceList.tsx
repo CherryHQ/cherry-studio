@@ -484,12 +484,8 @@ function RenameField<T extends ResourceListItemBase>({
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
   const didCommitRef = useRef(false)
-  const isComposingRef = useRef(false)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const pendingBlurCommitRef = useRef(false)
   const setInputRef = useCallback(
     (node: HTMLInputElement | null) => {
-      inputRef.current = node
       if (typeof ref === 'function') {
         ref(node)
       } else if (ref) {
@@ -502,8 +498,6 @@ function RenameField<T extends ResourceListItemBase>({
   useEffect(() => {
     if (!rowState.renaming) {
       didCommitRef.current = false
-      isComposingRef.current = false
-      pendingBlurCommitRef.current = false
     }
   }, [rowState.renaming])
 
@@ -529,42 +523,16 @@ function RenameField<T extends ResourceListItemBase>({
         'font-medium',
         className
       )}
-      onCompositionStart={() => {
-        isComposingRef.current = true
-      }}
-      onCompositionEnd={() => {
-        isComposingRef.current = false
-        if (pendingBlurCommitRef.current) {
-          pendingBlurCommitRef.current = false
-          const value = inputRef.current?.value ?? ''
-          commitRename(value)
-        }
-      }}
-      onBlur={(event) => {
-        if (isComposingRef.current) {
-          pendingBlurCommitRef.current = true
-          return
-        }
-        commitRename(event.currentTarget.value)
-      }}
+      onBlur={(event) => commitRename(event.currentTarget.value)}
       onPointerDown={(event) => {
         onPointerDown?.(event)
         event.stopPropagation()
       }}
       onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          event.stopPropagation()
-          didCommitRef.current = true
-          isComposingRef.current = false
-          pendingBlurCommitRef.current = false
-          actions.cancelRename()
-          return
-        }
         // IME candidate confirmation still emits keydown; committing there would save the raw pinyin
         // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
         // oxlint-disable-next-line no-deprecated
-        if (isComposingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return
         if (event.key === 'Enter') {
           event.preventDefault()
           event.stopPropagation()
@@ -572,6 +540,12 @@ function RenameField<T extends ResourceListItemBase>({
         }
         if (event.key === ' ' || event.key === 'Spacebar') {
           event.stopPropagation()
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          didCommitRef.current = true
+          actions.cancelRename()
         }
       }}
       {...props}
