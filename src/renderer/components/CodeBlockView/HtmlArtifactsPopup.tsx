@@ -203,12 +203,14 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   // Security default: static tier on open; only the explicit run action authorizes
   // the webview (mirrors the inline consent card — "open" is not authorization).
   const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
-  const [interactiveAuthorized, setInteractiveAuthorized] = useState(false)
-  // Authorization is scoped to the exact content: re-authorize if html changes (e.g. a
-  // still-streaming source) so new bytes never inherit a previous run action.
-  useEffect(() => {
-    setInteractiveAuthorized(false)
-  }, [html])
+  // Authorization is scoped to the exact content, synchronously: the stored html must
+  // match the current html in the same render, so new bytes (e.g. a still-streaming
+  // source) can never inherit a previous run action — no effect-timing window.
+  const [interactiveAuth, setInteractiveAuth] = useState<{ html: string; authorized: boolean }>({
+    html: '',
+    authorized: false
+  })
+  const interactiveAuthorized = interactiveAuth.html === html && interactiveAuth.authorized
   // The webview tier has no capture iframe; an explicit canCapturePreview={false} wins.
   const effectiveCanCapturePreview = renderPreview
     ? canCapturePreview
@@ -236,7 +238,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
                 size="sm"
                 className="pointer-events-auto border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
                 aria-label={t('html_artifacts.interactive_preview.action')}
-                onClick={() => setInteractiveAuthorized(true)}>
+                onClick={() => setInteractiveAuth({ html, authorized: true })}>
                 <ShieldAlert className="size-3.5 text-warning" />
                 {t('html_artifacts.interactive_preview.action')}
               </Button>

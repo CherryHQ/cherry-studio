@@ -168,6 +168,38 @@ describe('HtmlArtifactsPopup', () => {
     expect(screen.queryByRole('button', { name: 'html_artifacts.capture.label' })).not.toBeInTheDocument()
   })
 
+  it('revokes authorization synchronously when the html changes mid-popup', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html={'<!doctype html><html><body><script>first()</script></body></html>'}
+        onClose={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+
+    // Streamed bytes arrive: the new active html must NOT inherit the run action —
+    // the same render that sees the new html must be back on the static tier.
+    rerender(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html={'<!doctype html><html><body><script>second()</script></body></html>'}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTitle('common.html_preview')).toHaveAttribute('sandbox', 'allow-same-origin')
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' })).toBeInTheDocument()
+  })
+
   it('keeps script-bearing documents static until the explicit action, then isolates them', async () => {
     const user = userEvent.setup()
     render(

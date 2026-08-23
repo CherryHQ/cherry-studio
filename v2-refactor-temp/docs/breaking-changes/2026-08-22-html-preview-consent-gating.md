@@ -8,7 +8,7 @@ date: 2026-08-22
 
 ## What changed
 
-The full-screen HTML preview popup (opened from a code-block card) no longer runs scripts in a same-origin iframe. It now opens in the script-less static tier by default; when the content is active (scripts, embeds, external resources), an explicit **"run interactive preview"** action appears, and only that mounts the hardened isolated webview — the same consent wording the inline preview already uses.
+The full-screen HTML preview popup (opened from a code-block card) no longer runs scripts in a same-origin iframe. It now opens in the script-less static tier by default; when the content is active (scripts, embeds, external resources), an explicit **"View webpage"** action appears (查看网页 in the Chinese UI) — the same wording as the inline preview's consent card, and only that mounts the hardened isolated webview — the same consent wording the inline preview already uses.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ Opening the popup now always shows the safe static rendering first; interactivit
 
 ## What the user should do
 
-Click "run interactive preview" when you want an active artifact to execute; nothing else changes.
+Click "View webpage" (查看网页) when you want an active artifact to execute; nothing else changes.
 
 ## Notes for release manager
 
