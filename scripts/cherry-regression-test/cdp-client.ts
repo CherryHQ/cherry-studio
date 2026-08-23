@@ -85,13 +85,25 @@ export function runDomOperation(request: DomOperationRequest): unknown {
     const normalizedExpected = normalize(expected).toLocaleLowerCase()
     return exact ? normalizedActual === normalizedExpected : normalizedActual.includes(normalizedExpected)
   }
+  const ignoredContent = (element: Element): boolean =>
+    ['NOSCRIPT', 'SCRIPT', 'STYLE', 'TEMPLATE'].includes(element.tagName)
   const visible = (element: Element): boolean => {
+    if (ignoredContent(element) || element.closest('noscript, script, style, template')) return false
     const style = window.getComputedStyle(element)
     if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return false
     if (element.closest('[hidden], [aria-hidden="true"]')) return false
     return element === document.body || element.getClientRects().length > 0
   }
-  const text = (element: Element): string => normalize((element as HTMLElement).innerText || element.textContent || '')
+  const fallbackText = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+    if (!(node instanceof Element) || ignoredContent(node)) return ''
+    return Array.from(node.childNodes).map(fallbackText).join(' ')
+  }
+  const text = (element: Element): string => {
+    if (ignoredContent(element)) return ''
+    const innerText = (element as HTMLElement).innerText
+    return normalize(typeof innerText === 'string' ? innerText : fallbackText(element))
+  }
   const role = (element: Element): string => {
     const explicit = element.getAttribute('role')?.split(/\s+/)[0]
     if (explicit) return explicit
@@ -153,40 +165,62 @@ export function runDomOperation(request: DomOperationRequest): unknown {
   const all = (): Element[] => Array.from(document.querySelectorAll('*'))
   const descriptor = request.descriptor
   const exact = descriptor.exact ?? false
-  let candidates: Element[]
-  if (descriptor.css) {
-    candidates = Array.from(document.querySelectorAll(descriptor.css))
-  } else if (descriptor.testId) {
-    candidates = all().filter((element) => element.getAttribute('data-testid') === descriptor.testId)
-  } else if (descriptor.role) {
-    candidates = all().filter((element) => {
-      if (role(element).toLocaleLowerCase() !== descriptor.role?.toLocaleLowerCase()) return false
-      return descriptor.name === undefined || matches(accessibleName(element), descriptor.name, exact)
-    })
-  } else if (descriptor.label) {
-    candidates = all().filter((element) => {
-      if (
-        !(
-          element instanceof HTMLInputElement ||
-          element instanceof HTMLTextAreaElement ||
-          element instanceof HTMLSelectElement
-        )
-      ) {
-        return false
-      }
+  const hasSelector = Boolean(
+    descriptor.css ||
+      descriptor.testId ||
+      descriptor.role ||
+      descriptor.name !== undefined ||
+      descriptor.label !== undefined ||
+      descriptor.placeholder !== undefined ||
+      descriptor.text !== undefined
+  )
+  let candidates = descriptor.css
+    ? Array.from(document.querySelectorAll(descriptor.css))
+    : hasSelector
+      ? all()
+      : document.body
+        ? [document.body]
+        : []
+  if (descriptor.testId) {
+    candidates = candidates.filter((element) => element.getAttribute('data-testid') === descriptor.testId)
+  }
+  if (descriptor.role) {
+    candidates = candidates.filter(
+      (element) => role(element).toLocaleLowerCase() === descriptor.role?.toLocaleLowerCase()
+    )
+  }
+  if (descriptor.name !== undefined) {
+    candidates = candidates.filter((element) => matches(accessibleName(element), descriptor.name ?? '', exact))
+  }
+  if (descriptor.label !== undefined) {
+    candidates = candidates.filter((element) => {
+      if (!role(element)) return false
       return matches(accessibleName(element), descriptor.label ?? '', exact)
     })
-  } else if (descriptor.placeholder) {
-    candidates = all().filter((element) =>
+  }
+  if (descriptor.placeholder !== undefined) {
+    candidates = candidates.filter((element) =>
       matches(element.getAttribute('placeholder') ?? '', descriptor.placeholder ?? '', exact)
     )
-  } else if (descriptor.text) {
-    const matching = all().filter((element) => matches(text(element), descriptor.text ?? '', exact))
-    candidates = matching.filter(
-      (element) => !Array.from(element.children).some((child) => matches(text(child), descriptor.text ?? '', exact))
+  }
+  if (descriptor.text !== undefined) {
+    candidates = candidates.filter((element) => matches(text(element), descriptor.text ?? '', exact))
+    const hasStructuralSelector = Boolean(
+      descriptor.css ||
+        descriptor.testId ||
+        descriptor.role ||
+        descriptor.name !== undefined ||
+        descriptor.label !== undefined ||
+        descriptor.placeholder !== undefined
     )
-  } else {
-    candidates = document.body ? [document.body] : []
+    if (!hasStructuralSelector) {
+      candidates = candidates.filter(
+        (element) =>
+          !Array.from(element.children).some(
+            (child) => visible(child) && matches(text(child), descriptor.text ?? '', exact)
+          )
+      )
+    }
   }
 
   const selected =

@@ -19,7 +19,9 @@ desktop tools.
    capability and move to the next case.
 3. Follow the case steps against the real app. Inspect before interacting and
    prefer role, label, placeholder, or visible text locators. Use CSS only when
-   the accessible surface cannot identify the control.
+   the accessible surface cannot identify the control. Locator fields combine:
+   use `role` with `name` or `text` to identify one control. Never inspect
+   `css: "*"`; inspect the body once if no specific control is visible yet.
 4. Supply configured values only through `configRef`; locators may use
    `nameConfigRef` or `textConfigRef`. Never request, reveal, copy, or type a
    credential or API key as a literal value.

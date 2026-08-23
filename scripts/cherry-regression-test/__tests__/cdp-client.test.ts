@@ -52,6 +52,48 @@ describe('direct CDP DOM operations', () => {
     expect(document.querySelector<HTMLInputElement>('#enabled')?.checked).toBe(true)
     expect(document.querySelector<HTMLSelectElement>('select')?.value).toBe('chat-model')
   })
+
+  it('combines role or CSS selectors with visible text', () => {
+    document.body.innerHTML = `
+      <button>Avatar</button>
+      <button><span>Settings</span></button>
+      <button>Help</button>
+    `
+
+    const byRoleAndText = runDomOperation({
+      descriptor: { exact: true, role: 'button', text: 'Settings' },
+      operation: 'inspect'
+    }) as Observation
+    const byCssAndText = runDomOperation({
+      descriptor: { css: 'button', exact: true, text: 'Settings' },
+      operation: 'inspect'
+    }) as Observation
+    const byLabel = runDomOperation({
+      descriptor: { exact: true, label: 'Settings' },
+      operation: 'inspect'
+    }) as Observation
+
+    expect(byRoleAndText).toMatchObject({ count: 1, text: 'Settings', visible: true })
+    expect(byCssAndText).toMatchObject({ count: 1, text: 'Settings', visible: true })
+    expect(byLabel).toMatchObject({ count: 1, text: 'Settings', visible: true })
+  })
+
+  it('excludes script and style source from visible text', () => {
+    document.body.innerHTML = `
+      <script>MINI_APP_SOURCE_ONLY</script>
+      <style>.MINI_APP_STYLE_ONLY { display: block; }</style>
+      <main>Ready</main>
+    `
+
+    const body = runDomOperation({ descriptor: { css: 'body' }, operation: 'inspect' }) as Observation
+    const source = runDomOperation({
+      descriptor: { text: 'MINI_APP_SOURCE_ONLY' },
+      operation: 'inspect'
+    }) as Observation
+
+    expect(body.text).toBe('Ready')
+    expect(source).toMatchObject({ count: 0, text: '', visible: false })
+  })
 })
 
 describe('CDP target classification', () => {

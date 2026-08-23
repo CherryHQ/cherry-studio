@@ -53,7 +53,7 @@ const HEAVY_AGENT_TASKS = new Set<TaskId>([
 ])
 
 function agentTaskLimits(task: TaskId): { maxTurns: number; timeoutMinutes: number } {
-  if (task === 'startup-smoke') return { maxTurns: 12, timeoutMinutes: 8 }
+  if (task === 'startup-smoke') return { maxTurns: 16, timeoutMinutes: 8 }
   if (HEAVY_AGENT_TASKS.has(task)) return { maxTurns: 70, timeoutMinutes: 18 }
   return { maxTurns: 50, timeoutMinutes: 13 }
 }
