@@ -354,6 +354,39 @@ describe('InputNumber', () => {
     expect(input).not.toHaveAttribute('aria-busy')
   })
 
+  it('falls back to the saved value when an async commit fails', async () => {
+    const user = userEvent.setup()
+    let fail: (reason: unknown) => void = () => {}
+    const onBlur = vi.fn(() => new Promise<void>((_resolve, reject) => (fail = reject)))
+    render(<InputNumber aria-label="amount" min={0} step={1} value={0} onBlur={onBlur} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.clear(input)
+    await user.type(input, '30')
+    await user.tab()
+
+    await act(async () => fail(new Error('save failed')))
+
+    expect(input).toHaveValue('0')
+    expect(input).not.toHaveAttribute('aria-busy')
+  })
+
+  it('keeps the committed value when it arrives before the commit settles', async () => {
+    const user = userEvent.setup()
+    const onBlur = vi.fn(() => new Promise<void>(() => {}))
+    const { rerender } = render(<InputNumber aria-label="amount" min={0} step={1} value={0} onBlur={onBlur} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.clear(input)
+    await user.type(input, '30')
+    await user.tab()
+    rerender(<InputNumber aria-label="amount" min={0} step={1} value={30} onBlur={onBlur} />)
+
+    expect(input).toHaveValue('30')
+  })
+
   it('keeps showing the committed value when the field is re-entered mid-commit', async () => {
     const user = userEvent.setup()
     const onBlur = vi.fn(() => new Promise<void>(() => {}))
