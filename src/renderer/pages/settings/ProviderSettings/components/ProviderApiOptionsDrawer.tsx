@@ -10,7 +10,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -75,7 +75,21 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const cacheTokenThreshold =
     cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
   const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
-  const effectiveCacheTokenThreshold = clampInteger(cacheTokenThreshold, 0, CACHE_TOKEN_THRESHOLD_MAX)
+  // DO NOT DROP. The server merges `providerSettings` only at its top level, so a
+  // commit to either field replaces the whole nested `cacheControl` and has to carry
+  // the sibling's value. Reading that sibling from `provider` loses a just-saved one:
+  // the query is a round trip behind. See #19247.
+  const [tokenThresholdDraft, setTokenThresholdDraft] = useState(cacheTokenThreshold)
+  const [cacheLastNDraft, setCacheLastNDraft] = useState(cacheLastNMessages)
+  const effectiveCacheTokenThreshold = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    setTokenThresholdDraft(cacheTokenThreshold)
+    setCacheLastNDraft(cacheLastNMessages)
+  }, [cacheLastNMessages, cacheTokenThreshold, open])
 
   const openAIOptions = useMemo<ApiOption[]>(
     () => [
@@ -171,11 +185,10 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     [handleSaveError, provider, updateProvider]
   )
 
-  // `onBlur` delivers the normalized value once per edit, so these fields hold
-  // no local draft — the saved value is what they render.
   const commitTokenThreshold = useCallback(
     (value: number | null) => {
       const next = clampInteger(value, 0, CACHE_TOKEN_THRESHOLD_MAX)
+      setTokenThresholdDraft(next)
       updateCacheSettings({
         enabled: next > 0,
         tokenThreshold: next
@@ -187,6 +200,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const commitCacheLastNMessages = useCallback(
     (value: number | null) => {
       const next = clampInteger(value, 0, CACHE_LAST_N_MAX)
+      setCacheLastNDraft(next)
       updateCacheSettings({
         enabled: effectiveCacheTokenThreshold > 0,
         tokenThreshold: effectiveCacheTokenThreshold,
@@ -251,7 +265,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                     min={0}
                     max={CACHE_TOKEN_THRESHOLD_MAX}
                     step={1}
-                    value={cacheTokenThreshold}
+                    value={tokenThresholdDraft}
                     onBlur={commitTokenThreshold}
                     className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                   />
@@ -274,7 +288,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                         min={0}
                         max={CACHE_LAST_N_MAX}
                         step={1}
-                        value={cacheLastNMessages}
+                        value={cacheLastNDraft}
                         onBlur={commitCacheLastNMessages}
                         className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                       />
