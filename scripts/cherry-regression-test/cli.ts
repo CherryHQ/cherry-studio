@@ -56,10 +56,10 @@ const HEAVY_AGENT_TASKS = new Set<TaskId>([
   'openclaw'
 ])
 
-function agentTaskLimits(task: TaskId): { maxTurns: number; timeoutMinutes: number } {
-  if (task === 'startup-smoke') return { maxTurns: 16, timeoutMinutes: 8 }
-  if (HEAVY_AGENT_TASKS.has(task)) return { maxTurns: 70, timeoutMinutes: 18 }
-  return { maxTurns: 50, timeoutMinutes: 13 }
+function agentTaskTimeoutMinutes(task: TaskId): number {
+  if (task === 'startup-smoke') return 8
+  if (HEAVY_AGENT_TASKS.has(task)) return 18
+  return 13
 }
 
 function argument(name: string, required = true): string | undefined {
@@ -186,8 +186,6 @@ async function agentPreflightCommand(): Promise<void> {
       '--bare',
       '--model',
       config.customProvider.chatModel,
-      '--max-turns',
-      '1',
       '--output-format',
       'json',
       '--no-session-persistence',
@@ -246,10 +244,8 @@ async function runAgentTaskCommand(): Promise<void> {
       }
     }
   })
-  const limits = agentTaskLimits(task)
-  process.stdout.write(
-    `Starting regression task ${task} (max turns: ${limits.maxTurns}, timeout: ${limits.timeoutMinutes} minutes)\n`
-  )
+  const timeoutMinutes = agentTaskTimeoutMinutes(task)
+  process.stdout.write(`Starting regression task ${task} (timeout: ${timeoutMinutes} minutes)\n`)
   const result = spawnSync(
     claudePath,
     [
@@ -257,8 +253,6 @@ async function runAgentTaskCommand(): Promise<void> {
       '--bare',
       '--model',
       config.customProvider.chatModel,
-      '--max-turns',
-      String(limits.maxTurns),
       '--output-format',
       'json',
       '--no-session-persistence',
@@ -276,9 +270,12 @@ async function runAgentTaskCommand(): Promise<void> {
       '--permission-mode',
       'dontAsk',
       [
-        `Run task ${task} with at most ${limits.maxTurns} turns.`,
+        `Run task ${task} and complete it within ${timeoutMinutes} minutes.`,
         'Use only the CI MCP workflow for application control and evidence.',
+        'Follow the common instructions and only the detailed numbered section matching the requested task; do not navigate to unrelated pages.',
+        'Do not inspect an interaction again after it succeeds unless the next documented step requires that state.',
         'Do not repeat an equivalent failed inspection or interaction more than once.',
+        'If a required model call shows an explicit authentication or API error after the documented wait, complete the case as failed instead of trying another model.',
         'Reserve the final two tool calls for complete-case and get-run-context.',
         'Once every applicable case is terminal, respond immediately without another tool call.'
       ].join(' ')
@@ -288,7 +285,7 @@ async function runAgentTaskCommand(): Promise<void> {
       encoding: 'utf8',
       env: environment,
       maxBuffer: 100 * 1024 * 1024,
-      timeout: limits.timeoutMinutes * 60_000
+      timeout: timeoutMinutes * 60_000
     }
   )
   const redact = createRedactor(getSensitiveConfigValues(config))
@@ -308,7 +305,7 @@ async function runAgentTaskCommand(): Promise<void> {
     { mode: 0o600 }
   )
 
-  let agentFailure = describeAgentFailure(result, limits)
+  let agentFailure = describeAgentFailure(result, { timeoutMinutes })
   if (!agentFailure) {
     try {
       assertAgentTaskOutput(result.stdout)

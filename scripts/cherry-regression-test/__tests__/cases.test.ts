@@ -39,25 +39,25 @@ describe('regression test manifest', () => {
       TASK_IDS.map((taskId) => REGRESSION_CASES.filter(({ task }) => task === taskId).map(({ id }) => id))
     ).toEqual([
       ['S-01'],
+      ['APP-01'],
+      ['N-01'],
       ['M-01'],
       ['M-02'],
       ['C-01'],
+      ['A-02'],
       ['C-02'],
       ['C-03'],
       ['K-01'],
       ['K-02'],
       ['MCP-01'],
-      ['A-01'],
-      ['A-02'],
-      ['A-03'],
       ['A-04'],
       ['A-05'],
-      ['P-01', 'P-02'],
+      ['A-03'],
+      ['A-01'],
       ['T-01', 'T-02'],
-      ['APP-01'],
+      ['P-01', 'P-02'],
       ['CODE-01', 'CODE-02'],
-      ['CODE-03'],
-      ['N-01']
+      ['CODE-03']
     ])
   })
 

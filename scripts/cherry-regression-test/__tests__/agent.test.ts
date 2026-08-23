@@ -27,7 +27,7 @@ describe('test agent preflight', () => {
   })
 
   it('describes bounded agent failures without exposing raw output', () => {
-    const limits = { maxTurns: 50, timeoutMinutes: 13 }
+    const limits = { timeoutMinutes: 13 }
 
     expect(
       describeAgentFailure(

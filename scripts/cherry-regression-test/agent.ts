@@ -37,7 +37,7 @@ export function assertAgentTaskOutput(output: string): void {
 
 export function describeAgentFailure(
   result: AgentProcessResult,
-  limits: { maxTurns: number; timeoutMinutes: number }
+  limits: { timeoutMinutes: number }
 ): string | undefined {
   if (result.error?.message.includes('ETIMEDOUT')) return `timed out after ${limits.timeoutMinutes} minutes`
 
@@ -49,7 +49,9 @@ export function describeAgentFailure(
   }
 
   if (output?.subtype === 'error_max_turns') {
-    return `reached maximum number of turns (${output.num_turns ?? limits.maxTurns})`
+    return output.num_turns
+      ? `reached maximum number of turns (${output.num_turns})`
+      : 'reached maximum number of turns'
   }
   if (output?.is_error) {
     const detail = output.errors?.filter(Boolean).join('; ')

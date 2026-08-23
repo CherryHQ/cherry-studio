@@ -55,11 +55,11 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Open Add Provider. Fill the exact Provider Name* textbox with Cherry Regression Custom Provider 31415, the exact API Key textbox with configRef customProviderApiKey, and the exact Anthropic textbox with configRef customProviderBaseUrl. Record the masked API Key input, then click the exact Add button.',
+      'Open Add Provider. Fill the exact Provider Name* textbox with Cherry Regression Custom Provider 31415 and API Key with configRef customProviderApiKey. Fill Anthropic first and OpenAI second with configRef customProviderBaseUrl so Anthropic remains the preferred chat endpoint. Record the masked API Key input, then click the exact Add button.',
       'On the saved provider, enable its only switch before configuring models. Open Add Model, fill the exact Model ID textbox with configRef customProviderChatModel, and press Enter on that textbox to submit.',
-      'Open Add Model again, fill Model ID with configRef customProviderEmbeddingModel, expand More Settings, select the exact Embedding model type, and press Enter on Model ID to submit.',
+      'Open Add Model again, fill Model ID with configRef customProviderEmbeddingModel, set Chat protocol to OpenAI, expand More Settings, select the exact Embedding model type, and press Enter on Model ID to submit.',
       'Verify the provider page main region contains the saved provider name and both exact model IDs.',
-      'Open Model Check for the selected chat model, start the check, and wait for the persistent Passed status.',
+      'Open Model Check, choose configRef customProviderChatModel in the Select Model combobox, start the check, and wait for the persistent Passed status.',
       'Return to Chat, select the exact configured model, and send: Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else. Record the exact response and capture the chat screenshot before restarting.',
       'Restart the application, reopen the custom provider, and verify that the provider and model remain visible.'
     ],

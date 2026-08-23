@@ -59,10 +59,13 @@ desktop tools.
    restart. After a one-time splash wait if needed, open Settings > Model
    Provider and record `cherryin-restart` against the exact
    `Logged in via OAuth` text.
-6. For M-02, open `Add Provider`. Fill exact `role: textbox` locators named
-   `Provider Name*`, `API Key`, and `Anthropic` with the declared provider name,
-   `configRef: customProviderApiKey`, and `configRef: customProviderBaseUrl`,
-   respectively. Set `exact: true` on all three. Before submitting, record
+6. For M-02, open `Add Provider`. Fill the exact `Provider Name*` and `API Key`
+   textboxes with the declared provider name and
+   `configRef: customProviderApiKey`. Fill the exact `Anthropic` textbox first,
+   then the exact `OpenAI` textbox, with `configRef: customProviderBaseUrl` for
+   both; this keeps Anthropic as the preferred chat endpoint while exposing the
+   same configured service to OpenAI-compatible embeddings. Use `role: textbox`
+   and `exact: true` for all four fields. Before submitting, record
    `custom-provider-redacted` against the exact API Key textbox while it still
    contains the configured value and remains a password input. Click the exact
    `Add` button. On the saved provider, click its only `role: switch` to enable
@@ -70,22 +73,29 @@ desktop tools.
    `configRef: customProviderChatModel`, then call `action: press`, `key: Enter`
    against that textbox. Do not use `Get model list`.
 
-   Open `Add Model` again, fill the exact `Model ID` textbox with
-   `configRef: customProviderEmbeddingModel`, click the exact `More Settings`
-   button, click the exact `Embedding` button in the `Model Type` group, then
-   press Enter against the `Model ID` textbox. Never type a `configRef` name as
-   literal field content.
+   Open `Add Model` again and fill the exact `Model ID` textbox with
+   `configRef: customProviderEmbeddingModel`. Open the exact `Chat protocol`
+   combobox and choose the exact `OpenAI` option. Click the exact
+   `More Settings` button, click the exact `Embedding` button in the
+   `Model Type` group, then press Enter against the `Model ID` textbox. Never
+   type a `configRef` name as literal field content.
 
    Record `custom-provider-saved` against `role: main`, which contains the
-   provider name and both exact model IDs. Run `Model Check` for the selected
-   chat model, click `Start`, wait 10 seconds, and record the persistent exact `Passed` status. Do not
-   click `Close` afterward. Click the exact `Back` button, then select the chat model
+   provider name and both exact model IDs. Open exact `Model Check`, click the
+   exact `Select Model` combobox, and click the exact `role: option` identified
+   by `textConfigRef: customProviderChatModel`. Click `Start`, wait 10 seconds,
+   and record the persistent exact `Passed` status. Do not click `Close`
+   afterward. Click the exact `Back` button, then select the chat model
    through exact button name `Selected models`; fill
    `testId: model-selector-search` with `configRef: customProviderChatModel`
    and click the first `role: option`. Fill `css: [contenteditable='true']` with
    `Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else.`, click the
    exact `Send` button, wait 10 seconds, and record the exact response. Capture
-   `custom-provider-chat` before restarting and verifying provider persistence.
+   `custom-provider-chat`, then call `restart-app`. After the one-time splash
+   wait if needed, open Settings > Model Provider, click the exact
+   `Cherry Regression Custom Provider 31415` provider, and record
+   `custom-provider-restart` against `role: main` while the provider name is
+   visible.
 7. For C-01, click the exact `Back` button first if Settings is still open.
    Click the exact `Add Assistant` button, then the exact `New Assistant`
    option. Fill the exact `Name` and `Description` textboxes once; a successful
@@ -107,8 +117,10 @@ desktop tools.
    history, and record `assistant-restart` against a main region containing the
    assistant name. Do not repeat field fills, probe unsupported `type` or
    `press-escape` actions, or search for legacy Ant Design selectors.
-8. For C-02, open Settings > Default Model. Click the first model button in the
-   `Default Assistant Model` row, filter `testId: model-selector-search` with
+8. For C-02, open Settings > Default Model. Click
+   `css: [data-selector-shell-root='true'] > button` with `nth: 0`; this is the
+   model button in the first `Default Assistant Model` row. Filter
+   `testId: model-selector-search` with
    `configRef: customProviderChatModel`, and click the first `role: option`.
    Open Quick Assistant and click its only switch while the feature is disabled.
    Leave `Default Model` selected under `Usage Method`.
@@ -278,7 +290,7 @@ desktop tools.
    record `image2-file` without a path. Navigate away and back, record
    `image2-history`, and capture `image2-image`.
 17. For T-01, open exact `Translation`. The selected-model icon button is
-   `css: [data-ui='translate.view'] button:has(+ button[aria-label='Translation History'])`;
+   `css: [data-ui='translate.view'] [data-selector-shell-root='true']:has(+ button[aria-label='Translation History']) > button`;
    click it, filter `model-selector-search` with
    `configRef: customProviderChatModel`, and select the first option. Fill
    `css: [data-ui='translate.input'] textarea` with the returned exact

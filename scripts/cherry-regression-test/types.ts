@@ -4,25 +4,25 @@ export const CASE_STATUSES = ['pending', 'running', 'passed', 'failed', 'blocked
 export const EVIDENCE_KINDS = ['file', 'process', 'restart', 'screenshot', 'ui'] as const
 export const TASK_IDS = [
   'startup-smoke',
+  'mini-app',
+  'notes',
   'cherryin-chat',
   'custom-provider-chat',
   'custom-assistant',
+  'skill-import',
   'quick-assistant',
   'selection-assistant',
   'knowledge-import',
   'knowledge-qa',
   'everything-mcp',
-  'agent-ppt',
-  'skill-import',
-  'claude-agent-runtime',
   'pi-runtime',
   'deepseek-harness-runtime',
-  'image-generation',
+  'claude-agent-runtime',
+  'agent-ppt',
   'translation',
-  'mini-app',
+  'image-generation',
   'code-cli',
-  'openclaw',
-  'notes'
+  'openclaw'
 ] as const
 export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
 
