@@ -330,6 +330,19 @@ describe('InputNumber', () => {
     expect(input).toHaveValue(expected)
   })
 
+  // Emptying a field that has a saved value is the same empty field as one that
+  // never had one: there is no base on screen to step from.
+  it('lands on the bound when a field cleared of its saved value is stepped', async () => {
+    const user = userEvent.setup()
+    render(<InputNumber aria-label="amount" min={5} step={1} value={1024} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.clear(input)
+    await user.keyboard('{ArrowUp}')
+
+    expect(input).toHaveValue('5')
+  })
+
   // A caller whose `value` only catches up after a round trip would otherwise render
   // the old value between blur and that round trip finishing.
   it('holds the settled value while an async commit is in flight', async () => {

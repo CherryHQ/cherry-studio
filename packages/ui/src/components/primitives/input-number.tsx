@@ -266,7 +266,7 @@ function InputNumber({
       const delta = (step ?? 1) * (event.key === 'ArrowUp' ? 1 : -1)
       // An empty field has no base to step from, so the first press lands on the
       // bound it is heading for — otherwise `min` itself is unreachable by arrow.
-      const current = toNumber(text) ?? value
+      const current = toNumber(text)
       const bound = event.key === 'ArrowUp' ? min : max
       const next = current === null ? (bound ?? stepFrom(0, delta, min, max)) : stepFrom(current, delta, min, max)
       // With no bound that way, stepping from an assumed zero can leave the range
