@@ -124,6 +124,11 @@ describe('remarkLiteralAutolinkFix', () => {
     ])
   })
 
+  it('keeps escaped stars intact — a rendering opener must be real emphasis, not `\\**`', () => {
+    const source = '\\*\\*https://a.com/x**(y)'
+    expect(parse(source)).toEqual(parseWithoutPlugin(source))
+  })
+
   it('keeps spec behavior when no emphasis opener hugs the link', () => {
     const source = 'see https://x.com/a/**/b**(x)'
     expect(parse(source)).toEqual(parseWithoutPlugin(source))

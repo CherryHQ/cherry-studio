@@ -1,4 +1,4 @@
-import type { Link, PhrasingContent, Root, RootContent, Strong, Text } from 'mdast'
+import type { Link, Paragraph, PhrasingContent, Root, RootContent, Strong, Text } from 'mdast'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import type { Plugin } from 'unified'
@@ -50,7 +50,11 @@ function stripPositions(nodes: PhrasingContent[]): void {
 
 function parseInlineTail(value: string): PhrasingContent[] {
   const tree = tailProcessor.parse(value)
-  const nodes = tree.children.flatMap((child) => (child.type === 'paragraph' ? child.children : []))
+  const nodes: PhrasingContent[] = tree.children.every((child) => child.type === 'paragraph')
+    ? (tree.children as Paragraph[]).flatMap((child) => child.children)
+    : // Structural content (list/quote/code) is vanishingly rare in a swallowed tail; degrade
+      // to the plain text so no user-visible suffix is dropped.
+      [{ type: 'text', value }]
   // Positions from the sub-parse point into the tail substring, not the source document.
   stripPositions(nodes)
   return nodes
@@ -83,22 +87,27 @@ function findCloserRun(url: string): { start: number; tailStart: number } | unde
   return undefined
 }
 
-function buildFix(node: Link, index: number, parent: Parent): FixPlan | undefined {
+function buildFix(node: Link, index: number, parent: Parent, source: string): FixPlan | undefined {
   if (!isSwallowedLiteralAutolink(node)) return undefined
-  // Without an opener hugging the link there is no evidence the stars were emphasis.
+  // Without an opener hugging the link there is no evidence the stars were emphasis, and an
+  // escaped run (`\**`) must not be consumed even when its rendered value looks like markers.
   const prev = parent.children[index - 1]
   const opener = prev?.type === 'text' ? (prev as Text) : undefined
   if (!opener?.value.endsWith(CLOSER)) return undefined
+  const openerSource = opener.position && source.slice(opener.position.start.offset, opener.position.end.offset)
+  if (!openerSource || openerSource.length !== opener.value.length || openerSource.includes('\\')) return undefined
 
   const closer = findCloserRun(node.url)
   if (!closer) return undefined
 
   const text = node.children[0]
-  // Mirror the cut on the label independently (www-form urls carry an `http://` prefix the
-  // text lacks) and back up to the whole marker run so longer runs leave no stray stars.
-  let textCut = text.value.lastIndexOf(CLOSER)
+  // Locate the label cut with the exact same logic as the href so the two never diverge;
+  // a run that fails the boundary check on one side fails it on the other (www labels only
+  // differ by the scheme prefix, which this scan is independent of).
+  const textRun = findCloserRun(text.value)
+  if (!textRun) return undefined
+  const textCut = textRun.start
   if (textCut <= 0) return undefined
-  while (textCut > 0 && text.value[textCut - 1] === '*') textCut--
 
   const tailNodes = parseInlineTail(node.url.slice(closer.tailStart))
   node.url = node.url.slice(0, closer.start)
@@ -126,7 +135,7 @@ export const remarkLiteralAutolinkFix: Plugin<[], Root> = () => (tree, file) => 
 
   visit(tree, 'link', (node, index, parent) => {
     if (!parent || typeof index !== 'number') return
-    const plan = buildFix(node, index, parent)
+    const plan = buildFix(node, index, parent, source)
     if (plan) plans.push(plan)
   })
 
