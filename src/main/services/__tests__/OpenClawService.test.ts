@@ -1039,13 +1039,26 @@ describe('OpenClawService gateway status state machine', () => {
       expect(statusPayloads().at(-1)).toEqual({ status: 'stopped' })
     })
 
-    it('does not broadcast when a stop finds the gateway already stopped', async () => {
+    it('confirms stopped on a no-op stop so a stale renderer is corrected', async () => {
       ;(service as any).gatewayStatus = 'stopped'
       checkPortOpenSpy.mockResolvedValue(false)
+      broadcastMock.mockClear()
 
       await expect(service.stopGateway()).resolves.toEqual({ success: true })
 
-      expect(broadcastMock).not.toHaveBeenCalled()
+      // No transition happened, but the request still announces the terminal state.
+      expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
+    })
+
+    it('keeps the current custom port when startGateway is called without one', async () => {
+      ;(service as any).gatewayPort = 18888
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      startAndWaitSpy.mockResolvedValue(undefined)
+
+      await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+      expect((service as any).gatewayPort).toBe(18888)
     })
   })
 
@@ -1069,6 +1082,35 @@ describe('OpenClawService gateway status state machine', () => {
       ;(service as any).syncGatewayPortFromPreference()
 
       expect((service as any).gatewayPort).toBe(18790)
+    })
+
+    it('keeps the current port when the preference value exceeds the valid range', () => {
+      ;(service as any).gatewayPort = 18888
+      vi.mocked(application.get).mockImplementationOnce(() => ({ get: () => 70000 }) as never)
+
+      ;(service as any).syncGatewayPortFromPreference()
+
+      expect((service as any).gatewayPort).toBe(18888)
+    })
+
+    it('adopts a changed custom port while the gateway is idle', () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      vi.mocked(application.get).mockImplementationOnce(
+        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      )
+
+      ;(service as any).onGatewayPortPreferenceChanged()
+
+      expect((service as any).gatewayPort).toBe(19999)
+    })
+
+    it('keeps the running gateway port when the preference changes mid-run', () => {
+      ;(service as any).gatewayStatus = 'running'
+      ;(service as any).gatewayPort = 18888
+
+      ;(service as any).onGatewayPortPreferenceChanged()
+
+      expect((service as any).gatewayPort).toBe(18888)
     })
   })
 
