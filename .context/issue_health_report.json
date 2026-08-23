@@ -1,79 +1,69 @@
 {
-  "generated_at": "2026-08-22T17:00:00Z",
-  "total_open_issues": 920,
+  "generated_at": "2026-08-23T17:00:00Z",
+  "total_open_issues": 929,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days",
-      "count": 857,
-      "pct": "93.2%"
+      "description": "Updated within last 7 days (Aug 16-23)",
+      "count": 80,
+      "pct": "8.6%",
+      "note": "Estimated from top-100 sample; most-recent-activity bias means true active count likely higher"
     },
     "aging": {
-      "description": "7-30 days since last update",
-      "count": 63,
-      "pct": "6.8%"
+      "description": "7-30 days since last update (Jul 24 - Aug 15)",
+      "count": 50,
+      "pct": "5.4%"
     },
     "stale": {
-      "description": "Labeled 'inactive', no activity 14+ days",
-      "count": 63,
-      "pct": "6.8%"
+      "description": "30-90 days without update (May 24 - Jul 23), many auto-labeled 'inactive'",
+      "count": 250,
+      "pct": "26.9%",
+      "inactive_label_count": 65
     },
     "zombie": {
-      "description": "P1 issues open 90+ days with no resolution",
-      "count": 3,
-      "issues": [14899, 13608, 13193]
+      "description": "90+ days open with no resolution (before May 24)",
+      "count": 549,
+      "pct": "59.1%",
+      "p1_zombies": [14899, 13608, 13193]
     }
   },
   "triage_queue": {
-    "needs_triage_count": 34,
-    "needs_repro_count": 8,
+    "needs_triage_count": 36,
+    "needs_repro_count": 9,
     "top_needs_triage": [
       {"number": 19116, "title": "v2.0.8 bundle missing fixes — response_format and reasoning_content regressions", "priority": "critical"},
-      {"number": 19105, "title": "Build end-to-end diagnostics and error reporting system", "priority": "medium"},
       {"number": 19093, "title": "S3 backup/restore issues reported on v2.0.7 Windows", "priority": "high"},
-      {"number": 19041, "title": "为 job schedule 的时间日历建立单一 owner", "priority": "low"}
+      {"number": 19105, "title": "Build an end-to-end diagnostics and error reporting system", "priority": "medium"},
+      {"number": 19041, "title": "Job schedule time calendar needs single owner", "priority": "medium"},
+      {"number": 19242, "title": "Expose safe runtime information to Custom Agents", "priority": "low"}
     ]
   },
-  "top_label_bugs": {
-    "models": 23,
-    "assistant": 33,
-    "mcp": 12,
-    "rag": 19,
-    "performance": 17,
-    "ui-ux": 26,
-    "data": 13,
-    "connectivity": 8
-  },
-  "new_bugs_last_24h": 9,
-  "new_bugs_high_priority": [
-    {
-      "number": 19203,
-      "title": "Agent heartbeat interval no longer schedules anything — ensureHeartbeatTask dropped in JobManager migration",
-      "created_at": "2026-08-22T13:49:29Z",
-      "labels": [],
-      "severity": "high"
+  "hot_areas_aug23": {
+    "dsh_integration": {
+      "count": 3,
+      "issues": [19262, 19096, 19244],
+      "description": "DSH/dsh startup failures, PATH not inherited, credentials format conflict — all opened this week"
     },
-    {
-      "number": 19188,
-      "title": "Agent output stops mid-generation — model emits tool_calls as plain text in thinking block",
-      "created_at": "2026-08-22T08:57:35Z",
-      "labels": [],
-      "severity": "high"
+    "agent_reliability": {
+      "count": 5,
+      "issues": [19243, 19248, 19241, 19188, 19203],
+      "description": "Agent actions without user request, paste images broken, skills not discovered, output dead-loop, heartbeat dropped"
     },
-    {
-      "number": 19171,
-      "title": "Model connectivity check hardcodes reasoning_effort: \"none\", causing detection failure",
-      "created_at": "2026-08-22T05:55:47Z",
-      "labels": ["connectivity", "models"],
-      "severity": "medium"
+    "model_metadata": {
+      "count": 4,
+      "issues": [19261, 19255, 19233, 19254],
+      "description": "DeepSeek V4 metadata wrong, trailing # in API address, vision multimodal block misbuilt, endpoint type hidden"
+    },
+    "performance_optimization": {
+      "count": 12,
+      "issues": [19208, 19209, 19210, 19211, 19139, 19140, 19141, 18356, 18242, 17286, 17287, 17288],
+      "description": "Ongoing DeJeune performance batch: lazy-load CodeMirror, isolate subscriptions, stabilize callbacks, exclude devtools from prod"
     }
-  ],
-  "recommended_actions": [
-    "CRITICAL: #19116 v2.0.8 bundle missing fixes — validate whether hotfix v2.0.8.1 is needed",
-    "HIGH: #19203 Agent heartbeat regression from JobManager migration — re-add ensureHeartbeatTask wiring",
-    "HIGH: #19188 Agent dead-loop on tool_calls in thinking text — needs parser-level fix",
-    "HIGH: #19152 DSH credentials.yaml injection broken — pass --no-env or filter env keys before writing",
-    "TRIAGE: 34 issues still in needs-triage queue; #19093 (S3 Windows backup) needs urgent classification",
-    "ZOMBIE: P1 issues #14899, #13608, #13193 are 107-171 days old; recommend closing or deprioritizing",
-    "STALE: 63 issues labeled 'inactive'; consider batch-closing if no community response"
-  ]
+  },
+  "summary_deltas_vs_yesterday": {
+    "open_issues_change": "+9",
+    "new_p1_issues": 0,
+    "resolved_p1_issues": 0,
+    "newly_needs_triage": "+2",
+    "newly_inactive": "+2"
+  }
 }

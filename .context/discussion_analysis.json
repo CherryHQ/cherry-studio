@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-22T17:00:00Z",
-  "note": "Discussions fetched from open issues with discussion label; GitHub Discussions GraphQL API not available in this session.",
+  "generated_at": "2026-08-23T17:00:00Z",
+  "note": "GitHub Discussions GraphQL not available in this session. Discussion-labeled issues used as proxy.",
   "discussion_issues_in_sample": [
     {
       "number": 19182,
@@ -11,6 +11,22 @@
       "sentiment": "unclear — vague title, needs triage"
     },
     {
+      "number": 18069,
+      "title": "[Discussion]: V2 portable version starts very slowly",
+      "labels": ["help wanted", "discussion", "performance"],
+      "created_at": "2026-08-07",
+      "comments": 2,
+      "sentiment": "negative — startup performance regression in V2 portable; community concern"
+    },
+    {
+      "number": 17191,
+      "title": "[Discussion]: The knowledge base invocation window has disappeared",
+      "labels": ["help wanted", "discussion", "ui-ux", "inactive"],
+      "created_at": "2026-07-20",
+      "comments": 2,
+      "sentiment": "negative — KB UI missing; v2 regression; marked inactive"
+    },
+    {
       "number": 17271,
       "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
       "labels": ["help wanted", "discussion", "rag", "assistant", "inactive"],
@@ -19,40 +35,33 @@
       "sentiment": "negative — agent + RAG integration gap; marked inactive"
     },
     {
+      "number": 17260,
+      "title": "[Privacy Concern]: Agent mode hard-coded to Claude Code SDK — no user opt-out",
+      "labels": ["inactive"],
+      "created_at": "2026-07-22",
+      "comments": 3,
+      "sentiment": "negative — user privacy and model choice autonomy concern"
+    },
+    {
       "number": 16010,
-      "title": "[Discussion]: Which models are supported by the agent, what is the logic, my models are not in the list",
+      "title": "[Discussion]: Which models are supported by the agent, what is the logic",
       "labels": ["help wanted", "discussion", "models", "inactive"],
       "created_at": "2026-06-12",
       "comments": 3,
-      "sentiment": "confusion — model compatibility UI lacks explanation; now partially addressed by #19184"
-    },
-    {
-      "number": 18857,
-      "title": "[Discussion]: v2.0.7 completely unusable — all configs showing errors, request to downgrade",
-      "labels": ["help wanted", "discussion"],
-      "created_at": "2026-08-18",
-      "comments": 2,
-      "sentiment": "negative — v2 migration friction remains a recurring theme"
-    },
-    {
-      "number": 18788,
-      "title": "[Discussion]: Request for disclosure on Cherry Studio built-in Cherry model provider",
-      "labels": ["help wanted", "discussion", "models"],
-      "created_at": "2026-08-18",
-      "comments": 6,
-      "sentiment": "transparency concern — active community discussion on built-in provider"
+      "sentiment": "confused — model support matrix unclear to users; documentation gap"
     }
   ],
   "recurring_themes": [
-    "Agent runtime instability (stream stops, heartbeat regression, dead loops)",
-    "DSH/CodeMate integration broken by credentials injection",
-    "Model compatibility UI — silent filtering without user-facing reason",
-    "v2 migration friction — users requesting v1 downgrade or rollback",
-    "Performance regressions in chat rendering with large token counts"
+    "V2 startup/performance regression vs V1",
+    "Knowledge base (RAG) integration gaps in agent mode",
+    "Model support / agent compatibility confusion",
+    "Privacy concerns: hard-coded Claude Code SDK dependency",
+    "DSH/Pi runtime integration issues"
   ],
-  "community_top_engagement": [
-    {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 368, "labels": ["assistant"]},
-    {"number": 18432, "title": "Proposal: upgrade DashScope provider to QwenCloud", "comments": 2, "labels": ["models"]}
-  ],
-  "sentiment_summary": "Mixed-negative. Agent reliability issues dominate today's reports. Performance work (DeJeune) is visible and positive. QwenCloud provider expansion well-received internally. DSH integration regressions are the most urgent user-facing pain."
+  "sentiment_summary": {
+    "positive": 0,
+    "neutral": 1,
+    "negative": 5,
+    "overall": "predominantly negative — community frustrated by V2 regressions and documentation gaps"
+  }
 }

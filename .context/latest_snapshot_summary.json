@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-22T17:00:00Z",
-  "open_issues_total": 920,
-  "open_issues_delta_24h": 7,
+  "generated_at": "2026-08-23T17:00:00Z",
+  "open_issues_total": 929,
+  "open_issues_delta_24h": 9,
   "open_prs_total": 100,
   "p1_issues": [
     {
@@ -9,7 +9,7 @@
       "title": "[Feature]: Unified Notification Center",
       "labels": ["planned", "p1", "feature", "ui-ux"],
       "created_at": "2026-05-07",
-      "age_days": 107,
+      "age_days": 108,
       "comments": 0,
       "status": "Zombie"
     },
@@ -18,7 +18,7 @@
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["p1", "models"],
       "created_at": "2026-03-18",
-      "age_days": 157,
+      "age_days": 158,
       "comments": 8,
       "status": "Zombie"
     },
@@ -27,148 +27,224 @@
       "title": "[Bug]: Azure OpenAI AI_APICallError Resource not found (responses API)",
       "labels": ["p1", "models"],
       "created_at": "2026-03-04",
-      "age_days": 171,
+      "age_days": 172,
       "comments": 1,
       "status": "Zombie"
     }
   ],
-  "needs_triage_count": 34,
-  "inactive_stale_count": 63,
-  "bug_labeled_count": 18,
+  "needs_triage_count": 36,
+  "inactive_stale_count": 65,
+  "bug_labeled_count": 17,
   "label_distribution_top15": {
-    "internal-team": 48,
-    "feature": 36,
-    "needs-triage": 34,
-    "assistant": 33,
-    "models": 23,
-    "ui-ux": 26,
+    "internal-team": 50,
+    "feature": 37,
+    "needs-triage": 36,
+    "assistant": 34,
+    "models": 26,
+    "ui-ux": 27,
     "rag": 19,
-    "performance": 17,
-    "inactive": 63,
+    "performance": 19,
+    "inactive": 65,
     "data": 13,
-    "bug": 18,
-    "mcp": 12,
+    "bug": 17,
+    "mcp": 13,
     "planned": 13,
-    "needs-repro": 8,
-    "connectivity": 8
+    "needs-repro": 9,
+    "connectivity": 9
   },
-  "new_issues_today_aug22": [
+  "new_issues_today_aug23": [
     {
-      "number": 19203,
-      "title": "[Bug]: Agent heartbeat interval no longer schedules anything — ensureHeartbeatTask was dropped in the JobManager migration",
+      "number": 19262,
+      "title": "[Bug]: deepseek harness coding partner fails to start: credentials file format incompatible with dsh 0.1.1-rc.2",
       "labels": [],
       "severity": "high"
     },
     {
-      "number": 19211,
-      "title": "[Bug]: Keep retained TabRouter subscriptions stable",
-      "labels": ["performance"],
+      "number": 19261,
+      "title": "[Bug]: DeepSeek V4 Flash/Pro model metadata incorrect: reasoning effort levels and pricing don't match official API docs",
+      "labels": ["models"],
       "severity": "medium"
     },
     {
-      "number": 19209,
-      "title": "[Bug]: Isolate per-message selection subscriptions",
-      "labels": ["performance"],
+      "number": 19255,
+      "title": "[Bug]: Trailing '#' in a model's API Address does not prevent auto-appending the API version path",
+      "labels": ["models"],
       "severity": "medium"
     },
     {
-      "number": 19208,
-      "title": "[Bug]: Lazy-load CodeMirror from read-only chat Markdown",
-      "labels": ["performance"],
-      "severity": "medium"
-    },
-    {
-      "number": 19188,
-      "title": "[Bug]: Agent output stops mid-generation — model emits tool_calls as plain text in thinking then end_turn",
+      "number": 19254,
+      "title": "[Bug]: Multimodal content block built incorrectly in single-model chat — images not passed to vision models",
       "labels": [],
       "severity": "high"
     },
     {
-      "number": 19184,
-      "title": "Agent model picker silently hides compatible models for Pi/DSH runtimes (unknown contextWindow, no filter reason shown)",
-      "labels": ["assistant", "models"],
-      "severity": "medium"
-    },
-    {
-      "number": 19171,
-      "title": "Model connectivity check hardcodes reasoning_effort: \"none\", causing detection failure",
-      "labels": ["connectivity", "models"],
-      "severity": "medium"
-    },
-    {
-      "number": 19167,
-      "title": "Feature Request: Native support for deploying offline GGUF models with llama.cpp",
+      "number": 19250,
+      "title": "[Feature]: Suggest restoring the optional model search from version 1.9 in version 2.0",
       "labels": ["models"],
       "severity": "low"
     },
     {
-      "number": 19164,
-      "title": "[Bug]: Custom parameter value inputs have no accessible name",
-      "labels": ["bug", "ui-ux"],
+      "number": 19248,
+      "title": "[Bug]: Pasting images in Agent / built-in advisor sessions has no effect, but uploading as attachment works",
+      "labels": [],
+      "severity": "medium"
+    },
+    {
+      "number": 19247,
+      "title": "[Feature]: Apply providerSettings patches as JSON Merge Patch (RFC 7396)",
+      "labels": [],
+      "severity": "low"
+    },
+    {
+      "number": 19244,
+      "title": "[Bug]: Pi and DSH runtimes do not inherit the user's CLI PATH on macOS",
+      "labels": [],
+      "severity": "high"
+    },
+    {
+      "number": 19243,
+      "title": "[Bug]: Referenced conversations can trigger actions without a current user request",
+      "labels": [],
+      "severity": "high"
+    },
+    {
+      "number": 19242,
+      "title": "[Feature]: Expose safe runtime information to Custom Agents",
+      "labels": ["mcp", "needs-triage", "assistant"],
+      "severity": "low"
+    },
+    {
+      "number": 19241,
+      "title": "[Bug]: Workspace .agents/skills are not automatically discovered",
+      "labels": [],
+      "severity": "medium"
+    },
+    {
+      "number": 19240,
+      "title": "[Bug]: macOS screenshot overlay follows Space switches and keeps showing the previous Space's frozen capture",
+      "labels": [],
+      "severity": "medium"
+    },
+    {
+      "number": 19239,
+      "title": "[Task]: Hot-toggle developer tracing at runtime",
+      "labels": ["Dev Team", "internal-team"],
+      "severity": "low"
+    },
+    {
+      "number": 19238,
+      "title": "[Task]: Remove orphaned IPC trace propagation patch",
+      "labels": ["Dev Team", "internal-team"],
+      "severity": "low"
+    },
+    {
+      "number": 19235,
+      "title": "[Task]: Make developer mode take effect without an app restart",
+      "labels": ["Dev Team", "internal-team"],
+      "severity": "low"
+    },
+    {
+      "number": 19233,
+      "title": "[Bug]: No way to choose endpoint type for preset-provider models",
+      "labels": ["models"],
+      "severity": "medium"
+    },
+    {
+      "number": 19232,
+      "title": "[Bug]: Composer reasoning effort / service tier / fast mode ignored when regenerating a message",
+      "labels": [],
+      "severity": "medium"
+    },
+    {
+      "number": 19231,
+      "title": "[Task]: Reasoning effort vocabularies unioned across sources",
+      "labels": ["Dev Team", "models", "internal-team"],
+      "severity": "low"
+    },
+    {
+      "number": 19230,
+      "title": "[Task]: Reorder Agent system prompt for prefix-cache stability",
+      "labels": ["Dev Team", "internal-team"],
       "severity": "low"
     }
   ],
   "critical_bugs_needing_attention": [
     {
+      "number": 19262,
+      "title": "deepseek harness coding partner fails to start — credentials file format incompatible with dsh 0.1.1-rc.2",
+      "severity": "high",
+      "reason": "All users of DSH integration blocked on startup. Cherry writes API key as top-level key, incompatible with version:1 + refs: format required by new dsh.",
+      "opened_today": true
+    },
+    {
+      "number": 19254,
+      "title": "Multimodal content block built incorrectly — images not passed to vision models in single-model chat",
+      "severity": "high",
+      "reason": "Core vision feature broken for GLM-4V-Flash 1213, DeepSeek vision and likely others.",
+      "opened_today": true
+    },
+    {
+      "number": 19244,
+      "title": "Pi and DSH runtimes do not inherit user's CLI PATH on macOS",
+      "severity": "high",
+      "reason": "Agent subprocesses cannot find user-installed tools (brew, nvm, etc.). Breaks all macOS agent workflows relying on custom PATH.",
+      "opened_today": true
+    },
+    {
+      "number": 19243,
+      "title": "Referenced conversations can trigger actions without a current user request",
+      "severity": "high",
+      "reason": "Security/UX concern: background conversation references executing agent actions autonomously.",
+      "opened_today": true
+    },
+    {
       "number": 19203,
       "title": "Agent heartbeat interval no longer schedules anything — ensureHeartbeatTask dropped in JobManager migration",
       "severity": "high",
-      "reason": "Silent regression: agent background tasks (health checks, timeouts) never fire. Affects all agent sessions. Likely introduced during JobManager refactor."
+      "reason": "Silent regression: agent background tasks (health checks, timeouts) never fire. Affects all agent sessions."
     },
     {
       "number": 19188,
       "title": "Agent output stops mid-generation — tool_calls emitted as plain text in thinking block",
       "severity": "high",
-      "reason": "Dead-loop: model sends tool_calls in thinking text, parser does not detect them, injects 'no visible output' repeatedly. Unrecoverable without manual stop."
+      "reason": "Dead-loop: model sends tool_calls in thinking text, parser does not detect them, injects 'no visible output' repeatedly."
     },
     {
       "number": 19119,
       "title": "Agent stream stuck/empty after manual interrupt + immediate regenerate",
       "severity": "high",
-      "reason": "Reproducible race on stop+regenerate: empty stream (11ms/$0) or frozen UI. Active, assigned."
-    },
-    {
-      "number": 19152,
-      "title": "dsh startup fails — CHERRY_STUDIO_CODEMATE_*_API_KEY written to .credentials.yaml top-level",
-      "severity": "high",
-      "reason": "DSH integration broken for all users; Cherry injects env keys into credentials.yaml where dsh expects only known top-level keys."
+      "reason": "Reproducible race on stop+regenerate: empty stream (11ms/$0) or frozen UI."
     },
     {
       "number": 19116,
       "title": "v2.0.8 bundle missing #18702 and #18121 fixes (response_format retry + reasoning_content)",
       "severity": "critical",
       "reason": "Release QA gap confirmed: two known fixes absent from shipped bundle. Affects all v2.0.8 users."
-    },
-    {
-      "number": 18800,
-      "title": "Agent modifies its own database causing data corruption",
-      "severity": "critical",
-      "reason": "Data corruption; agent unable to load after self-modification."
     }
   ],
   "pr_summary": {
     "total_open": 100,
-    "targeting_main": 96,
+    "targeting_main": 94,
     "targeting_v2": 0,
-    "draft_prs": 10,
-    "newest_open_prs": [
-      {"number": 19213, "title": "feat(provider): add QwenCloud provider (international DashScope)"},
-      {"number": 19212, "title": "fix(subagent-resume): route continued subagent content to its thread"},
-      {"number": 19204, "title": "feat(cherry-cloud): add desktop login and managed Work access"},
-      {"number": 19056, "title": "feat(file-preview): office suite selection producers and composition"},
-      {"number": 18933, "title": "perf(screenshot): make capture overlay appear immediately"}
-    ]
+    "targeting_v1": 2,
+    "targeting_other": 4,
+    "draft_prs": 3,
+    "labels_distribution": {
+      "needs-review": 4,
+      "p1": 2,
+      "v2": 2,
+      "v1": 2,
+      "ready-to-merge": 1
+    }
   },
-  "v2_branch_summary": {
-    "open_prs_targeting_v2": 0,
-    "note": "All active PRs target main. No open PRs against v2 branch as of 2026-08-22."
-  },
-  "issue_health": {
-    "total_open": 920,
-    "active_updated_7d": 857,
-    "aging_8_to_30d": 63,
-    "stale_inactive_labeled": 63,
-    "zombie_p1_unresolved": 3,
-    "uncategorized_no_label_pct": "approx 12%"
+  "issue_health_estimates": {
+    "total_open": 929,
+    "active_7d": 80,
+    "aging_7_30d": 50,
+    "stale_30_90d": 250,
+    "zombie_90d_plus": 549,
+    "zombie_pct": 59.1,
+    "unlabeled_pct": 22.0,
+    "note": "Estimated from 100-issue sample (most recently updated) extrapolated to full set"
   }
 }
