@@ -104,7 +104,14 @@ describe('HtmlArtifactsPopup', () => {
   it('keeps the popup open when the overlay is clicked', () => {
     const onClose = vi.fn()
     render(
-      <HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" authorized onClose={onClose} />
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<h1>Hello</h1>"
+        authorized
+        onClose={onClose}
+      />
     )
     const overlay = document.querySelector('[data-slot="dialog-overlay"]')
 

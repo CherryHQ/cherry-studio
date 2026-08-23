@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   clampForwardedWheelDelta,
   type ScrollRuntimeBoundary,
@@ -5,7 +6,6 @@ import {
   VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX,
   VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE
 } from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
-import { loggerService } from '@logger'
 import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
   injectHtmlPreviewHeadElement
