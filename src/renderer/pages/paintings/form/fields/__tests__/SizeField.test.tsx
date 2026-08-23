@@ -51,6 +51,21 @@ describe('SizeField', () => {
     expect(screen.getByLabelText('paintings.generate.width')).toHaveValue('')
   })
 
+  // The pair is two identical fields, so a copied-and-pasted key is the likely
+  // slip; nothing else here would catch a height that lands on the width key.
+  it.each([
+    ['width', 'paintings.generate.width', 'customSize_width'],
+    ['height', 'paintings.generate.height', 'customSize_height']
+  ])('commits a typed %s to its own key', async (_side, label, key) => {
+    const user = userEvent.setup()
+    const onChange = renderSizeField({})
+
+    await user.type(screen.getByLabelText(label), '1024')
+    await user.tab()
+
+    expect(onChange).toHaveBeenCalledWith({ [key]: 1024 })
+  })
+
   it('writes no size when an empty field is focused and left', async () => {
     const user = userEvent.setup()
     const onChange = renderSizeField({})
