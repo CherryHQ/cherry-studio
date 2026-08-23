@@ -18,18 +18,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseLegacyResult(value: string): CreateAgentResult | undefined {
-  const match = /^Agent created\. id=([^,]+), name=(.+), model=(.+)\. Query product_info/u.exec(value.trim())
-  if (!match) return undefined
-
-  return { ok: true, agentId: match[1], name: match[2], model: match[3] }
-}
-
 function parseText(value: string): unknown {
   try {
     return JSON.parse(value)
   } catch {
-    return parseLegacyResult(value)
+    return undefined
   }
 }
 

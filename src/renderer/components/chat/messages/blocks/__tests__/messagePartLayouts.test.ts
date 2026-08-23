@@ -615,7 +615,7 @@ describe('projectCompletedMessageParts', () => {
             content: [
               {
                 type: 'text',
-                text: 'Agent created. id=agent-created, name=Reviewer, model=anthropic::claude-sonnet. Query product_info for supported capabilities.'
+                text: '{"ok":true,"agentId":"agent-created","name":"Reviewer","model":"anthropic::claude-sonnet"}'
               }
             ]
           }
