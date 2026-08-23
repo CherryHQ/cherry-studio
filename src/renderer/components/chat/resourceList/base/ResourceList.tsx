@@ -485,8 +485,11 @@ function RenameField<T extends ResourceListItemBase>({
   const rowState = useResourceListRowState(id)
   const didCommitRef = useRef(false)
   const isComposingRef = useRef(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const pendingBlurCommitRef = useRef(false)
   const setInputRef = useCallback(
     (node: HTMLInputElement | null) => {
+      inputRef.current = node
       if (typeof ref === 'function') {
         ref(node)
       } else if (ref) {
@@ -500,6 +503,7 @@ function RenameField<T extends ResourceListItemBase>({
     if (!rowState.renaming) {
       didCommitRef.current = false
       isComposingRef.current = false
+      pendingBlurCommitRef.current = false
     }
   }, [rowState.renaming])
 
@@ -530,9 +534,17 @@ function RenameField<T extends ResourceListItemBase>({
       }}
       onCompositionEnd={() => {
         isComposingRef.current = false
+        if (pendingBlurCommitRef.current) {
+          pendingBlurCommitRef.current = false
+          const value = inputRef.current?.value ?? ''
+          commitRename(value)
+        }
       }}
       onBlur={(event) => {
-        if (isComposingRef.current || (event.nativeEvent as unknown as InputEvent).isComposing) return
+        if (isComposingRef.current) {
+          pendingBlurCommitRef.current = true
+          return
+        }
         commitRename(event.currentTarget.value)
       }}
       onPointerDown={(event) => {
