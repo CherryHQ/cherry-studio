@@ -8,7 +8,8 @@
  * emits for the *unrevealed* tail.
  */
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { JSX } from 'react'
 import type { ExtraProps } from 'streamdown'
 import { describe, expect, it } from 'vitest'
@@ -85,7 +86,8 @@ describe('StreamingMarkdown', () => {
     expect(animation).toBe('sd-fadeIn')
   })
 
-  it('provides each streaming block source to custom renderers', () => {
+  it('provides each streaming block source to custom renderers', async () => {
+    const user = userEvent.setup()
     const copied: string[] = []
     const tableMarkdown = `| Name | Type |
 | :--- | ---: |
@@ -119,7 +121,7 @@ describe('StreamingMarkdown', () => {
       </StreamingMarkdown>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy table' }))
+    await user.click(screen.getByRole('button', { name: 'Copy table' }))
     expect(copied).toEqual([tableMarkdown])
   })
 })
