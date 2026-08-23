@@ -301,7 +301,7 @@ jobs:
         if: >-
           !cancelled() && steps.agent_settings.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-assistant')
-        timeout-minutes: 15
+        timeout-minutes: 20
         shell: bash
         env:
           REGRESSION_TASK: custom-assistant

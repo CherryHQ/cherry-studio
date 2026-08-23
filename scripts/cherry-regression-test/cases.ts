@@ -83,9 +83,10 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Create Cherry Regression Assistant 31415 with an avatar, model, description, and a system prompt requiring ASSISTANT_PROMPT_PASS.',
-      'Chat with the assistant and verify the system prompt affects its response.',
-      'Restart and reopen the assistant and conversation.'
+      'Return from Settings if needed, open Add Assistant > New Assistant, fill the exact Name and Description textboxes, choose the star-struck avatar, and select configRef customProviderChatModel through the Model selector.',
+      'Continue to System prompt and require every response to include ASSISTANT_PROMPT_PASS, then continue to Knowledge and create the assistant.',
+      'Verify the saved assistant, ask what two plus two is, verify ASSISTANT_PROMPT_PASS in the response, and capture the chat screenshot before restarting.',
+      'Restart, reopen Cherry Regression Assistant 31415, and verify both the assistant and response remain in its chat history.'
     ],
     acceptance: ['Assistant settings and chat work, and both assistant and history survive restart.'],
     evidence: [

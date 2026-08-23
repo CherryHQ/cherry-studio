@@ -45,6 +45,7 @@ const AGENT_DISALLOWED_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFet
 const HEAVY_AGENT_TASKS = new Set<TaskId>([
   'cherryin-chat',
   'custom-provider-chat',
+  'custom-assistant',
   'agent-ppt',
   'claude-agent-runtime',
   'pi-runtime',

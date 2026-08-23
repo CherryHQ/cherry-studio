@@ -81,20 +81,41 @@ desktop tools.
    `Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else.`, click the
    exact `Send` button, wait 10 seconds, and record the exact response. Capture
    `custom-provider-chat` before restarting and verifying provider persistence.
-7. Use `system-action` only for the case's external shortcut, external text, or
+7. For C-01, click the exact `Back` button first if Settings is still open.
+   Click the exact `Add Assistant` button, then the exact `New Assistant`
+   option. Fill the exact `Name` and `Description` textboxes once; a successful
+   fill does not require a body-text recheck. Click the button labelled
+   `Avatar`, then the exact `star-struck` button. Open the exact `Model` button,
+   fill `testId: model-selector-search` with
+   `configRef: customProviderChatModel`, and click the first `role: option`
+   result. The selector closes after selection, so do not press Escape.
+
+   Click the exact `Next` button. Fill the `role: textbox` whose exact name is
+   `Enter instructions for the assistant, such as response style, role, or background context`
+   with `You must always include the exact phrase ASSISTANT_PROMPT_PASS in every response you give, no matter what the user asks.`
+   Click exact `Next`, then exact `Create`. Record `assistant-saved` against the
+   assistant name. Fill `css: [contenteditable='true']` with
+   `In one sentence, what is two plus two?`, click exact `Send`, wait 10 seconds,
+   and record the visible `ASSISTANT_PROMPT_PASS` response. Capture
+   `assistant-chat` immediately, then restart. After a one-time splash wait if
+   needed, reopen the named assistant, verify the response remains in its chat
+   history, and record `assistant-restart` against a main region containing the
+   assistant name. Do not repeat field fills, probe unsupported `type` or
+   `press-escape` actions, or search for legacy Ant Design selectors.
+8. Use `system-action` only for the case's external shortcut, external text, or
    native file-picker step. Use fixture and workspace paths returned by
    `get-run-context`.
-8. For persistence checks, call `restart-app`, reopen the relevant UI, then
+9. For persistence checks, call `restart-app`, reopen the relevant UI, then
    record the declared `restart` evidence.
-9. Record every evidence item declared by the case. UI and restart evidence
+10. Record every evidence item declared by the case. UI and restart evidence
    must assert meaningful visible text; file and process evidence must use the
    real output or owned process. Navigate away from credential fields and
    account details before taking screenshots. A narrative claim is never evidence.
-10. If an observation fails, inspect the current state and retry only after a
+11. If an observation fails, inspect the current state and retry only after a
    real corrective interaction. Otherwise complete the case as `failed`. Use
    `blocked` only for an unavailable external capability or prerequisite, not
    for an application defect.
-11. Call `complete-case` exactly once with the actual result. `passed` is valid
+12. Call `complete-case` exactly once with the actual result. `passed` is valid
    only after all declared machine evidence passes.
 
 ## Keep execution bounded
