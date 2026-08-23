@@ -180,6 +180,19 @@ async function flushUntil(predicate: () => boolean, maxTicks = 1000): Promise<vo
   throw new Error(`flushUntil: predicate never became true within ${maxTicks} ticks`)
 }
 
+/**
+ * Microtask-only variant of `flushUntil`, for suites on blanket fake timers where
+ * `setImmediate` never fires. Advances no clock, so a test's own timer control is
+ * left untouched.
+ */
+async function flushMicrotasksUntil(predicate: () => boolean, maxTicks = 100): Promise<void> {
+  for (let i = 0; i < maxTicks; i++) {
+    if (predicate()) return
+    await Promise.resolve()
+  }
+  throw new Error(`flushMicrotasksUntil: predicate never became true within ${maxTicks} microtasks`)
+}
+
 function chunk(text: string): UIMessageChunk {
   return { type: 'text-delta', delta: text, id: 'p1' } as unknown as UIMessageChunk
 }
@@ -2247,7 +2260,9 @@ describe('AiStreamManager', () => {
         })
 
         await mgr.onExecutionDone(topicId, modelId)
-        for (let i = 0; i < 6; i++) await Promise.resolve()
+        // `scheduleNextChatTurn` launches the continuation detached (`queueMicrotask` + `void`),
+        // so the terminal resolving says nothing about the dispatch having run yet.
+        await flushMicrotasksUntil(() => dispatchSpy.mock.calls.length > 0)
         expect(dispatchSpy).toHaveBeenCalledWith(
           expect.anything(),
           expect.objectContaining({
