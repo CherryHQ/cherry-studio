@@ -1,0 +1,186 @@
+{
+  "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Yerleşik Cherry Studio danışmanı. Sorunları tanılar, işlemlerde rehberlik eder, sık sorulan soruları toplar, hata/özellik istekleri gönderir ve Skills arayıp oluşturur"
+      },
+      "cherry_support": {
+        "description": "Kurulum rehberliği, sorun giderme, sık sorulan sorular ve geri bildirim için resmi Cherry Studio destek ajanı"
+      }
+    },
+    "session": {
+      "new": "Yeni görev",
+      "run_status": {
+        "busy": "Ajan Oturumu meşgul. Lütfen kısa süre sonra tekrar deneyin.",
+        "unavailable": "Ajan Oturumu artık kullanılamıyor."
+      },
+      "workspace_status": {
+        "inaccessible": "Çalışma alanı yoluna erişilemiyor: {{path}}",
+        "missing": "Çalışma alanı yolu mevcut değil: {{path}}",
+        "not_directory": "Çalışma alanı yolu bir dizin değil: {{path}}"
+      }
+    }
+  },
+  "apiGateway": {
+    "docs": {
+      "description": "Cherry Studio için OpenAI, Anthropic ve Gemini uyumlu HTTP API'nin yanı sıra Cherry'ye özel uç noktalar (modeller, bilgi tabanları)",
+      "language_switcher_label": "Belge dili",
+      "operations": {
+        "chat_completions": "Bir sohbet tamamlama yanıtı oluşturur. İstek ve yanıt gövdeleri OpenAI Chat Completions biçimini izler; artımlı çıktı için `stream: true` ayarlayın.",
+        "count_tokens": "Anthropic biçimindeki bir mesaj kümesinin kaç giriş tokenı kullandığını tahmin eder.",
+        "generate_content": "Gemini'nin `generateContent` yöntemi aracılığıyla içerik oluşturur. İstek ve yanıt gövdeleri Gemini API biçimini izler; `streamGenerateContent` aynı yol üzerinden sunulur.",
+        "get_knowledge_base": "Kimliğe göre tek bir bilgi tabanını getirir.",
+        "get_mcp_server": "Bir MCP sunucusunun ayrıntılarını ve araç listesini getirir.",
+        "health": "Hizmet durumu, geçerli saat ve sürüm. Kimlik doğrulama gerekmez.",
+        "info": "API adı, sürümü ve ana uç noktalar. Kimlik doğrulama gerekmez.",
+        "list_knowledge_bases": "Bu Cherry Studio örneğinde kullanılabilen bilgi tabanlarını listeler.",
+        "list_mcp_servers": "Cherry Studio'da etkinleştirilmiş MCP sunucularını, her birine bağlanmak için kullanılacak URL ile birlikte listeler.",
+        "list_models": "Bu ağ geçidi üzerinden kullanılabilen modelleri OpenAI model biçiminde listeler.",
+        "mcp_proxy": "Bir MCP sunucusu için Model Context Protocol uç noktası (Streamable HTTP). Sunucuyu Cherry Studio üzerinden kullanmak için herhangi bir MCP istemcisini bu URL'ye yönlendirin.",
+        "messages": "Bir mesaj oluşturur. İstek ve yanıt gövdeleri Anthropic Messages biçimini izler; artımlı çıktı için `stream: true` ayarlayın.",
+        "responses": "Bir yanıt oluşturur. İstek ve yanıt gövdeleri OpenAI Responses biçimini izler.",
+        "search_knowledge_bases": "Bir veya daha fazla bilgi tabanında arama yapar ve eşleşen belge parçalarını döndürür."
+      },
+      "tags": {
+        "anthropic": "Anthropic uyumlu uç noktalar. Bunları kullanmak için bir Anthropic SDK'yı bu ağ geçidinin temel URL'sine yönlendirin.",
+        "cherry": "Cherry Studio'nun kendi uç noktaları: bilgi tabanları, hizmet bilgileri ve sistem durumu denetimi.",
+        "gemini": "Kaynak API'de olduğu gibi `/v1beta` altında sunulan Gemini uyumlu uç noktalar.",
+        "openai": "OpenAI uyumlu uç noktalar. Bunları kullanmak için bir OpenAI SDK'yı bu ağ geçidinin temel URL'sine yönlendirin."
+      }
+    }
+  },
+  "appMenu": {
+    "about": "Hakkında",
+    "close": "Pencereyi Kapat",
+    "copy": "Kopyala",
+    "cut": "Kes",
+    "delete": "Sil",
+    "documentation": "Belgeler",
+    "edit": "Düzenle",
+    "feedback": "Geri Bildirim",
+    "file": "Dosya",
+    "forceReload": "Yeniden Yüklemeye Zorla",
+    "front": "Tümünü Öne Getir",
+    "help": "Yardım",
+    "hide": "Gizle",
+    "hideOthers": "Diğerlerini Gizle",
+    "minimize": "Simge Durumuna Küçült",
+    "paste": "Yapıştır",
+    "quit": "Çıkış",
+    "redo": "Yinele",
+    "releases": "Sürümler",
+    "reload": "Yeniden Yükle",
+    "resetZoom": "Gerçek Boyut",
+    "selectAll": "Tümünü Seç",
+    "services": "Hizmetler",
+    "toggleDevTools": "Geliştirici Araçlarını Aç/Kapat",
+    "toggleFullscreen": "Tam Ekranı Aç/Kapat",
+    "undo": "Geri Al",
+    "unhide": "Tümünü Göster",
+    "view": "Görünüm",
+    "website": "Web Sitesi",
+    "window": "Pencere",
+    "zoom": "Yakınlaştırma",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır"
+  },
+  "chat": {
+    "conversation": {
+      "new": "Yeni Sohbet"
+    }
+  },
+  "common": {
+    "channel_available_commands": "Kullanılabilir komutlar:",
+    "channel_command_processing_error": "⚠️ Komut işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+    "channel_message_processing_error": "⚠️ Mesaj işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+    "channel_new_session_created": "Yeni oturum oluşturuldu.",
+    "channel_no_active_session": "Etkin oturum yok.",
+    "channel_session_compacted": "Oturum sıkıştırıldı.",
+    "channel_session_resolution_error": "⚠️ Bu ajan için bir oturum çözümlenemedi. Lütfen daha sonra tekrar deneyin.",
+    "copy": "Kopyala",
+    "cut": "Kes",
+    "inspect": "İncele",
+    "paste": "Yapıştır"
+  },
+  "dialog": {
+    "all_files": "Tüm Dosyalar",
+    "data_reset": {
+      "cancel": "İptal",
+      "confirm": "Sıfırla ve Yeniden Başlat",
+      "message": "Bu işlem sohbetleri, asistanları, bilgi tabanlarını, dosyaları ve ayarları silip uygulamayı yeniden başlatacaktır. Bu işlem geri alınamaz. Devam edilsin mi?",
+      "title": "Uygulama Verilerini Sıfırla"
+    },
+    "diagnostic_bundle": {
+      "title": "Tanılama paketini kaydet",
+      "zip_filter": "ZIP arşivi"
+    },
+    "html_files": "HTML Dosyaları",
+    "open_file": "Dosya Aç",
+    "pdf_files": "PDF Dosyaları",
+    "png_image": "PNG Görüntüsü",
+    "save_as_html": "HTML Olarak Kaydet",
+    "save_as_pdf": "PDF Olarak Kaydet",
+    "save_file": "Dosyayı Kaydet",
+    "screen_capture_permission": {
+      "cancel": "İptal",
+      "detail": "Sistem Ayarları > Gizlilik ve Güvenlik > Ekran Kaydı bölümünde \"{{appName}}\" için Ekran Kaydı izni verin, ardından uygulamayı yeniden başlatın.",
+      "message": "Ekran görüntüsü almak için Ekran Kaydı izni gereklidir.",
+      "open_settings": "Sistem Ayarlarını Aç",
+      "title": "Ekran Kaydı İzni"
+    },
+    "screenshot_failed": {
+      "message": "Ekran görüntüsü alınamadı.",
+      "ok": "Tamam",
+      "title": "Ekran Görüntüsü Alınamadı"
+    },
+    "select_folder": "Klasör Seç",
+    "word_document": "Word Belgesi"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "Geçerli belge ayrıştırma hizmeti, dosyaların {{maxSize}} boyutundan küçük olmasını gerektiriyor. Bu dosyayı sıkıştırın veya bölün, ardından yeniden ekleyin.",
+      "pdf_page_limit_exceeded": "Bu PDF, geçerli belge ayrıştırma hizmetinin {{maxPages}} sayfalık sınırını aşıyor. PDF'yi elle bölün, ardından yeniden ekleyin."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Ajan için girdi gerekiyor",
+      "assistant": "Asistan için girdi gerekiyor"
+    },
+    "completion": {
+      "agent": "Ajan görevi tamamlandı",
+      "assistant": "Asistan yanıtı tamamlandı"
+    }
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Cherry Studio tarafından kullanılan OpenClaw ikili dosyası, oluşturulan yapılandırmayla uyumlu değil. OpenClaw'u yükseltin.{{details}}",
+      "external_config_invalid": "OpenClaw, Cherry Studio'nun yönettiği sağlayıcı bölümü dışındaki yapılandırmayı reddetti. Bu yapılandırmayı düzeltin veya OpenClaw'u yükseltin.{{details}}",
+      "more_issues": "ve {{count}} sorun daha",
+      "preflight_failed": "Cherry Studio, OpenClaw yapılandırmasını doğrulayamadı."
+    }
+  },
+  "paintings": {
+    "generate_failed": "Görüntü oluşturulamadı",
+    "image_mix_failed": "Görüntüler harmanlanamadı"
+  },
+  "selection": {
+    "name": "Seçim Asistanı"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Bu sayfayı kapatıp Cherry Studio'ya dönebilirsiniz",
+          "title": "Kimlik Doğrulama Başarılı"
+        }
+      }
+    },
+    "title": "Ayarlar"
+  },
+  "tray": {
+    "quit": "Çıkış",
+    "show_quick_assistant": "Hızlı Asistan",
+    "show_window": "Pencereyi Göster"
+  }
+}
