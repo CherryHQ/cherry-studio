@@ -541,8 +541,8 @@ describe('exportTopicAsMarkdown image pipeline', () => {
   const topic = { id: 't1', name: 'My Topic' } as Parameters<typeof exportTopicAsMarkdown>[0]
 
   beforeEach(() => {
-    // Stable instances: the entry calls getTopicMessages for collection, and
-    // topicToMarkdown re-reads the same rows — ids must match across both calls.
+    // Single snapshot for the whole export: collection and rendering must see
+    // the same rows even if the topic changes while the mode dialog is open.
     const messages = [
       view([{ type: 'text', text: 'user asks' }, imageFilePart(PNG_1PX, 'entry-a')], 'user'),
       view([{ type: 'text', text: 'assistant answers' }], 'assistant')
@@ -560,6 +560,24 @@ describe('exportTopicAsMarkdown image pipeline', () => {
     const markdown = fileApi.save.mock.calls[0][1] as string
     expect(markdown).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
     expect(markdown).toContain('assistant answers')
+  })
+
+  it('renders from the collected snapshot even if the topic changes while the dialog is open', async () => {
+    // First read (collection) returns the image message; any later read would
+    // see a mutated topic. The export must stay consistent with the snapshot.
+    const snapshot = [view([{ type: 'text', text: 'snapshot user text' }, imageFilePart(PNG_1PX, 'entry-a')], 'user')]
+    const mutated = [view([{ type: 'text', text: 'MUTATED DURING DIALOG' }], 'user')]
+    vi.mocked(getTopicMessages).mockReset()
+    vi.mocked(getTopicMessages).mockResolvedValueOnce(snapshot).mockResolvedValue(mutated)
+    chooseImageMode.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve('embed'), 20)))
+    fileApi.save.mockResolvedValue('/tmp/x/t.md')
+
+    await exportTopicAsMarkdown(topic, false, undefined, chooseImageMode)
+
+    const markdown = fileApi.save.mock.calls[0][1] as string
+    expect(markdown).toContain('snapshot user text')
+    expect(markdown).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
+    expect(markdown).not.toContain('MUTATED DURING DIALOG')
   })
 
   it('aborts the topic export when the mode choice is cancelled', async () => {

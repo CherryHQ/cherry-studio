@@ -400,11 +400,14 @@ export const topicToMarkdown = async (
   topic: Topic,
   exportReasoning?: boolean,
   excludeCitations?: boolean,
-  rawContentOverrides?: Map<string, string>
+  rawContentOverrides?: Map<string, string>,
+  messagesOverride?: ExportableMessage[]
 ): Promise<string> => {
   const topicName = `# ${topic.name}`
 
-  const messages = await getTopicMessages(topic.id)
+  // Callers that already read the topic (image export collects refs from a snapshot)
+  // pass it back so collection and rendering can never diverge mid-export.
+  const messages = messagesOverride ?? (await getTopicMessages(topic.id))
 
   if (messages && messages.length > 0) {
     return (
@@ -538,7 +541,7 @@ export const exportTopicAsMarkdown = async (
       const messages = await getTopicMessages(topic.id)
       const built = await buildMarkdownWithImages(
         messages ?? [],
-        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides),
+        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
         chooseImageMode
       )
       if (!built) return
@@ -560,7 +563,7 @@ export const exportTopicAsMarkdown = async (
       const messages = await getTopicMessages(topic.id)
       const built = await buildMarkdownWithImages(
         messages ?? [],
-        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides),
+        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
         chooseImageMode
       )
       if (!built) return
