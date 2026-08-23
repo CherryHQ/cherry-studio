@@ -50,11 +50,13 @@ function stripPositions(nodes: PhrasingContent[]): void {
 
 function parseInlineTail(value: string): PhrasingContent[] {
   const tree = tailProcessor.parse(value)
-  const nodes: PhrasingContent[] = tree.children.every((child) => child.type === 'paragraph')
-    ? (tree.children as Paragraph[]).flatMap((child) => child.children)
-    : // Structural content (list/quote/code) is vanishingly rare in a swallowed tail; degrade
-      // to the plain text so no user-visible suffix is dropped.
-      [{ type: 'text', value }]
+  const paragraphs = tree.children.filter((child): child is Paragraph => child.type === 'paragraph')
+  const nodes: PhrasingContent[] =
+    paragraphs.length === tree.children.length
+      ? paragraphs.flatMap((child) => child.children)
+      : // Structural content (list/quote/code) is vanishingly rare in a swallowed tail; degrade
+        // to the plain text so no user-visible suffix is dropped.
+        [{ type: 'text', value }]
   // Positions from the sub-parse point into the tail substring, not the source document.
   stripPositions(nodes)
   return nodes
