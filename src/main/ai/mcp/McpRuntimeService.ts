@@ -747,11 +747,11 @@ export class McpRuntimeService extends BaseService {
       const error = getCancellationError()
       if (error) throw error
     }
-    const cancelGraceWait = async () => {
+    const cancelOAuthAttempt = async () => {
       graceAbortController.abort(new Error(`OAuth attempt for MCP server ${server.name} was cancelled`))
       await closeCallbackServer()
     }
-    this.registerPendingOAuthListener(server.id, cancelGraceWait)
+    this.registerPendingOAuthListener(server.id, cancelOAuthAttempt)
     try {
       const graceSignal = AbortSignal.any([shutdownSignal, graceAbortController.signal])
       authCode = await callbackServer.waitForAuthCode(OAUTH_GRACE_MS, graceSignal)
@@ -775,7 +775,7 @@ export class McpRuntimeService extends BaseService {
         )
       }
     } finally {
-      this.unregisterPendingOAuthListener(server.id, cancelGraceWait)
+      this.unregisterPendingOAuthListener(server.id, cancelOAuthAttempt)
     }
 
     if (
@@ -809,8 +809,32 @@ export class McpRuntimeService extends BaseService {
     }
 
     // Code arrived within the grace window — complete the flow inline.
+    const finishAuthUnlessCancelled = (code: string) =>
+      new Promise<void>((resolve, reject) => {
+        const signal = AbortSignal.any([shutdownSignal, graceAbortController.signal])
+        const onAbort = () => {
+          signal.removeEventListener('abort', onAbort)
+          reject(signal.reason ?? new OAuthCancelledError('OAuth completion was cancelled'))
+        }
+        signal.addEventListener('abort', onAbort, { once: true })
+        if (signal.aborted) {
+          onAbort()
+          return
+        }
+        void transport.finishAuth(code).then(
+          () => {
+            signal.removeEventListener('abort', onAbort)
+            resolve()
+          },
+          (error) => {
+            signal.removeEventListener('abort', onAbort)
+            reject(error)
+          }
+        )
+      })
+    this.registerPendingOAuthListener(server.id, cancelOAuthAttempt)
     try {
-      await transport.finishAuth(authCode!)
+      await finishAuthUnlessCancelled(authCode!)
       throwIfCancelled()
       getServerLogger(server).debug(`OAuth flow completed`)
 
@@ -831,6 +855,7 @@ export class McpRuntimeService extends BaseService {
         `OAuth authentication failed: ${finishError instanceof Error ? finishError.message : String(finishError)}`
       )
     } finally {
+      this.unregisterPendingOAuthListener(server.id, cancelOAuthAttempt)
       await closeCallbackServer()
     }
   }

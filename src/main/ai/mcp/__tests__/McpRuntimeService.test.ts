@@ -1555,9 +1555,9 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
   it('does not reconnect when the server is stopped during inline finishAuth', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true
-    let resolveFinishAuth!: () => void
-    mcpSdkMock.state.finishAuthPromise = new Promise<void>((resolve) => {
-      resolveFinishAuth = resolve
+    let rejectFinishAuth!: (reason?: unknown) => void
+    mcpSdkMock.state.finishAuthPromise = new Promise<void>((_, reject) => {
+      rejectFinishAuth = reject
     })
     callbackServerMock.waitForAuthCode.mockResolvedValueOnce('auth-code')
 
@@ -1570,10 +1570,15 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     await vi.waitFor(() => expect(mcpSdkMock.state.finishAuthStarted).toHaveBeenCalledTimes(1))
     const broadcastsBeforeStop = MockMainCacheServiceUtils.getBroadcastHistory().length
     const stop = service.stopServer(server.id)
-    resolveFinishAuth()
 
-    await connectAssertion
-    await stop
+    const result = await Promise.race([
+      Promise.all([connectAssertion, stop]).then(() => 'stopped'),
+      new Promise<'timed-out'>((resolve) => setTimeout(() => resolve('timed-out'), 100))
+    ])
+
+    expect(result).toBe('stopped')
+    rejectFinishAuth(new Error('late token exchange failure'))
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
     expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
     expect(mcpSdkMock.clients.at(-1)?.close).toHaveBeenCalledTimes(1)
     expect(callbackServerMock.close).toHaveBeenCalledTimes(1)
