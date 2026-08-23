@@ -221,6 +221,26 @@ describe('collectExportableImages', () => {
     ])
     expect(fileApi.getPhysicalPath).not.toHaveBeenCalled()
   })
+
+  it('collects MCP inline payloads that keep the {content} envelope (mcp metadata)', async () => {
+    // With mcp metadata present, extractOutputMetadata keeps the {content: [...]}
+    // envelope instead of unwrapping to the array — the envelope branch must hit too.
+    const part = {
+      ...generateImageInlinePart([{ data: PNG_1PX_RAW, mimeType: 'image/png' }]),
+      output: {
+        content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }],
+        metadata: { type: 'mcp', name: 'generate_image' }
+      }
+    }
+    const message = view([part], 'assistant')
+
+    const { refs, unresolvedCount } = await collectExportableImages([message])
+
+    expect(unresolvedCount).toBe(0)
+    expect(refs).toEqual([
+      { key: PNG_1PX, source: 'generate-image', url: PNG_1PX, filename: undefined, mime: 'image/png' }
+    ])
+  })
 })
 
 // --- serializeMessagesWithImages ---
