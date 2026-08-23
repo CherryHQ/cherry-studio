@@ -57,6 +57,7 @@ describe('direct CDP DOM operations', () => {
     document.body.innerHTML = `
       <button>Avatar</button>
       <button><span>Settings</span></button>
+      <button aria-label="Open global search"><svg></svg></button>
       <button>Help</button>
     `
 
@@ -72,10 +73,15 @@ describe('direct CDP DOM operations', () => {
       descriptor: { exact: true, label: 'Settings' },
       operation: 'inspect'
     }) as Observation
+    const ariaOnlyByRoleAndText = runDomOperation({
+      descriptor: { exact: true, role: 'button', text: 'Open global search' },
+      operation: 'inspect'
+    }) as Observation
 
     expect(byRoleAndText).toMatchObject({ count: 1, text: 'Settings', visible: true })
     expect(byCssAndText).toMatchObject({ count: 1, text: 'Settings', visible: true })
     expect(byLabel).toMatchObject({ count: 1, text: 'Settings', visible: true })
+    expect(ariaOnlyByRoleAndText).toMatchObject({ count: 1, text: '', visible: true })
   })
 
   it('excludes script and style source from visible text', () => {

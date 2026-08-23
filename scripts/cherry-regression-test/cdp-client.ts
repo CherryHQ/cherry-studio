@@ -204,7 +204,13 @@ export function runDomOperation(request: DomOperationRequest): unknown {
     )
   }
   if (descriptor.text !== undefined) {
-    candidates = candidates.filter((element) => matches(text(element), descriptor.text ?? '', exact))
+    candidates = candidates.filter((element) => {
+      const renderedText = text(element)
+      return (
+        matches(renderedText, descriptor.text ?? '', exact) ||
+        (!renderedText && matches(accessibleName(element), descriptor.text ?? '', exact))
+      )
+    })
     const hasStructuralSelector = Boolean(
       descriptor.css ||
         descriptor.testId ||

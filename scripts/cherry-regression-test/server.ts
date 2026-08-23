@@ -80,7 +80,11 @@ const locatorInputSchema = {
     nameConfigRef: { enum: Object.keys(CONFIG_REFS), type: 'string' },
     label: { description: 'Accessible label for a form control or button.', type: 'string' },
     placeholder: { type: 'string' },
-    text: { description: 'Visible rendered text. Combines with role, CSS, or test ID when supplied.', type: 'string' },
+    text: {
+      description:
+        'Visible rendered text; an icon-only control may match its accessible name. Combines with role, CSS, or test ID.',
+      type: 'string'
+    },
     textConfigRef: { enum: Object.keys(CONFIG_REFS), type: 'string' },
     testId: { type: 'string' },
     css: { type: 'string' },
