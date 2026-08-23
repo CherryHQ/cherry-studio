@@ -15,9 +15,10 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
-  // DeepSeek publishes one effort table for both V4 SKUs (thinking_mode guide), so Flash and Pro
-  // must not drift apart — and neither may send `xhigh` verbatim, which DeepSeek degrades to `high`.
-  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])(
+  // DeepSeek publishes one effort table for every V4 SKU (thinking_mode guide), so the Flash, Vision
+  // and Pro contracts must not drift apart — and none may send `xhigh` verbatim, which DeepSeek
+  // degrades to `high`.
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
     'maps %s reasoning to the official effort vocabulary',
     (modelId) => {
       const contracts = override('deepseek', modelId).reasoningContracts
