@@ -32,7 +32,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
       'If onboarding is visible, choose Set up later. Open provider settings, select CherryIN, and call authenticate-cherryin exactly once when the authorization button is visible.',
       'Click Get model list, fill Search models with configRef cherryInChatModel, verify the exact configured model, click the first exact Add button, and close the drawer without clearing or scrolling the filtered list.',
       'Open Model Check, switch to Check all models, start the check for the only configured model, wait for the persistent Passed status, and record the connection evidence.',
-      'Return to Chat, open Selected models, filter model-selector-search with configRef cherryInChatModel, select the first option, and ask the default assistant to reply exactly CHERRYIN_CHAT_PASS.',
+      'Return to Chat, open Selected models by accessible name, filter model-selector-search with configRef cherryInChatModel, select the first option, and send: Reply with exactly CHERRYIN_CHAT_PASS and nothing else. Record the exact response and capture the chat screenshot before restarting.',
       'Restart the application, reopen Settings > Model Provider > CherryIN, and verify that Logged in via OAuth remains visible.'
     ],
     acceptance: [
@@ -55,9 +55,12 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Create Cherry Regression Custom Provider 31415 using the configured Base URL, API key, and chat model.',
-      'Enable the provider and model, then run the connection check.',
-      'Ask Chat to reply exactly CUSTOM_PROVIDER_CHAT_PASS, then restart the application.'
+      'Open Add Provider. Fill the exact Provider Name* textbox with Cherry Regression Custom Provider 31415, the exact API Key textbox with configRef customProviderApiKey, and the exact Anthropic textbox with configRef customProviderBaseUrl. Record the masked API Key input, then click the exact Add button.',
+      'On the saved provider, open Add Model, fill the exact Model ID textbox with configRef customProviderChatModel, and press Enter on that textbox to submit.',
+      'Verify the provider page main region contains both the saved provider name and exact model ID.',
+      'Open Model Check, switch to Check all models, start the check for the only configured model, and wait for the persistent Passed status.',
+      'Return to Chat, select the exact configured model, and send: Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else. Record the exact response and capture the chat screenshot before restarting.',
+      'Restart the application, reopen the custom provider, and verify that the provider and model remain visible.'
     ],
     acceptance: [
       'Provider and model save successfully and pass connection testing.',
