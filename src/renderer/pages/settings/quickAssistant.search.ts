@@ -10,16 +10,7 @@ export const entries: SettingsSearchEntry[] = [
     titleKey: 'settings.quickAssistant.enable_quick_assistant',
     groupKey: group,
     aliases: ['quick assistant']
-  },
-  {
-    anchorId: 'read-clipboard-at-startup',
-    titleKey: 'settings.quickAssistant.read_clipboard_at_startup',
-    groupKey: group,
-    aliases: ['clipboard', '剪贴板']
-  },
-  {
-    anchorId: 'usage-method',
-    titleKey: 'settings.models.quick_assistant_usage_method',
-    groupKey: 'settings.models.quick_assistant_response_settings'
   }
+  // feature-gated rows (clipboard, usage method behind the master switch,
+  // off by default) stay out per D8 — their anchors may not exist on jump
 ]

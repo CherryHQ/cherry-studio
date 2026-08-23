@@ -8,15 +8,7 @@ export const entries: SettingsSearchEntry[] = [
     titleKey: 'selection.settings.enable.title',
     groupKey: 'selection.name',
     aliases: ['selection assistant', '划词']
-  },
-  {
-    anchorId: 'filter-mode',
-    titleKey: 'selection.settings.advanced.filter_mode.title',
-    groupKey: 'selection.settings.advanced.title'
-  },
-  {
-    anchorId: 'filter-list',
-    titleKey: 'selection.settings.advanced.filter_list.title',
-    groupKey: 'selection.settings.advanced.title'
   }
+  // rows behind the selectionEnabled master switch (filter mode/list, off by
+  // default) stay out per D8 — their anchors may not exist on jump
 ]
