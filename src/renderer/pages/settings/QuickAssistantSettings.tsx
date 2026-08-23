@@ -110,7 +110,7 @@ const QuickAssistantSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.quickAssistant.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-quick-assistant-enable-quick-assistant" className="scroll-mt-6">
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
             <InfoTooltip
@@ -133,7 +133,7 @@ const QuickAssistantSettings: FC = () => {
         {enableQuickAssistant && (
           <>
             <SettingDivider />
-            <SettingRow>
+            <SettingRow id="setting-quick-assistant-read-clipboard-at-startup" className="scroll-mt-6">
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
               <Switch checked={readClipboardAtStartup} onCheckedChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
@@ -144,7 +144,11 @@ const QuickAssistantSettings: FC = () => {
         <SettingGroup theme={theme}>
           <SettingTitle>{t('settings.models.quick_assistant_response_settings')}</SettingTitle>
           <SettingDivider />
-          <SettingRow role="group" aria-labelledby={usageMethodTitleId} className="min-h-8.5 gap-3">
+          <SettingRow
+            id="setting-quick-assistant-usage-method"
+            role="group"
+            aria-labelledby={usageMethodTitleId}
+            className="min-h-8.5 scroll-mt-6 gap-3">
             <SettingRowTitle id={usageMethodTitleId}>
               {t('settings.models.quick_assistant_usage_method')}
             </SettingRowTitle>
