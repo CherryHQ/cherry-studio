@@ -29,7 +29,9 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never)
 
 const runtimeMocks = vi.hoisted(() => ({
   snapshot: undefined as any,
-  bridgeRequest: vi.fn().mockResolvedValue(undefined)
+  bridgeRequest: vi.fn().mockResolvedValue(undefined),
+  harnessOptions: undefined as Record<string, unknown> | undefined,
+  getShellEnv: vi.fn()
 }))
 
 const baseSnapshot = () => ({
@@ -128,14 +130,18 @@ vi.mock('../DshCherryToolBridge', () => ({
 }))
 vi.mock('../dshSdk', () => ({
   loadDshSdk: vi.fn().mockResolvedValue({
-    HarnessClient: vi.fn(() => ({
-      start: vi.fn(),
-      initialize: vi.fn().mockResolvedValue(undefined),
-      subscribe: vi.fn(() => (subscription = new FakeSubscription())),
-      close: vi.fn().mockResolvedValue(undefined)
-    }))
+    HarnessClient: vi.fn((options: Record<string, unknown>) => {
+      runtimeMocks.harnessOptions = options
+      return {
+        start: vi.fn(),
+        initialize: vi.fn().mockResolvedValue(undefined),
+        subscribe: vi.fn(() => (subscription = new FakeSubscription())),
+        close: vi.fn().mockResolvedValue(undefined)
+      }
+    })
   })
 }))
+vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: runtimeMocks.getShellEnv }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
@@ -169,6 +175,12 @@ const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
+  runtimeMocks.harnessOptions = undefined
+  runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
+    PATH: '/opt/homebrew/bin:/usr/bin',
+    HOME: '/Users/tester',
+    SECRET: 'do-not-forward'
+  })
   runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
   vi.mocked(DshBridgeServer).mockClear()
   spans.length = 0
@@ -176,6 +188,17 @@ beforeEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it('starts the isolated child with the login-shell PATH but no unrelated host variables', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+
+    expect(runtimeMocks.harnessOptions?.env).toMatchObject({
+      PATH: '/opt/homebrew/bin:/usr/bin',
+      HOME: '/Users/tester'
+    })
+    expect(runtimeMocks.harnessOptions?.env).not.toHaveProperty('SECRET')
+    await connection.close()
+  })
+
   it('feeds runtime session events to the trace recorder', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     subscription.push({

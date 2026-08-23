@@ -82,6 +82,8 @@ const mocks = vi.hoisted(() => ({
   createOpts: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
+  setShellCommandPrefix: vi.fn(),
+  getShellEnv: vi.fn(),
   isStreaming: false,
   steeringMode: 'one-at-a-time' as 'all' | 'one-at-a-time',
   sessionId: 'sess-1' as string | undefined,
@@ -152,10 +154,11 @@ vi.mock('./piSdk', () => ({
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
+vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: mocks.getShellEnv }))
 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
-const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
@@ -197,7 +200,7 @@ const fakePi = {
   SettingsManager: {
     inMemory: (...args: unknown[]) => {
       mocks.settingsArgs = args
-      return {}
+      return { setShellCommandPrefix: mocks.setShellCommandPrefix }
     }
   },
   SessionManager: { create: mocks.sessionCreate, open: mocks.sessionOpen },
@@ -274,6 +277,7 @@ beforeEach(() => {
   mocks.createOpts = undefined
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
+  mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
   mocks.sessionId = SESSION_ID
@@ -396,6 +400,15 @@ afterEach(() => {
 })
 
 describe('PiRuntimeConnection', () => {
+  it('appends the login-shell PATH without replacing pi runtime prefixes', async () => {
+    await new PiRuntimeConnection(input).start()
+
+    expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
+    expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin")).toBe(
+      "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
+    )
+  })
+
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
 

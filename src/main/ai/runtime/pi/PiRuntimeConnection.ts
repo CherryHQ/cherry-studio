@@ -24,6 +24,7 @@ import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -64,6 +65,15 @@ import { createPiProviderExtension } from './providerExtension'
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
+
+function quoteShellWord(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`
+}
+
+/** Preserve pi's own PATH prefix while appending directories resolved by the user's login shell. */
+export function buildPiLoginPathPrefix(loginPath: string | undefined): string | undefined {
+  return loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
+}
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
     buildPiMcpToolName(serverName, toolName)
@@ -201,6 +211,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
       const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
+      const loginPathPrefix = buildPiLoginPathPrefix((await getShellEnv()).PATH)
+      if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 
       // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
       // from the same store the claude driver reads. These are injected explicitly

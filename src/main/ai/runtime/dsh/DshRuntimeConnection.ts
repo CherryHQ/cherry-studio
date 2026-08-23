@@ -22,6 +22,7 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -347,6 +348,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await this.bridge.listen()
 
       const sdk = await loadDshSdk()
+      const loginShellEnv = await getShellEnv()
       // Complete replacement env — deliberate credential scope: the child sees
       // only the routed API key and the bridge socket, never Cherry's own env.
       const client = new sdk.HarnessClient({
@@ -354,8 +356,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         args: [resolveDshRuntimeBinPath(), this.compositionPath],
         cwd: workspacePath,
         env: {
-          ...(process.env.PATH !== undefined ? { PATH: process.env.PATH } : {}),
-          ...(process.env.HOME !== undefined ? { HOME: process.env.HOME } : {}),
+          ...(loginShellEnv.PATH !== undefined ? { PATH: loginShellEnv.PATH } : {}),
+          ...(loginShellEnv.HOME !== undefined ? { HOME: loginShellEnv.HOME } : {}),
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,

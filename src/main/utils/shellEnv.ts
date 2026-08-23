@@ -125,9 +125,9 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
 /**
  * Spawns a login shell in the user's home directory to capture its environment variables.
  *
- * We explicitly run a login + interactive shell so it sources the same init files that a user
- * would typically rely on inside their terminal. Many CLIs export PATH or other variables from
- * these scripts; capturing them keeps spawned processes aligned with the user’s expectations.
+ * We explicitly run a login, non-interactive shell. This loads login profiles such as macOS
+ * `~/.zprofile` (where Homebrew commonly installs its PATH) without executing interactive prompt,
+ * theme, or terminal plugin setup from `~/.zshrc`.
  *
  * Timeout handling is important because profile scripts might block forever (e.g. misconfigured
  * `read` or prompts). We proactively kill the shell and surface an error in that case so that
@@ -168,7 +168,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       }
     }
 
-    const commandArgs = ['-ilc', 'env']
+    const commandArgs = ['-lc', 'env']
 
     logger.debug(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
