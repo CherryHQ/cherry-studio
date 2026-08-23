@@ -561,6 +561,28 @@ export class ElectronCdpClient {
     })
   }
 
+  async openContextMenu(descriptor: CdpLocatorDescriptor): Promise<{ title: string; url: string }> {
+    return this.withTarget(descriptor.scope, async (connection) => {
+      const result = await this.domOperation(connection, descriptor, 'click')
+      if (!result.bounds) throw new Error('Context menu target has no visible bounds')
+      const position = { x: result.bounds.x, y: result.bounds.y }
+      await connection.send('Input.dispatchMouseEvent', { ...position, type: 'mouseMoved' })
+      await connection.send('Input.dispatchMouseEvent', {
+        ...position,
+        button: 'right',
+        clickCount: 1,
+        type: 'mousePressed'
+      })
+      await connection.send('Input.dispatchMouseEvent', {
+        ...position,
+        button: 'right',
+        clickCount: 1,
+        type: 'mouseReleased'
+      })
+      return { title: result.title, url: result.url }
+    })
+  }
+
   async captureWindowOpenUrl(descriptor: CdpLocatorDescriptor): Promise<string> {
     return this.withTarget(descriptor.scope, async (connection) => {
       const captureKey = '__cherryRegressionWindowOpenCapture'

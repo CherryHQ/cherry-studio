@@ -17,6 +17,9 @@ describe('regression fixtures', () => {
         readFileSync(filePath, 'utf8').includes(FIXTURE_MARKERS.knowledge)
       )
 
+      expect(manifest.knowledgeDirectory).toBe(join(paths.fixtures, 'knowledge'))
+      expect(manifest.geminiImageFile).toBe(join(paths.evidence, 'downloads', 'gemini-image.png'))
+      expect(manifest.image2File).toBe(join(paths.evidence, 'downloads', 'image2-image.png'))
       expect(filesWithMarker).toEqual([join(paths.fixtures, 'knowledge', 'ground-truth.txt')])
     } finally {
       rmSync(directory, { force: true, recursive: true })

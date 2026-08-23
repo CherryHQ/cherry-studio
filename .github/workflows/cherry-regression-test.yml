@@ -162,6 +162,13 @@ jobs:
           node -e "require('node:child_process').execFileSync(process.argv[1], ['--version'], { stdio: 'inherit' })" "$claude_path"
           echo "path=$claude_path" >> "$GITHUB_OUTPUT"
 
+      - name: Install tested Code CLIs
+        shell: bash
+        run: |
+          npm install --global @openai/codex@0.149.0 openclaw@2026.6.11
+          codex --version
+          openclaw --version
+
       - name: Define isolated run directory
         shell: bash
         run: echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"

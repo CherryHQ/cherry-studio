@@ -31,6 +31,7 @@ export interface LocatorDescriptor {
 export type InteractionAction =
   | 'check'
   | 'click'
+  | 'context-menu'
   | 'download'
   | 'fill'
   | 'focus'
@@ -163,6 +164,9 @@ export class RegressionController {
     switch (request.action) {
       case 'click':
         window = await client.interact(locator, 'click')
+        break
+      case 'context-menu':
+        window = await client.openContextMenu(locator)
         break
       case 'fill': {
         const value = request.configRef ? getConfigRef(this.config, request.configRef) : request.value

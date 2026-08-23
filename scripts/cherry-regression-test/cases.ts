@@ -56,9 +56,10 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     steps: [
       'Open Add Provider. Fill the exact Provider Name* textbox with Cherry Regression Custom Provider 31415, the exact API Key textbox with configRef customProviderApiKey, and the exact Anthropic textbox with configRef customProviderBaseUrl. Record the masked API Key input, then click the exact Add button.',
-      'On the saved provider, open Add Model, fill the exact Model ID textbox with configRef customProviderChatModel, and press Enter on that textbox to submit.',
-      'Verify the provider page main region contains both the saved provider name and exact model ID.',
-      'Open Model Check, switch to Check all models, start the check for the only configured model, and wait for the persistent Passed status.',
+      'On the saved provider, enable its only switch before configuring models. Open Add Model, fill the exact Model ID textbox with configRef customProviderChatModel, and press Enter on that textbox to submit.',
+      'Open Add Model again, fill Model ID with configRef customProviderEmbeddingModel, expand More Settings, select the exact Embedding model type, and press Enter on Model ID to submit.',
+      'Verify the provider page main region contains the saved provider name and both exact model IDs.',
+      'Open Model Check for the selected chat model, start the check, and wait for the persistent Passed status.',
       'Return to Chat, select the exact configured model, and send: Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else. Record the exact response and capture the chat screenshot before restarting.',
       'Restart the application, reopen the custom provider, and verify that the provider and model remain visible.'
     ],
@@ -68,7 +69,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
       'Configuration survives restart and no secret appears in full plaintext.'
     ],
     evidence: [
-      requirement('custom-provider-saved', 'ui', 'Observe the saved provider and model'),
+      requirement('custom-provider-saved', 'ui', 'Observe the saved provider and both configured models'),
       requirement('custom-provider-connection', 'ui', 'Observe a successful connection check'),
       requirement('custom-provider-chat-response', 'ui', 'Observe a complete model response'),
       requirement('custom-provider-redacted', 'ui', 'Observe that the API key is masked'),
@@ -104,9 +105,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     requiredCapabilities: ['globalShortcut'],
     steps: [
-      'Enable Quick Assistant with a verified model and set the global shortcut to Cmd/Ctrl+E.',
-      'From outside Cherry Studio, invoke it and ask for exactly QUICK_ASSISTANT_PASS.',
-      'Close it with Escape, restart Cherry Studio, and invoke it again.'
+      'Set Default Assistant Model to configRef customProviderChatModel, enable Quick Assistant in Default Model mode, then search Keyboard Shortcuts for Quick Assistant and enable its existing Cmd/Ctrl+E binding.',
+      'Open the external selection fixture, invoke Quick Assistant with Meta+lowercase e on macOS or Control+lowercase e on Windows, and ask for exactly QUICK_ASSISTANT_PASS.',
+      'Capture the response, press Escape once to return and once to close, then restart Cherry Studio and repeat the external invocation and prompt.'
     ],
     acceptance: [
       'The external shortcut focuses the input and produces QUICK_ASSISTANT_PASS.',
@@ -129,9 +130,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     requiredCapabilities: ['externalSelection'],
     steps: [
-      'Enable Selection Assistant and grant required macOS permissions when available.',
-      'Select SELECTION_ASSISTANT_PASS in an external text application.',
-      'Open Explain, verify the exact source text and a real related model response, then close the action window.'
+      'Enable Selection Assistant; on Windows choose Ctrl Key trigger mode, while macOS keeps Selection mode.',
+      'Open the external selection fixture; on Windows additionally send the single Control key to show the toolbar.',
+      'Record all toolbar actions before opening Explain, reveal Show Original, verify SELECTION_ASSISTANT_PASS in the source and real response, then close the action window.'
     ],
     acceptance: [
       'The toolbar and configured actions appear for external selected text.',
@@ -153,9 +154,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Configure the custom-provider embedding model and create Cherry Regression Knowledge 31415.',
-      'Import all prepared knowledge fixture files in one operation and wait for completion.',
-      'Run recall testing for the fixture marker, then restart.'
+      'Create Cherry Regression Knowledge 31415 with configRef customProviderEmbeddingModel, which was configured by M-02.',
+      'Choose Folder and use the native picker with fixture knowledgeDirectory to import all prepared files in one operation; wait until every nested file is Ready.',
+      'Run Recall Test with What is the regression knowledge answer?, verify CHERRY_KNOWLEDGE_58597, capture the result, then restart and reopen the knowledge base.'
     ],
     acceptance: ['All files complete processing, recall returns the correct file content, and data survives restart.'],
     evidence: [
@@ -172,9 +173,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Bind the fixture knowledge base to an assistant.',
-      'Ask a question whose answer exists only in the fixture.',
-      'Inspect the knowledge query, final answer, citation, and citation detail.'
+      'Edit Cherry Regression Assistant 31415, open Knowledge, add Cherry Regression Knowledge 31415, and close the autosaved editor.',
+      'Ask the linked assistant what the regression knowledge answer is and require the exact marker plus a source citation.',
+      'After CHERRY_KNOWLEDGE_58597 appears, record the query and answer, open the ground-truth.txt citation, and verify its detail.'
     ],
     acceptance: ['The answer uses the correct retrieved content and opens a citation to the correct file and excerpt.'],
     evidence: [
@@ -192,9 +193,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     requiredCapabilities: ['npx'],
     steps: [
-      'Create the platform-specific stdio configuration for @modelcontextprotocol/server-everything.',
-      'Verify connection and the get-sum and echo tools, then enable it for the test assistant.',
-      'Require get-sum to calculate 31415 + 27182 and inspect the tool call before restarting.'
+      'Create everything with command npx and two-line arguments -y then @modelcontextprotocol/server-everything; enable it and verify get-sum and echo under Tools.',
+      'Edit Cherry Regression Assistant 31415, set MCP Mode to Manual, and enable the exact everything server.',
+      'Require get-sum with a=31415 and b=27182, verify the real call and result 58597, then restart and verify everything is Connected.'
     ],
     acceptance: ['A real get-sum call uses 31415 and 27182, returns 58597, and reconnects after restart.'],
     evidence: [
@@ -212,8 +213,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Ask the default Cherry Assistant to research Cherry Studio and create agent-workspace/cherry-regression-31415.pptx with the exact title Cherry Regression 31415 and exactly three slides.',
-      'Allow search and file tools, wait for completion, and open or preview the output.'
+      'Open Work, select the built-in Cherry Assistant Agent, set its model and agent-workspace, then require a real web search.',
+      'Require file or shell tools to create cherry-regression-31415.pptx with exact title Cherry Regression 31415 and exactly three slides; approve tools if prompted.',
+      'Verify search activity, validate the fixed PPTX path, and open or preview the generated deck.'
     ],
     acceptance: ['Search and generation tools run, and a valid non-empty PPTX with expected content opens.'],
     evidence: [
@@ -230,8 +232,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Import the prepared folder containing SKILL.md into Skill management.',
-      'Bind it to an Agent and run the deterministic task defined by the fixture Skill.'
+      'Import skillDirectory through Settings > Skills > Add Skill > Local import > Install from directory and enable cherry-regression-fixture globally.',
+      'Return to Work, enable cherry-regression-fixture from the built-in Cherry Assistant Agent Skills button, and ask for the regression marker.',
+      'Verify the Agent responds with exactly SKILL_IMPORT_PASS; do not use the Chat assistant.'
     ],
     acceptance: ['The Skill is recognized, binds successfully, and changes Agent behavior as explicitly required.'],
     evidence: [
@@ -247,8 +250,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Create Cherry Regression Claude Agent 31415 with a compatible model, prompt, permission mode, Skill, and test working directory.',
-      'Write AGENT_FILE_TASK_PASS to agent-workspace/claude-agent-result.txt, open its output, and restart.'
+      'Create Cherry Regression Claude Agent 31415 with Advanced: Claude Agent, configRef cherryInChatModel, and the default approval permission; do not import a Skill.',
+      'Set agent-workspace and write AGENT_FILE_TASK_PASS to claude-agent-result.txt, approving once if prompted.',
+      'Validate the fixed file contract, restart, and reopen the named Agent.'
     ],
     acceptance: [
       'The runtime calls tools, writes the correct file in the selected directory, and preserves the session.'
@@ -267,8 +271,8 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Create a Pi Agent with a compatible model and the shared deterministic file task.',
-      'After tool approval, write AGENT_FILE_TASK_PASS to agent-workspace/pi-agent-result.txt and open it.'
+      'Create Pi Regression Agent with Fast: Pi, configRef cherryInChatModel, and Ask Before Acting; then set agent-workspace.',
+      'Request AGENT_FILE_TASK_PASS in pi-agent-result.txt, record the visible approval, allow it once, and validate the fixed file contract.'
     ],
     acceptance: ['Only compatible models are offered and the approved tool writes the correct retained file.'],
     evidence: [
@@ -285,8 +289,8 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Create a DeepSeek Harness Agent with a compatible model and the shared deterministic file task.',
-      'After tool approval, write AGENT_FILE_TASK_PASS to agent-workspace/dsh-agent-result.txt and open it.'
+      'Create DeepSeek Harness Agent with the DeepSeek Harness runtime and configRef cherryInChatModel; then set agent-workspace.',
+      'Request AGENT_FILE_TASK_PASS in dsh-agent-result.txt, record the visible approval, allow it once, and validate the fixed file contract.'
     ],
     acceptance: ['The runtime calls approved tools and writes the correct retained file.'],
     evidence: [
@@ -303,8 +307,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Choose the configured CherryIN Gemini image model and submit the fixed image prompt.',
-      'Wait for a visible image, switch modules and return, then download or open it.'
+      'Add configRef cherryInGeminiImageModel from the filtered CherryIN Image model list, select it in Paintings, and submit the fixed image prompt.',
+      'After the image and 1 / 1 are visible, use its context menu Save As and native-save-picker with geminiImageFile.',
+      'Validate the fixed image path, navigate away and back, and verify the prompt remains in history.'
     ],
     acceptance: ['A valid non-blank image and its history remain available after navigation.'],
     evidence: [
@@ -321,8 +326,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Choose the configured CherryIN Image 2 model and submit the same fixed cherry robot image prompt.',
-      'Wait for a visible image and verify the retained file and history.'
+      'Start a New Image, add configRef cherryInImage2Model from the filtered CherryIN Image model list, select it, and submit the same fixed prompt.',
+      'After the image and 1 / 1 are visible, use its context menu Save As and native-save-picker with image2File.',
+      'Validate the fixed image path and verify the retained prompt after navigating away and back.'
     ],
     acceptance: ['A valid non-blank image and its record remain available.'],
     evidence: [
@@ -339,8 +345,8 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Translate the fixed fixture text containing a proper noun, number, and unique marker.',
-      'Open translation history after completion.'
+      'Open Translation, select configRef customProviderChatModel from the model icon immediately before Translation History, and fill the exact fixture into translate.input.',
+      'Translate once, verify the output retains Neptune, 27182, and TRANSLATION_MARKER, then verify the same entry in Translation History.'
     ],
     acceptance: [
       'Output uses the target language, preserves markers, is non-empty and non-identical, and enters history.'
@@ -359,8 +365,8 @@ export const REGRESSION_CASES: RegressionCase[] = [
     modes: ['branch', 'tag'],
     requiredCapabilities: ['systemFilePicker'],
     steps: [
-      'Import the prepared PDF through the file-selection flow.',
-      'Wait for extraction, translate it, and locate the fixture marker in the result.'
+      'Clear the translation input, click Drop or click to upload image/document, and select pdfFile through the native picker.',
+      'Wait for PDF_TRANSLATION_MARKER_314159 to be extracted, translate once, and verify the same marker in the result.'
     ],
     acceptance: [
       'The PDF imports, its body is read, translation completes, and the unique source marker is represented.'
@@ -377,7 +383,10 @@ export const REGRESSION_CASES: RegressionCase[] = [
     task: 'mini-app',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
-    steps: ['Open a preset Mini App, wait for its main content, navigate away, and return.'],
+    steps: [
+      'Open Launchpad > MiniApp > ChatGPT and wait for its webview toolbar or loaded content.',
+      'Navigate to Chat, then return through Apps > ChatGPT and verify the Mini App remains usable.'
+    ],
     acceptance: ['The page avoids a persistent white screen, remains responsive, and works after returning.'],
     evidence: [
       requirement('mini-app-loaded', 'ui', 'Observe loaded Mini App body content'),
@@ -391,7 +400,10 @@ export const REGRESSION_CASES: RegressionCase[] = [
     task: 'code-cli',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
-    steps: ['Open Code, select Claude Code, choose the test directory, and start its terminal.'],
+    steps: [
+      'Open Launchpad > Code > Claude Code; configure and enable Cherry Regression Custom Provider 31415 with configRef customProviderChatModel.',
+      'Launch with agentWorkspace, record the directory before submitting, then verify the preinstalled Claude Code process remains running.'
+    ],
     acceptance: ['The real process remains running in the selected working directory without a blocking setup error.'],
     evidence: [
       requirement('claude-code-process', 'process', 'Observe a live Claude Code process'),
@@ -405,7 +417,10 @@ export const REGRESSION_CASES: RegressionCase[] = [
     task: 'code-cli',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
-    steps: ['Open Code, select Codex, choose the test directory, and start its terminal.'],
+    steps: [
+      'Open Launchpad > Code > OpenAI Codex; configure and enable Unified Gateway with configRef customProviderChatModel.',
+      'Launch with agentWorkspace, record the directory before submitting, then verify the preinstalled Codex process remains running.'
+    ],
     acceptance: ['The real process remains running in the selected working directory without immediately exiting.'],
     evidence: [
       requirement('codex-process', 'process', 'Observe a live Codex process'),
@@ -419,7 +434,11 @@ export const REGRESSION_CASES: RegressionCase[] = [
     task: 'openclaw',
     profile: 'authenticated',
     modes: ['branch', 'tag'],
-    steps: ['Configure OpenClaw, start its Gateway, open Dashboard, then stop Gateway.'],
+    steps: [
+      'Open Launchpad > Code > OpenClaw; configure and enable Cherry Regression Custom Provider 31415 with configRef customProviderChatModel.',
+      'Launch the preinstalled OpenClaw, verify its real Gateway process and connected Dashboard, then return to Code and stop it.',
+      'Verify no owned OpenClaw process remains.'
+    ],
     acceptance: ['Dashboard connects while running and the Gateway stops without leaving an owned background process.'],
     evidence: [
       requirement('openclaw-gateway', 'process', 'Observe the running OpenClaw Gateway'),
@@ -435,8 +454,9 @@ export const REGRESSION_CASES: RegressionCase[] = [
     profile: 'authenticated',
     modes: ['branch', 'tag'],
     steps: [
-      'Create a note titled Cherry Regression Note 31415 with body NOTE_AUTOSAVE_PASS_27182, wait for autosave, then navigate away and reopen it.',
-      'Restart Cherry Studio and reopen the same note.'
+      'Open Launchpad > Notes, create one note, set its exact title and exact body, commit the title with Enter, and wait for autosave.',
+      'Navigate to Chat, return through Launchpad > Notes, and reopen the exact note.',
+      'Restart Cherry Studio, return through Launchpad > Notes, and reopen the same note again.'
     ],
     acceptance: ['The exact title and body survive navigation and restart without being overwritten.'],
     evidence: [

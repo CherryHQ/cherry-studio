@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync, statSync } from 'node:fs'
+import { basename, dirname } from 'node:path'
 
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
@@ -24,6 +25,22 @@ function runMacHotkey(keys: string[]): void {
 }
 
 function runWindowsHotkey(keys: string[]): void {
+  if (keys.length === 1 && keys[0] === 'Control') {
+    const script = [
+      `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); }'`,
+      '[NativeKeyboard]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)',
+      'Start-Sleep -Milliseconds 400',
+      '[NativeKeyboard]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)',
+      'Start-Sleep -Milliseconds 50',
+      '[NativeKeyboard]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)'
+    ].join('; ')
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      stdio: 'ignore',
+      timeout: 10_000
+    })
+    return
+  }
+
   const modifiers = keys
     .filter((key) => ['Alt', 'Control', 'Meta', 'Shift'].includes(key))
     .map((key) => ({ Alt: '%', Control: '^', Meta: '^', Shift: '+' })[key])
@@ -98,8 +115,57 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
     ].join('\n')
     execFileSync('osascript', ['-e', script, '--', filePath], { stdio: 'ignore', timeout: 15_000 })
   } else {
+    const script = statSync(filePath).isDirectory()
+      ? [
+          '$shell = New-Object -ComObject WScript.Shell',
+          '$shell.SendKeys("%d")',
+          'Start-Sleep -Milliseconds 250',
+          `$shell.SendKeys('${escapePowerShell(filePath)}')`,
+          '$shell.SendKeys("{ENTER}")',
+          'Start-Sleep -Milliseconds 750',
+          '$shell.SendKeys("%s")'
+        ].join('; ')
+      : [
+          '$shell = New-Object -ComObject WScript.Shell',
+          `$shell.SendKeys('${escapePowerShell(filePath)}')`,
+          '$shell.SendKeys("{ENTER}")'
+        ].join('; ')
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      stdio: 'ignore',
+      timeout: 15_000
+    })
+  }
+  return filePath
+}
+
+export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
+  const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
+  const directory = dirname(filePath)
+  mkdirSync(directory, { recursive: true })
+  if (platform === 'macos') {
+    const script = [
+      'on run argv',
+      'tell application "System Events"',
+      'keystroke "g" using {command down, shift down}',
+      'delay 1',
+      'keystroke (item 1 of argv)',
+      'key code 36',
+      'delay 1',
+      'keystroke "a" using command down',
+      'keystroke (item 2 of argv)',
+      'key code 36',
+      'end tell',
+      'end run'
+    ].join('\n')
+    execFileSync('osascript', ['-e', script, '--', directory, basename(filePath)], {
+      stdio: 'ignore',
+      timeout: 15_000
+    })
+  } else {
     const script = [
       '$shell = New-Object -ComObject WScript.Shell',
+      '$shell.SendKeys("%n")',
+      'Start-Sleep -Milliseconds 250',
       `$shell.SendKeys('${escapePowerShell(filePath)}')`,
       '$shell.SendKeys("{ENTER}")'
     ].join('; ')

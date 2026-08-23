@@ -16,7 +16,7 @@ import { getRunPaths, resolveAllowedPath } from './paths'
 import { listOwnedProcessIds } from './process-evidence'
 import { createRedactor } from './redaction'
 import { addEvidence, beginCase, completeCase, readRun, writeRun } from './state'
-import { chooseNativeFile, openExternalText, sendSystemHotkey } from './system-automation'
+import { chooseNativeFile, openExternalText, saveNativeFile, sendSystemHotkey } from './system-automation'
 import { type EvidenceRecord, type Platform, TASK_IDS, type TaskId } from './types'
 
 const locatorSchema = z.object({
@@ -42,6 +42,7 @@ const interactionSchema = z.object({
   action: z.enum([
     'check',
     'click',
+    'context-menu',
     'download',
     'fill',
     'focus',
@@ -149,11 +150,14 @@ const toolDefinitions = [
   {
     name: 'system-action',
     description:
-      'Operate the hosted runner desktop for a global shortcut, external text selection, Escape, or a native file picker.',
+      'Operate the hosted runner desktop for a global shortcut, external text selection, Escape, or a native open/save picker.',
     inputSchema: {
       type: 'object',
       properties: {
-        action: { enum: ['hotkey', 'native-file-picker', 'open-external-text', 'press-escape'], type: 'string' },
+        action: {
+          enum: ['hotkey', 'native-file-picker', 'native-save-picker', 'open-external-text', 'press-escape'],
+          type: 'string'
+        },
         keys: { type: 'array', items: { type: 'string' } },
         path: { type: 'string' }
       },
@@ -280,8 +284,15 @@ function fileContract(evidenceId: string): { expectedPath?: string; options: Fil
         options: { expectedText: FIXTURE_MARKERS.selection, type: 'text' }
       }
     case 'gemini-image-file':
+      return {
+        expectedPath: join(paths.evidence, 'downloads', 'gemini-image.png'),
+        options: { minimumBytes: 1_024, type: 'image' }
+      }
     case 'image2-file':
-      return { options: { minimumBytes: 1_024, type: 'image' } }
+      return {
+        expectedPath: join(paths.evidence, 'downloads', 'image2-image.png'),
+        options: { minimumBytes: 1_024, type: 'image' }
+      }
     default:
       throw new Error(`No file validation contract is defined for ${evidenceId}`)
   }
@@ -315,7 +326,7 @@ function restartExpectedText(evidenceId: string): string {
     case 'knowledge-restart':
       return FIXTURE_MARKERS.knowledgeName
     case 'everything-restart':
-      return FIXTURE_MARKERS.everythingName
+      return 'Connected'
     case 'claude-restart':
       return FIXTURE_MARKERS.claudeAgentName
     case 'note-restart':
@@ -325,6 +336,11 @@ function restartExpectedText(evidenceId: string): string {
   }
 }
 
+function visibleModelToken(modelId: string): string {
+  const token = modelId.split('/').at(-1) ?? modelId
+  return token.replace(/^gpt-/i, 'GPT-')
+}
+
 function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
   const contracts: Record<string, string[]> = {
     'assistant-saved': [FIXTURE_MARKERS.assistantName],
@@ -332,21 +348,27 @@ function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
     'cherryin-connection': ['Passed'],
     'cherryin-identity': ['Logged in via OAuth'],
     'cherryin-chat-response': [FIXTURE_MARKERS.cherryInChat],
+    'claude-code-directory': ['agent-workspace'],
     'claude-runtime': [FIXTURE_MARKERS.claudeAgentName],
     'codex-directory': ['agent-workspace'],
     'custom-provider-connection': ['Passed'],
-    'custom-provider-saved': [FIXTURE_MARKERS.customProviderName, config.customProvider.chatModel],
+    'custom-provider-saved': [
+      FIXTURE_MARKERS.customProviderName,
+      config.customProvider.chatModel,
+      config.customProvider.embeddingModel
+    ],
     'custom-provider-chat-response': [FIXTURE_MARKERS.customProviderChat],
     'dsh-runtime': ['DeepSeek'],
     'everything-tools': ['get-sum', 'echo'],
     'everything-result': ['58597'],
     'everything-tool-call': ['31415', '27182'],
     'gemini-image-history': [FIXTURE_MARKERS.imagePrompt],
-    'gemini-image-visible': [config.cherryIn.geminiImageModel],
+    'gemini-image-visible': [visibleModelToken(config.cherryIn.geminiImageModel), FIXTURE_MARKERS.imagePrompt],
     'image2-history': [FIXTURE_MARKERS.imagePrompt],
-    'image2-visible': [config.cherryIn.image2Model],
+    'image2-visible': [visibleModelToken(config.cherryIn.image2Model), FIXTURE_MARKERS.imagePrompt],
     'knowledge-answer': [FIXTURE_MARKERS.knowledge],
     'knowledge-citation': ['ground-truth.txt'],
+    'knowledge-file-status': ['ground-truth.txt', 'context.md', 'reference.html', 'Ready'],
     'knowledge-query': [FIXTURE_MARKERS.knowledge],
     'knowledge-recall': [FIXTURE_MARKERS.knowledge],
     'note-reopened': [FIXTURE_MARKERS.noteTitle, FIXTURE_MARKERS.noteBody],
@@ -355,6 +377,7 @@ function uiExpectedTexts(evidenceId: string, requested?: string): string[] {
     'pi-runtime': ['Pi'],
     'ppt-opened': [FIXTURE_MARKERS.pptTitle],
     'quick-model-response': ['QUICK_ASSISTANT_PASS'],
+    'selection-actions': ['Translate', 'Explain', 'Summarize', 'Search', 'Copy'],
     'selection-model-response': [FIXTURE_MARKERS.selection],
     'selection-source': [FIXTURE_MARKERS.selection],
     'skill-imported': ['cherry-regression-fixture'],
@@ -412,10 +435,11 @@ async function recordMachineEvidence(input: z.infer<typeof evidenceSchema>): Pro
       )) as typeof observation
       break
     case 'file':
-      if (!input.path) throw new Error('File evidence requires path')
       const contract = fileContract(input.evidenceId)
+      const filePath = input.path ?? contract.expectedPath
+      if (!filePath) throw new Error('File evidence requires path')
       if (contract.expectedPath) {
-        const observedPath = resolveAllowedPath(input.path, [
+        const observedPath = resolveAllowedPath(filePath, [
           paths.artifacts,
           paths.evidence,
           paths.fixtures,
@@ -426,7 +450,7 @@ async function recordMachineEvidence(input: z.infer<typeof evidenceSchema>): Pro
           throw new Error(`${input.evidenceId} must validate ${contract.expectedPath}`)
         }
       }
-      observation = (await controller.recordFile(input.path, contract.options)) as typeof observation
+      observation = (await controller.recordFile(filePath, contract.options)) as typeof observation
       if (input.evidenceId !== 'selection-source-preserved') {
         const details = observation.details as { modifiedAt?: string; sha256?: string }
         const result = readRun(paths.runState).cases[input.caseId]
@@ -555,7 +579,7 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
     case 'system-action': {
       const input = z
         .object({
-          action: z.enum(['hotkey', 'native-file-picker', 'open-external-text', 'press-escape']),
+          action: z.enum(['hotkey', 'native-file-picker', 'native-save-picker', 'open-external-text', 'press-escape']),
           keys: z.array(z.string()).optional(),
           path: z.string().optional()
         })
@@ -570,6 +594,10 @@ async function handleTool(name: string, rawArguments: unknown): Promise<unknown>
       if (input.action === 'native-file-picker') {
         if (!input.path) throw new Error('native-file-picker requires path')
         return { selected: chooseNativeFile(platform, paths, input.path) }
+      }
+      if (input.action === 'native-save-picker') {
+        if (!input.path) throw new Error('native-save-picker requires path')
+        return { saved: saveNativeFile(platform, paths, input.path) }
       }
       const keys = input.action === 'press-escape' ? ['Escape'] : input.keys
       if (!keys) throw new Error('hotkey requires keys')
