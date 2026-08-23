@@ -750,6 +750,15 @@ export class ScreenshotOverlayService extends BaseService {
 
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
+    if (DIAGNOSTICS_ENABLED && this.trace) {
+      // Deliberately no usable= number: every overlay left here was revealed by the
+      // fallback timer, so the only timestamp available is that timer's deadline —
+      // reporting it would pass a constant off as a measurement.
+      logger.info(
+        `[Diagnostics/screenshot] capture trace incomplete: ` +
+          `${this.trace.ready}/${this.trace.expected} overlays reported ready`
+      )
+    }
     this.trace = null
 
     // Invalidates every in-flight OCR result; the recognitions themselves run to completion.

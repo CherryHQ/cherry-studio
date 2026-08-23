@@ -35,7 +35,7 @@ const logger = loggerService.withContext('CaptureOverlay')
 const CaptureOverlay: FC = () => {
   const initData = useWindowInitData<ScreenshotInitData>()
   const [imageLoaded, setImageLoaded] = useState(false)
-  /** Pushed by main after the overlay paints; empty until then, which snaps to the display. */
+  /** Pushed by main once the enumeration finishes; empty until then, which snaps to the display. */
   const [snapTargets, setSnapTargets] = useState<DetectedWindow[]>([])
   const [mouseInWindow, setMouseInWindow] = useState(true)
   const imageRef = useRef<HTMLImageElement | null>(null)

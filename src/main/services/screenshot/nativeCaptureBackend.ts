@@ -23,6 +23,18 @@ let cached: typeof NodeScreenshotsModule | null = null
  * `require` rather than `await import` keeps callers synchronous — display and
  * window enumeration have no asynchronous form in the backend.
  */
+export function loadNativeCaptureBackend(): typeof NodeScreenshotsModule {
+  if (!cached) {
+    try {
+      cached = require('node-screenshots') as typeof NodeScreenshotsModule
+    } catch (error) {
+      logger.error('Failed to load the native screen capture backend', error as Error)
+      throw new ScreenCaptureError('Screen capture backend is unavailable', { cause: error })
+    }
+  }
+  return cached
+}
+
 /**
  * Absolute path of the native backend, for a worker that cannot resolve it itself.
  *
@@ -38,16 +50,4 @@ export function nativeCaptureBackendPath(): string {
     logger.error('Failed to resolve the native screen capture backend', error as Error)
     throw new ScreenCaptureError('Screen capture backend is unavailable', { cause: error })
   }
-}
-
-export function loadNativeCaptureBackend(): typeof NodeScreenshotsModule {
-  if (!cached) {
-    try {
-      cached = require('node-screenshots') as typeof NodeScreenshotsModule
-    } catch (error) {
-      logger.error('Failed to load the native screen capture backend', error as Error)
-      throw new ScreenCaptureError('Screen capture backend is unavailable', { cause: error })
-    }
-  }
-  return cached
 }
