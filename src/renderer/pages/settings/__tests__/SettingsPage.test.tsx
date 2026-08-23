@@ -49,7 +49,7 @@ vi.mock('react-i18next', () => ({
         'settings.channels.title': '频道',
         'settings.dependencies.title': '环境依赖',
         'settings.dependencies.localModels.title': '本地模型',
-        'settings.general.common.title': zhCN.settings.general.common.title,
+        'settings.general.common.title': zhCN['settings.general.common.title'],
         'settings.menuGroups.automation': '效率',
         'settings.menuGroups.capabilities': '工具',
         'settings.menuGroups.personal': '偏好',

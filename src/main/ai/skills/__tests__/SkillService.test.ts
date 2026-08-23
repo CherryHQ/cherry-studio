@@ -335,6 +335,37 @@ describe('SkillService', () => {
       })
     })
 
+    it('discovers .agents skills and keeps .claude precedence for duplicate folder names', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-local-workdir-')
+      const claudeSkill = path.join(workdir, '.claude', 'skills', 'shared-skill')
+      const agentSharedSkill = path.join(workdir, '.agents', 'skills', 'shared-skill')
+      const agentOnlySkill = path.join(workdir, '.agents', 'skills', 'agent-only')
+      await Promise.all([
+        fs.promises.mkdir(claudeSkill, { recursive: true }),
+        fs.promises.mkdir(agentSharedSkill, { recursive: true }),
+        fs.promises.mkdir(agentOnlySkill, { recursive: true })
+      ])
+      await Promise.all([
+        fs.promises.writeFile(path.join(claudeSkill, 'SKILL.md'), '# Claude skill'),
+        fs.promises.writeFile(path.join(agentSharedSkill, 'SKILL.md'), '# Agent shared skill'),
+        fs.promises.writeFile(path.join(agentOnlySkill, 'SKILL.md'), '# Agent-only skill')
+      ])
+
+      const result = await skillService.listLocal(workdir)
+
+      expect(result.map((skill) => skill.filename).sort()).toEqual(['agent-only', 'shared-skill'])
+      expect(parseSkillMetadata).toHaveBeenCalledWith(claudeSkill, 'shared-skill', 'skills', {
+        calculateSize: false
+      })
+      expect(parseSkillMetadata).not.toHaveBeenCalledWith(
+        agentSharedSkill,
+        expect.anything(),
+        expect.anything(),
+        expect.anything()
+      )
+    })
+
     it('skips Cherry-managed skill symlinks that point to the global skill storage', async () => {
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-local-workdir-')
@@ -402,6 +433,22 @@ describe('SkillService', () => {
 
       expect(result).toEqual(['valid-skill'])
       expect(parseSkillMetadata).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('listLocalSkillPaths', () => {
+    it('returns valid skill directories from both workspace roots', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-local-paths-workdir-')
+      const claudeSkill = path.join(workdir, '.claude', 'skills', 'claude-skill')
+      const agentSkill = path.join(workdir, '.agents', 'skills', 'agent-skill')
+      await Promise.all([
+        fs.promises.mkdir(claudeSkill, { recursive: true }),
+        fs.promises.mkdir(agentSkill, { recursive: true })
+      ])
+      vi.mocked(findSkillMdPath).mockImplementation(async (skillPath) => path.join(skillPath, 'SKILL.md'))
+
+      await expect(skillService.listLocalSkillPaths(workdir)).resolves.toEqual([claudeSkill, agentSkill])
     })
   })
 
