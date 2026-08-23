@@ -21,6 +21,18 @@ vi.mock('@cherrystudio/ui', () => ({
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PageHeader: ({ className, title }: { className?: string; title: string }) => (
     <header className={className}>{title}</header>
+  ),
+  SearchInput: (props: {
+    value: string
+    placeholder?: string
+    onChange: (e: { target: { value: string } }) => void
+  }) => (
+    <input
+      data-testid="settings-search-input"
+      value={props.value}
+      placeholder={props.placeholder}
+      onChange={props.onChange}
+    />
   )
 }))
 
@@ -35,7 +47,9 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 vi.mock('@tanstack/react-router', () => ({
   Outlet: () => null,
   useLocation: () => ({ pathname: '/settings/provider' }),
-  useNavigate: () => navigateMock
+  useNavigate: () => navigateMock,
+  useRouter: () => ({ history: { canGoBack: () => false, back: vi.fn() } }),
+  useSearch: () => ({})
 }))
 
 vi.mock('react-i18next', () => ({

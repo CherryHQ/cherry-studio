@@ -309,3 +309,19 @@
     animation: none;
   }
 }
+
+/* 设置搜索跳转高亮：目标行闪烁 1.6s 后恢复 */
+@keyframes search-hit-flash {
+  0%,
+  60% {
+    background-color: color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.search-hit-highlight {
+  animation: search-hit-flash 1.6s ease-out;
+  border-radius: 10px;
+}

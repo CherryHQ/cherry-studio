@@ -2,6 +2,8 @@ import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { settingsMenu } from '@renderer/pages/settings/settingsMenu'
+import SettingsFocusScroll from '@renderer/pages/settings/settingsSearch/SettingsFocusScroll'
+import SettingsSearchBox from '@renderer/pages/settings/settingsSearch/SettingsSearchBox'
 import {
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
@@ -38,6 +40,7 @@ const SettingsPage: FC = () => {
           data-ui="settings.navigation"
           className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
           <PageHeader title={t('title.settings')} className="mb-1" />
+          <SettingsSearchBox />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
               {settingsMenu.map((item, index) => {
@@ -69,6 +72,7 @@ const SettingsPage: FC = () => {
         <div className="flex h-full min-h-0 min-w-0 flex-1">
           <div data-ui="settings.content" className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
             <Outlet />
+            <SettingsFocusScroll />
           </div>
         </div>
       </div>
