@@ -102,6 +102,7 @@ export function rankEntries(
         entryIndex,
         result: {
           route,
+          panel: entry.panel,
           focusId: getSettingDomId(route, entry.anchorId),
           title,
           description,

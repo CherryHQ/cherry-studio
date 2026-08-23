@@ -247,13 +247,13 @@ const NutstoreSettings: FC = () => {
       <SettingDivider />
       {isLogin && (
         <>
-          <SettingRow>
+          <SettingRow id="setting-data-nutstore-username" className="scroll-mt-6">
             <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
             <span className="text-foreground-tertiary">{nutstoreUsername}</span>
           </SettingRow>
 
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-data-nutstore-path" className="scroll-mt-6">
             <SettingRowTitle>{t('settings.data.nutstore.path.label')}</SettingRowTitle>
             <RowFlex className="justify-between gap-1">
               <Input

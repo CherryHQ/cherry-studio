@@ -11,6 +11,12 @@ export interface SettingsSearchEntry {
   aliases?: string[]
   /** Sub-route override for entries living on a nested route (e.g. MCP static tabs) */
   route?: string
+  /**
+   * In-page panel key for sections that switch panels via component state instead
+   * of sub-routes (Data settings): carried as ?panel= on the jump so the target
+   * panel mounts before the anchor lookup.
+   */
+  panel?: string
 }
 
 export interface SettingsSearchSection {
@@ -30,6 +36,8 @@ export interface SettingsSearchSectionModule {
 export interface SettingsSearchResult {
   /** Target route on click */
   route: string
+  /** In-page panel key (?panel=) for state-switched sections like Data */
+  panel?: string
   /** DOM id to scroll to and flash; undefined when the result is the section itself */
   focusId?: string
   /** Resolved title text for display and highlighting */

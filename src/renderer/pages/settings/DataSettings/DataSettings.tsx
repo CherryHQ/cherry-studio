@@ -12,9 +12,10 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { useSearch } from '@tanstack/react-router'
 import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
 import { type FC, lazy, Suspense } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BasicDataSettings from './BasicDataSettings'
@@ -35,7 +36,15 @@ const ImportMenuOptions = lazy(() => import('./ImportMenuSettings'))
 const DataSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [menu, setMenu] = useState<string>('data')
+  // Search jumps arrive as /settings/data?panel=<key> — deep-link straight to
+  // the panel owning the anchor row; plain menu navigation never writes the param.
+  const search = useSearch({ strict: false })
+  const panelParam = typeof search.panel === 'string' ? search.panel : undefined
+  const [menu, setMenu] = useState<string>(panelParam ?? 'data')
+
+  useEffect(() => {
+    if (panelParam) setMenu(panelParam)
+  }, [panelParam])
 
   const menuItems = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },

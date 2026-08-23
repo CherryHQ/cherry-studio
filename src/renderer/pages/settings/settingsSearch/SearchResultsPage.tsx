@@ -36,7 +36,7 @@ const SearchResultsPage = () => {
       const result = results[index]
       if (!result) return
       setPendingFocus(result.focusId)
-      navigate({ to: result.route })
+      navigate({ to: result.route, search: result.panel ? { panel: result.panel } : undefined })
     },
     [results, navigate]
   )
