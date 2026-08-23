@@ -12,6 +12,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
 import { resolveConversationIslandMotion } from './conversationIslandMotion'
+import { resolveConversationIslandSurface } from './conversationIslandSurface'
 
 const logger = loggerService.withContext('ConversationIsland')
 
@@ -72,6 +73,8 @@ export default function ConversationIsland() {
   if (!snapshot) {
     return null
   }
+
+  const surfaceModel = resolveConversationIslandSurface(snapshot)
 
   const clearExpandTimer = () => {
     if (expandTimerRef.current !== null) clearTimeout(expandTimerRef.current)
@@ -147,8 +150,7 @@ export default function ConversationIsland() {
     Number.isFinite(snapshot.notchWidth) &&
     snapshot.notchWidth > 0
   const ActivityIcon = snapshot.target.conversationType === 'agent' ? Bot : MessageCircle
-  const isSingleActivity = snapshot.secondaryCount === 0
-  const usesSingleNotchDetail = usesNotchLayout && isSingleActivity
+  const usesSingleNotchDetail = usesNotchLayout && surfaceModel.kind === 'single-detail'
 
   const stateIndicator = (state: ConversationIslandStateKind) => (
     <span
@@ -186,7 +188,12 @@ export default function ConversationIsland() {
     await openActivity(activity)
   }
 
-  const activities = isSingleActivity ? [snapshot] : (snapshot.activities ?? [])
+  const activities =
+    surfaceModel.kind === 'single-detail'
+      ? [surfaceModel.activity]
+      : surfaceModel.kind === 'activity-list'
+        ? surfaceModel.activities
+        : []
   const surface = snapshot.expanded ? (
     <div
       data-testid="conversation-island-surface"
