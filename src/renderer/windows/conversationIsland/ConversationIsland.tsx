@@ -12,6 +12,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
 import { resolveConversationIslandMotion } from './conversationIslandMotion'
+import { resolveConversationIslandSurface } from './conversationIslandSurface'
 
 const logger = loggerService.withContext('ConversationIsland')
 
@@ -33,6 +34,16 @@ function IdentityAvatar({ avatar }: { avatar: string }) {
     <span aria-hidden="true" className="shrink-0">
       <EmojiIcon emoji={avatar || '🤖'} className="mr-0" size={18} fontSize={11} />
     </span>
+  )
+}
+
+function ConversationIslandStateIndicator({ state }: { state: ConversationIslandStateKind }) {
+  return (
+    <span
+      data-testid="state-indicator"
+      className={`size-2 shrink-0 rounded-full ${STATE_INDICATOR_CLASS[state]}`}
+      aria-hidden="true"
+    />
   )
 }
 
@@ -147,16 +158,8 @@ export default function ConversationIsland() {
     Number.isFinite(snapshot.notchWidth) &&
     snapshot.notchWidth > 0
   const ActivityIcon = snapshot.target.conversationType === 'agent' ? Bot : MessageCircle
-  const isSingleActivity = snapshot.secondaryCount === 0
-  const usesSingleNotchDetail = usesNotchLayout && isSingleActivity
-
-  const stateIndicator = (state: ConversationIslandStateKind) => (
-    <span
-      data-testid="state-indicator"
-      className={`size-2 shrink-0 rounded-full ${STATE_INDICATOR_CLASS[state]}`}
-      aria-hidden="true"
-    />
-  )
+  const surfaceModel = resolveConversationIslandSurface(snapshot)
+  const usesSingleNotchDetail = usesNotchLayout && surfaceModel.kind === 'single-detail'
 
   const openActivity = async (activity: ConversationIslandActivityItem) => {
     if (snapshot.exiting) return
@@ -186,7 +189,10 @@ export default function ConversationIsland() {
     await openActivity(activity)
   }
 
-  const activities = isSingleActivity ? [snapshot] : (snapshot.activities ?? [])
+  const activities =
+    surfaceModel.kind === 'activity-list'
+      ? surfaceModel.activities
+      : [surfaceModel.kind === 'single-detail' ? surfaceModel.activity : surfaceModel.primary]
   const surface = snapshot.expanded ? (
     <div
       data-testid="conversation-island-surface"
@@ -219,7 +225,7 @@ export default function ConversationIsland() {
                   className="size-3.5 shrink-0 text-white/70"
                   aria-hidden="true"
                 />
-                {stateIndicator(snapshot.state)}
+                <ConversationIslandStateIndicator state={snapshot.state} />
                 <span className="min-w-0 truncate">{snapshot.statusText}</span>
               </>
             )}
@@ -230,7 +236,7 @@ export default function ConversationIsland() {
             className={`flex min-w-0 items-center justify-end overflow-hidden pr-3 text-white/60 ${usesSingleNotchDetail ? 'gap-2' : ''}`}>
             {usesSingleNotchDetail ? (
               <>
-                {stateIndicator(snapshot.state)}
+                <ConversationIslandStateIndicator state={snapshot.state} />
                 <span className="min-w-0 truncate">{snapshot.statusText}</span>
               </>
             ) : (
@@ -241,7 +247,8 @@ export default function ConversationIsland() {
       ) : null}
       <div role="list" className="max-h-[220px] overflow-y-auto">
         {activities.map((activity) => {
-          const isPrimary = activity.activityId === snapshot.activityId
+          const isPrimary =
+            surfaceModel.kind !== 'activity-list' || activity.activityId === surfaceModel.primaryActivityId
 
           return (
             <div role="listitem" key={activity.activityId}>
@@ -257,7 +264,7 @@ export default function ConversationIsland() {
                     ? `${isPrimary ? 'bg-white/10 font-medium' : 'font-normal'} text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white`
                     : `${isPrimary ? 'bg-accent font-medium' : 'font-normal'} text-popover-foreground hover:bg-accent focus-visible:bg-accent`
                 }`}>
-                {usesSingleNotchDetail ? null : stateIndicator(activity.state)}
+                {usesSingleNotchDetail ? null : <ConversationIslandStateIndicator state={activity.state} />}
                 {usesSingleNotchDetail ? null : <span className="shrink-0">{activity.statusText}</span>}
                 <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{activity.title}</span>
               </Button>
@@ -285,7 +292,7 @@ export default function ConversationIsland() {
       {usesNotchLayout ? (
         <span className="grid h-full w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <span data-testid="notch-leading" className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
-            {stateIndicator(snapshot.state)}
+            <ConversationIslandStateIndicator state={snapshot.state} />
             <span className="min-w-0 truncate font-medium">{snapshot.statusText}</span>
           </span>
           <span data-testid="notch-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
@@ -300,7 +307,7 @@ export default function ConversationIsland() {
         </span>
       ) : (
         <>
-          {stateIndicator(snapshot.state)}
+          <ConversationIslandStateIndicator state={snapshot.state} />
           <span className="shrink-0 font-medium">{snapshot.statusText}</span>
           <span className="shrink-0 text-muted-foreground" aria-hidden="true">
             ·

@@ -9,7 +9,7 @@ import { useEffect } from 'react'
  * The initial language is already applied by `prepareWindow`'s `initI18n()`; this
  * hook only reacts to runtime preference changes. It is the shared language owner
  * for every UI window (main / subWindow / quickAssistant / selection-action /
- * selection-toolbar). It deliberately does NOT touch the dayjs locale — date
+ * selection-toolbar / conversationIsland). It deliberately does NOT touch the dayjs locale — date
  * localization is a separate concern, synced in `useWindowRuntime` only for the
  * windows that render localized dates (main / subWindow).
  */
