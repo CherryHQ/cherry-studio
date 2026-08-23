@@ -7,7 +7,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type * as MessageFind from '@renderer/utils/message/find'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 
@@ -153,6 +153,7 @@ import {
   messagesToMarkdown,
   messageToMarkdown,
   messageToMarkdownWithReasoning,
+  rewriteAlertQuotesToCallouts,
   topicToPlainText
 } from '../ExportService'
 
@@ -815,5 +816,405 @@ describe('ExportService', () => {
       expect(result).toBe('Empty Topic')
       expect(markdownToPlainText).toHaveBeenCalledWith('## Empty Topic')
     })
+  })
+})
+
+// --- Notion alert callout rewrite (issue #16388) ---
+
+// martian renders "> [!TYPE] body" as a quote with an empty rich_text placeholder
+// and the marker+body merged into the first paragraph child (soft break becomes \n)
+const alertTextSegment = (content: string, annotations?: Record<string, unknown>) => ({
+  type: 'text',
+  annotations: {
+    bold: false,
+    italic: false,
+    strikethrough: false,
+    underline: false,
+    code: false,
+    color: 'default',
+    ...annotations
+  },
+  text: { content }
+})
+
+const alertQuoteBlock = (marker: string, body?: string, extraChildren: any[] = []) => ({
+  object: 'block',
+  type: 'quote',
+  quote: {
+    rich_text: [alertTextSegment('')],
+    children: [
+      {
+        object: 'block',
+        type: 'paragraph',
+        paragraph: {
+          rich_text: [alertTextSegment(body ? `${marker}\n${body}` : marker)]
+        }
+      },
+      ...extraChildren
+    ]
+  }
+})
+
+// Source markdown matching alertQuoteBlock's fixture shape
+const alertQuoteSource = (marker: string, body?: string) => `> ${marker}${body ? `\n> ${body}` : ''}`
+
+describe('rewriteAlertQuotesToCallouts', () => {
+  it('converts a warning alert quote into a callout with mapped emoji and color', () => {
+    const [block] = rewriteAlertQuotesToCallouts(
+      [alertQuoteBlock('[!WARNING]', 'Do not commit secrets')],
+      alertQuoteSource('[!WARNING]', 'Do not commit secrets')
+    )
+
+    expect(block.type).toBe('callout')
+    expect(block.callout.icon).toEqual({ type: 'emoji', emoji: '⚠️' })
+    expect(block.callout.color).toBe('yellow_background')
+    expect(block.callout.rich_text[0].text.content).toBe('Do not commit secrets')
+    expect(block.callout.children).toEqual([])
+  })
+
+  it('leaves plain quotes untouched', () => {
+    const plain = alertQuoteBlock('Just a quote')
+
+    expect(rewriteAlertQuotesToCallouts([plain], alertQuoteSource('Just a quote'))).toEqual([plain])
+  })
+
+  it('falls back to a gray memo callout for unknown alert types', () => {
+    const [block] = rewriteAlertQuotesToCallouts(
+      [alertQuoteBlock('[!CUSTOM]', 'custom alert')],
+      alertQuoteSource('[!CUSTOM]', 'custom alert')
+    )
+
+    expect(block.type).toBe('callout')
+    expect(block.callout.icon.emoji).toBe('📝')
+    expect(block.callout.color).toBe('gray_background')
+    expect(block.callout.rich_text[0].text.content).toBe('custom alert')
+  })
+
+  it('matches alert types case-insensitively', () => {
+    const [block] = rewriteAlertQuotesToCallouts([alertQuoteBlock('[!note]', 'hi')], alertQuoteSource('[!note]', 'hi'))
+
+    expect(block.callout.icon.emoji).toBe('💡')
+    expect(block.callout.color).toBe('blue_background')
+  })
+
+  it('drops a marker that occupies its own segment and keeps the following segment', () => {
+    const plainMarkerQuote = {
+      object: 'block',
+      type: 'quote',
+      quote: {
+        rich_text: [alertTextSegment('')],
+        children: [
+          {
+            object: 'block',
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [alertTextSegment('[!NOTE]'), alertTextSegment('\nstyled marker')]
+            }
+          }
+        ]
+      }
+    }
+
+    const [block] = rewriteAlertQuotesToCallouts([plainMarkerQuote], '> [!NOTE]\n> styled marker')
+
+    expect(block.type).toBe('callout')
+    expect(block.callout.rich_text).toHaveLength(1)
+    expect(block.callout.rich_text[0].text.content).toBe('styled marker')
+  })
+
+  it('keeps a formatted marker (bold) as a plain quote', () => {
+    const boldMarkerQuote = {
+      object: 'block',
+      type: 'quote',
+      quote: {
+        rich_text: [alertTextSegment('')],
+        children: [
+          {
+            object: 'block',
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [alertTextSegment('[!NOTE]', { bold: true }), alertTextSegment('\nstyled marker')]
+            }
+          }
+        ]
+      }
+    }
+
+    expect(rewriteAlertQuotesToCallouts([boldMarkerQuote], '> **[!NOTE]**\n> styled marker')).toEqual([boldMarkerQuote])
+  })
+
+  it('keeps remaining children and an empty rich_text for a marker-only alert', () => {
+    const bullet = {
+      object: 'block',
+      type: 'bulleted_list_item',
+      bulleted_list_item: { rich_text: [alertTextSegment('bullet a')], children: [] }
+    }
+
+    const [block] = rewriteAlertQuotesToCallouts(
+      [alertQuoteBlock('[!NOTE]', undefined, [bullet])],
+      alertQuoteSource('[!NOTE]')
+    )
+
+    expect(block.type).toBe('callout')
+    expect(block.callout.rich_text).toEqual([])
+    expect(block.callout.children).toEqual([bullet])
+  })
+
+  it('rewrites alerts nested inside list items in place', () => {
+    const listItem = {
+      object: 'block',
+      type: 'numbered_list_item',
+      numbered_list_item: {
+        rich_text: [alertTextSegment('Step one')],
+        children: [alertQuoteBlock('[!IMPORTANT]', 'critical detail')]
+      }
+    }
+
+    const [block] = rewriteAlertQuotesToCallouts([listItem], '1. Step one\n   > [!IMPORTANT]\n   > critical detail')
+
+    expect(block.type).toBe('numbered_list_item')
+    expect(block.numbered_list_item.children[0].type).toBe('callout')
+    expect(block.numbered_list_item.children[0].callout.icon.emoji).toBe('⭐')
+  })
+
+  it('keeps later paragraphs as callout children', () => {
+    const secondPara = {
+      object: 'block',
+      type: 'paragraph',
+      paragraph: { rich_text: [alertTextSegment('Second paragraph')] }
+    }
+
+    const [block] = rewriteAlertQuotesToCallouts(
+      [alertQuoteBlock('[!NOTE]', 'First paragraph', [secondPara])],
+      alertQuoteSource('[!NOTE]', 'First paragraph')
+    )
+
+    expect(block.callout.rich_text[0].text.content).toBe('First paragraph')
+    expect(block.callout.children).toEqual([secondPara])
+  })
+
+  it('does not mutate the input blocks', () => {
+    const original = alertQuoteBlock('[!WARNING]', 'Do not commit secrets')
+    const snapshot = JSON.parse(JSON.stringify(original))
+
+    rewriteAlertQuotesToCallouts([original], alertQuoteSource('[!WARNING]', 'Do not commit secrets'))
+
+    expect(original).toEqual(snapshot)
+  })
+})
+
+describe('rewriteAlertQuotesToCallouts with real martian output', () => {
+  let markdownToBlocks: (markdown: string) => any[]
+
+  beforeAll(async () => {
+    const actual = (await vi.importActual('@tryfabric/martian')) as { markdownToBlocks: (md: string) => any[] }
+    markdownToBlocks = actual.markdownToBlocks
+  })
+
+  const toBlocks = (markdown: string) => rewriteAlertQuotesToCallouts(markdownToBlocks(markdown), markdown)
+
+  const plainText = (richText: any[]) => richText.map((segment) => segment.text?.content ?? '').join('')
+
+  it('AC1: warning alert becomes a yellow ⚠️ callout with no quote residue', () => {
+    const blocks = toBlocks('> [!WARNING]\n> Do not commit secrets')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('callout')
+    expect(blocks[0].callout.icon).toEqual({ type: 'emoji', emoji: '⚠️' })
+    expect(blocks[0].callout.color).toBe('yellow_background')
+    expect(plainText(blocks[0].callout.rich_text)).toBe('Do not commit secrets')
+  })
+
+  it('AC2: all five alert types map to their own icon and color', () => {
+    const markdown = [
+      '> [!NOTE]\n> note body',
+      '> [!TIP]\n> tip body',
+      '> [!IMPORTANT]\n> important body',
+      '> [!WARNING]\n> warning body',
+      '> [!CAUTION]\n> caution body'
+    ].join('\n\n')
+    const expected = [
+      ['💡', 'blue_background'],
+      ['✅', 'green_background'],
+      ['⭐', 'purple_background'],
+      ['⚠️', 'yellow_background'],
+      ['🚫', 'red_background']
+    ]
+
+    const blocks = toBlocks(markdown)
+
+    expect(blocks).toHaveLength(expected.length)
+    blocks.forEach((block, i) => {
+      expect(block.type).toBe('callout')
+      expect(block.callout.icon.emoji).toBe(expected[i][0])
+      expect(block.callout.color).toBe(expected[i][1])
+    })
+  })
+
+  it('AC3: multi-line alert keeps inline formatting and nested bullets', () => {
+    const blocks = toBlocks('> [!NOTE]\n> Line 1.\n> Line 2 with **bold**.\n> - bullet a\n> - bullet b')
+
+    expect(blocks).toHaveLength(1)
+    const { callout } = blocks[0]
+    expect(plainText(callout.rich_text)).toBe('Line 1.\nLine 2 with bold.')
+    expect(callout.rich_text.find((segment) => segment.annotations?.bold)?.text.content).toBe('bold')
+    const bullets = callout.children
+      .filter((block) => block.type === 'bulleted_list_item')
+      .map((block) => plainText(block.bulleted_list_item.rich_text))
+    expect(bullets).toEqual(['bullet a', 'bullet b'])
+  })
+
+  it('AC4: plain quote stays a quote while a following tip becomes a callout', () => {
+    const blocks = toBlocks('> Just a quote\n\n> [!TIP]\n> Try this')
+
+    expect(blocks).toHaveLength(2)
+    expect(blocks[0].type).toBe('quote')
+    expect(plainText(blocks[0].quote.children[0].paragraph.rich_text)).toBe('Just a quote')
+    expect(blocks[1].type).toBe('callout')
+    expect(blocks[1].callout.icon.emoji).toBe('✅')
+    expect(plainText(blocks[1].callout.rich_text)).toBe('Try this')
+  })
+
+  it('AC5: unknown alert type falls back to a gray 📝 callout', () => {
+    const blocks = toBlocks('> [!UNKNOWN]\n> custom alert')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('callout')
+    expect(blocks[0].callout.icon.emoji).toBe('📝')
+    expect(blocks[0].callout.color).toBe('gray_background')
+  })
+
+  it('AC6: alert nested in a numbered list step stays inside the step', () => {
+    const blocks = toBlocks('1. Step one\n   > [!IMPORTANT]\n   > critical detail\n2. Step two')
+
+    expect(blocks[0].type).toBe('numbered_list_item')
+    const nested = blocks[0].numbered_list_item.children[0]
+    expect(nested.type).toBe('callout')
+    expect(nested.callout.icon.emoji).toBe('⭐')
+    expect(plainText(nested.callout.rich_text)).toBe('critical detail')
+    expect(blocks[1].type).toBe('numbered_list_item')
+  })
+
+  it('keeps a code-formatted literal marker as a quote with the code style intact', () => {
+    const blocks = toBlocks('> `[!NOTE]`\n> body')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('quote')
+    const segments = blocks[0].quote.children[0].paragraph.rich_text
+    expect(segments[0].annotations.code).toBe(true)
+    expect(segments[0].text.content).toBe('[!NOTE]')
+    expect(plainText(segments)).toBe('[!NOTE]\nbody')
+  })
+
+  it('keeps a link-text marker as a quote with the link intact', () => {
+    const blocks = toBlocks('> [[!NOTE]](https://example.com)\n> body')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('quote')
+    const segments = blocks[0].quote.children[0].paragraph.rich_text
+    expect(segments[0].text.content).toBe('[!NOTE]')
+    expect(segments[0].text.link).toEqual({ type: 'url', url: 'https://example.com' })
+  })
+
+  it('keeps a bolded marker as a quote with the bold style intact', () => {
+    const blocks = toBlocks('> **[!NOTE]**\n> body')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('quote')
+    const segments = blocks[0].quote.children[0].paragraph.rich_text
+    expect(segments[0].annotations.bold).toBe(true)
+    expect(segments[0].text.content).toBe('[!NOTE]')
+  })
+
+  it('keeps an HTML-code-wrapped marker as a quote with the literal marker intact', () => {
+    const blocks = toBlocks('> <code>[!NOTE]</code>\n> body')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('quote')
+    expect(plainText(blocks[0].quote.children[0].paragraph.rich_text)).toContain('[!NOTE]')
+  })
+
+  it('keeps an HTML-span-wrapped marker as a quote with the literal marker intact', () => {
+    const blocks = toBlocks('> <span>[!NOTE]</span>\n> body')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('quote')
+    expect(plainText(blocks[0].quote.children[0].paragraph.rich_text)).toContain('[!NOTE]')
+  })
+
+  it('converts an alert nested inside a plain quote while the outer quote stays a quote', () => {
+    const blocks = toBlocks('> outer\n> > [!NOTE]\n> > inner')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('quote')
+    const innerCallout = blocks[0].quote.children.find((child: any) => child.type === 'callout')
+    expect(innerCallout).toBeDefined()
+    expect(innerCallout.callout.icon.emoji).toBe('💡')
+    expect(plainText(innerCallout.callout.rich_text)).toBe('inner')
+  })
+
+  it('keeps a plain quote nested inside an alert as a quote within the callout', () => {
+    const blocks = toBlocks('> [!TIP]\n> tip text\n> > plain inner')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('callout')
+    expect(plainText(blocks[0].callout.rich_text)).toBe('tip text')
+    const nested = blocks[0].callout.children.find((child: any) => child.type === 'quote')
+    expect(nested).toBeDefined()
+    expect(plainText(nested.quote.children[0].paragraph.rich_text)).toBe('plain inner')
+  })
+
+  it('keeps flag order across interleaved plain and alert quotes', () => {
+    const blocks = toBlocks('> plain one\n\n> [!WARNING]\n> careful\n\n> plain two')
+
+    expect(blocks).toHaveLength(3)
+    expect(blocks[0].type).toBe('quote')
+    expect(blocks[1].type).toBe('callout')
+    expect(blocks[1].callout.icon.emoji).toBe('⚠️')
+    expect(blocks[2].type).toBe('quote')
+  })
+
+  it('converts an alert with body on the marker line', () => {
+    const blocks = toBlocks('> [!NOTE] inline body')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('callout')
+    expect(plainText(blocks[0].callout.rich_text)).toBe(' inline body')
+  })
+})
+
+describe('Notion export alert callout wiring', () => {
+  beforeEach(async () => {
+    await preferenceService.set('data.integration.notion.api_key', 'notion-key')
+    await preferenceService.set('data.integration.notion.database_id', 'database-id')
+    await preferenceService.set('data.integration.notion.page_name_key', 'Name')
+    notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
+    notionMocks.appendBlocks.mockResolvedValue(undefined)
+    notionMocks.markdownToBlocks.mockImplementation((markdown: string): any[] =>
+      typeof markdown === 'string' && markdown.includes('[!WARNING]')
+        ? [alertQuoteBlock('[!WARNING]', 'Do not commit secrets')]
+        : [{ markdown }, { markdown: `${markdown}\n` }]
+    )
+  })
+
+  it('rewrites alert quotes on the message body path', async () => {
+    await expect(exportMessageToNotion('Alerts', '> [!WARNING]\n> Do not commit secrets')).resolves.toBe(true)
+
+    const blocks = notionMocks.appendBlocks.mock.calls[0][0].children
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('callout')
+    expect(blocks[0].callout.rich_text[0].text.content).toBe('Do not commit secrets')
+  })
+
+  it('rewrites alert quotes inside the reasoning toggle', async () => {
+    await preferenceService.set('data.integration.notion.export_reasoning', true)
+    const message = createExportView([{ type: 'reasoning', text: '> [!WARNING]\n> reasoning alert' }])
+
+    await expect(exportMessageToNotion('Alerts', 'plain body', message)).resolves.toBe(true)
+
+    const blocks = notionMocks.appendBlocks.mock.calls[0][0].children
+    const toggle = blocks.find((block) => block.type === 'toggle')
+    expect(toggle).toBeDefined()
+    expect(toggle.toggle.children[0].type).toBe('callout')
   })
 })

@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Fechar pré-visualização",
       "code": "Código",
+      "copy_path": "Copiar caminho",
+      "copy_relative_path": "Copiar caminho relativo",
       "default_app": "Aplicação padrão",
       "edit": {
         "conflict": {
@@ -6288,22 +6290,57 @@
     },
     "prompts": {
       "add": "Adicionar Prompt",
+      "binding": {
+        "bind": "Associar prompt",
+        "manageTargets": "Gerir destinos de {{title}}",
+        "noLinked": "Nenhum prompt associado",
+        "noMore": "Não há mais prompts disponíveis",
+        "noTargets": "Nenhum destino disponível",
+        "remove": "Remover o prompt {{title}}",
+        "search": "Pesquisar prompts",
+        "searchTargets": "Pesquisar assistentes ou agentes",
+        "tabTitle": "Prompts",
+        "targetCount": "{{count}} destinos",
+        "targets": "Disponível para",
+        "unassigned": "Não atribuído"
+      },
       "contentLabel": "Conteúdo",
-      "contentPlaceholder": "Introduza o conteúdo do prompt. Suporta ${variables}; prima Tab para saltar entre variáveis. Exemplo:\nAjude-me a planear uma rota de ${from} para ${to} e envie-a para ${email}.",
+      "contentPlaceholder": "Introduza o conteúdo do prompt",
       "delete": "Eliminar Prompt",
       "deleteConfirm": "O prompt será eliminado permanentemente. Continuar?",
+      "deleteGlobalConfirm": "Isto remove-o de todos os contextos e não pode ser anulado.",
+      "deleteRestrictedConfirm": "Isto remove-o de todos os contextos associados e não pode ser anulado.",
+      "deleteSharedConfirm": "Isto remove-o de {{count}} contextos associados e não pode ser anulado.",
       "edit": "Editar Prompt",
       "errors": {
+        "bindFailed": "Falha ao associar o prompt",
         "createFailed": "Falha ao criar prompt",
         "deleteFailed": "Falha ao eliminar prompt",
+        "loadBindingsFailed": "Falha ao carregar os destinos disponíveis",
         "loadFailed": "Falha ao carregar prompts",
+        "reorderFailed": "Falha ao reordenar prompts",
+        "unbindFailed": "Falha ao desassociar o prompt",
         "updateFailed": "Falha ao atualizar o prompt"
       },
       "manage": "Gerir Prompts",
+      "noPrompts": "Nenhum prompt",
+      "reorder": "Arraste {{title}} para reordenar",
+      "searchPlaceholder": "Pesquisar títulos ou conteúdo de prompts",
       "title": "Gestão de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduza o título do prompt",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Global",
+          "label": "Usar globalmente"
+        },
+        "makeGlobalConfirmDescription": "Tornar este prompt global mantém-no disponível em todo o lado, mas remove permanentemente as suas {{count}} associações de contexto e a respetiva ordem. Continuar?",
+        "makeGlobalConfirmTitle": "Tornar o prompt global?",
+        "restricted": {
+          "badge": "Selecionado"
+        }
+      }
     },
     "provider": {
       "add": {

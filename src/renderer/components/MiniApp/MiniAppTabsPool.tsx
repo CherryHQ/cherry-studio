@@ -114,24 +114,24 @@ const MiniAppTabsPool: React.FC = () => {
   }, [appMetadataSignature])
 
   /** 设置 ref 回调 */
-  const handleSetRef = (appid: string, el: WebviewTag | null) => {
+  const handleSetRef = useCallback((appid: string, el: WebviewTag | null) => {
     if (el) {
       webviewRefs.current.set(appid, el)
     } else {
       webviewRefs.current.delete(appid)
     }
-  }
+  }, [])
 
   /** WebView 加载完成回调 */
-  const handleLoaded = (appid: string) => {
+  const handleLoaded = useCallback((appid: string) => {
     setWebviewLoaded(appid, true)
     logger.debug(`TabPool webview loaded: ${appid}`)
-  }
+  }, [])
 
   /** Record navigation (URL state not yet exposed; can integrate with global URL Map later) */
-  const handleNavigate = (appid: string, url: string) => {
+  const handleNavigate = useCallback((appid: string, url: string) => {
     logger.debug(`TabPool webview navigate: ${appid} -> ${url}`)
-  }
+  }, [])
 
   // The context key is registered here rather than per pane: every container's effect
   // stays alive for the pool's lifetime, and the registry resolves to whichever

@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Fermer l'aperçu",
       "code": "Code",
+      "copy_path": "Copier le chemin",
+      "copy_relative_path": "Copier le chemin relatif",
       "default_app": "Application par défaut",
       "edit": {
         "conflict": {
@@ -6288,22 +6290,57 @@
     },
     "prompts": {
       "add": "Ajouter un prompt",
+      "binding": {
+        "bind": "Associer le prompt",
+        "manageTargets": "Gérer les cibles de {{title}}",
+        "noLinked": "Aucun prompt associé",
+        "noMore": "Aucun autre prompt disponible",
+        "noTargets": "Aucune cible disponible",
+        "remove": "Retirer le prompt {{title}}",
+        "search": "Rechercher des prompts",
+        "searchTargets": "Rechercher des assistants ou des agents",
+        "tabTitle": "Prompts",
+        "targetCount": "{{count}} cibles",
+        "targets": "Disponible pour",
+        "unassigned": "Non attribué"
+      },
       "contentLabel": "Contenu",
-      "contentPlaceholder": "Saisissez le contenu de l’invite. Prend en charge ${variables} ; appuyez sur Tab pour passer d’une variable à l’autre. Exemple :\nAidez-moi à planifier un itinéraire de ${from} à ${to}, et envoyez-le à ${email}.",
+      "contentPlaceholder": "Saisissez le contenu du prompt",
       "delete": "Supprimer le prompt",
       "deleteConfirm": "Le prompt sera définitivement supprimé. Continuer ?",
+      "deleteGlobalConfirm": "Cela le supprime de tous les contextes et cette action est irréversible.",
+      "deleteRestrictedConfirm": "Cela le supprime de tous les contextes associés et cette action est irréversible.",
+      "deleteSharedConfirm": "Cela le supprime de {{count}} contextes associés et cette action est irréversible.",
       "edit": "Modifier le prompt",
       "errors": {
+        "bindFailed": "Échec de l’association du prompt",
         "createFailed": "Échec de la création de l'invite",
         "deleteFailed": "Échec de la suppression de l'invite",
+        "loadBindingsFailed": "Échec du chargement des cibles disponibles",
         "loadFailed": "Échec du chargement des invites",
+        "reorderFailed": "Échec du réordonnancement des invites",
+        "unbindFailed": "Échec de la dissociation du prompt",
         "updateFailed": "Échec de la mise à jour de l'invite"
       },
       "manage": "Gérer les invites",
+      "noPrompts": "Aucun prompt",
+      "reorder": "Faites glisser {{title}} pour le réorganiser",
+      "searchPlaceholder": "Rechercher dans les titres ou le contenu des prompts",
       "title": "Gestion des prompts",
       "titleLabel": "Titre",
       "titlePlaceholder": "Saisissez le titre du prompt",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Global",
+          "label": "Utiliser globalement"
+        },
+        "makeGlobalConfirmDescription": "Rendre ce prompt global le maintient disponible partout, mais supprime définitivement ses {{count}} associations de contexte et leur ordre. Continuer ?",
+        "makeGlobalConfirmTitle": "Rendre le prompt global ?",
+        "restricted": {
+          "badge": "Sélectionné"
+        }
+      }
     },
     "provider": {
       "add": {

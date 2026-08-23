@@ -28,6 +28,7 @@ import {
   buildPiProviderInjection,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
+  PiMissingContextWindowError,
   PiUnsupportedProviderError,
   resolvePiProviderInjection,
   resolvePiProviderInjectionFromSnapshot
@@ -388,15 +389,16 @@ describe('buildPiProviderInjection', () => {
     expect(() => buildPiProviderInjection(provider, makeModel({}), '   ')).toThrow(PiMissingApiKeyError)
   })
 
-  it('falls back to the default context window when the model declares none', () => {
+  it('rejects a model whose context window is unknown', () => {
     const provider = makeProvider({
       id: 'anthropic',
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
     })
 
-    const injection = buildPiProviderInjection(provider, makeModel({ contextWindow: undefined }), REAL_KEY)
-    expect(injection.providerConfig.models?.[0].contextWindow).toBe(256_000)
+    expect(() => buildPiProviderInjection(provider, makeModel({ contextWindow: undefined }), REAL_KEY)).toThrow(
+      PiMissingContextWindowError
+    )
   })
 
   it('throws PiUnsupportedProviderError for a provider with no pi mapping', () => {
@@ -538,6 +540,19 @@ describe('modelInjection service resolution', () => {
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' } }
     })
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
+  })
+
+  it('rejects an unknown context window before checking credentials', async () => {
+    serviceMocks.getByKey.mockResolvedValueOnce({
+      id: 'p::m',
+      providerId: 'p',
+      name: 'M',
+      capabilities: [],
+      contextWindow: undefined
+    })
+
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiMissingContextWindowError)
+    expect(serviceMocks.getApiKeys).not.toHaveBeenCalled()
   })
 
   it('validates app-managed OAuth through its live session', async () => {

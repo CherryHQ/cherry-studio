@@ -248,6 +248,25 @@ describe('DeepSeek Harness config transaction', () => {
     })
   })
 
+  it('heals every stale managed key at top-level of a version: 1 document while preserving user keys', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+    const staleHex = 'CHERRY_STUDIO_CODEMATE_AAAAAAAAAAAA_API_KEY'
+    const staleGateway = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
+    await writeFile(
+      path.join(dir, '.credentials.yaml'),
+      `version: 1\nrefs:\n  OTHER_KEY: keep\n${staleHex}: sk-stale-a\n${staleGateway}: sk-stale-b\nDEEPSEEK_API_KEY: sk-user\n`,
+      { mode: 0o600 }
+    )
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 1,
+      refs: { OTHER_KEY: 'keep', [identity.credentialRef]: 'sk-sensitive' },
+      DEEPSEEK_API_KEY: 'sk-user'
+    })
+  })
+
   it('keeps the flat layout pre-0.1.1 DSH reads, including a credential named version', async () => {
     const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
 

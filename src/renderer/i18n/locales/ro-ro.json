@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Închide previzualizare",
       "code": "Cod",
+      "copy_path": "Copiază calea",
+      "copy_relative_path": "Copiază calea relativă",
       "default_app": "Aplicație implicită",
       "edit": {
         "conflict": {
@@ -6288,22 +6290,57 @@
     },
     "prompts": {
       "add": "Adaugă Prompt",
+      "binding": {
+        "bind": "Asociază promptul",
+        "manageTargets": "Gestionează destinațiile pentru {{title}}",
+        "noLinked": "Nu există prompturi asociate",
+        "noMore": "Nu mai sunt prompturi disponibile",
+        "noTargets": "Nu există destinații disponibile",
+        "remove": "Elimină promptul {{title}}",
+        "search": "Caută prompturi",
+        "searchTargets": "Caută asistenți sau agenți",
+        "tabTitle": "Prompturi",
+        "targetCount": "{{count}} destinații",
+        "targets": "Disponibil pentru",
+        "unassigned": "Neatribuit"
+      },
       "contentLabel": "Conținut",
-      "contentPlaceholder": "Introdu conținutul promptului. Acceptă ${variables}; apasă Tab pentru a trece între variabile. Exemplu:\nAjută-mă să planific un traseu de la ${from} la ${to} și trimite-l la ${email}.",
+      "contentPlaceholder": "Introdu conținutul promptului",
       "delete": "Șterge Prompt",
       "deleteConfirm": "Promptul va fi șters permanent. Continuați?",
+      "deleteGlobalConfirm": "Aceasta îl elimină din toate contextele și acțiunea nu poate fi anulată.",
+      "deleteRestrictedConfirm": "Aceasta îl elimină din toate contextele asociate și acțiunea nu poate fi anulată.",
+      "deleteSharedConfirm": "Aceasta îl elimină din {{count}} contexte asociate și acțiunea nu poate fi anulată.",
       "edit": "Editează Prompt",
       "errors": {
+        "bindFailed": "Asocierea promptului a eșuat",
         "createFailed": "Nu s-a reușit crearea promptului",
         "deleteFailed": "Nu s-a putut șterge promptul",
+        "loadBindingsFailed": "Încărcarea destinațiilor disponibile a eșuat",
         "loadFailed": "Nu s-au putut încărca prompturile",
+        "reorderFailed": "Nu s-a reușit reordonarea solicitărilor",
+        "unbindFailed": "Eliminarea asocierii promptului a eșuat",
         "updateFailed": "Nu s-a reușit actualizarea promptului"
       },
       "manage": "Gestionează prompturile",
+      "noPrompts": "Nu există prompturi",
+      "reorder": "Trage {{title}} pentru a-l reordona",
+      "searchPlaceholder": "Caută în titlurile sau conținutul prompturilor",
       "title": "Gestionarea prompturilor",
       "titleLabel": "Titlu",
       "titlePlaceholder": "Introdu titlul promptului",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Global",
+          "label": "Utilizează global"
+        },
+        "makeGlobalConfirmDescription": "Transformarea acestui prompt în unul global îl păstrează disponibil peste tot, dar elimină definitiv cele {{count}} asocieri de context și ordinea lor. Continui?",
+        "makeGlobalConfirmTitle": "Transformi promptul în unul global?",
+        "restricted": {
+          "badge": "Selectat"
+        }
+      }
     },
     "provider": {
       "add": {

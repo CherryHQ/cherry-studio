@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Vorschau schließen",
       "code": "Code",
+      "copy_path": "Pfad kopieren",
+      "copy_relative_path": "Relativen Pfad kopieren",
       "default_app": "Standard-App",
       "edit": {
         "conflict": {
@@ -6288,22 +6290,57 @@
     },
     "prompts": {
       "add": "Prompt hinzufügen",
+      "binding": {
+        "bind": "Prompt verknüpfen",
+        "manageTargets": "Ziele für {{title}} verwalten",
+        "noLinked": "Keine Prompts verknüpft",
+        "noMore": "Keine weiteren Prompts verfügbar",
+        "noTargets": "Keine Ziele verfügbar",
+        "remove": "Prompt {{title}} entfernen",
+        "search": "Prompts durchsuchen",
+        "searchTargets": "Assistenten oder Agenten durchsuchen",
+        "tabTitle": "Prompts",
+        "targetCount": "{{count}} Ziele",
+        "targets": "Verfügbar für",
+        "unassigned": "Nicht zugewiesen"
+      },
       "contentLabel": "Inhalt",
-      "contentPlaceholder": "Geben Sie den Prompt-Inhalt ein. Unterstützt ${variables}; drücken Sie die Tabulatortaste, um zwischen Variablen zu wechseln. Beispiel:\nHelfen Sie mir, eine Route von ${from} nach ${to} zu planen und senden Sie sie an ${email}.",
+      "contentPlaceholder": "Prompt-Inhalt eingeben",
       "delete": "Prompt löschen",
       "deleteConfirm": "Der Prompt wird dauerhaft gelöscht. Fortfahren?",
+      "deleteGlobalConfirm": "Dadurch wird der Prompt aus allen Kontexten entfernt. Dies kann nicht rückgängig gemacht werden.",
+      "deleteRestrictedConfirm": "Dadurch wird der Prompt aus allen verknüpften Kontexten entfernt. Dies kann nicht rückgängig gemacht werden.",
+      "deleteSharedConfirm": "Dadurch wird der Prompt aus {{count}} verknüpften Kontexten entfernt. Dies kann nicht rückgängig gemacht werden.",
       "edit": "Prompt bearbeiten",
       "errors": {
+        "bindFailed": "Prompt konnte nicht verknüpft werden",
         "createFailed": "Fehler beim Erstellen der Eingabeaufforderung",
         "deleteFailed": "Fehler beim Löschen der Eingabeaufforderung",
+        "loadBindingsFailed": "Verfügbare Ziele konnten nicht geladen werden",
         "loadFailed": "Fehler beim Laden der Aufforderungen",
+        "reorderFailed": "Fehler beim Neuanordnen der Eingabeaufforderungen",
+        "unbindFailed": "Prompt-Verknüpfung konnte nicht aufgehoben werden",
         "updateFailed": "Fehler beim Aktualisieren der Eingabeaufforderung"
       },
       "manage": "Prompts verwalten",
+      "noPrompts": "Keine Prompts",
+      "reorder": "{{title}} ziehen, um die Reihenfolge zu ändern",
+      "searchPlaceholder": "Prompt-Titel oder -Inhalt durchsuchen",
       "title": "Prompt-Verwaltung",
       "titleLabel": "Titel",
       "titlePlaceholder": "Geben Sie einen Titel für den Prompt ein",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Global",
+          "label": "Global verwenden"
+        },
+        "makeGlobalConfirmDescription": "Wenn dieser Prompt global wird, bleibt er überall verfügbar, aber seine {{count}} Kontextverknüpfungen samt Reihenfolge werden dauerhaft entfernt. Fortfahren?",
+        "makeGlobalConfirmTitle": "Prompt global machen?",
+        "restricted": {
+          "badge": "Ausgewählt"
+        }
+      }
     },
     "provider": {
       "add": {

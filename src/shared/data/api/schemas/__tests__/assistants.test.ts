@@ -11,14 +11,27 @@ describe('ImportAssistantSchema', () => {
         name: 'Imported assistant',
         prompt: 'legacy prompt',
         avatar: { kind: 'emoji', emoji: '🤖' },
-        groupName: `  ${longName}  `
+        groupName: `  ${longName}  `,
+        regularPhrases: [{ title: ' Greeting ', content: 'Hello' }]
       })
     ).toEqual({
       name: 'Imported assistant',
       prompt: 'legacy prompt',
       avatar: { kind: 'emoji', emoji: '🤖' },
-      groupName: longName
+      groupName: longName,
+      regularPhrases: [{ title: 'Greeting', content: 'Hello' }]
     })
+  })
+
+  it('rejects malformed legacy phrases', () => {
+    expect(
+      ImportAssistantSchema.safeParse({
+        name: 'Imported assistant',
+        prompt: 'legacy prompt',
+        avatar: { kind: 'emoji', emoji: '🤖' },
+        regularPhrases: [{ title: 'Empty', content: '' }]
+      }).success
+    ).toBe(false)
   })
 
   it('rejects fields that do not exist in the legacy import contract', () => {

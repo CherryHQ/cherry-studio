@@ -3083,6 +3083,7 @@ describe('AgentComposer', () => {
         id: 'skill:pdf',
         label: 'pdf',
         description: 'Read and analyze PDFs',
+        inlineDescription: true,
         suffix: 'plugins.skills',
         filterText: 'pdf'
       })

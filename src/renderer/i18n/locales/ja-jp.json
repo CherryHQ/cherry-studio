@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "プレビューを閉じる",
       "code": "コード",
+      "copy_path": "パスをコピー",
+      "copy_relative_path": "相対パスをコピー",
       "default_app": "デフォルトアプリ",
       "edit": {
         "conflict": {
@@ -6288,22 +6290,57 @@
     },
     "prompts": {
       "add": "プロンプトを追加",
+      "binding": {
+        "bind": "プロンプトを関連付ける",
+        "manageTargets": "{{title}} の対象を管理",
+        "noLinked": "関連付けられたプロンプトはありません",
+        "noMore": "利用可能なプロンプトはこれ以上ありません",
+        "noTargets": "利用可能な対象はありません",
+        "remove": "プロンプト「{{title}}」を削除",
+        "search": "プロンプトを検索",
+        "searchTargets": "アシスタントまたはエージェントを検索",
+        "tabTitle": "プロンプト",
+        "targetCount": "{{count}} 件の対象",
+        "targets": "利用対象",
+        "unassigned": "未割り当て"
+      },
       "contentLabel": "内容",
-      "contentPlaceholder": "プロンプトの内容を入力します。${variables} をサポート；Tab キーで変数間を移動します。例：\n${from} から ${to} へのルートを計画し、${email} に送信してください。",
+      "contentPlaceholder": "プロンプトの内容を入力",
       "delete": "プロンプトを削除",
       "deleteConfirm": "プロンプトは完全に削除されます。続行しますか？",
+      "deleteGlobalConfirm": "すべてのコンテキストから削除され、元に戻せません。",
+      "deleteRestrictedConfirm": "関連付けられたすべてのコンテキストから削除され、元に戻せません。",
+      "deleteSharedConfirm": "{{count}} 件の関連コンテキストから削除され、元に戻せません。",
       "edit": "プロンプトを編集",
       "errors": {
+        "bindFailed": "プロンプトの関連付けに失敗しました",
         "createFailed": "プロンプトの作成に失敗しました",
         "deleteFailed": "プロンプトの削除に失敗しました",
+        "loadBindingsFailed": "利用可能な対象の読み込みに失敗しました",
         "loadFailed": "プロンプトの読み込みに失敗しました",
+        "reorderFailed": "プロンプトの並び替えに失敗しました",
+        "unbindFailed": "プロンプトの関連付け解除に失敗しました",
         "updateFailed": "プロンプトの更新に失敗しました"
       },
       "manage": "プロンプトを管理する",
+      "noPrompts": "プロンプトはありません",
+      "reorder": "{{title}} をドラッグして並べ替え",
+      "searchPlaceholder": "プロンプトのタイトルまたは内容を検索",
       "title": "プロンプト管理",
       "titleLabel": "タイトル",
       "titlePlaceholder": "プロンプトのタイトルを入力してください",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "グローバル",
+          "label": "グローバルに使用"
+        },
+        "makeGlobalConfirmDescription": "このプロンプトをグローバルにすると、すべての場所で利用できますが、{{count}} 件のコンテキスト関連付けとその順序は完全に削除されます。続行しますか？",
+        "makeGlobalConfirmTitle": "プロンプトをグローバルにしますか？",
+        "restricted": {
+          "badge": "選択済み"
+        }
+      }
     },
     "provider": {
       "add": {

@@ -11,6 +11,7 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { promptService } from '@data/services/PromptService'
 import { resolveAvatarValue, type ResolvedAvatarImage } from '@data/services/utils/avatar'
 import { resolveFileEntryUrl } from '@data/services/utils/fileEntryUrl'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -890,6 +891,9 @@ export class AgentService {
       agentTaskService.notifyReadModelChange(result.sessionImpact.taskScheduleIds)
       getDataService('AgentSessionMessageService').publishDeliveryChanges(result.sessionImpact.deliveryResults)
       agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
+    }
+    if (deleted) {
+      promptService.notifyTargetBindingsChanged()
       this._onAgentDeleted.fire({ agentId: id })
     }
     if (deleted) pinService.notifyPurged()
@@ -904,6 +908,7 @@ export class AgentService {
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
     pinService.purgeForEntityTx(tx, 'agent', id)
+    promptService.purgeForTargetTx(tx, 'agent', id)
     const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
     return { rowsAffected: result.changes }
   }

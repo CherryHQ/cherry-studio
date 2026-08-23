@@ -157,6 +157,8 @@
     "preview_pane": {
       "close": "Đóng xem trước",
       "code": "Mã",
+      "copy_path": "Sao chép đường dẫn",
+      "copy_relative_path": "Sao chép đường dẫn tương đối",
       "default_app": "Ứng dụng mặc định",
       "edit": {
         "conflict": {
@@ -6288,22 +6290,57 @@
     },
     "prompts": {
       "add": "Thêm Lời Nhắc",
+      "binding": {
+        "bind": "Liên kết lời nhắc",
+        "manageTargets": "Quản lý đích cho {{title}}",
+        "noLinked": "Chưa liên kết lời nhắc nào",
+        "noMore": "Không còn lời nhắc khả dụng",
+        "noTargets": "Không có đích khả dụng",
+        "remove": "Gỡ lời nhắc {{title}}",
+        "search": "Tìm kiếm lời nhắc",
+        "searchTargets": "Tìm kiếm trợ lý hoặc tác nhân",
+        "tabTitle": "Lời nhắc",
+        "targetCount": "{{count}} đích",
+        "targets": "Khả dụng cho",
+        "unassigned": "Chưa chỉ định"
+      },
       "contentLabel": "Nội dung",
-      "contentPlaceholder": "Nhập nội dung lời nhắc. Hỗ trợ ${variables}; nhấn Tab để chuyển giữa các biến. Ví dụ:\nHãy giúp tôi lên kế hoạch lộ trình từ ${from} đến ${to}, và gửi nó tới ${email}.",
+      "contentPlaceholder": "Nhập nội dung lời nhắc",
       "delete": "Xóa lời nhắc",
       "deleteConfirm": "Lời nhắc sẽ bị xóa vĩnh viễn. Tiếp tục?",
+      "deleteGlobalConfirm": "Thao tác này xóa lời nhắc khỏi mọi ngữ cảnh và không thể hoàn tác.",
+      "deleteRestrictedConfirm": "Thao tác này xóa lời nhắc khỏi mọi ngữ cảnh đã liên kết và không thể hoàn tác.",
+      "deleteSharedConfirm": "Thao tác này xóa lời nhắc khỏi {{count}} ngữ cảnh đã liên kết và không thể hoàn tác.",
       "edit": "Chỉnh sửa Lời nhắc",
       "errors": {
+        "bindFailed": "Không thể liên kết lời nhắc",
         "createFailed": "Không thể tạo lời nhắc",
         "deleteFailed": "Không xóa được lời nhắc",
+        "loadBindingsFailed": "Không thể tải các đích khả dụng",
         "loadFailed": "Không tải được lời nhắc",
+        "reorderFailed": "Không thể sắp xếp lại các lời nhắc",
+        "unbindFailed": "Không thể gỡ liên kết lời nhắc",
         "updateFailed": "Không thể cập nhật lời nhắc"
       },
       "manage": "Quản lý Prompt",
+      "noPrompts": "Không có lời nhắc",
+      "reorder": "Kéo {{title}} để sắp xếp lại",
+      "searchPlaceholder": "Tìm theo tiêu đề hoặc nội dung lời nhắc",
       "title": "Quản lý Prompt",
       "titleLabel": "Tiêu đề",
       "titlePlaceholder": "Nhập tiêu đề lời nhắc",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "Toàn cục",
+          "label": "Sử dụng toàn cục"
+        },
+        "makeGlobalConfirmDescription": "Đặt lời nhắc này thành toàn cục sẽ giữ nó khả dụng ở mọi nơi, nhưng xóa vĩnh viễn {{count}} liên kết ngữ cảnh cùng thứ tự của chúng. Tiếp tục?",
+        "makeGlobalConfirmTitle": "Đặt lời nhắc thành toàn cục?",
+        "restricted": {
+          "badge": "Đã chọn"
+        }
+      }
     },
     "provider": {
       "add": {
