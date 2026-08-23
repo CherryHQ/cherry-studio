@@ -911,7 +911,9 @@ export class McpRuntimeService extends BaseService {
         })
       })
       .finally(async () => {
-        await Promise.all([closeClient(), closeCallbackServer()])
+        if (active) {
+          await Promise.all([closeClient(), closeCallbackServer()])
+        }
         const pending = this.pendingOAuthCompletions.get(server.id)
         pending?.delete(completion)
         if (pending?.size === 0) {
