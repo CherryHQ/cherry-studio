@@ -1,6 +1,13 @@
 import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDescription,
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
