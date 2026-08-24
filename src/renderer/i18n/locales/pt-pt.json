@@ -1092,6 +1092,10 @@
         "title": "Recursos"
       },
       "restore": "Restaurar",
+      "selection_reference": {
+        "page": "p. {{page}}",
+        "slide": "diapositivo {{slide}}"
+      },
       "send": "Enviar",
       "send_failed": "Falha ao enviar mensagem",
       "slash_commands": {

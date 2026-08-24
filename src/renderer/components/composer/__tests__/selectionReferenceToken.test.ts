@@ -10,6 +10,13 @@ const XLSX_REFERENCE: SelectionReference = {
   fileStamp: { size: 20481, mtimeMs: 1750000000000 }
 }
 
+/**
+ * Stands in for i18next: echoes the key with its interpolations so a label assertion shows which key
+ * was used, and would fail loudly if a branch went back to a hardcoded English string.
+ */
+const t = (key: string, options?: Record<string, unknown>) =>
+  options ? `${key}(${Object.values(options).join(',')})` : key
+
 /** Mirrors the office-transform skill's side: find the fence, JSON.parse its body. */
 function parseSelectionRefFence(promptText: string | undefined): unknown {
   const match = /^```selection-ref\n([\s\S]*)\n```$/.exec(promptText ?? '')
@@ -19,20 +26,20 @@ function parseSelectionRefFence(promptText: string | undefined): unknown {
 
 describe('createSelectionReferenceToken', () => {
   it('round-trips the reference through the fenced promptText the skill parses', () => {
-    const token = createSelectionReferenceToken(XLSX_REFERENCE)
+    const token = createSelectionReferenceToken(XLSX_REFERENCE, t)
 
     expect(parseSelectionRefFence(token.promptText)).toEqual(XLSX_REFERENCE)
     expect(SelectionReferenceSchema.parse(parseSelectionRefFence(token.promptText))).toEqual(XLSX_REFERENCE)
   })
 
   it('keeps the fence body on a single line so the block stays greppable', () => {
-    const body = createSelectionReferenceToken(XLSX_REFERENCE).promptText?.split('\n') ?? []
+    const body = createSelectionReferenceToken(XLSX_REFERENCE, t).promptText?.split('\n') ?? []
 
     expect(body).toHaveLength(3)
   })
 
   it('carries the excerpt as the chip description and reuses the reference token kind', () => {
-    const token = createSelectionReferenceToken(XLSX_REFERENCE)
+    const token = createSelectionReferenceToken(XLSX_REFERENCE, t)
 
     expect(token.kind).toBe('reference')
     expect(token.description).toBe(XLSX_REFERENCE.excerpt)
@@ -56,7 +63,7 @@ describe('createSelectionReferenceToken', () => {
         excerpt: 'Results were reproduced across three runs.',
         fileStamp: { size: 1024, mtimeMs: 1 }
       } satisfies SelectionReference,
-      'paper.pdf · p.3'
+      'paper.pdf · chat.input.selection_reference.page(3)'
     ],
     [
       {
@@ -65,9 +72,9 @@ describe('createSelectionReferenceToken', () => {
         excerpt: 'Roadmap',
         fileStamp: { size: 1024, mtimeMs: 1 }
       } satisfies SelectionReference,
-      'deck.pptx · slide 2'
+      'deck.pptx · chat.input.selection_reference.slide(2)'
     ]
   ])('labels %#: file name plus the format-native locator', (reference, expected) => {
-    expect(createSelectionReferenceToken(reference).label).toBe(expected)
+    expect(createSelectionReferenceToken(reference, t).label).toBe(expected)
   })
 })

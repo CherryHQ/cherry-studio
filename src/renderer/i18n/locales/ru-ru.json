@@ -1092,6 +1092,10 @@
         "title": "Ресурсы"
       },
       "restore": "Восстановить",
+      "selection_reference": {
+        "page": "с. {{page}}",
+        "slide": "слайд {{slide}}"
+      },
       "send": "Отправить",
       "send_failed": "Не удалось отправить сообщение",
       "slash_commands": {

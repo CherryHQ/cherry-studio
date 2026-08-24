@@ -1092,6 +1092,10 @@
         "title": "Πόροι"
       },
       "restore": "Επαναφορά",
+      "selection_reference": {
+        "page": "σελ. {{page}}",
+        "slide": "διαφάνεια {{slide}}"
+      },
       "send": "Αποστολή",
       "send_failed": "Αποτυχία αποστολής μηνύματος",
       "slash_commands": {

@@ -1092,6 +1092,10 @@
         "title": "Ressources"
       },
       "restore": "Restaurer",
+      "selection_reference": {
+        "page": "p. {{page}}",
+        "slide": "diapositive {{slide}}"
+      },
       "send": "Envoyer",
       "send_failed": "Échec de l'envoi du message",
       "slash_commands": {

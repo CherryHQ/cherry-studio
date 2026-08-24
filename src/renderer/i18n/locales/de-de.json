@@ -1092,6 +1092,10 @@
         "title": "Ressourcen"
       },
       "restore": "Wiederherstellen",
+      "selection_reference": {
+        "page": "S. {{page}}",
+        "slide": "Folie {{slide}}"
+      },
       "send": "Senden",
       "send_failed": "Nachricht konnte nicht gesendet werden",
       "slash_commands": {

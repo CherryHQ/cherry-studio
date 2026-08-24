@@ -1092,6 +1092,10 @@
         "title": "资源与会话"
       },
       "restore": "还原",
+      "selection_reference": {
+        "page": "第 {{page}} 页",
+        "slide": "第 {{slide}} 张幻灯片"
+      },
       "send": "发送",
       "send_failed": "消息发送失败",
       "slash_commands": {

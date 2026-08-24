@@ -1092,6 +1092,10 @@
         "title": "Tài nguyên"
       },
       "restore": "Khôi phục",
+      "selection_reference": {
+        "page": "tr. {{page}}",
+        "slide": "trang chiếu {{slide}}"
+      },
       "send": "Gửi",
       "send_failed": "Không gửi được tin nhắn",
       "slash_commands": {

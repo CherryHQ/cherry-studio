@@ -93,6 +93,17 @@ describe('axisIndexAt', () => {
     expect(axisIndexAt(layout, 10_000)).toBe(2)
   })
 
+  it('skips hidden leading items at the origin too, not just mid-layout', () => {
+    // Hidden first tracks all sit at offset 0, so px 0 and px 0+ε must agree — a short-circuit at the
+    // origin would hand back the hidden track that the rest of this function is careful to skip.
+    const leadingHidden = buildAxisLayout(3, 20, { 1: 0 }, 1)
+    expect(axisIndexAt(leadingHidden, 0)).toBe(1)
+    expect(axisIndexAt(leadingHidden, -50)).toBe(1)
+
+    const twoLeadingHidden = buildAxisLayout(4, 20, { 1: 0, 2: 0 }, 1)
+    expect(axisIndexAt(twoLeadingHidden, 0)).toBe(2)
+  })
+
   it('never lands on a hidden (zero-size) item, which occupies no pixels', () => {
     const withHidden = buildAxisLayout(4, 20, { 2: 0 }, 1)
     // Item 1 (0-based) is hidden, so items 1 and 2 share offset 20 and the pixel belongs to the visible one.
