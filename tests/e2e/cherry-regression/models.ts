@@ -21,9 +21,10 @@ async function addModel(page: Page, model: string): Promise<void> {
   )
     return
   await page.getByRole('button', { name: 'Add Model', exact: true }).click()
-  const modelId = page.getByRole('textbox', { name: 'Model ID', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Add Model' })
+  const modelId = dialog.getByRole('textbox', { name: 'Model ID', exact: true })
   await modelId.fill(model)
-  await modelId.press('Enter')
+  await dialog.getByRole('button', { name: 'Add Model', exact: true }).click()
   await expect(page.getByText(model, { exact: true })).toBeVisible()
 }
 
