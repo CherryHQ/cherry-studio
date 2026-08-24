@@ -35,8 +35,10 @@ export type JobScheduleRunState =
   | { kind: 'unfinished' }
   | { kind: 'terminal'; status: TerminalJobStatus; finishedAt: number }
 
-type JobScheduleIdRow = {
+type ActiveJobScheduleRow = {
   scheduleId: string
+  /** SQLite `EXISTS` yields 0 | 1. */
+  running: number
 }
 
 type TerminalJobScheduleRunStateRow = {
@@ -162,30 +164,30 @@ export class JobService {
     if (uniqueScheduleIds.length === 0) return new Map()
 
     const db = this.getDb()
-    const scheduleIdParams = () =>
-      sql.join(
+    const requestedSchedules = () =>
+      sql`WITH requested_schedules(schedule_id) AS (VALUES ${sql.join(
         uniqueScheduleIds.map((scheduleId) => sql`(${scheduleId})`),
         sql`, `
-      )
+      )})`
+    const terminalStatuses = sql.join(
+      TERMINAL_JOB_STATUSES.map((status) => sql`${status}`),
+      sql`, `
+    )
 
-    // Global running concurrency is fixed at 50, so this status-index scan is
-    // bounded independently of pending schedule backlog.
-    const runningRows = db.all<JobScheduleIdRow>(sql`
-      SELECT schedule_id AS "scheduleId"
-      FROM job INDEXED BY job_status_idx
-      WHERE status = 'running'
-        AND type = ${type}
-        AND schedule_id IN (${sql.join(
-          uniqueScheduleIds.map((scheduleId) => sql`${scheduleId}`),
-          sql`, `
-        )})
-    `)
-
-    // Active rows have finished_at=NULL; the existing composite index makes
-    // each EXISTS a single seek even with an unbounded pending backlog.
-    const unfinishedRows = db.all<JobScheduleIdRow>(sql`
-      WITH requested_schedules(schedule_id) AS (VALUES ${scheduleIdParams()})
-      SELECT requested.schedule_id AS "scheduleId"
+    // Active rows have finished_at=NULL; the composite index makes each EXISTS
+    // a single seek even with an unbounded pending backlog.
+    const activeRows = db.all<ActiveJobScheduleRow>(sql`
+      ${requestedSchedules()}
+      SELECT
+        requested.schedule_id AS "scheduleId",
+        EXISTS (
+          SELECT 1
+          FROM job INDEXED BY job_schedule_id_finished_at_idx
+          WHERE job.schedule_id = requested.schedule_id
+            AND job.finished_at IS NULL
+            AND job.type = ${type}
+            AND job.status = 'running'
+        ) AS "running"
       FROM requested_schedules AS requested
       WHERE EXISTS (
         SELECT 1
@@ -193,12 +195,11 @@ export class JobService {
         WHERE job.schedule_id = requested.schedule_id
           AND job.finished_at IS NULL
           AND job.type = ${type}
-        LIMIT 1
       )
     `)
 
     const terminalRows = db.all<TerminalJobScheduleRunStateRow>(sql`
-      WITH requested_schedules(schedule_id) AS (VALUES ${scheduleIdParams()})
+      ${requestedSchedules()}
       SELECT
         requested.schedule_id AS "scheduleId",
         terminal.status,
@@ -209,21 +210,20 @@ export class JobService {
         FROM job AS candidate INDEXED BY job_schedule_id_finished_at_idx
         WHERE candidate.schedule_id = requested.schedule_id
           AND candidate.finished_at IS NOT NULL
-          AND candidate.status IN ('completed', 'failed', 'cancelled')
+          AND candidate.status IN (${terminalStatuses})
           AND candidate.type = ${type}
         ORDER BY candidate.finished_at DESC
         LIMIT 1
       )
     `)
 
-    const runningScheduleIds = new Set(runningRows.map((row) => row.scheduleId))
-    const unfinishedScheduleIds = new Set(unfinishedRows.map((row) => row.scheduleId))
+    const runningByScheduleId = new Map(activeRows.map((row) => [row.scheduleId, row.running === 1]))
     const terminalByScheduleId = new Map(terminalRows.map((row) => [row.scheduleId, row]))
 
     return new Map(
       uniqueScheduleIds.flatMap((scheduleId): Array<[string, JobScheduleRunState]> => {
-        if (runningScheduleIds.has(scheduleId)) return [[scheduleId, { kind: 'running' }]]
-        if (unfinishedScheduleIds.has(scheduleId)) return [[scheduleId, { kind: 'unfinished' }]]
+        const running = runningByScheduleId.get(scheduleId)
+        if (running !== undefined) return [[scheduleId, { kind: running ? 'running' : 'unfinished' }]]
 
         const terminal = terminalByScheduleId.get(scheduleId)
         if (!terminal || !isTerminalJobStatus(terminal.status)) return []
