@@ -132,14 +132,10 @@ const DEFAULT_IDLE_TTL_MS = 30_000
  * (`apiModelId === modelId`) first, then the untagged row (the paid tier next to a `free` sibling).
  * A tagged row never claims the slot, so the winner never depends on file order.
  */
-const canonicalRank = (row?: ProviderModelOverride): number =>
-  row === undefined
-    ? -1
-    : row.apiModelId === undefined || row.apiModelId === row.modelId
-      ? 2
-      : row.modelVariants?.length
-        ? 0
-        : 1
+const canonicalRank = (row?: ProviderModelOverride): number => {
+  if (!row || row.modelVariants?.length) return -1
+  return row.apiModelId === undefined || row.apiModelId === row.modelId ? 2 : 1
+}
 
 /**
  * Cached registry data with pre-computed indexes and idle auto-expiry.

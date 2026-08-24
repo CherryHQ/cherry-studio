@@ -100,6 +100,14 @@ describe('RegistryLoader override index — free tier alongside its paid row', (
     const loader = newLoader([paid, free])
     expect(loader.findOverride('cherryin', 'deepseek/deepseek-v3.2(free)')?.pricing?.input?.perMillionTokens).toBe(0)
   })
+
+  it('does not let a sole free tier claim canonical or paid-alias lookups', () => {
+    const loader = newLoader([free])
+
+    expect(loader.findOverride('cherryin', 'deepseek-v3-2')).toBeNull()
+    expect(loader.findOverride('cherryin', 'agent/deepseek-v3.2')).toBeNull()
+    expect(loader.findOverride('cherryin', 'deepseek/deepseek-v3.2(free)')).toEqual(free)
+  })
 })
 
 describe('RegistryLoader override index — exact apiModelId vs normalized collision', () => {

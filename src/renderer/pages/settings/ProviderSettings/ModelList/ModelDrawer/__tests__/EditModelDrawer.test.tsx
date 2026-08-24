@@ -114,6 +114,8 @@ vi.mock('../../../primitives/ProviderSettingsDrawer', () => ({
 }))
 
 interface PricingModelOptions {
+  inputPrice?: number | null
+  outputPrice?: number | null
   cacheReadPrice?: number
   cacheWritePrice?: number | null
   includeHiddenRates?: boolean
@@ -121,6 +123,8 @@ interface PricingModelOptions {
 }
 
 function makePricingModel({
+  inputPrice = 3,
+  outputPrice = 15,
   cacheReadPrice,
   cacheWritePrice = 3.75,
   includeHiddenRates = false,
@@ -134,8 +138,8 @@ function makePricingModel({
     capabilities: [],
     supportsStreaming: true,
     pricing: {
-      input: { perMillionTokens: 3, currency: CURRENCY.USD },
-      output: { perMillionTokens: 15, currency: CURRENCY.USD },
+      input: { perMillionTokens: inputPrice, currency: CURRENCY.USD },
+      output: { perMillionTokens: outputPrice, currency: CURRENCY.USD },
       ...(cacheReadPrice !== undefined
         ? { cacheRead: { perMillionTokens: cacheReadPrice, currency: CURRENCY.USD } }
         : {}),
@@ -318,6 +322,20 @@ describe('EditModelDrawer pricing', () => {
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
 
     expect(screen.getByLabelText('models.price.input')).toHaveValue('')
+    expect(screen.getByLabelText('models.price.output')).toHaveValue('')
+  })
+
+  it('renders an explicitly free rate as 0 while an unknown rate stays blank', () => {
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={makePricingModel({ inputPrice: 0, outputPrice: null })}
+      />
+    )
+
+    expect(screen.getByLabelText('models.price.input')).toHaveValue('0')
     expect(screen.getByLabelText('models.price.output')).toHaveValue('')
   })
 
