@@ -38,6 +38,8 @@ export const EmojiAvatarPicker: FC<{
   uploading?: boolean
   uploadLabel?: string
   emojiLabel?: string
+  avatarClassName?: string
+  avatarFontSize?: number
 }> = ({
   value,
   open,
@@ -52,11 +54,13 @@ export const EmojiAvatarPicker: FC<{
   onImageSelect,
   uploading = false,
   uploadLabel = 'Upload image',
-  emojiLabel = 'Choose emoji'
+  emojiLabel = 'Choose emoji',
+  avatarClassName,
+  avatarFontSize
 }) => {
   // 'md' matches the h-8 Input the avatar sits beside in the edit dialogs.
   const avatarSize = size === 'sm' ? 36 : 32
-  const fontSize = size === 'sm' ? 18 : 16
+  const fontSize = avatarFontSize ?? (size === 'sm' ? 18 : 16)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [view, setView] = useState<'menu' | 'emoji'>('menu')
   const stagedImageSrc = useMemo(() => imageDataUrl(imageData), [imageData])
@@ -82,12 +86,15 @@ export const EmojiAvatarPicker: FC<{
           {/* Match the adjacent Input's rounded-lg + hairline border. */}
           {displayedImageSrc ? (
             <Avatar
-              className={cn('rounded-lg border border-border', size === 'sm' ? 'size-9' : 'size-8')}
+              className={cn('rounded-lg border border-border', size === 'sm' ? 'size-9' : 'size-8', avatarClassName)}
               style={{ width: avatarSize, height: avatarSize }}>
               <AvatarImage src={displayedImageSrc} className="object-cover" />
             </Avatar>
           ) : (
-            <EmojiAvatar size={avatarSize} fontSize={fontSize} className="rounded-lg border border-border">
+            <EmojiAvatar
+              size={avatarSize}
+              fontSize={fontSize}
+              className={cn('rounded-lg border border-border', avatarClassName)}>
               {value}
             </EmojiAvatar>
           )}
