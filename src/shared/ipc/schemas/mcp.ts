@@ -1,6 +1,6 @@
 import { ProtocolMcpInstallRequestSchema } from '@shared/data/types/mcpProtocolInstall'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
-import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
+import { MAX_MCP_PACKAGE_BYTES, type McpProgressEvent, type McpServerLogEntry } from '@shared/types/mcp'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -22,7 +22,13 @@ import { defineRoute } from '../define'
  */
 const serverId = z.object({ serverId: z.string() })
 const serverIdNonEmpty = z.object({ serverId: z.string().min(1) })
-const uploadInput = z.object({ buffer: z.instanceof(ArrayBuffer), fileName: z.string() })
+const packageBuffer = z
+  .instanceof(ArrayBuffer)
+  .refine(
+    (buffer) => buffer.byteLength > 0 && buffer.byteLength <= MAX_MCP_PACKAGE_BYTES,
+    `MCP package must be between 1 byte and ${MAX_MCP_PACKAGE_BYTES} bytes`
+  )
+const uploadInput = z.object({ buffer: packageBuffer, fileName: z.string() })
 const protocolInstallRequestId = z.object({ requestId: z.uuid() })
 
 export const mcpRequestSchemas = {

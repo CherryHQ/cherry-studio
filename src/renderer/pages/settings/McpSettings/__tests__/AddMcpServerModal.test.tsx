@@ -1,15 +1,17 @@
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { MAX_MCP_PACKAGE_BYTES } from '@shared/types/mcp'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import type { ComponentProps, ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AddMcpServerModal from '../AddMcpServerModal'
 
 const mocks = vi.hoisted(() => ({
   checkConnectivity: vi.fn().mockResolvedValue(false),
-  patch: vi.fn().mockResolvedValue(undefined)
+  patch: vi.fn().mockResolvedValue(undefined),
+  toastError: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -19,6 +21,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     ...actual,
     CodeEditor: ({ value, onChange }: ComponentProps<'textarea'> & { onChange: (value: string) => void }) => (
       <textarea aria-label="server config" value={value} onChange={(event) => onChange(event.target.value)} />
+    ),
+    Dropzone: ({ children, onDrop }: { children: ReactNode; onDrop: (files: File[]) => void }) => (
+      <label>
+        {children}
+        <input
+          aria-label="package upload"
+          type="file"
+          onChange={(event) => onDrop(Array.from(event.target.files ?? []))}
+        />
+      </label>
     )
   }
 })
@@ -49,7 +61,7 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/services/toast', () => ({
   toast: {
-    error: vi.fn()
+    error: mocks.toastError
   }
 }))
 
@@ -67,6 +79,10 @@ const toCreatedServers = (dtos: CreateMcpServerDto[]): McpServer[] =>
   }))
 
 describe('AddMcpServerModal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('imports every server from a multi-server JSON config', async () => {
     const onSuccess = vi.fn(async (dtos: CreateMcpServerDto[]) => toCreatedServers(dtos))
     const onClose = vi.fn()
@@ -117,5 +133,33 @@ describe('AddMcpServerModal', () => {
     ])
     expect(onClose).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(mocks.checkConnectivity).toHaveBeenCalledTimes(2))
+  })
+
+  it('rejects an oversized MCP package before reading or sending its bytes', async () => {
+    const onSuccess = vi.fn(async (dtos: CreateMcpServerDto[]) => toCreatedServers(dtos))
+    const packageFile = new File(['x'], 'oversized.dxt', { type: 'application/octet-stream' })
+    const arrayBuffer = vi.fn()
+    Object.defineProperties(packageFile, {
+      size: { value: MAX_MCP_PACKAGE_BYTES + 1 },
+      arrayBuffer: { value: arrayBuffer }
+    })
+
+    render(
+      <AddMcpServerModal
+        visible
+        onClose={vi.fn()}
+        onSuccess={onSuccess}
+        existingServers={[]}
+        initialImportMethod="dxt"
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('package upload'), { target: { files: [packageFile] } })
+    await userEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    expect(mocks.toastError).toHaveBeenCalledWith('message.error.dimension_too_large')
+    expect(arrayBuffer).not.toHaveBeenCalled()
+    expect(mocks.checkConnectivity).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
   })
 })

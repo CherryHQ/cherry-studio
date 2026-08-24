@@ -29,6 +29,7 @@ import { parseJSON } from '@renderer/utils/json'
 import { objectKeys } from '@renderer/utils/object'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { MAX_MCP_PACKAGE_BYTES } from '@shared/types/mcp'
 import { ImportIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -173,6 +174,12 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                 : 'settings.mcp.addServer.importFrom.noDxtFile'
             )
           )
+          setLoading(false)
+          return
+        }
+
+        if (packageFile.size === 0 || packageFile.size > MAX_MCP_PACKAGE_BYTES) {
+          toast.error(t('message.error.dimension_too_large'))
           setLoading(false)
           return
         }
