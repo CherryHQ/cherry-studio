@@ -7,7 +7,7 @@
  */
 
 import { loggerService } from '@logger'
-import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { toast } from '@renderer/services/toast'
@@ -72,10 +72,12 @@ export const useAgent = (id: string | null) => {
  */
 export const useAgents = (options: { enabled?: boolean } = {}) => {
   const { t } = useTranslation()
+  const enabled = options.enabled ?? true
   const { data, isLoading, error, refetch } = useQuery('/agents', {
-    enabled: options.enabled ?? true,
+    enabled,
     query: { limit: AGENTS_MAX_LIMIT }
   })
+  useDataChange(enabled ? '/agents' : [], () => void refetch())
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const invalidate = useInvalidateCache()
 

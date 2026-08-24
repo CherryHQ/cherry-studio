@@ -51,11 +51,23 @@ describe('DSH runtime packaging', () => {
     ).toThrow('Missing configured DSH runtime entry @deepseek-ai/dsh-missing-entry')
   })
 
-  it('does not encode the DSH dependency closure in static asar rules', () => {
+  it('unpacks runtime bundles and native DSH sidecars without unpacking the dependency closure', () => {
     const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
       asarUnpack: string[]
     }
-    expect(config.asarUnpack.filter((pattern) => pattern.includes('node_modules/@deepseek-ai/dsh-'))).toEqual([])
+    expect(config.asarUnpack).toEqual(
+      expect.arrayContaining([
+        'node_modules/@cherrystudio/dsh-bridge/dist/runtime/**',
+        'node_modules/sharp/**',
+        'node_modules/node-pty/**',
+        'node_modules/koffi/**',
+        'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**',
+        'node_modules/@deepseek-ai/node-addon-landlock-run*/**'
+      ])
+    )
+    expect(config.asarUnpack.filter((pattern) => pattern.includes('node_modules/@deepseek-ai/dsh-'))).toEqual([
+      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**'
+    ])
   })
 
   it('keeps filesystem-backed sandbox packages external', () => {
