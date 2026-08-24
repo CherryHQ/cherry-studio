@@ -12,6 +12,7 @@ import {
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
+  getPartResumeMarker,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
@@ -364,10 +365,28 @@ export function buildAgentToolFlowProjection(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
 
+    // Content is split into rounds two ways: runtime-tagged parts (`cherry.resumedViaCallId`,
+    // authoritative and restart-safe — the host row usually predates the receipt row, so position
+    // alone cannot order them), or — for untagged history — the receipt's own walk position.
+    const receiptPrompts = new Map<string, string>()
+    if (launchedAgentId) {
+      for (const { parts } of messageEntries) {
+        for (const part of parts) {
+          const toolCallId = getToolCallId(part)
+          if (!toolCallId || receiptPrompts.has(toolCallId)) continue
+          if (!isToolUIPart(part) || getToolNameFromPart(part) !== AgentToolsType.SendMessage) continue
+          if (!isResumeReceiptFor(part, launchedAgentId)) continue
+          const prompt = getResumeReceiptPromptText(part)
+          if (prompt) receiptPrompts.set(toolCallId, prompt)
+        }
+      }
+    }
+
     const segments: Array<{ parts: CherryMessagePart[] }> = [{ parts: [] }]
     let segmentIndex = 0
     let emittedSegments = 0
     let resumeCount = 0
+    const consumedMarkers = new Set<string>()
     const emitSegment = (index: number) => {
       const segment = segments[index]
       if (segment.parts.length === 0 && !isFlowActive) return
@@ -388,24 +407,38 @@ export function buildAgentToolFlowProjection(
       for (const part of parts) {
         const toolCallId = getToolCallId(part)
 
-        // A resume receipt is not itself part of the flow, but it marks where a new round starts —
-        // splitting happens on the receipt match even when its prompt text is absent.
-        if (launchedAgentId && isToolUIPart(part) && isResumeReceiptFor(part, launchedAgentId)) {
+        // Runtime-tagged round boundary: the first marked part opens the new round. The matching
+        // receipt's prompt text (pre-scanned by call id) backfills the user message; when that
+        // receipt is walked later it must not split a second time.
+        const marker = launchedAgentId ? getPartResumeMarker(part) : undefined
+
+        // A resume receipt is not itself part of the flow, but for untagged content it marks where
+        // a new round starts. Skip if its call id was already consumed by a runtime marker.
+        const isResumeReceipt =
+          launchedAgentId &&
+          isToolUIPart(part) &&
+          isResumeReceiptFor(part, launchedAgentId) &&
+          !(toolCallId && consumedMarkers.has(toolCallId))
+
+        if ((marker !== undefined && !consumedMarkers.has(marker)) || isResumeReceipt) {
           for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
           resumeCount += 1
+          if (marker) consumedMarkers.add(marker)
           segmentIndex += 1
           segments.push({ parts: [] })
+          const promptText = marker !== undefined ? receiptPrompts.get(marker) : getResumeReceiptPromptText(part)
           const resumeMessage = createFlowTextMessage(
             `${selectedToolCallId}:agent-flow-resume-${resumeCount}`,
             'user',
-            getResumeReceiptPromptText(part),
+            promptText,
             selectedCreatedAt
           )
           if (resumeMessage) {
             flowMessages.push(resumeMessage)
             flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts as CherryMessagePart[]
           }
-          continue
+          if (isResumeReceipt) continue
+          // A tagged part belongs to the new round — fall through to descendant inclusion.
         }
 
         if (toolCallId) {

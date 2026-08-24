@@ -176,6 +176,55 @@ describe('agent right pane projections', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // Production ordering: the host row (holding both rounds) predates the receipt row, so position
+  // alone puts the resume prompt AFTER all content. Runtime-tagged parts must win.
+  it('splits rounds by runtime markers even when the receipt row comes last', () => {
+    const marker = { 'claude-code': { parentToolCallId: 'call_launch' }, cherry: { resumedViaCallId: 'call_send' } }
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the review' },
+        'reviewing... agentId: af5051807ed7aaa30 (use SendMessage to continue)'
+      ),
+      textPart('First round findings', 'call_launch'),
+      {
+        type: 'text',
+        text: 'Second round findings',
+        providerMetadata: marker
+      } as unknown as CherryMessagePart,
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please finalize' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      )
+    ]
+    const messages = [message('m1', parts), message('m2', [parts[3]])]
+
+    // Simulate real walk order: m1 first (all content), then m2 (receipt).
+    const projection = buildAgentToolFlowProjection(
+      messages,
+      { m1: [parts[0], parts[1], parts[2]], m2: [parts[3]] },
+      'call_launch'
+    )
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings'])
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Please finalize'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+  })
+
   // Oversized receipts arrive as deferred envelopes; the resolved output must still carry the
   // agent id so the continuation splits the timeline.
   it('splits resume rounds for a deferred launch receipt via the resolved output', () => {

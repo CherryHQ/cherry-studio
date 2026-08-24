@@ -35,6 +35,16 @@ export function getPartParentToolCallId(part: CherryMessagePart): string | undef
   return typeof parentToolCallId === 'string' && parentToolCallId ? parentToolCallId : undefined
 }
 
+/** The SendMessage call id that resumed this part's round, when the runtime tagged it. */
+export function getPartResumeMarker(part: CherryMessagePart): string | undefined {
+  for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata']) {
+    const metadata = getMetadataRecord(part, field)
+    const entry = metadata?.cherry
+    if (isRecord(entry) && typeof entry.resumedViaCallId === 'string') return entry.resumedViaCallId
+  }
+  return undefined
+}
+
 export function hasPartParentToolCallId(part: CherryMessagePart): boolean {
   return !!getPartParentToolCallId(part)
 }
