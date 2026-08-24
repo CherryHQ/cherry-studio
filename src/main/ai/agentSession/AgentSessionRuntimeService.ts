@@ -120,6 +120,12 @@ function knowledgeScopeEquals(left: readonly string[], right: readonly string[])
   return left.every((id) => rightIds.has(id))
 }
 
+function snapshotNotifyChannels(
+  channels: readonly Pick<AgentChannelEntity, 'id' | 'type'>[] | undefined
+): readonly Pick<AgentChannelEntity, 'id' | 'type'>[] | undefined {
+  return channels?.map(({ id, type }) => ({ id, type }))
+}
+
 function notifyChannelsEqual(
   left: readonly Pick<AgentChannelEntity, 'id' | 'type'>[] | undefined,
   right: readonly Pick<AgentChannelEntity, 'id' | 'type'>[] | undefined
@@ -497,7 +503,9 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless: input.headless === true,
-      ...(input.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: input.trustedNotifyChannels } : {})
+      ...(input.trustedNotifyChannels !== undefined
+        ? { trustedNotifyChannels: snapshotNotifyChannels(input.trustedNotifyChannels) }
+        : {})
     }
 
     if (existing && this.runtimeStatus(existing) === 'idle') {
@@ -833,7 +841,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Message attributes ride the payloads themselves: a redirect carries them through the driver
     // round-trip (steer-boundary/steer-undelivered), a queued follow-up carries them on its queue item.
     const headless = opts.headless === true
-    const trustedNotifyChannels = opts.trustedNotifyChannels
+    const trustedNotifyChannels = snapshotNotifyChannels(opts.trustedNotifyChannels)
     const messageSnapshot = opts.messageSnapshot ? structuredClone(opts.messageSnapshot) : undefined
     const reasoningEffort = opts.reasoningEffort ?? 'default'
     const serviceTier = opts.serviceTier ?? 'standard'
@@ -1093,6 +1101,18 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)
+  }
+
+  /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
+  getCurrentTurnNotificationTargetContext(
+    sessionId: string
+  ): readonly Pick<AgentChannelEntity, 'id' | 'type'>[] | undefined {
+    const entry = this.entries.get(sessionId)
+    if (!entry || entry.runtimeState.execution.kind === 'idle') return undefined
+    const turn =
+      this.currentTurn(entry) ??
+      (entry.runtimeState.execution.kind === 'autonomous-turn' ? entry.runtimeState.execution.contextTurn : undefined)
+    return snapshotNotifyChannels(turn?.trustedNotifyChannels)
   }
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
@@ -1568,7 +1588,6 @@ export class AgentSessionRuntimeService extends BaseService {
       serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
-      trustedNotifyChannels: target.trustedNotifyChannels,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)

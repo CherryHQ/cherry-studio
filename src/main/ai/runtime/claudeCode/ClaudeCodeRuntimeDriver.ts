@@ -373,8 +373,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds,
-      this.input.trustedNotifyChannels
+      this.input.knowledgeBaseIds
     ).catch((error) => {
       if (error instanceof ApiGatewayNotRunningError) {
         application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
@@ -505,7 +504,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
-    trustedNotifyChannels?: AgentRuntimeConnectInput['trustedNotifyChannels']
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
@@ -523,7 +521,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
-    trustedNotifyChannels?: AgentRuntimeConnectInput['trustedNotifyChannels']
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
     const derived = await deriveConnectionConfig(
@@ -531,8 +528,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.modelId,
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
-      input.knowledgeBaseIds,
-      input.trustedNotifyChannels
+      input.knowledgeBaseIds
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig

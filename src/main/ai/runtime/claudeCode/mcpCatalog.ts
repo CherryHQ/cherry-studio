@@ -11,8 +11,7 @@ import { loggerService } from '@logger'
 import {
   buildAgentMcpServers,
   type LinkedChannelSnapshot,
-  type McpServerSnapshotMap,
-  type TrustedNotifyChannelSnapshot
+  type McpServerSnapshotMap
 } from '@main/ai/runtime/agentMcpServers'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -31,8 +30,7 @@ export function buildMcpServers(
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
-  selectedKnowledgeBaseIds: readonly string[] = [],
-  trustedNotifyChannels?: TrustedNotifyChannelSnapshot
+  selectedKnowledgeBaseIds: readonly string[] = []
 ): Record<string, McpServerConfig> | undefined {
   const servers = buildAgentMcpServers(
     session,
@@ -41,8 +39,7 @@ export function buildMcpServers(
     mcpServerSnapshots,
     linkedChannelSnapshot,
     agentDataPath,
-    selectedKnowledgeBaseIds,
-    trustedNotifyChannels
+    selectedKnowledgeBaseIds
   )
   return Object.fromEntries(
     Object.entries(servers).map(([id, server]) => [id, { type: 'sdk', ...server } satisfies McpServerConfig])

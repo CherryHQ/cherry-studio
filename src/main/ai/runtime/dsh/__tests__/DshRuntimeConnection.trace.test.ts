@@ -87,12 +87,7 @@ vi.mock('node:fs/promises', () => ({
 }))
 vi.mock('../dshConnectionSignature', () => ({
   DshInvalidConnectionSnapshotError: class extends Error {},
-  captureDshConnectionSnapshot: vi.fn((_, __, ___, ____, trustedNotifyChannels) =>
-    Promise.resolve({
-      ...runtimeMocks.snapshot,
-      signature: `${runtimeMocks.snapshot.signature}:${JSON.stringify(trustedNotifyChannels)}`
-    })
-  )
+  captureDshConnectionSnapshot: vi.fn(() => Promise.resolve(runtimeMocks.snapshot))
 }))
 vi.mock('../modelInjection', () => ({
   resolveDshProviderInjectionFromSnapshot: vi.fn(() => ({
@@ -215,22 +210,6 @@ describe('DshRuntimeConnection tracing', () => {
     await expect(connection.reconcile({ modelId: 'deepseek::deepseek-chat', reasoningEffort: 'high' })).resolves.toBe(
       'rebuild'
     )
-
-    await connection.close()
-  })
-
-  it('rebuilds when a warm connection receives a turn with a different notification target set', async () => {
-    const connection = await new DshRuntimeConnection({
-      ...connectInput,
-      trustedNotifyChannels: [{ id: 'channel-1', type: 'telegram' }]
-    }).start()
-
-    await expect(
-      connection.reconcile({
-        modelId: 'deepseek::deepseek-chat',
-        trustedNotifyChannels: [{ id: 'channel-2', type: 'feishu' }]
-      })
-    ).resolves.toBe('rebuild')
 
     await connection.close()
   })

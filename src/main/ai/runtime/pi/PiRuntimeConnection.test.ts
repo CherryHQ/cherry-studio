@@ -295,13 +295,7 @@ beforeEach(() => {
   mocks.provisionBuiltinAgent.mockResolvedValue(undefined)
   mocks.replacePromptVariables.mockImplementation(async (prompt: string) => prompt)
   mocks.captureConnectionSnapshot.mockImplementation(
-    async (
-      _sessionId: string,
-      _agentId: string,
-      modelId: string,
-      knowledgeBaseIds?: readonly string[],
-      trustedNotifyChannels?: readonly { id: string; type: string }[]
-    ) => {
+    async (_sessionId: string, _agentId: string, modelId: string, knowledgeBaseIds?: readonly string[]) => {
       const agent = mocks.getAgent()
       const session = mocks.getById()
       const skills = await mocks.skillList({ agentId: agent.id })
@@ -325,8 +319,7 @@ beforeEach(() => {
             configuration: { ...agent.configuration, permission_mode: undefined }
           },
           modelId,
-          knowledgeBaseIds: [...(knowledgeBaseIds ?? [])],
-          trustedNotifyChannels
+          knowledgeBaseIds: [...(knowledgeBaseIds ?? [])]
         })
       }
     }
@@ -1399,20 +1392,10 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
-        ['kb-1'],
-        undefined
+        ['kb-1']
       )
       await expect(conn.reconcile({ modelId: 'p::m', knowledgeBaseIds: ['kb-1'] })).resolves.toBe('current')
       await expect(conn.reconcile({ modelId: 'p::m', knowledgeBaseIds: ['kb-2'] })).resolves.toBe('rebuild')
-    })
-
-    it('rebuilds when a warm connection receives a turn with a different notification target set', async () => {
-      const taskInput = { ...input, trustedNotifyChannels: [{ id: 'channel-1', type: 'telegram' as const }] }
-      const conn = await new PiRuntimeConnection(taskInput).start()
-
-      await expect(
-        conn.reconcile({ modelId: 'p::m', trustedNotifyChannels: [{ id: 'channel-2', type: 'feishu' }] })
-      ).resolves.toBe('rebuild')
     })
 
     it('preserves an exact camelCase MCP disabled id in startup excludeTools and the live gate', async () => {
@@ -1508,7 +1491,6 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
-        undefined,
         undefined
       )
       expect(mocks.createOpts?.customTools).toEqual([
@@ -1580,7 +1562,6 @@ describe('PiRuntimeConnection', () => {
         expect.any(Map),
         { id: 'chan-1', type: 'telegram' },
         AGENT_DATA_PATH,
-        undefined,
         undefined
       )
     })

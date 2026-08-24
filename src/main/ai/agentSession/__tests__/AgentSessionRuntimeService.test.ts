@@ -807,11 +807,16 @@ describe('AgentSessionRuntimeService', () => {
 
     it('does not carry a task’s notification recipients into a queued ordinary follow-up', async () => {
       const service = new AgentSessionRuntimeService()
+      const recipients = [{ id: 'channel-task', type: 'telegram' as const }]
       service.beginTurn({
         ...baseTurnInput,
         headless: true,
-        trustedNotifyChannels: [{ id: 'channel-task', type: 'telegram' }]
+        trustedNotifyChannels: recipients
       })
+      recipients[0].id = 'mutated-after-submit'
+      expect(service.getCurrentTurnNotificationTargetContext('session-1')).toEqual([
+        { id: 'channel-task', type: 'telegram' }
+      ])
 
       service.enqueueUserMessage('session-1', userMessage('user-2'))
       expect(getEntry(service).pendingTurns[0].trustedNotifyChannels).toBeUndefined()
@@ -822,6 +827,7 @@ describe('AgentSessionRuntimeService', () => {
       const entry = getEntry(service)
       expect(entry.currentTurn.userMessage.id).toBe('user-2')
       expect(entry.currentTurn.trustedNotifyChannels).toBeUndefined()
+      expect(service.getCurrentTurnNotificationTargetContext('session-1')).toBeUndefined()
       expect((service as any).connectionTarget(entry).trustedNotifyChannels).toBeUndefined()
     })
 

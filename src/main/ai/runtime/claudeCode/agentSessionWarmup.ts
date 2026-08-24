@@ -13,7 +13,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
-import type { TrustedNotifyChannelSnapshot } from '@main/ai/runtime/agentMcpServers'
+import { type AgentNotificationContext, resolveAgentNotificationContext } from '@main/ai/runtime/agentMcpServers'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
@@ -121,9 +121,7 @@ interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
   mcp: unknown[]
   skills: string[]
-  linkedChannelId: string | null
-  trustedNotifyChannelIds: string[]
-  allowAnyOwnedNotifyChannel: boolean
+  notificationContext: AgentNotificationContext
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
@@ -290,8 +288,7 @@ export async function deriveConnectionConfig(
   connectionModelId?: UniqueModelId,
   reasoningEffort: ReasoningEffortOption = 'default',
   fastMode = false,
-  selectedKnowledgeBaseIds: readonly string[] = [],
-  trustedNotifyChannels?: TrustedNotifyChannelSnapshot
+  selectedKnowledgeBaseIds: readonly string[] = []
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
@@ -309,8 +306,7 @@ export async function deriveConnectionConfig(
         reasoningEffort,
         fastMode,
         selectedKnowledgeBaseIds,
-        undefined,
-        trustedNotifyChannels
+        undefined
       )
     }
   } catch (error) {
@@ -348,8 +344,7 @@ async function deriveConnectionConfigFromSnapshot(
   reasoningEffort: ReasoningEffortOption,
   fastMode: boolean,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  materialized?: ConnectionMaterializationFacts,
-  trustedNotifyChannels?: TrustedNotifyChannelSnapshot
+  materialized?: ConnectionMaterializationFacts
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
@@ -374,18 +369,7 @@ async function deriveConnectionConfigFromSnapshot(
     )
   }
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
-  const linkedChannel = materialized ? undefined : agentChannelService.findBySessionId(session.id)
-  const linkedChannelId = materialized
-    ? materialized.linkedChannelId
-    : linkedChannel?.agentId === agent.id
-      ? linkedChannel.id
-      : null
-  const effectiveTrustedNotifyChannelIds = materialized
-    ? materialized.trustedNotifyChannelIds
-    : (trustedNotifyChannels ?? (linkedChannelId ? [{ id: linkedChannelId }] : [])).map((channel) => channel.id).sort()
-  const allowAnyOwnedNotifyChannel = materialized
-    ? materialized.allowAnyOwnedNotifyChannel
-    : trustedNotifyChannels === undefined && linkedChannelId !== null
+  const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
@@ -412,9 +396,7 @@ async function deriveConnectionConfigFromSnapshot(
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
-    linkedChannelId,
-    trustedNotifyChannelIds: effectiveTrustedNotifyChannelIds,
-    allowAnyOwnedNotifyChannel
+    notificationContext
   }
   const rebuildFactFingerprints = Object.fromEntries(
     Object.entries(rebuildFacts).map(([name, value]) => [
@@ -477,9 +459,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = [],
-  /** Recipients authorized for this connection's exact turn. */
-  trustedNotifyChannels?: TrustedNotifyChannelSnapshot
+  selectedKnowledgeBaseIds: readonly string[] = []
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -487,7 +467,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
   const linkedChannel = agentChannelService.findBySessionId(session.id)
-  const linkedChannelSnapshot = linkedChannel?.agentId === agent.id ? linkedChannel : null
+  const linkedChannelSnapshot =
+    linkedChannel?.agentId === agent.id ? { id: linkedChannel.id, type: linkedChannel.type } : null
+  const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
   const uniqueModelId = connectionModelId ?? agent.model
@@ -539,7 +521,6 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
-        trustedNotifyChannels,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code'
@@ -563,18 +544,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
-      linkedChannelId: linkedChannelSnapshot?.id ?? null,
-      trustedNotifyChannelIds: (trustedNotifyChannels ?? (linkedChannelSnapshot ? [linkedChannelSnapshot] : []))
-        .map((channel) => channel.id)
-        .sort(),
-      allowAnyOwnedNotifyChannel: trustedNotifyChannels === undefined && linkedChannelSnapshot !== null,
+      notificationContext,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       })
-    },
-    trustedNotifyChannels
+    }
   )
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({

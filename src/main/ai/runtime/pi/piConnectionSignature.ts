@@ -7,7 +7,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { McpServerSnapshotMap, TrustedNotifyChannelSnapshot } from '@main/ai/runtime/agentMcpServers'
+import { type McpServerSnapshotMap, resolveAgentNotificationContext } from '@main/ai/runtime/agentMcpServers'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
@@ -50,8 +50,7 @@ export async function capturePiConnectionSnapshot(
   sessionId: string,
   agentId: string,
   requestedModelId?: UniqueModelId,
-  selectedKnowledgeBaseIds?: readonly string[],
-  trustedNotifyChannels?: TrustedNotifyChannelSnapshot
+  selectedKnowledgeBaseIds?: readonly string[]
 ): Promise<PiConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
@@ -79,13 +78,8 @@ export async function capturePiConnectionSnapshot(
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
   )
   const channel = agentChannelService.findBySessionId(sessionId)
-  const linkedChannel = channel?.agentId === agent.id ? channel : null
-  const effectiveTrustedNotifyChannels: TrustedNotifyChannelSnapshot = (
-    trustedNotifyChannels ?? (linkedChannel ? [linkedChannel] : [])
-  )
-    .map((notifyChannel) => ({ id: notifyChannel.id, type: notifyChannel.type }))
-    .sort((left, right) => left.id.localeCompare(right.id))
-  const allowAnyOwnedNotifyChannel = trustedNotifyChannels === undefined && linkedChannel !== null
+  const linkedChannel = channel?.agentId === agent.id ? { id: channel.id, type: channel.type } : null
+  const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
 
@@ -103,9 +97,8 @@ export async function capturePiConnectionSnapshot(
           workspaceSkillPaths,
           mcpServers,
           mcpTools,
-          linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
-          trustedNotifyChannels: effectiveTrustedNotifyChannels,
-          allowAnyOwnedNotifyChannel,
+          linkedChannel,
+          notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
         })
       )
@@ -123,7 +116,7 @@ export async function capturePiConnectionSnapshot(
       ...workspaceSkillPaths
     ],
     mcpServerSnapshots,
-    linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
+    linkedChannel,
     signature
   }
 }

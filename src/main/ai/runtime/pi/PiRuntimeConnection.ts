@@ -138,16 +138,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds,
-      this.input.trustedNotifyChannels
+      this.input.knowledgeBaseIds
     )
     await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds,
-      this.input.trustedNotifyChannels
+      this.input.knowledgeBaseIds
     )
     const { agent, session } = initialSnapshot
     const workspacePath = session?.workspace?.path
@@ -286,8 +284,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           initialSnapshot.mcpServerSnapshots,
           linkedChannel,
           agentDataPath,
-          this.input.knowledgeBaseIds,
-          this.input.trustedNotifyChannels
+          this.input.knowledgeBaseIds
         )
       )
       const customTools = createPiCodeModeTools(
@@ -299,8 +296,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         this.input.modelId,
-        this.input.knowledgeBaseIds,
-        this.input.trustedNotifyChannels
+        this.input.knowledgeBaseIds
       )
       if (finalSnapshot.signature !== initialSnapshot.signature) {
         throw new Error(`Pi connection materialization changed during startup: ${this.input.sessionId}`)
@@ -435,7 +431,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
-    trustedNotifyChannels?: AgentRuntimeConnectInput['trustedNotifyChannels']
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -448,7 +443,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
-    trustedNotifyChannels?: AgentRuntimeConnectInput['trustedNotifyChannels']
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -456,8 +450,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         input.modelId,
-        input.knowledgeBaseIds,
-        input.trustedNotifyChannels
+        input.knowledgeBaseIds
       )
     } catch (error) {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'

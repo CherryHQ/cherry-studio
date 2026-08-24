@@ -12,10 +12,18 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   findMcp: vi.fn(),
   listTools: vi.fn(),
-  findBySessionId: vi.fn()
+  findBySessionId: vi.fn(),
+  getCurrentTurnNotificationTargetContext: vi.fn()
 }))
 
-vi.mock('@application', () => ({ application: { get: () => ({ listTools: mocks.listTools }) } }))
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) =>
+      name === 'AgentSessionRuntimeService'
+        ? { getCurrentTurnNotificationTargetContext: mocks.getCurrentTurnNotificationTargetContext }
+        : { listTools: mocks.listTools }
+  }
+}))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/ProviderService', () => ({
@@ -65,6 +73,7 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
+  mocks.getCurrentTurnNotificationTargetContext.mockReturnValue(undefined)
 })
 
 describe('captureDshConnectionSnapshot', () => {
@@ -122,22 +131,21 @@ describe('captureDshConnectionSnapshot', () => {
     expect(snapshot.mcpServerSnapshots.get('mcp-1')).toMatchObject({ id: 'mcp-1', name: 'server' })
   })
 
-  it('signs exact task notification recipients so a changed target set rebuilds the connection', async () => {
-    const first = await captureDshConnectionSnapshot(
-      'session-1',
-      agent.id,
-      'provider::model',
-      [],
-      [{ id: 'channel-1', type: 'telegram' }]
-    )
-    const changed = await captureDshConnectionSnapshot(
-      'session-1',
-      agent.id,
-      'provider::model',
-      [],
-      [{ id: 'channel-2', type: 'feishu' }]
-    )
+  it('signs current turn notification recipients independent of input order', async () => {
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
+      { id: 'channel-2', type: 'feishu' },
+      { id: 'channel-1', type: 'telegram' }
+    ])
+    const first = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
+      { id: 'channel-1', type: 'telegram' },
+      { id: 'channel-2', type: 'feishu' }
+    ])
+    const reordered = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-3', type: 'telegram' }])
+    const changed = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
 
+    expect(reordered.signature).toBe(first.signature)
     expect(changed.signature).not.toBe(first.signature)
   })
 

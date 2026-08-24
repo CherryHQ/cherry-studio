@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
@@ -21,8 +22,14 @@ import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 const logger = loggerService.withContext('AgentMcpServers')
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
-export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id' | 'type'> | null
-export type TrustedNotifyChannelSnapshot = readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+type NotifyChannel = Pick<AgentChannelEntity, 'id' | 'type'>
+export type LinkedChannelSnapshot = NotifyChannel | null
+
+export interface AgentNotificationContext {
+  sourceChannel: NotifyChannel | null
+  channels: readonly NotifyChannel[]
+  allowAnyOwnedChannel: boolean
+}
 
 export interface AgentMcpServer {
   name: string
@@ -37,8 +44,7 @@ export function buildAgentMcpServers(
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
-  selectedKnowledgeBaseIds: readonly string[] = [],
-  trustedNotifyChannels?: TrustedNotifyChannelSnapshot
+  selectedKnowledgeBaseIds: readonly string[] = []
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
   const capabilities = resolveAgentCapabilities(agent)
@@ -55,9 +61,7 @@ export function buildAgentMcpServers(
     }
   }
 
-  const linkedChannel =
-    linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot
-  const effectiveTrustedNotifyChannels = trustedNotifyChannels ?? (linkedChannel ? [linkedChannel] : [])
+  const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
     name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
@@ -67,8 +71,8 @@ export function buildAgentMcpServers(
       sessionId: session.id,
       workspaceSource,
       workspacePath: session.workspace.path,
-      trustedNotifyChannels: effectiveTrustedNotifyChannels,
-      allowAnyOwnedNotifyChannel: trustedNotifyChannels === undefined && linkedChannel != null,
+      trustedNotifyChannels: notificationContext.channels,
+      allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
       canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)
@@ -122,11 +126,34 @@ function toWorkspaceSource(session: AgentSessionEntity): AgentSessionWorkspaceSo
   }
 }
 
-function resolveSourceChannel(agentId: string, sessionId: string): LinkedChannelSnapshot | undefined {
+export function resolveAgentNotificationContext(
+  sessionId: string,
+  agentId: string,
+  linkedChannelSnapshot?: LinkedChannelSnapshot
+): AgentNotificationContext {
+  const sourceChannel =
+    linkedChannelSnapshot === undefined ? resolveSourceChannel(agentId, sessionId) : linkedChannelSnapshot
+  const turnChannels = application.get('AgentSessionRuntimeService').getCurrentTurnNotificationTargetContext(sessionId)
+  const channels = normalizeNotifyChannels(turnChannels ?? (sourceChannel ? [sourceChannel] : []))
+
+  return {
+    sourceChannel,
+    channels,
+    allowAnyOwnedChannel: turnChannels === undefined && sourceChannel !== null
+  }
+}
+
+function normalizeNotifyChannels(channels: readonly NotifyChannel[]): readonly NotifyChannel[] {
+  return channels
+    .map(({ id, type }) => ({ id, type }))
+    .sort((left, right) => left.id.localeCompare(right.id) || left.type.localeCompare(right.type))
+}
+
+function resolveSourceChannel(agentId: string, sessionId: string): LinkedChannelSnapshot {
   try {
     const channel = channelService.findBySessionId(sessionId)
-    return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : undefined
+    return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : null
   } catch {
-    return undefined
+    return null
   }
 }

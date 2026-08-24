@@ -6,7 +6,6 @@ import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } 
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -65,8 +64,6 @@ export interface AgentRuntimeConnectInput {
   knowledgeBaseIds?: readonly string[]
   /** Whether this connection's turn requests Fast processing. */
   fastMode?: boolean
-  /** Recipients trusted for this connection's active turn. Undefined resolves the linked source channel. */
-  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
   /**
@@ -213,7 +210,6 @@ export interface AgentRuntimeConnection {
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
-    trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the

@@ -161,8 +161,17 @@ vi.mock('@application', () => ({
   application: {
     // Session-keyed live state always resolves to the one real service instance (created below),
     // so the many per-test `applicationGet` overrides don't each have to register it.
-    get: (name: string) =>
-      name === 'ClaudeCodeSessionStateService' ? sessionStateService : mocks.applicationGet(name),
+    get: (name: string) => {
+      if (name === 'ClaudeCodeSessionStateService') return sessionStateService
+      if (name === 'AgentSessionRuntimeService') {
+        try {
+          return { getCurrentTurnNotificationTargetContext: () => undefined, ...mocks.applicationGet(name) }
+        } catch {
+          return { getCurrentTurnNotificationTargetContext: () => undefined }
+        }
+      }
+      return mocks.applicationGet(name)
+    },
     getPath: mocks.applicationGetPath
   }
 }))

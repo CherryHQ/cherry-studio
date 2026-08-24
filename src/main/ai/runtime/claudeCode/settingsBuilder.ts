@@ -115,8 +115,6 @@ export interface ClaudeCodeSessionOptions {
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
-  /** Notification recipients authorized for this exact turn. */
-  trustedNotifyChannels?: readonly NonNullable<LinkedChannelSnapshot>[]
   /** Per-turn composer selection captured by the connection builder. */
   knowledgeBaseIds?: readonly string[]
   thinkingOptions?: {
@@ -158,7 +156,7 @@ export async function buildClaudeCodeSessionSettings(
     options?.linkedChannelSnapshot === undefined
       ? (() => {
           const channel = channelService.findBySessionId(session.id)
-          return channel?.agentId === agent.id ? channel : null
+          return channel?.agentId === agent.id ? { id: channel.id, type: channel.type } : null
         })()
       : options.linkedChannelSnapshot
   const capabilities = resolveAgentCapabilities(agent)
@@ -230,8 +228,7 @@ export async function buildClaudeCodeSessionSettings(
     options?.mcpServerSnapshots,
     linkedChannelSnapshot,
     agentDataPath,
-    options?.knowledgeBaseIds,
-    options?.trustedNotifyChannels
+    options?.knowledgeBaseIds
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
   if (agent.mcps?.length) mcpToolMetadata ??= {}

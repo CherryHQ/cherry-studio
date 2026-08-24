@@ -27,7 +27,8 @@ const mocks = vi.hoisted(() => ({
   resolveReasoningProfile: vi.fn(),
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
-  getClaudeCodeLoginShellEnvironment: vi.fn()
+  getClaudeCodeLoginShellEnvironment: vi.fn(),
+  getCurrentTurnNotificationTargetContext: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -82,6 +83,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'PreferenceService') {
         return { get: mocks.preferenceGet }
+      }
+      if (name === 'AgentSessionRuntimeService') {
+        return { getCurrentTurnNotificationTargetContext: mocks.getCurrentTurnNotificationTargetContext }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -1105,8 +1109,8 @@ describe('deriveConnectionConfig', () => {
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
   })
 
-  async function deriveSignature(trustedNotifyChannels?: readonly { id: string; type: 'telegram' | 'feishu' }[]) {
-    const result = await deriveConnectionConfig('session-1', undefined, 'default', false, [], trustedNotifyChannels)
+  async function deriveSignature() {
+    const result = await deriveConnectionConfig('session-1', undefined, 'default', false, [])
     if (!result.ok) throw new Error('expected ok derive')
     return result.config
   }
@@ -1367,16 +1371,27 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['proxyEnvironment'])
   })
 
-  it('changes the rebuild signature when task notification recipients change', async () => {
-    const first = await deriveSignature([{ id: 'channel-1', type: 'telegram' }])
-    const changed = await deriveSignature([{ id: 'channel-2', type: 'feishu' }])
+  it('changes the rebuild signature when current turn notification recipients change', async () => {
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
+      { id: 'channel-2', type: 'feishu' },
+      { id: 'channel-1', type: 'telegram' }
+    ])
+    const first = await deriveSignature()
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
+      { id: 'channel-1', type: 'telegram' },
+      { id: 'channel-2', type: 'feishu' }
+    ])
+    const reordered = await deriveSignature()
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-3', type: 'telegram' }])
+    const changed = await deriveSignature()
 
+    expect(reordered.rebuildSignature).toBe(first.rebuildSignature)
     expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
     expect(
       Object.keys(first.rebuildFactFingerprints).filter(
         (name) => first.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
       )
-    ).toEqual(['trustedNotifyChannelIds'])
+    ).toEqual(['notificationContext'])
   })
 
   it('changes the rebuild signature when model context metadata changes', async () => {
