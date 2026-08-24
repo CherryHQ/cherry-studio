@@ -29,18 +29,20 @@ export function createGoogleVertexAnthropic(
     // via `settings.googleCredentials` → `headers` resolver. Reusing
     // `baseProvider.languageModel` preserves `fetch`, `buildRequestUrl`,
     // `transformRequestBody` (`anthropic_version: vertex-2023-10-16`),
-    // `supportsStrictTools: false`, and the authenticated `headers`.
+    // `supportsStrictTools: false`, `supportedUrls: () => ({})`, and the
+    // authenticated `headers`.
     // Only patch the flags that differ from upstream:
     // - Keep native structured output disabled (defense-in-depth; upstream
-    //   already sets this, but we enforce it so future SDK bumps can't
-    //   reintroduce the `structured-outputs-2025-11-13` beta header that
-    //   Vertex rejects — see issue #14645).
-    // - Enable `image/*` URL passthrough. Upstream Vertex intentionally sets
-    //   `supportedUrls: () => ({})` to force download→base64. Cherry's
-    //   chat pipeline already converts image URLs to base64 before the SDK
-    //   call (see `downloadImageAsBase64` in `AiService`), so passthrough
-    //   is safe and avoids double-download; if that pre-conversion is ever
-    //   removed, this must revert to `() => ({})` or Vertex will 400.
+    //   already sets `supportsNativeStructuredOutput: false`, but we enforce it
+    //   so future SDK bumps can't reintroduce the `structured-outputs-2025-11-13`
+    //   beta header that Vertex rejects — see issue #14645).
+    // - Keep `supportedUrls: () => ({})` (no URL passthrough). Vertex does not
+    //   accept URL sources and requires download→base64; Cherry's
+    //   `materializeNativeFilePart` leaves `https://` URLs untouched and the
+    //   chat path has no `experimental_download`, so enabling `image/*` would
+    //   send raw URLs to `rawPredict` and Vertex would 400 (see review on
+    //   2026-08-24). The AI SDK will download and inline remote images
+    //   automatically when `supportedUrls` is empty.
     const config = model.config
     if (!config) {
       throw new Error(
@@ -57,7 +59,7 @@ export function createGoogleVertexAnthropic(
           ...config,
           supportsNativeStructuredOutput: false,
           supportsStrictTools: false,
-          supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] })
+          supportedUrls: () => ({})
         } as unknown as ConstructorParameters<typeof AnthropicMessagesLanguageModel>[1])
       } catch {
         throw new Error(
@@ -68,7 +70,7 @@ export function createGoogleVertexAnthropic(
 
     config.supportsNativeStructuredOutput = false
     config.supportsStrictTools = false
-    config.supportedUrls = () => ({ 'image/*': [/^https?:\/\/.*$/] })
+    config.supportedUrls = () => ({})
 
     return model
   }
