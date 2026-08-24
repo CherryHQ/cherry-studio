@@ -1218,10 +1218,16 @@ export class ClaudeCodeStreamAdapter {
     }
     // A SendMessage receipt that resumed a background agent carries the launch root id in its
     // own metadata (so the renderer can navigate without scanning) AND re-tags subsequent
-    // content of that agent for round splitting. Only-overwrite, never clear.
+    // content of that agent for round splitting. Only-overwrite, never clear. A receipt for a
+    // still-running target has no resumedAgentId — its queued form only carries `pin.id`.
     if (!isError && isRecord(normalizedResult)) {
-      const resumedAgentId = normalizedResult.resumedAgentId
-      if (typeof resumedAgentId === 'string') {
+      const resumedAgentId =
+        typeof normalizedResult.resumedAgentId === 'string'
+          ? normalizedResult.resumedAgentId
+          : isRecord(normalizedResult.pin) && typeof normalizedResult.pin.id === 'string'
+            ? normalizedResult.pin.id
+            : undefined
+      if (resumedAgentId) {
         const launchToolCallId = this.backgroundTaskToolCallIds.get(resumedAgentId)
         if (launchToolCallId) {
           this.resumeMarkers.set(launchToolCallId, result.tool_use_id)

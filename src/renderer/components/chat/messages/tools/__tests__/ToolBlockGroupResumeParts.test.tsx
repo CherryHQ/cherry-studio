@@ -98,4 +98,29 @@ describe('resume presentation inside a completed tool group', () => {
     expect(screen.getByText('Continue handling')).toBeInTheDocument()
     expect(screen.queryByText('Inspect renderer')).toBeNull()
   })
+
+  // A queued send to a still-running agent carries only pin.id — the group header must treat it
+  // as the same continuation entry.
+  it('renders the continue label for a queued-pin receipt', () => {
+    const parts = launchParts()
+    const receipt: NormalToolResponse = {
+      ...resumeReceipt(),
+      response: {
+        success: true,
+        message: 'Message queued for delivery at its next tool round.',
+        pin: { id: 'agent-77', name: 'flow-marker-reader', ref: 'abc' }
+      }
+    }
+
+    render(
+      <FullPartsMapProvider value={parts}>
+        <PartsProvider value={parts}>
+          <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} />
+        </PartsProvider>
+      </FullPartsMapProvider>
+    )
+
+    expect(screen.getByText('Continue handling')).toBeInTheDocument()
+    expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
+  })
 })

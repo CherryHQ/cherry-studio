@@ -424,6 +424,9 @@ export function buildAgentToolFlowProjection(
           for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
           resumeCount += 1
           if (marker) consumedMarkers.add(marker)
+          // A position-based split must also consume the receipt's call id, or a same-message
+          // tagged part would split a second time and duplicate the prompt message.
+          else if (isResumeReceipt && toolCallId) consumedMarkers.add(toolCallId)
           segmentIndex += 1
           segments.push({ parts: [] })
           const promptText = marker !== undefined ? receiptPrompts.get(marker) : getResumeReceiptPromptText(part)

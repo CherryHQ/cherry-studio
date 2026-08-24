@@ -1586,6 +1586,86 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
+    // A SendMessage to a still-running agent returns the queued form (no resumedAgentId, only
+    // pin.id). Its send call id must still tag that agent's subsequent content for round splitting.
+    it('re-tags content of a running agent from a queued-pin SendMessage receipt', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              content: JSON.stringify({ status: 'async_launched', agentId: 'agent-a1b2c3d4e5f6' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Message queued for delivery to agent-a1b2c3d4e5f6 at its next tool round.',
+                pin: { id: 'agent-a1b2c3d4e5f6', name: 'worker', ref: 'abc' }
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      const receiptChunk = parts.find(
+        (chunk) => chunk.type === 'tool-output-available' && chunk.toolCallId === 'send-use'
+      ) as { providerMetadata?: Record<string, Record<string, unknown>> }
+      expect(receiptChunk.providerMetadata?.cherry?.launchToolCallId).toBe('launch-use')
+
+      adapter.handleMessage({
+        type: 'stream_event',
+        event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } },
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID()
+      } as any)
+
+      const textStart = parts.filter((chunk) => chunk.type === 'text-start').at(-1) as {
+        providerMetadata?: Record<string, Record<string, unknown>>
+      }
+      expect(textStart.providerMetadata?.['claude-code']?.parentToolCallId).toBe('launch-use')
+      expect(textStart.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+    })
+
     it('enriches a local workflow task from its launch receipt without handling remote agents', () => {
       const { adapter, statusEvents } = createAdapter()
 

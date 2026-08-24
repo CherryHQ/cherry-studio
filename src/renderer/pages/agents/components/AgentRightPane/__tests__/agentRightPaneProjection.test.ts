@@ -225,6 +225,84 @@ describe('agent right pane projections', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // A send to a still-running agent returns the queued form — no resumedAgentId, only pin.id.
+  // It must split the rounds and backfill its prompt just like a resume receipt does.
+  it('interleaves the queued instruction for a send to a running agent', () => {
+    const launchOutput = 'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
+    const queuedOutput = {
+      success: true,
+      message: 'Message queued for delivery at its next tool round.',
+      pin: { id: 'af5051807ed7aaa30', name: 'reviewer', ref: 'abc' }
+    }
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_queue',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', summary: 'Reread files', message: 'Please reread the four files' },
+        queuedOutput
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Please reread the four files'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+  })
+
+  // When the receipt and the tagged content share one row with the receipt first, the position
+  // split must consume the call id so the marker cannot split a second time.
+  it('does not duplicate the resume prompt when the receipt precedes its tagged content', () => {
+    const marker = { 'claude-code': { parentToolCallId: 'call_launch' }, cherry: { resumedViaCallId: 'call_send' } }
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the review' },
+        'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
+      ),
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please finalize' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      ),
+      {
+        type: 'text',
+        text: 'Second round findings',
+        providerMetadata: marker
+      } as unknown as CherryMessagePart
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    const userMessages = projection.messages.filter((item) => item.role === 'user')
+    expect(userMessages).toHaveLength(2) // launch prompt + exactly one resume prompt
+    const texts = userMessages.map((item) => (item.parts[0] as { text?: string }).text)
+    expect(texts).toEqual(['Launch the review', 'Please finalize'])
+    // The first (empty) round emits no segment; the tagged content forms the single assistant one.
+    expect(projection.messages.filter((item) => item.role === 'assistant').map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-assistant-1'
+    ])
+  })
+
   // Oversized receipts arrive as deferred envelopes; the resolved output must still carry the
   // agent id so the continuation splits the timeline.
   it('splits resume rounds for a deferred launch receipt via the resolved output', () => {

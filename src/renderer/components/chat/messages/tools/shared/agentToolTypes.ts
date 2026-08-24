@@ -280,15 +280,21 @@ export type WorkflowToolOutput = WorkflowOutput | string
 export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
 export type SendMessageToolOutput = string
 
-/** A SendMessage receipt carries this when it resumed a stopped agent instead of queueing a live one. */
+/** The background agent a SendMessage receipt points at: `resumedAgentId` when it woke a stopped
+ *  agent, or `pin.id` when the target was still running and the message was queued for delivery. */
 export function getResumedAgentId(output: unknown): string | undefined {
-  if (typeof output === 'string') return /"resumedAgentId"\s*:\s*"([^"]+)"/.exec(output)?.[1]
-  if (
-    output &&
-    typeof output === 'object' &&
-    typeof (output as { resumedAgentId?: unknown }).resumedAgentId === 'string'
-  ) {
-    return (output as { resumedAgentId: string }).resumedAgentId
+  if (typeof output === 'string') {
+    return (
+      /"resumedAgentId"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
+      /"pin"\s*:\s*\{[^}]*"id"\s*:\s*"([^"]+)"/.exec(output)?.[1]
+    )
+  }
+  if (output && typeof output === 'object') {
+    const record = output as { resumedAgentId?: unknown; pin?: unknown }
+    if (typeof record.resumedAgentId === 'string') return record.resumedAgentId
+    if (record.pin && typeof record.pin === 'object' && typeof (record.pin as { id?: unknown }).id === 'string') {
+      return (record.pin as { id: string }).id
+    }
   }
   return undefined
 }

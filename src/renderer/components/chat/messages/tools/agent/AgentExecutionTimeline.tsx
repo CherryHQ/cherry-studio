@@ -37,7 +37,9 @@ export function buildResumeToolHeader(
   resumedLaunch?: { toolCallId: string; description?: string }
 ): { resumedLaunch?: { toolCallId: string; description?: string }; header: ReactElement } | undefined {
   // Resume detection only needs the receipt's own output; launch-identity resolution is an
-  // enhancement that must never gate the label.
+  // enhancement that must never gate the label. Gated to SendMessage — only its receipts carry
+  // agent ids, and this header drives labels for every tool row.
+  if (toolResponse.tool.name !== AgentToolsType.SendMessage) return undefined
   if (!getResumedAgentId(toolResponse.response)) return undefined
   const resolved = resumedLaunch ?? resolveResumedAgent(toolResponse.response, fullPartsMap)
   const identity = resolved?.description ?? getStringArg(toolResponse.arguments, 'summary')

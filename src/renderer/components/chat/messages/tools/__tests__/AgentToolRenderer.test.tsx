@@ -1128,6 +1128,47 @@ describe('AgentToolRenderer', () => {
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
+    // A send to a still-running agent queues instead of resuming — its receipt carries only
+    // pin.id, and the entry must still resolve back to the launch flow.
+    it('opens the launch flow from a queued-pin SendMessage receipt', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'flow-marker-reader', summary: 'Continue the review', message: 'please continue' },
+        response: {
+          success: true,
+          message: 'Message queued for delivery at its next tool round.',
+          pin: { id: 'agent-77', name: 'flow-marker-reader', ref: 'abc' }
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.queryByText('SendMessage')).toBeNull()
+      expect(screen.getByText('Continue handling')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('Continue handling').closest('[role="button"]')!)
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-launch',
+        toolName: 'SendMessage',
+        title: 'Inspect renderer'
+      })
+    })
+
     it('keeps ordinary tool row clicks local even when the flow action exists', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })
