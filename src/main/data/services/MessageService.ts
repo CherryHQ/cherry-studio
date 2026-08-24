@@ -251,7 +251,7 @@ function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<s
   return existing
 }
 
-function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
+export function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
   tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
   const refs = extractChatMessageFileRefs(data)

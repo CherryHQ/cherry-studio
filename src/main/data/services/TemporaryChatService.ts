@@ -25,7 +25,7 @@ import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
-import { messageService } from './MessageService'
+import { messageService, replaceChatMessageFileRefsTx } from './MessageService'
 import { topicService } from './TopicService'
 import { isConversationActivityRole } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'
@@ -250,6 +250,7 @@ export class TemporaryChatService {
               updatedAt: m.updatedAt
             })
             .run()
+          replaceChatMessageFileRefsTx(tx, m.id, m.data)
           prevId = m.id
         }
 
