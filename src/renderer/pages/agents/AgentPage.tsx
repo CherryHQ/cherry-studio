@@ -649,9 +649,12 @@ const AgentPage = () => {
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
       try {
-        const hasDefaultWorkspace =
-          createdDefaultWorkspaceId ?? agents.find((agent) => agent.id === agentId)?.configuration?.default_workspace_id
-        const createdAgentDefaults = hasDefaultWorkspace ? { agentId } : { agentId, workspaceMode: 'system' as const }
+        const persistedDefaultWorkspaceId = agents.find((agent) => agent.id === agentId)?.configuration
+          ?.default_workspace_id
+        const effectiveDefaultWorkspaceId = createdDefaultWorkspaceId ?? persistedDefaultWorkspaceId
+        const createdAgentDefaults = effectiveDefaultWorkspaceId
+          ? { agentId, workspaceId: effectiveDefaultWorkspaceId }
+          : { agentId, workspaceMode: 'system' as const }
         const session = await resolveEmptySession(
           agentId,
           pendingSessionDefaults ? { ...pendingSessionDefaults, agentId } : createdAgentDefaults
