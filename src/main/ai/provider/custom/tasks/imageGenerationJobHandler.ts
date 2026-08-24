@@ -79,7 +79,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       modelId: sdkConfig.modelId,
       modelName: model.name,
       pricing: model.pricing,
-      trustProviderReportedCost: provider.apiFeatures.reportsActualCost,
+      trustProviderReportedCost: provider.reportsActualCost,
       reportedCostCurrency: provider.reportedCostCurrency,
       credentialReceipt,
       source: input.source ?? null,

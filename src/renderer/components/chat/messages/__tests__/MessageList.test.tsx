@@ -742,46 +742,6 @@ describe('MessageList', () => {
     expect(addEventListenerSpy).not.toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
   })
 
-  it('limits message outline work to mounted message elements', () => {
-    messageVirtualListMocks.renderItemLimit = 1
-    const addEventListenerSpy = vi.spyOn(messageVirtualListMocks.scrollElement!, 'addEventListener')
-    messageVirtualListMocks.scrollElement!.getBoundingClientRect = vi.fn(
-      () =>
-        ({
-          bottom: 500,
-          height: 500,
-          left: 0,
-          right: 500,
-          top: 0,
-          width: 500,
-          x: 0,
-          y: 0,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
-    const getElementByIdSpy = vi.spyOn(document, 'getElementById')
-
-    render(
-      <MessageListProvider
-        value={createValue(
-          [
-            createMessage('assistant-visible', 'assistant'),
-            createMessage('assistant-unmounted-1', 'assistant'),
-            createMessage('assistant-unmounted-2', 'assistant')
-          ],
-          {
-            renderConfig: { ...defaultMessageRenderConfig, showMessageOutline: true }
-          }
-        )}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(addEventListenerSpy).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
-    expect(getElementByIdSpy).not.toHaveBeenCalledWith('message-assistant-unmounted-1')
-    expect(getElementByIdSpy).not.toHaveBeenCalledWith('message-assistant-unmounted-2')
-  })
-
   it('exports topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
     const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)

@@ -1467,6 +1467,7 @@ describe('AgentSessionRuntimeService', () => {
     expect((service as any).connectionTarget(idleEntry)).toEqual({
       modelId: switchedModelId,
       reasoningEffort: 'default',
+      serviceTier: 'standard',
       knowledgeBaseIds: [],
       fastMode: false
     })
@@ -1637,6 +1638,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.reconcile).toHaveBeenCalledWith({
       modelId: baseTurnInput.modelId,
       reasoningEffort: 'default',
+      serviceTier: 'standard',
       knowledgeBaseIds: [],
       fastMode: false
     })
@@ -1687,7 +1689,14 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(connection.redirect).not.toHaveBeenCalled()
     expect(entry.pendingTurns).toEqual([
-      { message: userMessage('user-2'), reasoningEffort: 'default', knowledgeBaseIds: [], fastMode: false, steer: true }
+      {
+        message: userMessage('user-2'),
+        reasoningEffort: 'default',
+        serviceTier: 'standard',
+        knowledgeBaseIds: [],
+        fastMode: false,
+        steer: true
+      }
     ])
   })
 
@@ -1708,7 +1717,14 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(connection.redirect).not.toHaveBeenCalled()
     expect(entry.pendingTurns).toEqual([
-      { message: userMessage('user-2'), reasoningEffort: 'default', knowledgeBaseIds: [], fastMode: false, steer: true }
+      {
+        message: userMessage('user-2'),
+        reasoningEffort: 'default',
+        serviceTier: 'standard',
+        knowledgeBaseIds: [],
+        fastMode: false,
+        steer: true
+      }
     ])
   })
 
@@ -1908,6 +1924,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(firstConnection.reconcile).toHaveBeenCalledWith({
         modelId: baseTurnInput.modelId,
         reasoningEffort: 'default',
+        serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false
       })
@@ -1961,6 +1978,7 @@ describe('AgentSessionRuntimeService', () => {
         expect(firstConnection.reconcile).toHaveBeenCalledWith({
           modelId: switchedModelId,
           reasoningEffort: 'default',
+          serviceTier: 'standard',
           knowledgeBaseIds: [],
           fastMode: false
         })
@@ -3805,6 +3823,7 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         reasoningEffort: 'default',
+        serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false,
         resumeToken: undefined,
@@ -3861,6 +3880,7 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         reasoningEffort: 'default',
+        serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false,
         resumeToken: 'resume-db',
@@ -4109,6 +4129,7 @@ describe('AgentSessionRuntimeService', () => {
         {
           message: changedScopeMessage,
           reasoningEffort: 'default',
+          serviceTier: 'standard',
           knowledgeBaseIds: ['kb-2'],
           fastMode: false,
           steer: true
