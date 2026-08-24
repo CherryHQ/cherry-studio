@@ -11,8 +11,7 @@ import {
   InputGroupInput,
   Switch,
   TabsContent,
-  Textarea,
-  Tooltip
+  Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
@@ -598,7 +597,7 @@ function AgentBasicFields({
         placeholder={t('library.config.agent.field.description.placeholder')}
         layout="row"
       />
-      <RuntimeField agentType={agentType} portalContainer={portalContainer} />
+      <RuntimeField agentType={agentType} />
       <CompactModelField
         form={form}
         name="modelId"
@@ -689,7 +688,7 @@ function AgentAvatarNameField({
               control={form.control}
               name="avatar"
               render={({ field: avatarField }) => (
-                <InputGroupAddon>
+                <InputGroupAddon className="py-0">
                   <EmojiAvatarPicker
                     value={avatarField.value}
                     fallback="🤖"
@@ -721,18 +720,16 @@ function AgentAvatarNameField({
 
 /** Runtime is fixed at creation, so the editor states which one the agent runs on and leaves it at
  *  that — a summary card, with no control to mistake for a live one. */
-function RuntimeField({ agentType, portalContainer }: { agentType: AgentType; portalContainer: HTMLElement | null }) {
+function RuntimeField({ agentType }: { agentType: AgentType }) {
   const { t } = useTranslation()
 
   return (
     <div className={editDialogFormRowClassName}>
       <span className={editDialogFormRowLabelClassName}>{t('library.config.agent.field.runtime.label')}</span>
-      <Tooltip
-        content={t('library.config.agent.field.runtime.immutable_hint')}
-        fullWidthTrigger
-        portalContainer={portalContainer ?? undefined}>
-        <AgentRuntimeSummary value={agentType} t={t} />
-      </Tooltip>
+      <AgentRuntimeSummary value={agentType} t={t} />
+      <span className="col-start-2 text-muted-foreground text-xs">
+        {t('library.config.agent.field.runtime.immutable_hint')}
+      </span>
     </div>
   )
 }

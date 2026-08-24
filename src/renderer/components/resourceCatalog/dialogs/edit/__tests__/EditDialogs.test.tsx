@@ -1876,14 +1876,11 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Avatar and name')).toHaveValue('Draft Agent')
   })
 
-  it('reveals the immutable runtime guidance when hovering the runtime summary', async () => {
-    const user = userEvent.setup()
+  it('shows the immutable runtime guidance without requiring hover or focus', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
-    expect(screen.queryByText('Cannot be changed after creation')).not.toBeInTheDocument()
-    await user.hover(screen.getByText('Claude Agent'))
-
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Cannot be changed after creation')
+    expect(screen.getByText('Cannot be changed after creation')).toBeVisible()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 
   it('shows an auto-save error and still allows the dialog to close', async () => {

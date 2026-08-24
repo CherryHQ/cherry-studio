@@ -69,7 +69,7 @@ function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; 
         <ItemTitle className={compact ? 'block max-w-full truncate font-medium leading-4' : undefined}>
           {t(caps.labelKey, caps.labelFallback)}
         </ItemTitle>
-        <ItemDescription className={cn('text-xs', compact && 'min-w-0 whitespace-nowrap leading-4')}>
+        <ItemDescription className={cn('text-xs', compact && 'min-w-0 text-ellipsis whitespace-nowrap leading-4')}>
           {t(RUNTIME_DESCRIPTION_KEYS[runtime])}
         </ItemDescription>
       </ItemContent>

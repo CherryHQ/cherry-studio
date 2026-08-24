@@ -88,7 +88,7 @@ function AgentRuntimeModelFields({
         name="agentType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="items-baseline gap-1.5 font-medium">
+            <FormLabel className="gap-1.5 font-medium">
               {t('library.config.agent.field.runtime.label')}
               <span className="font-normal text-muted-foreground text-xs">
                 {t('library.config.agent.field.runtime.immutable_hint')}
@@ -173,7 +173,7 @@ export function BasicInfoStep({
           <FormItem>
             <FormLabel className="font-medium">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
             <InputGroup>
-              <InputGroupAddon>
+              <InputGroupAddon className="py-0">
                 <EmojiAvatarPicker
                   value={avatar}
                   fallback={fallbackAvatar}

@@ -1747,7 +1747,7 @@
   "library.config.agent.field.runtime.option.pi": "Pi",
   "library.config.agent.field.runtime.option_description.claude_code": "Сильнее в целом, подходит для сложных задач",
   "library.config.agent.field.runtime.option_description.dsh": "Добавляйте и комбинируйте возможности с помощью плагинов",
-  "library.config.agent.field.runtime.option_description.pi": "Быстро и легко",
+  "library.config.agent.field.runtime.option_description.pi": "Быстрый и лёгкий",
   "library.config.agent.field.small_model.hint": "Лёгкие проверки и форматирование",
   "library.config.agent.field.small_model.label": "Маленькая модель (необязательно)",
   "library.config.agent.model_config": "Модель",
