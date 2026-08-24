@@ -36,10 +36,10 @@ export function buildResumeToolHeader(
   resumedLaunch?: { toolCallId: string; description?: string }
 ): { resumedLaunch: { toolCallId: string; description?: string }; header: ReactElement } | undefined {
   const resolved = resumedLaunch ?? resolveResumedAgent(toolResponse.response, fullPartsMap)
-  // The identity is the launch title; the resume request's summary stands in when the launch had
-  // none. Entry presence itself is decided by id resolution alone (openFlowOnClick).
+  // Identity: launch description → resume request's summary. When neither exists the bare verb
+  // still renders — the entry must never degrade to a generic "SendMessage" label.
   const identity = resolved?.description ?? getStringArg(toolResponse.arguments, 'summary')
-  if (!resolved || !identity) return undefined
+  if (!resolved) return undefined
   return {
     resumedLaunch: resolved,
     header: (
