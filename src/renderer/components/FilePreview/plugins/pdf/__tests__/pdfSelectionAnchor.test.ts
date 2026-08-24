@@ -31,8 +31,9 @@ describe('selectionToPdfAnchor', () => {
     const result = selectionToPdfAnchor(fakeSelection(range))
 
     expect(result?.anchor).toEqual({ format: 'pdf', page: 1 })
-    expect(result?.excerpt).toContain('first page text')
-    expect(result?.excerpt).not.toContain('second page text')
+    // Asserted as an exact value: the range ends partway into page 2, so `not.toContain('second page text')`
+    // would hold even without the clip — it looks for a string the selection never covered.
+    expect(result?.excerpt).toBe('first page text')
   })
 
   it('returns null for a collapsed selection', () => {

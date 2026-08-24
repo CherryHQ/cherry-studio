@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "Ресурсы не найдены",
   "chat.input.resource_panel.title": "Ресурсы",
   "chat.input.restore": "Восстановить",
+  "chat.input.selection_reference.page": "с. {{page}}",
+  "chat.input.selection_reference.slide": "слайд {{slide}}",
   "chat.input.send": "Отправить",
   "chat.input.send_failed": "Не удалось отправить сообщение",
   "chat.input.slash_commands.commands.clear": "Очистить историю разговора",

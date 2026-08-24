@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "Keine Ressourcen gefunden",
   "chat.input.resource_panel.title": "Ressourcen",
   "chat.input.restore": "Wiederherstellen",
+  "chat.input.selection_reference.page": "S. {{page}}",
+  "chat.input.selection_reference.slide": "Folie {{slide}}",
   "chat.input.send": "Senden",
   "chat.input.send_failed": "Nachricht konnte nicht gesendet werden",
   "chat.input.slash_commands.commands.clear": "Konversationsverlauf löschen",

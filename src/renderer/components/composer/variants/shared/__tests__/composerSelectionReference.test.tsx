@@ -22,6 +22,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+/** The hook passes its own `t` through; these tests only need promptText, which never goes through it. */
+const echoKey = (key: string) => key
+
 const TOPIC_ID = 'agent-session-topic'
 
 const REFERENCE: SelectionReference = {
@@ -74,7 +77,7 @@ describe('useComposerSelectionReferenceInsertion', () => {
     // Room for the block itself but not for the trailing space: accepting here would land the draft one
     // character past the limit.
     const onInsert = vi.fn()
-    const promptLength = createSelectionReferenceToken(REFERENCE).promptText?.length ?? 0
+    const promptLength = createSelectionReferenceToken(REFERENCE, echoKey).promptText?.length ?? 0
     render(<Harness draftText={'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - promptLength)} onInsert={onInsert} />)
 
     await emit({ topicId: TOPIC_ID, reference: REFERENCE })
@@ -85,7 +88,7 @@ describe('useComposerSelectionReferenceInsertion', () => {
 
   it('still inserts when the block and its separator both fit exactly', async () => {
     const onInsert = vi.fn()
-    const promptLength = createSelectionReferenceToken(REFERENCE).promptText?.length ?? 0
+    const promptLength = createSelectionReferenceToken(REFERENCE, echoKey).promptText?.length ?? 0
     render(<Harness draftText={'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - promptLength - 1)} onInsert={onInsert} />)
 
     await emit({ topicId: TOPIC_ID, reference: REFERENCE })

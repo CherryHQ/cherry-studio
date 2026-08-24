@@ -245,13 +245,17 @@ export default function SpreadsheetFilePreview({
   } else {
     // Selection status: the A1 range, plus the cell content when the selection is a single cell (formula cells show
     // the raw formula). A multi-cell range reports no cell, so only the range is shown.
-    const selectedCellContent = selectedCell?.cell?.formula
-      ? `= ${selectedCell.cell.formula}`
-      : selectedCell?.cell?.text
-    const statusBarText = selectedCell
+    // The sheet is compared for the same reason selectionReference compares it: the effect that clears
+    // selectedCell on a sheet switch runs one commit later, so the new sheet's tabs would otherwise render
+    // beside the previous sheet's range for a frame.
+    const cellOnActiveSheet = selectedCell && selectedCell.sheetName === activeSheet.name ? selectedCell : null
+    const selectedCellContent = cellOnActiveSheet?.cell?.formula
+      ? `= ${cellOnActiveSheet.cell.formula}`
+      : cellOnActiveSheet?.cell?.text
+    const statusBarText = cellOnActiveSheet
       ? selectedCellContent
-        ? `${selectedCell.range}  ${selectedCellContent}`
-        : selectedCell.range
+        ? `${cellOnActiveSheet.range}  ${selectedCellContent}`
+        : cellOnActiveSheet.range
       : null
 
     content = (
@@ -290,7 +294,7 @@ export default function SpreadsheetFilePreview({
                 {statusBarText}
               </span>
             ) : null}
-            {selectedCell?.cell?.formulaState === 'unevaluated' ? (
+            {cellOnActiveSheet?.cell?.formulaState === 'unevaluated' ? (
               <span className="shrink-0 italic">{t('xlsx_preview.formula_not_evaluated')}</span>
             ) : null}
           </div>
