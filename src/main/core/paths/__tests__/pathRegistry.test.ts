@@ -9,7 +9,8 @@ vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: getPathMock,
-    isPackaged: false
+    isPackaged: false,
+    setAppLogsPath: vi.fn()
   }
 }))
 
@@ -53,6 +54,15 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
   })
 
+  it('keeps the provider registry override under userData Runtime', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.provider_registry.override']).toBe(
+      path.join('/mock/userData', 'Runtime', 'provider-registry-override')
+    )
+    expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
+  })
+
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')
@@ -60,6 +70,14 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('keeps persisted MCP resource blobs in Cherry temporary storage', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.mcp.resource_results.temp']).toBe(
+      path.join('/mock/temp', 'CherryStudio', 'mcp-resource-results')
+    )
   })
 
   it('stores active traces under userData Runtime and keeps the old path cleanup-only', () => {
@@ -156,6 +174,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for feature.files.data', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
+    })
+
+    it('returns true for the provider registry override (writable, not opted out)', () => {
+      // The remote-updated override dir under Runtime is Cherry-owned and
+      // writable — unlike the read-only bundled feature.provider_registry.data.
+      expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
     })
 
     it('returns true for feature.mcp', () => {

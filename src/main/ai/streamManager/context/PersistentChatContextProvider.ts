@@ -224,6 +224,7 @@ function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | unde
 
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
+  readonly isPersistentConversation = true
 
   /** Default provider — matches any topic not claimed by a more specific provider. */
   canHandle(): boolean {
@@ -239,7 +240,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
-
     // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
     // sibling position, descendants, and the topic's active branch remain untouched.
     if (req.trigger === 'regenerate-message' && req.retryMessageId) {
@@ -303,6 +303,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         listeners: [subscriber],
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
+        pendingSteerServiceTier: req.serviceTier,
         pendingSteerFastMode: req.fastMode === true,
         reservedMessages: [toReservedUIMessage(userMessage)]
       }
@@ -315,6 +316,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode === true
     }
 
@@ -483,6 +485,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           placeholder.id,
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
+          turnOptions.serviceTier,
           turnOptions.fastMode === true,
           retainedContext
         ),
@@ -547,6 +550,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     )
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
+      serviceTier: req.serviceTier ?? target.data.turnOptions?.serviceTier,
       fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
     }
     const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
@@ -571,6 +575,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         target.id,
         getKnowledgeBaseIdsFromParts(parent.data.parts ?? []),
         turnOptions.reasoningEffort,
+        turnOptions.serviceTier,
         turnOptions.fastMode === true,
         retainedContext
       )
@@ -722,6 +727,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.id,
               knowledgeBaseIds,
               anchor.data.turnOptions?.reasoningEffort,
+              anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
               retainedContext
             ),
@@ -760,6 +766,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode
     }
 
@@ -821,6 +828,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               placeholder.id,
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
               req.reasoningEffort,
+              req.serviceTier,
               req.fastMode,
               retainedContext
             ),
@@ -1077,6 +1085,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
     reasoningEffort: AiStreamRequest['reasoningEffort'],
+    serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
     retainedContext?: RetainedContext
   ): AiStreamRequest {
@@ -1089,6 +1098,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       messageId,
       knowledgeBaseIds,
       reasoningEffort,
+      serviceTier,
       fastMode,
       ...(retainedContext ? { retainedContext } : {})
     }

@@ -1,3 +1,4 @@
+import { TabIdContext } from '@renderer/hooks/tab'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -7,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
-import type { MessageListItem } from '../types'
+import type { MessageGroupRuntime, MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
   editMessage: vi.fn(),
@@ -210,6 +211,9 @@ vi.mock('../MessageListProvider', () => ({
 }))
 
 vi.mock('../frame/MessageHeader', () => ({
+  AgentSessionDeliveryBadge: ({ delivery }: { delivery: NonNullable<MessageListItem['delivery']> }) => (
+    <div data-testid="agent-session-delivery-badge">{delivery.status}</div>
+  ),
   default: mocks.MessageHeader
 }))
 
@@ -349,6 +353,59 @@ describe('MessageGroup', () => {
     expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'updated')
   })
 
+  it('keeps duplicate conversation tabs scoped to their own message element', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const groupRuntimes: MessageGroupRuntime[] = []
+    let firstRegisteredElement: HTMLElement | null = null
+    let secondRegisteredElement: HTMLElement | null = null
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      updateMessageUiState: vi.fn(),
+      bindMessageGroupRuntime: (_messageIds: string[], runtime: MessageGroupRuntime) => {
+        groupRuntimes.push(runtime)
+        return vi.fn()
+      }
+    })
+
+    const { container } = render(
+      <>
+        <TabIdContext value="tab-a">
+          <MessageGroup
+            messages={messages}
+            registerMessageElement={(_messageId, element) => {
+              firstRegisteredElement = element
+            }}
+          />
+        </TabIdContext>
+        <TabIdContext value="tab-b">
+          <MessageGroup
+            messages={messages}
+            registerMessageElement={(_messageId, element) => {
+              secondRegisteredElement = element
+            }}
+          />
+        </TabIdContext>
+      </>
+    )
+
+    const messageElements = container.querySelectorAll<HTMLElement>(
+      '[data-ui~="chat.message"][data-message-id="msg-1"]'
+    )
+    expect(messageElements).toHaveLength(2)
+    expect(messageElements[0].id).not.toBe(messageElements[1].id)
+    expect(firstRegisteredElement).toBe(messageElements[0])
+    expect(secondRegisteredElement).toBe(messageElements[1])
+    expect(groupRuntimes).toHaveLength(2)
+
+    act(() => groupRuntimes.at(1)!.locateMessage('msg-1'))
+
+    expect(mocks.scrollIntoView).toHaveBeenCalledWith(messageElements[1], {
+      behavior: 'smooth',
+      block: 'start',
+      container: 'nearest'
+    })
+  })
+
   it('shows the snapshot model identity for a single assistant reply', () => {
     const messages = [createMessage('msg-1', 0, 'fold')]
 
@@ -379,6 +436,42 @@ describe('MessageGroup', () => {
       expectEveryMessageHeaderToShowModelIdentity(true)
     }
   )
+
+  it('uses the injected runtime for grouped message navigation', () => {
+    let runtime: { locateMessage: (messageId: string) => void } | undefined
+    const bindMessageGroupRuntime = vi.fn(
+      (_messageIds: string[], nextRuntime: { locateMessage: (messageId: string) => void }) => {
+        runtime = nextRuntime
+        return vi.fn()
+      }
+    )
+    mocks.messageListActions.mockReturnValue({ bindMessageGroupRuntime })
+    const addEventListenerSpy = vi.spyOn(document, 'addEventListener')
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+
+    try {
+      render(<MessageGroup messages={messages} />)
+
+      expect(addEventListenerSpy).not.toHaveBeenCalledWith('flow-navigate-to-message', expect.any(Function))
+      expect(bindMessageGroupRuntime).toHaveBeenCalledWith(
+        ['msg-1', 'msg-2'],
+        expect.objectContaining({ locateMessage: expect.any(Function) })
+      )
+      expect(runtime).toBeDefined()
+
+      act(() => {
+        runtime?.locateMessage('msg-1')
+      })
+
+      expect(mocks.scrollIntoView).toHaveBeenCalledWith(document.getElementById('message-msg-1'), {
+        behavior: 'smooth',
+        block: 'start',
+        container: 'nearest'
+      })
+    } finally {
+      addEventListenerSpy.mockRestore()
+    }
+  })
 
   it('uses two equal columns across the full width in grid layout', () => {
     mocks.settings.mockReturnValue({
@@ -761,6 +854,42 @@ describe('MessageGroup', () => {
     expect(container).not.toHaveTextContent('chat.message.editing_current')
     expect(container.querySelector('#message-user-bubble-editing-1 .message-editing-hint')).toBeNull()
     expect(container.querySelector('#message-user-bubble-editing-1 .message-menubar')).toBeNull()
+  })
+
+  it('shows delivery attribution for bubble-style user messages', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const sender = { agentId: 'agent-a', sessionId: 'sender' }
+    const message = {
+      ...createMessage('delivered-user-1', 0, 'vertical'),
+      role: 'user',
+      delivery: {
+        version: 1,
+        sender,
+        receiver: { agentId: 'agent-b', sessionId: 'target' },
+        senderSnapshot: { agentName: 'Agent A', sessionName: 'Sender' },
+        receiverSnapshot: { agentName: 'Agent B', sessionName: 'Target' },
+        replyPolicy: 'none',
+        turnRef: null,
+        sourceMessageId: null,
+        outcome: 'success',
+        error: null,
+        statusAt: new Date().toISOString(),
+        status: 'consumed',
+        inReplyTo: null
+      }
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+
+    render(<MessageGroup messages={[message]} />)
+
+    expect(screen.getByTestId('agent-session-delivery-badge')).toHaveTextContent('consumed')
   })
 
   it('selects a message when clicking message content in multi-select mode', () => {

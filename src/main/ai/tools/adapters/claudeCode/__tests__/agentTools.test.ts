@@ -8,15 +8,12 @@
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
-  CHERRY_BUILTIN_MCP_SERVER,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+  findBuiltinToolPolicy,
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from '@main/ai/toolApproval/builtinToolPolicy'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME, TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -238,60 +235,59 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     mocks.listMcpTools.mockReturnValue([])
   })
 
-  // Drive the snapshot with the SAME values settingsBuilder.buildToolPermissions wires in production:
-  // the cherry-tools auto-allow prefix plus the approval exceptions derived from the shared constant.
-  // The literal-string tests above stay green even if these constants are emptied or .map() drifts;
-  // these fail the moment the real gate stops carving the mutating tools out.
-  const PREFIX = `mcp__${CHERRY_BUILTIN_MCP_SERVER}__`
+  const CHERRY_ONLY_SERVERS: ReadonlySet<string> = new Set(['cherry-tools'])
+  const HOST_SERVERS: ReadonlySet<string> = new Set(['assistant', 'assistant-files'])
+  // Drive the snapshot with the same derived values settingsBuilder supplies in production.
+  const cherryPolicies = listBuiltinToolPolicies({ mountedServers: CHERRY_ONLY_SERVERS }).filter(
+    (entry) => entry.serverName === 'cherry-tools'
+  )
+  const autoApprovedRuntimeNames = cherryPolicies.filter((entry) => entry.approval === 'auto').map(toMcpRuntimeName)
+  const approvalRequiredRuntimeNames = cherryPolicies
+    .filter((entry) => entry.approval === 'required')
+    .map(toMcpRuntimeName)
   const productionOptions = {
-    autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    autoAllowRuntimeNames: autoApprovedRuntimeNames,
     autoAllowRuntimeNamePrefixes: [],
-    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    autoAllowRuntimeNameExceptions: approvalRequiredRuntimeNames
   }
 
-  it('keeps kb_manage approval-gated and the two policy sets disjoint', () => {
-    // Catches the gate being undone: kb_manage dropped from approval-required, or added to
-    // auto-approved, or the two sets overlapping. (It cannot catch a brand-new mutating tool added
-    // only to auto-approved — nothing marks a tool as mutating — that is the human reviewer's job.)
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(KB_MANAGE_TOOL_NAME)
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(CLI_INSTALL_TOOL_NAME)
-    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).toEqual(
-      expect.arrayContaining([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, TO_MARKDOWN_TOOL_NAME])
+  it('keeps mutating and read-only Cherry tools classified on their own entries', () => {
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME), CHERRY_ONLY_SERVERS)?.approval).toBe(
+      'required'
     )
-    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(KB_MANAGE_TOOL_NAME)
-    const autoApproved = new Set<string>(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES)
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
-    // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
-    expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
+    expect(
+      findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_INSTALL_TOOL_NAME), CHERRY_ONLY_SERVERS)?.approval
+    ).toBe('required')
+    expect(
+      findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_CREATE_TOOL_NAME), CHERRY_ONLY_SERVERS)
+    ).toMatchObject({
+      approval: 'required',
+      bypassApproval: 'enforce'
+    })
+    for (const name of [CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, TO_MARKDOWN_TOOL_NAME]) {
+      expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(name), CHERRY_ONLY_SERVERS)?.approval).toBe('auto')
+    }
   })
 
-  it('keeps Assistant read-only and sensitive tools in disjoint policy sets', () => {
-    expect(ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant__navigate', 'mcp__assistant__product_info'])
-    expect(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
-      'mcp__assistant__diagnose',
-      'mcp__assistant__apply_setting',
-      'mcp__assistant__create_agent'
-    ])
-    const autoApproved = new Set(ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
-    expect(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.some((name) => autoApproved.has(name))).toBe(false)
-
-    expect(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant-files__read_file'])
-    expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
-      'mcp__assistant-files__move_to_trash',
-      'mcp__assistant-files__save_attachment'
-    ])
-    const autoApprovedFiles = new Set(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
-    expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.some((name) => autoApprovedFiles.has(name))).toBe(false)
+  it('keeps Assistant read-only and sensitive tools classified on their own entries', () => {
+    expect(findBuiltinToolPolicy('mcp__assistant__navigate', HOST_SERVERS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__assistant__product_info', HOST_SERVERS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', HOST_SERVERS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant__apply_setting', HOST_SERVERS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant__create_agent', HOST_SERVERS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant-files__read_file', HOST_SERVERS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__assistant-files__move_to_trash', HOST_SERVERS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant-files__save_attachment', HOST_SERVERS)?.approval).toBe('required')
   })
 
-  it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {
+  it('applies every derived Cherry policy entry under the real wiring', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
 
-    for (const name of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES) {
-      expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'prompt' })
+    for (const runtimeName of approvalRequiredRuntimeNames) {
+      expect(snapshot.resolve(runtimeName)).toMatchObject({ approval: 'prompt' })
     }
-    for (const name of CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES) {
-      expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'auto' })
+    for (const runtimeName of autoApprovedRuntimeNames) {
+      expect(snapshot.resolve(runtimeName)).toMatchObject({ approval: 'auto' })
     }
   })
 

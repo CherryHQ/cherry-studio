@@ -29,6 +29,7 @@ import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
+import { redactSecretText } from '@shared/utils/redaction'
 
 import { vertexAiService } from './VertexAiService'
 
@@ -92,13 +93,7 @@ interface OpenClawValidationReport {
 }
 
 function sanitizeOpenClawDiagnostic(diagnostic: string): string {
-  const withoutSensitiveValues = diagnostic.replace(
-    /(["']?)(api_?key|token|auth|authorization|secret|password)\1(\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\r\n,;}\]]+)/gi,
-    (_match, quote: string, key: string, separator: string) => `${quote}${key}${quote}${separator}[REDACTED]`
-  )
-  return withoutSensitiveValues
-    .replace(/\b(Bearer|Basic)\s+[^\s"',;}\]]+/gi, (_match, scheme: string) => `${scheme} [REDACTED]`)
-    .slice(0, OPENCLAW_DIAGNOSTIC_LIMIT)
+  return redactSecretText(diagnostic).slice(0, OPENCLAW_DIAGNOSTIC_LIMIT)
 }
 
 function isCherryManagedConfigPath(configPath: string): boolean {
@@ -1442,11 +1437,11 @@ export class OpenClawService extends BaseService {
    * - Others: {host}/v1
    */
   private formatOpenAIUrl(provider: Provider): string {
-    // Special-case built-in GitHub / Copilot providers: these hosts should
+    // Special-case the built-in Copilot provider: its host should
     // not have a `/v1` suffix appended by default (renderer applies
-    // `formatApiHost(..., false)` for these). Mirror that behavior here
+    // `formatApiHost(..., false)`). Mirror that behavior here
     // to avoid constructing incorrect endpoints that return 404.
-    if (provider.id === 'copilot' || provider.id === 'github') {
+    if (provider.id === 'copilot') {
       return formatApiHost(provider.apiHost, false)
     }
 

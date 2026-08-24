@@ -1260,6 +1260,23 @@ describe('MessageService', () => {
     })
   })
 
+  describe('update — partial data patches', () => {
+    it('preserves turnOptions when a patch sends only parts', async () => {
+      const topicId = 'topic-turn-options'
+      await seedTopicWithRoot(topicId)
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: { ...mainText('answer'), turnOptions: { reasoningEffort: 'high', fastMode: true } },
+        status: 'success'
+      })
+
+      const updated = messageService.update(message.id, { data: mainText('edited') })
+
+      expect(updated.data.parts).toEqual(mainText('edited').parts)
+      expect(updated.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
+    })
+  })
+
   describe('chat message file refs', () => {
     it('syncs refs when reserving a new user message with file parts', async () => {
       const topicId = 'topic-ref-reserve'
@@ -1303,6 +1320,28 @@ describe('MessageService', () => {
         .where(eq(chatMessageFileRefTable.sourceId, message.id))
 
       expect(refs.map((ref) => ref.fileEntryId)).toEqual([fileB])
+    })
+
+    it('keeps file refs when a data patch omits parts', async () => {
+      const topicId = 'topic-ref-partial-data'
+      const fileId = '019606a0-0000-7000-8000-00000000fa0a'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const message = messageService.create(topicId, {
+        role: 'user',
+        data: partsWithFile(fileId),
+        status: 'success'
+      })
+      messageService.update(message.id, { data: { turnOptions: { fastMode: true } } })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+
+      expect(refs.map((ref) => ref.fileEntryId)).toEqual([fileId])
+      expect(messageService.getById(message.id).data.parts).toEqual(partsWithFile(fileId).parts)
     })
 
     it('syncs refs for edit-and-resend sibling messages', async () => {
@@ -1993,6 +2032,7 @@ describe('MessageService', () => {
 
     it('clearTopicMessages removes every content message, keeps the virtual root, and clears activeNodeId', async () => {
       await seedMultiModelTree() // root + m-root/m-a1/m-a2/m-follow, activeNodeId='m-follow'
+      notifyDataApiDataChangeMock.mockClear()
 
       const result = messageService.clearTopicMessages('topic-1')
       expect(result.deletedIds.slice().sort()).toEqual(['m-a1', 'm-a2', 'm-follow', 'm-root'])
@@ -2001,17 +2041,36 @@ describe('MessageService', () => {
       expect(remaining.map((r) => r.id)).toEqual([virtualRootId])
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
       expect(topicRow.activeNodeId).toBeNull()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'membership',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: result.deletedIds
+        },
+        {
+          endpoint: '/topics/:topicId/tree',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: result.deletedIds
+        },
+        { endpoint: '/messages/:id', entityIds: result.deletedIds },
+        { endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] },
+        { endpoint: '/topics/:id', routeParams: { id: 'topic-1' }, entityIds: ['topic-1'] },
+        { endpoint: '/topics/latest' }
+      ])
     })
 
     it('clearTopicMessages on an empty topic is a no-op that keeps the root', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-empty', activeNodeId: null, orderKey: 'a0' })
       messageService.createRootMessageTx(dbh.db, 'topic-empty')
+      notifyDataApiDataChangeMock.mockClear()
 
       const result = messageService.clearTopicMessages('topic-empty')
       expect(result.deletedIds).toEqual([])
       const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-empty'))
       expect(rows).toHaveLength(1)
       expect(rows[0].role).toBe('root')
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
 
     it('cascade-deleting the active first-turn subtree clears activeNodeId (never points it at the root)', async () => {
@@ -2476,6 +2535,33 @@ describe('MessageService', () => {
   })
 
   describe('reserveBranch', () => {
+    it('creates two empty children when the anchor is a leaf', async () => {
+      const rootId = await seedTopicWithRoot('topic-reserve-leaf')
+      const prompt = messageService.create('topic-reserve-leaf', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      const anchor = messageService.create('topic-reserve-leaf', {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('answer'),
+        status: 'success'
+      })
+
+      const activeReservation = messageService.reserveBranch(anchor.id)
+      const children = messageService.getChildrenByParentId(anchor.id)
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-reserve-leaf'))
+
+      expect(children).toHaveLength(2)
+      expect(children.every((message) => message.role === 'user')).toBe(true)
+      expect(children.every((message) => message.status === 'success')).toBe(true)
+      expect(children.every((message) => (message.data.parts?.length ?? 0) === 0)).toBe(true)
+      expect(children.map((message) => message.id)).toContain(activeReservation.id)
+      expect(topic.activeNodeId).toBe(activeReservation.id)
+    })
+
     it('persists every reservation and only activates when requested', async () => {
       const { anchor, awaitingInput } = await seedAwaitingInputBranch('topic-reserve-branch')
 

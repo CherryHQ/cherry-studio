@@ -145,7 +145,6 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   isGroupHeaderIconVisible?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => boolean
-  getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
   getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
@@ -155,6 +154,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   estimateItemSize: (index: number) => number
   defaultGroupVisibleCount: number
   groupLoadStep: number
+  groupEmptyLabel?: string
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
   revealRequest?: ResourceListRevealRequest

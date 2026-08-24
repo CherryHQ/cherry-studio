@@ -7,6 +7,7 @@ import { truncateOutput } from '../shared/truncateOutput'
 
 export function SkillTool({ input, output }: { input?: SkillToolInput; output?: SkillToolOutput }): ToolDisclosureItem {
   const { t } = useTranslation()
+  const skillName = input?.skill ?? input?.name
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
@@ -15,7 +16,7 @@ export function SkillTool({ input, output }: { input?: SkillToolInput; output?: 
       <ToolHeader
         toolName={AgentToolsType.Skill}
         args={input}
-        params={<SkeletonValue value={input?.skill} width="150px" />}
+        params={<SkeletonValue value={skillName} width="150px" />}
         variant="collapse-label"
         showStatus={false}
       />

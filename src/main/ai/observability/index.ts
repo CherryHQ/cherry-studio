@@ -5,7 +5,14 @@ export { ClaudeCodeOtlpAdapter } from './adapters/claudeCode/ClaudeCodeOtlpAdapt
 export { ClaudeCodeTraceBridgeService } from './adapters/claudeCode/ClaudeCodeTraceBridgeService'
 export { TRACER_NAME } from './constants'
 export type { AiTurnTraceHandle, AiTurnTraceMeta } from './core/AiTurnTrace'
-export { deriveRootSpanId, startAiChildTurnSpan, startAiTurnTrace } from './core/AiTurnTrace'
+export {
+  deriveRootSpanId,
+  endAgentRuntimeSpan,
+  startAgentRuntimeChildSpan,
+  startAiChildTurnSpan,
+  startAiTurnTrace
+} from './core/AiTurnTrace'
+export { TraceMethod, withSpanFunc } from './core/traceMethod'
 export { createHttpTraceFetch, type HttpTraceOptions } from './httpTraceFetch'
 export { NodeTraceService } from './runtime/NodeTraceService'
 export type { ObservabilitySink } from './sinks/ObservabilitySink'

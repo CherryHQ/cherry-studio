@@ -14,7 +14,8 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
-import { useTopicMutations } from '@renderer/hooks/useTopic'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -32,7 +33,6 @@ import {
   TopicListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AssistantResourceList')
@@ -43,6 +43,7 @@ const ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID = 'assistant-entity.clear-topics'
 const ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID = 'assistant-entity.toggle-grouping'
 const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
+const ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'assistant-entity.toggle-sidebar'
 const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
 
 type AssistantResourceListProps = {
@@ -55,9 +56,9 @@ type AssistantResourceListProps = {
   onOpenHistoryRecords?: () => void
   onManageAssistants?: () => void | Promise<void>
   onSelectTopic: (topic: Topic) => void | boolean
-  onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
+  onClearActiveTopic: () => void
   onSelectedAssistantClick?: () => void | Promise<void>
-  onCreateTopic: (assistantId: string | null) => void | Promise<void>
+  onCreateTopic: (assistantId: string | null) => Promise<Topic | null>
   /**
    * Called after the currently-active assistant is deleted so the classic-layout page
    * can settle (select the latest remaining topic / fall back). This is the old
@@ -76,7 +77,7 @@ export function AssistantResourceList({
   onOpenHistoryRecords,
   onManageAssistants,
   onSelectTopic,
-  onCreateTopicAfterClear,
+  onClearActiveTopic,
   onSelectedAssistantClick,
   onCreateTopic,
   onActiveAssistantDeleted
@@ -108,7 +109,8 @@ export function AssistantResourceList({
     isLoadingAll: isTopicsLoadingAll,
     isFullyLoaded: isTopicsFullyLoaded,
     isRefreshing: isTopicsRefreshing,
-    error: topicsError
+    error: topicsError,
+    loadLatestTopic
   } = assistantTopicsSource
   const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic', { enabled: dataEnabled })
   const {
@@ -127,6 +129,11 @@ export function AssistantResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
+  const { assistantFavoriteIds: sidebarAssistantFavoriteIds, toggleAssistant, removeAssistant } = useSidebarFavorites()
+  const sidebarAssistantFavoriteIdSet = useMemo(
+    () => new Set(sidebarAssistantFavoriteIds),
+    [sidebarAssistantFavoriteIds]
+  )
   const assistantGroupById = useMemo(
     () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
     [assistantGroups]
@@ -142,9 +149,27 @@ export function AssistantResourceList({
     topicsRef.current = topics
   }, [topics])
 
-  const handleCreateTopic = useCallback(
+  const createTopicForAssistant = useCallback(
     (assistantId: string) => onCreateTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId),
     [onCreateTopic]
+  )
+  const handleActivationError = useCallback(
+    (error: unknown) => {
+      logger.error('Failed to activate assistant resource from classic-layout rail', { error })
+      toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
+    },
+    [t]
+  )
+  const handleCreateTopic = useCallback(
+    async (assistantId: string) => {
+      try {
+        const topic = await createTopicForAssistant(assistantId)
+        if (topic) onSelectTopic(topic)
+      } catch (error) {
+        handleActivationError(error)
+      }
+    },
+    [createTopicForAssistant, handleActivationError, onSelectTopic]
   )
   const getAssistantEntityId = useCallback(
     (assistantId: string | null | undefined) =>
@@ -220,13 +245,16 @@ export function AssistantResourceList({
     t
   ])
 
-  const sortTopicsForEntity = useCallback(
-    (entityTopics: Topic[]) => sortResourceItemsByPinnedTime(entityTopics, new Date()),
-    []
-  )
   const getTopicAssistantId = useCallback(
     (topic: Topic) => getAssistantEntityId(topic.assistantId),
     [getAssistantEntityId]
+  )
+  const loadLatestTopicForAssistant = useCallback(
+    async (assistantId: string) => {
+      const topic = await loadLatestTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId)
+      return topic ? mapApiTopicToRendererTopic(topic) : null
+    },
+    [loadLatestTopic]
   )
   const activeAssistantEntityId = getAssistantEntityId(activeAssistantId)
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
@@ -269,9 +297,10 @@ export function AssistantResourceList({
       !isTopicsFullyLoaded ||
       isTopicPinsLoading,
     isError: !!(assistantsError || (isGroupGrouping && assistantGroupsError) || topicsError),
-    sortResourcesForEntity: sortTopicsForEntity,
     onPickResource: onSelectTopic,
-    onCreateResource: handleCreateTopic,
+    loadResourceForEntity: loadLatestTopicForAssistant,
+    onCreateResource: createTopicForAssistant,
+    onActivationError: handleActivationError,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
     onReorderError: handleReorderError
@@ -327,7 +356,11 @@ export function AssistantResourceList({
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
-        await onCreateTopicAfterClear?.(assistantId)
+        if (activeAssistantId === assistantId) {
+          const nextTopic = await loadLatestTopic()
+          if (nextTopic) onSelectTopic(mapApiTopicToRendererTopic(nextTopic))
+          else onClearActiveTopic()
+        }
 
         toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
       } catch (err) {
@@ -341,7 +374,10 @@ export function AssistantResourceList({
       clearingTopicsAssistantId,
       deleteTopicsByAssistantId,
       deletingAssistantId,
-      onCreateTopicAfterClear,
+      activeAssistantId,
+      loadLatestTopic,
+      onClearActiveTopic,
+      onSelectTopic,
       refreshTopics,
       t
     ]
@@ -398,6 +434,7 @@ export function AssistantResourceList({
       if (item.id === UNLINKED_ASSISTANT_ENTITY_ID) return []
 
       const pinned = assistantPinnedIdSet.has(item.id)
+      const sidebarPinned = sidebarAssistantFavoriteIdSet.has(item.id)
 
       return [
         buildResolvedResourceEntityMenuAction({
@@ -412,6 +449,12 @@ export function AssistantResourceList({
           icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
           order: 20,
           availability: { visible: true, enabled: !isAssistantPinActionDisabled }
+        }),
+        buildResolvedResourceEntityMenuAction({
+          id: ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
+          label: sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
+          icon: sidebarPinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
+          order: 22
         }),
         buildResolvedResourceEntityMenuAction({
           id: ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID,
@@ -452,6 +495,7 @@ export function AssistantResourceList({
       deletingAssistantId,
       isAssistantPinActionDisabled,
       isGroupGrouping,
+      sidebarAssistantFavoriteIdSet,
       t
     ]
   )
@@ -464,6 +508,11 @@ export function AssistantResourceList({
       }
       if (action.id === ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID) {
         void handleToggleAssistantPin(item.id)
+        return
+      }
+      if (action.id === ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
+        if (sidebarAssistantFavoriteIdSet.has(item.id)) removeAssistant(item.id)
+        else toggleAssistant(item.id)
         return
       }
       if (action.id === ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID) {
@@ -488,8 +537,11 @@ export function AssistantResourceList({
       handleToggleAssistantPin,
       isGroupGrouping,
       openAssistantEditor,
+      removeAssistant,
       setAssistantIconType,
-      setAssistantSortType
+      setAssistantSortType,
+      sidebarAssistantFavoriteIdSet,
+      toggleAssistant
     ]
   )
 
@@ -508,7 +560,7 @@ export function AssistantResourceList({
         collapsedState={collapsedGroupIds}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
-        onAdd={onAddAssistant ?? (() => onCreateTopic(null))}
+        onAdd={onAddAssistant ?? (() => handleCreateTopic(UNLINKED_ASSISTANT_ENTITY_ID))}
         headerActions={
           <TopicListOptionsMenu
             historyRecordsActive={historyRecordsActive}
