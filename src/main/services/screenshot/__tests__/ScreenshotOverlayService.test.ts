@@ -38,9 +38,6 @@ const fileProcessing = vi.hoisted(() => ({
   processorId: 'local-paddleocr',
   ocrImageBytes: vi.fn<() => Promise<string>>()
 }))
-vi.mock('@main/features/fileProcessing/config/resolveProcessorConfig', () => ({
-  resolveProcessorConfigByFeature: vi.fn(() => ({ id: fileProcessing.processorId }))
-}))
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
 
@@ -200,7 +197,10 @@ const container = vi.hoisted(() => {
       WindowManager: windowManager,
       IpcApiService: ipcApiService,
       OcrInferenceService: ocrInferenceService,
-      FileProcessingService: { ocrImageBytes: fileProcessing.ocrImageBytes }
+      FileProcessingService: {
+        ocrImageBytes: fileProcessing.ocrImageBytes,
+        getConfiguredProcessorId: vi.fn(() => fileProcessing.processorId)
+      }
     },
     preferenceService,
     mediaProtocolService,

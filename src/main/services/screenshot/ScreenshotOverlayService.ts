@@ -7,7 +7,6 @@ import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing'
 import { t } from '@main/i18n'
 import { isLocalModelReady } from '@main/services/localModel'
 import { MediaKind } from '@main/services/mediaProtocol'
@@ -501,7 +500,7 @@ export class ScreenshotOverlayService extends BaseService {
 
   private resolveConfiguredOcrProcessorId(): string | null {
     try {
-      const processorId = resolveProcessorConfigByFeature('image_to_text').id
+      const processorId = application.get('FileProcessingService').getConfiguredProcessorId('image_to_text')
       if (processorId === 'local-paddleocr' && !isLocalModelReady('ocr')) return null
       return processorId
     } catch (error) {

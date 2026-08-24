@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import type { EnqueueOptions } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 import { net } from 'electron'
@@ -114,6 +114,11 @@ export class FileProcessingService extends BaseService {
   /** OCR transient image bytes without forcing callers to own temporary-file cleanup. */
   ocrImageBytes(imageBytes: Uint8Array, signal?: AbortSignal): Promise<string> {
     return ocrImageBytes(imageBytes, signal)
+  }
+
+  /** Resolve the active processor without leaking file-processing configuration internals. */
+  getConfiguredProcessorId(feature: FileProcessorFeature): FileProcessorId {
+    return resolveProcessorConfigByFeature(feature).id
   }
 
   /**
