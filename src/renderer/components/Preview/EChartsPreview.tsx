@@ -89,6 +89,9 @@ const EChartsPreview = ({
       loading={isLoading || isStreaming}
       error={error}
       enableToolbar={enableToolbar}
+      // ECharts owns interactions inside the chart; generic image pan/zoom would break its coordinate model.
+      enableDrag={false}
+      enableWheelZoom={false}
       ref={ref}
       imageRef={containerRef}
       source="echarts">
