@@ -28,6 +28,7 @@ import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBacke
 import type { CherryUIMessage } from '../types'
 import {
   type CommittedConversationIntent,
+  type ConversationCrashRecoveryResult,
   type ConversationExecutionContext,
   ConversationExecutionDriverBindingKind,
   type ConversationExecutionPreparationDescriptor,
@@ -48,6 +49,10 @@ const logger = loggerService.withContext('TemporaryChatContextProvider')
 export class TemporaryChatContextProvider implements ConversationHistoryPort {
   readonly name = 'temporary'
   readonly isPersistentConversation = false
+
+  recoverCrashOrphans(): ConversationCrashRecoveryResult {
+    return { repairedOutputs: [] }
+  }
 
   canHandle(conversation: ConversationRef): boolean {
     return conversation.kind === ConversationKind.Chat && temporaryChatService.hasTopic(conversation.id)

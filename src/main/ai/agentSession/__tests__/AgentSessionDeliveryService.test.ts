@@ -24,11 +24,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   dispatchAgentDelivery: vi.fn(),
-  hasLiveConversation: vi.fn(),
-  hasTerminalPersistenceInFlight: vi.fn(),
   stop: vi.fn(),
   closeSession: vi.fn(),
   terminalListeners: new Set<(event: any) => void>(),
+  crashRecoveryListeners: new Set<() => void>(),
   runtimeWriteQuiesced: false
 }))
 
@@ -42,13 +41,16 @@ vi.mock('@application', async () => {
         get isWriteQuiesced() {
           return mocks.runtimeWriteQuiesced
         },
+        isCrashRecoveryComplete: true,
         dispatchAgentDelivery: mocks.dispatchAgentDelivery,
-        hasLiveConversation: mocks.hasLiveConversation,
-        hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
         stop: mocks.stop,
         onTurnTerminal: (listener: (event: any) => void) => {
           mocks.terminalListeners.add(listener)
           return { dispose: () => mocks.terminalListeners.delete(listener) }
+        },
+        onCrashRecoveryCompleted: (listener: () => void) => {
+          mocks.crashRecoveryListeners.add(listener)
+          return { dispose: () => mocks.crashRecoveryListeners.delete(listener) }
         }
       }
     }
@@ -171,8 +173,6 @@ describe('AgentSessionDeliveryService', () => {
     mocks.terminalListeners.clear()
     mocks.runtimeWriteQuiesced = false
     mocks.dispatchAgentDelivery.mockResolvedValue(undefined)
-    mocks.hasLiveConversation.mockReturnValue(false)
-    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     await seedAgent('agent-1')
     await seedSession('sender')
@@ -272,16 +272,12 @@ describe('AgentSessionDeliveryService', () => {
     )
   })
 
-  it('retries idle placeholder repair after a transient DB failure', async () => {
+  it('waits for authoritative boot recovery before failing a pending delivery', async () => {
     const service = new AgentSessionDeliveryService()
     await service._doInit()
     const request = accept()
     saveAssistant()
     claim(request)
-    const repair = vi.spyOn(agentSessionMessageService, 'markAssistantMessageTerminalError')
-    repair.mockImplementationOnce(() => {
-      throw new Error('database busy')
-    })
 
     service.kick('target')
     await service.drainInFlight({ timeoutMs: 100 })
@@ -289,29 +285,38 @@ describe('AgentSessionDeliveryService', () => {
       AgentSessionDeliveryStatus.Delivering
     )
 
-    service.kick('target')
+    for (const listener of mocks.crashRecoveryListeners) listener()
     await service.drainInFlight({ timeoutMs: 100 })
-    expect(repair).toHaveBeenCalledTimes(2)
+    expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery?.status).toBe(
+      AgentSessionDeliveryStatus.Delivering
+    )
+
+    agentSessionMessageService.settlePendingAssistantMessage({
+      sessionId: 'target',
+      messageId: ASSISTANT_ID,
+      status: 'error',
+      data: { parts: [] }
+    })
+    for (const listener of mocks.crashRecoveryListeners) listener()
+    await service.drainInFlight({ timeoutMs: 100 })
     expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
       status: AgentSessionDeliveryStatus.Consumed,
       outcome: AgentSessionDeliveryOutcome.Failed
     })
   })
 
-  it('does not repair a pending placeholder while terminal persistence is in flight', async () => {
+  it('keeps a pending placeholder owned until its terminal row becomes authoritative', async () => {
     const service = new AgentSessionDeliveryService()
     await service._doInit()
     const request = accept()
     saveAssistant()
     claim(request)
-    const repair = vi.spyOn(agentSessionMessageService, 'markAssistantMessageTerminalError')
-    mocks.hasTerminalPersistenceInFlight.mockReturnValue(true)
-
     service.kick('target')
     await service.drainInFlight({ timeoutMs: 100 })
-    expect(repair).not.toHaveBeenCalled()
+    expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery?.status).toBe(
+      AgentSessionDeliveryStatus.Delivering
+    )
 
-    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
     agentSessionMessageService.settlePendingAssistantMessage({
       sessionId: 'target',
       messageId: ASSISTANT_ID,
@@ -331,8 +336,6 @@ describe('AgentSessionDeliveryService', () => {
     const request = accept()
     saveAssistant()
     claim(request)
-    mocks.hasLiveConversation.mockReturnValue(true)
-
     fireTerminal(['row-roll-output'])
     await service.drainInFlight({ timeoutMs: 100 })
     expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery?.status).toBe(

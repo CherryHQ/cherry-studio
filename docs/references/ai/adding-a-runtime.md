@@ -85,8 +85,8 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      API-key rotation, open connections, or write state.
    - `listAvailableTools(mcpIds)` — the tool catalog for approval UI.
    - `connect(input)` — build an `AgentRuntimeConnection`.
-   - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
-     runtimes that benefit from idle warmup (see the Claude driver).
+   - Optional: `onSessionIdle` for runtimes that release or compact resources
+     when the host observes an idle session.
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
    - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event

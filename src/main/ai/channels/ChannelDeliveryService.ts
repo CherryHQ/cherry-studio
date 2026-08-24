@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import { type ChannelAdapter, ChannelStreamCompletionResult } from './ChannelAdapter'
 import type { ChannelDeliveryRequest, ChannelLiveUpdateRequest } from './ChannelManager'
 
 const logger = loggerService.withContext('ChannelDeliveryService')
@@ -9,6 +10,40 @@ const logger = loggerService.withContext('ChannelDeliveryService')
 const TERMINAL_DELIVERY_DEDUP_LIMIT = 4096
 /** Bounded ownership window for one external send. Policy, not an invariant — see C2. */
 const TERMINAL_DELIVERY_TIMEOUT_MS = 15_000
+
+export enum ChannelConnectionEvent {
+  ReplacementStarted = 'replacement-started',
+  ConnectionLost = 'connection-lost',
+  Connected = 'connected',
+  DeliveryTimedOut = 'delivery-timed-out'
+}
+
+enum TerminalDeliveryStage {
+  Claimed = 'claimed',
+  Finalizing = 'finalizing',
+  Sending = 'sending'
+}
+
+enum TerminalDeliveryResult {
+  Complete = 'complete',
+  RetryWhenConnected = 'retry-when-connected',
+  Unknown = 'unknown'
+}
+
+interface TerminalDeliveryAttempt {
+  deliveryId: string
+  channelId: string
+  adapter: ChannelAdapter
+  epoch: number
+  controller: AbortController
+  stage: TerminalDeliveryStage
+}
+
+interface TerminalDeliveryQueue {
+  channelId: string
+  requests: ChannelDeliveryRequest[]
+  waitingForConnection: boolean
+}
 
 /**
  * Owns generated-result delivery to IM channels: live updates, terminal FIFO/dedupe, bounded sends,
@@ -25,18 +60,21 @@ const TERMINAL_DELIVERY_TIMEOUT_MS = 15_000
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['ChannelManager'])
 export class ChannelDeliveryService extends BaseService {
-  private readonly queues = new Map<string, { channelId: string; requests: ChannelDeliveryRequest[] }>()
+  private readonly queues = new Map<string, TerminalDeliveryQueue>()
   private readonly runners = new Map<string, { channelId: string; promise: Promise<void> }>()
   private readonly deliveryIds = new Set<string>()
   private readonly blockedChannelIds = new Set<string>()
+  private readonly frozenChannelIds = new Set<string>()
   /** Consumer-side stale fence copied from ChannelManager; this service never generates epochs. */
   private readonly connectionEpochs = new Map<string, number>()
   private readonly liveEpochControllers = new Map<string, AbortController>()
+  private readonly terminalAttempts = new Map<string, TerminalDeliveryAttempt>()
   private accepting = false
 
   protected async onReady(): Promise<void> {
     this.accepting = true
     this.blockedChannelIds.clear()
+    this.frozenChannelIds.clear()
   }
 
   /** Reverse shutdown: refuse new work, then let what is already queued settle. */
@@ -47,15 +85,19 @@ export class ChannelDeliveryService extends BaseService {
     this.runners.clear()
     this.deliveryIds.clear()
     this.blockedChannelIds.clear()
+    this.frozenChannelIds.clear()
     this.connectionEpochs.clear()
     for (const controller of this.liveEpochControllers.values()) controller.abort('channel-delivery-stop')
     this.liveEpochControllers.clear()
+    for (const attempt of this.terminalAttempts.values()) attempt.controller.abort('channel-delivery-stop')
+    this.terminalAttempts.clear()
   }
 
   /** Accepting is enabled on ready; tests and `ChannelManager.start()` re-arm it explicitly. */
   open(): void {
     this.accepting = true
     this.blockedChannelIds.clear()
+    this.frozenChannelIds.clear()
     this.connectionEpochs.clear()
     for (const controller of this.liveEpochControllers.values()) controller.abort('channel-delivery-reset')
     this.liveEpochControllers.clear()
@@ -68,20 +110,36 @@ export class ChannelDeliveryService extends BaseService {
     this.liveEpochControllers.clear()
   }
 
-  block(channelId: string): void {
-    this.blockedChannelIds.add(channelId)
-    this.abortLiveEpochs(channelId, 'channel-blocked')
-    this.dropQueued(channelId)
+  replacementStarted(channelId: string): void {
+    this.frozenChannelIds.add(channelId)
+  }
+
+  connectionLost(channelId: string, connectionEpoch?: number): void {
+    if (connectionEpoch !== undefined && this.connectionEpochs.get(channelId) !== connectionEpoch) return
+    this.connectionEpochs.delete(channelId)
+    this.abortLiveEpochs(channelId, ChannelConnectionEvent.ConnectionLost)
+    for (const attempt of this.terminalAttempts.values()) {
+      if (attempt.channelId === channelId) attempt.controller.abort(ChannelConnectionEvent.ConnectionLost)
+    }
+    for (const queue of this.queues.values()) {
+      if (queue.channelId === channelId) queue.waitingForConnection = true
+    }
   }
 
   /** Only a newer successful connection epoch reopens a channel — never a timeout on its own. */
-  reopen(channelId: string, connectionEpoch: number): void {
+  connected(channelId: string, connectionEpoch: number): void {
     const currentEpoch = this.connectionEpochs.get(channelId) ?? 0
     if (connectionEpoch <= currentEpoch) return
     this.connectionEpochs.set(channelId, connectionEpoch)
     this.abortLiveEpochs(channelId, 'connection-replaced')
     this.liveEpochControllers.set(`${channelId}\0${connectionEpoch}`, new AbortController())
     this.blockedChannelIds.delete(channelId)
+    this.frozenChannelIds.delete(channelId)
+    for (const [key, queue] of this.queues) {
+      if (queue.channelId !== channelId) continue
+      queue.waitingForConnection = false
+      if (!this.runners.has(key) && queue.requests.length > 0) this.startRunner(key, queue)
+    }
   }
 
   isBlocked(channelId: string): boolean {
@@ -93,7 +151,12 @@ export class ChannelDeliveryService extends BaseService {
   }
 
   updateLive(request: ChannelLiveUpdateRequest): boolean {
-    if (!this.accepting || this.blockedChannelIds.has(request.channelId)) return false
+    if (
+      !this.accepting ||
+      this.blockedChannelIds.has(request.channelId) ||
+      this.frozenChannelIds.has(request.channelId)
+    )
+      return false
     const resolved = application.get('ChannelManager').resolveConnectedAdapter(request.channelId)
     if (!resolved || this.connectionEpochs.get(request.channelId) !== resolved.epoch) return false
     const key = `${request.channelId}\0${resolved.epoch}`
@@ -125,7 +188,11 @@ export class ChannelDeliveryService extends BaseService {
   }
 
   enqueueTerminal(request: ChannelDeliveryRequest): boolean {
-    if (!this.accepting || this.blockedChannelIds.has(request.channelId)) {
+    if (
+      !this.accepting ||
+      this.blockedChannelIds.has(request.channelId) ||
+      this.frozenChannelIds.has(request.channelId)
+    ) {
       logger.warn('Rejected terminal channel delivery: channel is stopping or blocked', {
         deliveryId: request.id,
         channelId: request.channelId,
@@ -151,14 +218,18 @@ export class ChannelDeliveryService extends BaseService {
     }
 
     const key = `${request.channelId}\0${request.chatId}`
-    const queue = this.queues.get(key) ?? { channelId: request.channelId, requests: [] }
+    const queue = this.queues.get(key) ?? {
+      channelId: request.channelId,
+      requests: [],
+      waitingForConnection: false
+    }
     queue.requests.push(request)
     this.queues.set(key, queue)
     if (!this.runners.has(key)) this.startRunner(key, queue)
     return true
   }
 
-  private startRunner(key: string, queue: { channelId: string; requests: ChannelDeliveryRequest[] }): void {
+  private startRunner(key: string, queue: TerminalDeliveryQueue): void {
     const runner = this.runQueue(key, queue)
     this.runners.set(key, { channelId: queue.channelId, promise: runner })
     const cleanup = () => {
@@ -168,12 +239,13 @@ export class ChannelDeliveryService extends BaseService {
         if (this.queues.get(key) === queue) this.queues.delete(key)
         return
       }
+      if (queue.waitingForConnection) return
       this.startRunner(key, queue)
     }
     runner.then(cleanup, cleanup)
   }
 
-  private async runQueue(key: string, queue: { channelId: string; requests: ChannelDeliveryRequest[] }): Promise<void> {
+  private async runQueue(key: string, queue: TerminalDeliveryQueue): Promise<void> {
     while (this.queues.get(key) === queue) {
       const request = queue.requests.shift()
       if (!request) return
@@ -181,16 +253,11 @@ export class ChannelDeliveryService extends BaseService {
         this.logSkipped(request)
         continue
       }
-      try {
-        await this.send(request)
-      } catch (error) {
-        logger.error('Failed to deliver terminal message to channel', {
-          deliveryId: request.id,
-          channelId: request.channelId,
-          chatId: request.chatId,
-          event: request.event,
-          error
-        })
+      const result = await this.send(request)
+      if (result === TerminalDeliveryResult.RetryWhenConnected) {
+        queue.requests.unshift(request)
+        queue.waitingForConnection = true
+        return
       }
     }
   }
@@ -219,30 +286,54 @@ export class ChannelDeliveryService extends BaseService {
     }
   }
 
+  private deliveryTimedOut(attempt: TerminalDeliveryAttempt): void {
+    this.blockedChannelIds.add(attempt.channelId)
+    attempt.controller.abort(ChannelConnectionEvent.DeliveryTimedOut)
+    this.abortLiveEpochs(attempt.channelId, ChannelConnectionEvent.DeliveryTimedOut)
+    this.dropQueued(attempt.channelId)
+  }
+
+  private isCurrentAttempt(attempt: TerminalDeliveryAttempt): boolean {
+    if (attempt.controller.signal.aborted || this.connectionEpochs.get(attempt.channelId) !== attempt.epoch)
+      return false
+    const resolved = application.get('ChannelManager').resolveConnectedAdapter(attempt.channelId)
+    return resolved?.adapter === attempt.adapter && resolved.epoch === attempt.epoch
+  }
+
   /** Resolve the adapter now, not at enqueue time, and perform the one bounded send. */
-  private async send(request: ChannelDeliveryRequest): Promise<void> {
+  private async send(request: ChannelDeliveryRequest): Promise<TerminalDeliveryResult> {
     const resolved = application.get('ChannelManager').resolveConnectedAdapter(request.channelId)
     if (!resolved || this.connectionEpochs.get(request.channelId) !== resolved.epoch) {
-      logger.warn('Dropped terminal channel delivery: adapter is gone', {
-        deliveryId: request.id,
-        channelId: request.channelId,
-        chatId: request.chatId
-      })
-      return
+      return TerminalDeliveryResult.RetryWhenConnected
     }
-    const { adapter } = resolved
-
-    const controller = new AbortController()
-    const attempt = async (): Promise<void> => {
+    const attempt: TerminalDeliveryAttempt = {
+      deliveryId: request.id,
+      channelId: request.channelId,
+      adapter: resolved.adapter,
+      epoch: resolved.epoch,
+      controller: new AbortController(),
+      stage: TerminalDeliveryStage.Claimed
+    }
+    this.terminalAttempts.set(request.id, attempt)
+    const run = async (): Promise<TerminalDeliveryResult> => {
+      if (!this.isCurrentAttempt(attempt)) return TerminalDeliveryResult.RetryWhenConnected
       if (request.finalizeStream) {
-        const finalized = await adapter.onStreamComplete(request.chatId, request.text, {
+        attempt.stage = TerminalDeliveryStage.Finalizing
+        const finalized = await attempt.adapter.onStreamComplete(request.chatId, request.text, {
           ...request.responseOptions,
-          signal: controller.signal
+          signal: attempt.controller.signal
         })
-        if (controller.signal.aborted || finalized) return
+        if (finalized === ChannelStreamCompletionResult.Delivered) return TerminalDeliveryResult.Complete
+        if (!this.isCurrentAttempt(attempt)) return TerminalDeliveryResult.RetryWhenConnected
       }
+      if (!this.isCurrentAttempt(attempt)) return TerminalDeliveryResult.RetryWhenConnected
       const text = request.fallbackText ?? request.text
-      await adapter.sendMessage(request.chatId, text, { ...request.responseOptions, signal: controller.signal })
+      attempt.stage = TerminalDeliveryStage.Sending
+      await attempt.adapter.sendMessage(request.chatId, text, {
+        ...request.responseOptions,
+        signal: attempt.controller.signal
+      })
+      return TerminalDeliveryResult.Complete
     }
 
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -253,18 +344,28 @@ export class ChannelDeliveryService extends BaseService {
       // C2: an adapter whose transport ignores the signal can still hang forever; the timeout ends
       // *our* ownership regardless, releasing the FIFO behind it. No retry — a timed-out send may
       // well have been delivered, so retrying risks a duplicate the user sees.
-      const outcome = await Promise.race([attempt().then(() => 'sent' as const), timeout])
-      if (outcome !== 'timed-out') return
-      controller.abort()
-      this.block(request.channelId)
+      const outcome = await Promise.race([run(), timeout])
+      if (outcome !== 'timed-out') return outcome
+      this.deliveryTimedOut(attempt)
       logger.error('Terminal channel delivery timed out; blocking channel without retry', {
         deliveryId: request.id,
         channelId: request.channelId,
         chatId: request.chatId,
         timeoutMs: TERMINAL_DELIVERY_TIMEOUT_MS
       })
+      return TerminalDeliveryResult.Unknown
+    } catch (error) {
+      logger.error('Failed to deliver terminal message to channel; external result is unknown', {
+        deliveryId: request.id,
+        channelId: request.channelId,
+        chatId: request.chatId,
+        event: request.event,
+        error
+      })
+      return TerminalDeliveryResult.Unknown
     } finally {
       if (timer) clearTimeout(timer)
+      if (this.terminalAttempts.get(request.id) === attempt) this.terminalAttempts.delete(request.id)
     }
   }
 }

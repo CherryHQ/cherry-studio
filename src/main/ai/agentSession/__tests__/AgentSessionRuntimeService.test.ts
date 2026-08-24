@@ -65,17 +65,18 @@ vi.mock('@application', () => ({
 import { ConversationEffectType, ConversationResponderKind } from '../../conversation'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import {
+  AgentApprovalLifetime,
   AgentRuntimeAutonomousState,
   type AgentRuntimeConnection,
   type AgentRuntimeEvent,
   AgentRuntimeEventType,
-  AgentRuntimeInteractionPresentation,
   AgentRuntimeMessageAssociation,
   AgentRuntimeReconcileResult,
   type AgentRuntimeUserInput,
   AgentSessionUsageCaptureOwner,
   AiRuntimeCapability
 } from '../../runtime/types'
+import { agentChatContextProvider } from '../../streamManager'
 import { toolApprovalRegistry } from '../../toolApproval/ToolApprovalRegistry'
 import { AgentConnectionManager } from '../AgentConnectionManager'
 import {
@@ -193,9 +194,12 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         toolCallId: 'tool-call-bg',
         toolName: 'AskUserQuestion',
         originalInput: { questions: [] },
-        presentation: AgentRuntimeInteractionPresentation.Message,
+        lifetime: AgentApprovalLifetime.SessionMessage,
         resolve
       })
+      const claim = toolApprovalRegistry.claimMessage('approval-bg', 'session-1')
+      if (!claim) throw new Error('message approval was not claimable')
+      toolApprovalRegistry.bindMessage(claim, 'approval-message-1')
       const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
       const manager = new AgentConnectionManager()
 
@@ -222,9 +226,12 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         toolCallId: 'tool-call-bg',
         toolName: 'AskUserQuestion',
         originalInput: { questions: [] },
-        presentation: AgentRuntimeInteractionPresentation.Message,
+        lifetime: AgentApprovalLifetime.SessionMessage,
         resolve
       })
+      const claim = toolApprovalRegistry.claimMessage('approval-bg', 'session-1')
+      if (!claim) throw new Error('message approval was not claimable')
+      toolApprovalRegistry.bindMessage(claim, 'approval-message-1')
       const manager = new AgentConnectionManager()
 
       expect(manager.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toBe(false)
@@ -242,10 +249,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     })
   })
 
-  describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    const reconcile = (manager: AgentConnectionManager) =>
-      (manager as unknown as { reconcileStalePendingMessages: () => void }).reconcileStalePendingMessages()
-
+  describe('Agent HistoryPort — boot crash recovery', () => {
     it('resolves crash-orphaned pending rows with terminalized parts and invalidates their sessions', () => {
       vi.spyOn(agentSessionMessageService, 'findCrashOrphanedAssistantMessages').mockReturnValue([
         {
@@ -269,9 +273,13 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       const resolveOrphans = vi
         .spyOn(agentSessionMessageService, 'resolveCrashOrphanedMessages')
         .mockReturnValue(undefined)
-      const manager = new AgentConnectionManager()
-
-      reconcile(manager)
+      expect(agentChatContextProvider.recoverCrashOrphans()).toEqual({
+        repairedOutputs: [
+          { outputNodeId: 'stale-1', status: 'error' },
+          { outputNodeId: 'stale-2', status: 'error' },
+          { outputNodeId: 'stale-3', status: 'error' }
+        ]
+      })
 
       expect(resolveOrphans).toHaveBeenCalledWith(
         [
@@ -301,12 +309,12 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         .spyOn(agentSessionMessageService, 'resolveCrashOrphanedMessages')
         .mockReturnValue(undefined)
 
-      reconcile(new AgentConnectionManager())
+      expect(agentChatContextProvider.recoverCrashOrphans()).toEqual({ repairedOutputs: [] })
 
       expect(resolveOrphans).not.toHaveBeenCalled()
     })
 
-    it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', () => {
+    it('propagates recovery failures so the Conversation owner can retain and retry the operation', () => {
       vi.spyOn(agentSessionMessageService, 'findCrashOrphanedAssistantMessages').mockImplementation(() => {
         throw new Error('db down')
       })
@@ -314,7 +322,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         .spyOn(agentSessionMessageService, 'resolveCrashOrphanedMessages')
         .mockReturnValue(undefined)
 
-      expect(() => reconcile(new AgentConnectionManager())).not.toThrow()
+      expect(() => agentChatContextProvider.recoverCrashOrphans()).toThrow('db down')
       expect(resolveOrphans).not.toHaveBeenCalled()
     })
   })
@@ -3733,7 +3741,18 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     }
 
     it('persists an out-of-turn interaction as an independent assistant message', () => {
-      const saveMessage = vi.spyOn(agentSessionMessageService, 'saveMessage').mockReturnValue({} as never)
+      const saveMessage = vi
+        .spyOn(agentSessionMessageService, 'saveMessage')
+        .mockReturnValue({ id: 'approval-message-1' } as never)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-bg',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-bg',
+        toolName: 'AskUserQuestion',
+        originalInput: {},
+        lifetime: AgentApprovalLifetime.SessionMessage,
+        resolve: vi.fn()
+      })
       const manager = new AgentConnectionManager()
       const events: unknown[] = []
       manager.onApprovalRequested((event) => events.push(event))
@@ -3747,7 +3766,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
           toolCallId: 'tool-call-bg',
           toolName: 'AskUserQuestion',
           input: inputData,
-          presentation: AgentRuntimeInteractionPresentation.Message
+          lifetime: AgentApprovalLifetime.SessionMessage
         }
       })
 
@@ -3791,7 +3810,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         toolCallId: 'tool-call-bg',
         toolName: 'AskUserQuestion',
         originalInput: {},
-        presentation: AgentRuntimeInteractionPresentation.Message,
+        lifetime: AgentApprovalLifetime.SessionMessage,
         resolve
       })
       const manager = new AgentConnectionManager()
@@ -3806,7 +3825,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
           toolCallId: 'tool-call-bg',
           toolName: 'AskUserQuestion',
           input: {},
-          presentation: AgentRuntimeInteractionPresentation.Message
+          lifetime: AgentApprovalLifetime.SessionMessage
         }
       })
 
@@ -3854,7 +3873,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
           toolCallId: 'tool-call-live',
           toolName: 'Bash',
           input: { command: 'pwd' },
-          presentation: AgentRuntimeInteractionPresentation.Stream
+          lifetime: AgentApprovalLifetime.ExecutionBound
         }
       })
 

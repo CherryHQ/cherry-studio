@@ -14,7 +14,6 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { agentSessionMessageService } from '@main/data/services/AgentSessionMessageService'
-import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import {
   ConversationActiveNodeMove,
@@ -75,7 +74,6 @@ import {
   type ConversationPostCommitTaskDescriptor,
   ConversationPostCommitTaskKind,
   type ConversationTraceFlushTaskDescriptor,
-  finalizeInterruptedParts,
   type MainContinueConversationRequest,
   type MainDispatchRequest,
   persistentChatContextProvider,
@@ -225,6 +223,8 @@ export class ConversationRuntimeService extends BaseService {
   readonly onConversationCompleted = this._onConversationCompleted.event
   private readonly _onTurnTerminal = new Emitter<ConversationTurnTerminalEvent>()
   readonly onTurnTerminal: Event<ConversationTurnTerminalEvent> = this._onTurnTerminal.event
+  private readonly _onCrashRecoveryCompleted = new Emitter<void>()
+  readonly onCrashRecoveryCompleted: Event<void> = this._onCrashRecoveryCompleted.event
   private readonly executionManager: AiExecutionManager
   private readonly executionResources: ConversationExecutionResourcePort
   private readonly providers: readonly ConversationHistoryPort[]
@@ -236,6 +236,9 @@ export class ConversationRuntimeService extends BaseService {
   private readonly bindings = new ConversationBindingRegistry()
   private readonly presentation = new ConversationPresentationRegistry()
   private readonly pauseHolds = new Set<symbol>()
+  private readonly bootRecoveryAbort = new AbortController()
+  private bootRecoveryOperation: Promise<void> | undefined
+  private crashRecoveryComplete = false
 
   constructor(
     dependencies: {
@@ -302,29 +305,48 @@ export class ConversationRuntimeService extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
-    this.reconcileStalePendingMessages()
+    this.startCrashRecovery()
     this.registerInterval(() => {
       for (const actor of this.actors.values()) actor.retryBlockedPersistence()
     }, PERSISTENCE_RETRY_INTERVAL_MS)
   }
 
-  private reconcileStalePendingMessages(): void {
-    try {
-      const stale = messageService.findCrashOrphanedAssistantMessages()
-      if (stale.length === 0) return
-      logger.info('Reconciling crash-orphaned pending Chat messages', { count: stale.length })
-      messageService.resolveCrashOrphanedMessages(
-        stale.map(({ id, data }) => ({
-          id,
-          data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], ConversationOutcomeKind.Error) }
-        }))
-      )
-    } catch (error) {
-      logger.error('Failed to reconcile stale pending Chat messages', { error })
-    }
+  private startCrashRecovery(): void {
+    if (this.bootRecoveryOperation) return
+    this.bootRecoveryOperation = (async () => {
+      while (!this.crashRecoveryComplete && !this.bootRecoveryAbort.signal.aborted) {
+        try {
+          const repairedOutputs = this.providers.flatMap(
+            (provider) => provider.recoverCrashOrphans?.().repairedOutputs ?? []
+          )
+          this.crashRecoveryComplete = true
+          logger.info('Conversation crash recovery completed', { repairedOutputCount: repairedOutputs.length })
+          this._onCrashRecoveryCompleted.fire()
+        } catch (error) {
+          if (this.bootRecoveryAbort.signal.aborted) break
+          logger.error('Conversation crash recovery failed; retrying', { error })
+          await new Promise<void>((resolve) => {
+            const done = () => {
+              clearTimeout(timer)
+              this.bootRecoveryAbort.signal.removeEventListener('abort', done)
+              resolve()
+            }
+            const timer = setTimeout(done, PERSISTENCE_RETRY_INTERVAL_MS)
+            this.bootRecoveryAbort.signal.addEventListener('abort', done, { once: true })
+          })
+        }
+      }
+    })().finally(() => {
+      this.bootRecoveryOperation = undefined
+    })
+  }
+
+  get isCrashRecoveryComplete(): boolean {
+    return this.crashRecoveryComplete
   }
 
   protected async onStop(): Promise<void> {
+    this.bootRecoveryAbort.abort('conversation-runtime-stop')
     const hold = this.pause('app-shutdown')
     try {
       for (const ref of this.activeConversationRefs()) this.stop(ref, 'app-shutdown')
@@ -335,9 +357,11 @@ export class ConversationRuntimeService extends BaseService {
   }
 
   protected onDestroy(): void {
+    this.bootRecoveryAbort.abort('conversation-runtime-destroy')
     this._onApprovalRequested.dispose()
     this._onConversationCompleted.dispose()
     this._onTurnTerminal.dispose()
+    this._onCrashRecoveryCompleted.dispose()
   }
 
   async dispatch(
@@ -1689,6 +1713,7 @@ export class ConversationRuntimeService extends BaseService {
     for (const operation of this.executionManager.inFlightOperations()) {
       runs.push({ id: `execution:${operation.id}`, run: operation.run })
     }
+    if (this.bootRecoveryOperation) runs.push({ id: 'boot-recovery', run: this.bootRecoveryOperation })
     return runs
   }
 

@@ -69,7 +69,7 @@ export type ToolApprovalEmitterHolder = {
   emit?: (request: AgentRuntimeToolApprovalRequest) => void
   /** Replaces a streamed tool call's raw input with the SDK-normalized input before approval. */
   emitInput?: (request: Pick<AgentRuntimeToolApprovalRequest, 'toolCallId' | 'toolName' | 'input'>) => void
-  /** Session-scoped cleanup (e.g. `toolApprovalRegistry.abort(sessionId)`). */
+  /** Session-scoped cleanup delegated to the approval lifecycle coordinator. */
   dispose?: () => void
 }
 

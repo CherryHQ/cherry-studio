@@ -1,4 +1,5 @@
-import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
+import type { ChannelStreamCompletionResult } from '@main/ai/channels/ChannelAdapter'
+import { type ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 import type { ChannelDeliveryOwner } from '@main/ai/channels/ChannelManager'
 import {
   ConversationKind,
@@ -256,7 +257,9 @@ describe('ChannelAdapterListener', () => {
   })
 
   it('submits a hung terminal delivery only once', async () => {
-    const adapter = makeAdapter({ onStreamComplete: vi.fn(() => new Promise<boolean>(() => {})) })
+    const adapter = makeAdapter({
+      onStreamComplete: vi.fn(() => new Promise<ChannelStreamCompletionResult>(() => {}))
+    })
     const listener = new ChannelAdapterListener(immediateDeliveryOwner, 'ch-1', 'chat-1')
     listener.onChunk(delta('final answer'))
 

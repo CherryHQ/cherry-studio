@@ -456,6 +456,43 @@ describe('ConversationRuntimeService', () => {
     })
   })
 
+  it('keeps failed boot recovery in the fixed-point barrier until an authoritative retry succeeds', async () => {
+    vi.useFakeTimers()
+    const recoverCrashOrphans = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('database unavailable')
+      })
+      .mockReturnValueOnce({ repairedOutputs: [{ outputNodeId: 'assistant-1', status: 'error' }] })
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateIntent: vi.fn(),
+      commitIntent: vi.fn(),
+      recoverCrashOrphans
+    }
+    const service = new ConversationRuntimeService({ providers: [provider] })
+    const recovered = vi.fn()
+    service.onCrashRecoveryCompleted(recovered)
+
+    await service._doInit()
+    expect(service.isCrashRecoveryComplete).toBe(false)
+    const hold = service.pause('backup')
+    const drain = service.drainInFlight({ timeoutMs: 1 })
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(drain).resolves.toEqual({ stragglerIds: ['boot-recovery'] })
+
+    await vi.advanceTimersByTimeAsync(4_999)
+    expect(recoverCrashOrphans).toHaveBeenCalledTimes(2)
+    expect(service.isCrashRecoveryComplete).toBe(true)
+    expect(recovered).toHaveBeenCalledOnce()
+
+    hold.dispose()
+    await service._doDestroy()
+    vi.useRealTimers()
+  })
+
   it('materializes an execution resource only after the Actor commits Starting', async () => {
     const controlled = controlledStream()
     const manager = new AiExecutionManager(async () => controlled.stream)

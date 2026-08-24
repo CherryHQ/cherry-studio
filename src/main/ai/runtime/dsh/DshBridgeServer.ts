@@ -25,7 +25,7 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import { AgentUserResponseMode } from '../../conversation'
-import { type AgentRuntimeEvent, AgentRuntimeEventType, AgentRuntimeInteractionPresentation } from '../types'
+import { AgentApprovalLifetime, type AgentRuntimeEvent, AgentRuntimeEventType } from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'
 
@@ -280,10 +280,10 @@ export class DshBridgeServer {
     const toolCallId = ask.callId || approvalId
     // `args` is protocol-`unknown` (plugin-parsed model output), so keep the shape guard.
     const input = isRecord(ask.args) ? ask.args : {}
-    const presentation =
+    const lifetime =
       interactionState.userResponse === AgentUserResponseMode.Stream
-        ? AgentRuntimeInteractionPresentation.Stream
-        : AgentRuntimeInteractionPresentation.Message
+        ? AgentApprovalLifetime.ExecutionBound
+        : AgentApprovalLifetime.SessionMessage
     return new Promise((resolve) => {
       const pending = toolApprovalRegistry.register({
         approvalId,
@@ -291,7 +291,7 @@ export class DshBridgeServer {
         toolCallId,
         toolName,
         originalInput: { ...input },
-        presentation,
+        lifetime,
         resolve: (decision) => {
           // dsh forbids rewriting tool input, so an edited-input approval degrades to a rejection.
           if (decision.approved && decision.updatedInput) {
@@ -310,7 +310,7 @@ export class DshBridgeServer {
           toolCallId,
           toolName,
           input: { ...input },
-          presentation,
+          lifetime,
           providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
         }
       })
@@ -341,10 +341,10 @@ export class DshBridgeServer {
     }
     const approvalId = randomUUID()
     const toolCallId = ask.callId
-    const presentation =
+    const lifetime =
       interactionState.userResponse === AgentUserResponseMode.Stream
-        ? AgentRuntimeInteractionPresentation.Stream
-        : AgentRuntimeInteractionPresentation.Message
+        ? AgentApprovalLifetime.ExecutionBound
+        : AgentApprovalLifetime.SessionMessage
     const input = { plan: review.detail }
     return new Promise((resolve) => {
       const pending = toolApprovalRegistry.register({
@@ -353,7 +353,7 @@ export class DshBridgeServer {
         toolCallId,
         toolName: 'exit_plan_mode',
         originalInput: { ...input },
-        presentation,
+        lifetime,
         resolve: (decision) => {
           if (decision.approved && !decision.updatedInput) {
             resolve({ answers: [{ id: review.id, selected: [intent.approve] }] })
@@ -371,7 +371,7 @@ export class DshBridgeServer {
           toolCallId,
           toolName: 'exit_plan_mode',
           input: { ...input },
-          presentation,
+          lifetime,
           providerMetadata: {
             cherry: { transport: DSH_TRANSPORT, toolName: 'exit_plan_mode' } satisfies CherryToolMeta
           }

@@ -50,6 +50,11 @@ export type SendMessageOptions = {
   replyInThread?: boolean
 }
 
+export enum ChannelStreamCompletionResult {
+  Delivered = 'delivered',
+  NotHandled = 'not-handled'
+}
+
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
 type ChannelConfigByType = {
   [T in AgentChannelType]: Extract<AgentChannelEntity, { type: T }>['config']
@@ -254,12 +259,18 @@ export abstract class ChannelAdapter extends EventEmitter {
   /**
    * Called when the stream is complete. The adapter should finalize the
    * streaming UI (close streaming card, send final message, etc.).
-   * @returns true if the adapter handled the final delivery (e.g. updated the card).
-   *          false means the caller should fall back to sendMessage().
+   * @returns `Delivered` if the adapter handled the final delivery; `NotHandled`
+   *          means the caller may fall back to `sendMessage()`.
    */
-  // oxlint-disable-next-line no-unused-vars
-  async onStreamComplete(_chatId: string, _finalText: string, _opts?: SendMessageOptions): Promise<boolean> {
-    return false
+  async onStreamComplete(
+    _chatId: string,
+    _finalText: string,
+    _opts?: SendMessageOptions
+  ): Promise<ChannelStreamCompletionResult> {
+    void _chatId
+    void _finalText
+    void _opts
+    return ChannelStreamCompletionResult.NotHandled
   }
 
   /**

@@ -6,7 +6,12 @@ import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 import { fileTypeFromBuffer } from 'file-type'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  ChannelStreamCompletionResult,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP } from '../../utils'
@@ -411,23 +416,27 @@ class FeishuAdapter extends ChannelAdapter {
     await stream.update(fullText)
   }
 
-  override async onStreamComplete(chatId: string, finalText: string, opts?: SendMessageOptions): Promise<boolean> {
+  override async onStreamComplete(
+    chatId: string,
+    finalText: string,
+    opts?: SendMessageOptions
+  ): Promise<ChannelStreamCompletionResult> {
     const streamKey = this.responseKey(chatId, opts)
     if (opts?.replyToMessageId) {
       await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
       this.chatReactions.delete(streamKey)
     }
     const stream = this.streams.get(streamKey)
-    if (!stream) return false
+    if (!stream) return ChannelStreamCompletionResult.NotHandled
     try {
       await stream.complete(finalText)
-      return true
+      return ChannelStreamCompletionResult.Delivered
     } catch (error) {
       this.log.warn('Failed to finalize Feishu stream, falling back to a message', {
         chatId,
         error: error instanceof Error ? error.message : String(error)
       })
-      return false
+      return ChannelStreamCompletionResult.NotHandled
     } finally {
       this.streams.delete(streamKey)
     }

@@ -3,7 +3,12 @@ import { clampSurrogateBoundary } from '@shared/utils/text'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  ChannelStreamCompletionResult,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
@@ -595,12 +600,14 @@ class SlackAdapter extends ChannelAdapter {
     await controller.onText(fullText)
   }
 
-  override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
+  override async onStreamComplete(chatId: string, finalText: string): Promise<ChannelStreamCompletionResult> {
     const controller = this.streamingControllers.get(chatId)
-    if (!controller) return false
+    if (!controller) return ChannelStreamCompletionResult.NotHandled
     try {
       await this.removeReaction(chatId)
-      return await controller.complete(finalText)
+      return (await controller.complete(finalText))
+        ? ChannelStreamCompletionResult.Delivered
+        : ChannelStreamCompletionResult.NotHandled
     } finally {
       this.streamingControllers.delete(chatId)
     }

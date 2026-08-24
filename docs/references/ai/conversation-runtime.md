@@ -171,6 +171,15 @@ automatically replayed as queued work.
 The history commit and aggregate install run in the same synchronous task, so
 only a process crash can occur between them.
 
+`ConversationRuntimeService` also owns boot crash recovery across both history
+adapters. Each adapter returns the authoritative output IDs and statuses it
+repaired. Agent recovery atomically marks pending assistants as Error,
+terminalizes streaming/tool/background parts and orphaned SessionMessage
+approvals, and clears affected resume tokens. The operation remains in the
+fixed-point pause/drain barrier across retry; only after success does Delivery
+re-read terminal rows. Delivery never repairs assistant rows or infers an
+outcome from its pre-recovery snapshot.
+
 ## Attach snapshot protocol
 
 Main registers the observer before it captures every execution high-water. An

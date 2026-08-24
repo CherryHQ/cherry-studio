@@ -3375,7 +3375,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       toolCallId: 'tool-1',
       toolName: 'Bash',
       input: { command: 'pwd' },
-      presentation: 'stream'
+      lifetime: 'execution-bound'
     } as any)
 
     await expect(events.next()).resolves.toMatchObject({
@@ -3446,7 +3446,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       toolCallId: 'tool-2',
       toolName: 'Bash',
       input: {},
-      presentation: 'stream'
+      lifetime: 'execution-bound'
     } as any)
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'tool-approval-request', request: { approvalId: 'approval-2' } }

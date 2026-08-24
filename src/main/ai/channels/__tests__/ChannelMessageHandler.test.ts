@@ -8,7 +8,7 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChannelMessageEvent } from '../ChannelAdapter'
+import { type ChannelMessageEvent, ChannelStreamCompletionResult } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 import { sanitizeChannelOutput } from '../security/OutputSanitizer'
 
@@ -59,7 +59,8 @@ const { mockStreamAbort, mockEnqueueTerminalDelivery, deliveryAdapter } = vi.hoi
     void (async () => {
       if (
         request.finalizeStream &&
-        (await adapter.onStreamComplete(request.chatId, request.text, request.responseOptions))
+        (await adapter.onStreamComplete(request.chatId, request.text, request.responseOptions)) ===
+          ChannelStreamCompletionResult.Delivered
       ) {
         return
       }
@@ -183,7 +184,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.sendMessage = vi.fn().mockResolvedValue(undefined)
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
-  adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
+  adapter.onStreamComplete = vi.fn().mockResolvedValue(ChannelStreamCompletionResult.NotHandled)
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
   adapter.notifyChatIds = []
   deliveryAdapter.current = adapter
@@ -411,7 +412,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
 
-    adapter.onStreamComplete.mockResolvedValueOnce(true)
+    adapter.onStreamComplete.mockResolvedValueOnce(ChannelStreamCompletionResult.Delivered)
     vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
     simulateStream([{ type: 'text-delta', delta: 'Hello world!' }])
 

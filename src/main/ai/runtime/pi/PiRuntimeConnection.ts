@@ -20,8 +20,8 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { agentMessageInteractionCoordinator } from '@main/ai/toolApproval/AgentMessageInteractionCoordinator'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
@@ -503,7 +503,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.closed = true
     // Deny any approval still awaiting a renderer decision so its held tool
     // promise resolves instead of hanging past teardown (plan Phase 3).
-    toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
+    agentMessageInteractionCoordinator.teardownSession(this.input.sessionId, 'pi-session-closed')
     // Unsubscribe first so the abort's terminal events do not race into a
     // closing queue.
     this.unsubscribe?.()

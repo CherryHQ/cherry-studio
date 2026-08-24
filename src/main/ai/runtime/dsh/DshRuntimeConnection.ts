@@ -20,7 +20,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { agentMessageInteractionCoordinator } from '@main/ai/toolApproval/AgentMessageInteractionCoordinator'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -44,6 +44,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import {
+  AgentApprovalLifetime,
   AgentRuntimeAutonomousState,
   AgentRuntimeEventType,
   AgentRuntimeMessageAssociation,
@@ -159,7 +160,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   /** Bridge-socket events. A stream-presented approval whose `tool/call` has not landed yet would
    *  truncate the turn accumulator instead of showing a card, so materialize its tool part first. */
   private emitBridgeEvent(event: AgentRuntimeEvent): void {
-    if (event.type === 'tool-approval-request' && event.request.presentation === 'stream') {
+    if (event.type === 'tool-approval-request' && event.request.lifetime === AgentApprovalLifetime.ExecutionBound) {
       this.adapter.ensureToolCall(event.request.toolCallId, event.request.toolName, event.request.input)
     }
     this.eventQueue.push(event)
@@ -581,7 +582,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.subagents.close()
     // Deny any approval still awaiting a renderer decision so its held tool
     // promise resolves instead of hanging past teardown.
-    toolApprovalRegistry.abort(this.input.sessionId, 'dsh-session-closed')
+    agentMessageInteractionCoordinator.teardownSession(this.input.sessionId, 'dsh-session-closed')
     this.subscription?.close()
     this.subscription = undefined
     try {

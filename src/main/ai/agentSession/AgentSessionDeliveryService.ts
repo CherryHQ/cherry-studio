@@ -18,7 +18,7 @@ import type {
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 import type { ConversationTurnTerminalEvent } from '../conversation'
-import { finalizeInterruptedParts, type StreamListener } from '../streamManager'
+import type { StreamListener } from '../streamManager'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
 
@@ -89,7 +89,13 @@ export class AgentSessionDeliveryService extends BaseService {
         )
       })
     )
-    this.recoverDeliveries()
+    this.registerDisposable(
+      runtime.onCrashRecoveryCompleted(() => {
+        this.recoverDeliveries()
+        this.kick()
+      })
+    )
+    if (runtime.isCrashRecoveryComplete) this.recoverDeliveries()
     this.registerInterval(() => this.kick(), DELIVERY_RETRY_SWEEP_MS)
     this.kick()
   }
@@ -452,21 +458,7 @@ export class AgentSessionDeliveryService extends BaseService {
       throw error
     }
     if (assistant.status === 'pending') {
-      if (
-        application
-          .get('ConversationRuntimeService')
-          .hasLiveConversation({ kind: ConversationKind.Agent, id: sessionId }) ||
-        application
-          .get('ConversationRuntimeService')
-          .hasTerminalPersistenceInFlight({ kind: ConversationKind.Agent, id: sessionId })
-      ) {
-        return true
-      }
-      // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
-      // A transient repair failure is retried by the next idle/sweep kick.
-      agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
-      assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)
-      if (assistant.status === 'pending') return true
+      return true
     }
 
     const result = agentSessionMessageService.finalizeSessionDelivery({
@@ -512,20 +504,7 @@ export class AgentSessionDeliveryService extends BaseService {
         if (result) this.suppressedSessionIds.add(result.sessionId)
         continue
       }
-      if (assistant.status === 'pending') {
-        agentSessionMessageService.resolveCrashOrphanedMessages(
-          [
-            {
-              id: assistant.id,
-              data: {
-                ...assistant.data,
-                parts: finalizeInterruptedParts(assistant.data.parts ?? [], ConversationOutcomeKind.Error)
-              }
-            }
-          ],
-          [message.sessionId]
-        )
-      }
+      if (assistant.status === 'pending') continue
       const result = agentSessionMessageService.finalizeSessionDelivery({
         requestSessionId: message.sessionId,
         requestMessageId: message.id,
@@ -533,7 +512,7 @@ export class AgentSessionDeliveryService extends BaseService {
         outcome:
           assistant.status === 'success'
             ? AgentSessionDeliveryOutcome.Success
-            : assistant.status === 'paused' || assistant.status === 'pending'
+            : assistant.status === 'paused'
               ? AgentSessionDeliveryOutcome.Interrupted
               : AgentSessionDeliveryOutcome.Failed
       })

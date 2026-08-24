@@ -126,7 +126,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       toolCallId: 'tc-bash',
       toolName: 'bash',
       input: { command: 'ls' },
-      presentation: 'stream'
+      lifetime: 'execution-bound'
     })
     expect(emitted[0].request.providerMetadata.cherry.transport).toBe('pi-agent')
 
@@ -295,8 +295,8 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
 
-    expect(emitted[0].request.presentation).toBe('message')
-    expect(toolApprovalRegistry.peek(emitted[0].request.approvalId)?.presentation).toBe('message')
+    expect(emitted[0].request.lifetime).toBe('session-message')
+    expect(toolApprovalRegistry.peek(emitted[0].request.approvalId)?.lifetime).toBe('session-message')
     toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
     await pending
   })

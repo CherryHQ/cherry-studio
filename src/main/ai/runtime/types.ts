@@ -28,9 +28,9 @@ export enum AgentSessionUsageCaptureOwner {
   ProviderCalls = 'provider-calls'
 }
 
-export enum AgentRuntimeInteractionPresentation {
-  Stream = 'stream',
-  Message = 'message'
+export enum AgentApprovalLifetime {
+  ExecutionBound = 'execution-bound',
+  SessionMessage = 'session-message'
 }
 
 export enum AgentRuntimeMessageAssociation {
@@ -138,14 +138,16 @@ export interface AgentRuntimeUserInput {
  * renderer stream: the host can append it to the current turn or persist an independent
  * interaction message when the requesting agent outlives that turn.
  */
-export interface AgentRuntimeToolApprovalRequest {
+interface AgentRuntimeToolApprovalRequestBase {
   approvalId: string
   toolCallId: string
   toolName: string
   input: Record<string, unknown>
-  presentation: AgentRuntimeInteractionPresentation
   providerMetadata?: LanguageModelV3ToolApprovalRequest['providerMetadata']
 }
+
+export type AgentRuntimeToolApprovalRequest = AgentRuntimeToolApprovalRequestBase &
+  ({ lifetime: AgentApprovalLifetime.ExecutionBound } | { lifetime: AgentApprovalLifetime.SessionMessage })
 
 export type AgentRuntimeEvent =
   | { type: AgentRuntimeEventType.Chunk; chunk: UIMessageChunk }

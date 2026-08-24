@@ -58,7 +58,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
-import { AgentRuntimeInteractionPresentation } from '../types'
+import { AgentApprovalLifetime } from '../types'
 import { AgentsMdLoader } from './AgentsMdLoader'
 import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
 import {
@@ -515,10 +515,10 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
-    const presentation =
+    const lifetime =
       !hasLiveTurnStream || isBackgroundAgent
-        ? AgentRuntimeInteractionPresentation.Message
-        : AgentRuntimeInteractionPresentation.Stream
+        ? AgentApprovalLifetime.SessionMessage
+        : AgentApprovalLifetime.ExecutionBound
     const approvalId = randomUUID()
     const emit = sessionState().peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -532,7 +532,7 @@ async function buildToolPermissions(
         toolCallId: opts.toolUseID,
         toolName,
         originalInput: input,
-        presentation,
+        lifetime,
         signal: opts.signal,
         resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
       })
@@ -542,7 +542,7 @@ async function buildToolPermissions(
         toolCallId: opts.toolUseID,
         toolName,
         input,
-        presentation,
+        lifetime,
         providerMetadata: {
           cherry: { transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport, toolName } satisfies CherryToolMeta
         }

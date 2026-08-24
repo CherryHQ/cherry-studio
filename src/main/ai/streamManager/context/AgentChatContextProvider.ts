@@ -31,10 +31,12 @@ import { AgentSessionMessageBackend } from '../../agentSession/persistence/Agent
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import { AiRuntimeKind } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
+import { finalizeInterruptedParts } from '../persistence/PersistenceBackend'
 import {
   type CommittedConversationIntent,
   ConversationAfterPersistTaskKind,
   ConversationAgentRuntimeTurnKind,
+  type ConversationCrashRecoveryResult,
   type ConversationExecutionContext,
   ConversationExecutionDriverBindingKind,
   type ConversationExecutionPreparationDescriptor,
@@ -93,6 +95,20 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
 
   canHandle(conversation: ConversationRef): boolean {
     return conversation.kind === ConversationKind.Agent
+  }
+
+  recoverCrashOrphans(): ConversationCrashRecoveryResult {
+    const stale = agentSessionMessageService.findCrashOrphanedAssistantMessages()
+    if (stale.length === 0) return { repairedOutputs: [] }
+    const sessionIds = [...new Set(stale.map(({ sessionId }) => sessionId))]
+    agentSessionMessageService.resolveCrashOrphanedMessages(
+      stale.map(({ id, data }) => ({
+        id,
+        data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], ConversationOutcomeKind.Error) }
+      })),
+      sessionIds
+    )
+    return { repairedOutputs: stale.map(({ id }) => ({ outputNodeId: id, status: 'error' })) }
   }
 
   private async validateAgentDispatch(req: MainDispatchRequest, signal: AbortSignal): Promise<ValidatedAgentIntent> {

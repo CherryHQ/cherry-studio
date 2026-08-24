@@ -11,7 +11,8 @@ import type {
   CherryUIMessage,
   MessageData,
   MessageRuntimeTiming,
-  MessageSnapshot
+  MessageSnapshot,
+  MessageStatus
 } from '@shared/data/types/message'
 import type { Model, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -369,6 +370,13 @@ export interface ConversationIntentValidationContext {
   expectedAgentId?: string
 }
 
+export interface ConversationCrashRecoveryResult {
+  repairedOutputs: readonly {
+    outputNodeId: string
+    status: MessageStatus
+  }[]
+}
+
 export interface ConversationHistoryPort {
   readonly name: string
   /** Admission-time ownership; temporary providers must opt out. */
@@ -376,6 +384,7 @@ export interface ConversationHistoryPort {
 
   /** Synchronous, side-effect free — runs on every request. */
   canHandle(conversation: ConversationRef): boolean
+  recoverCrashOrphans?(): ConversationCrashRecoveryResult
 
   validateIntent(
     req: MainDispatchRequest,

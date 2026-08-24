@@ -11,6 +11,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { isToolUIPart, readUIMessageStream, type UIMessageChunk } from 'ai'
 
 import {
+  ConversationStreamRecoveryCompletion,
   ConversationStreamRecoveryDisposition,
   ConversationStreamRecoveryReason,
   type ConversationStreamRecoveryRequest,
@@ -92,6 +93,23 @@ interface Settlement {
   isError: boolean
 }
 
+interface ExecutionOverlayIdentity {
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
+  outputNodeId: string | undefined
+}
+
+interface ExecutionOverlayEntry {
+  identity: ExecutionOverlayIdentity
+  projection: ConversationExecutionProjection
+  optimisticSeed?: () => CherryUIMessage[]
+  reader?: ReaderHandle
+  snapshot?: CherryUIMessage
+  pendingSnapshot?: PendingSnapshot
+  settlement?: Settlement
+  readerVersion: number
+}
+
 interface HandoffState {
   pendingTurnIds: Set<ConversationTurnId>
   retireRecoveries: Map<string, ConversationStreamRecoveryRequest>
@@ -124,20 +142,14 @@ interface Entry {
   desired: Map<object, ConsumerContribution>
   optimisticMessages: Map<string, CherryUIMessage>
   optimisticMessageTurnIds: Map<string, ConversationTurnId>
-  optimisticExecutions: Map<ConversationExecutionId, ConversationExecutionProjection>
-  optimisticSeeds: Map<ConversationExecutionId, () => CherryUIMessage[]>
   activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
   refreshError: Error | null
   durability: ConversationOverlayDurability
   refreshPorts: Set<() => Promise<unknown>>
   notFoundTombstones: Map<ConversationExecutionId, ConversationTurnId>
   handoff: HandoffState | null
-  snapshots: Map<ConversationExecutionId, CherryUIMessage>
-  settlements: Map<ConversationExecutionId, Settlement>
+  executions: Map<ConversationExecutionId, ExecutionOverlayEntry>
   view: ExecutionOverlayView
-  pendingSnapshots: Map<ConversationExecutionId, PendingSnapshot>
-  readerVersions: Map<ConversationExecutionId, number>
-  readers: Map<ConversationExecutionId, ReaderHandle>
   liveReaderCount: number
   epoch: number
   commitTimer: number | null
@@ -269,8 +281,7 @@ function sameOverlayView(left: ExecutionOverlayView, right: ExecutionOverlayView
 }
 
 function computeView(
-  snapshots: ReadonlyMap<ConversationExecutionId, CherryUIMessage>,
-  settlements: ReadonlyMap<ConversationExecutionId, Settlement>,
+  overlayExecutions: ReadonlyMap<ConversationExecutionId, ExecutionOverlayEntry>,
   executions: ReadonlyMap<ConversationExecutionId, ConversationExecutionProjection>,
   optimisticMessages: ReadonlyMap<string, CherryUIMessage>,
   projectedExecutions: ConversationExecutionProjection[],
@@ -278,14 +289,16 @@ function computeView(
   refreshError: Error | null
 ): ExecutionOverlayView {
   const overlay: Record<string, CherryMessagePart[]> = {}
-  for (const snapshot of snapshots.values()) {
+  for (const { snapshot } of overlayExecutions.values()) {
+    if (!snapshot) continue
     if (snapshot.parts?.length) overlay[snapshot.id] = snapshot.parts as CherryMessagePart[]
   }
-  const records = [...snapshots].flatMap(([executionId, message]) => {
+  const records = [...overlayExecutions].flatMap(([executionId, overlayExecution]) => {
+    const { snapshot: message, settlement } = overlayExecution
+    if (!message) return []
     if (message.role !== 'assistant') return []
-    const settlement = settlements.get(executionId)
     const execution = executions.get(executionId)
-    const turnId = settlement?.turnId ?? execution?.turnId
+    const turnId = settlement?.turnId ?? execution?.turnId ?? overlayExecution.identity.turnId
     if (!turnId) return []
     return [
       {
@@ -300,13 +313,50 @@ function computeView(
   })
   return {
     overlay,
-    liveAssistants: [...snapshots.values()].filter((message) => message.role === 'assistant'),
+    liveAssistants: [...overlayExecutions.values()].flatMap(({ snapshot }) =>
+      snapshot?.role === 'assistant' ? [snapshot] : []
+    ),
     records,
     optimisticMessages: [...optimisticMessages.values()],
     projectedExecutions,
     activeNodeOverride,
     refreshError
   }
+}
+
+function executionIdentity(execution: ConversationExecutionProjection): ExecutionOverlayIdentity {
+  return {
+    turnId: execution.turnId,
+    executionId: execution.executionId,
+    outputNodeId: execution.outputNodeId
+  }
+}
+
+function executionIdentityMatches(
+  overlay: ExecutionOverlayEntry,
+  identity: Pick<ExecutionOverlayIdentity, 'turnId' | 'executionId'>
+): boolean {
+  return overlay.identity.turnId === identity.turnId && overlay.identity.executionId === identity.executionId
+}
+
+function getOrCreateExecutionOverlay(
+  entry: Entry,
+  execution: ConversationExecutionProjection
+): ExecutionOverlayEntry | undefined {
+  const existing = entry.executions.get(execution.executionId)
+  if (existing) {
+    if (existing.identity.turnId !== execution.turnId) return undefined
+    existing.projection = execution
+    existing.identity = executionIdentity(execution)
+    return existing
+  }
+  const created: ExecutionOverlayEntry = {
+    identity: executionIdentity(execution),
+    projection: execution,
+    readerVersion: 0
+  }
+  entry.executions.set(execution.executionId, created)
+  return created
 }
 
 export class ExecutionStreamOverlayService {
@@ -340,8 +390,9 @@ export class ExecutionStreamOverlayService {
     entry.desired.set(consumer, { executions, getSeedMessages })
 
     const candidates = new Map<ConversationExecutionId, ExecutionCandidate>()
-    for (const [executionId, execution] of entry.optimisticExecutions) {
-      const getOptimisticSeed = entry.optimisticSeeds.get(executionId)
+    for (const [executionId, overlayExecution] of entry.executions) {
+      const execution = overlayExecution.projection
+      const getOptimisticSeed = overlayExecution.optimisticSeed
       if (!getOptimisticSeed) continue
       candidates.set(executionId, {
         execution,
@@ -379,29 +430,32 @@ export class ExecutionStreamOverlayService {
 
     if (entry.needsRemountReconcile) {
       entry.needsRemountReconcile = false
-      const liveExecutionIds = new Set([...union.keys(), ...entry.readers.keys()])
-      let next = entry.snapshots
-      for (const executionId of entry.snapshots.keys()) {
+      const liveExecutionIds = new Set([
+        ...union.keys(),
+        ...[...entry.executions].flatMap(([executionId, overlay]) => (overlay.reader ? [executionId] : []))
+      ])
+      let changed = false
+      for (const [executionId, overlayExecution] of entry.executions) {
+        if (!overlayExecution.snapshot) continue
         if (liveExecutionIds.has(executionId)) continue
         entry.sub.retireExecution(executionId)
-        entry.pendingSnapshots.delete(executionId)
-        entry.settlements.delete(executionId)
-        entry.readerVersions.delete(executionId)
-        if (next === entry.snapshots) next = new Map(entry.snapshots)
-        next.delete(executionId)
+        entry.executions.delete(executionId)
+        changed = true
       }
-      this.#commitSnapshots(entry, next)
+      if (changed) this.#publishView(entry)
     }
 
-    for (const [executionId, handle] of [...entry.readers]) {
+    for (const [executionId, overlayExecution] of [...entry.executions]) {
+      const handle = overlayExecution.reader
+      if (!handle) continue
       if (union.has(executionId) || !entry.sub.isSettled(executionId)) continue
       handle.cancel()
       handle.unregister()
-      entry.readers.delete(executionId)
-      entry.readerVersions.delete(executionId)
+      overlayExecution.reader = undefined
+      overlayExecution.readerVersion += 1
     }
     for (const [executionId, candidate] of union) {
-      if (entry.readers.has(executionId) || entry.sub.isSettled(executionId)) continue
+      if (entry.executions.get(executionId)?.reader || entry.sub.isSettled(executionId)) continue
       this.#startReader(entry, candidate.execution, candidate.seedFromEmpty, candidate.seed.getSeedMessages)
     }
     if (!sameExecutionContribution(previous, executions)) this.#publishView(entry)
@@ -434,9 +488,10 @@ export class ExecutionStreamOverlayService {
       if (turnId) entry.optimisticMessageTurnIds.set(message.id, turnId)
     }
     for (const execution of executions) {
-      entry.optimisticExecutions.set(execution.executionId, execution)
-      entry.optimisticSeeds.set(execution.executionId, getSeedMessages)
-      if (!entry.readers.has(execution.executionId) && !entry.sub.isSettled(execution.executionId)) {
+      const overlayExecution = getOrCreateExecutionOverlay(entry, execution)
+      if (!overlayExecution) continue
+      overlayExecution.optimisticSeed = getSeedMessages
+      if (!overlayExecution.reader && !entry.sub.isSettled(execution.executionId)) {
         this.#startReader(entry, execution, execution.seedFromEmpty, getSeedMessages)
       }
     }
@@ -478,18 +533,23 @@ export class ExecutionStreamOverlayService {
   disposeOverlay(conversation: ConversationRef, messageId: string): void {
     const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return
-    const snapshot = [...entry.snapshots].find(([, value]) => value.id === messageId)
-    const pending = [...entry.pendingSnapshots].find(([, value]) => value.snapshot.id === messageId)
-    const executionId = snapshot?.[0] ?? pending?.[0]
-    if (!executionId || entry.readers.has(executionId)) return
-    const settlement = entry.settlements.get(executionId)
+    const found = [...entry.executions].find(
+      ([, overlayExecution]) =>
+        overlayExecution.snapshot?.id === messageId || overlayExecution.pendingSnapshot?.snapshot.id === messageId
+    )
+    const executionId = found?.[0]
+    const overlayExecution = found?.[1]
+    if (!executionId || !overlayExecution || overlayExecution.reader) return
+    const settlement = overlayExecution.settlement
     if (settlement) this.#beginHandoff(entry, settlement.turnId)
   }
 
   reset(conversation: ConversationRef): void {
     const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return
-    const settledTurnIds = new Set([...entry.settlements.values()].map(({ turnId }) => turnId))
+    const settledTurnIds = new Set(
+      [...entry.executions.values()].flatMap(({ settlement }) => (settlement ? [settlement.turnId] : []))
+    )
     for (const turnId of settledTurnIds) this.#beginHandoff(entry, turnId)
   }
 
@@ -499,31 +559,18 @@ export class ExecutionStreamOverlayService {
     this.#clearHandoffTimer(entry)
     entry.handoff = null
     this.#invalidatePending(entry)
-    for (const handle of entry.readers.values()) {
-      handle.cancel()
-      handle.unregister()
-    }
-    for (const executionId of new Set([
-      ...entry.snapshots.keys(),
-      ...entry.pendingSnapshots.keys(),
-      ...entry.settlements.keys(),
-      ...entry.optimisticExecutions.keys(),
-      ...entry.readers.keys()
-    ])) {
+    for (const [executionId, overlayExecution] of entry.executions) {
+      overlayExecution.reader?.cancel()
+      overlayExecution.reader?.unregister()
       entry.sub.retireExecution(executionId)
     }
-    entry.readers.clear()
-    entry.readerVersions.clear()
-    entry.settlements.clear()
+    entry.executions.clear()
     entry.optimisticMessages.clear()
     entry.optimisticMessageTurnIds.clear()
-    entry.optimisticExecutions.clear()
-    entry.optimisticSeeds.clear()
     entry.notFoundTombstones.clear()
     entry.activeNodeOverride = null
     entry.refreshError = null
-    if (entry.snapshots.size > 0) this.#commitSnapshots(entry, new Map())
-    else this.#publishView(entry)
+    this.#publishView(entry)
   }
 
   #beginHandoff(entry: Entry, turnId: ConversationTurnId): void {
@@ -598,12 +645,13 @@ export class ExecutionStreamOverlayService {
       if (entry.handoff !== handoff) return
       handoff.inFlight = false
       for (const request of retireRecoveries.values()) {
-        this.#completeRecovery(entry, request, ConversationStreamRecoveryDisposition.Retired)
+        this.#retireExecution(entry, request)
       }
       for (const request of retryRecoveries.values()) {
         entry.sub.completeRecovery({
           recoveryId: request.recoveryId,
           attachmentGeneration: request.attachmentGeneration,
+          turnId: request.turnId,
           executionId: request.executionId,
           disposition: ConversationStreamRecoveryDisposition.RetryAttach
         })
@@ -639,33 +687,15 @@ export class ExecutionStreamOverlayService {
 
   #retireTurns(entry: Entry, turnIds: ReadonlySet<ConversationTurnId>): void {
     if (turnIds.size === 0) return
-    let next = entry.snapshots
-    const executionIds = new Set([
-      ...entry.snapshots.keys(),
-      ...entry.pendingSnapshots.keys(),
-      ...entry.settlements.keys(),
-      ...entry.optimisticExecutions.keys(),
-      ...entry.readers.keys()
-    ])
-    for (const executionId of executionIds) {
-      const turnId = entry.settlements.get(executionId)?.turnId ?? entry.optimisticExecutions.get(executionId)?.turnId
-      if (!turnId || !turnIds.has(turnId)) continue
-      const handle = entry.readers.get(executionId)
+    for (const [executionId, overlayExecution] of entry.executions) {
+      if (!turnIds.has(overlayExecution.identity.turnId)) continue
+      const handle = overlayExecution.reader
       if (handle) {
         handle.cancel()
         handle.unregister()
       }
       entry.sub.retireExecution(executionId)
-      entry.readers.delete(executionId)
-      entry.pendingSnapshots.delete(executionId)
-      entry.settlements.delete(executionId)
-      entry.optimisticExecutions.delete(executionId)
-      entry.optimisticSeeds.delete(executionId)
-      entry.readerVersions.delete(executionId)
-      if (next.has(executionId)) {
-        if (next === entry.snapshots) next = new Map(entry.snapshots)
-        next.delete(executionId)
-      }
+      entry.executions.delete(executionId)
     }
     for (const [messageId, turnId] of entry.optimisticMessageTurnIds) {
       if (!turnIds.has(turnId)) continue
@@ -673,80 +703,61 @@ export class ExecutionStreamOverlayService {
       entry.optimisticMessages.delete(messageId)
       if (entry.activeNodeOverride?.activeNodeId === messageId) entry.activeNodeOverride = null
     }
-    if (entry.pendingSnapshots.size === 0) this.#cancelCommit(entry)
-    if (next === entry.snapshots) this.#publishView(entry)
-    else this.#commitSnapshots(entry, next)
+    if (![...entry.executions.values()].some(({ pendingSnapshot }) => pendingSnapshot)) this.#cancelCommit(entry)
+    this.#publishView(entry)
   }
 
-  #completeRecovery(
-    entry: Entry,
-    request: ConversationStreamRecoveryRequest,
-    disposition: ConversationStreamRecoveryDisposition.Retired
-  ): void {
-    entry.sub.completeRecovery({
+  #retireExecution(entry: Entry, request: ConversationStreamRecoveryRequest): void {
+    const completion = entry.sub.completeRecovery({
       recoveryId: request.recoveryId,
       attachmentGeneration: request.attachmentGeneration,
+      turnId: request.turnId,
       executionId: request.executionId,
-      disposition
+      disposition: ConversationStreamRecoveryDisposition.Retired
     })
-    this.#retireExecutionData(entry, request.executionId, request.projection.outputNodeId)
-  }
-
-  #retireExecutionData(entry: Entry, executionId: ConversationExecutionId, outputNodeId: string | undefined): void {
-    const handle = entry.readers.get(executionId)
+    if (completion.status !== ConversationStreamRecoveryCompletion.Applied) return
+    const overlayExecution = entry.executions.get(request.executionId)
+    if (overlayExecution && !executionIdentityMatches(overlayExecution, request)) return
+    const handle = overlayExecution?.reader
     if (handle) {
       handle.cancel()
       handle.unregister()
     }
-    entry.sub.retireExecution(executionId)
-    entry.readers.delete(executionId)
-    entry.pendingSnapshots.delete(executionId)
-    entry.settlements.delete(executionId)
-    entry.optimisticExecutions.delete(executionId)
-    entry.optimisticSeeds.delete(executionId)
-    entry.readerVersions.delete(executionId)
-    const next = new Map(entry.snapshots)
-    next.delete(executionId)
-    if (outputNodeId) {
+    entry.executions.delete(request.executionId)
+    const outputNodeId = overlayExecution?.identity.outputNodeId ?? request.projection.outputNodeId
+    if (outputNodeId && entry.optimisticMessageTurnIds.get(outputNodeId) === request.turnId) {
       entry.optimisticMessageTurnIds.delete(outputNodeId)
       entry.optimisticMessages.delete(outputNodeId)
       if (entry.activeNodeOverride?.activeNodeId === outputNodeId) entry.activeNodeOverride = null
     }
-    if (entry.pendingSnapshots.size === 0) this.#cancelCommit(entry)
-    this.#commitSnapshots(entry, next)
+    if (![...entry.executions.values()].some(({ pendingSnapshot }) => pendingSnapshot)) this.#cancelCommit(entry)
     this.#publishView(entry)
   }
 
   #rebaseExecution(entry: Entry, request: ConversationStreamRecoveryRequest): void {
-    const handle = entry.readers.get(request.executionId)
+    const overlayExecution = entry.executions.get(request.executionId)
+    const handle = overlayExecution?.reader
     if (entry.sub.isSettled(request.executionId)) return
-    if (!handle || handle.execution.turnId !== request.turnId) {
-      entry.sub.completeRecovery({
-        recoveryId: request.recoveryId,
-        attachmentGeneration: request.attachmentGeneration,
-        executionId: request.executionId,
-        disposition: ConversationStreamRecoveryDisposition.Retired
-      })
+    if (!overlayExecution || !executionIdentityMatches(overlayExecution, request) || !handle) {
+      this.#retireExecution(entry, request)
       return
     }
-    handle.cancel()
-    entry.readers.delete(request.executionId)
-    entry.pendingSnapshots.delete(request.executionId)
-    entry.settlements.delete(request.executionId)
-    entry.readerVersions.delete(request.executionId)
-    if (entry.snapshots.has(request.executionId)) {
-      const next = new Map(entry.snapshots)
-      next.delete(request.executionId)
-      this.#commitSnapshots(entry, next)
-    }
-    const branch = entry.sub.completeRecovery({
+    const completion = entry.sub.completeRecovery({
       recoveryId: request.recoveryId,
       attachmentGeneration: request.attachmentGeneration,
+      turnId: request.turnId,
       executionId: request.executionId,
       disposition: ConversationStreamRecoveryDisposition.Rebased
     })
-    if (!branch) return
-    this.#startReader(entry, handle.execution, handle.seedFromEmpty, handle.getSeedMessages, branch)
+    if (completion.status !== ConversationStreamRecoveryCompletion.Applied || !completion.branch) return
+    handle.cancel()
+    overlayExecution.reader = undefined
+    overlayExecution.pendingSnapshot = undefined
+    overlayExecution.settlement = undefined
+    overlayExecution.snapshot = undefined
+    overlayExecution.readerVersion += 1
+    this.#publishView(entry)
+    this.#startReader(entry, handle.execution, handle.seedFromEmpty, handle.getSeedMessages, completion.branch)
   }
 
   #getOrCreate(conversation: ConversationRef): Entry {
@@ -765,20 +776,14 @@ export class ExecutionStreamOverlayService {
       desired: new Map(),
       optimisticMessages: new Map(),
       optimisticMessageTurnIds: new Map(),
-      optimisticExecutions: new Map(),
-      optimisticSeeds: new Map(),
       activeNodeOverride: null,
       refreshError: null,
       durability: ConversationOverlayDurability.Ephemeral,
       refreshPorts: new Set(),
       notFoundTombstones: new Map(),
       handoff: null,
-      snapshots: new Map(),
-      settlements: new Map(),
+      executions: new Map(),
       view: EMPTY_VIEW,
-      pendingSnapshots: new Map(),
-      readerVersions: new Map(),
-      readers: new Map(),
       liveReaderCount: 0,
       epoch: 0,
       commitTimer: null,
@@ -808,7 +813,7 @@ export class ExecutionStreamOverlayService {
         case ConversationStreamRecoveryReason.NotFound:
           entry.notFoundTombstones.set(request.executionId, request.turnId)
           if (entry.durability === ConversationOverlayDurability.Ephemeral) {
-            this.#completeRecovery(entry, request, ConversationStreamRecoveryDisposition.Retired)
+            this.#retireExecution(entry, request)
           } else {
             this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.Retired)
           }
@@ -818,7 +823,7 @@ export class ExecutionStreamOverlayService {
             if (entry.durability === ConversationOverlayDurability.Durable) {
               this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.Retired)
             } else {
-              this.#completeRecovery(entry, request, ConversationStreamRecoveryDisposition.Retired)
+              this.#retireExecution(entry, request)
             }
           } else if (entry.durability === ConversationOverlayDurability.Durable) {
             this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.RetryAttach)
@@ -826,6 +831,7 @@ export class ExecutionStreamOverlayService {
             entry.sub.completeRecovery({
               recoveryId: request.recoveryId,
               attachmentGeneration: request.attachmentGeneration,
+              turnId: request.turnId,
               executionId: request.executionId,
               disposition: ConversationStreamRecoveryDisposition.RetryAttach
             })
@@ -852,7 +858,7 @@ export class ExecutionStreamOverlayService {
         liveReaders: oldest.liveReaderCount,
         idleMs: Date.now() - oldest.lastActiveAt
       })
-      for (const handle of oldest.readers.values()) handle.cancel()
+      for (const { reader } of oldest.executions.values()) reader?.cancel()
       this.#dropEntry(oldest)
     }
   }
@@ -881,13 +887,15 @@ export class ExecutionStreamOverlayService {
     recoveredBranch?: ReadableStream<UIMessageChunk>
   ): void {
     const { executionId, outputNodeId, turnId } = execution
+    const overlayExecution = getOrCreateExecutionOverlay(entry, execution)
+    if (!overlayExecution) return
     const branch = recoveredBranch ?? entry.sub.register(execution)
     if (!entry.sub.hasOpenBranch(executionId)) return
     const readerEpoch = entry.epoch
-    const readerVersion = (entry.readerVersions.get(executionId) ?? 0) + 1
-    entry.readerVersions.set(executionId, readerVersion)
-    entry.pendingSnapshots.delete(executionId)
-    entry.settlements.delete(executionId)
+    const readerVersion = overlayExecution.readerVersion + 1
+    overlayExecution.readerVersion = readerVersion
+    overlayExecution.pendingSnapshot = undefined
+    overlayExecution.settlement = undefined
 
     let cancelled = false
     let readerFailed = false
@@ -910,7 +918,7 @@ export class ExecutionStreamOverlayService {
         entry.sub.unregister(executionId, branch)
       }
     }
-    entry.readers.set(executionId, handle)
+    overlayExecution.reader = handle
     entry.liveReaderCount += 1
 
     void (async () => {
@@ -938,20 +946,17 @@ export class ExecutionStreamOverlayService {
         logger.error('execution reader threw', { conversation: entry.conversation, executionId, error })
       } finally {
         offTerminal()
-        if (entry.readers.get(executionId) === handle) {
+        if (overlayExecution.reader === handle) {
           entry.sub.unregister(executionId, branch)
-          entry.readers.delete(executionId)
+          overlayExecution.reader = undefined
         }
         if (!cancelled) {
           if (entry.refCount === 0) {
-            entry.pendingSnapshots.delete(executionId)
-            entry.settlements.delete(executionId)
-            entry.readerVersions.delete(executionId)
-            if (entry.snapshots.has(executionId)) {
-              const next = new Map(entry.snapshots)
-              next.delete(executionId)
-              this.#commitSnapshots(entry, next)
-            }
+            overlayExecution.pendingSnapshot = undefined
+            overlayExecution.settlement = undefined
+            overlayExecution.snapshot = undefined
+            overlayExecution.readerVersion += 1
+            this.#publishView(entry)
           } else {
             this.#flushPending(entry, readerEpoch)
             const message = last ?? seed
@@ -974,7 +979,7 @@ export class ExecutionStreamOverlayService {
               }
             }
           }
-          if (entry.readerVersions.get(executionId) === readerVersion) entry.readerVersions.delete(executionId)
+          if (overlayExecution.readerVersion === readerVersion) overlayExecution.readerVersion += 1
         }
         entry.liveReaderCount -= 1
         this.#maybeDrop(entry)
@@ -989,9 +994,14 @@ export class ExecutionStreamOverlayService {
     epoch: number,
     readerVersion: number
   ): void {
-    if (epoch !== entry.epoch || entry.readerVersions.get(executionId) !== readerVersion) return
-    entry.pendingSnapshots.set(executionId, { epoch, readerVersion, snapshot })
-    const deadline = entry.lastCommitAt + commitIntervalMs(entry.pendingSnapshots.values())
+    const overlayExecution = entry.executions.get(executionId)
+    if (!overlayExecution || epoch !== entry.epoch || overlayExecution.readerVersion !== readerVersion) return
+    overlayExecution.pendingSnapshot = { epoch, readerVersion, snapshot }
+    const deadline =
+      entry.lastCommitAt +
+      commitIntervalMs(
+        [...entry.executions.values()].flatMap(({ pendingSnapshot }) => (pendingSnapshot ? [pendingSnapshot] : []))
+      )
     if (entry.commitTimer !== null) {
       if (entry.commitDeadline !== null && deadline <= entry.commitDeadline) return
       this.#cancelCommit(entry)
@@ -1010,41 +1020,36 @@ export class ExecutionStreamOverlayService {
   #flushPending(entry: Entry, expectedEpoch: number): void {
     if (expectedEpoch !== entry.epoch) return
     this.#cancelCommit(entry)
-    const pending = entry.pendingSnapshots
-    if (pending.size === 0) return
-    entry.pendingSnapshots = new Map()
-    let next = entry.snapshots
-    for (const [executionId, item] of pending) {
-      if (item.epoch !== entry.epoch || entry.readerVersions.get(executionId) !== item.readerVersion) continue
-      if (entry.snapshots.get(executionId) === item.snapshot) continue
-      if (next === entry.snapshots) next = new Map(entry.snapshots)
-      next.set(executionId, item.snapshot)
+    let changed = false
+    for (const overlayExecution of entry.executions.values()) {
+      const item = overlayExecution.pendingSnapshot
+      overlayExecution.pendingSnapshot = undefined
+      if (!item || item.epoch !== entry.epoch || overlayExecution.readerVersion !== item.readerVersion) continue
+      if (overlayExecution.snapshot === item.snapshot) continue
+      overlayExecution.snapshot = item.snapshot
+      changed = true
     }
-    this.#commitSnapshots(entry, next)
-  }
-
-  #commitSnapshots(entry: Entry, next: Map<ConversationExecutionId, CherryUIMessage>): void {
-    if (next === entry.snapshots) return
+    if (!changed) return
     entry.lastCommitAt = performance.now()
-    entry.snapshots = next
     this.#publishView(entry)
   }
 
   #settleExecution(entry: Entry, event: ExecutionFinishEvent): void {
-    entry.settlements.set(event.executionId, {
+    const overlayExecution = entry.executions.get(event.executionId)
+    if (!overlayExecution || overlayExecution.identity.turnId !== event.turnId) return
+    overlayExecution.settlement = {
       turnId: event.turnId,
       isAbort: event.isAbort,
       isError: event.isError
-    })
-    entry.optimisticExecutions.delete(event.executionId)
-    entry.optimisticSeeds.delete(event.executionId)
+    }
+    overlayExecution.optimisticSeed = undefined
     this.#publishView(entry)
   }
 
   #publishView(entry: Entry): void {
     const projectedExecutions = projectActiveExecutions(
       [...entry.desired.values()].flatMap(({ executions }) => executions),
-      [...entry.optimisticExecutions.values()]
+      [...entry.executions.values()].flatMap(({ optimisticSeed, projection }) => (optimisticSeed ? [projection] : []))
     ).filter(
       (execution) =>
         !entry.sub.isSettled(execution.executionId) &&
@@ -1054,10 +1059,9 @@ export class ExecutionStreamOverlayService {
     for (const contribution of entry.desired.values()) {
       for (const execution of contribution.executions) knownExecutions.set(execution.executionId, execution)
     }
-    for (const execution of entry.optimisticExecutions.values()) knownExecutions.set(execution.executionId, execution)
+    for (const { projection } of entry.executions.values()) knownExecutions.set(projection.executionId, projection)
     const next = computeView(
-      entry.snapshots,
-      entry.settlements,
+      entry.executions,
       knownExecutions,
       entry.optimisticMessages,
       projectedExecutions,
@@ -1078,7 +1082,7 @@ export class ExecutionStreamOverlayService {
 
   #invalidatePending(entry: Entry): void {
     entry.epoch += 1
-    entry.pendingSnapshots.clear()
+    for (const overlayExecution of entry.executions.values()) overlayExecution.pendingSnapshot = undefined
     this.#cancelCommit(entry)
   }
 

@@ -17,7 +17,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { agentMessageInteractionCoordinator } from '@main/ai/toolApproval/AgentMessageInteractionCoordinator'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
@@ -51,7 +51,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
         dispose: () => {
           nextHolder.emit = undefined
           nextHolder.emitInput = undefined
-          toolApprovalRegistry.abort(sessionId, 'stream-ended')
+          agentMessageInteractionCoordinator.teardownSession(sessionId, 'stream-ended')
           // Evict so the map doesn't grow unbounded across sessions;
           // the holder is rebuilt lazily on the next settings build.
           if (this.toolApprovalEmitters.get(sessionId) === nextHolder) {

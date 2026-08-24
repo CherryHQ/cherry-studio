@@ -35,6 +35,7 @@ vi.mock('../StreamAttachmentService', () => ({
 }))
 
 import {
+  ConversationStreamRecoveryCompletion,
   ConversationStreamRecoveryDisposition,
   ConversationStreamRecoveryReason,
   type ConversationStreamRecoveryRequest,
@@ -142,12 +143,14 @@ describe('ConversationStreamSubscription', () => {
     const subscription = new ConversationStreamSubscription(conversation)
     let recoveredStream: ReadableStream<UIMessageChunk> | null = null
     const recoveryRequired = vi.fn((request) => {
-      recoveredStream = subscription.completeRecovery({
+      const completion = subscription.completeRecovery({
         recoveryId: request.recoveryId,
         attachmentGeneration: request.attachmentGeneration,
+        turnId: request.turnId,
         executionId: request.executionId,
         disposition: ConversationStreamRecoveryDisposition.Rebased
       })
+      if (completion.status === ConversationStreamRecoveryCompletion.Applied) recoveredStream = completion.branch
     })
     subscription.onRecoveryRequired(recoveryRequired)
     subscription.register(projection)
@@ -225,6 +228,7 @@ describe('ConversationStreamSubscription', () => {
     subscription.completeRecovery({
       recoveryId: first.recoveryId,
       attachmentGeneration: first.attachmentGeneration,
+      turnId: first.turnId,
       executionId,
       disposition: ConversationStreamRecoveryDisposition.Rebased
     })
@@ -235,10 +239,14 @@ describe('ConversationStreamSubscription', () => {
     const current = subscription.completeRecovery({
       recoveryId: second.recoveryId,
       attachmentGeneration: second.attachmentGeneration,
+      turnId: second.turnId,
       executionId,
       disposition: ConversationStreamRecoveryDisposition.Rebased
     })
-    const reader = current!.getReader()
+    expect(current.status).toBe(ConversationStreamRecoveryCompletion.Applied)
+    if (current.status !== ConversationStreamRecoveryCompletion.Applied || !current.branch)
+      throw new Error('rebase failed')
+    const reader = current.branch.getReader()
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-start', id: 'text-10101' } })
     emit('ai.stream.chunk', {
       conversation,
@@ -605,6 +613,7 @@ describe('ConversationStreamSubscription', () => {
     subscription.completeRecovery({
       recoveryId: recovery.recoveryId,
       attachmentGeneration: recovery.attachmentGeneration,
+      turnId: recovery.turnId,
       executionId,
       disposition: ConversationStreamRecoveryDisposition.Retired
     })
@@ -654,10 +663,45 @@ describe('ConversationStreamSubscription', () => {
       subscription.completeRecovery({
         recoveryId: recovery.recoveryId,
         attachmentGeneration: recovery.attachmentGeneration,
+        turnId: recovery.turnId,
         executionId,
         disposition: ConversationStreamRecoveryDisposition.Retired
       })
-    ).toBeNull()
+    ).toEqual({ status: ConversationStreamRecoveryCompletion.Stale })
+    subscription.dispose()
+  })
+
+  it('rejects a recovery result from another turn without retiring the current branch', async () => {
+    ipc.attach.mockResolvedValue({ status: ConversationAttachStatus.NotFound })
+    const subscription = new ConversationStreamSubscription(conversation)
+    let recovery!: ConversationStreamRecoveryRequest
+    subscription.onRecoveryRequired((request) => {
+      recovery = request
+    })
+    subscription.register(projection)
+    await vi.waitFor(() => expect(recovery).toBeDefined())
+
+    expect(
+      subscription.completeRecovery({
+        recoveryId: recovery.recoveryId,
+        attachmentGeneration: recovery.attachmentGeneration,
+        turnId: toConversationTurnId('new-turn'),
+        executionId,
+        disposition: ConversationStreamRecoveryDisposition.Retired
+      })
+    ).toEqual({ status: ConversationStreamRecoveryCompletion.Stale })
+    expect(subscription.hasOpenBranch(executionId)).toBe(true)
+
+    expect(
+      subscription.completeRecovery({
+        recoveryId: recovery.recoveryId,
+        attachmentGeneration: recovery.attachmentGeneration,
+        turnId: recovery.turnId,
+        executionId,
+        disposition: ConversationStreamRecoveryDisposition.Retired
+      })
+    ).toEqual({ status: ConversationStreamRecoveryCompletion.Applied, branch: null })
+    expect(subscription.hasOpenBranch(executionId)).toBe(false)
     subscription.dispose()
   })
 

@@ -853,7 +853,7 @@ describe('AgentSessionMessageService', () => {
     ).not.toThrow()
   })
 
-  it('terminalizes a pending assistant after live persistence fails', () => {
+  it('terminalizes a pending assistant through the crash-recovery transaction', () => {
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       runtimeResumeToken: 'resume-token',
@@ -865,18 +865,23 @@ describe('AgentSessionMessageService', () => {
     })
     publishedEffects.mockClear()
 
-    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    agentSessionMessageService.resolveCrashOrphanedMessages(
+      [{ id: ASSISTANT_MESSAGE_ID, data: { parts: [] } }],
+      [SESSION_ID]
+    )
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
-    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('resume-token')
-    expect(publishedEffects).toHaveBeenCalledWith([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'projection',
-        routeParams: { sessionId: SESSION_ID },
-        entityIds: [ASSISTANT_MESSAGE_ID]
-      }
-    ])
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+    expect(publishedEffects).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [ASSISTANT_MESSAGE_ID]
+        }
+      ])
+    )
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {

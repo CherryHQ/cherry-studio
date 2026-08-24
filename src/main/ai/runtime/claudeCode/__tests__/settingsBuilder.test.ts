@@ -228,7 +228,10 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
-    register: mocks.approvalRegister
+    register: mocks.approvalRegister,
+    listSession: vi.fn(() => []),
+    listAll: vi.fn(() => []),
+    dispatch: vi.fn()
   }
 }))
 
@@ -2136,7 +2139,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         toolCallId: 'tool-use-1',
         toolName: 'AskUserQuestion',
         input,
-        presentation: 'stream',
+        lifetime: 'execution-bound',
         providerMetadata: { cherry: { transport: 'claude-agent', toolName: 'AskUserQuestion' } }
       })
     )
@@ -2764,7 +2767,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect.objectContaining({
           toolCallId: 'tu-1',
           toolName: 'SomeTool',
-          presentation: 'stream'
+          lifetime: 'execution-bound'
         })
       )
     })
@@ -2880,7 +2883,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           expect.objectContaining({
             sessionId: 'warm-bg-delegation',
             toolCallId: 'tu-bg-delegation',
-            presentation: 'message'
+            lifetime: 'session-message'
           })
         )
         expect(emit).toHaveBeenCalledWith(expect.objectContaining({ toolName: toCherryBuiltinRuntimeName(toolName) }))
@@ -2943,7 +2946,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           expect.objectContaining({
             sessionId: 'warm-bg-question',
             toolCallId: 'tu-bg-question',
-            presentation: 'message'
+            lifetime: 'session-message'
           })
         )
         expect(emit).toHaveBeenCalledWith(
@@ -2951,7 +2954,7 @@ describe('buildClaudeCodeSessionSettings', () => {
             toolCallId: 'tu-bg-question',
             toolName: 'AskUserQuestion',
             input,
-            presentation: 'message'
+            lifetime: 'session-message'
           })
         )
       })
@@ -2984,7 +2987,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           expect.objectContaining({
             sessionId: 'warm-wake-question',
             toolCallId: 'tu-wake-question',
-            presentation: 'message'
+            lifetime: 'session-message'
           })
         )
         expect(emit).toHaveBeenCalledWith(
@@ -2992,7 +2995,7 @@ describe('buildClaudeCodeSessionSettings', () => {
             toolCallId: 'tu-wake-question',
             toolName: 'AskUserQuestion',
             input,
-            presentation: 'message'
+            lifetime: 'session-message'
           })
         )
       })
@@ -3022,7 +3025,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect(emit).toHaveBeenCalledWith(
           expect.objectContaining({
             toolCallId: 'tu-bg-live-question',
-            presentation: 'message'
+            lifetime: 'session-message'
           })
         )
       })

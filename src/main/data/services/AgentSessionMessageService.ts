@@ -595,12 +595,7 @@ export class AgentSessionMessageService {
               select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
               where json_extract(part.value, '$.state') = 'approval-requested'
             )`
-          ),
-          sql`NOT EXISTS (
-            SELECT 1 FROM agent_session_message AS delivery_message
-            WHERE delivery_message.delivery_status = 'delivering'
-              AND delivery_message.delivery_turn_ref = ${sessionMessagesTable.id}
-          )`
+          )
         )
       )
       .all()
@@ -649,32 +644,6 @@ export class AgentSessionMessageService {
           kind: 'projection',
           routeParams: { sessionId },
           entityIds
-        })
-      }
-    })
-  }
-
-  /** Best-effort terminalization after a live assistant persistence failure. */
-  markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
-    application.get('DbService').withWriteTx((tx) => {
-      const result = tx
-        .update(sessionMessagesTable)
-        .set({ status: 'error', updatedAt: Date.now() })
-        .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            eq(sessionMessagesTable.id, messageId),
-            eq(sessionMessagesTable.role, 'assistant'),
-            eq(sessionMessagesTable.status, 'pending')
-          )
-        )
-        .run()
-      if (result.changes > 0) {
-        tx.effects.add({
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'projection',
-          routeParams: { sessionId },
-          entityIds: [messageId]
         })
       }
     })
@@ -1839,38 +1808,51 @@ export class AgentSessionMessageService {
    * as `approval-requested` in history.
    */
   applyToolApprovalDecision(sessionId: string, messageId: string, decision: ApprovalDecision): boolean {
-    const applied = application.get('DbService').withWriteTx((tx) => {
-      const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
-      if (!existingRow) return false
+    return this.applyToolApprovalDecisions([{ sessionId, messageId, decision }]) === 1
+  }
 
-      const existing = this.rowToEntity(existingRow)
-      const parts = existing.data.parts ?? []
-      const hasPendingApproval = parts.some(
-        (part) =>
-          isToolUIPart(part) &&
-          part.state === 'approval-requested' &&
-          (part as { approval?: { id?: string } }).approval?.id === decision.approvalId
-      )
-      if (!hasPendingApproval) return false
-
-      const updatedAt = Date.now()
-      const nextParts = applyApprovalDecisions(parts, [decision])
-      tx.update(sessionMessagesTable)
-        .set({ data: { ...existing.data, parts: nextParts }, updatedAt })
-        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
-        .run()
-      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
-      agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
-      agentSessionService.addReadModelEffects(tx.effects, [sessionId], 'projection')
-      tx.effects.add({
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'projection',
-        routeParams: { sessionId },
-        entityIds: [messageId]
-      })
-      return true
+  applyToolApprovalDecisions(
+    entries: readonly { sessionId: string; messageId: string; decision: ApprovalDecision }[]
+  ): number {
+    if (entries.length === 0) return 0
+    return application.get('DbService').withWriteTx((tx) => {
+      let applied = 0
+      const changedBySession = new Map<string, string[]>()
+      for (const { sessionId, messageId, decision } of entries) {
+        const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
+        if (!existingRow) continue
+        const existing = this.rowToEntity(existingRow)
+        const parts = existing.data.parts ?? []
+        const hasPendingApproval = parts.some(
+          (part) =>
+            isToolUIPart(part) &&
+            part.state === 'approval-requested' &&
+            (part as { approval?: { id?: string } }).approval?.id === decision.approvalId
+        )
+        if (!hasPendingApproval) continue
+        const updatedAt = Date.now()
+        tx.update(sessionMessagesTable)
+          .set({ data: { ...existing.data, parts: applyApprovalDecisions(parts, [decision]) }, updatedAt })
+          .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+          .run()
+        agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+        agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
+        const messageIds = changedBySession.get(sessionId) ?? []
+        messageIds.push(messageId)
+        changedBySession.set(sessionId, messageIds)
+        applied += 1
+      }
+      for (const [sessionId, entityIds] of changedBySession) {
+        agentSessionService.addReadModelEffects(tx.effects, [sessionId], 'projection')
+        tx.effects.add({
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds
+        })
+      }
+      return applied
     })
-    return applied
   }
 }
 

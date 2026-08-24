@@ -94,7 +94,8 @@ const fakes = vi.hoisted(() => {
       return this.terminals.has(executionId)
     }
 
-    unregister(executionId: string) {
+    unregister(executionId: string, expectedStream?: ReadableStream<unknown>) {
+      if (expectedStream && this.branches.get(executionId)?.stream !== expectedStream) return
       this.close(executionId)
       this.branches.delete(executionId)
     }
@@ -104,7 +105,8 @@ const fakes = vi.hoisted(() => {
       this.terminals.delete(executionId)
     }
 
-    cancelBranch(executionId: string) {
+    cancelBranch(executionId: string, expectedStream?: ReadableStream<unknown>) {
+      if (expectedStream && this.branches.get(executionId)?.stream !== expectedStream) return
       this.close(executionId)
     }
 
@@ -129,22 +131,29 @@ const fakes = vi.hoisted(() => {
       return () => this.recoveryRequiredListeners.delete(listener)
     }
 
-    completeRecovery(result: { recoveryId: string; executionId: string; disposition: string }) {
+    completeRecovery(result: { recoveryId: string; turnId: string; executionId: string; disposition: string }) {
       const request = this.recoveries.get(result.recoveryId)
-      if (!request || request.executionId !== result.executionId || !this.branches.has(result.executionId)) return null
+      if (
+        !request ||
+        request.turnId !== result.turnId ||
+        request.executionId !== result.executionId ||
+        !this.branches.has(result.executionId)
+      ) {
+        return { status: 'stale' }
+      }
       this.recoveries.delete(result.recoveryId)
       if (result.disposition === 'retired') {
         this.retireExecution(result.executionId)
-        return null
+        return { status: 'applied', branch: null }
       }
       if (result.disposition === 'rebased') {
         this.unregister(result.executionId)
         const stream = this.register(request.projection)
         const branch = this.branches.get(result.executionId)!
         for (const payload of request.replay?.chunks ?? []) branch.controller.enqueue(payload.chunk)
-        return stream
+        return { status: 'applied', branch: stream }
       }
-      return this.branches.get(result.executionId)?.stream ?? null
+      return { status: 'applied', branch: this.branches.get(result.executionId)?.stream ?? null }
     }
 
     dispose() {
@@ -205,6 +214,10 @@ const fakes = vi.hoisted(() => {
 })
 
 vi.mock('../ConversationStreamSubscription', () => ({
+  ConversationStreamRecoveryCompletion: {
+    Applied: 'applied',
+    Stale: 'stale'
+  },
   ConversationStreamRecoveryDisposition: {
     Rebased: 'rebased',
     Retired: 'retired',
@@ -468,6 +481,46 @@ describe('ExecutionStreamOverlayService', () => {
 
     await nextCommit()
     expect(overlayText(service, conversation, 'assistant-1')).toBe('after-sync')
+  })
+
+  it('retires the exact optimistic snapshot and settlement when recovery finds no reader', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('missing-reader-recovery')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+
+    service.acquire(conversation)
+    service.seedReservations(
+      conversation,
+      [assistant('assistant-1')],
+      [activeExecution],
+      { move: ConversationActiveNodeMove.Advance },
+      null,
+      () => [assistant('assistant-1')]
+    )
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, activeExecution.executionId, 'retained')
+    await nextCommit()
+    subscription.close(activeExecution.executionId)
+    await waitFor(() =>
+      expect(service.getView(conversation).records).toEqual([
+        expect.objectContaining({
+          executionId: activeExecution.executionId,
+          phase: ExecutionOverlayPhase.Settled
+        })
+      ])
+    )
+    expect(service.getView(conversation).activeNodeOverride).toEqual({
+      previousActiveNodeId: null,
+      activeNodeId: 'assistant-1'
+    })
+
+    subscription.register(activeExecution)
+    subscription.requestRecovery(activeExecution, 'rebase', { chunks: [], throughChunkSeq: 10_000 })
+
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
+    expect(service.getView(conversation).overlay).toEqual({})
+    expect(service.getView(conversation).activeNodeOverride).toBeNull()
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
   })
 
   it('refreshes before retiring an optimistic execution that Main reports as NotFound', async () => {

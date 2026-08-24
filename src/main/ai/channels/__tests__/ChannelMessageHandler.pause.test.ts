@@ -4,7 +4,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChannelMessageEvent } from '../ChannelAdapter'
+import { type ChannelMessageEvent, ChannelStreamCompletionResult } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'
 import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
 
@@ -141,7 +141,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.sendMessage = vi.fn().mockResolvedValue(undefined)
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
-  adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
+  adapter.onStreamComplete = vi.fn().mockResolvedValue(ChannelStreamCompletionResult.NotHandled)
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
   adapter.notifyChatIds = []
   return adapter

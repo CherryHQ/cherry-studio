@@ -36,7 +36,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import { AgentUserResponseMode } from '../../conversation'
-import { type AgentRuntimeEvent, AgentRuntimeEventType, AgentRuntimeInteractionPresentation } from '../types'
+import { AgentApprovalLifetime, type AgentRuntimeEvent, AgentRuntimeEventType } from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
@@ -183,10 +183,10 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     const approvalId = randomUUID()
-    const presentation =
+    const lifetime =
       interactionState.userResponse === AgentUserResponseMode.Stream
-        ? AgentRuntimeInteractionPresentation.Stream
-        : AgentRuntimeInteractionPresentation.Message
+        ? AgentApprovalLifetime.ExecutionBound
+        : AgentApprovalLifetime.SessionMessage
     const resumeExecutionTimeout = onApprovalPending?.()
     let decision: DispatchDecision
     try {
@@ -197,7 +197,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
           toolCallId,
           toolName,
           originalInput: { ...input },
-          presentation,
+          lifetime,
           signal,
           resolve
         })
@@ -212,7 +212,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
             toolCallId,
             toolName,
             input: { ...input },
-            presentation,
+            lifetime,
             providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName } satisfies CherryToolMeta }
           }
         })

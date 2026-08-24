@@ -337,7 +337,7 @@ describe('DshBridgeServer', () => {
       toolCallId: 'call-9',
       toolName: 'bash',
       input: { command: 'echo hi' },
-      presentation: 'stream'
+      lifetime: 'execution-bound'
     })
 
     toolApprovalRegistry.dispatch(event.request.approvalId, { approved: true })

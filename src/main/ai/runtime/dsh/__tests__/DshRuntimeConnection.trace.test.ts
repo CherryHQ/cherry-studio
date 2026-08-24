@@ -2,9 +2,9 @@ import { trace } from '@opentelemetry/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  AgentApprovalLifetime,
   type AgentRuntimeConnectInput,
   AgentRuntimeEventType,
-  AgentRuntimeInteractionPresentation,
   type AgentRuntimeTraceContext
 } from '../../types'
 
@@ -271,7 +271,7 @@ describe('DshRuntimeConnection tracing', () => {
         toolCallId: 'call-1',
         toolName: 'exit_plan_mode',
         input: { plan: '# Ship it' },
-        presentation: AgentRuntimeInteractionPresentation.Stream
+        lifetime: AgentApprovalLifetime.ExecutionBound
       }
     })
 

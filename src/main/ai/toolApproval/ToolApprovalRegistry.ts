@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-import { AgentRuntimeInteractionPresentation } from '../runtime/types'
+import { AgentApprovalLifetime } from '../runtime/types'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')
 
@@ -15,21 +15,30 @@ export type DispatchDecision = {
   updatedInput?: Record<string, unknown>
 }
 
-type PendingApproval = {
+export type PendingApproval = {
   approvalId: string
   sessionId: string
   toolCallId: string
   toolName: string
   originalInput: Record<string, unknown>
-  presentation: AgentRuntimeInteractionPresentation
+  lifetime: AgentApprovalLifetime
+  messageId?: string
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
   abortListener?: () => void
+  claimToken: symbol
 }
 
-type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
-type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
-  presentation?: PendingApproval['presentation']
+export type ApprovalRegistration = Pick<
+  PendingApproval,
+  'approvalId' | 'sessionId' | 'toolCallId' | 'lifetime' | 'messageId'
+>
+type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'claimToken' | 'lifetime'> & {
+  lifetime?: PendingApproval['lifetime']
+}
+
+export interface AgentMessageApprovalClaim extends ApprovalRegistration {
+  readonly token: symbol
 }
 
 /**
@@ -63,9 +72,10 @@ class ToolApprovalRegistry {
 
     const stored: PendingApproval = {
       ...entry,
-      presentation: entry.presentation ?? AgentRuntimeInteractionPresentation.Stream
+      lifetime: entry.lifetime ?? AgentApprovalLifetime.ExecutionBound,
+      claimToken: Symbol(approvalId)
     }
-    if (signal) {
+    if (signal && stored.lifetime === AgentApprovalLifetime.ExecutionBound) {
       const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
       stored.abortListener = abortListener
       signal.addEventListener('abort', abortListener, { once: true })
@@ -80,10 +90,65 @@ class ToolApprovalRegistry {
     const entry = this.pending.get(approvalId)
     if (!entry) return undefined
     return {
+      approvalId: entry.approvalId,
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
-      presentation: entry.presentation
+      lifetime: entry.lifetime,
+      messageId: entry.messageId
     }
+  }
+
+  claimMessage(approvalId: string, sessionId: string): AgentMessageApprovalClaim | undefined {
+    const entry = this.pending.get(approvalId)
+    if (!entry || entry.sessionId !== sessionId || entry.lifetime !== AgentApprovalLifetime.SessionMessage)
+      return undefined
+    return {
+      approvalId: entry.approvalId,
+      sessionId: entry.sessionId,
+      toolCallId: entry.toolCallId,
+      lifetime: entry.lifetime,
+      messageId: entry.messageId,
+      token: entry.claimToken
+    }
+  }
+
+  bindMessage(claim: AgentMessageApprovalClaim, messageId: string): boolean {
+    const entry = this.pending.get(claim.approvalId)
+    if (
+      !entry ||
+      entry.claimToken !== claim.token ||
+      entry.sessionId !== claim.sessionId ||
+      entry.lifetime !== AgentApprovalLifetime.SessionMessage
+    ) {
+      return false
+    }
+    entry.messageId = messageId
+    return true
+  }
+
+  listSession(sessionId: string, lifetime?: AgentApprovalLifetime): ApprovalRegistration[] {
+    return [...this.pending.values()].flatMap((entry) => {
+      if (entry.sessionId !== sessionId || (lifetime && entry.lifetime !== lifetime)) return []
+      return [
+        {
+          approvalId: entry.approvalId,
+          sessionId: entry.sessionId,
+          toolCallId: entry.toolCallId,
+          lifetime: entry.lifetime,
+          messageId: entry.messageId
+        }
+      ]
+    })
+  }
+
+  listAll(): ApprovalRegistration[] {
+    return [...this.pending.values()].map((entry) => ({
+      approvalId: entry.approvalId,
+      sessionId: entry.sessionId,
+      toolCallId: entry.toolCallId,
+      lifetime: entry.lifetime,
+      messageId: entry.messageId
+    }))
   }
 
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
@@ -94,9 +159,11 @@ class ToolApprovalRegistry {
     this.detachAbort(entry)
     entry.resolve(decision)
     return {
+      approvalId: entry.approvalId,
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
-      presentation: entry.presentation
+      lifetime: entry.lifetime,
+      messageId: entry.messageId
     }
   }
 

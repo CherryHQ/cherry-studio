@@ -31,10 +31,11 @@ Renderer / Channel / Schedule / Delivery
 |---|---|
 | ConversationActor | one Conversation's aggregate, admission FIFO/epoch, committed inputs, exact effect operations, Stop, and final quiescence confirmation |
 | transitionConversation reducer | pure per-Conversation Inbox, logical Turn, executions, interactions, Stop, terminal, and domain-quiescence transition |
-| ConversationRuntimeService | lifecycle/IPC facade, actor lookup/reclamation, port composition, and global fixed-point pause/drain |
+| ConversationRuntimeService | lifecycle/IPC facade, actor lookup/reclamation, HistoryPort boot recovery, port composition, and global fixed-point pause/drain |
 | Chat/Agent history adapters | existing SQLite tree or ordered Agent rows |
 | AiExecutionManager | provider stream, abort, replay buffer, listener fan-out, private run fence |
 | AgentConnectionManager | connection resources plus Agent-driver redirect, segment, reconcile, and projection effect execution |
+| AgentMessageInteractionCoordinator | durable SessionMessage approval card and exact runtime resolver binding |
 | PromptStreamManager | non-Conversation translation and API-gateway prompt resources |
 | Renderer overlay/attachment | live projection and observation only |
 | ChannelDeliveryService | outbound delivery policy and epoch fences |

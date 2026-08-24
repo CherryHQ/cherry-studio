@@ -4,6 +4,7 @@ sources:
   - src/main/ai/AiService.ts
   - src/main/ai/conversation/ConversationRuntimeService.ts
   - src/main/ai/agentSession/AgentConnectionManager.ts
+  - src/main/ai/toolApproval/AgentMessageInteractionCoordinator.ts
   - src/main/ipc/handlers/ai.ts
   - src/renderer/hooks/useToolApprovalBridge.ts
 ---
@@ -69,6 +70,21 @@ WaitingInteraction is persisted as `NextTurn`. It does not yield the Chat run or
 redirect the Agent connection; approval resolution remains the only way to
 continue that waiting execution.
 
+## Agent approval lifetimes
+
+Agent requests declare their lifecycle explicitly. `ExecutionBound` approvals
+belong to the current Conversation execution and resume through its exact
+interaction identity. `SessionMessage` approvals outlive a parent turn and are
+owned by `AgentMessageInteractionCoordinator`, which binds the runtime resolver
+to one durable Agent message.
+
+A SessionMessage response commits the card decision before resolving the
+runtime promise. Session teardown performs the inverse terminal path in the
+same order: it denies every bound card in one synchronous transaction, removes
+the exact registry entries, then resolves the runtime promises. Boot crash
+recovery terminalizes persisted approval cards whose process-local resolver was
+lost; a stale registry claim is never persisted as an answerable card.
+
 ## Persistent MCP decisions
 
 `useToolApproval` exposes `autoApprove` only for MCP tools. It updates the MCP
@@ -85,3 +101,5 @@ per-Turn Conversation interaction.
 - Normal waiting and resumed terminal projections publish only after durable
   persistence.
 - Exact identity prevents an old approval from resuming the current Turn.
+- Durable SessionMessage cards and their process-local resolvers have one
+  lifecycle owner and cannot settle independently.

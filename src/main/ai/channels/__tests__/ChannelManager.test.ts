@@ -1,7 +1,7 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
+import { ChannelAdapter, type ChannelAdapterConfig, ChannelStreamCompletionResult } from '../ChannelAdapter'
 import { ChannelDeliveryService } from '../ChannelDeliveryService'
 import { ChannelDeliveryEvent, ChannelManager, registerAdapterFactory } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
@@ -22,8 +22,10 @@ vi.mock('@application', async () => {
       enqueueTerminal: (request: unknown) => holder.delivery.enqueueTerminal(request),
       isActive: () => holder.delivery.isActive(),
       open: () => holder.delivery.open(),
-      block: (channelId: string) => holder.delivery.block(channelId),
-      reopen: (channelId: string, connectionEpoch: number) => holder.delivery.reopen(channelId, connectionEpoch),
+      replacementStarted: (channelId: string) => holder.delivery.replacementStarted(channelId),
+      connectionLost: (channelId: string, connectionEpoch?: number) =>
+        holder.delivery.connectionLost(channelId, connectionEpoch),
+      connected: (channelId: string, connectionEpoch: number) => holder.delivery.connected(channelId, connectionEpoch),
       close: () => holder.delivery.close(),
       drain: (channelIds?: ReadonlySet<string>) => holder.delivery.drain(channelIds)
     }
@@ -67,6 +69,7 @@ class MockAdapter extends ChannelAdapter {
   disconnect = vi.fn().mockResolvedValue(undefined)
   sendMessage = vi.fn().mockResolvedValue(undefined)
   sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
+  onStreamComplete = vi.fn().mockResolvedValue(ChannelStreamCompletionResult.NotHandled)
 
   protected async performConnect(): Promise<void> {}
   protected async performDisconnect(): Promise<void> {}
@@ -400,6 +403,96 @@ describe('ChannelManager', () => {
       })
     ).toBe(true)
     await vi.waitFor(() => expect(createdAdapters[2].sendMessage).toHaveBeenCalledTimes(1))
+  })
+
+  it('moves an explicitly unhandled terminal to the replacement epoch without using the old fallback', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    const adapterA = createdAdapters[0]
+    let finishStream!: (result: ChannelStreamCompletionResult) => void
+    adapterA.onStreamComplete.mockImplementationOnce(
+      () => new Promise<ChannelStreamCompletionResult>((resolve) => (finishStream = resolve))
+    )
+
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-across-epoch',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'terminal',
+      finalizeStream: true
+    })
+    await vi.waitFor(() => expect(adapterA.onStreamComplete).toHaveBeenCalledOnce())
+    adapterA.emit('statusChange', { channelId: 'ch-1', connected: false })
+    finishStream(ChannelStreamCompletionResult.NotHandled)
+    await vi.waitFor(() => expect(adapterA.sendMessage).not.toHaveBeenCalled())
+
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    await channelManager.syncChannel('ch-1', { awaitConnect: true })
+    const adapterB = createdAdapters[1]
+
+    await vi.waitFor(() =>
+      expect(adapterB.sendMessage).toHaveBeenCalledExactlyOnceWith('chat-1', 'terminal', expect.any(Object))
+    )
+    expect(adapterA.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('does not retry a terminal whose external completion result became unknown during disconnect', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    const adapterA = createdAdapters[0]
+    let rejectStream!: (error: Error) => void
+    adapterA.onStreamComplete.mockImplementationOnce(
+      () => new Promise<ChannelStreamCompletionResult>((_resolve, reject) => (rejectStream = reject))
+    )
+
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-unknown-result',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'terminal',
+      finalizeStream: true
+    })
+    await vi.waitFor(() => expect(adapterA.onStreamComplete).toHaveBeenCalledOnce())
+    adapterA.emit('statusChange', { channelId: 'ch-1', connected: false })
+    rejectStream(new Error('connection lost after send'))
+
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    await channelManager.syncChannel('ch-1', { awaitConnect: true })
+    const adapterB = createdAdapters[1]
+    await Promise.resolve()
+
+    expect(adapterA.sendMessage).not.toHaveBeenCalled()
+    expect(adapterB.onStreamComplete).not.toHaveBeenCalled()
+    expect(adapterB.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('drains an owned terminal attempt before a planned adapter replacement', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    const adapterA = createdAdapters[0]
+    let finishSend!: () => void
+    adapterA.sendMessage.mockImplementationOnce(() => new Promise<void>((resolve) => (finishSend = resolve)))
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-before-replacement',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: ChannelDeliveryEvent.Done,
+      text: 'old epoch'
+    })
+    await vi.waitFor(() => expect(adapterA.sendMessage).toHaveBeenCalledOnce())
+
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    const replacing = channelManager.syncChannel('ch-1', { awaitConnect: true })
+    await Promise.resolve()
+    expect(adapterA.disconnect).not.toHaveBeenCalled()
+    expect(createdAdapters).toHaveLength(1)
+
+    finishSend()
+    await replacing
+    expect(adapterA.disconnect).toHaveBeenCalledOnce()
+    expect(createdAdapters).toHaveLength(2)
   })
 
   it('aborts the old live epoch and routes later chunks through the replacement adapter', async () => {

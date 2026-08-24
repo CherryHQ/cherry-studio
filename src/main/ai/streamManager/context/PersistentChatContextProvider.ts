@@ -59,6 +59,7 @@ import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialec
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
+import { finalizeInterruptedParts } from '../persistence/PersistenceBackend'
 import type { CherryUIMessage } from '../types'
 import {
   applyDeepestMarker,
@@ -71,6 +72,7 @@ import {
 import {
   type CommittedConversationIntent,
   ConversationAfterPersistTaskKind,
+  type ConversationCrashRecoveryResult,
   type ConversationExecutionContext,
   ConversationExecutionDriverBindingKind,
   ConversationExecutionMutationKind,
@@ -189,6 +191,18 @@ function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | unde
 export class PersistentChatContextProvider implements ConversationHistoryPort {
   readonly name = 'persistent'
   readonly isPersistentConversation = true
+
+  recoverCrashOrphans(): ConversationCrashRecoveryResult {
+    const stale = messageService.findCrashOrphanedAssistantMessages()
+    if (stale.length === 0) return { repairedOutputs: [] }
+    messageService.resolveCrashOrphanedMessages(
+      stale.map(({ id, data }) => ({
+        id,
+        data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], ConversationOutcomeKind.Error) }
+      }))
+    )
+    return { repairedOutputs: stale.map(({ id }) => ({ outputNodeId: id, status: 'error' })) }
+  }
 
   commitInteractionDecision(anchorId: string, decision: ApprovalDecision): ConversationInteractionCommitResult {
     const result = messageService.applyToolApprovalDecisions(anchorId, [decision])

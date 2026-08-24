@@ -74,9 +74,24 @@ export interface ConversationStreamRecoveryRequest {
 export interface ConversationStreamRecoveryResult {
   readonly recoveryId: string
   readonly attachmentGeneration: number
+  readonly turnId: ConversationTurnId
   readonly executionId: ConversationExecutionId
   readonly disposition: ConversationStreamRecoveryDisposition
 }
+
+export enum ConversationStreamRecoveryCompletion {
+  Applied = 'applied',
+  Stale = 'stale'
+}
+
+export type ConversationStreamRecoveryCompletionResult =
+  | {
+      readonly status: ConversationStreamRecoveryCompletion.Applied
+      readonly branch: ReadableStream<UIMessageChunk> | null
+    }
+  | {
+      readonly status: ConversationStreamRecoveryCompletion.Stale
+    }
 
 type RecoveryRequiredListener = (request: ConversationStreamRecoveryRequest) => void
 
@@ -258,7 +273,7 @@ export class ConversationStreamSubscription {
     return () => this.#recoveryRequiredListeners.delete(listener)
   }
 
-  completeRecovery(result: ConversationStreamRecoveryResult): ReadableStream<UIMessageChunk> | null {
+  completeRecovery(result: ConversationStreamRecoveryResult): ConversationStreamRecoveryCompletionResult {
     const branch = this.#branches.get(result.executionId)
     const recovery = branch?.recovery
     if (
@@ -266,18 +281,24 @@ export class ConversationStreamSubscription {
       !recovery ||
       recovery.recoveryId !== result.recoveryId ||
       recovery.attachmentGeneration !== result.attachmentGeneration ||
+      recovery.turnId !== result.turnId ||
+      branch.projection.turnId !== result.turnId ||
       this.#terminals.has(result.executionId)
     ) {
-      return null
+      return { status: ConversationStreamRecoveryCompletion.Stale }
     }
 
     switch (result.disposition) {
-      case ConversationStreamRecoveryDisposition.Rebased:
-        return this.#completeRebase(branch, recovery)
+      case ConversationStreamRecoveryDisposition.Rebased: {
+        const recovered = this.#completeRebase(branch, recovery)
+        return recovered
+          ? { status: ConversationStreamRecoveryCompletion.Applied, branch: recovered }
+          : { status: ConversationStreamRecoveryCompletion.Stale }
+      }
       case ConversationStreamRecoveryDisposition.Retired:
         this.retireExecution(result.executionId)
         this.#finishRecoverySession()
-        return null
+        return { status: ConversationStreamRecoveryCompletion.Applied, branch: null }
       case ConversationStreamRecoveryDisposition.RetryAttach:
         branch.recovery = null
         this.#session = {
@@ -286,7 +307,7 @@ export class ConversationStreamSubscription {
           attempts: 0
         }
         void this.#ensureAttached()
-        return branch.stream
+        return { status: ConversationStreamRecoveryCompletion.Applied, branch: branch.stream }
       default:
         return assertNever(result.disposition)
     }

@@ -153,7 +153,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
     }
 
     const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
-    for (const channel of activeChannels) this.delivery.block(channel.id)
+    for (const channel of activeChannels) this.delivery.replacementStarted(channel.id)
 
     // Lazy-load only the adapter modules needed for active channels
     const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
@@ -289,9 +289,11 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
   /** Disconnect the adapter for a single channel without reconnecting. */
   async disconnectChannel(channelId: string, options: { suppressErrors?: boolean } = {}): Promise<void> {
     const { suppressErrors = true } = options
-    this.delivery.block(channelId)
-    this.connectionEpochs.delete(channelId)
+    this.delivery.replacementStarted(channelId)
     await this.delivery.drain(new Set([channelId]))
+    const epoch = this.connectionEpochs.get(channelId)?.epoch
+    this.connectionEpochs.delete(channelId)
+    this.delivery.connectionLost(channelId, epoch)
     for (const [key, adapter] of this.adapters) {
       if (adapter.channelId !== channelId) continue
 
@@ -338,8 +340,13 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
   async disconnectAgent(agentId: string): Promise<void> {
     const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
     const channelIds = new Set(toDisconnect.map(([, adapter]) => adapter.channelId))
-    for (const channelId of channelIds) this.delivery.block(channelId)
+    for (const channelId of channelIds) this.delivery.replacementStarted(channelId)
     await this.delivery.drain(channelIds)
+    for (const channelId of channelIds) {
+      const epoch = this.connectionEpochs.get(channelId)?.epoch
+      this.connectionEpochs.delete(channelId)
+      this.delivery.connectionLost(channelId, epoch)
+    }
     await Promise.all(
       toDisconnect.map(([key, adapter]) =>
         adapter
@@ -505,10 +512,14 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
         if (status.connected) {
           const epoch = ++this.nextConnectionEpoch
           this.connectionEpochs.set(row.id, { adapter, epoch })
-          this.delivery.reopen(row.id, epoch)
+          this.delivery.connected(row.id, epoch)
         } else {
-          if (this.connectionEpochs.get(row.id)?.adapter === adapter) this.connectionEpochs.delete(row.id)
-          this.delivery.block(row.id)
+          const epoch =
+            this.connectionEpochs.get(row.id)?.adapter === adapter
+              ? this.connectionEpochs.get(row.id)?.epoch
+              : undefined
+          if (epoch !== undefined) this.connectionEpochs.delete(row.id)
+          this.delivery.connectionLost(row.id, epoch)
         }
         this.channelStatuses.set(status.channelId, status)
         this.sendToRenderer('channel.status_changed', status)
@@ -516,7 +527,7 @@ export class ChannelManager extends BaseService implements ChannelDeliveryOwner 
 
       // Register adapter immediately so it's discoverable. Callers can either
       // await connect for strict workflows or leave it in the background.
-      this.delivery.block(row.id)
+      this.delivery.replacementStarted(row.id)
       this.adapters.set(key, adapter)
 
       const connect = async () => {

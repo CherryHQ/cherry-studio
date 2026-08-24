@@ -43,7 +43,6 @@ import {
   type ConversationEffectId,
   type ConversationExecutionId,
   ConversationKind,
-  ConversationOutcomeKind,
   conversationRefsEqual,
   type ConversationTurnId
 } from '@shared/ai/conversation'
@@ -79,14 +78,15 @@ import type {
   AgentSessionUsageCapture
 } from '../runtime/types'
 import {
+  AgentApprovalLifetime,
   AgentRuntimeAutonomousState,
   AgentRuntimeEventType,
-  AgentRuntimeInteractionPresentation,
   AgentRuntimeMessageAssociation,
   AgentRuntimeReconcileResult,
   AgentSessionUsageCaptureOwner
 } from '../runtime/types'
-import { finalizeInterruptedParts, type StreamListener, type StreamPausedResult } from '../streamManager'
+import type { StreamListener, StreamPausedResult } from '../streamManager'
+import { agentMessageInteractionCoordinator } from '../toolApproval/AgentMessageInteractionCoordinator'
 import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
@@ -406,13 +406,6 @@ export class AgentConnectionManager extends BaseService {
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
 
-    // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
-    // in-memory entry map is empty, so every such row is stale. Both message tables reconcile these
-    // rows at boot so neither leaves a frozen "thinking" bubble. Crashed sessions additionally discard
-    // their resume tokens: the interrupted external
-    // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
-    this.reconcileStalePendingMessages()
-
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
         void this.handleAgentUpdated(agentId, updates, agent).catch((error) => {
@@ -420,30 +413,6 @@ export class AgentConnectionManager extends BaseService {
         })
       })
     )
-  }
-
-  private reconcileStalePendingMessages(): void {
-    try {
-      const stale = agentSessionMessageService.findCrashOrphanedAssistantMessages()
-      if (stale.length === 0) return
-      const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
-      logger.info('Reconciling crash-orphaned pending agent-session messages', {
-        count: stale.length,
-        sessionCount: sessionIds.length
-      })
-      // Terminalize the interrupted turn's live parts (streaming tools, in-progress subagent
-      // tasks, unanswerable approval requests) so history renders settled, and discard the
-      // affected sessions' resume tokens so prewarm/next turn opens a fresh runtime connection.
-      agentSessionMessageService.resolveCrashOrphanedMessages(
-        stale.map(({ id, data }) => ({
-          id,
-          data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], ConversationOutcomeKind.Error) }
-        })),
-        sessionIds
-      )
-    } catch (error) {
-      logger.error('Failed to reconcile stale pending agent-session messages', { error })
-    }
   }
 
   private currentTurn(entry: AgentConnectionEntry): AgentTurnStreamResource | undefined {
@@ -1300,32 +1269,12 @@ export class AgentConnectionManager extends BaseService {
     const pending = toolApprovalRegistry.peek(approvalId)
     if (!pending) return false
 
-    if (pending.presentation === AgentRuntimeInteractionPresentation.Message) {
-      if (!anchorId) {
-        logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
-        return false
-      }
-      const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
-        approvalId,
-        approved: decision.approved,
-        ...(decision.reason !== undefined && { reason: decision.reason }),
-        ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
-      })
-      if (!applied) {
-        logger.warn('Persisted tool approval response did not match a pending card', {
-          approvalId,
-          anchorId
-        })
-        return false
-      }
-    }
+    if (pending.lifetime === AgentApprovalLifetime.SessionMessage)
+      return agentMessageInteractionCoordinator.respond(approvalId, decision, anchorId)
 
     const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
     if (!dispatched) return false
-
-    if (dispatched.presentation === AgentRuntimeInteractionPresentation.Stream) {
-      this.conversationResults.resolveAgentInteraction(dispatched.sessionId, approvalId)
-    }
+    this.conversationResults.resolveAgentInteraction(dispatched.sessionId, approvalId)
     return true
   }
 
@@ -1382,7 +1331,7 @@ export class AgentConnectionManager extends BaseService {
       closings.push(this.closeResources(entry.conversation.id))
     }
     try {
-      toolApprovalRegistry.clear('agent-session-runtime-stop')
+      agentMessageInteractionCoordinator.clear('agent-session-runtime-stop')
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
@@ -1395,7 +1344,7 @@ export class AgentConnectionManager extends BaseService {
     this.disposeWarmLeases()
     await this.closeAll()
     try {
-      toolApprovalRegistry.clear('agent-session-runtime-destroy')
+      agentMessageInteractionCoordinator.clear('agent-session-runtime-destroy')
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during destroy', { error })
     }
@@ -2296,7 +2245,7 @@ export class AgentConnectionManager extends BaseService {
 
   private handleToolApprovalRequest(entry: AgentConnectionEntry, request: AgentRuntimeToolApprovalRequest): void {
     const turn = this.currentTurn(entry)
-    if (request.presentation === AgentRuntimeInteractionPresentation.Stream) {
+    if (request.lifetime === AgentApprovalLifetime.ExecutionBound) {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,
@@ -2326,43 +2275,17 @@ export class AgentConnectionManager extends BaseService {
     // The requesting agent outlived its parent turn. Persist a settled assistant row containing the
     // pending interaction instead of reopening a streaming turn: user follow-ups remain admissible,
     // and several subagents can wait independently without overwriting one shared live message.
-    const part = {
-      type: `tool-${request.toolName}`,
-      toolCallId: request.toolCallId,
-      state: 'approval-requested',
-      input: request.input,
-      approval: { id: request.approvalId },
-      ...(request.providerMetadata ? { callProviderMetadata: request.providerMetadata } : {})
-    } as CherryMessagePart
-
-    try {
-      agentSessionMessageService.saveMessage(
-        {
-          sessionId: entry.conversation.id,
-          message: {
-            role: 'assistant',
-            status: 'success',
-            data: { parts: [part] },
-            modelId: this.connectionTarget(entry).modelId,
-            messageSnapshot: entry.messageSnapshot
-          }
-        },
-        { publishDataChange: true }
-      )
+    const message = agentMessageInteractionCoordinator.present({
+      sessionId: entry.conversation.id,
+      request,
+      modelId: this.connectionTarget(entry).modelId,
+      messageSnapshot: entry.messageSnapshot
+    })
+    if (message) {
       this._onApprovalRequested.fire({
         conversation: { kind: ConversationKind.Agent, id: entry.conversation.id },
         approvalId: request.approvalId,
         requestedAt: Date.now()
-      })
-    } catch (error) {
-      logger.error('Failed to persist background tool approval request', {
-        sessionId: entry.conversation.id,
-        approvalId: request.approvalId,
-        error
-      })
-      toolApprovalRegistry.dispatch(request.approvalId, {
-        approved: false,
-        reason: 'Unable to present this approval request to the user'
       })
     }
   }

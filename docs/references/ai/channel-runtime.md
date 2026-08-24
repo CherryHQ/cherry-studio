@@ -24,8 +24,9 @@ while outbound listeners consume committed execution output.
 `ChannelDeliveryService.connectionEpochs` is a consumed stale fence. Only
 `ChannelManager` generates an epoch and binds it to the adapter that actually
 connected. Delivery resolves the adapter at send time through
-`resolveConnectedAdapter(channelId)`; listeners and queued requests never retain
-an adapter instance.
+`resolveConnectedAdapter(channelId)`. A running terminal attempt retains the
+exact adapter/epoch only as its ownership fence; listeners and queued requests
+never retain an adapter instance.
 
 ## Inbound path
 
@@ -62,6 +63,14 @@ reached the platform, so delivery does not retry; it blocks that channel, drops
 its queued work, and suppresses later live updates. Only a newer successful
 `ChannelManager` connection epoch reopens it.
 
+Planned replacement freezes new admission and drains attempts already owned by
+the old epoch before disconnecting it. Unexpected connection loss aborts old
+live and terminal ownership immediately. Before every platform call, Delivery
+revalidates the exact adapter/epoch. `onStreamComplete` reports `Delivered` or
+`NotHandled`: only an explicit `NotHandled` with no later external call may be
+continued on a newer epoch. A throw, abort, or timeout after an external call
+has an unknown result and is never retried, preserving at-most-once delivery.
+
 ## Conversation boundary
 
 - Channel input carries explicit provenance into the Conversation admission
@@ -80,6 +89,8 @@ its queued work, and suppresses later live updates. Only a newer successful
 - One generated-result delivery owner: `ChannelDeliveryService`.
 - A listener owns text, not an adapter or connection lifecycle.
 - Live delivery has no retry; terminal delivery has no retry after timeout.
+- Cross-epoch terminal continuation is allowed only after an explicit
+  `NotHandled` result; unknown external outcomes are never retried.
 - Platform adapters do not decide block policy, epoch, admission, or listener
   liveness.
 

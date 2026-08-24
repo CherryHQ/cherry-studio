@@ -137,6 +137,39 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
   })
 
+  it('returns the authoritative Chat outputs repaired during boot recovery', async () => {
+    await dbh.db.insert(messageTable).values({
+      id: 'a2',
+      parentId: 'a1',
+      topicId: 'topic-1',
+      role: 'assistant',
+      data: {
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'tool-1',
+            toolName: 'Read',
+            state: 'input-available',
+            input: { path: '/tmp/input.txt' }
+          }
+        ]
+      },
+      status: 'pending',
+      siblingsGroupId: 2,
+      modelId: MODEL_ID,
+      createdAt: 300,
+      updatedAt: 300
+    })
+
+    expect(provider.recoverCrashOrphans()).toEqual({
+      repairedOutputs: [{ outputNodeId: 'a2', status: 'error' }]
+    })
+    expect(messageService.getById('a2')).toMatchObject({
+      status: 'error',
+      data: { parts: [expect.objectContaining({ state: 'output-error' })] }
+    })
+  })
+
   it('rebuilds a prompt that carries the paused partial when the new turn anchors on the paused row', async () => {
     // Steering: renderer's `activeNodeId` (the streaming/paused assistant row) is sent as
     // `parentAnchorId`, so the new user message is parented on the paused row.
