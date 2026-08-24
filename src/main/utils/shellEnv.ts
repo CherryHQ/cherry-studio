@@ -11,6 +11,12 @@ const logger = loggerService.withContext('ShellEnv')
 // Give shells enough time to source profile files, but fail fast when they hang.
 const SHELL_ENV_TIMEOUT_MS = 15_000
 
+/** Read PATH using Windows-compatible, case-insensitive environment-key semantics. */
+export function getPathFromEnvironment(env: Record<string, string | undefined>): string | undefined {
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
+  return pathKey ? env[pathKey] : undefined
+}
+
 /**
  * Ensures Cherry-managed tool directories are appended to the user's PATH while
  * preserving the original key casing and avoiding duplicate segments.

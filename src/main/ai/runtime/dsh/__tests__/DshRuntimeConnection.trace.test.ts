@@ -141,7 +141,11 @@ vi.mock('../dshSdk', () => ({
     })
   })
 }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: runtimeMocks.getShellEnv }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: runtimeMocks.getShellEnv,
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
@@ -196,6 +200,22 @@ describe('DshRuntimeConnection tracing', () => {
       HOME: '/Users/tester'
     })
     expect(runtimeMocks.harnessOptions?.env).not.toHaveProperty('SECRET')
+    await connection.close()
+  })
+
+  it('normalizes a mixed-case Windows Path key for the isolated child', async () => {
+    runtimeMocks.getShellEnv.mockResolvedValueOnce({
+      Path: 'C:\\Users\\tester\\bin;C:\\Windows',
+      HOME: 'C:\\Users\\tester'
+    })
+
+    const connection = await new DshRuntimeConnection(connectInput).start()
+
+    expect(runtimeMocks.harnessOptions?.env).toMatchObject({
+      PATH: 'C:\\Users\\tester\\bin;C:\\Windows',
+      HOME: 'C:\\Users\\tester'
+    })
+    expect(runtimeMocks.harnessOptions?.env).not.toHaveProperty('Path')
     await connection.close()
   })
 

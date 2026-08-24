@@ -154,7 +154,11 @@ vi.mock('./piSdk', () => ({
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: mocks.getShellEnv }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: mocks.getShellEnv,
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
@@ -406,6 +410,16 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
     expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin")).toBe(
       "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
+    )
+  })
+
+  it('reads a mixed-case Windows Path key', async () => {
+    mocks.getShellEnv.mockResolvedValueOnce({ Path: 'C:\\Users\\tester\\bin;C:\\Windows' })
+
+    await new PiRuntimeConnection(input).start()
+
+    expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(
+      'export PATH="$PATH":\'C:\\Users\\tester\\bin;C:\\Windows\''
     )
   })
 
