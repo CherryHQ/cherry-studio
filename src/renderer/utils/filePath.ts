@@ -62,13 +62,17 @@ export function isInlineFilePath(value: string): boolean {
  */
 export function parseFileLinkHref(href: string | undefined): string | null {
   if (!href) return null
-  if (href.startsWith('//')) return null // protocol-relative → external
-  if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(href) && /^[a-z][a-z0-9+.-]*:/i.test(href)) return null
-  const path = href.replace(/[?#].*$/, '') // drop query + hash
-  if (!path) return null
+  const rawPath = href.replace(/[?#].*$/, '') // drop query + hash
+  if (!rawPath) return null
+
+  let path: string
   try {
-    return decodeURIComponent(path) || null
+    path = decodeURIComponent(rawPath)
   } catch {
-    return path // keep raw path on malformed percent-encoding
+    path = rawPath // keep raw path on malformed percent-encoding
   }
+
+  if (!path || path.startsWith('//')) return null // protocol-relative → external
+  if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(path) && /^[a-z][a-z0-9+.-]*:/i.test(path)) return null
+  return path
 }

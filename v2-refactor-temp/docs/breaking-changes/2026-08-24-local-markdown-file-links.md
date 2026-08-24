@@ -8,7 +8,7 @@ date: 2026-08-24
 
 ## What changed
 
-Links to workspace files in an agent artifact's rendered Markdown preview now open the target file in the artifact pane. Relative links resolve from the agent workspace root.
+Links to workspace files in agent session messages and an agent artifact's rendered Markdown preview now open the target file in the artifact pane. Relative links resolve from the agent workspace root.
 
 ## Why this matters to the user
 

@@ -43,6 +43,9 @@ describe('parseFileLinkHref', () => {
     ['http://localhost:5173/x.md'], // external http
     ['mailto:a@b.com'],
     ['//cdn.example.com/x.md'], // protocol-relative
+    ['https%3A%2F%2Fexample.com%2Fpage.md'], // encoded external https
+    ['%2F%2Fcdn.example.com%2Fx.md'], // encoded protocol-relative
+    ['javascript%3Aalert(1)'], // encoded unsafe scheme
     ['#section'], // in-page anchor
     ['file:///C:/Users/Alice/README.md'],
     ['file:///Users/x.md'],

@@ -73,7 +73,7 @@ const Link: React.FC<LinkProps> = (props) => {
       <a
         {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
         href={props.href}
-        className={cn('text-primary', !props.className && 'hover:underline', props.className)}
+        className={cn('text-link', !props.className && 'hover:underline', props.className)}
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()

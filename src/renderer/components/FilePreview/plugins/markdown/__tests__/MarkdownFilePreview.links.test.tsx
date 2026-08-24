@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +11,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
-  codeBlockView: vi.fn(),
   readText: vi.fn()
 }))
 
@@ -18,15 +18,16 @@ const mocks = vi.hoisted(() => ({
 // opt into the real shared Markdown component instead of the renderer-wide stand-in.
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
-vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
-  CodeBlockView: (props: { children: string; language: string; showToolbar?: boolean }) => {
-    mocks.codeBlockView(props)
-    return (
-      <pre data-testid="cherry-code-block" data-language={props.language} data-show-toolbar={String(props.showToolbar)}>
-        {props.children}
-      </pre>
-    )
-  }
+vi.mock('@renderer/components/CodeViewer', () => ({
+  default: ({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>
+}))
+
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
+}))
+
+vi.mock('@renderer/services/PyodideService', () => ({
+  pyodideService: { runScript: vi.fn() }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -53,6 +54,23 @@ function renderArtifactPreview(openFile: (path: AbsoluteFilePath) => void) {
 describe('MarkdownFilePreview links', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.execution.enabled': true,
+      'chat.code.execution.timeout_minutes': 1,
+      'chat.code.collapsible': false,
+      'chat.code.wrappable': true,
+      'chat.code.image_tools': false,
+      'chat.message.font_size': 14,
+      'chat.code.show_line_numbers': false,
+      'chat.code.editor.enabled': true,
+      'chat.code.editor.autocompletion': true,
+      'chat.code.editor.fold_gutter': false,
+      'chat.code.editor.highlight_active_line': false,
+      'chat.code.editor.keymap': false,
+      'chat.code.editor.theme_light': 'auto',
+      'chat.code.editor.theme_dark': 'auto'
+    })
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -102,14 +120,14 @@ describe('MarkdownFilePreview links', () => {
 
   it('renders fenced source without chat execution or HTML artifact controls', async () => {
     mocks.readText.mockResolvedValue(
-      '```tsx\n<Button />\n```\n\n```html\n<button>Run</button>\n```\n\n| Token | Role |\n| --- | --- |\n| link | clickable text |'
+      '```python\nprint("not executed")\n```\n\n```html\n<button>Not an artifact</button>\n```'
     )
 
     renderArtifactPreview(vi.fn())
 
-    const codeBlocks = await screen.findAllByTestId('cherry-code-block')
-    expect(codeBlocks.map((block) => block.getAttribute('data-language'))).toEqual(['tsx', 'html'])
-    expect(codeBlocks.every((block) => block.getAttribute('data-show-toolbar') === 'false')).toBe(true)
-    expect(screen.getByRole('table').closest('.table-wrapper')).not.toBeNull()
+    const codeBlocks = await screen.findAllByLabelText('Code viewer')
+    expect(codeBlocks[0]).toHaveTextContent('print("not executed")')
+    expect(codeBlocks[1]).toHaveTextContent('<button>Not an artifact</button>')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })

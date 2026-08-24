@@ -345,6 +345,7 @@ export interface MessageListActions {
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
   resolvePath?: (path: string) => string
+  isDirectory?: (path: string) => Promise<boolean>
   openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void

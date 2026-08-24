@@ -119,10 +119,8 @@ describe('Markdown sanitize schema', () => {
   })
 
   it('keeps schemeless workspace file links through sanitize while blocking file:/drive/unsafe protocols', async () => {
-    // Callers that render links through their own safety-aware `<a>` (e.g. the renderer's
-    // file-link opener) disable Streamdown's rehype-harden, so relative hrefs must survive
-    // sanitize alone — harden would otherwise origin-resolve `./x` → `/x`. Sanitize's
-    // protocol allow-list is the only link gate left, so it must still drop unsafe schemes.
+    // This exercises the sanitize schema in isolation. The production pipeline also runs
+    // hardening, with local hrefs temporarily preserved around both security plugins.
     const { sanitize } = defaultRehypePlugins as Record<string, any>
     const [sanitizeFn, schema] = sanitize
     const run = (html: string) =>

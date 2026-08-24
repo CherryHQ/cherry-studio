@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
         notifyError?: (message: string) => void
         openArtifactFile?: (path: string) => void | Promise<void>
         openPath?: (path: string) => void | Promise<void>
+        isDirectory?: (path: string) => Promise<boolean>
       }
     | undefined,
   markdown: vi.fn(),
@@ -136,13 +137,17 @@ ${fencedHtml}`
     expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: false }))
 
     const openArtifactFile = vi.fn()
-    mocks.actions = { openArtifactFile }
+    const openPath = vi.fn()
+    const isDirectory = vi.fn().mockResolvedValue(true)
+    mocks.actions = { openArtifactFile, openPath, isDirectory }
     view.rerender(<ChatMarkdown block={block} />)
 
     expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: true }))
     const provider = mocks.renderProvider.mock.calls.at(-1)?.[0]
-    await provider.openFilePath('./README.md')
-    expect(openArtifactFile).toHaveBeenCalledWith('./README.md')
+    await provider.openFilePath('./docs')
+    expect(isDirectory).toHaveBeenCalledWith('./docs')
+    expect(openPath).toHaveBeenCalledWith('./docs')
+    expect(openArtifactFile).not.toHaveBeenCalled()
 
     view.rerender(<ChatMarkdown block={{ ...block, status: 'streaming' }} />)
     expect(mocks.streamingMarkdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: true }))

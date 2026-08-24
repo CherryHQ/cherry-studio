@@ -168,6 +168,7 @@ describe('Link file-path opener', () => {
     expect(screen.queryByTestId('hyperlink')).toBeNull()
     const anchor = container.querySelector('a') as HTMLAnchorElement
     expect(anchor.getAttribute('target')).toBeNull()
+    expect(anchor).toHaveClass('text-link')
 
     fireEvent.click(anchor)
     expect(openFilePath).toHaveBeenCalledWith('./DESIGN.md')

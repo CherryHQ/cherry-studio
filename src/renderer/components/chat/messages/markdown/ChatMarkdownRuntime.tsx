@@ -88,6 +88,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
             openFileTarget(path, {
               openArtifactFile: actions.openArtifactFile,
               openPath: actions.openPath,
+              isDirectory: actions.isDirectory,
               onError: () => actions.notifyError?.(t('chat.input.tools.open_file_error', { path }))
             })
         : undefined,
