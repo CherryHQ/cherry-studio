@@ -106,7 +106,7 @@ const channelDataMock = vi.hoisted(() => ({
 
 const translationMock = vi.hoisted(() => ({
   i18n: { language: 'en-US' },
-  t: (key: string) => key
+  t: (key: string, _values?: Record<string, unknown>) => key
 }))
 
 const promptPolishActionsMock = vi.hoisted(() => vi.fn())
@@ -810,6 +810,7 @@ describe('task run summary copy', () => {
 describe('TasksSettings routing and creation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    translationMock.t = (key: string) => key
     navigationMocks.taskId = 'task-1'
     navigationMocks.navigate.mockResolvedValue(undefined)
     agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
@@ -866,12 +867,22 @@ describe('TasksSettings routing and creation', () => {
         finishedAt: '2026-06-25T00:01:00.000Z'
       })
     ]
+    translationMock.t = (key, values) => {
+      switch (key) {
+        case 'agent.tasks.nextRun':
+          return enUS['agent.tasks.nextRun']
+        case 'agent.tasks.runSummary.failed':
+          return enUS['agent.tasks.runSummary.failed'].replace('{{time}}', String(values?.time ?? ''))
+        default:
+          return key
+      }
+    }
 
     render(<TasksSettings />)
 
     expect((await screen.findAllByText('agent.tasks.status.active')).length).toBeGreaterThan(1)
-    expect(screen.getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
-    expect(screen.getByText(/agent.tasks.runSummary.failed/).closest('a')).toHaveAttribute(
+    expect(screen.getByText(/^Next Run · \S/)).toBeInTheDocument()
+    expect(screen.getByText(/^Last run failed · \S/).closest('a')).toHaveAttribute(
       'href',
       '/settings/scheduled-tasks/task-1'
     )
