@@ -3,10 +3,12 @@ import {
   type ConversationEffectId,
   type ConversationExecutionId,
   type ConversationRef,
+  conversationRefsEqual,
   type ConversationTurnId
 } from '@shared/ai/conversation'
 
 import {
+  ConversationExecutionAbortResultKind,
   type ConversationExecutionSink,
   type ConversationPortResolver,
   type ConversationRuntimeIdFactory,
@@ -28,6 +30,7 @@ type DeferredResumeEffect = Extract<
 export interface ConversationEffectSchedulePolicy {
   readonly shouldDeferResume: () => boolean
   readonly isResumeApplicable: (effect: DeferredResumeEffect) => boolean
+  readonly trackOperation: (id: string, task: () => Promise<void>) => Promise<void>
 }
 
 /** Executes committed effects and reports exact result commands to one Conversation actor. */
@@ -147,9 +150,24 @@ export class ConversationEffectExecutor {
         ports.scheduleRuntimeTurn(effect.conversation, effect.input, effect.suspendEffectId)
         return
 
-      case ConversationEffectType.AbortExecution:
-        ports.execution.abort(effect)
+      case ConversationEffectType.AbortExecution: {
+        const handle = ports.execution.abort(effect)
+        void this.schedulePolicy?.trackOperation(`abort:${effect.effectId}`, async () => {
+          const result = await handle.completed
+          if (
+            !conversationRefsEqual(result.conversation, effect.conversation) ||
+            result.turnId !== effect.turnId ||
+            result.executionId !== effect.executionId ||
+            result.effectId !== effect.effectId
+          ) {
+            throw new Error(`Conversation execution teardown returned a stale identity: ${effect.effectId}`)
+          }
+          if (result.kind === ConversationExecutionAbortResultKind.Failed) {
+            throw new Error(result.error.message ?? 'Conversation execution teardown failed')
+          }
+        })
         return
+      }
 
       case ConversationEffectType.PersistTerminal:
         this.persistence.submit(

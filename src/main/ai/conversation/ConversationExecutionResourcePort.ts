@@ -3,6 +3,7 @@ import type { ConversationRef, ConversationTurnId } from '@shared/ai/conversatio
 import type { AiExecutionManager, AiExecutionResourceDescriptor } from './AiExecutionManager'
 import type {
   AbortConversationExecutionEffect,
+  ConversationExecutionAbortHandle,
   ConversationExecutionPort,
   ConversationExecutionSink,
   DiscardConversationRuntimeBufferEffect,
@@ -55,7 +56,7 @@ export class ConversationExecutionResourcePort implements ConversationExecutionP
     this.manager.discardRuntimeBuffer(effect)
   }
 
-  abort(effect: AbortConversationExecutionEffect): void {
-    this.manager.abort(effect)
+  abort(effect: AbortConversationExecutionEffect): ConversationExecutionAbortHandle {
+    return this.manager.abort(effect)
   }
 }

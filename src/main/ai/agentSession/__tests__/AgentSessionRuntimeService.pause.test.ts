@@ -15,7 +15,7 @@ function deferred<T>() {
 type ManagerInternals = {
   entries: Map<string, { resources: ReturnType<typeof createAgentConnectionResourceState> }>
   connectionStarts: Map<string, { id: string; promise: Promise<boolean> }>
-  connectionCloses: Map<string, { sessionId: string; promise: Promise<void> }>
+  sessionTeardowns: Map<string, { id: string; promise: Promise<void>; phase: 'closing' }>
   inFlightBackgroundFlowFlushes: Map<Promise<void>, string>
 }
 
@@ -81,7 +81,7 @@ describe('AgentConnectionManager pause / drainInFlight', () => {
           promise: gate.promise.then(() => true)
         })
       } else if (kind === 'connection-close') {
-        state.connectionCloses.set('close-1', { sessionId: 'session-1', promise: gate.promise })
+        state.sessionTeardowns.set('session-1', { id: 'close-1', promise: gate.promise, phase: 'closing' })
       } else {
         state.inFlightBackgroundFlowFlushes.set(gate.promise, 'session-1:flow-1')
       }

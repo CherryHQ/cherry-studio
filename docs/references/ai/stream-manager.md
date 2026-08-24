@@ -23,6 +23,11 @@ interaction, persistence, and quiescence semantics.
 - accumulated message and runtime timing;
 - named driver descriptors resolved by the driver registry.
 
+Abort synchronously returns an exact handle. Its completion joins the provider
+run and driver teardown, and carries the runtime checkpoint frozen before the
+resource is invalidated. `ConversationActor` owns the corresponding Stop
+barrier; this manager only reports `Completed`, `Stale`, or `Failed`.
+
 It reports only first-chunk, interaction, terminal, and start-failure facts to
 the exact `ConversationActor`. It does not admit turns, select terminal durability, or
 decide quiescence.

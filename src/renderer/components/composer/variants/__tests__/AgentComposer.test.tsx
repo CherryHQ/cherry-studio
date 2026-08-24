@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   modelResult: undefined as Model | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
+  loggerError: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   createInternalEntry: vi.fn(),
@@ -275,6 +276,10 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
   }
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: mocks.loggerError }) }
 }))
 
 // useAgentSessionSlashCommands now observes the shared slash-command catalog via
@@ -781,6 +786,7 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.loggerError.mockReset()
     mocks.topicFulfilled = false
     mocks.markTopicSeen.mockReset()
     mocks.listDirectory.mockReset()
@@ -4510,6 +4516,29 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('pause'))
 
     expect(mocks.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs a rejected stream Stop once at the Agent action boundary', async () => {
+    const error = new Error('main teardown failed')
+    mocks.stop.mockRejectedValueOnce(error)
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    fireEvent.click(screen.getByText('pause'))
+
+    await waitFor(() =>
+      expect(mocks.loggerError).toHaveBeenCalledExactlyOnceWith('Failed to stop agent Conversation', {
+        conversation: { kind: 'agent', id: 'session-1' },
+        error
+      })
+    )
   })
 
   it('queues a follow-up while the agent session is streaming (does not send directly)', () => {

@@ -24,6 +24,10 @@ abort signal      → ai.stream.abort → Conversation Stop
 Detach and Stop are intentionally different. Detach removes only this window's
 observer; Main continues the execution and terminal persistence. Stop asks the
 Conversation owner to select a terminal outcome and abort exact live resources.
+The abort RPC resolves only after Main reaches a durable or deferred terminal
+and the exact resource teardown completes. Renderer starts its local reader
+stop at the same time, waits for both, and propagates either failure; a retry
+therefore cannot overtake an unfinished Main Stop.
 
 ## Open commands
 

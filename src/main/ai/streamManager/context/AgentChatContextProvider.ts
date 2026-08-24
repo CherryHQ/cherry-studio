@@ -601,7 +601,6 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
     if (descriptor.kind !== ConversationTerminalPersistenceKind.Agent) {
       throw new Error(`Agent HistoryPort cannot persist ${descriptor.kind}`)
     }
-    const manager = application.get('AgentConnectionManager')
     const port = new PersistenceListener({
       topicId: descriptor.sessionId,
       modelId: descriptor.modelId,
@@ -609,7 +608,7 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
         sessionId: descriptor.sessionId,
         assistantMessageId: descriptor.assistantMessageId,
         modelId: descriptor.modelId,
-        runtimeResumeToken: () => manager.runtimeResumeToken(descriptor.sessionId)
+        runtimeResumeToken: terminal.runtimeCheckpoint?.runtimeResumeToken
       })
     })
     if (terminal.status === ConversationOutcomeKind.Success) await port.onDone(terminal)

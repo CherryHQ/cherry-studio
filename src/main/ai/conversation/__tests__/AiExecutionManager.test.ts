@@ -42,6 +42,8 @@ type TestExecutionDescriptor = Omit<
   readonly request: AiStreamRequest | TestRequestFactory
   readonly suspend?: () => boolean
   readonly resumeSuspended?: () => void
+  readonly checkpoint?: () => { readonly runtimeResumeToken?: string } | undefined
+  readonly teardown?: () => Promise<void>
   readonly abortController?: AbortController
 }
 
@@ -55,6 +57,8 @@ interface TestPreparation {
 interface TestDriverCallbacks {
   readonly suspend?: () => boolean
   readonly resumeSuspended?: () => void
+  readonly checkpoint?: () => { readonly runtimeResumeToken?: string } | undefined
+  readonly teardown?: () => Promise<void>
 }
 
 class TestExecutionDriver implements ConversationExecutionDriver {
@@ -114,6 +118,14 @@ class TestExecutionDriver implements ConversationExecutionDriver {
   }
 
   discardRuntimeBuffer(): void {}
+
+  checkpoint(driver: ConversationExecutionDriverBinding) {
+    return this.callbacks.get(driver)?.checkpoint?.()
+  }
+
+  async teardown(driver: ConversationExecutionDriverBinding): Promise<void> {
+    await this.callbacks.get(driver)?.teardown?.()
+  }
 }
 
 class AiExecutionManager extends ResourceExecutionManager {
@@ -702,6 +714,66 @@ describe('AiExecutionManager', () => {
         }
       )
     ).toThrow('Conversation execution is not registered')
+  })
+
+  it('freezes the execution checkpoint and waits for both the run and driver teardown', async () => {
+    const controlled = controlledStream()
+    let finishTeardown!: () => void
+    const teardown = new Promise<void>((resolve) => {
+      finishTeardown = resolve
+    })
+    const sink: ConversationExecutionSink = {
+      firstChunk: vi.fn(),
+      interactionOpened: vi.fn(),
+      interactionCompleted: vi.fn(),
+      terminal: vi.fn(),
+      startFailed: vi.fn()
+    }
+    const manager = new AiExecutionManager(async () => controlled.stream)
+    manager.register({
+      conversation: ref,
+      turnId,
+      executionId,
+      outputNodeId: 'assistant-1',
+      modelId: 'provider::model',
+      request: { chatId: ref.id, trigger: 'submit-message', uniqueModelId: 'provider::model', messages: [] },
+      checkpoint: () => ({ runtimeResumeToken: 'resume-exact' }),
+      teardown: () => teardown,
+      observers: [],
+      interactionResumeMode: ConversationInteractionResumeMode.NewRun
+    })
+    manager.start(
+      {
+        type: ConversationEffectType.StartExecution,
+        conversation: ref,
+        turnId,
+        executionId,
+        effectId: toConversationEffectId('start-before-stop')
+      },
+      sink
+    )
+    await vi.waitFor(() => expect(manager.inFlightRuns()).toHaveLength(1))
+
+    const handle = manager.abort({
+      type: ConversationEffectType.AbortExecution,
+      conversation: ref,
+      turnId,
+      executionId,
+      effectId: toConversationEffectId('abort-running'),
+      reason: 'user-stop'
+    })
+    expect(handle.checkpoint).toEqual({ runtimeResumeToken: 'resume-exact' })
+    let completed = false
+    void handle.completed.then(() => {
+      completed = true
+    })
+    controlled.controller.close()
+    await Promise.resolve()
+    expect(completed).toBe(false)
+
+    finishTeardown()
+    await expect(handle.completed).resolves.toMatchObject({ kind: 'completed' })
+    expect(manager.result(ref, turnId, executionId)?.checkpoint).toEqual({ runtimeResumeToken: 'resume-exact' })
   })
 
   it('does not apply an old pre-stream stop request to a new manager-owned agent resource', async () => {

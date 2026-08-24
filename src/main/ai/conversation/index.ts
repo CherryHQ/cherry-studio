@@ -12,22 +12,27 @@ export type {
   ConversationDispatchCommitReservation,
   ConversationHistoryCommitReservation,
   ConversationRuntimeTurnReservation,
+  ConversationStopHandle,
   ReservedExecutionIdentity
 } from './ConversationActor'
 export {
   ConversationActor,
   ConversationAdmissionOperationKind,
   ConversationExecutionAdmissionKind,
-  ConversationHistoryCommitKind
+  ConversationHistoryCommitKind,
+  ConversationStopOperationPhase
 } from './ConversationActor'
 export { ConversationAdmissionError } from './ConversationAdmissionError'
 export type { ConversationExecutionDriver } from './ConversationExecutionDriverRegistry'
 export type {
   AbortConversationExecutionEffect,
+  ConversationExecutionAbortHandle,
+  ConversationExecutionAbortResult,
   ConversationExecutionPort,
   ConversationExecutionSink,
   ConversationPortResolver,
   ConversationPresentationPort,
+  ConversationRuntimeCheckpoint,
   ConversationRuntimeIdFactory,
   ConversationRuntimePortSet,
   ConversationTerminalPersistencePort,
@@ -43,7 +48,7 @@ export type {
   StartConversationExecutionEffect,
   SuspendConversationExecutionEffect
 } from './conversationPorts'
-export { ConversationTerminalPersistenceResultKind } from './conversationPorts'
+export { ConversationExecutionAbortResultKind, ConversationTerminalPersistenceResultKind } from './conversationPorts'
 export type {
   AgentConversationInteractionState,
   ConversationNamingTaskExecutor,

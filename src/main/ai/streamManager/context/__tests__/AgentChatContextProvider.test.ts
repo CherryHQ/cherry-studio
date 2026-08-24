@@ -444,12 +444,14 @@ describe('AgentChatContextProvider', () => {
       status: ConversationOutcomeKind.Success,
       modelId: MODEL_ID,
       anchorMessageId: assistantMessageId,
+      runtimeCheckpoint: { runtimeResumeToken: 'resume-exact' },
       finalMessage: { id: assistantMessageId, role: 'assistant', parts: [] }
     })
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, assistantMessageId)).toMatchObject({
       status: 'success',
-      modelId: MODEL_ID
+      modelId: MODEL_ID,
+      runtimeResumeToken: 'resume-exact'
     })
   })
 

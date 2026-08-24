@@ -138,6 +138,24 @@ export type ConversationAdmissionOperationId = string & {
   readonly __conversationAdmissionOperationId: unique symbol
 }
 
+export type ConversationStopOperationId = string & {
+  readonly __conversationStopOperationId: unique symbol
+}
+
+export enum ConversationStopOperationPhase {
+  Draining = 'draining',
+  Completed = 'completed',
+  Failed = 'failed'
+}
+
+export interface ConversationStopHandle {
+  readonly accepted: boolean
+  readonly operationId?: ConversationStopOperationId
+  readonly completed: Promise<void>
+}
+
+const FAILED_STOP_FENCE = new Promise<void>(() => {})
+
 export interface ConversationAdmissionContext {
   readonly id: ConversationAdmissionOperationId
   readonly sequence: number
@@ -160,6 +178,17 @@ interface ConversationAdmissionOperation {
   controller?: AbortController
 }
 
+interface ConversationStopOperation {
+  readonly id: ConversationStopOperationId
+  readonly turnId?: ConversationTurnId
+  readonly epoch: number
+  readonly abortEffectIds: ReadonlySet<ConversationEffectId>
+  readonly completed: Promise<void>
+  readonly resolve: () => void
+  readonly reject: (error: unknown) => void
+  phase: ConversationStopOperationPhase
+}
+
 export interface ConversationActorControl {
   readonly ports: ConversationPortResolver
   readonly ids: ConversationRuntimeIdFactory
@@ -180,6 +209,7 @@ export class ConversationActor {
   private readonly effectExecutor?: ConversationEffectExecutor
   private state: ConversationState
   private deferredQuiescenceTurnId?: ConversationTurnId
+  private stopOperation?: ConversationStopOperation
   private epoch = 0
   private nextSequence = 0
 
@@ -199,7 +229,8 @@ export class ConversationActor {
         },
         {
           shouldDeferResume: () => control.isEffectSchedulingPaused?.() === true,
-          isResumeApplicable: (effect) => this.isDeferredResumeApplicable(effect)
+          isResumeApplicable: (effect) => this.isDeferredResumeApplicable(effect),
+          trackOperation: (id, task) => this.trackEffectOperation(id, task)
         }
       )
     }
@@ -209,6 +240,7 @@ export class ConversationActor {
     kind: ConversationAdmissionOperationKind,
     task: (context: ConversationAdmissionContext) => Promise<T> | T
   ): Promise<T> {
+    const stopBarrier = this.stopOperation?.completed
     const operation: ConversationAdmissionOperation = {
       id: crypto.randomUUID() as ConversationAdmissionOperationId,
       kind,
@@ -217,21 +249,23 @@ export class ConversationActor {
     }
     this.operations.set(operation.id, operation)
     const run = this.tail.then(async () => {
-      this.assertCurrent(operation)
-      const controller = new AbortController()
-      operation.controller = controller
-      const context: ConversationAdmissionContext = {
-        id: operation.id,
-        sequence: operation.sequence,
-        signal: controller.signal,
-        assertCurrent: () => this.assertCurrent(operation)
-      }
       try {
+        await stopBarrier
+        this.assertCurrent(operation)
+        const controller = new AbortController()
+        operation.controller = controller
+        const context: ConversationAdmissionContext = {
+          id: operation.id,
+          sequence: operation.sequence,
+          signal: controller.signal,
+          assertCurrent: () => this.assertCurrent(operation)
+        }
         const result = await task(context)
         context.assertCurrent()
         return result
       } finally {
         this.operations.delete(operation.id)
+        this.completeStopOperationIfReady()
         if (!this.hasPendingOperations) this.onIdle()
       }
     })
@@ -242,7 +276,7 @@ export class ConversationActor {
     return run
   }
 
-  interrupt(reason: string): void {
+  private interrupt(reason: string): void {
     this.epoch += 1
     for (const operation of this.operations.values()) operation.controller?.abort(reason)
   }
@@ -257,7 +291,10 @@ export class ConversationActor {
 
   get hasPendingOperations(): boolean {
     return (
-      this.hasPendingAdmissions || this.effectOperations.size > 0 || this.inFlightPersistenceOperations().length > 0
+      this.hasPendingAdmissions ||
+      this.effectOperations.size > 0 ||
+      this.inFlightPersistenceOperations().length > 0 ||
+      this.stopOperation !== undefined
     )
   }
 
@@ -401,12 +438,17 @@ export class ConversationActor {
   trackEffectOperation(id: string, task: () => Promise<void>): Promise<void> {
     const operation = Promise.resolve().then(task)
     this.effectOperations.set(id, operation)
-    const release = () => {
+    const release = (error?: unknown) => {
       if (this.effectOperations.get(id) !== operation) return
       this.effectOperations.delete(id)
+      if (error !== undefined) this.failStopOperation(id, error)
+      else this.completeStopOperationIfReady()
       if (!this.hasPendingOperations) this.onIdle()
     }
-    void operation.then(release, release)
+    void operation.then(
+      () => release(),
+      (error) => release(error)
+    )
     return operation
   }
 
@@ -418,6 +460,15 @@ export class ConversationActor {
     for (const [id, run] of this.effectOperations) runs.push({ id, run })
     for (const operation of this.inFlightPersistenceOperations()) {
       runs.push({ id: `persistence:${operation.id}`, run: operation.run })
+    }
+    if (this.stopOperation) {
+      runs.push({
+        id: `stop:${this.stopOperation.id}`,
+        run:
+          this.stopOperation.phase === ConversationStopOperationPhase.Failed
+            ? FAILED_STOP_FENCE
+            : this.stopOperation.completed
+      })
     }
     return runs
   }
@@ -442,6 +493,7 @@ export class ConversationActor {
     }
     this.control?.onTransition?.(this.conversation, command, transition)
     for (const effect of transition.effects) this.effectExecutor?.execute(effect)
+    this.completeStopOperationIfReady()
     if (!this.hasPendingOperations) this.onIdle()
     return transition
   }
@@ -570,7 +622,23 @@ export class ConversationActor {
     })
   }
 
-  stop(reason: string): ConversationTransition {
+  stop(reason: string): ConversationStopHandle {
+    if (this.stopOperation) {
+      return {
+        accepted: true,
+        operationId: this.stopOperation.id,
+        completed: this.stopOperation.completed
+      }
+    }
+    if (
+      this.state.phase === ConversationPhase.Idle &&
+      this.state.inbox.nextTurn.length === 0 &&
+      this.state.inbox.nextStep.length === 0 &&
+      !this.hasPendingAdmissions
+    ) {
+      return { accepted: false, completed: Promise.resolve() }
+    }
+    this.interrupt(reason)
     const ids = this.ids()
     const abortEffectIds = new Map<ConversationExecutionId, ConversationEffectId>()
     const persistenceEffectIds = new Map<ConversationExecutionId, ConversationEffectId>()
@@ -584,7 +652,30 @@ export class ConversationActor {
         persistenceEffectIds.set(execution.id, ids.effect())
       }
     }
-    return this.commit({
+    const operationId = crypto.randomUUID() as ConversationStopOperationId
+    const turnId =
+      this.state.phase === ConversationPhase.Running || this.state.phase === ConversationPhase.Stopping
+        ? this.state.turn.id
+        : this.state.lastTurnId
+    let resolve!: () => void
+    let reject!: (error: unknown) => void
+    const completed = new Promise<void>((success, failure) => {
+      resolve = success
+      reject = failure
+    })
+    const operation: ConversationStopOperation = {
+      id: operationId,
+      turnId,
+      epoch: this.epoch,
+      abortEffectIds: new Set(abortEffectIds.values()),
+      completed,
+      resolve,
+      reject,
+      phase: ConversationStopOperationPhase.Draining
+    }
+    this.stopOperation = operation
+    void completed.catch(() => {})
+    const transition = this.commit({
       type: ConversationCommandType.Stop,
       reason,
       abortEffectIds,
@@ -594,6 +685,11 @@ export class ConversationActor {
       discardEffectId: ids.effect(),
       dropEffectId: ids.effect()
     })
+    if (transition.rejection) {
+      this.failStopOperation(operationId, new Error(`Conversation Stop was rejected: ${transition.rejection}`))
+    }
+    this.completeStopOperationIfReady()
+    return { accepted: transition.rejection === undefined, operationId, completed }
   }
 
   resolveInteraction(
@@ -663,6 +759,27 @@ export class ConversationActor {
       if (!this.hasPendingOperations) this.onIdle()
       throw new StaleConversationAdmissionError(this.conversation)
     }
+  }
+
+  private completeStopOperationIfReady(): void {
+    const operation = this.stopOperation
+    if (!operation || operation.phase !== ConversationStopOperationPhase.Draining) return
+    if (this.state.phase !== ConversationPhase.Idle) return
+    if (operation.turnId && this.state.lastTurnId !== operation.turnId) return
+    if ([...this.operations.values()].some(({ epoch }) => epoch < operation.epoch)) return
+    if (this.effectOperations.size > 0) return
+    operation.phase = ConversationStopOperationPhase.Completed
+    operation.resolve()
+    this.stopOperation = undefined
+  }
+
+  private failStopOperation(id: string, error: unknown): void {
+    const operation = this.stopOperation
+    if (!operation || operation.phase !== ConversationStopOperationPhase.Draining) return
+    const effectId = id.startsWith('abort:') ? id.slice('abort:'.length) : id
+    if (id !== operation.id && !operation.abortEffectIds.has(effectId as ConversationEffectId)) return
+    operation.phase = ConversationStopOperationPhase.Failed
+    operation.reject(error)
   }
 
   private isDeferredResumeApplicable(

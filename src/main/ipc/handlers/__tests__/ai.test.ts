@@ -108,7 +108,7 @@ beforeEach(() => {
     ext: 'txt'
   })
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
-  conversationRuntime.stop.mockReturnValue(true)
+  conversationRuntime.stop.mockReturnValue({ accepted: true, completed: Promise.resolve() })
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
       case 'AiService':
@@ -360,8 +360,20 @@ describe('aiHandlers — streaming', () => {
     expect(conversationRuntime.detach).not.toHaveBeenCalled()
   })
 
-  it('stream_abort aborts the topic without resolving a WebContents', async () => {
-    await aiHandlers['ai.stream.abort']({ conversation: CHAT_CONVERSATION }, { senderId: null })
+  it('stream_abort waits for the Conversation Stop barrier without resolving a WebContents', async () => {
+    let completeStop!: () => void
+    const completed = new Promise<void>((resolve) => {
+      completeStop = resolve
+    })
+    conversationRuntime.stop.mockReturnValue({ accepted: true, completed })
+    let settled = false
+    const stopping = aiHandlers['ai.stream.abort']({ conversation: CHAT_CONVERSATION }, { senderId: null }).then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    completeStop()
+    await stopping
     expect(conversationRuntime.stop).toHaveBeenCalledWith(CHAT_CONVERSATION, 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
   })

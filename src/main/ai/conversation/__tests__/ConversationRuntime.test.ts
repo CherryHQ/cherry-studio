@@ -17,6 +17,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ConversationActor,
+  ConversationAdmissionOperationKind,
+  ConversationExecutionAbortResultKind,
   ConversationExecutionAdmissionKind,
   ConversationExecutionDriverKind,
   type ConversationExecutionSink,
@@ -83,7 +85,15 @@ describe('ConversationRuntime', () => {
         suspend: vi.fn(() => false),
         resumeSuspended: vi.fn(),
         discardRuntimeBuffer: vi.fn(),
-        abort: vi.fn()
+        abort: vi.fn((effect) => ({
+          completed: Promise.resolve({
+            kind: ConversationExecutionAbortResultKind.Completed as const,
+            conversation: effect.conversation,
+            turnId: effect.turnId,
+            executionId: effect.executionId,
+            effectId: effect.effectId
+          })
+        }))
       },
       presentation: {
         publishStatus: vi.fn(),
@@ -219,14 +229,196 @@ describe('ConversationRuntime', () => {
     expect(actorFor(agent).inspect().phase).toBe(ConversationPhase.Running)
   })
 
-  it('Stop interrupts Starting resources without a preparation cancellation protocol', () => {
+  it('Stop interrupts Starting resources and completes only after teardown and persistence', async () => {
+    let completeAbort!: () => void
+    const abortCompleted = new Promise<void>((resolve) => {
+      completeAbort = resolve
+    })
+    vi.mocked(ports.execution.abort).mockImplementation((effect) => {
+      sinks[0]?.terminal({ kind: ConversationOutcomeKind.Paused, reason: effect.reason })
+      return {
+        completed: abortCompleted.then(() => ({
+          kind: ConversationExecutionAbortResultKind.Completed as const,
+          conversation: effect.conversation,
+          turnId: effect.turnId,
+          executionId: effect.executionId,
+          effectId: effect.effectId
+        }))
+      }
+    })
     open()
-    actorFor(chat).stop('user-stop')
+    const handle = actorFor(chat).stop('user-stop')
 
     expect(actorFor(chat).inspect().phase).toBe(ConversationPhase.Stopping)
     expect(ports.execution.abort).toHaveBeenCalledWith(
       expect.objectContaining({ executionId: toConversationExecutionId('execution-1'), reason: 'user-stop' })
     )
+    let completed = false
+    void handle.completed.then(() => {
+      completed = true
+    })
+    await Promise.resolve()
+    expect(completed).toBe(false)
+
+    completeAbort()
+    await vi.waitFor(() => expect(actorFor(chat).inspect().phase).toBe(ConversationPhase.Idle))
+    await expect(handle.completed).resolves.toBeUndefined()
+    expect(actorFor(chat).inspect().phase).toBe(ConversationPhase.Idle)
+  })
+
+  it('drains an execution whose immutable terminal is already persisting', async () => {
+    let finishPersistence!: () => void
+    const persistenceGate = new Promise<void>((resolve) => {
+      finishPersistence = resolve
+    })
+    vi.mocked(ports.terminalPersistence.persistTerminal).mockImplementation(async () => {
+      await persistenceGate
+      return { kind: ConversationTerminalPersistenceResultKind.Durable }
+    })
+    open(agent)
+    sinks[0]?.terminal({ kind: ConversationOutcomeKind.Success })
+    await vi.waitFor(() => {
+      const state = actorFor(agent).inspect()
+      if (state.phase !== ConversationPhase.Running) throw new Error('turn did not remain active')
+      expect(state.turn.executions.get(toConversationExecutionId('execution-1'))?.phase).toBe(
+        ConversationExecutionPhase.Persisting
+      )
+    })
+
+    const stop = actorFor(agent).stop('user-stop')
+
+    expect(ports.execution.abort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        turnId: toConversationTurnId('turn-1'),
+        executionId: toConversationExecutionId('execution-1')
+      })
+    )
+    finishPersistence()
+    await expect(stop.completed).resolves.toBeUndefined()
+    expect(actorFor(agent).inspect()).toMatchObject({
+      phase: ConversationPhase.Idle,
+      lastTurnId: toConversationTurnId('turn-1')
+    })
+  })
+
+  it('holds post-Stop admission behind the exact teardown barrier', async () => {
+    let completeAbort!: () => void
+    const abortCompleted = new Promise<void>((resolve) => {
+      completeAbort = resolve
+    })
+    vi.mocked(ports.execution.abort).mockImplementation((effect) => {
+      sinks[0]?.terminal({ kind: ConversationOutcomeKind.Paused, reason: effect.reason })
+      return {
+        completed: abortCompleted.then(() => ({
+          kind: ConversationExecutionAbortResultKind.Completed as const,
+          conversation: effect.conversation,
+          turnId: effect.turnId,
+          executionId: effect.executionId,
+          effectId: effect.effectId
+        }))
+      }
+    })
+    open()
+    const handle = actorFor(chat).stop('user-stop')
+    const admission = vi.fn(() => 'started')
+    const retry = actorFor(chat).enqueue(ConversationAdmissionOperationKind.Dispatch, admission)
+    const repeated = actorFor(chat).stop('user-stop-again')
+
+    await Promise.resolve()
+    expect(admission).not.toHaveBeenCalled()
+    expect(repeated.operationId).toBe(handle.operationId)
+    completeAbort()
+    await vi.waitFor(() => expect(actorFor(chat).inspect().phase).toBe(ConversationPhase.Idle))
+    await handle.completed
+    await expect(retry).resolves.toBe('started')
+    expect(admission).toHaveBeenCalledOnce()
+  })
+
+  it('joins repeated Stop calls to the current turn operation', async () => {
+    open()
+    sinks[0]?.terminal({ kind: ConversationOutcomeKind.Success })
+    await vi.waitFor(() => expect(actorFor(chat).inspect().phase).toBe(ConversationPhase.Idle))
+
+    actorFor(chat).openTurn(
+      {
+        id: toConversationInputId('user-2'),
+        historyNodeId: 'user-2',
+        provenance: ConversationInputProvenance.Renderer,
+        responder: ConversationResponderKind.Interactive
+      },
+      [
+        {
+          id: toConversationExecutionId('execution-2'),
+          outputNodeId: 'assistant-2',
+          driver: ConversationExecutionDriverKind.Chat,
+          modelId: 'provider::model',
+          startEffectId: toConversationEffectId('start-2')
+        }
+      ],
+      { turnId: toConversationTurnId('turn-2'), turnKind: ConversationTurnKind.Submit }
+    )
+    vi.mocked(ports.execution.abort).mockImplementation((effect) => {
+      sinks[1]?.terminal({ kind: ConversationOutcomeKind.Paused, reason: effect.reason })
+      return {
+        completed: Promise.resolve({
+          kind: ConversationExecutionAbortResultKind.Completed as const,
+          conversation: effect.conversation,
+          turnId: effect.turnId,
+          executionId: effect.executionId,
+          effectId: effect.effectId
+        })
+      }
+    })
+
+    const first = actorFor(chat).stop('user-stop')
+    const repeated = actorFor(chat).stop('user-stop-again')
+
+    expect(first.operationId).toBe(repeated.operationId)
+    expect(first.completed).toBe(repeated.completed)
+    expect(ports.execution.abort).toHaveBeenLastCalledWith(
+      expect.objectContaining({ turnId: toConversationTurnId('turn-2') })
+    )
+    await expect(first.completed).resolves.toBeUndefined()
+  })
+
+  it('fails closed when exact execution teardown fails', async () => {
+    vi.mocked(ports.execution.abort).mockImplementation((effect) => {
+      sinks[0]?.terminal({ kind: ConversationOutcomeKind.Paused, reason: effect.reason })
+      return {
+        completed: Promise.resolve({
+          kind: ConversationExecutionAbortResultKind.Failed as const,
+          conversation: effect.conversation,
+          turnId: effect.turnId,
+          executionId: effect.executionId,
+          effectId: effect.effectId,
+          error: { name: 'CloseError', message: 'close failed', stack: null }
+        })
+      }
+    })
+    open()
+    const handle = actorFor(chat).stop('user-stop')
+    const retry = actorFor(chat).enqueue(ConversationAdmissionOperationKind.Dispatch, () => 'started')
+
+    await expect(handle.completed).rejects.toThrow('close failed')
+    await expect(retry).rejects.toThrow('close failed')
+  })
+
+  it('fails closed when execution teardown returns another effect identity', async () => {
+    vi.mocked(ports.execution.abort).mockImplementation((effect) => {
+      sinks[0]?.terminal({ kind: ConversationOutcomeKind.Paused, reason: effect.reason })
+      return {
+        completed: Promise.resolve({
+          kind: ConversationExecutionAbortResultKind.Completed as const,
+          conversation: effect.conversation,
+          turnId: effect.turnId,
+          executionId: effect.executionId,
+          effectId: toConversationEffectId('another-abort')
+        })
+      }
+    })
+    open()
+
+    await expect(actorFor(chat).stop('user-stop').completed).rejects.toThrow('stale identity')
   })
 
   it('defers an exact foreground resume while effect scheduling is paused and flushes it once', () => {

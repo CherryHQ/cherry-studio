@@ -92,6 +92,7 @@ import {
   ConversationExecutionAdmissionKind,
   ConversationHistoryCommitKind,
   type ConversationHistoryCommitReservation,
+  type ConversationStopHandle,
   type ReservedExecutionIdentity
 } from './ConversationActor'
 import { ConversationAdmissionError } from './ConversationAdmissionError'
@@ -482,22 +483,25 @@ export class ConversationRuntimeService extends BaseService {
     })
   }
 
-  stop(ref: ConversationRef, reason: string): void {
-    this.actors.get(conversationRefKey(ref))?.interrupt(reason)
-    this.actorFor(ref).stop(reason)
+  stop(ref: ConversationRef, reason: string): ConversationStopHandle {
+    const actor = this.actors.get(conversationRefKey(ref))
+    if (!actor) return { accepted: false, completed: Promise.resolve() }
+    const handle = actor.stop(reason)
     this.deleteCommittedInputsFor(ref)
+    return handle
   }
 
   abort(ref: ConversationRef, reason: string): boolean {
     if (!this.hasLiveConversation(ref)) return false
-    this.stop(ref, reason)
-    return true
+    return this.stop(ref, reason).accepted
   }
 
   hasLiveConversation(ref: ConversationRef): boolean {
+    const actor = this.actors.get(conversationRefKey(ref))
     return (
       this.inspect(ref).phase !== ConversationPhase.Idle ||
-      this.actors.get(conversationRefKey(ref))?.hasPendingAdmissions === true
+      actor?.hasPendingAdmissions === true ||
+      actor?.hasPendingOperations === true
     )
   }
 
@@ -1553,6 +1557,7 @@ export class ConversationRuntimeService extends BaseService {
       modelId: projection.modelId,
       anchorMessageId: projection.outputNodeId,
       runtimeTiming: result?.runtimeTiming,
+      runtimeCheckpoint: result?.checkpoint,
       turnTerminal: false
     }
     try {

@@ -129,11 +129,20 @@ intent
 → driver context build and provider open
 ```
 
-Stop increments the actor epoch and aborts the current validation plus every
-Starting/Active execution. A late validation or context result must match its
-operation identity and epoch; otherwise it is stale and cannot commit. Before
-the history boundary, Stop leaves no rows. After the boundary, Stop keeps the
-acknowledged skeleton and persists one Paused terminal.
+Stop increments the actor epoch and synchronously commits `Stopping`, then owns
+an exact Stop operation until terminal persistence and every execution/driver
+teardown complete. Admissions submitted after Stop wait on that operation;
+they validate and commit only after it succeeds. A teardown failure leaves a
+failed fence, so retries cannot create a replacement runtime connection.
+Admissions already validating before Stop are cancelled by epoch. Before the
+history boundary this leaves no rows; after it, the acknowledged skeleton is
+persisted once with a Paused terminal. Repeated Stop requests join the same
+operation.
+
+For Agent executions, the resource result freezes the exact runtime checkpoint
+before invalidating the connection entry. Terminal persistence consumes that
+checkpoint directly; it never queries whichever session entry happens to be
+current after teardown.
 
 `CommittedConversationInput` is a process-local control envelope that contains
 only identities and immutable dispatch facts for a user row already committed

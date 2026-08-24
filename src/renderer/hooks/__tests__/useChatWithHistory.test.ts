@@ -51,7 +51,7 @@ describe('useChatWithHistory', () => {
   const chat = (topicId: string): ConversationRef => ({ kind: ConversationKind.Chat, id: topicId })
   const resumeStream = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
   const setMessages = vi.fn()
-  const stop = vi.fn()
+  const stop = vi.fn<() => Promise<void>>()
   const sendMessage = vi.fn()
   const regenerate = vi.fn()
   const originalApi = window.api as any
@@ -84,7 +84,8 @@ describe('useChatWithHistory', () => {
 
     resumeStream.mockClear()
     setMessages.mockClear()
-    stop.mockClear()
+    stop.mockReset().mockResolvedValue(undefined)
+    streamAbortMock.mockReset().mockResolvedValue(undefined)
     sendMessage.mockClear()
     regenerate.mockClear()
 
@@ -310,6 +311,51 @@ describe('useChatWithHistory', () => {
 
     expect(streamAbortMock).toHaveBeenCalledWith({ conversation: chat('topic-abort') })
     expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts Main and local Stop together and waits for both barriers', async () => {
+    const order: string[] = []
+    let resolveMain!: () => void
+    let resolveLocal!: () => void
+    streamAbortMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push('main')
+          resolveMain = resolve
+        })
+    )
+    stop.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push('local')
+          resolveLocal = resolve
+        })
+    )
+    const { result } = renderHook(() =>
+      useChatWithHistory(chat('topic-stop-barrier'), [], vi.fn().mockResolvedValue(refreshedMessages))
+    )
+
+    let settled = false
+    const stopping = result.current.stop().then(() => {
+      settled = true
+    })
+    expect(order).toEqual(['main', 'local'])
+    resolveLocal()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    resolveMain()
+    await stopping
+    expect(settled).toBe(true)
+  })
+
+  it('propagates the Main Stop failure before a local Stop failure', async () => {
+    streamAbortMock.mockRejectedValue(new Error('main teardown failed'))
+    stop.mockRejectedValue(new Error('local stop failed'))
+    const { result } = renderHook(() =>
+      useChatWithHistory(chat('topic-stop-failure'), [], vi.fn().mockResolvedValue(refreshedMessages))
+    )
+
+    await expect(result.current.stop()).rejects.toThrow('main teardown failed')
   })
 
   it('does not refresh on streaming → aborted/error because page handoff owns final refresh', async () => {

@@ -16,9 +16,11 @@ import {
   temporaryChatContextProvider
 } from '@main/ai/streamManager'
 import type { Span } from '@opentelemetry/api'
-import { ConversationKind } from '@shared/ai/conversation'
+import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
 
 import type {
+  AbortConversationExecutionEffect,
+  ConversationRuntimeCheckpoint,
   DiscardConversationRuntimeBufferEffect,
   RedirectConversationInputEffect,
   ResumeSuspendedConversationExecutionEffect,
@@ -47,6 +49,11 @@ export interface ConversationExecutionDriver {
   suspend(driver: ConversationExecutionDriverBinding, effect: SuspendConversationExecutionEffect): boolean
   resumeSuspended(driver: ConversationExecutionDriverBinding, effect: ResumeSuspendedConversationExecutionEffect): void
   discardRuntimeBuffer(driver: ConversationExecutionDriverBinding, effect: DiscardConversationRuntimeBufferEffect): void
+  checkpoint(
+    driver: ConversationExecutionDriverBinding,
+    conversation: ConversationRef
+  ): ConversationRuntimeCheckpoint | undefined
+  teardown(driver: ConversationExecutionDriverBinding, effect: AbortConversationExecutionEffect): Promise<void>
 }
 
 /** Routes named execution descriptors to resource implementations without owning control state. */
@@ -65,22 +72,25 @@ export class ConversationExecutionDriverRegistry implements ConversationExecutio
   ): Promise<ConversationExecutionContext> {
     if (driver.kind === ConversationExecutionDriverBindingKind.Agent) {
       if (descriptor.kind === ConversationExecutionPreparationKind.AgentFresh) {
-        application.get('AgentConnectionManager').prepareTurnResources({
-          conversation: descriptor.conversation,
-          agentId: descriptor.agentId,
-          agentType: descriptor.agentType,
-          modelId: descriptor.modelId,
-          reasoningEffort: descriptor.reasoningEffort,
-          serviceTier: descriptor.serviceTier,
-          fastMode: descriptor.fastMode,
-          assistantMessageId: descriptor.outputNodeId,
-          userMessage: descriptor.userMessage,
-          headless: descriptor.headless,
-          traceId: descriptor.traceId,
-          messageSnapshot: descriptor.messageSnapshot,
-          shouldAutoName: descriptor.shouldAutoName,
-          turnId: descriptor.runtimeTurnId
-        })
+        await application.get('AgentConnectionManager').prepareExecutionTurnResources(
+          {
+            conversation: descriptor.conversation,
+            agentId: descriptor.agentId,
+            agentType: descriptor.agentType,
+            modelId: descriptor.modelId,
+            reasoningEffort: descriptor.reasoningEffort,
+            serviceTier: descriptor.serviceTier,
+            fastMode: descriptor.fastMode,
+            assistantMessageId: descriptor.outputNodeId,
+            userMessage: descriptor.userMessage,
+            headless: descriptor.headless,
+            traceId: descriptor.traceId,
+            messageSnapshot: descriptor.messageSnapshot,
+            shouldAutoName: descriptor.shouldAutoName,
+            turnId: descriptor.runtimeTurnId
+          },
+          signal
+        )
       } else if (descriptor.kind === ConversationExecutionPreparationKind.AgentRuntime) {
         await application.get('AgentConnectionManager').activateConversationRuntimeTurn(
           {
@@ -197,5 +207,25 @@ export class ConversationExecutionDriverRegistry implements ConversationExecutio
       return
     }
     application.get('AgentConnectionManager').discardAutonomousBuffer(effect)
+  }
+
+  checkpoint(
+    driver: ConversationExecutionDriverBinding,
+    conversation: ConversationRef
+  ): ConversationRuntimeCheckpoint | undefined {
+    if (driver.kind !== ConversationExecutionDriverBindingKind.Agent || conversation.kind !== ConversationKind.Agent) {
+      return undefined
+    }
+    return application.get('AgentConnectionManager').executionCheckpoint(conversation.id, driver.runtimeTurnId)
+  }
+
+  async teardown(driver: ConversationExecutionDriverBinding, effect: AbortConversationExecutionEffect): Promise<void> {
+    if (
+      driver.kind !== ConversationExecutionDriverBindingKind.Agent ||
+      effect.conversation.kind !== ConversationKind.Agent
+    ) {
+      return
+    }
+    await application.get('AgentConnectionManager').closeSession(effect.conversation.id)
   }
 }

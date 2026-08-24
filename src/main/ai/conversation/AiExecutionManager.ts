@@ -48,8 +48,11 @@ import {
 } from './ConversationExecutionDriverRegistry'
 import type {
   AbortConversationExecutionEffect,
+  ConversationExecutionAbortHandle,
+  ConversationExecutionAbortResult,
   ConversationExecutionPort,
   ConversationExecutionSink,
+  ConversationRuntimeCheckpoint,
   DiscardConversationRuntimeBufferEffect,
   RedirectConversationInputEffect,
   ResumeConversationExecutionEffect,
@@ -57,7 +60,8 @@ import type {
   StartConversationExecutionEffect,
   SuspendConversationExecutionEffect
 } from './conversationPorts'
-import type { ConversationOutcome } from './conversationState'
+import { ConversationExecutionAbortResultKind } from './conversationPorts'
+import { ConversationEffectType, type ConversationOutcome } from './conversationState'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
@@ -107,6 +111,7 @@ export interface ConversationExecutionResult {
   readonly outcome: ConversationOutcome
   readonly finalMessage?: CherryUIMessage
   readonly runtimeTiming: MessageRuntimeTiming
+  readonly checkpoint?: ConversationRuntimeCheckpoint
 }
 
 export interface ConversationExecutionResourceSnapshot {
@@ -135,6 +140,8 @@ interface ConversationExecutionResource {
   compactionAnchors?: Array<{ id: string; data: CompactionAnchorData }>
   deferredOutputs?: Map<string, unknown>
   idleTimeout?: IdleTimeoutHandle
+  checkpoint?: ConversationRuntimeCheckpoint
+  teardown?: Promise<void>
 }
 
 export type ConversationStreamOpener = (request: AiStreamRequest) => Promise<ReadableStream<UIMessageChunk>>
@@ -202,6 +209,28 @@ export class AiExecutionManager implements ConversationExecutionPort {
       yieldRequested: false
     }
     this.resources.set(key, resource)
+    abortController.signal.addEventListener(
+      'abort',
+      () => {
+        if (resource.result) return
+        void this.teardownResource(key, resource, {
+          type: ConversationEffectType.AbortExecution,
+          conversation: descriptor.conversation,
+          turnId: descriptor.turnId,
+          executionId: descriptor.executionId,
+          effectId: resource.runEffectId,
+          reason: String(abortController.signal.reason ?? 'aborted')
+        }).catch((error) => {
+          logger.warn('Conversation execution teardown failed', {
+            conversation: conversationRefKey(descriptor.conversation),
+            turnId: descriptor.turnId,
+            executionId: descriptor.executionId,
+            error
+          })
+        })
+      },
+      { once: true }
+    )
     this.startRun(key, resource)
   }
 
@@ -297,22 +326,38 @@ export class AiExecutionManager implements ConversationExecutionPort {
     }
   }
 
-  abort(effect: AbortConversationExecutionEffect): void {
+  abort(effect: AbortConversationExecutionEffect): ConversationExecutionAbortHandle {
     const key = this.key(effect.conversation, effect.turnId, effect.executionId)
-    const descriptor = this.descriptors.get(key)
-    if (descriptor) {
+    const registration = this.descriptors.get(key)
+    if (registration) {
       this.descriptors.delete(key)
-      descriptor.abortController.abort(effect.reason)
-      return
+      const checkpoint = this.drivers.checkpoint(registration.descriptor.driver, registration.descriptor.conversation)
+      const completed = this.completeAbort(effect, async () => {
+        registration.abortController.abort(effect.reason)
+        await this.drivers.teardown(registration.descriptor.driver, effect)
+      })
+      return { ...(checkpoint ? { checkpoint } : {}), completed }
     }
     const resource = this.resources.get(key)
-    if (!resource) return
-    resource.abortController.abort(effect.reason)
+    if (!resource) {
+      return {
+        completed: Promise.resolve({
+          kind: ConversationExecutionAbortResultKind.Stale,
+          conversation: effect.conversation,
+          turnId: effect.turnId,
+          executionId: effect.executionId,
+          effectId: effect.effectId
+        })
+      }
+    }
+    const checkpoint = this.captureCheckpoint(resource)
+    const completed = this.completeAbort(effect, () => this.teardownResource(key, resource, effect))
     if (resource.suspendedBy && !resource.result) {
       const outcome: ConversationOutcome = { kind: ConversationOutcomeKind.Paused, reason: effect.reason }
       resource.runtimeTiming.closeOpenToolSpans()
       resource.runtimeTiming.closeOpenSpans()
       resource.runtimeTiming.complete()
+      const checkpoint = this.captureCheckpoint(resource)
       resource.result = {
         conversation: resource.descriptor.conversation,
         turnId: resource.descriptor.turnId,
@@ -320,10 +365,70 @@ export class AiExecutionManager implements ConversationExecutionPort {
         outputNodeId: resource.descriptor.outputNodeId,
         modelId: resource.descriptor.modelId,
         outcome,
-        runtimeTiming: resource.runtimeTiming.snapshot()
+        runtimeTiming: resource.runtimeTiming.snapshot(),
+        ...(checkpoint ? { checkpoint } : {})
       }
       resource.sink.terminal(outcome)
     }
+    return { ...(checkpoint ? { checkpoint } : {}), completed }
+  }
+
+  private completeAbort(
+    effect: AbortConversationExecutionEffect,
+    teardown: () => Promise<void>
+  ): Promise<ConversationExecutionAbortResult> {
+    let operation: Promise<void>
+    try {
+      operation = teardown()
+    } catch (error) {
+      operation = Promise.reject(error)
+    }
+    return operation.then(
+      () => ({
+        kind: ConversationExecutionAbortResultKind.Completed,
+        conversation: effect.conversation,
+        turnId: effect.turnId,
+        executionId: effect.executionId,
+        effectId: effect.effectId
+      }),
+      (error) => ({
+        kind: ConversationExecutionAbortResultKind.Failed,
+        conversation: effect.conversation,
+        turnId: effect.turnId,
+        executionId: effect.executionId,
+        effectId: effect.effectId,
+        error: serializeError(error)
+      })
+    )
+  }
+
+  private teardownResource(
+    key: string,
+    resource: ConversationExecutionResource,
+    effect: AbortConversationExecutionEffect
+  ): Promise<void> {
+    if (resource.teardown) return resource.teardown
+    let resolve!: () => void
+    let reject!: (error: unknown) => void
+    resource.teardown = new Promise<void>((success, failure) => {
+      resolve = success
+      reject = failure
+    })
+    this.captureCheckpoint(resource)
+    let driverTeardown: Promise<void>
+    try {
+      driverTeardown = this.drivers.teardown(resource.descriptor.driver, effect)
+    } catch (error) {
+      driverTeardown = Promise.reject(error)
+    }
+    resource.abortController.abort(effect.reason)
+    void Promise.all([driverTeardown, this.runs.get(key)]).then(() => resolve(), reject)
+    return resource.teardown
+  }
+
+  private captureCheckpoint(resource: ConversationExecutionResource): ConversationRuntimeCheckpoint | undefined {
+    resource.checkpoint ??= this.drivers.checkpoint(resource.descriptor.driver, resource.descriptor.conversation)
+    return resource.checkpoint
   }
 
   attachSnapshot(
@@ -511,6 +616,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
       resource.runtimeTiming.closeOpenToolSpans()
       resource.runtimeTiming.closeOpenSpans()
       resource.runtimeTiming.complete()
+      const checkpoint = this.captureCheckpoint(resource)
       resource.result = {
         conversation: descriptor.conversation,
         turnId: descriptor.turnId,
@@ -519,7 +625,8 @@ export class AiExecutionManager implements ConversationExecutionPort {
         modelId: descriptor.modelId,
         outcome,
         finalMessage,
-        runtimeTiming: resource.runtimeTiming.snapshot()
+        runtimeTiming: resource.runtimeTiming.snapshot(),
+        ...(checkpoint ? { checkpoint } : {})
       }
       this.endRootSpan(resource.rootSpan, finalMessage, outcome)
       resource.sink.terminal(outcome)
@@ -530,6 +637,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
       resource.runtimeTiming.closeOpenToolSpans()
       resource.runtimeTiming.closeOpenSpans()
       resource.runtimeTiming.complete()
+      const checkpoint = this.captureCheckpoint(resource)
       resource.result = {
         conversation: descriptor.conversation,
         turnId: descriptor.turnId,
@@ -537,7 +645,8 @@ export class AiExecutionManager implements ConversationExecutionPort {
         outputNodeId: descriptor.outputNodeId,
         modelId: descriptor.modelId,
         outcome,
-        runtimeTiming: resource.runtimeTiming.snapshot()
+        runtimeTiming: resource.runtimeTiming.snapshot(),
+        ...(checkpoint ? { checkpoint } : {})
       }
       this.endRootSpan(resource.rootSpan, undefined, outcome)
       if (this.resources.get(key)?.runId === resource.runId) resource.sink.terminal(outcome)

@@ -1145,14 +1145,14 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     }
     const internals = manager as unknown as {
       entries: Map<string, typeof entry>
-      connectionCloses: Map<string, { sessionId: string; promise: Promise<void> }>
+      sessionTeardowns: Map<string, { id: string; promise: Promise<void>; phase: 'closing' }>
     }
     internals.entries.set('session-1', entry)
 
     const closed = manager.closeSession('session-1')
     expect(internals.entries.has('session-1')).toBe(false)
     expect(connection.close).toHaveBeenCalledOnce()
-    expect(internals.connectionCloses.size).toBe(1)
+    expect(internals.sessionTeardowns.size).toBe(1)
 
     const hold = manager.pause('backup')
     const draining = manager.drainInFlight({ timeoutMs: 5_000 })
@@ -1240,13 +1240,13 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     const close = new Promise<void>((resolve) => (finishClose = resolve))
     const internals = manager as unknown as {
       connectionStarts: Map<string, { id: string; promise: Promise<boolean> }>
-      connectionCloses: Map<string, { sessionId: string; promise: Promise<void> }>
+      sessionTeardowns: Map<string, { id: string; promise: Promise<void>; phase: 'closing' }>
     }
     internals.connectionStarts.set('session-1', { id: 'start-1', promise: start })
     const hold = manager.pause('backup')
     const draining = manager.drainInFlight({ timeoutMs: 5_000 })
 
-    internals.connectionCloses.set('close-1', { sessionId: 'session-1', promise: close })
+    internals.sessionTeardowns.set('session-1', { id: 'close-1', promise: close, phase: 'closing' })
     finishStart()
     await new Promise((resolve) => setTimeout(resolve, 0))
     finishClose()
@@ -1259,9 +1259,9 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     const manager = new AgentConnectionManager()
     const never = new Promise<void>(() => {})
     const internals = manager as unknown as {
-      connectionCloses: Map<string, { sessionId: string; promise: Promise<void> }>
+      sessionTeardowns: Map<string, { id: string; promise: Promise<void>; phase: 'closing' }>
     }
-    internals.connectionCloses.set('close-1', { sessionId: 'session-1', promise: never })
+    internals.sessionTeardowns.set('session-1', { id: 'close-1', promise: never, phase: 'closing' })
     const hold = manager.pause('backup')
 
     await expect(manager.drainInFlight({ timeoutMs: 0 })).resolves.toEqual({
@@ -1984,6 +1984,35 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
   })
 
   describe('connection shutdown ownership', () => {
+    it('freezes a resume checkpoint only for the exact runtime turn before teardown', async () => {
+      const manager = new AgentConnectionManager()
+      const handle = manager.prepareTurnResources({
+        conversation: { kind: ConversationKind.Agent, id: 'session-1' },
+        agentId: 'agent-1',
+        agentType: 'test-runtime',
+        modelId: 'provider::model',
+        assistantMessageId: 'assistant-checkpoint',
+        userMessage: userMessage('user-checkpoint')
+      })
+      const entry = (manager as unknown as { entries: Map<string, { lastResumeToken?: string }> }).entries.get(
+        'session-1'
+      )
+      if (!entry) throw new Error('turn did not create an Agent resource entry')
+      entry.lastResumeToken = 'resume-exact'
+
+      expect(manager.executionCheckpoint('session-1', 'another-turn')).toBeUndefined()
+      const checkpoint = manager.executionCheckpoint('session-1', handle.turnId)
+      const closing = manager.closeSession('session-1')
+
+      expect(checkpoint).toEqual({ runtimeResumeToken: 'resume-exact' })
+      expect(manager.executionCheckpoint('session-1', handle.turnId)).toEqual({
+        runtimeResumeToken: 'resume-exact'
+      })
+      expect(manager.executionCheckpoint('session-1', 'another-turn')).toBeUndefined()
+      await closing
+      expect(manager.executionCheckpoint('session-1', handle.turnId)).toBeUndefined()
+    })
+
     const installConnection = (
       manager: AgentConnectionManager,
       sessionId: string,
@@ -2024,6 +2053,41 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
       expect(connection.close).toHaveBeenCalledOnce()
       expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(false)
+    })
+
+    it('does not prepare a successor turn until the prior session teardown completes', async () => {
+      let finishClose!: () => void
+      const closeGate = new Promise<void>((resolve) => {
+        finishClose = resolve
+      })
+      const manager = new AgentConnectionManager()
+      const connection = {
+        events: neverRuntimeEvents(),
+        send: vi.fn(),
+        close: vi.fn(() => closeGate),
+        reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
+      } satisfies AgentRuntimeConnection
+      installConnection(manager, 'session-1', connection)
+
+      const closing = manager.closeSession('session-1')
+      const preparing = manager.prepareExecutionTurnResources(
+        {
+          conversation: { kind: ConversationKind.Agent, id: 'session-1' },
+          agentId: 'agent-1',
+          agentType: 'test-runtime',
+          modelId: 'provider::model',
+          assistantMessageId: 'assistant-successor',
+          userMessage: userMessage('user-successor')
+        },
+        new AbortController().signal
+      )
+      await Promise.resolve()
+
+      expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(false)
+      finishClose()
+      await closing
+      await expect(preparing).resolves.toEqual({ turnId: expect.any(String) })
+      expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(true)
     })
 
     it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
@@ -2074,7 +2138,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       await expect(stopping).resolves.toBeUndefined()
     })
 
-    it('does not throw and logs a warning when the connection close rejects on closeSession (REGRESSION agent-session-5)', async () => {
+    it('keeps a failed teardown fence when the runtime close rejects', async () => {
       const manager = new AgentConnectionManager()
       const connection = {
         events: neverRuntimeEvents(),
@@ -2084,10 +2148,34 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       } satisfies AgentRuntimeConnection
       installConnection(manager, 'session-1', connection)
 
-      await expect(manager.closeSession('session-1')).resolves.toBeUndefined()
+      const closing = manager.closeSession('session-1')
+      await expect(closing).rejects.toThrow('Agent session teardown failed')
+      await expect(manager.closeSession('session-1')).rejects.toBeInstanceOf(AggregateError)
+      await expect(
+        manager.prepareExecutionTurnResources(
+          {
+            conversation: { kind: ConversationKind.Agent, id: 'session-1' },
+            agentId: 'agent-1',
+            agentType: 'test-runtime',
+            modelId: 'provider::model',
+            assistantMessageId: 'assistant-retry',
+            userMessage: userMessage('user-retry')
+          },
+          new AbortController().signal
+        )
+      ).rejects.toBeInstanceOf(AggregateError)
 
       expect(connection.close).toHaveBeenCalledOnce()
       expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(false)
+      expect(manager.hasBusySessions()).toBe(true)
+      const teardown = (manager as unknown as { sessionTeardowns: Map<string, { id: string }> }).sessionTeardowns.get(
+        'session-1'
+      )
+      const hold = manager.pause('backup')
+      await expect(manager.drainInFlight({ timeoutMs: 0 })).resolves.toEqual({
+        stragglerIds: [`connection-close:session-1:${teardown?.id}`]
+      })
+      hold.dispose()
     })
 
     it('aborts live streams before shutdown clears their pending approvals', async () => {
@@ -2355,7 +2443,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       return { ...handle, controller }
     }
 
-    it('aborts the current turn controller before the stream starts', async () => {
+    it('closes a pre-aborted execution stream without inferring session teardown', async () => {
       const manager = new AgentConnectionManager()
       const handle = prepare(manager, 'one')
       handle.controller.abort('user-stop')
@@ -2369,15 +2457,13 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         .getReader()
 
       await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
-      await vi.waitFor(() =>
-        expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(false)
-      )
+      expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(true)
+      await manager.closeSession('session-1')
     })
 
-    it('does not reuse an aborted controller for a later turn', async () => {
+    it('admits a later turn only after the prior session teardown completes', async () => {
       const manager = new AgentConnectionManager()
       const first = prepare(manager, 'one')
-      first.controller.abort('user-stop')
       await manager.closeSession('session-1')
 
       const second = prepare(manager, 'two')
@@ -2417,13 +2503,13 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         .getReader()
       await expect(reader.read()).resolves.toMatchObject({ done: false, value: { type: 'start' } })
 
-      handle.controller.abort('user-stop')
+      await manager.closeSession('session-1')
 
-      await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+      expect(connection.close).toHaveBeenCalledOnce()
       expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(false)
     })
 
-    it('tears the session down on any turn abort (steer no longer interrupts — abort is always a user Stop)', async () => {
+    it('joins repeated teardown requests without closing the runtime twice', async () => {
       vi.spyOn(agentService, 'getAgent').mockReturnValue({ knowledgeBaseIds: [] } as never)
       const manager = new AgentConnectionManager()
       const handle = prepare(manager, 'one')
@@ -2454,9 +2540,12 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         .getReader()
       await expect(reader.read()).resolves.toMatchObject({ done: false, value: { type: 'start' } })
 
-      handle.controller.abort('agent-runtime-interrupt')
+      const firstClose = manager.closeSession('session-1')
+      const repeatedClose = manager.closeSession('session-1')
+      expect(repeatedClose).toBe(firstClose)
+      await repeatedClose
 
-      await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+      expect(connection.close).toHaveBeenCalledOnce()
       expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(false)
     })
 
@@ -2490,10 +2579,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       })
       await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
 
-      handle.controller.abort('user-stop')
+      const closing = manager.closeSession('session-1')
       resolveConnect(connection)
 
-      await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+      await closing
+      expect(connection.close).toHaveBeenCalledOnce()
       expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(false)
       runtimeDriverRegistry.clearForTest()
     })

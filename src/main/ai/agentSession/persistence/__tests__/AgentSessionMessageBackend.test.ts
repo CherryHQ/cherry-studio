@@ -90,7 +90,7 @@ describe('AgentSessionMessageBackend', () => {
       sessionId: SESSION_ID,
       assistantMessageId: ASSISTANT_MESSAGE_ID,
       modelId: MODEL_ID,
-      runtimeResumeToken: () => 'resume-token'
+      runtimeResumeToken: 'resume-token'
     })
 
     backend.persistAssistant({
@@ -112,16 +112,14 @@ describe('AgentSessionMessageBackend', () => {
     })
   })
 
-  it('persists assistant turns with the latest resume token', () => {
+  it('persists the resume token frozen by the exact execution checkpoint', () => {
     seedPendingPlaceholder()
-    let resumeToken = 'resume-before-terminal'
     const backend = new AgentSessionMessageBackend({
       sessionId: SESSION_ID,
       assistantMessageId: ASSISTANT_MESSAGE_ID,
       modelId: MODEL_ID,
-      runtimeResumeToken: () => resumeToken
+      runtimeResumeToken: 'resume-at-terminal'
     })
-    resumeToken = 'resume-at-terminal'
 
     backend.persistAssistant({ finalMessage: finalMessage('answer'), status: ConversationOutcomeKind.Success })
 
@@ -131,16 +129,14 @@ describe('AgentSessionMessageBackend', () => {
     })
   })
 
-  it('persists errored assistant turns with the latest resume token', () => {
+  it('persists the exact checkpoint on errored assistant turns', () => {
     seedPendingPlaceholder()
-    let resumeToken = 'resume-before-error'
     const backend = new AgentSessionMessageBackend({
       sessionId: SESSION_ID,
       assistantMessageId: ASSISTANT_MESSAGE_ID,
       modelId: MODEL_ID,
-      runtimeResumeToken: () => resumeToken
+      runtimeResumeToken: 'resume-at-error'
     })
-    resumeToken = 'resume-at-error'
 
     backend.persistAssistant({ finalMessage: finalMessage('partial'), status: ConversationOutcomeKind.Error })
 

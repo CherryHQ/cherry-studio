@@ -1,14 +1,15 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { invalidateMessages, streamOpen } = vi.hoisted(() => ({
+const { invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
   invalidateMessages: vi.fn(),
+  loggerError: vi.fn(),
   streamOpen: vi.fn()
 }))
 
 vi.mock('@data/DataApiService', () => ({ dataApiService: { get: vi.fn(), patch: vi.fn() } }))
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
+  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: loggerError }) }
 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => streamOpen(input) }
@@ -57,7 +58,8 @@ function renderActions(
   uiMessages: ReturnType<typeof uiMsg>[],
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
-  startNewContextBlocked = false
+  startNewContextBlocked = false,
+  stop = vi.fn(async () => {})
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn(async () => {})
@@ -70,7 +72,7 @@ function renderActions(
       activeNodeId,
       regenerate,
       setMessages,
-      stop: vi.fn(async () => {}),
+      stop,
       refresh: vi.fn(async () => []),
       cache,
       seedReservedMessages,
@@ -250,6 +252,25 @@ describe('useChatWriteActions — clear context', () => {
       await first
     })
     expect(result.current.actions.canStartNewContext).toBe(true)
+  })
+})
+
+describe('useChatWriteActions — Stop boundary', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('logs a rejected Main Stop once at the user action boundary', async () => {
+    const error = new Error('main teardown failed')
+    const stop = vi.fn().mockRejectedValue(error)
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], makeCache(), 'u1', false, stop)
+
+    actions.pause()
+
+    await waitFor(() =>
+      expect(loggerError).toHaveBeenCalledExactlyOnceWith('Failed to stop Conversation', {
+        topicId: 't1',
+        error
+      })
+    )
   })
 })
 

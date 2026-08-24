@@ -67,6 +67,38 @@ export enum ConversationTerminalPersistenceResultKind {
   Abandoned = 'abandoned'
 }
 
+export interface ConversationRuntimeCheckpoint {
+  readonly runtimeResumeToken?: string
+}
+
+export enum ConversationExecutionAbortResultKind {
+  Completed = 'completed',
+  Stale = 'stale',
+  Failed = 'failed'
+}
+
+export type ConversationExecutionAbortResult =
+  | {
+      readonly kind: ConversationExecutionAbortResultKind.Completed | ConversationExecutionAbortResultKind.Stale
+      readonly conversation: ConversationRef
+      readonly turnId: ConversationTurnId
+      readonly executionId: ConversationExecutionId
+      readonly effectId: ConversationEffectId
+    }
+  | {
+      readonly kind: ConversationExecutionAbortResultKind.Failed
+      readonly conversation: ConversationRef
+      readonly turnId: ConversationTurnId
+      readonly executionId: ConversationExecutionId
+      readonly effectId: ConversationEffectId
+      readonly error: SerializedError
+    }
+
+export interface ConversationExecutionAbortHandle {
+  readonly checkpoint?: ConversationRuntimeCheckpoint
+  readonly completed: Promise<ConversationExecutionAbortResult>
+}
+
 export type ConversationTerminalPersistenceResult =
   | { readonly kind: ConversationTerminalPersistenceResultKind.Durable }
   | { readonly kind: ConversationTerminalPersistenceResultKind.Failed; readonly error: SerializedError }
@@ -94,7 +126,7 @@ export interface ConversationExecutionPort {
   suspend(effect: SuspendConversationExecutionEffect): boolean
   resumeSuspended(effect: ResumeSuspendedConversationExecutionEffect): void
   discardRuntimeBuffer(effect: DiscardConversationRuntimeBufferEffect): void
-  abort(effect: AbortConversationExecutionEffect): void
+  abort(effect: AbortConversationExecutionEffect): ConversationExecutionAbortHandle
 }
 
 export interface ConversationPresentationPort {

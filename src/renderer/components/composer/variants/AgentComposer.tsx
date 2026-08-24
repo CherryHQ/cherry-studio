@@ -1205,7 +1205,11 @@ const AgentComposerInner = ({
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { conversation })
-    await chatStop()
+    try {
+      await chatStop()
+    } catch (error) {
+      logger.error('Failed to stop agent Conversation', { conversation, error })
+    }
   }, [chatStop, conversation])
 
   const handleAgentChange = useCallback(

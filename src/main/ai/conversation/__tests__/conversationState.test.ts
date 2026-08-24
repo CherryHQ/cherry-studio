@@ -1705,6 +1705,44 @@ describe('Conversation state', () => {
     )
   })
 
+  it('Stop drains a Persisting resource without replacing its terminal outcome', () => {
+    const persisting = transitionConversation(open(agent).state, {
+      type: ConversationCommandType.ExecutionTerminal,
+      turnId: turn,
+      executionId: execution,
+      runEffectId: effect('run-1'),
+      outcome: { kind: ConversationOutcomeKind.Success },
+      persistenceEffectId: effect('persist-running')
+    }).state
+    const stopped = transitionConversation(persisting, {
+      type: ConversationCommandType.Stop,
+      reason: 'user-stop',
+      abortEffectIds: new Map([[execution, effect('abort-persisting')]]),
+      persistenceEffectIds: new Map([[execution, effect('unused-persist')]]),
+      turnTerminalEffectId: effect('turn-terminal-stop'),
+      quiescenceEffectId: effect('quiescence-stop'),
+      discardEffectId: effect('discard-stop'),
+      dropEffectId: effect('drop-stop-inputs')
+    })
+
+    expect(stopped.effects).toEqual([
+      expect.objectContaining({
+        type: ConversationEffectType.AbortExecution,
+        effectId: effect('abort-persisting'),
+        executionId: execution
+      }),
+      expect.objectContaining({
+        type: ConversationEffectType.FinalizeTerminalPersistence,
+        effectId: effect('persist-running')
+      })
+    ])
+    if (stopped.state.phase !== ConversationPhase.Stopping) throw new Error('Stop did not enter Stopping')
+    expect(stopped.state.turn.executions.get(execution)).toMatchObject({
+      phase: ConversationExecutionPhase.Persisting,
+      outcome: { kind: ConversationOutcomeKind.Success }
+    })
+  })
+
   it('publishes terminal only after durable persistence and fences stale results', () => {
     const running = open().state
     const stale = transitionConversation(running, {

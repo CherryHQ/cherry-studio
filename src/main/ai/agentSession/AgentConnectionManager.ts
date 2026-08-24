@@ -61,6 +61,7 @@ import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import type {
+  ConversationRuntimeCheckpoint,
   DiscardConversationRuntimeBufferEffect,
   ResumeSuspendedConversationExecutionEffect,
   SuspendConversationExecutionEffect
@@ -278,6 +279,21 @@ type AgentConnectionTarget = AgentConnectionTargetSnapshot & {
 type AgentResources = AgentConnectionResourceState<AgentTurnStreamResource, SteerContinuationReservation>
 type AgentResourceEvent = AgentConnectionResourceEvent<AgentTurnStreamResource, SteerContinuationReservation>
 
+enum AgentSessionTeardownPhase {
+  Closing = 'closing',
+  Failed = 'failed'
+}
+
+const FAILED_TEARDOWN_FENCE = new Promise<void>(() => {})
+
+interface AgentSessionTeardown {
+  readonly id: string
+  readonly checkpoint?: ConversationRuntimeCheckpoint
+  readonly runtimeTurnIds: ReadonlySet<string>
+  promise: Promise<void>
+  phase: AgentSessionTeardownPhase
+}
+
 type AgentConnectionEntry = {
   conversation: AgentConversationRef
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
@@ -369,9 +385,8 @@ export class AgentConnectionManager extends BaseService {
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; connection start ids reject stale completions. */
   private readonly connectionStarts = new Map<string, { id: string; promise: Promise<boolean> }>()
-  /** A close outlives the entry it invalidates, so backup drain needs an independent exact registry. */
-  private readonly connectionCloses = new Map<string, { sessionId: string; promise: Promise<void> }>()
-  private readonly closingEntries = new WeakMap<AgentConnectionEntry, Promise<void>>()
+  /** Per-session teardown is the resource fence joined by Stop, replacement, warm close, and retry. */
+  private readonly sessionTeardowns = new Map<string, AgentSessionTeardown>()
   /** Parked stream resources keyed by the exact suspend effect that owns them. */
   private readonly suspendedConversationTurns = new Map<ConversationEffectId, SuspendedConversationTurn>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -482,6 +497,9 @@ export class AgentConnectionManager extends BaseService {
   }
 
   prepareTurnResources(input: PrepareAgentConnectionTurnInput): AgentConnectionStreamHandle {
+    if (this.sessionTeardowns.has(input.conversation.id)) {
+      throw new Error(`Agent session teardown has not completed: ${input.conversation.id}`)
+    }
     const turnId = input.turnId ?? crypto.randomUUID()
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.conversation.id)
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
@@ -518,7 +536,10 @@ export class AgentConnectionManager extends BaseService {
       return { turnId }
     }
 
-    if (existing) void this.closeSession(input.conversation.id)
+    if (existing) {
+      void this.closeSession(input.conversation.id)
+      throw new Error(`Agent session replacement is waiting for teardown: ${input.conversation.id}`)
+    }
 
     const entry: AgentConnectionEntry = {
       conversation: input.conversation,
@@ -533,6 +554,20 @@ export class AgentConnectionManager extends BaseService {
     this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.BeginTurn, turn })
 
     return { turnId }
+  }
+
+  async prepareExecutionTurnResources(
+    input: PrepareAgentConnectionTurnInput,
+    signal: AbortSignal
+  ): Promise<AgentConnectionStreamHandle> {
+    await this.awaitSessionTeardown(input.conversation.id, signal)
+    const existing = this.entries.get(input.conversation.id)
+    if (existing && this.resourceStatus(existing) !== AgentConnectionResourceStatus.Idle) {
+      await this.closeSession(input.conversation.id)
+      await this.awaitSessionTeardown(input.conversation.id, signal)
+    }
+    signal.throwIfAborted()
+    return this.prepareTurnResources(input)
   }
 
   createExecutionReleaseListener(conversation: AgentConversationRef, turnId: string): StreamListener {
@@ -632,8 +667,25 @@ export class AgentConnectionManager extends BaseService {
     return undefined
   }
 
-  runtimeResumeToken(sessionId: string): string | undefined {
-    return this.entries.get(sessionId)?.lastResumeToken
+  executionCheckpoint(sessionId: string, runtimeTurnId: string): ConversationRuntimeCheckpoint | undefined {
+    const entry = this.entries.get(sessionId)
+    if (entry) {
+      const current = this.currentTurn(entry)
+      const suspended = this.suspendedConversationTurnForSession(sessionId)?.turn
+      if (current?.turnId !== runtimeTurnId && suspended?.turnId !== runtimeTurnId) return undefined
+      return entry.lastResumeToken ? { runtimeResumeToken: entry.lastResumeToken } : {}
+    }
+    const teardown = this.sessionTeardowns.get(sessionId)
+    if (!teardown?.runtimeTurnIds.has(runtimeTurnId)) return undefined
+    return teardown.checkpoint ?? {}
+  }
+
+  async awaitSessionTeardown(sessionId: string, signal?: AbortSignal): Promise<void> {
+    const teardown = this.sessionTeardowns.get(sessionId)
+    if (!teardown) return
+    signal?.throwIfAborted()
+    await teardown.promise
+    signal?.throwIfAborted()
   }
 
   /**
@@ -700,6 +752,7 @@ export class AgentConnectionManager extends BaseService {
   async primeConnection(sessionId: string): Promise<void> {
     try {
       if (this.isWriteQuiesced) return
+      await this.awaitSessionTeardown(sessionId)
       const existing = this.entries.get(sessionId)
       if (existing) {
         // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
@@ -857,14 +910,9 @@ export class AgentConnectionManager extends BaseService {
           turn.controller = controller
           this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.TurnStreamOpened, turn })
 
-          // A user Stop is the only abort source now (steer no longer interrupts) — tear the
-          // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => void this.closeSession(entry.conversation.id)
           if (input.signal.aborted) {
-            onAbort()
+            controller.close()
             return
-          } else {
-            input.signal.addEventListener('abort', onAbort, { once: true })
           }
 
           // A steer/autonomous transition owns any chunks that arrived before this controller. The
@@ -985,18 +1033,19 @@ export class AgentConnectionManager extends BaseService {
   }
 
   closeSession(sessionId: string): Promise<void> {
+    const existingTeardown = this.sessionTeardowns.get(sessionId)
+    if (existingTeardown) return existingTeardown.promise
     const entry = this.entries.get(sessionId)
-    if (!entry) {
-      const existing = [...this.connectionCloses.values()]
-        .filter((operation) => operation.sessionId === sessionId)
-        .map((operation) => operation.promise)
-      return Promise.allSettled(existing).then(() => undefined)
-    }
-    const existingClose = this.closingEntries.get(entry)
-    if (existingClose) return existingClose
+    if (!entry) return Promise.resolve()
     const fallbackConnection = this.currentConnection(entry)
     const pendingConnectionStart = this.connectionStarts.get(sessionId)?.promise
     const connectionLoop = entry.connectionLoop
+    const checkpoint = entry.lastResumeToken ? { runtimeResumeToken: entry.lastResumeToken } : undefined
+    const runtimeTurnIds = new Set(
+      [this.currentTurn(entry)?.turnId, this.suspendedConversationTurnForSession(sessionId)?.runtimeTurnId].filter(
+        (turnId): turnId is string => turnId !== undefined
+      )
+    )
     this.entries.delete(sessionId)
     let closing: Promise<void>
     try {
@@ -1005,14 +1054,24 @@ export class AgentConnectionManager extends BaseService {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
       closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
     }
-    const id = crypto.randomUUID()
-    const promise = Promise.allSettled([closing, pendingConnectionStart, connectionLoop])
-      .then(() => undefined)
-      .finally(() => {
-        this.connectionCloses.delete(id)
-      })
-    this.connectionCloses.set(id, { sessionId, promise })
-    this.closingEntries.set(entry, promise)
+    const teardown: AgentSessionTeardown = {
+      id: crypto.randomUUID(),
+      checkpoint,
+      runtimeTurnIds,
+      promise: Promise.resolve(),
+      phase: AgentSessionTeardownPhase.Closing
+    }
+    const promise = Promise.allSettled([closing, pendingConnectionStart, connectionLoop]).then((results) => {
+      const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+      if (failures.length > 0) {
+        teardown.phase = AgentSessionTeardownPhase.Failed
+        throw new AggregateError(failures, `Agent session teardown failed: ${sessionId}`)
+      }
+      if (this.sessionTeardowns.get(sessionId) === teardown) this.sessionTeardowns.delete(sessionId)
+    })
+    teardown.promise = promise
+    this.sessionTeardowns.set(sessionId, teardown)
+    void promise.catch(() => {})
     return promise
   }
 
@@ -1143,7 +1202,7 @@ export class AgentConnectionManager extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
-    if (this.connectionStarts.size > 0 || this.connectionCloses.size > 0 || this.inFlightBackgroundFlowFlushes.size > 0)
+    if (this.connectionStarts.size > 0 || this.sessionTeardowns.size > 0 || this.inFlightBackgroundFlowFlushes.size > 0)
       return true
     for (const sessionId of this.entries.keys()) {
       if (this.isSessionBusy(sessionId)) return true
@@ -1206,11 +1265,11 @@ export class AgentConnectionManager extends BaseService {
         const remove = () => pending.delete(promise)
         promise.then(remove, remove)
       }
-      for (const [operationId, operation] of this.connectionCloses) {
-        const promise = operation.promise
+      for (const [sessionId, operation] of this.sessionTeardowns) {
+        const promise = operation.phase === AgentSessionTeardownPhase.Failed ? FAILED_TEARDOWN_FENCE : operation.promise
         if (seen.has(promise)) continue
         seen.add(promise)
-        pending.set(promise, `connection-close:${operation.sessionId}:${operationId}`)
+        pending.set(promise, `connection-close:${sessionId}:${operation.id}`)
         const remove = () => pending.delete(promise)
         promise.then(remove, remove)
       }
@@ -1571,7 +1630,7 @@ export class AgentConnectionManager extends BaseService {
     if (this.resourceStatus(entry) === AgentConnectionResourceStatus.Active) this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
-      void this.closeRuntimeConnection(connection, entry.conversation.id)
+      void this.closeRuntimeConnection(connection, entry.conversation.id).catch(() => {})
       if (this.currentConnection(entry) === connection) {
         this.resetConnectionResources(entry, connection)
         this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.ConnectionDisconnected, connection })
@@ -2589,7 +2648,7 @@ export class AgentConnectionManager extends BaseService {
 
   private closeAll(): Promise<void> {
     const closings = [
-      ...this.connectionCloses.values().map(({ promise }) => promise),
+      ...this.sessionTeardowns.values().map(({ promise }) => promise),
       ...[...this.entries.keys()].map((sessionId) => this.closeSession(sessionId))
     ]
     return Promise.allSettled(closings).then(() => undefined)
@@ -2661,18 +2720,19 @@ export class AgentConnectionManager extends BaseService {
 
   private closeConnectionAsync(entry: AgentConnectionEntry): void {
     const connection = this.closeConnection(entry)
-    void this.closeRuntimeConnection(connection, entry.conversation.id)
+    void this.closeRuntimeConnection(connection, entry.conversation.id).catch(() => {})
   }
 
-  private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<void> {
-    if (!connection) return Promise.resolve()
+  private async closeRuntimeConnection(
+    connection: AgentRuntimeConnection | undefined,
+    sessionId: string
+  ): Promise<void> {
+    if (!connection) return
     try {
-      return Promise.resolve(connection.close()).catch((error) => {
-        logger.warn('Agent runtime connection close failed', { sessionId, error })
-      })
+      await connection.close()
     } catch (error) {
       logger.warn('Agent runtime connection close failed', { sessionId, error })
-      return Promise.resolve()
+      throw error
     }
   }
 

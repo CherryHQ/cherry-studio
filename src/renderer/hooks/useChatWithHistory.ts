@@ -79,12 +79,13 @@ export function useChatWithHistory(
   })
 
   const stop = useCallback(async () => {
-    if (enabled) {
-      void ipcApi.request('ai.stream.abort', { conversation: binding.conversation }).catch((error) => {
-        logger.warn('streamAbort failed', { conversation: binding.conversation, error })
-      })
-    }
-    await sdkStop()
+    const mainStop = enabled
+      ? ipcApi.request('ai.stream.abort', { conversation: binding.conversation })
+      : Promise.resolve()
+    const localStop = sdkStop()
+    const [mainResult, localResult] = await Promise.allSettled([mainStop, localStop])
+    if (mainResult.status === 'rejected') throw mainResult.reason
+    if (localResult.status === 'rejected') throw localResult.reason
   }, [binding, enabled, sdkStop])
 
   const refreshRef = useRef(refresh)

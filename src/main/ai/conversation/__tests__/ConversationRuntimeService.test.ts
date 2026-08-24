@@ -306,6 +306,12 @@ class TestExecutionDriver implements ConversationExecutionDriver {
   resumeSuspended(): void {}
 
   discardRuntimeBuffer(): void {}
+
+  checkpoint(): undefined {
+    return undefined
+  }
+
+  async teardown(): Promise<void> {}
 }
 
 class AiExecutionManager extends ResourceExecutionManager {
@@ -1639,10 +1645,17 @@ describe('ConversationRuntimeService', () => {
 
     const opening = service.dispatch(subscriber, request())
     await vi.waitFor(() => expect(provider.validateIntent).toHaveBeenCalledOnce())
-    service.stop(ref, 'user-stop')
+    const stop = service.stop(ref, 'user-stop')
+    let stopCompleted = false
+    void stop.completed.then(() => {
+      stopCompleted = true
+    })
+    await Promise.resolve()
+    expect(stopCompleted).toBe(false)
     finishValidation()
 
     await expect(opening).rejects.toThrow('superseded')
+    await expect(stop.completed).resolves.toBeUndefined()
     expect(provider.commitIntent).not.toHaveBeenCalled()
     expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle)
   })

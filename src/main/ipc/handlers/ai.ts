@@ -186,7 +186,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('ConversationRuntimeService').detach(wc, request.conversation)
   },
   'ai.stream.abort': async ({ conversation }) => {
-    application.get('ConversationRuntimeService').stop(conversation, 'user-requested')
+    await application.get('ConversationRuntimeService').stop(conversation, 'user-requested').completed
   },
   'ai.prompt.abort': async ({ streamId }) => {
     application.get('PromptStreamManager').abort(streamId, 'user-requested')

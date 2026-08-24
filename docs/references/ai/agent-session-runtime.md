@@ -36,10 +36,14 @@ The Conversation aggregate owns:
 - Stop, terminal persistence, and quiescence.
 
 Backup pause closes idle warm connections and prevents new prewarm starts.
-Connection starts, closes, and detached background-flow finalizers use exact
-operation IDs in the Agent fixed-point drain. Active foreground resources are
-pre-barrier work: Conversation drains their execution and terminal descendants,
-then Agent closes the newly idle connection.
+Connection starts, per-session teardowns, and detached background-flow
+finalizers use exact operation IDs in the Agent fixed-point drain. Stop,
+replacement, warm close, and shutdown join the same teardown. A pending connect
+that finishes late closes its connection before the teardown completes; a
+failed teardown remains a fence and prevents a new CLI/socket from starting.
+Active foreground resources are pre-barrier work: Conversation drains their
+execution and terminal descendants, then Agent closes the newly idle
+connection.
 
 ## Driver event mapping
 
@@ -68,7 +72,8 @@ Agent rows are written by the Agent history adapter over
 `agent_session_message`. Normal and stopped terminals use the same
 Conversation persistence coordinator as Chat. Background flow chunks patch the
 assistant row that owns their root tool call and never fabricate a foreground
-turn.
+turn. Resume tokens are frozen as an exact execution checkpoint before
+teardown and passed to the history adapter with the terminal descriptor.
 
 ## Autonomous preemption
 

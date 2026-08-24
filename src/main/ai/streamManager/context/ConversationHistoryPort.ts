@@ -18,6 +18,7 @@ import type { Model, ServiceTierSelection, UniqueModelId } from '@shared/data/ty
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 
+import type { ConversationRuntimeCheckpoint } from '../../conversation'
 import type { AiStreamRequest } from '../../types'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '../types'
 import type { MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
@@ -258,7 +259,9 @@ export interface CommittedConversationIntent {
   readonly postCommitTasks: readonly ConversationPostCommitTaskDescriptor[]
 }
 
-export type ConversationTerminalWrite = StreamDoneResult | StreamPausedResult | StreamErrorResult
+export type ConversationTerminalWrite = (StreamDoneResult | StreamPausedResult | StreamErrorResult) & {
+  readonly runtimeCheckpoint?: ConversationRuntimeCheckpoint
+}
 
 export enum ConversationHistoryAdapterKind {
   PersistentChat = 'persistent-chat',

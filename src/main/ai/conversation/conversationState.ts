@@ -854,6 +854,16 @@ const stopTurn = (
         reason
       })
     } else if (execution.phase === ConversationExecutionPhase.Persisting) {
+      const abortEffectId = abortEffectIds.get(execution.id)
+      if (!abortEffectId) return undefined
+      effects.push({
+        type: ConversationEffectType.AbortExecution,
+        conversation: state.ref,
+        turnId: turn.id,
+        executionId: execution.id,
+        effectId: abortEffectId,
+        reason
+      })
       if (execution.continuation === ConversationPersistenceContinuation.WaitInteraction) {
         for (const interactionId of execution.interactionIds) interactions.delete(interactionId)
         executions.set(execution.id, { ...execution, continuation: ConversationPersistenceContinuation.Settle })

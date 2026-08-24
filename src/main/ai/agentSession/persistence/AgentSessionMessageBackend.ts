@@ -22,7 +22,7 @@ export interface AgentSessionMessageBackendOptions {
   /** Model id used for this assistant message. */
   modelId?: UniqueModelId
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
-  runtimeResumeToken?: string | (() => string | undefined)
+  runtimeResumeToken?: string
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -39,7 +39,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
 
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, runtimeStats } = input
-    const runtimeResumeToken = this.getRuntimeResumeToken()
+    const runtimeResumeToken = this.opts.runtimeResumeToken
     agentSessionMessageService.settlePendingAssistantMessage({
       sessionId: this.opts.sessionId,
       messageId: finalMessage?.id ?? this.opts.assistantMessageId,
@@ -58,11 +58,5 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       status: 'error',
       data: { parts: [] }
     })
-  }
-
-  private getRuntimeResumeToken(): string | undefined {
-    return typeof this.opts.runtimeResumeToken === 'function'
-      ? this.opts.runtimeResumeToken()
-      : this.opts.runtimeResumeToken
   }
 }

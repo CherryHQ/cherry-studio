@@ -49,7 +49,7 @@ describe('AgentConnectionManager backup quiescence', () => {
     const close = deferred<void>()
     const internals = manager as unknown as {
       connectionStarts: Map<string, { id: string; promise: Promise<boolean> }>
-      connectionCloses: Map<string, { sessionId: string; promise: Promise<void> }>
+      sessionTeardowns: Map<string, { id: string; promise: Promise<void>; phase: 'closing' }>
     }
     internals.connectionStarts.set('session-1', { id: 'start-1', promise: start.promise })
     const hold = manager.pause('backup')
@@ -59,7 +59,7 @@ describe('AgentConnectionManager backup quiescence', () => {
       drained = true
     })
 
-    internals.connectionCloses.set('close-1', { sessionId: 'session-1', promise: close.promise })
+    internals.sessionTeardowns.set('session-1', { id: 'close-1', promise: close.promise, phase: 'closing' })
     start.resolve(true)
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(drained).toBe(false)
@@ -75,15 +75,15 @@ describe('AgentConnectionManager backup quiescence', () => {
     const close = deferred<void>()
     const internals = manager as unknown as {
       connectionStarts: Map<string, { id: string; promise: Promise<boolean> }>
-      connectionCloses: Map<string, { sessionId: string; promise: Promise<void> }>
+      sessionTeardowns: Map<string, { id: string; promise: Promise<void>; phase: 'closing' }>
     }
 
     internals.connectionStarts.set('session-1', { id: 'start-1', promise: start.promise })
     expect(manager.hasBusySessions()).toBe(true)
     internals.connectionStarts.clear()
-    internals.connectionCloses.set('close-1', { sessionId: 'session-1', promise: close.promise })
+    internals.sessionTeardowns.set('session-1', { id: 'close-1', promise: close.promise, phase: 'closing' })
     expect(manager.hasBusySessions()).toBe(true)
-    internals.connectionCloses.clear()
+    internals.sessionTeardowns.clear()
     expect(manager.hasBusySessions()).toBe(false)
 
     start.resolve(false)
@@ -94,9 +94,9 @@ describe('AgentConnectionManager backup quiescence', () => {
     const manager = new AgentConnectionManager()
     const close = deferred<void>()
     const internals = manager as unknown as {
-      connectionCloses: Map<string, { sessionId: string; promise: Promise<void> }>
+      sessionTeardowns: Map<string, { id: string; promise: Promise<void>; phase: 'closing' }>
     }
-    internals.connectionCloses.set('close-1', { sessionId: 'session-1', promise: close.promise })
+    internals.sessionTeardowns.set('session-1', { id: 'close-1', promise: close.promise, phase: 'closing' })
     const hold = manager.pause('backup')
 
     await expect(manager.drainInFlight({ timeoutMs: 0 })).resolves.toEqual({

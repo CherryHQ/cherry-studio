@@ -529,7 +529,11 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
-      pause: stop,
+      pause: () => {
+        void stop().catch((error) => {
+          logger.error('Failed to stop Conversation', { topicId: topic.id, error })
+        })
+      },
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
@@ -544,11 +548,12 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       handleDeleteMessage,
       handleDeleteMessageGroup,
-      stop,
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,
       handleSetActiveBranch,
+      stop,
+      topic.id,
       refresh
     ]
   )
