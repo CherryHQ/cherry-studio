@@ -80,7 +80,9 @@ describe('resume presentation inside a completed tool group', () => {
     expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
   })
 
-  it('keeps the plain label when no full-parts map can resolve the launch', () => {
+  // Even without full-parts map resolution, the continue-handling verb still renders (the
+  // receipt's own resumedAgentId is sufficient). Only the identity text is lost.
+  it('shows the bare continue-handling verb without launch identity when map is unavailable', () => {
     const receipt = resumeReceipt()
 
     render(
@@ -91,6 +93,7 @@ describe('resume presentation inside a completed tool group', () => {
       </FullPartsMapProvider>
     )
 
-    expect(screen.queryByText('Continue handling')).toBeNull()
+    expect(screen.getByText('Continue handling')).toBeInTheDocument()
+    expect(screen.queryByText('Inspect renderer')).toBeNull()
   })
 })

@@ -34,12 +34,12 @@ export function buildResumeToolHeader(
   fullPartsMap: Record<string, CherryMessagePart[]> | null,
   t: ReturnType<typeof useTranslation>['t'],
   resumedLaunch?: { toolCallId: string; description?: string }
-): { resumedLaunch: { toolCallId: string; description?: string }; header: ReactElement } | undefined {
+): { resumedLaunch?: { toolCallId: string; description?: string }; header: ReactElement } | undefined {
+  // Resume detection only needs the receipt's own output; launch-identity resolution is an
+  // enhancement that must never gate the label.
+  if (!getResumedAgentId(toolResponse.response)) return undefined
   const resolved = resumedLaunch ?? resolveResumedAgent(toolResponse.response, fullPartsMap)
-  // Identity: launch description → resume request's summary. When neither exists the bare verb
-  // still renders — the entry must never degrade to a generic "SendMessage" label.
   const identity = resolved?.description ?? getStringArg(toolResponse.arguments, 'summary')
-  if (!resolved) return undefined
   return {
     resumedLaunch: resolved,
     header: (
