@@ -34,7 +34,13 @@ export default defineConfig([
     format: ['esm'],
     clean: false,
     dts: false,
-    external: ['koffi', 'node-pty', 'sharp'],
+    external: [
+      '@deepseek-ai/dsh-sandbox-windows-acl',
+      '@deepseek-ai/node-addon-landlock-run',
+      'koffi',
+      'node-pty',
+      'sharp'
+    ],
     noExternal: () => true,
     plugins: [
       {
