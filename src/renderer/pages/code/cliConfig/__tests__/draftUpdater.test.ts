@@ -92,7 +92,7 @@ describe('CLI config draft file scheduling', () => {
     const second = new Promise<string>((resolve) => {
       resolveSecond = resolve
     })
-    const readExternal = vi.fn((_path: string) => (readExternal.mock.calls.length === 1 ? first : second))
+    const readExternal = vi.fn(() => (readExternal.mock.calls.length === 1 ? first : second))
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
