@@ -21,7 +21,8 @@ export const promptTable = sqliteTable(
     id: uuidPrimaryKey(),
     title: text().notNull(),
     content: text().notNull(),
-    visibility: text().$type<PromptVisibility>().notNull(),
+    // DB default, not service-layer: a downgraded app INSERTs prompts without this column.
+    visibility: text().$type<PromptVisibility>().notNull().default('global'),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

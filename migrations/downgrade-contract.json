@@ -1,0 +1,28 @@
+{
+  "baseline": {
+    "version": "2.0.8",
+    "snapshot": "0011_rare_vertigo"
+  },
+  "scheduled": [
+    {
+      "id": "user_provider.api_features",
+      "kind": "column-removed",
+      "in": "2.1.0",
+      "reason": "Dialect overrides moved to endpoint_configs in 0012; the column is dead weight kept only so 2.0.x stays reachable by downgrade."
+    }
+  ],
+  "acknowledged": [
+    {
+      "id": "mcp_server.mcp_server_install_source_check",
+      "kind": "check-changed",
+      "value": "\"mcp_server\".\"install_source\" IS NULL OR \"mcp_server\".\"install_source\" IN ('builtin', 'manual', 'ai_assisted', 'protocol', 'unknown')",
+      "reason": "Widened to accept ai_assisted (0013) — every value the released app writes still passes."
+    },
+    {
+      "id": "prompt.prompt_visibility_check",
+      "kind": "check-changed",
+      "value": "\"prompt\".\"visibility\" IN ('global', 'restricted')",
+      "reason": "Constrains prompt.visibility, a column the released app never writes; the DB default satisfies it."
+    }
+  ]
+}

@@ -63,6 +63,12 @@ export const userProviderTable = sqliteTable(
     /** Unified auth configuration for different auth methods */
     authConfig: text({ mode: 'json' }).$type<AuthConfig>(),
 
+    /**
+     * @deprecated Superseded by `endpointConfigs[endpoint].dialect` (migration 0012).
+     * Never read or written — kept only so an app downgrade can still SELECT this table.
+     */
+    apiFeatures: text('api_features', { mode: 'json' }),
+
     /** Provider-specific settings as JSON */
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),
 

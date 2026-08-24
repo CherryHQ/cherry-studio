@@ -86,6 +86,8 @@
     "claude": "dotenv -e .env -- claude",
     "db:migrations:generate": "drizzle-kit generate --config ./migrations/sqlite-drizzle.config.ts",
     "db:migrations:check": "drizzle-kit check --config ./migrations/sqlite-drizzle.config.ts",
+    "db:downgrade:check": "tsx scripts/check-downgrade-compat.ts",
+    "db:downgrade:baseline": "tsx scripts/check-downgrade-compat.ts --advance",
     "changeset": "changeset",
     "changeset:status": "changeset status",
     "changeset:version": "changeset version && pnpm format",

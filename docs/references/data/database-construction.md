@@ -56,6 +56,25 @@ drizzle decides automatically; your lever is schema design. A rebuild copies eve
 | `DROP COLUMN` | In-place (single `ALTER`, modern SQLite) |
 | add/change a CHECK, FOREIGN KEY, PRIMARY KEY, column `DEFAULT`, or NOT-NULL tightening | **Full table rebuild** (`PRAGMA foreign_keys=OFF` → `CREATE __new` → `INSERT…SELECT` → `DROP` → `RENAME`) |
 
+### Downgrade compatibility
+
+A user who installs a release and rolls back runs the **previous app against the migrated DB**: it still `SELECT`s every column its schema declares and still `INSERT`s without the columns it never knew. So a `DROP COLUMN` breaks every read of that table (`no such column`), and a new `NOT NULL` column with no DB default breaks every insert. **A patch release must stay downgrade-compatible; a break may only land in a minor** — and must be recorded.
+
+`pnpm db:downgrade:check` (CI, in the DB Migrations Check step) diffs the **last released snapshot** against the tip snapshot and flags seven things: a removed table, a removed column, any `NOT NULL` tightening, a new `NOT NULL` column without a default, an existing `NOT NULL` column losing its default, a new/changed `CHECK`, a new/changed unique constraint or index. The baseline is a pointer (`meta/<tag>_snapshot.json` is immutable and committed), not a copied schema — so a table rebuild that silently omits a column is caught without anyone annotating it.
+
+A DB default rescues only the **new**-column case. On a column the released app already knows, the app writes it explicitly, and SQLite applies `DEFAULT` only when a column is omitted — so a tightening is flagged whether or not it carries one.
+
+Every flagged item needs exactly one disposition in `migrations/downgrade-contract.json`:
+
+| Disposition | Means | Example |
+|---|---|---|
+| `scheduled` (`"in": "x.y.0"`) | A real break, accepted, landing in that minor. `in` must be a minor and above the baseline. | `user_provider.api_features` — dead since `0012`, kept for 2.0.x, dropped in 2.1.0 |
+| `acknowledged` | Reviewed as harmless for a downgrade — no version. | a `CHECK` widened by `0013`; a constraint on a column the released app never writes |
+
+A `CHECK` or unique disposition also carries the `value` it was reviewed against (the constraint body, or the index's columns), so editing that constraint again needs a fresh review instead of inheriting the old verdict.
+
+The contract also drives cleanup: once the baseline advances past a `scheduled` entry's `in` and the break still hasn't landed, the check fails ("apply it now, or move `in` to the next minor"). `pnpm db:downgrade:baseline` — run by [prepare-release](../../../.agents/skills/prepare-release/SKILL.md) when the version is bumped — advances the baseline, refuses to run on a prerelease or to cut a release older than a landed break's `in`, and drops what the new baseline absorbed.
+
 A DB column `DEFAULT` is effectively **near-permanent** (SQLite has no `ALTER COLUMN SET DEFAULT`; changing it forces a rebuild that never touches existing rows) — prefer service-layer `?? DEFAULT` for product-chosen values. See [Default Values & Nullability § DB defaults are near-permanent](./best-practice-default-values-and-nullability.md#db-defaults-are-near-permanent).
 
 **Packaged-app path:** `migrate()` reads `application.getPath('app.database.migrations')` → `extraResources/migrations/sqlite-drizzle` when packaged, else a dev-relative path. A migrations folder not shipped via electron-builder `extraResources` works in dev but fails the packaged build at boot.

@@ -107,7 +107,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0013_graceful_bloodstrike'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
@@ -130,7 +130,7 @@ describe('applyMigrations over a populated database', () => {
     expect(() => insert.run('88888888-8888-7888-8888-888888888888', 'bogus', 'whatever', now, now)).toThrow()
   })
 
-  it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
+  it('moves provider dialect overrides to their endpoints while keeping api_features readable', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
     const now = Date.now()
     const insert = sqlite.prepare(
@@ -189,8 +189,13 @@ describe('applyMigrations over a populated database', () => {
       ['responses-relay', { 'openai-responses': { dialect: { developerRole: false } } }],
       ['anthropic-relay', null]
     ])
-    const columns = sqlite.pragma('table_info(user_provider)') as Array<{ name: string }>
-    expect(columns.some(({ name }) => name === 'api_features')).toBe(false)
+    // A downgraded app still SELECTs api_features, so the column has to survive
+    // the move — emptied, which reads as "use the preset default".
+    expect(sqlite.prepare('SELECT api_features FROM user_provider').all()).toEqual([
+      { api_features: null },
+      { api_features: null },
+      { api_features: null }
+    ])
   })
 
   it('quarantines legacy channel sessions without changing conversation history', () => {
@@ -464,6 +469,17 @@ describe('applyMigrations over a populated database', () => {
         updated_at: 202
       }
     ])
+
+    // A downgraded app inserts prompts without the column it never knew about (0018).
+    sqlite
+      .prepare(
+        `INSERT INTO prompt (id, title, content, order_key, created_at, updated_at)
+         VALUES ('prompt-old-app', 'Old app', 'Written after the migration', 'a2', 103, 203)`
+      )
+      .run()
+    expect(sqlite.prepare(`SELECT visibility FROM prompt WHERE id = 'prompt-old-app'`).get()).toEqual({
+      visibility: 'global'
+    })
 
     const tableDefinitions = sqlite
       .prepare(`SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name IN ('prompt', 'prompt_binding')`)

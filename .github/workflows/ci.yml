@@ -201,6 +201,10 @@ jobs:
             git --no-pager diff -- migrations/
             exit 1
           fi
+          # 3) Downgrade compatibility — the released app still runs against a migrated DB,
+          #    so a dropped column or tightened constraint needs a disposition in
+          #    migrations/downgrade-contract.json.
+          pnpm db:downgrade:check
 
       - name: System Provider IDs Check
         run: |
