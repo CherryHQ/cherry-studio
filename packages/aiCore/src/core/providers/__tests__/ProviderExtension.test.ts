@@ -3,7 +3,7 @@
  */
 
 import type { ProviderV3 } from '@ai-sdk/provider'
-import { createMockProviderV3 } from '@test-utils'
+import { createMockProviderV3, createMockRerankingModel } from '@test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ProviderExtension } from '../core/ProviderExtension'
@@ -339,6 +339,58 @@ describe('ProviderExtension', () => {
       })
 
       expect(configured.config.defaultOptions?.baseURL).toBe('https://api.test.com')
+    })
+  })
+
+  describe('createRerankingModel', () => {
+    interface TestSettings {
+      apiKey?: string
+      baseURL?: string
+    }
+
+    it('should add fallback rerankingModel when provider lacks native rerankingModel', async () => {
+      const fallbackModel = createMockRerankingModel({ modelId: 'fallback-reranker' })
+      const fallbackFactory = vi.fn(() => fallbackModel)
+      const createFn = vi.fn(() => {
+        const provider = createMockProviderV3({ provider: 'test-provider' })
+        delete (provider as Partial<ProviderV3>).rerankingModel
+        return provider
+      })
+      const extension = new ProviderExtension<TestSettings>({
+        name: 'test-provider',
+        create: createFn as any,
+        defaultOptions: { apiKey: 'default-key' },
+        createRerankingModel: fallbackFactory
+      })
+
+      const provider = await extension.createProvider({ baseURL: 'https://api.example.com' })
+
+      expect(provider.rerankingModel?.('rerank-model')).toBe(fallbackModel)
+      expect(fallbackFactory).toHaveBeenCalledWith('rerank-model', {
+        apiKey: 'default-key',
+        baseURL: 'https://api.example.com'
+      })
+    })
+
+    it('should preserve native provider.rerankingModel', async () => {
+      const nativeModel = createMockRerankingModel({ modelId: 'native-reranker' })
+      const fallbackFactory = vi.fn(() => createMockRerankingModel({ modelId: 'fallback-reranker' }))
+      const nativeFactory = vi.fn(() => nativeModel)
+      const extension = new ProviderExtension<TestSettings>({
+        name: 'test-provider',
+        create: (() =>
+          createMockProviderV3({
+            provider: 'test-provider',
+            rerankingModel: nativeFactory
+          })) as any,
+        createRerankingModel: fallbackFactory
+      })
+
+      const provider = await extension.createProvider({ apiKey: 'test-key' })
+
+      expect(provider.rerankingModel?.('rerank-model')).toBe(nativeModel)
+      expect(nativeFactory).toHaveBeenCalledWith('rerank-model')
+      expect(fallbackFactory).not.toHaveBeenCalled()
     })
   })
 
@@ -741,7 +793,7 @@ describe('ProviderExtension', () => {
       expect(createFn).toHaveBeenCalledTimes(2)
     })
 
-    it('should handle settings with functions by treating them uniformly', async () => {
+    it('should reuse settings with the same function reference', async () => {
       const createFn = vi.fn(createMockProviderV3)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
@@ -755,9 +807,29 @@ describe('ProviderExtension', () => {
       const instance1 = await extension.createProvider(settings1)
       const instance2 = await extension.createProvider(settings2)
 
-      // Same function reference → same serialization → same cache hit
+      // Same function identity → same cache hit
       expect(instance1).toBe(instance2)
       expect(createFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should distinguish settings with different function references', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'test-provider',
+        create: createFn as any
+      })
+
+      const instance1 = await extension.createProvider({
+        apiKey: 'key',
+        fetch: () => Promise.resolve(new Response('first'))
+      })
+      const instance2 = await extension.createProvider({
+        apiKey: 'key',
+        fetch: () => Promise.resolve(new Response('second'))
+      })
+
+      expect(instance1).not.toBe(instance2)
+      expect(createFn).toHaveBeenCalledTimes(2)
     })
 
     it('should distinguish settings with null vs missing keys', async () => {

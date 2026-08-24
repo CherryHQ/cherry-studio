@@ -1,0 +1,66 @@
+import { useTheme } from '@renderer/hooks/useTheme'
+import React from 'react'
+
+const PLACEHOLDER_FOREGROUND = '#656d76'
+
+interface PlaceholderBlockProps {
+  /** Icon element to display */
+  icon: React.ReactNode
+  /** Localised message */
+  message: string
+  /** Click handler */
+  onClick: () => void
+}
+
+/**
+ * Reusable placeholder block for TipTap NodeViews (math / image etc.)
+ * Handles dark-mode colours and simple hover feedback.
+ */
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ icon, message, onClick }) => {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+
+  // These interaction colors stay owner-local because one shared role cannot preserve both theme treatments.
+  const colors = {
+    border: isDark ? 'var(--border, #ffffff19)' : '#d0d7de',
+    background: isDark ? 'color-mix(in srgb, var(--background) 96%, var(--foreground) 4%)' : 'var(--background-subtle)',
+    hoverBorder: isDark ? 'var(--primary, #2f81f7)' : '#0969da',
+    hoverBackground: isDark ? 'rgba(56, 139, 253, 0.15)' : 'var(--accent)'
+  }
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        border: `2px dashed ${colors.border}`,
+        borderRadius: 6,
+        padding: 24,
+        margin: '8px 0',
+        textAlign: 'center',
+        color: PLACEHOLDER_FOREGROUND,
+        cursor: 'pointer',
+        background: colors.background,
+        transition: 'all 0.2s ease',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        minHeight: 80
+      }}
+      onMouseEnter={(e) => {
+        const target = e.currentTarget as HTMLElement
+        target.style.borderColor = colors.hoverBorder
+        target.style.backgroundColor = colors.hoverBackground
+      }}
+      onMouseLeave={(e) => {
+        const target = e.currentTarget as HTMLElement
+        target.style.borderColor = colors.border
+        target.style.backgroundColor = colors.background
+      }}>
+      {icon}
+      <span style={{ fontSize: 14 }}>{message}</span>
+    </div>
+  )
+}
+
+export default PlaceholderBlock

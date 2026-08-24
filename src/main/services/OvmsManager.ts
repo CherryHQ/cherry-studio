@@ -1,19 +1,24 @@
-import { exec } from 'node:child_process'
-import { homedir } from 'node:os'
+import { exec, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
-import { getCpuName } from '@main/utils/system'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
+import {
+  BaseService,
+  Conditional,
+  Injectable,
+  onCpuVendor,
+  onPlatform,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
 const logger = loggerService.withContext('OvmsManager')
 
 const execAsync = promisify(exec)
-
-export const isOvmsSupported = isWin && getCpuName().toLowerCase().includes('intel')
+const execFileAsync = promisify(execFile)
 
 interface OvmsProcess {
   pid: number
@@ -30,13 +35,14 @@ interface OvmsConfig {
   mediapipe_config_list: ModelConfig[]
 }
 
-class OvmsManager {
+@Injectable('OvmsManager')
+@ServicePhase(Phase.WhenReady)
+@Conditional(onPlatform('win32'), onCpuVendor('intel'))
+export class OvmsManager extends BaseService {
   private ovms: OvmsProcess | null = null
 
-  constructor() {
-    if (!isOvmsSupported) {
-      throw new Error('OVMS Manager is only supported on Windows platform with Intel CPU.')
-    }
+  protected async onStop() {
+    await this.stopOvms()
   }
 
   /**
@@ -133,8 +139,7 @@ class OvmsManager {
    * @returns Promise<{ success: boolean; message?: string }>
    */
   public async runOvms(): Promise<{ success: boolean; message?: string }> {
-    const homeDir = homedir()
-    const ovmsDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
+    const ovmsDir = application.getPath('feature.ovms.ovms')
     const configPath = path.join(ovmsDir, 'models', 'config.json')
     const runBatPath = path.join(ovmsDir, 'run.bat')
 
@@ -183,8 +188,7 @@ class OvmsManager {
    * @returns 'not-installed' | 'not-running' | 'running'
    */
   public async getOvmsStatus(): Promise<'not-installed' | 'not-running' | 'running'> {
-    const homeDir = homedir()
-    const ovmsPath = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms', 'ovms.exe')
+    const ovmsPath = application.getPath('feature.ovms.ovms', 'ovms.exe')
 
     try {
       // Check if OVMS executable exists
@@ -194,8 +198,6 @@ class OvmsManager {
       }
 
       // Check if OVMS process is running
-      //const psCommand = `Get-Process -Name "ovms" -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq "${ovmsPath.replace(/\\/g, '\\\\')}" } | Select-Object Id | ConvertTo-Json`;
-      //const { stdout } = await execAsync(`powershell -Command "${psCommand}"`);
       const psCommand = `Get-Process -Name "ovms" -ErrorAction SilentlyContinue | Select-Object Id, Path | ConvertTo-Json`
       const { stdout } = await execAsync(`powershell -Command "${psCommand}"`)
 
@@ -261,8 +263,7 @@ class OvmsManager {
       return false
     }
 
-    const homeDir = homedir()
-    const configPath = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms', 'models', 'config.json')
+    const configPath = path.join(application.getPath('feature.ovms.ovms'), 'models', 'config.json')
     try {
       if (!(await fs.pathExists(configPath))) {
         logger.warn(`Config file does not exist: ${configPath}`)
@@ -292,8 +293,7 @@ class OvmsManager {
   }
 
   private async applyModelPath(modelDirPath: string): Promise<boolean> {
-    const homeDir = homedir()
-    const patchDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'patch')
+    const patchDir = application.getPath('feature.ovms.patch')
     if (!(await fs.pathExists(patchDir))) {
       return true
     }
@@ -343,9 +343,18 @@ class OvmsManager {
   ): Promise<{ success: boolean; message?: string }> {
     logger.info(`Adding model: ${modelName} with ID: ${modelId}, Source: ${modelSource}, Task: ${task}`)
 
-    const homeDir = homedir()
-    const ovdndDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
-    const pathModel = path.join(ovdndDir, 'models', modelId)
+    const ovdndDir = application.getPath('feature.ovms.ovms')
+    const modelsDir = path.join(ovdndDir, 'models')
+    const pathModel = path.join(modelsDir, modelId)
+
+    // Defense in depth: the schema already constrains modelId, but never let a
+    // crafted id (e.g. `..`) escape the models directory into an arbitrary path
+    // that the failure-cleanup fs.remove below would then delete.
+    const modelsRoot = path.resolve(modelsDir)
+    if (!path.resolve(pathModel).startsWith(modelsRoot + path.sep)) {
+      logger.error(`Rejected model id outside models directory: ${modelId}`)
+      return { success: false, message: 'Invalid model ID' }
+    }
 
     try {
       // check the ovdnDir+'models'+modelId exist or not
@@ -360,16 +369,24 @@ class OvmsManager {
         await fs.remove(pathModel)
       }
 
-      // Use ovdnd.exe for downloading instead of ovms.exe
+      // Use ovdnd.exe for downloading instead of ovms.exe. Pass every argument as
+      // a distinct argv element (execFile runs with shell: false), so user-supplied
+      // values can never be interpreted as shell syntax.
       const ovdndPath = path.join(ovdndDir, 'ovdnd.exe')
-      const command =
-        `"${ovdndPath}" --pull ` +
-        `--model_repository_path "${ovdndDir}/models" ` +
-        `--source_model "${modelId}" ` +
-        `--model_name "${modelName}" ` +
-        `--target_device GPU ` +
-        `--task ${task} ` +
-        `--overwrite_models`
+      const args = [
+        '--pull',
+        '--model_repository_path',
+        modelsDir,
+        '--source_model',
+        modelId,
+        '--model_name',
+        modelName,
+        '--target_device',
+        'GPU',
+        '--task',
+        task,
+        '--overwrite_models'
+      ]
 
       const env: Record<string, string | undefined> = {
         ...process.env,
@@ -382,8 +399,8 @@ class OvmsManager {
         env.HF_ENDPOINT = modelSource
       }
 
-      logger.info(`Running command: ${command} from ${modelSource}`)
-      const { stdout } = await execAsync(command, { env: env, cwd: ovdndDir })
+      logger.info(`Running ovdnd --pull for ${modelId} from ${modelSource}`)
+      const { stdout } = await execFileAsync(ovdndPath, args, { env: env, cwd: ovdndDir })
 
       logger.info('Model download completed')
       logger.debug(`Command output: ${stdout}`)
@@ -456,8 +473,7 @@ class OvmsManager {
    * @param modelId ID of the model to check
    */
   public async checkModelExists(modelId: string): Promise<boolean> {
-    const homeDir = homedir()
-    const ovmsDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
+    const ovmsDir = application.getPath('feature.ovms.ovms')
     const configPath = path.join(ovmsDir, 'models', 'config.json')
 
     try {
@@ -483,8 +499,7 @@ class OvmsManager {
    * Update the model configuration file
    */
   public async updateModelConfig(modelName: string, modelId: string): Promise<boolean> {
-    const homeDir = homedir()
-    const ovmsDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
+    const ovmsDir = application.getPath('feature.ovms.ovms')
     const configPath = path.join(ovmsDir, 'models', 'config.json')
 
     try {
@@ -536,8 +551,7 @@ class OvmsManager {
    * @returns Array of model configurations
    */
   public async getModels(): Promise<ModelConfig[]> {
-    const homeDir = homedir()
-    const ovmsDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
+    const ovmsDir = application.getPath('feature.ovms.ovms')
     const configPath = path.join(ovmsDir, 'models', 'config.json')
 
     try {
@@ -571,6 +585,3 @@ class OvmsManager {
     }
   }
 }
-
-// Export singleton instance
-export const ovmsManager = isOvmsSupported ? new OvmsManager() : undefined

@@ -62,8 +62,8 @@
   "files": ["src", "dist"],
   "devDependencies": {
     "@biomejs/biome": "2.2.4",
-    "@tiptap/core": "3.2.0",
-    "@tiptap/pm": "3.2.0",
+    "@tiptap/core": "3.26.1",
+    "@tiptap/pm": "3.26.1",
     "eslint": "^9.22.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",

@@ -1,0 +1,110 @@
+import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import type { Assistant } from '@shared/data/types/assistant'
+import type { ModelMessage } from 'ai'
+
+/**
+ * Per-request context constructed once in `buildAgentParams` and
+ * threaded through AI SDK's `experimental_context`. Kept minimal — add
+ * fields only when a tool actually needs them.
+ */
+export interface RequestContext {
+  /** Stable id for the whole request — telemetry trace key. */
+  readonly requestId: string
+
+  /** Absent for synthetic / IPC-driven invocations. */
+  readonly topicId?: string
+
+  /** Source of static config like `assistant.knowledgeBaseIds`. */
+  readonly assistant?: Assistant
+
+  readonly abortSignal?: AbortSignal
+
+  /** Attachments the `read_file` tool may read this request (filename → entry allow-list). */
+  readonly fileAttachments?: ReadonlyArray<FileAttachmentRef>
+
+  /**
+   * Effective knowledge base scope for this request, resolved by `resolveKnowledgeBaseScope`: the
+   * assistant's static `knowledgeBaseIds` binding narrowed by the composer's per-turn `/` picker
+   * selection (the binding is a ceiling the selection can never widen), or that selection alone when
+   * there is no binding. The `kb_*` tools read this instead of `assistant.knowledgeBaseIds` directly.
+   * Defaults to empty.
+   */
+  readonly knowledgeBaseIds?: readonly string[]
+
+  /**
+   * MCP servers whose resources this request may read, frozen when the request was built (same set
+   * that gated the `mcp_resource_*` tools). Execution re-resolves the live set and intersects with
+   * this one, so a server that drops out mid-turn becomes unreadable while one that appears after
+   * the request started can never join. Absent for synthetic / IPC-driven invocations.
+   */
+  readonly mcpResourceServerIds?: ReadonlySet<string>
+
+  /**
+   * Absolute paths of persisted tool-output blobs this conversation owns — the
+   * exact allow-list `fs_read` may serve. Seeded in `buildAgentParams` from
+   * `RetainedContext.persistedOutputPaths` (RAW path, so blobs of
+   * compacted-away tool messages stay readable) as a per-model clone; the
+   * in-flight offload adapter adds paths to that clone as it persists new
+   * outputs mid-turn (mutable by design, never the shared RetainedContext).
+   */
+  readonly persistedOutputPaths?: Set<string>
+
+  /**
+   * `fs_read`'s per-call output cap, in characters — the resolved persist-lane
+   * `truncateThreshold` for this request.
+   *
+   * These are one number on purpose (see `CONTEXT_PERSIST_THRESHOLD_CHARS`):
+   * fs_read is `truncatable: false` and must bound its own output, and keeping
+   * its cap at the persist threshold means an fs_read page can never be large
+   * enough for the persist lane to store an echo of it. P2-B made the threshold
+   * a user setting, so the cap has to follow it here rather than stay pinned to
+   * the compile-time default.
+   *
+   * Absent for synthetic / IPC-driven invocations — those fall back to the
+   * shared default constant.
+   */
+  readonly toolOutputCharCap?: number
+}
+
+/** Per-call context: {@link RequestContext} + AI SDK's per-`execute` fields. */
+export interface ToolCallContext {
+  readonly request: RequestContext
+  readonly toolCallId: string
+  readonly messages: ModelMessage[]
+}
+
+/**
+ * Throws when `experimental_context` is missing — usually means
+ * `buildAgentParams` didn't thread `RequestContext` through, or a test
+ * forgot to mock it.
+ */
+export function getToolCallContext(options: ToolExecutionOptions): ToolCallContext {
+  const request = options.experimental_context
+  if (!isRequestContext(request)) {
+    throw new Error(
+      'Tool execute called without RequestContext. AiService.buildAgentParams must thread RequestContext through agentSettings.experimental_context.'
+    )
+  }
+  return {
+    request,
+    toolCallId: options.toolCallId,
+    messages: options.messages
+  }
+}
+
+/**
+ * Lenient counterpart of {@link getToolCallContext} for optional enrichment
+ * (e.g. abort-scope tagging): returns undefined instead of throwing when the
+ * context is absent, so the tool call itself never fails over a missing extra.
+ */
+export function getRequestContext(options: ToolExecutionOptions): RequestContext | undefined {
+  const request = options.experimental_context
+  return isRequestContext(request) ? request : undefined
+}
+
+function isRequestContext(value: unknown): value is RequestContext {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Partial<RequestContext>
+  return typeof candidate.requestId === 'string'
+}

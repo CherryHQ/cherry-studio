@@ -1,5 +1,3 @@
-[中文](docs/zh/guides/contributing.md) | [English](CONTRIBUTING.md)
-
 # Cherry Studio Contributor Guide
 
 Welcome to the Cherry Studio contributor community! We are committed to making Cherry Studio a project that provides long-term value and hope to invite more developers to join us. Whether you are an experienced developer or a beginner just starting out, your contributions will help us better serve users and improve software quality.
@@ -28,7 +26,7 @@ Please make sure you have read the [Code of Conduct](CODE_OF_CONDUCT.md) and the
 
 ## Setting Up Your Development Environment
 
-Please refer to the [Developer Guide](docs/en/guides/development.md) for instructions on setting up your local development environment, including prerequisites, installation steps, and available commands.
+Please refer to the [Developer Guide](docs/contrib/development.md) for instructions on setting up your local development environment, including prerequisites, installation steps, and available commands.
 
 For a comprehensive overview of the project architecture, tech stack, conventions, and available commands, see [`CLAUDE.md`](CLAUDE.md).
 
@@ -38,7 +36,7 @@ To help you get familiar with the codebase, we recommend tackling issues tagged 
 
 ### Testing
 
-Features without tests are considered non-existent. To ensure code is truly effective, relevant processes should be covered by unit tests and functional tests. Therefore, when considering contributions, please also consider testability. All tests can be run locally without dependency on CI. Please refer to the "Testing" section in the [Developer Guide](docs/zh/guides/development.md).
+Features without tests are considered non-existent. To ensure code is truly effective, relevant processes should be covered by unit tests and functional tests. Therefore, when considering contributions, please also consider testability. All tests can be run locally without dependency on CI. Please refer to the "Testing" section in the [Developer Guide](docs/contrib/development.md).
 
 ### Automated Testing for Pull Requests
 
@@ -66,7 +64,7 @@ Maintainers are here to help you implement your use case within a reasonable tim
 
 ### Participating in the Test Plan
 
-The Test Plan aims to provide users with a more stable application experience and faster iteration speed. For details, please refer to the [Test Plan](docs/en/guides/test-plan.md).
+The Test Plan aims to provide users with a more stable application experience and faster iteration speed. For details, please refer to the [Test Plan](docs/contrib/test-plan.md).
 
 ### Other Suggestions
 
@@ -76,20 +74,9 @@ The Test Plan aims to provide users with a more stable application experience an
 
 Please review the following critical information before submitting your Pull Request:
 
-### Branch Strategy Change (Effective April 3, 2026) 🚨
+### Branch Strategy
 
-**The `main` branch is now under code freeze.** The merge strategy is as follows:
-
-*   **`main` branch**: Only accepts **critical bug fixes**. Fix PRs must be submitted via `hotfix/*` branches (e.g., `hotfix/fix-crash-on-startup`), kept minimal in scope, and must not include any refactoring code.
-*   **`v2` branch**: All new feature development, refactoring, and optimizations should be done on the `v2` branch.
-
-### Participate in v2 Development 🚀
-
-v2 is the next major milestone for Cherry Studio, and we invite every developer to actively participate! Whether it's new feature development, architecture optimization, or code refactoring, your contributions on the `v2` branch are welcome. Let's build a better Cherry Studio together!
-
-> **Note**: The `v2` branch will only accept new feature submissions after all current features have been fully refactored.
-
-We appreciate your understanding and continued support during this important development phase. Thank you!
+`main` is the default branch for active development — submit features, refactors, optimizations, and fixes here.
 
 
 ## Contact Us

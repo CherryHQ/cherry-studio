@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { writeWithLock } from '../file'
+import { writeWithLock } from '../legacyFile'
 
 vi.mock('node:fs', () => ({
   constants: { W_OK: 2 },

@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import { isMac, isWin } from '@main/constant'
+import { isMac, isWin } from '@main/core/platform'
 
 export const getDeviceType = () => (isMac ? 'mac' : isWin ? 'windows' : 'linux')
 

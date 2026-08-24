@@ -1,0 +1,113 @@
+/**
+ * Renderer-only agent UI / form types.
+ *
+ * Entity & API DTO types live in `@shared/data/api/schemas/agents` and
+ * `@shared/data/types/agent` — import them from there directly. This file
+ * intentionally does not re-export them.
+ */
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { Tool } from '@shared/ai/tool'
+import {
+  AgentBaseSchema,
+  type AgentConfiguration,
+  AgentEntitySchema,
+  type AgentPermissionMode,
+  type UpdateAgentDto
+} from '@shared/data/api/schemas/agents'
+import type { AgentBase, AgentEntity, AgentType } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
+import * as z from 'zod'
+
+// ------------------ Permission mode ------------------
+// Alias, not a mirror: the renderer's UI cards/forms speak the exact same enum the
+// main process persists, so a second copy here could only ever drift out of date.
+export type PermissionMode = AgentPermissionMode
+
+export type PermissionModeCard = {
+  mode: PermissionMode
+  titleKey: string
+  titleFallback: string
+  descriptionKey: string
+  descriptionFallback: string
+  dangerous?: boolean
+  unsupported?: boolean
+  /**
+   * Caveat the user needs before picking this mode, as opposed to `descriptionKey`,
+   * which only says what the mode does. Rendered even where the description is
+   * suppressed for space.
+   */
+  warningKey?: string
+  warningFallback?: string
+}
+
+// ------------------ Channel config (Feishu) ------------------
+export type FeishuDomain = 'feishu' | 'lark'
+export type FeishuChannelConfig = {
+  type: 'feishu'
+  app_id: string
+  app_secret: string
+  encrypt_key: string
+  verification_token: string
+  allowed_chat_ids: string[]
+  domain: FeishuDomain
+}
+
+// ------------------ Type guards ------------------
+export const isAgentType = (type: unknown): type is AgentType => {
+  // Runtime keys live in the shared capability descriptor; no zod schema needed.
+  return typeof type === 'string' && type in AGENT_RUNTIME_CAPABILITIES
+}
+
+export const isAgentEntity = (value: unknown): value is AgentEntity => {
+  return AgentEntitySchema.safeParse(value).success
+}
+
+// ------------------ Form models (UI-only) --------------------------------
+export type BaseAgentForm = {
+  id?: string
+  type: AgentType
+  name: string
+  description?: string
+  instructions?: string
+  model: UniqueModelId
+  planModel?: UniqueModelId
+  smallModel?: UniqueModelId
+  mcps?: string[]
+  configuration?: AgentConfiguration
+}
+
+export type AddAgentForm = Omit<BaseAgentForm, 'id'> & { id?: never }
+
+export type UpdateAgentForm = UpdateAgentDto & { id: string; type?: never }
+
+export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
+
+// ------------------ Hook signatures --------------------------------------
+export type UpdateAgentBaseOptions = {
+  /** Whether to show success toast after updating. Defaults to true. */
+  showSuccessToast?: boolean
+}
+
+export type UpdateAgentFunction = (
+  form: UpdateAgentForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentEntity | undefined>
+
+// ------------------ Renderer-side DTO aliases ----------------------------
+export type GetAgentResponse = AgentEntity & { tools?: Tool[] }
+
+// ------------------ Server error envelope (parsed in utils/error.ts) -----
+export const AgentServerErrorSchema = z.object({
+  error: z.object({
+    message: z.string(),
+    type: z.string(),
+    code: z.string()
+  })
+})
+
+export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
+
+// AgentBaseSchema kept available for renderer forms that build on it (e.g.
+// AgentSettings/components/* spread it to derive partial validation). Not
+// re-defined; sourced from shared.
+export { AgentBaseSchema }

@@ -1,0 +1,367 @@
+import type { ReasoningUIPart, TextUIPart } from 'ai'
+import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '../message'
+import {
+  CherryErrorMetaSchema,
+  CherryFileMetaSchema,
+  CherryReasoningMetaSchema,
+  CherryTextMetaSchema,
+  CherryToolMetaSchema,
+  createClearContextPart,
+  type DiagnosisResult,
+  getKnowledgeBaseIdsFromParts,
+  hasClearContextPart,
+  isBlankUserTurn,
+  KnowledgeScopePartDataSchema,
+  readCherryMeta,
+  withCherryMeta,
+  withKnowledgeScopePart
+} from '../uiParts'
+
+const diagnosis: DiagnosisResult = {
+  summary: 'OpenAI API key is invalid',
+  category: 'auth',
+  explanation: 'The server rejected the request because the key is invalid.',
+  steps: [{ text: 'Open provider settings and check the key' }]
+}
+
+function dataErrorPart(cherry?: Record<string, unknown>): Extract<CherryMessagePart, { type: 'data-error' }> {
+  return {
+    type: 'data-error',
+    data: { name: 'AuthError', message: 'Unauthorized' },
+    ...(cherry ? { providerMetadata: { cherry } } : {})
+  } as unknown as Extract<CherryMessagePart, { type: 'data-error' }>
+}
+
+// ============================================================================
+// Schema sanity — declared shape matches expectation
+// ============================================================================
+
+describe('CherryTextMetaSchema', () => {
+  it('accepts references as array of anything', () => {
+    expect(CherryTextMetaSchema.safeParse({ references: [{ category: 'citation' }] }).success).toBe(true)
+    expect(CherryTextMetaSchema.safeParse({}).success).toBe(true)
+  })
+  it('rejects references that is not an array', () => {
+    expect(CherryTextMetaSchema.safeParse({ references: 'not-an-array' }).success).toBe(false)
+  })
+})
+
+describe('CherryReasoningMetaSchema', () => {
+  it('accepts thinkingMs as number', () => {
+    expect(CherryReasoningMetaSchema.safeParse({ thinkingMs: 1234 }).success).toBe(true)
+  })
+  it('accepts startedAt as number', () => {
+    expect(CherryReasoningMetaSchema.safeParse({ startedAt: 1780913860106 }).success).toBe(true)
+  })
+  it('rejects thinkingMs that is not a number', () => {
+    expect(CherryReasoningMetaSchema.safeParse({ thinkingMs: '1234' }).success).toBe(false)
+  })
+})
+
+describe('CherryToolMetaSchema', () => {
+  it('accepts transport/toolName/tool', () => {
+    const ok = CherryToolMetaSchema.safeParse({
+      transport: 'claude-agent',
+      toolName: 'web_search',
+      tool: { serverId: 's1', serverName: 'search', type: 'mcp' }
+    })
+    expect(ok.success).toBe(true)
+  })
+  it('rejects tool.type outside the enum', () => {
+    const bad = CherryToolMetaSchema.safeParse({ tool: { type: 'pluggable' } })
+    expect(bad.success).toBe(false)
+  })
+})
+
+describe('CherryFileMetaSchema', () => {
+  it('accepts fileEntryId, fileTokenSourceId, and the safe composer file kind', () => {
+    const ok = CherryFileMetaSchema.safeParse({
+      fileEntryId: 'entry-1',
+      fileTokenSourceId: 'source-1',
+      composerFileKind: 'pasted-text'
+    })
+
+    expect(ok.success).toBe(true)
+  })
+
+  it('rejects non-string fileTokenSourceId', () => {
+    const bad = CherryFileMetaSchema.safeParse({ fileTokenSourceId: 1 })
+
+    expect(bad.success).toBe(false)
+  })
+
+  it('rejects unsupported composer file kinds', () => {
+    const bad = CherryFileMetaSchema.safeParse({ composerFileKind: 'local-path' })
+
+    expect(bad.success).toBe(false)
+  })
+})
+
+describe('CherryErrorMetaSchema', () => {
+  it('accepts a fully-formed diagnosis and an empty object', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis }).success).toBe(true)
+    expect(CherryErrorMetaSchema.safeParse({}).success).toBe(true)
+  })
+
+  it('rejects a diagnosis with a non-string summary', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis: { ...diagnosis, summary: 42 } }).success).toBe(false)
+  })
+
+  it('rejects a diagnosis whose steps are not step objects', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis: { ...diagnosis, steps: ['plain'] } }).success).toBe(false)
+  })
+})
+
+describe('knowledge scope parts', () => {
+  it('validates, deduplicates, and replaces the aggregate scope part', () => {
+    const parts = withKnowledgeScopePart(
+      [
+        { type: 'text', text: 'hello' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['old'] } }
+      ] as CherryMessagePart[],
+      ['kb-1', 'kb-2', 'kb-1']
+    )
+
+    expect(parts).toEqual([
+      { type: 'text', text: 'hello' },
+      { type: 'data-knowledge-scope', data: { baseIds: ['kb-1', 'kb-2'] } }
+    ])
+    expect(getKnowledgeBaseIdsFromParts(parts)).toEqual(['kb-1', 'kb-2'])
+  })
+
+  it('removes the scope part when the selection is empty', () => {
+    const parts = withKnowledgeScopePart(
+      [
+        { type: 'text', text: 'hello' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
+      ] as CherryMessagePart[],
+      []
+    )
+
+    expect(parts).toEqual([{ type: 'text', text: 'hello' }])
+    expect(getKnowledgeBaseIdsFromParts(parts)).toBeUndefined()
+  })
+
+  it('rejects malformed scope data at the read boundary', () => {
+    expect(KnowledgeScopePartDataSchema.safeParse({ baseIds: [''] }).success).toBe(false)
+    expect(
+      getKnowledgeBaseIdsFromParts([
+        { type: 'data-knowledge-scope', data: { baseIds: [42] } } as unknown as CherryMessagePart
+      ])
+    ).toBeUndefined()
+  })
+})
+
+describe('clear context parts', () => {
+  it('creates and detects a hidden data UI part', () => {
+    const part = createClearContextPart()
+
+    expect(part).toEqual({ type: 'data-clear', data: {} })
+    expect(hasClearContextPart([{ type: 'text', text: 'before' }, part])).toBe(true)
+    expect(hasClearContextPart([{ type: 'text', text: 'before' }])).toBe(false)
+    expect(hasClearContextPart(undefined)).toBe(false)
+  })
+})
+
+describe('blank user turns', () => {
+  it('requires a successful user role with no parts', () => {
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [] })).toBe(true)
+    expect(isBlankUserTurn({ role: 'assistant', status: 'success', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'pending', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [{ type: 'text' }] })).toBe(false)
+  })
+})
+
+// ============================================================================
+// readCherryMeta — runtime validation + narrowing
+// ============================================================================
+
+describe('readCherryMeta', () => {
+  it('reads CherryTextMeta from a TextUIPart with references', () => {
+    const part: TextUIPart = {
+      type: 'text',
+      text: 'hi',
+      providerMetadata: { cherry: { references: [{ category: 'citation' }] } }
+    }
+    const meta = readCherryMeta(part)
+    expect(meta?.references).toEqual([{ category: 'citation' }])
+  })
+
+  it('reads CherryReasoningMeta from a ReasoningUIPart with thinking metadata', () => {
+    const part: ReasoningUIPart = {
+      type: 'reasoning',
+      text: 'thinking...',
+      providerMetadata: { cherry: { thinkingMs: 5000, startedAt: 1780913860106 } }
+    }
+    const meta = readCherryMeta(part)
+    expect(meta?.thinkingMs).toBe(5000)
+    expect(meta?.startedAt).toBe(1780913860106)
+  })
+
+  it('reads CherryToolMeta from a tool-foo part with transport and tool', () => {
+    const part = {
+      type: 'tool-fetch_url',
+      toolCallId: 'tc1',
+      providerMetadata: {
+        cherry: { transport: 'claude-agent', tool: { serverId: 's1', type: 'mcp' as const } }
+      }
+    } as unknown as CherryMessagePart
+    const meta = readCherryMeta(part)
+    expect(meta).toEqual({
+      transport: 'claude-agent',
+      tool: { serverId: 's1', type: 'mcp' }
+    })
+  })
+
+  it('reads CherryToolMeta from a dynamic-tool part', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'x',
+      toolCallId: 'tc2',
+      providerMetadata: { cherry: { transport: 'claude-agent' } }
+    } as unknown as Extract<CherryMessagePart, { type: 'dynamic-tool' }>
+    expect(readCherryMeta(part)?.transport).toBe('claude-agent')
+  })
+
+  it('reads CherryFileMeta from a file part with token source id', () => {
+    const part = {
+      type: 'file',
+      mediaType: 'application/pdf',
+      url: 'file:///tmp/report.pdf',
+      filename: 'report.pdf',
+      providerMetadata: {
+        cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1', composerFileKind: 'pasted-text' }
+      }
+    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+
+    expect(readCherryMeta(part)).toEqual({
+      fileEntryId: 'entry-1',
+      fileTokenSourceId: 'source-1',
+      composerFileKind: 'pasted-text'
+    })
+  })
+
+  it('reads CherryErrorMeta diagnosis from a data-error part', () => {
+    expect(readCherryMeta(dataErrorPart({ diagnosis }))?.diagnosis).toEqual(diagnosis)
+  })
+
+  it('returns undefined for a data-error part with a malformed diagnosis', () => {
+    expect(readCherryMeta(dataErrorPart({ diagnosis: { summary: 42 } }))).toBeUndefined()
+  })
+
+  it('returns undefined when providerMetadata is missing', () => {
+    const part: TextUIPart = { type: 'text', text: '' }
+    expect(readCherryMeta(part)).toBeUndefined()
+  })
+
+  it('returns undefined when cherry is missing', () => {
+    const part: TextUIPart = { type: 'text', text: '', providerMetadata: {} }
+    expect(readCherryMeta(part)).toBeUndefined()
+  })
+
+  it('returns undefined when cherry is not an object', () => {
+    const part = {
+      type: 'text',
+      text: '',
+      providerMetadata: { cherry: 'oops' }
+    } as unknown as TextUIPart
+    expect(readCherryMeta(part)).toBeUndefined()
+  })
+
+  it('returns undefined for a part type without a registered schema', () => {
+    const part = {
+      type: 'data-translation',
+      data: { content: 'x', targetLanguage: 'en' },
+      providerMetadata: { cherry: { references: [] } }
+    } as unknown as CherryMessagePart
+    expect(readCherryMeta(part)).toBeUndefined()
+  })
+
+  it('returns undefined when references is the wrong shape', () => {
+    const part = {
+      type: 'text',
+      text: '',
+      providerMetadata: { cherry: { references: 'oops' } }
+    } as unknown as TextUIPart
+    expect(readCherryMeta(part)).toBeUndefined()
+  })
+
+  it('returns undefined when thinkingMs is the wrong shape', () => {
+    const part = {
+      type: 'reasoning',
+      text: '',
+      providerMetadata: { cherry: { thinkingMs: 'oops' } }
+    } as unknown as ReasoningUIPart
+    expect(readCherryMeta(part)).toBeUndefined()
+  })
+})
+
+// ============================================================================
+// withCherryMeta — typed write boundary
+// ============================================================================
+
+describe('withCherryMeta', () => {
+  it('writes references onto a TextUIPart', () => {
+    const part: TextUIPart = { type: 'text', text: '' }
+    const next = withCherryMeta(part, { references: [{ url: 'https://ex.com' }] })
+    expect(next.providerMetadata?.cherry).toEqual({ references: [{ url: 'https://ex.com' }] })
+  })
+
+  it('preserves existing cherry fields when merging', () => {
+    const part: TextUIPart = {
+      type: 'text',
+      text: '',
+      providerMetadata: { cherry: { references: [{ a: 1 }] } }
+    }
+    const next = withCherryMeta(part, { references: [{ b: 2 }] })
+    // shallow merge: new patch overwrites the same key
+    expect(next.providerMetadata?.cherry).toEqual({ references: [{ b: 2 }] })
+  })
+
+  it('writes thinking metadata onto a ReasoningUIPart', () => {
+    const part: ReasoningUIPart = { type: 'reasoning', text: '' }
+    const next = withCherryMeta(part, { thinkingMs: 1234, startedAt: 1780913860106 })
+    expect(next.providerMetadata?.cherry).toEqual({ thinkingMs: 1234, startedAt: 1780913860106 })
+  })
+
+  it('writes fileTokenSourceId onto a FileUIPart', () => {
+    const part = {
+      type: 'file',
+      mediaType: 'application/pdf',
+      url: 'file:///tmp/report.pdf',
+      filename: 'report.pdf'
+    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+    const next = withCherryMeta(part, { fileTokenSourceId: 'source-1' })
+
+    expect(next.providerMetadata?.cherry).toEqual({ fileTokenSourceId: 'source-1' })
+  })
+
+  it('round-trips a diagnosis onto a data-error part', () => {
+    const next = withCherryMeta(dataErrorPart(), { diagnosis })
+    expect(readCherryMeta(next)?.diagnosis).toEqual(diagnosis)
+  })
+
+  // ── Compile-time negatives — `tsc --noEmit` enforces these. ──────────
+  it('rejects writing thinkingMs to TextUIPart at compile time', () => {
+    const part: TextUIPart = { type: 'text', text: '' }
+    // @ts-expect-error thinkingMs is not on CherryTextMeta
+    withCherryMeta(part, { thinkingMs: 1 })
+    expect(true).toBe(true)
+  })
+
+  it('rejects writing references to ReasoningUIPart at compile time', () => {
+    const part: ReasoningUIPart = { type: 'reasoning', text: '' }
+    // @ts-expect-error references is not on CherryReasoningMeta
+    withCherryMeta(part, { references: [] })
+    expect(true).toBe(true)
+  })
+
+  it('rejects writing transport to TextUIPart at compile time', () => {
+    const part: TextUIPart = { type: 'text', text: '' }
+    // @ts-expect-error transport is not on CherryTextMeta
+    withCherryMeta(part, { transport: 'x' })
+    expect(true).toBe(true)
+  })
+})

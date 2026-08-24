@@ -16,7 +16,7 @@ Cherry Studio AI Core 是一个基于 Vercel AI SDK 的统一 AI Provider 接口
 - **生命周期钩子**：支持请求全生命周期的扩展点
 - **流转换支持**：基于 AI SDK 的 `experimental_transform` 实现流处理
 - **插件分类**：First、Sequential、Parallel 三种钩子类型，满足不同场景
-- **内置插件**：webSearch、logging、toolUse 等开箱即用的功能
+- **内置插件**：webSearch、providerTool 等开箱即用的功能
 
 ### 🌐 统一多 Provider 接口
 
@@ -225,32 +225,6 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [
     includeResult: false
   })
 ])
-```
-
-#### promptToolUsePlugin - 提示工具使用插件
-
-为不支持原生 Function Call 的模型提供 prompt 方式的工具调用：
-
-```typescript
-import { createPromptToolUsePlugin } from '@cherrystudio/ai-core/built-in/plugins'
-
-// 对于不支持 function call 的模型
-const executor = AiCore.create(
-  'providerId',
-  {
-    apiKey: 'your-key',
-    baseURL: 'https://your-model-endpoint'
-  },
-  [
-    createPromptToolUsePlugin({
-      enabled: true,
-      // 可选：自定义系统提示符构建
-      buildSystemPrompt: (userPrompt, tools) => {
-        return `${userPrompt}\n\nAvailable tools: ${Object.keys(tools).join(', ')}`
-      }
-    })
-  ]
-)
 ```
 
 ### 自定义插件

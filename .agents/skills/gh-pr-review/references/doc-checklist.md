@@ -17,7 +17,8 @@ Issues where the document contains incorrect, contradictory, or incomplete infor
 - Version numbers, format identifiers, constants correct
 - Value ranges and constraints accurate
 - Enum values and meanings consistent with code definitions
-- IPC channel names and payload types match IpcChannel.ts definitions
+- IpcApi route/event names, schemas, handlers, and payload types agree; legacy
+  `IpcChannel` references are identified as migration-only where applicable
 
 ### A2. Internal Consistency
 - Different sections describing the same concept agree with each other

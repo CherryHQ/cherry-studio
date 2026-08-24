@@ -21,7 +21,6 @@ export interface AiRequestMetadata {
   enableReasoning?: boolean
   enableWebSearch?: boolean
   enableGenerateImage?: boolean
-  isPromptToolUse?: boolean
   isSupportedToolUse?: boolean
   // 自定义元数据，使用 JSONValue 确保类型安全
   custom?: JSONObject

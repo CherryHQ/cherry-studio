@@ -1,0 +1,40 @@
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
+import { agentTable } from './agent'
+import { agentWorkspaceTable } from './agentWorkspace'
+import { jobScheduleTable } from './job'
+
+export const agentSessionTable = sqliteTable(
+  'agent_session',
+  {
+    id: uuidPrimaryKey(),
+    agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
+    name: text().notNull(),
+    // Whether the name was manually edited by user.
+    isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
+    description: text().notNull().default(''),
+    workspaceId: text()
+      .notNull()
+      .references(() => agentWorkspaceTable.id, { onDelete: 'cascade' }),
+    // Internal one-to-one sticky-session relation for agent.task schedules.
+    // It stays out of AgentSessionEntity; task reads project it separately.
+    taskScheduleId: text()
+      .unique()
+      .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
+    traceId: text(),
+    ...orderKeyColumns,
+    // Dedicated conversation activity time. Name, owner, workspace and order
+    // changes must not move this column.
+    lastActivityAt: integer().notNull().$defaultFn(Date.now),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    orderKeyIndex('agent_session')(t),
+    index('agent_session_last_activity_at_idx').on(t.lastActivityAt),
+    index('agent_session_updated_at_idx').on(t.updatedAt)
+  ]
+)
+
+export type AgentSessionRow = typeof agentSessionTable.$inferSelect
+export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert

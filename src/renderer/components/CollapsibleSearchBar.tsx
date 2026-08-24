@@ -1,0 +1,168 @@
+import { Input, Tooltip } from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
+import { Search, X } from 'lucide-react'
+import { motion } from 'motion/react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+
+interface CollapsibleSearchBarProps {
+  onSearch: (text: string) => void
+  value?: string
+  placeholder?: string
+  tooltip?: string
+  clearLabel?: string
+  icon?: React.ReactNode
+  maxWidth?: string | number
+  collapsedSize?: number
+  animated?: boolean
+  style?: React.CSSProperties
+}
+
+/**
+ * A collapsible search bar for list headers
+ * Renders as an icon initially, expands to full search input when clicked
+ */
+const CollapsibleSearchBar = ({
+  onSearch,
+  value,
+  placeholder = i18n.t('common.search'),
+  tooltip = i18n.t('common.search'),
+  clearLabel = i18n.t('common.clear'),
+  icon = <Search size={14} color="var(--muted-foreground)" />,
+  maxWidth = '100%',
+  collapsedSize = 32,
+  animated = true,
+  style
+}: CollapsibleSearchBarProps) => {
+  const [searchVisible, setSearchVisible] = useState(false)
+  const [internalSearchText, setInternalSearchText] = useState('')
+  const searchText = value ?? internalSearchText
+  const inputRef = useRef<HTMLInputElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const focusTriggerAfterCollapseRef = useRef(false)
+
+  const handleTextChange = useCallback(
+    (text: string) => {
+      if (value === undefined) {
+        setInternalSearchText(text)
+      }
+      onSearch(text)
+    },
+    [onSearch, value]
+  )
+
+  const handleClear = useCallback(() => {
+    setInternalSearchText('')
+    focusTriggerAfterCollapseRef.current = true
+    setSearchVisible(false)
+    onSearch('')
+  }, [onSearch])
+
+  useEffect(() => {
+    if (searchVisible && inputRef.current) {
+      inputRef.current.focus()
+    } else if (focusTriggerAfterCollapseRef.current) {
+      focusTriggerAfterCollapseRef.current = false
+      triggerRef.current?.focus()
+    }
+  }, [searchVisible])
+
+  return (
+    <motion.div
+      initial={false}
+      animate={searchVisible ? 'expanded' : 'collapsed'}
+      variants={{
+        expanded: { width: maxWidth, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } },
+        collapsed: { width: collapsedSize, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } }
+      }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        position: 'relative',
+        height: collapsedSize,
+        minWidth: 0,
+        overflow: 'hidden',
+        flexShrink: searchVisible ? 1 : 0
+      }}>
+      <motion.div
+        initial={false}
+        animate={searchVisible ? 'expanded' : 'collapsed'}
+        variants={{
+          expanded: { width: '100%', opacity: 1, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } },
+          collapsed: { width: 0, opacity: 0, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } }
+        }}
+        style={{ overflow: 'hidden', flexShrink: 1 }}
+        aria-hidden={!searchVisible}>
+        <div className="relative flex items-center">
+          <Input
+            ref={inputRef}
+            type="search"
+            aria-label={tooltip}
+            placeholder={placeholder}
+            value={searchText}
+            tabIndex={searchVisible ? 0 : -1}
+            className="h-8 rounded-full pr-8 text-sm shadow-none focus-visible:border-ring focus-visible:ring-0"
+            onChange={(e) => handleTextChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation()
+                handleTextChange('')
+                if (!searchText) {
+                  focusTriggerAfterCollapseRef.current = true
+                  setSearchVisible(false)
+                }
+              }
+            }}
+            onBlur={() => {
+              if (!searchText) setSearchVisible(false)
+            }}
+            style={{ width: '100%', height: collapsedSize, ...style }}
+          />
+          <button
+            type="button"
+            aria-label={searchText ? clearLabel : tooltip}
+            tabIndex={searchVisible ? 0 : -1}
+            className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
+            {searchText ? <X size={14} /> : icon}
+          </button>
+        </div>
+      </motion.div>
+      <motion.button
+        ref={triggerRef}
+        type="button"
+        aria-label={tooltip}
+        aria-hidden={searchVisible}
+        tabIndex={searchVisible ? -1 : 0}
+        initial={false}
+        animate={searchVisible ? 'hidden' : 'visible'}
+        className="rounded-lg transition-colors hover:bg-accent"
+        variants={{
+          visible: {
+            opacity: 1,
+            transition: { duration: animated ? 0.1 : 0, delay: animated ? 0.3 : 0, ease: 'easeInOut' }
+          },
+          hidden: { opacity: 0, transition: { duration: animated ? 0.1 : 0, ease: 'easeInOut' } }
+        }}
+        style={{
+          position: 'absolute',
+          right: 0,
+          width: collapsedSize,
+          height: collapsedSize,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: searchVisible ? 'none' : 'auto'
+        }}
+        onClick={() => setSearchVisible(true)}>
+        <Tooltip content={tooltip} delay={500}>
+          {icon}
+        </Tooltip>
+      </motion.button>
+    </motion.div>
+  )
+}
+
+export default memo(CollapsibleSearchBar)

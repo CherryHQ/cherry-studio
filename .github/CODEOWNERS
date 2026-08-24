@@ -1,6 +1,9 @@
-/src/renderer/src/store/ @0xfullex @DeJeune
-/src/renderer/src/databases/ @0xfullex @DeJeune
-/src/main/services/ConfigManager.ts @0xfullex @DeJeune
-/packages/shared/IpcChannel.ts @0xfullex @DeJeune
-/src/main/ipc.ts @0xfullex @DeJeune
-/app-upgrade-config.json @kangfenmao
+/src/main/ai/ @DeJeune
+/src/main/features/fileProcessing/ @eeee0717
+/src/main/features/knowledge/ @eeee0717
+
+/src/shared/ai/ @DeJeune
+
+/packages/ui/ @kangfenmao
+
+/docs/references/ai/ @DeJeune
