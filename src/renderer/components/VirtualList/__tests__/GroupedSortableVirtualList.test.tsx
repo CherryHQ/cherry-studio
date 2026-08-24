@@ -102,6 +102,7 @@ vi.mock('@dnd-kit/sortable', () => {
         attributes: {},
         isDragging: dndMocks.activeSortableId === id,
         listeners: {},
+        setActivatorNodeRef: vi.fn(),
         setNodeRef: vi.fn(),
         transform: { scaleX: 1, scaleY: 1, x: 0, y: 12 },
         transition: 'transform 200ms ease'
@@ -111,7 +112,8 @@ vi.mock('@dnd-kit/sortable', () => {
   }
 })
 
-vi.mock('@dnd-kit/utilities', () => ({
+vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@dnd-kit/utilities')>()),
   CSS: {
     Transform: {
       toString: (transform: unknown) => (transform ? 'translate3d(0px, 12px, 0px)' : undefined)
