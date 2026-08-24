@@ -70,6 +70,72 @@ export interface PersistentRightPaneHostProps extends ResizableRightPaneProps {
 function clampRightPaneWidth(width: number, minWidth: number, maxWidth: number): number {
   return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
 }
+
+/** Matches the gap the message list keeps between its content and the composer. */
+const COMPOSER_CLEARANCE_GAP_PX = 16
+
+// Measured here rather than published by the composer so the value lands on the pane's own
+// subtree: a shared root variable would invalidate style for the message list on every resize.
+function useElevatedComposerInset(paneRef: RefObject<HTMLDivElement | null>, active: boolean): number | null {
+  const [inset, setInset] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    if (!active) {
+      setInset(null)
+      return
+    }
+    const pane = paneRef.current
+    const region = pane?.offsetParent
+    const shellRoot = pane?.closest('[data-chat-app-shell-root]')
+    if (!pane || !shellRoot || !(region instanceof HTMLElement)) return
+
+    let observer: ResizeObserver | null = null
+    let observedSurface: HTMLElement | null = null
+    // A composer that has yet to mount produces no resize, so watch the shell for its arrival
+    // instead. Only while the surface is absent — a subtree childList watch is not free.
+    let arrivalObserver: MutationObserver | null = null
+
+    const watchForArrival = () => {
+      if (arrivalObserver || typeof MutationObserver === 'undefined') return
+      arrivalObserver = new MutationObserver(() => update())
+      arrivalObserver.observe(shellRoot, { childList: true, subtree: true })
+    }
+
+    const update = () => {
+      // Switching sessions remounts the composer while a maximized pane survives, so resolve the
+      // surface every pass: a detached node measures as a zero rect and would inflate the inset.
+      const surface = shellRoot.querySelector<HTMLElement>('[data-composer-dock-surface]')
+      if (surface) {
+        arrivalObserver?.disconnect()
+        arrivalObserver = null
+      } else {
+        watchForArrival()
+      }
+      if (observer && surface !== observedSurface) {
+        if (observedSurface) observer.unobserve(observedSurface)
+        if (surface) observer.observe(surface)
+        observedSurface = surface
+      }
+      const covered = surface ? region.getBoundingClientRect().bottom - surface.getBoundingClientRect().top : 0
+      const next = covered > 0 ? Math.round(covered) + COMPOSER_CLEARANCE_GAP_PX : null
+      setInset((current) => (current === next ? current : next))
+    }
+    update()
+    if (typeof ResizeObserver === 'undefined') return () => arrivalObserver?.disconnect()
+
+    observer = new ResizeObserver(update)
+    observer.observe(region)
+    observedSurface = shellRoot.querySelector<HTMLElement>('[data-composer-dock-surface]')
+    if (observedSurface) observer.observe(observedSurface)
+    return () => {
+      observer?.disconnect()
+      arrivalObserver?.disconnect()
+    }
+  }, [active, paneRef])
+
+  return inset
+}
+
 /** Width of the pane's containing block (the main region), or null before first measure. */
 function useMainRegionWidth(paneRef: RefObject<HTMLDivElement | null>): number | null {
   const [width, setWidth] = useState<number | null>(null)
@@ -488,6 +554,7 @@ export function PersistentRightPaneHost({
 
   const isDocked = phase === 'docked' && targetMode === 'docked'
   const fullWidthLayout = isFullWidthRightPanePhase(phase)
+  const composerInset = useElevatedComposerInset(paneRef, fullWidthLayout)
   const closed = isClosedRightPanePhase(phase)
   const interactionHidden = targetMode === 'closed'
   // Motion interpolates the width it is given, while `maxWidth` clamps the width that is used:
@@ -540,6 +607,9 @@ export function PersistentRightPaneHost({
         style={{ ...style, visibility: closed ? 'hidden' : undefined }}>
         <div
           data-shell-maximized-overlay-content={fullWidthLayout ? '' : undefined}
+          style={
+            composerInset === null ? undefined : ({ '--chat-composer-inset': `${composerInset}px` } as CSSProperties)
+          }
           className={cn(
             // One opaque surface in every layout: the theme's background carries alpha in dark mode,
             // so a translucent pane both shows the chat it covers and flips colour when a phase settles.

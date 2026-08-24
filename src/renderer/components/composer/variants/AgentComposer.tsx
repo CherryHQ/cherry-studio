@@ -270,7 +270,6 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
-    inlineDescription: true,
     icon: <ToolCase size={16} />,
     suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
