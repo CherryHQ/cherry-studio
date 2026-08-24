@@ -128,12 +128,11 @@ const { CherryAutonomyTools } = await import('../cherryAutonomyTools')
 type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
 const WORKSPACE_SOURCE = { type: 'system' as const }
 const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
-let defaultSourceChannelId: string | null = null
 
 function createServer(
   agentId = 'agent_test',
   workspacePath = WORKSPACE_PATH,
-  notifyChannelIds: string | string[] | null = defaultSourceChannelId
+  notifyChannelIds: string | string[] | null = 'ch1'
 ) {
   const trustedNotifyChannels = (Array.isArray(notifyChannelIds) ? notifyChannelIds : [notifyChannelIds]).flatMap(
     (id) => (id ? [{ id, type: 'telegram' as const }] : [])
@@ -493,7 +492,7 @@ describe('CherryAutonomyTools', () => {
       const task = { id: 'task_1', name: 'test', scheduleType: 'cron', scheduleValue: '0 9 * * 1-5' }
       mockCreateTask.mockReturnValue(task)
 
-      const server = createServer('agent_1')
+      const server = createServer('agent_1', WORKSPACE_PATH, null)
       const result = await callTool(server, {
         action: 'add',
         name: 'Daily standup',
@@ -516,7 +515,7 @@ describe('CherryAutonomyTools', () => {
       const task = { id: 'task_2', name: 'check', trigger: { kind: 'interval', ms: 30 * 60_000 } }
       mockCreateTask.mockReturnValue(task)
 
-      const server = createServer('agent_2')
+      const server = createServer('agent_2', WORKSPACE_PATH, null)
       await callTool(server, {
         action: 'add',
         name: 'Health check',
@@ -676,14 +675,6 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('notify tool', () => {
-    beforeEach(() => {
-      defaultSourceChannelId = 'ch1'
-    })
-
-    afterEach(() => {
-      defaultSourceChannelId = null
-    })
-
     function makeAdapter(channelId: string, chatIds: string[]) {
       return {
         channelId,

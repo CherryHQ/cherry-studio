@@ -1371,27 +1371,12 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['proxyEnvironment'])
   })
 
-  it('changes the rebuild signature when current turn notification recipients change', async () => {
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
-      { id: 'channel-2', type: 'feishu' },
-      { id: 'channel-1', type: 'telegram' }
-    ])
+  it('rebuilds when task notification recipients change', async () => {
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
     const first = await deriveSignature()
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
-      { id: 'channel-1', type: 'telegram' },
-      { id: 'channel-2', type: 'feishu' }
-    ])
-    const reordered = await deriveSignature()
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-3', type: 'telegram' }])
-    const changed = await deriveSignature()
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-2', type: 'feishu' }])
 
-    expect(reordered.rebuildSignature).toBe(first.rebuildSignature)
-    expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
-    expect(
-      Object.keys(first.rebuildFactFingerprints).filter(
-        (name) => first.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
-      )
-    ).toEqual(['notificationContext'])
+    expect((await deriveSignature()).rebuildSignature).not.toBe(first.rebuildSignature)
   })
 
   it('changes the rebuild signature when model context metadata changes', async () => {

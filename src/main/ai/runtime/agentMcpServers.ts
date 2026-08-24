@@ -134,19 +134,15 @@ export function resolveAgentNotificationContext(
   const sourceChannel =
     linkedChannelSnapshot === undefined ? resolveSourceChannel(agentId, sessionId) : linkedChannelSnapshot
   const turnChannels = application.get('AgentSessionRuntimeService').getCurrentTurnNotificationTargetContext(sessionId)
-  const channels = normalizeNotifyChannels(turnChannels ?? (sourceChannel ? [sourceChannel] : []))
+  const channels = [...(turnChannels ?? (sourceChannel ? [sourceChannel] : []))].sort(
+    (left, right) => left.id.localeCompare(right.id) || left.type.localeCompare(right.type)
+  )
 
   return {
     sourceChannel,
     channels,
     allowAnyOwnedChannel: turnChannels === undefined && sourceChannel !== null
   }
-}
-
-function normalizeNotifyChannels(channels: readonly NotifyChannel[]): readonly NotifyChannel[] {
-  return channels
-    .map(({ id, type }) => ({ id, type }))
-    .sort((left, right) => left.id.localeCompare(right.id) || left.type.localeCompare(right.type))
 }
 
 function resolveSourceChannel(agentId: string, sessionId: string): LinkedChannelSnapshot {

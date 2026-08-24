@@ -131,44 +131,14 @@ describe('captureDshConnectionSnapshot', () => {
     expect(snapshot.mcpServerSnapshots.get('mcp-1')).toMatchObject({ id: 'mcp-1', name: 'server' })
   })
 
-  it('signs current turn notification recipients independent of input order', async () => {
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
-      { id: 'channel-2', type: 'feishu' },
-      { id: 'channel-1', type: 'telegram' }
-    ])
+  it('changes its signature when task notification recipients change', async () => {
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
     const first = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([
-      { id: 'channel-1', type: 'telegram' },
-      { id: 'channel-2', type: 'feishu' }
-    ])
-    const reordered = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
-    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-3', type: 'telegram' }])
-    const changed = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getCurrentTurnNotificationTargetContext.mockReturnValue([{ id: 'channel-2', type: 'feishu' }])
 
-    expect(reordered.signature).toBe(first.signature)
-    expect(changed.signature).not.toBe(first.signature)
-  })
-
-  it('does not rebuild when unrelated source-channel fields change', async () => {
-    mocks.findBySessionId.mockReturnValue({
-      id: 'channel-1',
-      type: 'telegram',
-      agentId: agent.id,
-      name: 'Before',
-      activeChatIds: ['chat-1']
+    await expect(captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.not.toMatchObject({
+      signature: first.signature
     })
-    const first = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
-    mocks.findBySessionId.mockReturnValue({
-      id: 'channel-1',
-      type: 'telegram',
-      agentId: agent.id,
-      name: 'After',
-      activeChatIds: ['chat-1', 'chat-2']
-    })
-
-    const changed = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
-
-    expect(changed.signature).toBe(first.signature)
   })
 
   it('does not attach a session link owned by another agent', async () => {

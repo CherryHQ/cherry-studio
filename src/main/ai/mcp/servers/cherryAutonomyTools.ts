@@ -759,12 +759,6 @@ export class CherryAutonomyTools {
     const targetChannelIds = explicitChannelId
       ? [explicitChannelId]
       : this.trustedNotifyChannels.map((channel) => channel.id)
-    if (targetChannelIds.length === 0) {
-      throw new McpError(
-        ErrorCode.InvalidRequest,
-        'notify is unavailable because this turn has no configured notification recipients'
-      )
-    }
     const targetChannelIdSet = new Set(targetChannelIds)
     const allAgentAdapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
     if (explicitChannelId && !this.trustedNotifyChannels.some((channel) => channel.id === explicitChannelId)) {
