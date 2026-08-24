@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "No Resources Found",
   "chat.input.resource_panel.title": "Resources & Sessions",
   "chat.input.restore": "Restore",
+  "chat.input.selection_reference.page": "p.{{page}}",
+  "chat.input.selection_reference.slide": "slide {{slide}}",
   "chat.input.send": "Send",
   "chat.input.send_failed": "Failed to send message",
   "chat.input.slash_commands.commands.clear": "Start a new conversation with empty context",

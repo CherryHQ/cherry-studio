@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "Nu s-au găsit resurse",
   "chat.input.resource_panel.title": "Fișiere și sesiuni",
   "chat.input.restore": "Restaurare",
+  "chat.input.selection_reference.page": "p. {{page}}",
+  "chat.input.selection_reference.slide": "diapozitivul {{slide}}",
   "chat.input.send": "Trimite",
   "chat.input.send_failed": "Nu s-a putut trimite mesajul",
   "chat.input.slash_commands.commands.clear": "Începe o conversație nouă cu un context gol",

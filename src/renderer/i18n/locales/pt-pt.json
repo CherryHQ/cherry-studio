@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "Nenhum recurso encontrado",
   "chat.input.resource_panel.title": "Recursos",
   "chat.input.restore": "Restaurar",
+  "chat.input.selection_reference.page": "p. {{page}}",
+  "chat.input.selection_reference.slide": "diapositivo {{slide}}",
   "chat.input.send": "Enviar",
   "chat.input.send_failed": "Falha ao enviar mensagem",
   "chat.input.slash_commands.commands.clear": "Limpar histórico da conversa",

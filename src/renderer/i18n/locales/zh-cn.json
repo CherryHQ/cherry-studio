@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "未找到资源",
   "chat.input.resource_panel.title": "资源与会话",
   "chat.input.restore": "还原",
+  "chat.input.selection_reference.page": "第 {{page}} 页",
+  "chat.input.selection_reference.slide": "第 {{slide}} 张幻灯片",
   "chat.input.send": "发送",
   "chat.input.send_failed": "消息发送失败",
   "chat.input.slash_commands.commands.clear": "开启全新对话，清空上下文",

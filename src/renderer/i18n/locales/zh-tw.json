@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "找不到資源",
   "chat.input.resource_panel.title": "檔案與工作階段",
   "chat.input.restore": "還原",
+  "chat.input.selection_reference.page": "第 {{page}} 頁",
+  "chat.input.selection_reference.slide": "第 {{slide}} 張投影片",
   "chat.input.send": "傳送",
   "chat.input.send_failed": "訊息傳送失敗",
   "chat.input.slash_commands.commands.clear": "開啟全新對話，清空上下文",

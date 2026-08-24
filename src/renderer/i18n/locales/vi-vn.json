@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "Không tìm thấy tài nguyên",
   "chat.input.resource_panel.title": "Tài nguyên",
   "chat.input.restore": "Khôi phục",
+  "chat.input.selection_reference.page": "tr. {{page}}",
+  "chat.input.selection_reference.slide": "trang chiếu {{slide}}",
   "chat.input.send": "Gửi",
   "chat.input.send_failed": "Không gửi được tin nhắn",
   "chat.input.slash_commands.commands.clear": "Xóa lịch sử cuộc trò chuyện",

@@ -652,6 +652,8 @@
   "chat.input.resource_panel.no_resources_found.label": "リソースが見つかりません",
   "chat.input.resource_panel.title": "リソース",
   "chat.input.restore": "復元",
+  "chat.input.selection_reference.page": "{{page}} ページ",
+  "chat.input.selection_reference.slide": "スライド {{slide}}",
   "chat.input.send": "送信",
   "chat.input.send_failed": "メッセージの送信に失敗しました",
   "chat.input.slash_commands.commands.clear": "コンテキストを空にして新しい会話を開始",
