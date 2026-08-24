@@ -1,6 +1,6 @@
 ---
 name: office-transform
-description: Derive new Office files from structural selections without touching the original. Use when the user points at part of a spreadsheet, Word document, or PDF (a worksheet range, paragraph, page, or a pasted selection-ref block) and wants it extracted, converted, or edited — the result is always a NEW file; the source file is never modified. Covers xlsx range extraction to csv/markdown/xlsx, docx paragraph extraction and text replacement, pdf page extraction, and targeted xlsx cell edits.
+description: Derive new Office files from structural selections without touching the original. Use when the user points at part of a spreadsheet, Word document, PDF, or PowerPoint deck (a worksheet range, paragraph, page, slide, shape, or a pasted selection-ref block) and wants it extracted, converted, or edited — the result is always a NEW file; the source file is never modified. Covers xlsx range extraction to csv/markdown/xlsx, docx paragraph extraction and text replacement, pdf page extraction, pptx slide/shape/table-cell extraction and editing, and targeted xlsx cell edits.
 version: 1.0.0
 ---
 
@@ -83,7 +83,7 @@ saved result. docx extraction to `docx` carries text only, not run styling.
 ### Patch-copy — derive an edited copy, standard library only
 
 ```bash
-python3 scripts/office_patch_copy.py \
+uv run python scripts/office_patch_copy.py \
   --file /abs/report.xlsx \
   --edits '{"format":"xlsx","sheet":"Sheet1","cells":{"B2":42,"C3":"hello"}}' \
   --out /abs/report-updated.xlsx
@@ -97,10 +97,17 @@ styles, charts, images, and macros in untouched parts survive exactly. Edit shap
   strings, and booleans; an existing formula in an edited cell is replaced by the value.
   Replacing a formula also drops `xl/calcChain.xml` (a recalculation cache Excel rebuilds);
   keeping a chain entry for a cell that no longer has a formula makes Excel report the
-  derived file as damaged.
+  derived file as damaged. Cells in a **shared or array formula group are refused** — the
+  expression lives in one member and the others only reference it, so overwriting a member
+  would strip the formula from cells you never named. Rewrite such a range with `openpyxl`.
+  Coordinates outside the worksheet grid (past XFD or row 1048576) are refused too.
 - `{"format":"docx","replacements":[{"paragraph":3,"text":"new text"}]}` — the
-  paragraph keeps its paragraph style and the first run's character style; other inline
-  content within that one paragraph (mixed run styling, hyperlinks) is flattened.
+  paragraph keeps its paragraph style and the first run's character style; extra run-level
+  styling within that one paragraph is flattened into the new text. Paragraphs carrying
+  content this rewrite cannot preserve — bookmarks, comment anchors, fields, hyperlinks —
+  are **refused**, not silently stripped: their start/end markers can span paragraphs, so
+  rewriting one half would leave the document unbalanced. Edit those with `python-docx`
+  (`uv run --with python-docx python`), which preserves inline structure.
 
 ### Generate — write ad-hoc library code for new documents
 
@@ -121,10 +128,22 @@ shapes by `shape_id` to match anchor `nodeId`), and `save()` to a NEW path:
 
 ```python
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+def walk(shapes):  # extraction recurses into groups, so editing must too — a flat
+    for shape in shapes:  # `for s in slide.shapes` cannot reach a grouped shape_id
+        yield shape
+        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+            yield from walk(shape.shapes)
+
 p = Presentation("/abs/deck.pptx")
-shape = next(s for s in p.slides[1].shapes if s.shape_id == 4)
+shape = next(s for s in walk(p.slides[1].shapes) if s.shape_id == 4)
 shape.text_frame.text = "new text"
 p.save("/abs/deck-updated.pptx")  # never save over the source
+
+# Verify: reopen the derived deck and read the shape back.
+check = Presentation("/abs/deck-updated.pptx")
+assert next(s for s in walk(check.slides[1].shapes) if s.shape_id == 4).text_frame.text == "new text"
 ```
 
 ## Output conventions

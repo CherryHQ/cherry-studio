@@ -200,11 +200,11 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
 - Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture). A reference
-  travels into the conversation as message text, so the consumer that acts on it is the `office-transform` skill:
-  it compares `fileStamp` against the file's current size and mtime and asks the user to re-select, never
-  silently re-anchoring. `isSelectionReferenceStale` is that rule's executable definition — the skill's Python
-  side mirrors it, the same way it mirrors `normalizeSelectionText` — and is what an in-app consumer would call.
-  Nothing in the renderer performs this check today, because no renderer code consumes a reference.
+  travels into the conversation as message text, so the only thing that acts on it is the `office-transform`
+  skill, and the staleness rule lives in that skill's prompt: it tells the model to `stat` the file, compare
+  size and mtime against `fileStamp`, and ask the user to re-select on a mismatch rather than re-anchoring.
+  Neither the skill's Python scripts nor any renderer code performs that check — `isSelectionReferenceStale`
+  states the rule in TypeScript for a future in-app consumer, but has none today.
 
 ## File I/O, States, and Errors
 

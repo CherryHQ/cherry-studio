@@ -18,16 +18,23 @@ pdf -> pypdf, pptx -> python-pptx.
 """
 
 import argparse
+import contextlib
 import csv
 import json
+import os
 import re
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
 A1_CELL_RE = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
 
 MAX_RANGE_CELLS = 1_000_000
+
+# The SpreadsheetML grid (ECMA-376): columns A..XFD, rows 1..1048576.
+MAX_COLUMN_INDEX = 16_384
+MAX_ROW_NUMBER = 1_048_576
 MAX_ZIP_ENTRIES = 10_000
 MAX_ENTRY_BYTES = 256 * 1024 * 1024
 MAX_TOTAL_BYTES = 1024 * 1024 * 1024
@@ -36,6 +43,24 @@ MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 def fail(message: str) -> "sys.NoReturn":
     print(f"error: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+@contextlib.contextmanager
+def atomic_output(out_path: Path):
+    """Yield a staging path renamed onto `out_path` only on success, so a failure leaves nothing behind.
+
+    Without this, an interrupted write leaves a partial file that both looks like a result and blocks
+    the retry with "output path already exists".
+    """
+    handle, staging_name = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.", suffix=".part")
+    os.close(handle)
+    staging = Path(staging_name)
+    try:
+        yield staging
+        staging.replace(out_path)
+    except BaseException:
+        staging.unlink(missing_ok=True)
+        raise
 
 
 def column_to_index(letters: str) -> int:
@@ -49,7 +74,10 @@ def parse_a1_cell(ref: str) -> tuple[int, int]:
     match = A1_CELL_RE.match(ref)
     if not match:
         fail(f"invalid A1 cell reference: {ref!r}")
-    return column_to_index(match.group(1)), int(match.group(2))
+    column, row = column_to_index(match.group(1)), int(match.group(2))
+    if column > MAX_COLUMN_INDEX or row > MAX_ROW_NUMBER:
+        fail(f"cell {ref!r} is outside the worksheet grid (max XFD{MAX_ROW_NUMBER})")
+    return column, row
 
 
 def parse_a1_range(ref: str) -> tuple[int, int, int, int]:
@@ -88,7 +116,13 @@ def preflight_zip(path: "Path") -> None:
 def slice_char_range(text: str, char_range) -> str:
     if char_range is None:
         return text
-    start, end = int(char_range[0]), int(char_range[1])
+    # int() would happily take "26" (as two characters) or 1.9 (truncated), each of which slices a
+    # different span than the caller asked for and reports nothing.
+    if not isinstance(char_range, (list, tuple)) or len(char_range) != 2:
+        fail(f"charRange must be a two-element [start, end] array: {char_range!r}")
+    if not all(isinstance(bound, int) and not isinstance(bound, bool) for bound in char_range):
+        fail(f"charRange bounds must be integers: {char_range!r}")
+    start, end = char_range
     if start > end or start < 0:
         fail(f"invalid charRange: {char_range!r}")
     return text[start:end]
@@ -193,6 +227,11 @@ def extract_pdf(src: Path, anchor: dict, out_path: Path, out_format: str) -> Non
         fail("pdf anchor requires a one-based 'page' number")
     page_index = int(page_number) - 1
 
+    # OOXML sources go through preflight_zip; PDFs had no ceiling at all before PdfReader parsed them.
+    source_bytes = src.stat().st_size
+    if source_bytes > MAX_ENTRY_BYTES:
+        fail(f"pdf is {source_bytes} bytes (limit {MAX_ENTRY_BYTES}); ask for a smaller file")
+
     reader = PdfReader(str(src))
     if page_index >= len(reader.pages):
         fail(f"page {page_number} out of range (document has {len(reader.pages)} pages)")
@@ -259,6 +298,8 @@ def extract_pptx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
 
         table_cell = anchor.get("tableCell")
         paragraph_index = anchor.get("paragraph")
+        if table_cell is not None and paragraph_index is not None:
+            fail("pptx anchor has both 'paragraph' and 'tableCell'; they address different things — pick one")
         if table_cell is not None:
             if not (getattr(shape, "has_table", False) and shape.has_table):
                 fail(f"shape {node_id!r} is not a table but anchor has 'tableCell'")
@@ -271,7 +312,9 @@ def extract_pptx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
             if not shape.has_text_frame:
                 fail(f"shape {node_id!r} has no text body but anchor has 'paragraph'")
             paragraphs = shape.text_frame.paragraphs
-            if int(paragraph_index) >= len(paragraphs):
+            # Bounded on both sides: a negative ordinal would index from the end and quietly return a
+            # paragraph nobody asked for.
+            if int(paragraph_index) < 0 or int(paragraph_index) >= len(paragraphs):
                 fail(f"paragraph {paragraph_index} out of range (shape has {len(paragraphs)} paragraphs)")
             lines = [paragraphs[int(paragraph_index)].text]
         else:
@@ -319,7 +362,8 @@ def main() -> None:
         preflight_zip(src)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    extractor(src, anchor, out_path, out_format)
+    with atomic_output(out_path) as staging:
+        extractor(src, anchor, staging, out_format)
     print(str(out_path))
 
 
