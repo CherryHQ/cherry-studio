@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { FileEntrySchema } from '@shared/data/types/file'
@@ -24,6 +25,9 @@ vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
   return createNodeFsMock()
 })
+
+import { application } from '@application'
+import { resolvePhysicalPath } from '@main/services/file/utils/pathResolver'
 
 import { FileMigrator } from '../FileMigrator'
 import { getAllMigrators } from '../migratorRegistry'
@@ -53,6 +57,28 @@ function makeInternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
     count: 1,
     ...overrides
   }
+}
+
+/**
+ * Seed a real temp `{userData}/Data/Files` holding one raw-named v1 blob, and point the mocked
+ * fs surface the copy path uses at it. Real fs because materializing `{id}.{ext}` — copy, fsync,
+ * rename, cleanup — is the thing under test; a mocked `renameSync` would assert nothing.
+ */
+function useRealFilesDir(realFs: typeof fs, ext: string) {
+  const userData = realFs.mkdtempSync(path.join(os.tmpdir(), 'file-migrator-'))
+  const filesDir = path.join(userData, 'Data', 'Files')
+  realFs.mkdirSync(filesDir, { recursive: true })
+
+  const row = makeInternalRow({ id: '33333333-3333-4333-8333-333333333333', ext, path: 'D:\\legacy\\x.exe' })
+  realFs.writeFileSync(path.join(filesDir, `${row.id}${ext}`), 'payload')
+
+  vi.mocked(fs.existsSync).mockImplementation(realFs.existsSync)
+  vi.mocked(fs.renameSync).mockImplementation(realFs.renameSync)
+  vi.mocked(fs.unlinkSync).mockImplementation(realFs.unlinkSync)
+  vi.mocked(application.getPath).mockImplementation(((_key: string, filename?: string) =>
+    path.join(filesDir, filename ?? '')) as never)
+
+  return { userData, filesDir, row }
 }
 
 // Desensitized from the reporter's actual DB row in #15733: an internal file
@@ -729,19 +755,61 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     expect((result.warnings ?? []).join('\n')).toContain('Orphan file row')
   })
 
-  it('locates an upload whose ext carries a trailing space', async () => {
-    // On POSIX the on-disk name really does keep the trailing space, so the canonical
-    // `{id}.exe` candidate misses it. Dropping the raw candidate would trade one data-loss
-    // bug for another.
-    const row = makeInternalRow({ id: '33333333-3333-4333-8333-333333333333', ext: '.exe ', path: 'D:\\legacy\\x.exe' })
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${row.id}.exe `))
-    const { ctx, insertValues } = createMockContext([row])
+  it.each([
+    ['trailing space', '.exe '],
+    ['trailing dot', '.exe.']
+  ])('makes an upload whose ext carries a %s readable at its v2 path (#18187)', async (_label, ext) => {
+    // On POSIX the on-disk name really does keep the trailing character, but `ext` migrates
+    // normalized and `resolvePhysicalPath` only ever composes `{id}.exe` — so asserting the
+    // migrator found the file proves nothing; the bytes have to be readable through the resolver.
+    const realFs = await vi.importActual<typeof fs>('node:fs')
+    const { userData, filesDir, row } = useRealFilesDir(realFs, ext)
+
+    const { ctx, insertValues } = createMockContext([row], { paths: { userData } })
     const m = new FileMigrator()
     const result = await m.prepare(ctx as never)
     await m.execute(ctx as never)
 
-    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    const resolved = resolvePhysicalPath({ id: firstRow.id, origin: 'internal', ext: firstRow.ext })
+    expect(realFs.readFileSync(resolved, 'utf8')).toBe('payload')
+    // The raw blob stays put, so a migration that aborts leaves v1's own lookup intact.
+    expect(realFs.existsSync(path.join(filesDir, `${row.id}${ext}`))).toBe(true)
     expect((result.warnings ?? []).join('\n')).not.toContain('Orphan file row')
+
+    realFs.rmSync(userData, { recursive: true, force: true })
+  })
+
+  it('an interrupted copy publishes nothing, so the retry still repairs from the raw blob (#18187)', async () => {
+    // A partial copy must never reach `{id}.exe`: the next run's candidate walk prefers whatever
+    // sits there over the intact raw blob, so a truncated file would migrate as valid content
+    // under the v1 `size`. Simulates the crash by failing after the tmp file is partly written.
+    const realFs = await vi.importActual<typeof fs>('node:fs')
+    const { userData, filesDir, row } = useRealFilesDir(realFs, '.exe ')
+    const copySpy = vi.spyOn(fs, 'copyFileSync').mockImplementationOnce((_src, tmp) => {
+      realFs.writeFileSync(tmp as string, 'pay')
+      throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+    })
+
+    const interrupted = await new FileMigrator().prepare(createMockContext([row], { paths: { userData } }).ctx as never)
+
+    expect((interrupted.warnings ?? []).join('\n')).toContain('Failed to copy file')
+    // Only the raw blob survives — no truncated canonical, no stranded `.tmp-{uuid}`.
+    expect(realFs.readdirSync(filesDir)).toEqual([`${row.id}.exe `])
+
+    copySpy.mockRestore()
+    const { ctx, insertValues } = createMockContext([row], { paths: { userData } })
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    const resolved = resolvePhysicalPath({ id: firstRow.id, origin: 'internal', ext: firstRow.ext })
+    expect(realFs.readFileSync(resolved, 'utf8')).toBe('payload')
+
+    realFs.rmSync(userData, { recursive: true, force: true })
   })
 
   it('recovers a bad size from the rebuilt storage path', async () => {

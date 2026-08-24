@@ -26,7 +26,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -45,7 +45,10 @@ const submenuItemClassName =
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
-const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shadow-none flex-none justify-start')
+export const resourceDialogRailItemClassName = cn(
+  submenuItemClassName,
+  'data-[state=active]:!shadow-none flex-none justify-start'
+)
 
 const logger = loggerService.withContext('EditDialogShared')
 
@@ -220,19 +223,21 @@ export function FieldLabelWithHelp({
   help,
   helpTrigger,
   className,
+  labelClassName,
   formLabel = true
 }: {
   label: string
   help?: ReactNode
   helpTrigger?: ReactNode
   className?: string
+  labelClassName?: string
   formLabel?: boolean
 }) {
   const { t } = useTranslation()
   const labelContent = formLabel ? (
-    <FormLabel className="font-normal">{label}</FormLabel>
+    <FormLabel className={cn('font-normal', labelClassName)}>{label}</FormLabel>
   ) : (
-    <span className="font-normal text-foreground text-sm leading-none">{label}</span>
+    <span className={cn('font-normal text-foreground text-sm leading-none', labelClassName)}>{label}</span>
   )
 
   return (
@@ -268,21 +273,19 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   form,
   portalContainer,
   formLabel = true,
+  labelClassName,
   disabled = false,
   onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
   portalContainer: HTMLElement | null
   formLabel?: boolean
+  labelClassName?: string
   disabled?: boolean
   onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery('/knowledge-bases', {
-    query: { limit: 100 },
-    swrOptions: { revalidateOnFocus: true }
-  })
-  const bases = useMemo(() => data?.items ?? [], [data])
+  const { bases, isLoading } = useKnowledgeBases({ revalidateOnFocus: true })
   const fieldName = 'knowledgeBaseIds' as Path<TValues>
   const watchedValue = useWatch({ control: form.control, name: fieldName })
   const value = useMemo(() => (watchedValue ?? []) as string[], [watchedValue])
@@ -322,6 +325,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               label={t('library.config.knowledge.linked')}
               help={t('library.config.knowledge.linked_hint')}
               formLabel={formLabel}
+              labelClassName={labelClassName}
             />
             <AddCatalogPopover
               items={catalog}
@@ -493,7 +497,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                             <MenuItem
                               label={child.label}
                               active={activeTab === child.id}
-                              className={railTabItemClassName}
+                              className={resourceDialogRailItemClassName}
                             />
                           </TabsTrigger>
                         ))
@@ -523,7 +527,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                               <MenuItem
                                 label={tab.label}
                                 active={activeTab === tab.id}
-                                className={railTabItemClassName}
+                                className={resourceDialogRailItemClassName}
                               />
                             </TabsTrigger>
                           )}
@@ -534,7 +538,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                                   <MenuItem
                                     label={child.label}
                                     active={activeTab === child.id}
-                                    className={railTabItemClassName}
+                                    className={resourceDialogRailItemClassName}
                                   />
                                 </TabsTrigger>
                               ))}
@@ -616,6 +620,7 @@ export function TextInputField({
   form,
   name,
   label,
+  labelClassName,
   description,
   placeholder,
   required = false,
@@ -624,6 +629,7 @@ export function TextInputField({
   form: UseFormReturn<any>
   name: 'name' | 'description'
   label: string
+  labelClassName?: string
   description?: string
   placeholder?: string
   required?: boolean
@@ -641,7 +647,8 @@ export function TextInputField({
           <FormLabel
             className={cn(
               layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal',
-              layout === 'row' && name === 'description' && 'self-start pt-3'
+              layout === 'row' && name === 'description' && 'self-start pt-3',
+              labelClassName
             )}>
             {label}
           </FormLabel>
@@ -674,6 +681,7 @@ export function CompactModelField({
   form,
   name,
   label,
+  labelClassName,
   description,
   allowClear = false,
   emptyLabel,
@@ -689,6 +697,7 @@ export function CompactModelField({
   form: UseFormReturn<any>
   name: ModelLabelKey
   label: string
+  labelClassName?: string
   description?: string
   allowClear?: boolean
   /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
@@ -726,7 +735,9 @@ export function CompactModelField({
       name={name}
       render={({ field }) => (
         <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
-          <FormLabel className={layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal'}>{label}</FormLabel>
+          <FormLabel className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+            {label}
+          </FormLabel>
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector

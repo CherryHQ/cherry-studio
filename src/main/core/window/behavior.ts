@@ -1,4 +1,10 @@
-import type { ManagedWindow, WindowBehavior, WindowOptions, WindowType } from '@main/core/window/types'
+import type {
+  AlwaysOnTopLevel,
+  ManagedWindow,
+  WindowBehavior,
+  WindowOptions,
+  WindowType
+} from '@main/core/window/types'
 import type { BrowserWindow } from 'electron'
 
 /**
@@ -47,8 +53,9 @@ export function applyWindowBehavior(
   // ── Initial alwaysOnTop with level/relativeLevel ─────────────────────
   // Electron's `new BrowserWindow({ alwaysOnTop: true })` enables the flag but
   // cannot accept a level. We enhance it here once so the level takes effect
-  // before any show happens. The macReapplyAlwaysOnTop quirk (if set) will
-  // keep re-applying on subsequent show/showInactive to survive macOS demotion.
+  // before any show happens. The reapplyAlwaysOnTop quirk (if set) will keep
+  // re-applying on subsequent show/showInactive to survive macOS level demotion
+  // and Windows topmost z-order churn.
   if (windowOptions.alwaysOnTop === true && behavior.alwaysOnTop) {
     const { level, relativeLevel } = behavior.alwaysOnTop
     if (level !== undefined && relativeLevel !== undefined) {
@@ -115,6 +122,7 @@ export interface BehaviorHost {
  */
 export class BehaviorController {
   private hideOnBlurOverride = new Map<string, boolean>()
+  private alwaysOnTopLevelOverride = new Map<string, AlwaysOnTopLevel>()
   private macShowInDockOverrideByType = new Map<WindowType, boolean>()
 
   constructor(private readonly host: BehaviorHost) {}
@@ -164,7 +172,7 @@ export class BehaviorController {
   public setAlwaysOnTop(windowId: string, enabled: boolean): void {
     const managed = this.host.getManagedWindow(windowId)
     if (!managed || managed.window.isDestroyed()) return
-    const { level, relativeLevel } = managed.metadata.behavior?.alwaysOnTop ?? {}
+    const { level, relativeLevel } = this.resolveAlwaysOnTop(windowId, managed)
     // Pass only the arguments actually declared — avoids trailing `undefined`s
     // that would change the call signature observed by spies or future overloads.
     if (level !== undefined && relativeLevel !== undefined) {
@@ -215,7 +223,47 @@ export class BehaviorController {
    * registry-declared defaults.
    * @internal
    */
+  /**
+   * Temporarily run one window at a level other than the one its registry entry
+   * declares, and apply it immediately.
+   *
+   * The declared level stays the single source of truth: `null` drops the override
+   * and restores it. The override also wins in `quirks.reapplyAlwaysOnTop`, which
+   * would otherwise undo it on the next show.
+   *
+   * Only a bare level is overridable — `relativeLevel` is dropped while an override
+   * is in effect, since the two express one offset and mixing them silently produces
+   * a level neither caller asked for.
+   *
+   * Its reason to exist: the macOS IME candidate window sits at a fixed level, so an
+   * overlay above it hides the candidates and has to step below them while text is
+   * being entered.
+   *
+   * Lifetime: cleared on window destroy and pool release, like every other override.
+   */
+  public setAlwaysOnTopLevel(windowId: string, level: AlwaysOnTopLevel | null): void {
+    if (level === null) this.alwaysOnTopLevelOverride.delete(windowId)
+    else this.alwaysOnTopLevelOverride.set(windowId, level)
+    this.setAlwaysOnTop(windowId, true)
+  }
+
+  /** The runtime level override for this window, or undefined when none is set. */
+  public getAlwaysOnTopLevelOverride(windowId: string): AlwaysOnTopLevel | undefined {
+    return this.alwaysOnTopLevelOverride.get(windowId)
+  }
+
+  /** The override if one is set, else what the registry declares. */
+  private resolveAlwaysOnTop(
+    windowId: string,
+    managed: ManagedWindow
+  ): { level?: AlwaysOnTopLevel; relativeLevel?: number } {
+    const override = this.alwaysOnTopLevelOverride.get(windowId)
+    if (override !== undefined) return { level: override }
+    return managed.metadata.behavior?.alwaysOnTop ?? {}
+  }
+
   public clearForWindow(windowId: string): void {
     this.hideOnBlurOverride.delete(windowId)
+    this.alwaysOnTopLevelOverride.delete(windowId)
   }
 }

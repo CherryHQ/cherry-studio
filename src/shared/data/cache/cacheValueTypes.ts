@@ -8,7 +8,6 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
-import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
@@ -73,7 +72,7 @@ export interface Tab {
   // LRU 字段
   lastAccessTime?: number // open/switch 时更新
   isDormant?: boolean // 是否已休眠
-  isPinned?: boolean // 是否置顶（豁免 LRU）
+  isPinned?: boolean // 是否置顶（soft cap 下豁免 LRU；超过 hard cap 时可能休眠）
   savedState?: TabSavedState // 休眠前保存的状态
 }
 
@@ -174,7 +173,7 @@ export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   shouldValidateSkills?: boolean
 }
 
-export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
+export type ExternalOpenTargetPreferences = Record<string, string>
 
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'

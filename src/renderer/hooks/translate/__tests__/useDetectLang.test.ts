@@ -46,7 +46,14 @@ vi.mock('franc-min', () => ({
 // drive the response per case via mockImplementation/mockResolvedValueOnce.
 const { generateTextMock } = vi.hoisted(() => ({
   generateTextMock:
-    vi.fn<(args: { uniqueModelId: string; system?: string; prompt: string }) => Promise<{ text: string }>>()
+    vi.fn<
+      (args: {
+        uniqueModelId: string
+        reasoningEffort?: string
+        system?: string
+        prompt: string
+      }) => Promise<{ text: string }>
+    >()
 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: any) => generateTextMock(input) }
@@ -90,6 +97,27 @@ describe('detectLanguageByLLM', () => {
     generateTextMock.mockResolvedValueOnce({ text: '  en-us  ' })
 
     await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
+  })
+
+  it('interpolates every prompt placeholder once and preserves replacement tokens in input', async () => {
+    const input = "$$E=mc^2$$ | $& | $` | $' | {{list_lang}}"
+
+    await expect(detectLanguageByLLM(input, [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
+
+    const systemPrompt = generateTextMock.mock.lastCall?.[0].system
+    expect(systemPrompt).toContain('predefined list ["en-us","zh-cn"]')
+    expect(systemPrompt).toContain('not found in the ["en-us","zh-cn"] list')
+    expect(systemPrompt).toContain(`<text>\n${input}\n</text>`)
+  })
+
+  it('disables reasoning for LLM language detection', async () => {
+    await detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)
+
+    expect(generateTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reasoningEffort: 'none'
+      })
+    )
   })
 
   it('throws when no model is supplied', async () => {

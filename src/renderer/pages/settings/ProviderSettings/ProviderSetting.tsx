@@ -7,8 +7,10 @@ import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
+import { ApiKeyProvider } from './hooks/providerSetting/useAuthenticationApiKey'
+import { useProviderApiKey } from './hooks/providerSetting/useProviderApiKey'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
-import { ModelList, ModelListHealthProvider, useModelListHealth } from './ModelList'
+import { ModelList, ModelListHealthProvider } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
 
 interface ProviderSettingProps {
@@ -17,29 +19,32 @@ interface ProviderSettingProps {
 }
 
 function ProviderSettingSections({ providerId, isLoginBased }: { providerId: string; isLoginBased: boolean }) {
-  const health = useModelListHealth()
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
   const requestModelPullGuide = useCallback(() => {
     setModelPullGuideVersion((version) => version + 1)
   }, [])
 
-  const authenticationSection = (
-    <AuthenticationSection
-      providerId={providerId}
-      onOpenModelHealthCheck={health.openHealthCheck}
-      onRequestModelPullGuide={requestModelPullGuide}
-    />
-  )
-
   return (
     <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
       <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
-        {authenticationSection}
+        <AuthenticationSection providerId={providerId} onRequestModelPullGuide={requestModelPullGuide} />
         <div className="flex min-h-0 flex-1 flex-col">
           <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
         </div>
       </div>
     </Scrollbar>
+  )
+}
+
+function ProviderSettingContent({ providerId, isLoginBased }: { providerId: string; isLoginBased: boolean }) {
+  const apiKey = useProviderApiKey(providerId)
+
+  return (
+    <ApiKeyProvider value={apiKey}>
+      <ModelListHealthProvider providerId={providerId}>
+        <ProviderSettingSections providerId={providerId} isLoginBased={isLoginBased} />
+      </ModelListHealthProvider>
+    </ApiKeyProvider>
   )
 }
 
@@ -65,9 +70,7 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
               <ProviderHeader providerId={providerId} />
             </div>
           </div>
-          <ModelListHealthProvider providerId={providerId}>
-            <ProviderSettingSections providerId={providerId} isLoginBased={isLoginBasedProvider(provider)} />
-          </ModelListHealthProvider>
+          <ProviderSettingContent providerId={providerId} isLoginBased={isLoginBasedProvider(provider)} />
         </div>
       </div>
     </ProviderSettingsContainer>

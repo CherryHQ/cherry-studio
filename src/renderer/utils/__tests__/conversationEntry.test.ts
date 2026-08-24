@@ -14,7 +14,12 @@ vi.mock('@data/DataApiService', () => ({
   dataApiService: { get: mocks.get }
 }))
 
-import { resolveAgentEntrySessionId, resolveChatEntryTopicId } from '@renderer/utils/conversationEntry'
+import {
+  resolveAgentEntrySessionId,
+  resolveAgentEntrySessionIdForAgent,
+  resolveChatEntryTopicId,
+  resolveChatEntryTopicIdForAssistant
+} from '@renderer/utils/conversationEntry'
 
 const notFoundError = () => new DataApiError(ErrorCode.NOT_FOUND, 'not found', 404)
 
@@ -99,5 +104,53 @@ describe('resolveAgentEntrySessionId', () => {
     mocks.get.mockResolvedValue({ session: null })
 
     await expect(resolveAgentEntrySessionId()).resolves.toBeNull()
+  })
+})
+
+describe('resolveChatEntryTopicIdForAssistant', () => {
+  it('resolves the latest topic of the given assistant', async () => {
+    mocks.get.mockResolvedValue({ topic: { id: 'topic-assistant' } })
+
+    await expect(resolveChatEntryTopicIdForAssistant('assistant-1')).resolves.toBe('topic-assistant')
+    expect(mocks.get).toHaveBeenCalledWith('/topics/latest', { query: { assistantId: 'assistant-1' } })
+    expect(mocks.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns null when the assistant has no topics', async () => {
+    mocks.get.mockResolvedValue({ topic: null })
+
+    await expect(resolveChatEntryTopicIdForAssistant('assistant-1')).resolves.toBeNull()
+  })
+
+  it('never consults the global last-focused topic cache', async () => {
+    mocks.getPersist.mockReturnValue('topic-global')
+    mocks.get.mockResolvedValue({ topic: { id: 'topic-assistant' } })
+
+    await expect(resolveChatEntryTopicIdForAssistant('assistant-1')).resolves.toBe('topic-assistant')
+    expect(mocks.getPersist).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveAgentEntrySessionIdForAgent', () => {
+  it('resolves the latest session of the given agent', async () => {
+    mocks.get.mockResolvedValue({ session: { id: 'session-agent' } })
+
+    await expect(resolveAgentEntrySessionIdForAgent('agent-1')).resolves.toBe('session-agent')
+    expect(mocks.get).toHaveBeenCalledWith('/agent-sessions/latest', { query: { agentId: 'agent-1' } })
+    expect(mocks.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns null when the agent has no sessions', async () => {
+    mocks.get.mockResolvedValue({ session: null })
+
+    await expect(resolveAgentEntrySessionIdForAgent('agent-1')).resolves.toBeNull()
+  })
+
+  it('never consults the global last-focused session cache', async () => {
+    mocks.getPersist.mockReturnValue('session-global')
+    mocks.get.mockResolvedValue({ session: { id: 'session-agent' } })
+
+    await expect(resolveAgentEntrySessionIdForAgent('agent-1')).resolves.toBe('session-agent')
+    expect(mocks.getPersist).not.toHaveBeenCalled()
   })
 })

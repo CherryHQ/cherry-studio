@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -42,7 +43,6 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import { updateCodeBlock } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { isVisionModel } from '@renderer/utils/model'
@@ -101,6 +101,9 @@ export function useHomeMessageListProviderValue({
 }: HomeMessageListParams): MessageListProviderValue {
   const topicId = topic.id
   const assistantId = topic.assistantId
+  const { trigger: copyBranchToNewTopicTrigger } = useMutation('POST', '/topics/:id/duplicate', {
+    refresh: ['/topics']
+  })
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
@@ -240,38 +243,6 @@ export function useHomeMessageListProviderValue({
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     persistDiagnosis
   })
-
-  const clearTopic = useCallback(
-    async (data: Topic) => {
-      if (data && data.id !== topic.id) return
-      try {
-        await requireChatWrite('clearTopicMessages').clearTopicMessages()
-      } catch (error) {
-        logger.error('Failed to clear topic messages:', error as Error)
-        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
-      }
-    },
-    [requireChatWrite, t, topic.id]
-  )
-
-  useEffect(() => {
-    if (!normalInteractionsEnabled) return
-
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
-        const confirmed = await popup.confirm({
-          title: t('chat.input.clear.title'),
-          content: t('chat.input.clear.content'),
-          centered: true
-        })
-        if (!confirmed) return
-
-        void clearTopic(data)
-      })
-    ]
-
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [clearTopic, normalInteractionsEnabled, t])
 
   useEffect(() => {
     if (!assistant) return
@@ -465,6 +436,7 @@ export function useHomeMessageListProviderValue({
         const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
+          const { updateCodeBlock } = await import('@renderer/utils/markdown')
           const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
           const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
           allParts[resolved.index] = {
@@ -699,6 +671,16 @@ export function useHomeMessageListProviderValue({
     [onStartBranchDraft, requireChatWrite]
   )
 
+  const copyBranchToNewTopic = useCallback<NonNullable<MessageListActions['copyBranchToNewTopic']>>(
+    async (messageId) => {
+      await copyBranchToNewTopicTrigger({
+        params: { id: topicId },
+        body: { nodeId: messageId }
+      })
+    },
+    [copyBranchToNewTopicTrigger, topicId]
+  )
+
   const setActiveBranch = useCallback<NonNullable<MessageListActions['setActiveBranch']>>(
     (messageId) => requireChatWrite('setActiveBranch').setActiveBranch(messageId),
     [requireChatWrite]
@@ -863,6 +845,7 @@ export function useHomeMessageListProviderValue({
       getMessageDeleteAvailability: normalInteractionsEnabled ? getMessageDeleteAvailability : undefined,
       deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
       startMessageBranch,
+      copyBranchToNewTopic: normalInteractionsEnabled ? copyBranchToNewTopic : undefined,
       setActiveBranch,
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,
@@ -881,6 +864,7 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindRuntime,
       canStartNewContext,
+      copyBranchToNewTopic,
       getMessageDeleteAvailability,
       deleteMessage,
       deleteMessageGroup,

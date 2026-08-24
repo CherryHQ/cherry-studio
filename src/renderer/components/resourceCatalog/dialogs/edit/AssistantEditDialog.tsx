@@ -35,6 +35,7 @@ import {
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
+import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
@@ -62,6 +63,7 @@ import {
 } from '../components/EditDialogShared'
 import { GroupSelector } from '../components/GroupSelector'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
@@ -91,6 +93,7 @@ type AssistantEditFormValues = {
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
+  contextMaxMessages: number | null
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
@@ -130,6 +133,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
+    contextMaxMessages: form.contextMaxMessages,
     contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     mcpServerIds: [...form.mcpServerIds]
@@ -168,6 +172,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
+    contextMaxMessages: values.contextMaxMessages,
     contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
     mcpServerIds: values.mcpServerIds
@@ -222,6 +227,7 @@ function AssistantEditDialogContent({
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'advanced', label: t('library.config.agent.model_config') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
+      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -375,6 +381,13 @@ function AssistantEditDialogContent({
             form={form}
             resource={resource}
             modelName={modelLabels.modelId}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
+        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
+          <PromptBindingTab
+            enabled={open && activeTab === 'prompts'}
+            target={{ type: 'assistant', id: resource.id }}
             portalContainer={dialogContentElement}
           />
         </TabsContent>
@@ -662,6 +675,8 @@ function AssistantAdvancedFields({
   const values = form.watch()
   // Global defaults, shown as the seed when the user turns the override on for
   // an assistant that has none stored yet.
+  const [globalContextEnabled] = usePreference('chat.context_settings.enabled')
+  const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
   const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
@@ -829,7 +844,9 @@ function AssistantAdvancedFields({
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
         globalDefaults={{
+          enabled: globalContextEnabled,
           compressEnabled: globalCompressEnabled,
+          maxMessages: globalMaxMessages,
           truncateThreshold: globalTruncateThreshold,
           compressModelId: globalCompressModelId || null
         }}
@@ -861,7 +878,13 @@ function ContextManagementFields({
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
-  globalDefaults: { compressEnabled: boolean; truncateThreshold: number; compressModelId: string | null }
+  globalDefaults: {
+    enabled: boolean
+    compressEnabled: boolean
+    truncateThreshold: number
+    maxMessages: number | null
+    compressModelId: string | null
+  }
 }) {
   const { t } = useTranslation()
   const values = form.watch()
@@ -881,14 +904,68 @@ function ContextManagementFields({
 
   return (
     <>
+      <FormField
+        control={form.control}
+        name="contextMaxMessages"
+        render={({ field }) => (
+          <FormItem>
+            <FieldLabelWithHelp
+              label={t('library.config.basic.context_count')}
+              help={t('library.config.basic.field.context_count.hint')}
+            />
+            <FormControl>
+              {/* Outside the override group: scope is not an overflow policy. */}
+              <EditableNumber
+                block
+                min={1}
+                step={1}
+                precision={0}
+                align="start"
+                changeOnBlur
+                placeholder={
+                  globalDefaults.maxMessages === null
+                    ? t('library.config.basic.context_count_unlimited')
+                    : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
+                }
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                value={field.value}
+                onChange={(value) => field.onChange(value === null ? null : Math.floor(value))}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
       <ToggleFieldGroup
         label={t('library.config.basic.context_management')}
         description={t('library.config.basic.field.context_management.hint')}
         enabled={values.contextOverrideEnabled}
         onEnabledChange={onOverrideToggle}
       />
+      {!globalDefaults.enabled ? (
+        // Stored but inert while the global master switch is off — say so
+        // rather than showing live-looking controls.
+        <div className="-mt-2 text-muted-foreground text-xs leading-5">
+          {t('library.config.basic.context_globally_disabled')}
+        </div>
+      ) : null}
+      {!values.contextOverrideEnabled && globalDefaults.enabled ? (
+        // Name what is being inherited: the values only become visible once the
+        // override is on, so without this the user overrides a blank.
+        <div className="-mt-2 text-muted-foreground text-xs leading-5">
+          {t('library.config.basic.context_inherited', {
+            compress: globalDefaults.compressEnabled
+              ? t('library.config.basic.context_inherited_compress_on')
+              : t('library.config.basic.context_inherited_compress_off'),
+            threshold: globalDefaults.truncateThreshold
+          })}
+        </div>
+      ) : null}
       {values.contextOverrideEnabled ? (
-        <div className="grid gap-4 border-border/60 border-l pl-4">
+        // Indent alone carries the subordination — a rule here spanned the
+        // parent row's padding and read as a stray edge.
+        <div className="-mt-2 grid gap-4 pl-4">
           <FormField
             control={form.control}
             name="contextCompressEnabled"
@@ -927,15 +1004,21 @@ function ContextManagementFields({
                 <FormControl>
                   <EditableNumber
                     block
-                    min={1}
-                    step={1000}
+                    // Same floor and step as the global panel — this doubles as
+                    // fs_read's per-call cap. See MIN_TRUNCATE_THRESHOLD.
+                    min={MIN_TRUNCATE_THRESHOLD}
+                    step={1}
                     precision={0}
                     align="start"
                     changeOnBlur
                     className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                     value={field.value}
                     onChange={(value) =>
-                      field.onChange(typeof value === 'number' && value > 0 ? value : globalDefaults.truncateThreshold)
+                      field.onChange(
+                        typeof value === 'number' && Number.isFinite(value)
+                          ? Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value))
+                          : globalDefaults.truncateThreshold
+                      )
                     }
                   />
                 </FormControl>

@@ -90,12 +90,11 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   if (loadState.status === 'error') return <TextPreviewError />
 
   return (
-    <div className="min-h-full w-full">
+    <div className="flex min-h-full w-full">
       <CodeViewer
         value={loadState.content}
         language={getLanguageByFilePath(filePath)}
-        wrapped={false}
-        className="min-h-full w-full"
+        className="min-w-0 flex-1 overflow-hidden"
       />
     </div>
   )

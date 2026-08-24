@@ -2,7 +2,7 @@
  * Build the `ChatWriteActions` bag passed down through context.
  *
  * Everything here is a write-side handler (delete / edit / regenerate /
- * resend / fork / setActiveNode / clearTopic) that:
+ * resend / fork / setActiveNode) that:
  *   1. seeds the optimistic branch-response cache and/or mutates
  *      `useChat.state.messages`,
  *   2. fires the DataApi mutation trigger (from `useBranchCacheOps`),
@@ -14,10 +14,11 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
+import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
@@ -72,6 +73,7 @@ function getInheritedTurnOptions(
 function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
   return {
     ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
+    ...(turnOptions?.serviceTier !== undefined && { serviceTier: turnOptions.serviceTier }),
     ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
   }
 }
@@ -85,7 +87,7 @@ interface Params {
   stop: () => Promise<void>
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
-  seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
+  seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void>
   scrollToBottom: () => void
   startNewContextBlocked: boolean
   assistant?: Assistant
@@ -118,14 +120,12 @@ export function useChatWriteActions(params: Params): Result {
     seedOptimisticBranch,
     seedReservedMessages: seedMessagesCache,
     rollbackBranch,
-    clearBranchCache,
     deleteMessageTrigger,
     deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
     createMessageTrigger,
-    setActiveNodeTrigger,
-    clearTopicMessagesTrigger
+    setActiveNodeTrigger
   } = cache
   const startNewContextPromiseRef = useRef<Promise<void> | null>(null)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
@@ -194,18 +194,6 @@ export function useChatWriteActions(params: Params): Result {
     uiMessages
   ])
   const canStartNewContext = Boolean(activeNodeId) && !startNewContextBlocked && !isStartingNewContext
-
-  const handleClearTopicMessages = useCallback(async () => {
-    await clearBranchCache()
-    try {
-      const result = await clearTopicMessagesTrigger({ params: { topicId: topic.id } })
-      invalidateCachedMessageUiStates(result.deletedIds)
-      logger.info('Cleared all messages', { topicId: topic.id, count: result.deletedIds.length })
-    } catch (err) {
-      await rollbackBranch()
-      throw err
-    }
-  }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
   const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
     (id: string) => {
@@ -320,6 +308,53 @@ export function useChatWriteActions(params: Params): Result {
           ? (options?.modelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
           : options?.modelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
+      const targetStatus = target?.metadata?.status
+      const isFailedAssistant =
+        target?.role === 'assistant' &&
+        targetStatus !== 'pending' &&
+        (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
+      const canRetryInPlace =
+        isFailedAssistant &&
+        parentAnchorId !== undefined &&
+        regenModelId !== undefined &&
+        (options?.modelId === undefined || options.modelId === target.metadata?.modelId)
+
+      if (canRetryInPlace) {
+        const ack = await ipcApi.request('ai.stream.open', {
+          trigger: 'regenerate-message',
+          topicId: topic.id,
+          parentAnchorId,
+          retryMessageId: target.id,
+          mentionedModelIds: [regenModelId],
+          ...turnOptionsRequestFields(turnOptions)
+        })
+        if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        await seedReservedMessages(ack.reservedMessages ?? [], {
+          activeExecutions: ack.activeExecutions,
+          preserveActiveNode: ack.preserveActiveNode
+        })
+        return
+      }
+
+      // The message toolbar's @ picker is an explicit request to add the selected model to this
+      // reply group. Main decides atomically whether the group is still live: live groups append a
+      // new execution without moving activeNodeId; settled groups use the ordinary regenerate path.
+      if (target?.role === 'assistant' && parentAnchorId && options?.modelId) {
+        const ack = await ipcApi.request('ai.stream.open', {
+          trigger: 'regenerate-message',
+          topicId: topic.id,
+          parentAnchorId,
+          appendToLiveGroupMessageId: target.id,
+          mentionedModelIds: [options.modelId],
+          ...turnOptionsRequestFields(turnOptions)
+        })
+        if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        await seedReservedMessages(ack.reservedMessages ?? [], {
+          activeExecutions: ack.activeExecutions,
+          preserveActiveNode: ack.preserveActiveNode
+        })
+        return
+      }
 
       // PR 3: hydrate `useChat.state.messages` with the current DB-fresh
       // snapshot synchronously, right before the AI SDK's regenerate uses it
@@ -340,7 +375,7 @@ export function useChatWriteActions(params: Params): Result {
       })
       await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages]
+    [regenerate, capabilityBody, uiMessages, setMessages, seedReservedMessages, topic.id]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
@@ -390,7 +425,10 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
-      await seedReservedMessages(ack.reservedMessages ?? [])
+      await seedReservedMessages(ack.reservedMessages ?? [], {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: ack.preserveActiveNode
+      })
     },
     [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
   )
@@ -423,7 +461,10 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
-      await seedReservedMessages(ack.reservedMessages ?? [])
+      await seedReservedMessages(ack.reservedMessages ?? [], {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: ack.preserveActiveNode
+      })
     },
     [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
   )
@@ -478,6 +519,12 @@ export function useChatWriteActions(params: Params): Result {
     [setActiveNodeTrigger, topic.id]
   )
 
+  const handlePause = useCallback<ChatWriteActions['pause']>(() => {
+    void stop().catch((error) => {
+      logger.error('Failed to pause chat stream', { topicId: topic.id, error })
+    })
+  }, [stop, topic.id])
+
   const actions = useMemo<ChatWriteActions>(
     () => ({
       canStartNewContext,
@@ -487,8 +534,7 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
-      pause: stop,
-      clearTopicMessages: handleClearTopicMessages,
+      pause: handlePause,
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
@@ -503,8 +549,7 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       handleDeleteMessage,
       handleDeleteMessageGroup,
-      stop,
-      handleClearTopicMessages,
+      handlePause,
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,

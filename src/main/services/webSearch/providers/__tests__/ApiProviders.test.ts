@@ -1193,6 +1193,75 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('sends a markdown contents request and normalizes the crawled page', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-contents-response.json')))
+
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.querit.ai' }]
+      })
+    )
+
+    const result = await provider.fetchUrls('https://querit.example/article', runtimeConfig)
+    const request = toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])
+
+    expect(request.url).toBe('https://api.querit.ai/v1/contents')
+    expect(request.method).toBe('POST')
+    expect(request.headers.authorization).toBe('Bearer querit-key')
+    expect(request.body).toEqual({
+      urls: ['https://querit.example/article'],
+      format: 'markdown',
+      extrasMeta: true
+    })
+    expect(result).toEqual({
+      query: 'https://querit.example/article',
+      providerId: 'querit',
+      capability: 'fetchUrls',
+      inputs: ['https://querit.example/article'],
+      results: [
+        {
+          title: 'Querit Article',
+          content: '# Querit Article\n\nQuerit crawled markdown content.',
+          url: 'https://querit.example/article',
+          sourceInput: 'https://querit.example/article'
+        }
+      ]
+    })
+  })
+
+  it('rejects Querit contents responses that report an error or return no content', async () => {
+    fetchMock
+      .mockResolvedValueOnce(createJsonResponse({ error_code: 429, error_msg: 'Rate limit exceeded', results: [] }))
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          error_code: 200,
+          error_msg: '',
+          results: [{ url: 'https://querit.example/article', content: '  ' }]
+        })
+      )
+
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.querit.ai' }]
+      })
+    )
+
+    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toThrow(
+      'Querit contents failed: Rate limit exceeded'
+    )
+    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toThrow(
+      'Querit contents returned empty content for https://querit.example/article'
+    )
+  })
+
   it('matches Zhipu request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('zhipu-response.json')))
 

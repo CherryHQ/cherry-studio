@@ -65,7 +65,7 @@ describe('dashscope (Bailian) endpoint matrix', () => {
 })
 
 describe('deepseek endpoint matrix', () => {
-  it('uses the native OpenAI adapter for the official Responses endpoint', () => {
+  it('serves the official Responses endpoint through the OpenAI adapter', () => {
     expect(provider('deepseek').endpointConfigs?.['openai-responses']).toEqual({
       adapterFamily: 'openai',
       baseUrl: 'https://api.deepseek.com',
@@ -78,17 +78,9 @@ describe('deepseek endpoint matrix', () => {
       {
         id: 'web-search',
         modelScope: 'model-dependent',
-        modelIdPrefixes: ['deepseek-v4-flash'],
+        modelIdPrefixes: ['deepseek-v4-flash', 'deepseek-v4-pro'],
         endpointTypes: ['openai-responses']
       }
-    ])
-  })
-
-  it('prefers Responses for V4 Flash while keeping Chat Completions selectable', () => {
-    expect(endpointsOf('deepseek', 'deepseek-v4-flash')).toEqual([
-      'openai-responses',
-      'openai-chat-completions',
-      'anthropic-messages'
     ])
   })
 
@@ -97,12 +89,19 @@ describe('deepseek endpoint matrix', () => {
    * https://api.deepseek.com/anthropic) documents V4 Pro and V4 Flash only — it maps `claude-opus*`
    * onto v4-pro, `claude-sonnet*`/`claude-haiku*` onto v4-flash, and silently rewrites any other
    * model name to v4-flash. So chat/reasoner stay off it: reaching them through it would serve a
-   * different model than the one selected. It trails Chat Completions on both V4 SKUs because
+   * different model than the one selected. It trails the other two on every V4 SKU because
    * `endpointTypes[0]` is what routes in-app chat.
    */
-  it('exposes the Anthropic-compatible endpoint on V4 Pro without displacing its Chat default', () => {
-    expect(endpointsOf('deepseek', 'deepseek-v4-pro')).toEqual(['openai-chat-completions', 'anthropic-messages'])
-  })
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
+    'prefers Responses for %s while keeping Chat Completions selectable',
+    (modelId) => {
+      expect(endpointsOf('deepseek', modelId)).toEqual([
+        'openai-responses',
+        'openai-chat-completions',
+        'anthropic-messages'
+      ])
+    }
+  )
 
   it.each(['deepseek-chat', 'deepseek-reasoner'])(
     'pins %s to Chat Completions, the only endpoint DeepSeek serves it on',
@@ -120,11 +119,17 @@ describe('deepseek endpoint matrix', () => {
  * prints chat/completions for Grok 4.5, months after models.dev moved it to the OpenAI SDK (#17860).
  */
 describe('opencode (Zen Go) endpoint matrix', () => {
-  it('uses the native OpenAI adapter for the Responses endpoint', () => {
-    expect(provider('opencode').endpointConfigs?.['openai-responses']).toEqual({
+  it('serves the Responses endpoint through the OpenAI adapter', () => {
+    const endpoint = provider('opencode').endpointConfigs?.['openai-responses']
+
+    expect(endpoint).toMatchObject({
       adapterFamily: 'openai',
       baseUrl: 'https://opencode.ai/zen/go/v1',
       reasoningFormat: { type: 'openai-responses' }
+    })
+    expect(endpoint?.reasoningFormat?.wire?.effort?.operations).toContainEqual({
+      target: 'reasoningSummary',
+      value: { source: 'assistant-summary' }
     })
   })
 

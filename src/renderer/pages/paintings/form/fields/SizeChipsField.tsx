@@ -12,7 +12,7 @@ const DEFAULT_COLUMNS = 3
 const chipClass = {
   base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] px-1 py-1 text-[11px] leading-tight transition-all',
   active:
-    'bg-secondary-active text-foreground ring-1 ring-[color:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)]',
+    'bg-secondary-active text-foreground ring-1 ring-inset ring-[color:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)]',
   inactive: 'bg-muted text-foreground-tertiary hover:bg-secondary-hover hover:text-foreground',
   disabled: 'cursor-not-allowed opacity-50'
 }
@@ -85,7 +85,6 @@ export default function SizeChipsField({
             type="button"
             key={optionValue}
             disabled={disabled}
-            title={label}
             className={cn(
               chipClass.base,
               isSelected ? chipClass.active : chipClass.inactive,

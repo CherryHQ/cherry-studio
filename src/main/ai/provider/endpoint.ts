@@ -113,11 +113,14 @@ export function resolveProviderOptionsKey(
   if (context?.gatewayProviderOptionsKey) return context.gatewayProviderOptionsKey
 
   switch (providerId) {
+    // open-responses included: `createOpenResponses({ name: 'openai' })` keeps
+    // the wire namespace 'openai'.
     case 'openai':
     case 'openai-chat':
     case 'azure':
     case 'azure-responses':
     case 'huggingface':
+    case 'open-responses':
       return 'openai'
     case 'anthropic':
     case 'azure-anthropic':
@@ -151,4 +154,19 @@ export function resolveProviderOptionsKey(
     default:
       return providerId
   }
+}
+
+/**
+ * Single derivation of the providerOptions namespace for a resolved endpoint:
+ * adapter id via {@link resolveAiSdkProviderId}, then its namespace via
+ * {@link resolveProviderOptionsKey}. Gateway consumers must use this instead of
+ * composing the two calls themselves so reasoning options and other
+ * provider-option writers can never disagree on the namespace.
+ */
+export function resolveEndpointProviderOptionsKey(provider: Provider, resolvedEndpoint: ResolvedEndpoint): string {
+  return resolveProviderOptionsKey(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType), {
+    actualProviderId: provider.id,
+    endpointType: resolvedEndpoint.endpointType,
+    gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+  })
 }

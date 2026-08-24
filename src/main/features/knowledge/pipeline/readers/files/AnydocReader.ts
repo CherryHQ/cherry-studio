@@ -31,7 +31,7 @@ function normalizeError(error: unknown): Error {
  */
 export class AnydocReader extends FileReader<Document<Metadata>> {
   constructor(
-    private readonly createFallback?: () => FileReader<Document<Metadata>>,
+    private readonly createFallback?: () => FileReader<Document<Metadata>> | Promise<FileReader<Document<Metadata>>>,
     private readonly fallbackOnEmpty = false
   ) {
     super()
@@ -50,7 +50,7 @@ export class AnydocReader extends FileReader<Document<Metadata>> {
       if (!this.createFallback) {
         throw normalizedError
       }
-      return this.createFallback().loadDataAsContent(fileContent, filename)
+      return (await this.createFallback()).loadDataAsContent(fileContent, filename)
     }
 
     let markdown: string
@@ -63,7 +63,7 @@ export class AnydocReader extends FileReader<Document<Metadata>> {
         throw normalizedError
       }
       logger.warn('anydoc conversion failed, falling back to the legacy reader', normalizedError, { filename })
-      return this.createFallback().loadDataAsContent(fileContent, filename)
+      return (await this.createFallback()).loadDataAsContent(fileContent, filename)
     }
 
     if (markdown) {
@@ -71,7 +71,7 @@ export class AnydocReader extends FileReader<Document<Metadata>> {
     }
     if (this.fallbackOnEmpty && this.createFallback) {
       logger.warn('anydoc conversion produced no text, falling back to the legacy reader', { filename })
-      return this.createFallback().loadDataAsContent(fileContent, filename)
+      return (await this.createFallback()).loadDataAsContent(fileContent, filename)
     }
     if (!this.createFallback) {
       const error = new Error('anydoc conversion produced no text')

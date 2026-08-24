@@ -1,6 +1,7 @@
 import { createProxyBypassMatcher } from '@main/services/proxy/bypassRules'
 import { configureWorkerProxy } from '@main/services/proxy/workerProxy'
 
+import { CPU_LOCAL_INFERENCE_PROFILE } from './inferenceAcceleration'
 import { l2normalize } from './pooling'
 
 /**
@@ -34,6 +35,8 @@ let appPath = null
 let transformers = null
 let ppu = null
 let proxyStatus = 'not-initialized'
+const CPU_RUNTIME_PROFILE = ${JSON.stringify(CPU_LOCAL_INFERENCE_PROFILE)}
+let runtimeProfile = CPU_RUNTIME_PROFILE
 const pipelines = new Map() // key: modelDir|dtype -> Promise<extractor>
 const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
 
@@ -69,7 +72,8 @@ function requestLogContext(msg) {
   const context = ['request=' + msg.type, 'proxy=' + proxyStatus]
   if (typeof msg.modelRepo === 'string') context.push('model=' + JSON.stringify(msg.modelRepo))
   if (typeof msg.modelDir === 'string') context.push('modelDir=' + JSON.stringify(msg.modelDir))
-  if (msg.source) {
+  // OCR carries its own \`source\` (where the image comes from); only a download source has a remoteHost.
+  if (msg.source && typeof msg.source.remoteHost === 'string') {
     let origin
     try {
       origin = new URL(msg.source.remoteHost).origin
@@ -124,7 +128,15 @@ function getLocalPipeline(modelDir, dtype) {
       // Leave env.remoteHost/remotePathTemplate untouched: an absolute model id never
       // consults them, and clearing them would race the download path sharing this env.
       if (cacheDir) env.cacheDir = cacheDir
-      return pipeline('feature-extraction', modelDir, { dtype, device: 'cpu' })
+      const extractor = await pipeline('feature-extraction', modelDir, {
+        dtype,
+        device: runtimeProfile.transformersDevice,
+        session_options: runtimeProfile.embeddingSessionOptions || runtimeProfile.sessionOptions
+      })
+      if (runtimeProfile.id !== 'cpu') {
+        postLog('info', 'hardware provider active provider=' + runtimeProfile.id + ' runtime=embedding')
+      }
+      return extractor
     })()
     pipelines.set(key, promise)
     // Drop the cached promise on failure so a later request can retry.
@@ -196,15 +208,32 @@ function getPaddleService(modelPaths) {
   if (!promise) {
     promise = (async () => {
       const { PaddleOcrService } = await getPpu()
+      let sessionFallbackError = null
       const service = new PaddleOcrService({
         model: {
           detection: modelPaths.detection,
           recognition: modelPaths.recognition,
           charactersDictionary: modelPaths.charactersDictionary
         },
-        session: { executionProviders: ['cpu'] }
+        session: {
+          ...runtimeProfile.sessionOptions,
+          onSessionFallback: (error) => {
+            sessionFallbackError = sessionFallbackError || error
+          }
+        }
       })
       await service.initialize()
+      if (sessionFallbackError) {
+        try {
+          await service.destroy()
+        } catch (error) {
+          postLog('warn', 'failed to dispose internally-fallen-back OCR service error=' + describeError(error))
+        }
+        throw new Error('OCR hardware session fell back internally to CPU', { cause: sessionFallbackError })
+      }
+      if (runtimeProfile.id !== 'cpu') {
+        postLog('info', 'hardware provider active provider=' + runtimeProfile.id + ' runtime=ocr')
+      }
       return service
     })()
     paddleServices.set(key, promise)
@@ -214,13 +243,73 @@ function getPaddleService(modelPaths) {
   return promise
 }
 
-async function handleOcr(msg) {
-  const fs = require('node:fs')
+async function handleOcr(msg, buffer) {
   const service = await getPaddleService(msg.modelPaths)
-  const buffer = fs.readFileSync(msg.imagePath)
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
   const result = await service.recognize(arrayBuffer)
-  parentPort.postMessage({ type: 'result', id: msg.id, text: result.text })
+  parentPort.postMessage({ type: 'result', id: msg.id, text: result.text, lines: result.lines })
+}
+
+async function disposeCachedInference() {
+  const resources = [...pipelines.values(), ...paddleServices.values()]
+  pipelines.clear()
+  paddleServices.clear()
+  const results = await Promise.allSettled(
+    resources.map(async (resourcePromise) => {
+      const resource = await resourcePromise
+      const dispose = typeof resource.dispose === 'function' ? resource.dispose : resource.destroy
+      if (typeof dispose === 'function') await dispose.call(resource)
+    })
+  )
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      postLog('warn', 'failed to dispose cached inference resource error=' + describeError(result.reason))
+    }
+  }
+}
+
+async function runWithHardwareFallback(msg, run) {
+  if (msg.type === 'ocr.recognize') {
+    // File access is request preparation, not a provider failure; keep it outside fallback.
+    const buffer =
+      msg.source.kind === 'bytes' ? msg.source.imageBytes : require('node:fs').readFileSync(msg.source.imagePath)
+    run = () => handleOcr(msg, buffer)
+  }
+
+  try {
+    await run(msg)
+  } catch (hardwareError) {
+    // Downloads already run on CPU, so their failures cannot diagnose a hardware provider.
+    if (msg.type === 'embedding.load' || runtimeProfile.id === 'cpu') throw hardwareError
+
+    const provider = runtimeProfile.id
+    postLog(
+      'warn',
+      'hardware inference failed provider=' +
+        provider +
+        ' ' +
+        requestLogContext(msg) +
+        ' error=' +
+        describeError(hardwareError) +
+        '; falling back to cpu'
+    )
+    await disposeCachedInference()
+    // Keep CPU for this worker's lifetime so later cache misses do not retry a broken provider.
+    runtimeProfile = CPU_RUNTIME_PROFILE
+
+    try {
+      await run(msg)
+    } catch (cpuError) {
+      throw new Error(
+        'hardware inference failed provider=' +
+          provider +
+          ' error=' +
+          describeError(hardwareError) +
+          '; CPU fallback failed error=' +
+          describeError(cpuError)
+      )
+    }
+  }
 }
 
 parentPort.on('message', (msg) => {
@@ -228,6 +317,7 @@ parentPort.on('message', (msg) => {
   if (msg.type === 'init') {
     cacheDir = msg.cacheDir
     appPath = msg.appPath
+    runtimeProfile = msg.runtimeProfile
     const proxy = configureWorkerProxy(appPath, msg.proxyRouting, createProxyBypassMatcher)
     proxyStatus = proxy.status
     if (proxy.status === 'configured') {
@@ -242,7 +332,7 @@ parentPort.on('message', (msg) => {
     }
     // Must be set before the first lazy require of @huggingface/transformers /
     // ppu-paddle-ocr below (getTransformers/getPpu), both of which transitively
-    // require onnxruntime-node — see patches/onnxruntime-node@1.24.3.patch.
+    // require onnxruntime-node — see patches/onnxruntime-node@1.25.1.patch.
     if (msg.onnxRuntimeBindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = msg.onnxRuntimeBindingPath
     return
   }
@@ -260,7 +350,7 @@ parentPort.on('message', (msg) => {
     parentPort.postMessage({ type: 'error', id: msg.id, message: 'unknown message type: ' + msg.type })
     return
   }
-  run(msg).catch((err) => {
+  runWithHardwareFallback(msg, run).catch((err) => {
     postLog('error', 'request failed ' + requestLogContext(msg) + ' error=' + describeError(err))
     parentPort.postMessage({ type: 'error', id: msg.id, message: err && err.message ? err.message : String(err) })
   })

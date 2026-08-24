@@ -1,4 +1,14 @@
-import { Composio, Glama, Higress, Mcp, Mcpso, Modelscope, Pulse, Smithery, Zhipu } from '@cherrystudio/ui/icons'
+import {
+  Composio,
+  Glama,
+  Higress,
+  Mcp,
+  Mcpso,
+  Modelscope,
+  Pulse,
+  Smithery,
+  Zhipu
+} from '@cherrystudio/ui/icons/providers'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { cn } from '@renderer/utils/style'
 import { ExternalLink } from 'lucide-react'
