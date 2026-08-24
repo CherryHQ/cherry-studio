@@ -228,11 +228,11 @@ describe('readCliConfigFiles', () => {
     const auth = new Promise<string>((resolve) => {
       resolveAuth = resolve
     })
-    vi.mocked(read).mockImplementation((absPath) => {
+    vi.mocked(read).mockImplementation(((absPath: Parameters<typeof read>[0]) => {
       if (absPath === codexConfig()) return config
       if (absPath === codexAuth()) return auth
       throw new Error(`Unexpected read(${absPath})`)
-    })
+    }) as typeof read)
     vi.mocked(read).mockClear()
 
     const reading = readCliConfigFiles(['codex-config', 'codex-auth'])
