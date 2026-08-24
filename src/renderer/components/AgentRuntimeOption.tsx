@@ -34,7 +34,7 @@ const RUNTIME_ICONS = {
 
 const COMPACT_RUNTIME_ICON_CLASS: Record<AgentType, string> = {
   'claude-code': 'size-6',
-  pi: 'size-5',
+  pi: 'size-4',
   dsh: 'size-7'
 }
 
