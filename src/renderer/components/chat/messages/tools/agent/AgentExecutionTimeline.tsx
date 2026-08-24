@@ -115,7 +115,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       status={effectiveStatus}
       hasError={status === 'error'}
       isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
-      openFlowOnClick={isSubagentTool || resumedLaunch !== undefined}
+      openFlowOnClick={isSubagentTool || resumeHeader !== undefined}
       flowTargetToolCallId={resumedLaunch?.toolCallId}
       // The flow is the agent's whole timeline — keep its title the launch identity, not the
       // resume request's summary.
