@@ -6385,6 +6385,7 @@
         "loading_models": "Loading available models…",
         "manual_description": "The selected models only support high-cost or unsupported checks. They were added, but the provider remains off. Run a model check and enable the provider manually after confirming it works.",
         "manual_title": "Manual confirmation required",
+        "models_check_title": "Choose models to check",
         "models_empty_hint": "Your API key is saved. Choose at least one model to finish setup.",
         "models_title": "Choose models",
         "no_models": "The provider returned no available models.",

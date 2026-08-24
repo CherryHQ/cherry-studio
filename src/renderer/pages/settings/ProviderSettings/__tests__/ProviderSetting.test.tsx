@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderSetting from '../ProviderSetting'
@@ -28,9 +29,16 @@ vi.mock('../components/ProviderHeader', () => ({
 vi.mock('../ConnectionSettings/AuthenticationSection', async () => {
   const { useAuthenticationApiKey } = await import('../hooks/providerSetting/useAuthenticationApiKey')
 
-  function AuthenticationSectionMock({ providerId }: any) {
+  function AuthenticationSectionMock({ providerId, onContinueApiSetup }: any) {
     const { inputApiKey } = useAuthenticationApiKey()
-    return <div>{`authentication-section-${providerId}-${inputApiKey}`}</div>
+    return (
+      <div>
+        {`authentication-section-${providerId}-${inputApiKey}`}
+        <button type="button" onClick={onContinueApiSetup}>
+          continue-model-setup
+        </button>
+      </div>
+    )
   }
 
   return {
@@ -39,7 +47,9 @@ vi.mock('../ConnectionSettings/AuthenticationSection', async () => {
 })
 
 vi.mock('../ConnectionSettings/ProviderApiSetupDialog', () => ({
-  default: ({ initialStep }: any) => <div role="dialog" aria-label={`api-setup-${initialStep}`} />
+  default: ({ initialStep, modelSelectionMode }: any) => (
+    <div role="dialog" aria-label={`api-setup-${initialStep}-${modelSelectionMode}`} />
+  )
 }))
 
 vi.mock('../ModelList', async () => {
@@ -87,7 +97,16 @@ describe('ProviderSetting', () => {
   it('opens the requested setup step when a newly created provider is selected', () => {
     render(<ProviderSetting providerId="openai" initialApiSetupStep="models" />)
 
-    expect(screen.getByRole('dialog', { name: 'api-setup-models' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'api-setup-models-setup' })).toBeInTheDocument()
+  })
+
+  it('opens check-oriented model setup from the authentication action', async () => {
+    const user = userEvent.setup()
+    render(<ProviderSetting providerId="openai" />)
+
+    await user.click(screen.getByRole('button', { name: 'continue-model-setup' }))
+
+    expect(screen.getByRole('dialog', { name: 'api-setup-models-check' })).toBeInTheDocument()
   })
 
   it('renders nothing when the provider is missing', () => {

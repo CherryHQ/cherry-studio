@@ -6385,6 +6385,7 @@
         "loading_models": "正在載入可用模型…",
         "manual_description": "所選模型僅支援高成本檢測，或暫不支援自動檢測。模型已新增，但服務商仍保持關閉。請手動執行模型檢測，確認可用後再啟用服務商。",
         "manual_title": "需要手動確認",
+        "models_check_title": "選擇要檢測的模型",
         "models_empty_hint": "API 金鑰已儲存。請選擇至少一個模型以完成設定。",
         "models_title": "選擇模型",
         "no_models": "服務商未傳回任何可用模型。",

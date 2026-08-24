@@ -11,16 +11,20 @@ import { AlertCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { ModelListSyncContent, useModelListSyncView, useProviderModelPullReconcile } from '../ModelList'
+import { ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
 import { chunkArray } from '../utils/chunkArray'
 import { checkApi, getModelHealthCheckSkipReason, healthCheckErrorToDisplayString } from '../utils/healthCheck'
 import { resolveCreateModelEndpointTypes, toCreateModelDto } from '../utils/modelSync'
 
 export type ProviderApiSetupInitialStep = 'api-key' | 'models'
+export type ProviderApiSetupModelSelectionMode = 'setup' | 'check'
 
 interface ProviderApiSetupDialogProps {
   providerId: string
   initialStep: ProviderApiSetupInitialStep
+  modelSelectionMode?: ProviderApiSetupModelSelectionMode
   onClose: () => void
 }
 
@@ -42,9 +46,15 @@ function safeErrorSummary(error: unknown, apiKeys: string[]) {
   )
 }
 
-export default function ProviderApiSetupDialog({ providerId, initialStep, onClose }: ProviderApiSetupDialogProps) {
+export default function ProviderApiSetupDialog({
+  providerId,
+  initialStep,
+  modelSelectionMode = 'setup',
+  onClose
+}: ProviderApiSetupDialogProps) {
   const { t } = useTranslation()
   const { provider, addApiKey, updateApiKey, updateProvider, enableProvider } = useProvider(providerId)
+  const providerMeta = useProviderMeta(providerId)
   const { data: apiKeysData, isLoading: isLoadingApiKeys } = useProviderApiKeys(providerId)
   const { createModels } = useModelMutations()
   const {
@@ -335,28 +345,43 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         )}>
         <DialogHeader>
           <DialogTitle>
-            {t(step === 'api-key' ? 'settings.provider.api_setup.add_key' : 'settings.provider.api_setup.models_title')}
+            {t(
+              step === 'api-key'
+                ? 'settings.provider.api_setup.add_key'
+                : modelSelectionMode === 'check'
+                  ? 'settings.provider.api_setup.models_check_title'
+                  : 'settings.provider.api_setup.models_title'
+            )}
           </DialogTitle>
         </DialogHeader>
 
         {step === 'api-key' ? (
           <div className="space-y-4">
-            <Input
-              autoFocus
-              type="password"
-              value={apiKey}
-              disabled={isBusy}
-              spellCheck={false}
-              placeholder={t('settings.provider.api.key.new_key.placeholder')}
-              aria-label={t('settings.provider.api_key.label')}
-              onChange={(event) => setApiKey(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && apiKey.trim()) {
-                  event.preventDefault()
-                  void saveApiKey()
-                }
-              }}
-            />
+            <div className="space-y-2">
+              <Input
+                autoFocus
+                type="password"
+                value={apiKey}
+                disabled={isBusy}
+                spellCheck={false}
+                placeholder={t('settings.provider.api.key.new_key.placeholder')}
+                aria-label={t('settings.provider.api_key.label')}
+                onChange={(event) => setApiKey(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && apiKey.trim()) {
+                    event.preventDefault()
+                    void saveApiKey()
+                  }
+                }}
+              />
+              {providerMeta.apiKeyWebsite && !providerMeta.isDmxapi ? (
+                <div className="flex">
+                  <ProviderHelpLink target="_blank" rel="noreferrer" href={providerMeta.apiKeyWebsite} className="mx-0">
+                    {t('settings.provider.get_api_key')}
+                  </ProviderHelpLink>
+                </div>
+              ) : null}
+            </div>
             {error?.kind === 'api-key' ? <SetupErrorMessage message={error.message} /> : null}
           </div>
         ) : (

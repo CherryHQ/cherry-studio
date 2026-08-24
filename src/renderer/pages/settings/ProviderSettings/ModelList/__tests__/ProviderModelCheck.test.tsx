@@ -36,4 +36,26 @@ describe('ProviderModelCheck', () => {
 
     expect(screen.getByRole('button', { name: 'settings.models.check.checking' })).toBeDisabled()
   })
+
+  it('opens model setup from the enabled check action when no models exist', () => {
+    const onAddModels = vi.fn()
+    healthState.models = []
+
+    render(<ProviderModelCheck onAddModels={onAddModels} />)
+
+    const checkButton = screen.getByRole('button', { name: 'settings.models.check.button_caption' })
+    expect(checkButton).toBeEnabled()
+
+    fireEvent.click(checkButton)
+    expect(onAddModels).toHaveBeenCalledOnce()
+    expect(openModelCheck).not.toHaveBeenCalled()
+  })
+
+  it('keeps the model check unavailable when no setup action is provided', () => {
+    healthState.models = []
+
+    render(<ProviderModelCheck />)
+
+    expect(screen.getByRole('button', { name: 'settings.models.check.button_caption' })).toBeDisabled()
+  })
 })

@@ -6385,6 +6385,7 @@
         "loading_models": "Se încarcă modelele disponibile…",
         "manual_description": "Modelele selectate acceptă doar verificări costisitoare sau neacceptate. Au fost adăugate, dar furnizorul rămâne dezactivat. Rulează o verificare a modelului și activează manual furnizorul după ce confirmi că funcționează.",
         "manual_title": "Este necesară confirmarea manuală",
+        "models_check_title": "Alege modelele de verificat",
         "models_empty_hint": "Cheia API este salvată. Alege cel puțin un model pentru a finaliza configurarea.",
         "models_title": "Alege modelele",
         "no_models": "Furnizorul nu a returnat niciun model disponibil.",

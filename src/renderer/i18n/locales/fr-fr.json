@@ -6385,6 +6385,7 @@
         "loading_models": "Chargement des modèles disponibles…",
         "manual_description": "Les modèles sélectionnés ne prennent en charge que des vérifications coûteuses ou non compatibles. Ils ont été ajoutés, mais le fournisseur reste désactivé. Lancez une vérification de modèle, puis activez manuellement le fournisseur après avoir confirmé son fonctionnement.",
         "manual_title": "Confirmation manuelle requise",
+        "models_check_title": "Choisir les modèles à vérifier",
         "models_empty_hint": "Votre clé API est enregistrée. Choisissez au moins un modèle pour terminer la configuration.",
         "models_title": "Choisir les modèles",
         "no_models": "Le fournisseur n’a renvoyé aucun modèle disponible.",

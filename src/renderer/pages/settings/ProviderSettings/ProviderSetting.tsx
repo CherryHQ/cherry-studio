@@ -7,7 +7,10 @@ import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
-import ProviderApiSetupDialog, { type ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
+import ProviderApiSetupDialog, {
+  type ProviderApiSetupInitialStep,
+  type ProviderApiSetupModelSelectionMode
+} from './ConnectionSettings/ProviderApiSetupDialog'
 import { ApiKeyProvider } from './hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderApiKey } from './hooks/providerSetting/useProviderApiKey'
 import { ModelList, ModelListHealthProvider } from './ModelList'
@@ -17,6 +20,11 @@ interface ProviderSettingProps {
   providerId: string
   initialApiSetupStep?: ProviderApiSetupInitialStep
   onApiSetupClosed?: () => void
+}
+
+interface ProviderApiSetupRequest {
+  initialStep: ProviderApiSetupInitialStep
+  modelSelectionMode: ProviderApiSetupModelSelectionMode
 }
 
 function ProviderSettingSections({
@@ -31,17 +39,20 @@ function ProviderSettingSections({
   onApiSetupClosed?: () => void
 }) {
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
-  const [apiSetupInitialStep, setApiSetupInitialStep] = useState<ProviderApiSetupInitialStep | null>(
-    () => initialApiSetupStep ?? null
+  const [apiSetupRequest, setApiSetupRequest] = useState<ProviderApiSetupRequest | null>(() =>
+    initialApiSetupStep ? { initialStep: initialApiSetupStep, modelSelectionMode: 'setup' } : null
   )
   const requestModelPullGuide = useCallback(() => {
     setModelPullGuideVersion((version) => version + 1)
   }, [])
-  const openApiSetup = useCallback((initialStep: ProviderApiSetupInitialStep) => {
-    setApiSetupInitialStep(initialStep)
-  }, [])
+  const openApiSetup = useCallback(
+    (initialStep: ProviderApiSetupInitialStep, modelSelectionMode: ProviderApiSetupModelSelectionMode = 'setup') => {
+      setApiSetupRequest({ initialStep, modelSelectionMode })
+    },
+    []
+  )
   const closeApiSetup = useCallback(() => {
-    setApiSetupInitialStep(null)
+    setApiSetupRequest(null)
     onApiSetupClosed?.()
   }, [onApiSetupClosed])
 
@@ -53,6 +64,7 @@ function ProviderSettingSections({
             providerId={providerId}
             onRequestModelPullGuide={requestModelPullGuide}
             onOpenApiSetup={() => openApiSetup('api-key')}
+            onContinueApiSetup={() => openApiSetup('models', 'check')}
           />
           <div className="flex min-h-0 flex-1 flex-col">
             <ModelList
@@ -63,8 +75,13 @@ function ProviderSettingSections({
           </div>
         </div>
       </Scrollbar>
-      {apiSetupInitialStep ? (
-        <ProviderApiSetupDialog providerId={providerId} initialStep={apiSetupInitialStep} onClose={closeApiSetup} />
+      {apiSetupRequest ? (
+        <ProviderApiSetupDialog
+          providerId={providerId}
+          initialStep={apiSetupRequest.initialStep}
+          modelSelectionMode={apiSetupRequest.modelSelectionMode}
+          onClose={closeApiSetup}
+        />
       ) : null}
     </>
   )

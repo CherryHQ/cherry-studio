@@ -5,12 +5,14 @@ interface AuthenticationSectionProps {
   providerId: string
   onRequestModelPullGuide?: () => void
   onOpenApiSetup?: () => void
+  onContinueApiSetup?: () => void
 }
 
 export default function AuthenticationSection({
   providerId,
   onRequestModelPullGuide,
-  onOpenApiSetup
+  onOpenApiSetup,
+  onContinueApiSetup
 }: AuthenticationSectionProps) {
   return (
     <AuthConnectionSlotsLayout providerId={providerId}>
@@ -18,6 +20,7 @@ export default function AuthenticationSection({
         providerId={providerId}
         onRequestModelPullGuide={onRequestModelPullGuide}
         onOpenApiSetup={onOpenApiSetup}
+        onContinueApiSetup={onContinueApiSetup}
       />
     </AuthConnectionSlotsLayout>
   )

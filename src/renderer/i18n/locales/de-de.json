@@ -6385,6 +6385,7 @@
         "loading_models": "Verfügbare Modelle werden geladen…",
         "manual_description": "Die ausgewählten Modelle unterstützen nur kostenintensive oder nicht unterstützte Prüfungen. Sie wurden hinzugefügt, der Anbieter bleibt jedoch deaktiviert. Führen Sie eine Modellprüfung aus und aktivieren Sie den Anbieter nach erfolgreicher Bestätigung manuell.",
         "manual_title": "Manuelle Bestätigung erforderlich",
+        "models_check_title": "Zu prüfende Modelle auswählen",
         "models_empty_hint": "Ihr API-Schlüssel ist gespeichert. Wählen Sie mindestens ein Modell aus, um die Einrichtung abzuschließen.",
         "models_title": "Modelle auswählen",
         "no_models": "Der Anbieter hat keine verfügbaren Modelle zurückgegeben.",

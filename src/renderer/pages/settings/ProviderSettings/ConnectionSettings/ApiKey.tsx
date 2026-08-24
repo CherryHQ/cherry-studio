@@ -18,6 +18,7 @@ interface ApiKeyProps {
   providerId: string
   onRequestModelPullGuide?: () => void
   onOpenApiSetup?: () => void
+  onContinueApiSetup?: () => void
 }
 
 function maskStoredApiKey(key: string) {
@@ -25,7 +26,12 @@ function maskStoredApiKey(key: string) {
   return maskedKey === key ? '••••••••' : maskedKey
 }
 
-export default function ApiKey({ providerId, onRequestModelPullGuide, onOpenApiSetup }: ApiKeyProps) {
+export default function ApiKey({
+  providerId,
+  onRequestModelPullGuide,
+  onOpenApiSetup,
+  onContinueApiSetup
+}: ApiKeyProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const meta = useProviderMeta(providerId)
@@ -105,7 +111,7 @@ export default function ApiKey({ providerId, onRequestModelPullGuide, onOpenApiS
                     <span className="shrink-0 text-muted-foreground text-xs">+{apiKeys.length - 1}</span>
                   ) : null}
                 </button>
-                <ProviderModelCheck />
+                <ProviderModelCheck onAddModels={onContinueApiSetup} />
               </div>
             ) : (
               <div className={fieldClasses.inputRow}>

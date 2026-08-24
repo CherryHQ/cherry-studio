@@ -8,12 +8,14 @@ export interface AuthenticationSectionContentProps {
   providerId: string
   onRequestModelPullGuide?: () => void
   onOpenApiSetup?: () => void
+  onContinueApiSetup?: () => void
 }
 
 export function AuthenticationSectionContent({
   providerId,
   onRequestModelPullGuide,
-  onOpenApiSetup
+  onOpenApiSetup,
+  onContinueApiSetup
 }: AuthenticationSectionContentProps) {
   const { provider } = useProvider(providerId)
 
@@ -30,6 +32,7 @@ export function AuthenticationSectionContent({
         providerId={providerId}
         onRequestModelPullGuide={onRequestModelPullGuide}
         onOpenApiSetup={onOpenApiSetup}
+        onContinueApiSetup={onContinueApiSetup}
       />
       <ApiHost providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
     </>

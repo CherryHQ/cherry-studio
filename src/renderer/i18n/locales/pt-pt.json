@@ -6385,6 +6385,7 @@
         "loading_models": "A carregar modelos disponíveis…",
         "manual_description": "Os modelos selecionados apenas suportam verificações de custo elevado ou não suportadas. Foram adicionados, mas o fornecedor permanece desativado. Execute uma verificação do modelo e ative manualmente o fornecedor depois de confirmar que funciona.",
         "manual_title": "É necessária confirmação manual",
+        "models_check_title": "Escolher modelos para verificar",
         "models_empty_hint": "A chave de API está guardada. Escolha pelo menos um modelo para concluir a configuração.",
         "models_title": "Escolher modelos",
         "no_models": "O fornecedor não devolveu modelos disponíveis.",

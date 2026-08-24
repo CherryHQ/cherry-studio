@@ -21,6 +21,7 @@ let localModels: Model[] = []
 let storedApiKeys: Array<{ id: string; key: string; isEnabled: boolean }> = []
 let storedApiKeysUnavailable = false
 let storedApiKeysLoading = false
+let providerMeta: { apiKeyWebsite?: string; isDmxapi: boolean }
 let provider = {
   id: 'openai',
   name: 'OpenAI',
@@ -78,6 +79,10 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModelMutations: () => ({ createModels: createModelsMock })
 }))
 
+vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
+  useProviderMeta: () => providerMeta
+}))
+
 vi.mock('@renderer/services/toast', () => ({
   toast: { success: (...args: any[]) => toastSuccessMock(...args) }
 }))
@@ -129,6 +134,10 @@ describe('ProviderApiSetupDialog', () => {
     storedApiKeys = []
     storedApiKeysUnavailable = false
     storedApiKeysLoading = false
+    providerMeta = {
+      apiKeyWebsite: 'https://platform.openai.com/api-keys',
+      isDmxapi: false
+    }
     provider = {
       id: 'openai',
       name: 'OpenAI',
@@ -198,6 +207,24 @@ describe('ProviderApiSetupDialog', () => {
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' })).toBeDisabled()
     expect(enableProviderMock).not.toHaveBeenCalled()
+  })
+
+  it('offers the provider API key website from the key step', () => {
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
+
+    const apiKeyLink = screen.getByRole('link', { name: 'settings.provider.get_api_key' })
+    expect(apiKeyLink).toHaveAttribute('href', 'https://platform.openai.com/api-keys')
+    expect(apiKeyLink).toHaveAttribute('target', '_blank')
+  })
+
+  it('labels model selection entered from the check action', async () => {
+    render(
+      <ProviderApiSetupDialog providerId="openai" initialStep="models" modelSelectionMode="check" onClose={vi.fn()} />
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'settings.provider.api_setup.models_check_title' })
+    ).toBeInTheDocument()
   })
 
   it('stays on the key step when the explicit save fails', async () => {
