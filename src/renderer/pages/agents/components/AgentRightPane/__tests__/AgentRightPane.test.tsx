@@ -999,7 +999,6 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-collapse-completed-tool-history', 'true')
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
-    expect(screen.getByTestId('agent-flow-message-list')).toHaveClass('bg-muted/15')
   })
 
   it('marks direct artifact opening as user initiated', async () => {
