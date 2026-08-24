@@ -228,10 +228,13 @@ export class MainWindowService extends BaseService {
   private setupSpellCheck(mainWindow: BrowserWindow) {
     const preferenceService = application.get('PreferenceService')
     const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
+    mainWindow.webContents.session.setSpellCheckerEnabled(enableSpellCheck)
     if (enableSpellCheck) {
       try {
         const spellCheckLanguages = preferenceService.get('app.spell_check.languages')
-        spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
+        if (spellCheckLanguages.length > 0) {
+          mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
+        }
       } catch (error) {
         logger.error('Failed to set spell check languages:', error as Error)
       }
