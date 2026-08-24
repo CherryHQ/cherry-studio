@@ -6,7 +6,6 @@ import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
-import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
@@ -17,7 +16,7 @@ import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { updateWebSearchProvider } from '@renderer/store/websearch'
-import type { SystemProviderId } from '@renderer/types'
+import type { Provider, SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
@@ -62,6 +61,7 @@ import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
 import OVMSSettings from './OVMSSettings'
+import { buildApiCheckProvider, getApiCheckModels, type ProviderHostField } from './providerCheck'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
@@ -99,8 +99,6 @@ const isAnthropicCompatibleProviderId = (id: string): id is AnthropicCompatibleP
   return ANTHROPIC_COMPATIBLE_PROVIDER_ID_SET.has(id)
 }
 
-type HostField = 'apiHost' | 'anthropicApiHost'
-
 const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
@@ -108,7 +106,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [anthropicApiHost, setAnthropicHost] = useState<string | undefined>(provider.anthropicApiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
-  const [activeHostField, setActiveHostField] = useState<HostField>('apiHost')
+  const [activeHostField, setActiveHostField] = useState<ProviderHostField>('apiHost')
   const { t, i18n } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
@@ -267,7 +265,21 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       return
     }
 
-    const modelsToCheck = models.filter((model) => !isRerankModel(model))
+    let providerToCheck: Provider
+    try {
+      providerToCheck = buildApiCheckProvider({
+        provider,
+        hostField: activeHostField,
+        apiHost,
+        anthropicApiHost: anthropicApiHost ?? provider.anthropicApiHost,
+        apiKey: formattedLocalKey
+      })
+    } catch {
+      window.toast.error(i18n.t('message.error.enter.api.host'))
+      return
+    }
+
+    const modelsToCheck = getApiCheckModels(models, activeHostField)
 
     if (isEmpty(modelsToCheck)) {
       window.toast.error({
@@ -277,7 +289,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       return
     }
 
-    const model = await SelectProviderModelPopup.show({ provider })
+    const model = await SelectProviderModelPopup.show({ provider: { ...provider, models: modelsToCheck } })
 
     if (!model) {
       window.toast.error(i18n.t('message.error.enter.model'))
@@ -286,7 +298,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
 
     try {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: true, status: HealthStatus.NOT_CHECKED }))
-      await checkApi({ ...provider, apiHost, apiKey: formattedLocalKey }, model)
+      await checkApi(providerToCheck, model)
 
       window.toast.success({
         timeout: 2000,
@@ -420,7 +432,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   }, [anthropicApiHost, provider.anthropicApiHost])
 
   const hostSelectorOptions = useMemo(() => {
-    const options: { value: HostField; label: string }[] = [
+    const options: { value: ProviderHostField; label: string }[] = [
       { value: 'apiHost', label: t('settings.provider.api_host') }
     ]
 
