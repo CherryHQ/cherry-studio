@@ -79,6 +79,38 @@ async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promis
   return readCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::gpt-5', configBlob })
 }
 
+describe('CLI config draft file scheduling', () => {
+  it.each([
+    ['codex', CodeCli.OPENAI_CODEX, responsesProvider, 'gpt-5'],
+    ['gemini', CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro']
+  ] as const)('starts both %s file reads before either one settles', async (_name, cliTool, provider, model) => {
+    let resolveFirst!: (value: string) => void
+    let resolveSecond!: (value: string) => void
+    const first = new Promise<string>((resolve) => {
+      resolveFirst = resolve
+    })
+    const second = new Promise<string>((resolve) => {
+      resolveSecond = resolve
+    })
+    const readExternal = vi.fn((_path: string) => (readExternal.mock.calls.length === 1 ? first : second))
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        resolvePath: vi.fn(async (path: string) => `/resolved${path}`),
+        file: { readExternal }
+      }
+    })
+
+    const draft = buildDraft(cliTool, provider, model)
+
+    await vi.waitFor(() => expect(readExternal).toHaveBeenCalledTimes(2))
+    resolveFirst('')
+    resolveSecond('')
+
+    await expect(draft).resolves.toHaveLength(2)
+  })
+})
+
 describe('formatCliConfigDraftFile', () => {
   it('pretty-prints JSON drafts (2-space indent, trailing newline)', () => {
     const file: CliConfigFileDraft = {

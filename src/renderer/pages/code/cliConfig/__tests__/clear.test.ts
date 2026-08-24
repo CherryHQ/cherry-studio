@@ -48,6 +48,44 @@ beforeEach(() => {
 })
 
 describe('clearCliConfig', () => {
+  it.each([
+    ['codex', CodeCli.OPENAI_CODEX, '/resolved~/.codex/config.toml', '/resolved~/.codex/auth.json'],
+    ['gemini', CodeCli.GEMINI_CLI, '/resolved~/.gemini/.env', '/resolved~/.gemini/settings.json']
+  ] as const)(
+    'starts both %s clear-path pipelines before either one settles',
+    async (_name, cliTool, firstPath, secondPath) => {
+      let resolveFirst!: (value: string) => void
+      let resolveSecond!: (value: string) => void
+      const first = new Promise<string>((resolve) => {
+        resolveFirst = resolve
+      })
+      const second = new Promise<string>((resolve) => {
+        resolveSecond = resolve
+      })
+      const resolvePath = vi.fn(() => (resolvePath.mock.calls.length === 1 ? first : second))
+      Object.defineProperty(window, 'api', {
+        configurable: true,
+        value: {
+          resolvePath,
+          file: {
+            readExternal: vi.fn(async (path: string) => {
+              throw new Error(`File does not exist: ${path}`)
+            })
+          }
+        }
+      })
+
+      const clearing = clearCliConfig({ cliTool })
+
+      expect(resolvePath).toHaveBeenCalledTimes(2)
+      resolveFirst(firstPath)
+      resolveSecond(secondPath)
+
+      await clearing
+      expect(mocks.request).not.toHaveBeenCalled()
+    }
+  )
+
   it('claude: strips managed top-level + env keys, keeps user keys', async () => {
     existing['/resolved~/.claude/settings.json'] = JSON.stringify({
       userTop: 'keep',
