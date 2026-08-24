@@ -24,16 +24,23 @@ async function getMiddleware(): Promise<LanguageModelMiddleware> {
   return ctx.middlewares[0]
 }
 
-function buildSourceStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+function buildSourceStream(
+  deltas: string[],
+  finishReasonUnified: 'stop' | 'tool-calls' = 'stop',
+  kind: 'text' | 'reasoning' = 'text'
+) {
   const parts: LanguageModelV3StreamPart[] = [
     { type: 'stream-start', warnings: [] },
-    { type: 'text-start', id: 'text-1' },
-    ...deltas.map<LanguageModelV3StreamPart>((delta) => ({
-      type: 'text-delta',
-      id: 'text-1',
-      delta
-    })),
-    { type: 'text-end', id: 'text-1' },
+    { type: `${kind}-start`, id: `${kind}-1` } as LanguageModelV3StreamPart,
+    ...deltas.map<LanguageModelV3StreamPart>(
+      (delta) =>
+        ({
+          type: `${kind}-delta`,
+          id: `${kind}-1`,
+          delta
+        }) as LanguageModelV3StreamPart
+    ),
+    { type: `${kind}-end`, id: `${kind}-1` } as LanguageModelV3StreamPart,
     {
       type: 'finish',
       finishReason: { unified: finishReasonUnified, raw: finishReasonUnified },
@@ -50,11 +57,15 @@ function buildSourceStream(deltas: string[], finishReasonUnified: 'stop' | 'tool
   })
 }
 
-async function runStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+async function runStream(
+  deltas: string[],
+  finishReasonUnified: 'stop' | 'tool-calls' = 'stop',
+  kind: 'text' | 'reasoning' = 'text'
+) {
   const middleware = await getMiddleware()
   expect(middleware.wrapStream).toBeDefined()
 
-  const source = buildSourceStream(deltas, finishReasonUnified)
+  const source = buildSourceStream(deltas, finishReasonUnified, kind)
   const wrapped = await middleware.wrapStream!({
     doStream: async () => ({ stream: source, request: { body: {} }, response: { headers: {} } }),
 
@@ -377,6 +388,37 @@ describe('deepseekDsmlParserPlugin', () => {
       .map((e) => e.delta)
       .join('')
     expect(text).toBe('prefix  suffix')
+  })
+
+  it('parses the single-bar DSML variant from the reasoning channel', async () => {
+    const deltas = [
+      'thinking ',
+      '<｜DSML｜tool_calls>',
+      '<｜DSML｜invoke name="read_file">',
+      '<｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter>',
+      '</｜DSML｜invoke>',
+      '</｜DSML｜tool_calls>',
+      ' after'
+    ]
+    const events = await runStream(deltas, 'stop', 'reasoning')
+
+    const toolCalls = events.filter((event) => event.type === 'tool-call')
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0]).toMatchObject({ toolName: 'read_file' })
+    expect(JSON.parse(toolCalls[0].input)).toEqual({ path: '/tmp/a.md' })
+
+    const reasoning = events
+      .filter((event) => event.type === 'reasoning-delta')
+      .map((event) => event.delta)
+      .join('')
+    expect(reasoning).toBe('thinking  after')
+    expect(reasoning).not.toContain('DSML')
+
+    const finish = events.find((event) => event.type === 'finish') as Extract<
+      LanguageModelV3StreamPart,
+      { type: 'finish' }
+    >
+    expect(finish.finishReason.unified).toBe('tool-calls')
   })
 
   describe('wrapGenerate (non-streaming)', () => {
