@@ -101,13 +101,16 @@ export const axisOffset = (layout: AxisLayout, index: number): number => {
 export const axisIndexAt = (layout: AxisLayout, px: number): number => {
   const last = layout.offsets.length - 1
   if (last < 0) return 0
-  if (px <= 0) return 0
-  if (px >= layout.totalSize) return last
+  // Clamped rather than short-circuited at 0: leading hidden items all sit at offset 0, and the binary
+  // search is what walks past them to the first visible one. Returning 0 outright for px <= 0 would
+  // contradict the contract above precisely when the first tracks are hidden.
+  const position = Math.max(px, 0)
+  if (position >= layout.totalSize) return last
   let low = 0
   let high = last
   while (low < high) {
     const mid = (low + high + 1) >> 1
-    if (layout.offsets[mid] <= px) low = mid
+    if (layout.offsets[mid] <= position) low = mid
     else high = mid - 1
   }
   return low
