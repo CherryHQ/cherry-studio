@@ -45,7 +45,7 @@ export function useHermesDashboardController(
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const [status, setStatus] = useState<HermesDashboardStatus>('stopped')
-  const [pendingOperation, setPendingOperation] = useState<{ epoch: number; type: 'launch' | 'stop' } | null>(null)
+  const [pendingOperation, setPendingOperation] = useState<'launch' | 'stop' | null>(null)
   const statusRef = useRef(status)
   const statusEpochRef = useRef(0)
   const statusRevisionRef = useRef(0)
@@ -60,6 +60,18 @@ export function useHermesDashboardController(
       if (reloadConfig) onConfigMayHaveChanged?.()
     },
     [onConfigMayHaveChanged]
+  )
+
+  /** Applies a status that main reported (poll or cross-window push), reloading config when the run ended. */
+  const applyRemoteStatus = useCallback(
+    (next: HermesDashboardStatus) => {
+      const previous = statusRef.current
+      const shouldReload =
+        (previous === 'running' && (next === 'stopped' || next === 'error')) ||
+        (previous === 'starting' && next === 'error')
+      applyStatus(next, shouldReload)
+    },
+    [applyStatus]
   )
 
   const openDashboard = useCallback(
@@ -79,7 +91,7 @@ export function useHermesDashboardController(
   const onLaunch = useCallback(async () => {
     const operationEpoch = ++statusEpochRef.current
     operationInFlightRef.current = true
-    setPendingOperation({ epoch: operationEpoch, type: 'launch' })
+    setPendingOperation('launch')
     try {
       applyStatus('starting')
       const result = await ipcApi.request('hermes_dashboard.start')
@@ -108,7 +120,7 @@ export function useHermesDashboardController(
   const onStop = useCallback(async () => {
     const operationEpoch = ++statusEpochRef.current
     operationInFlightRef.current = true
-    setPendingOperation({ epoch: operationEpoch, type: 'stop' })
+    setPendingOperation('stop')
     try {
       const result = await ipcApi.request('hermes_dashboard.stop')
       if (operationEpoch !== statusEpochRef.current) return false
@@ -140,7 +152,7 @@ export function useHermesDashboardController(
       openDashboard(current.url)
     } catch (error) {
       logger.error('Failed to open Hermes Dashboard', error as Error)
-      toast.error(t('code.launch.error'))
+      toast.error(t('code.hermes_dashboard.error.open_failed'))
     }
   }, [applyStatus, openDashboard, t])
 
@@ -156,12 +168,10 @@ export function useHermesDashboardController(
         // A cross-window push applied while this poll was in flight already carries
         // a newer truth than the answer being handled here.
         if (cancelled || requestRevision !== statusRevisionRef.current) return
+        // Not redundant with the revision check: a failed stop applies no status at
+        // all, so only its epoch marks this answer as predating the attempt.
         if (requestEpoch !== statusEpochRef.current || operationInFlightRef.current) return
-        const previousStatus = statusRef.current
-        const shouldReload =
-          (previousStatus === 'running' && (current.status === 'stopped' || current.status === 'error')) ||
-          (previousStatus === 'starting' && current.status === 'error')
-        applyStatus(current.status, shouldReload)
+        applyRemoteStatus(current.status)
       } catch (error) {
         if (!cancelled) logger.error('Failed to read Hermes Dashboard status', error as Error)
       }
@@ -173,22 +183,17 @@ export function useHermesDashboardController(
       cancelled = true
       window.clearInterval(interval)
     }
-  }, [applyStatus, isHermes])
+  }, [applyRemoteStatus, isHermes])
 
   useIpcOn('hermes_dashboard.status_changed', (current) => {
-    if (!isHermes) return
-    const previousStatus = statusRef.current
-    const shouldReload =
-      (previousStatus === 'running' && (current.status === 'stopped' || current.status === 'error')) ||
-      (previousStatus === 'starting' && current.status === 'error')
-    applyStatus(current.status, shouldReload)
+    if (isHermes) applyRemoteStatus(current.status)
   })
 
   return {
-    launching: isHermes && pendingOperation?.type === 'launch',
+    launching: isHermes && pendingOperation === 'launch',
     running: isHermes && status === 'running',
     starting: isHermes && status === 'starting',
-    stopping: isHermes && pendingOperation?.type === 'stop',
+    stopping: isHermes && pendingOperation === 'stop',
     onLaunch,
     onOpenDashboard,
     onStop

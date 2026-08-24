@@ -972,6 +972,7 @@
   "code.hermes_dashboard.error.cancelled": "已取消啟動 Hermes Agent 網頁介面",
   "code.hermes_dashboard.error.dependencies_missing": "Hermes Agent 網頁介面相依套件缺失，請在 設定 → 環境相依套件 中重新安裝 Hermes Agent。",
   "code.hermes_dashboard.error.not_installed": "尚未安裝 Hermes Agent，請在 設定 → 環境相依套件 中安裝。",
+  "code.hermes_dashboard.error.open_failed": "開啟 Hermes Agent 網頁介面失敗",
   "code.hermes_dashboard.error.startup_failed": "啟動 Hermes Agent 網頁介面失敗",
   "code.hermes_dashboard.error.stop_failed": "停止 Hermes Agent 網頁介面失敗",
   "code.install": "安裝",

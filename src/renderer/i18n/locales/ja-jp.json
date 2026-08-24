@@ -972,6 +972,7 @@
   "code.hermes_dashboard.error.cancelled": "Hermes Agent の Web UI の起動がキャンセルされました",
   "code.hermes_dashboard.error.dependencies_missing": "Hermes Agent の Web UI の依存関係が不足しています。設定 → 環境依存 で Hermes Agent を再インストールしてください。",
   "code.hermes_dashboard.error.not_installed": "Hermes Agent がインストールされていません。設定 → 環境依存 からインストールしてください。",
+  "code.hermes_dashboard.error.open_failed": "Hermes Agent の Web UI を開けませんでした",
   "code.hermes_dashboard.error.startup_failed": "Hermes Agent の Web UI を起動できませんでした",
   "code.hermes_dashboard.error.stop_failed": "Hermes Agent の Web UI を停止できませんでした",
   "code.install": "インストール",

@@ -972,6 +972,7 @@
   "code.hermes_dashboard.error.cancelled": "Se canceló el inicio de la interfaz web de Hermes Agent",
   "code.hermes_dashboard.error.dependencies_missing": "Faltan dependencias de la interfaz web de Hermes Agent. Reinstala Hermes Agent en Configuración → Dependencias del entorno.",
   "code.hermes_dashboard.error.not_installed": "Hermes Agent no está instalado. Instálalo en Configuración → Dependencias del entorno.",
+  "code.hermes_dashboard.error.open_failed": "No se pudo abrir la interfaz web de Hermes Agent",
   "code.hermes_dashboard.error.startup_failed": "No se pudo iniciar la interfaz web de Hermes Agent",
   "code.hermes_dashboard.error.stop_failed": "No se pudo detener la interfaz web de Hermes Agent",
   "code.install": "Instalar",

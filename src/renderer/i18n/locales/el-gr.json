@@ -972,6 +972,7 @@
   "code.hermes_dashboard.error.cancelled": "Η εκκίνηση του web UI του Hermes Agent ακυρώθηκε",
   "code.hermes_dashboard.error.dependencies_missing": "Λείπουν εξαρτήσεις του web UI του Hermes Agent. Επανεγκαταστήστε το Hermes Agent στις Ρυθμίσεις → Εξαρτήσεις Περιβάλλοντος.",
   "code.hermes_dashboard.error.not_installed": "Το Hermes Agent δεν είναι εγκατεστημένο. Εγκαταστήστε το στις Ρυθμίσεις → Εξαρτήσεις Περιβάλλοντος.",
+  "code.hermes_dashboard.error.open_failed": "Αποτυχία ανοίγματος του web UI του Hermes Agent",
   "code.hermes_dashboard.error.startup_failed": "Αποτυχία εκκίνησης του web UI του Hermes Agent",
   "code.hermes_dashboard.error.stop_failed": "Αποτυχία τερματισμού του web UI του Hermes Agent",
   "code.install": "Εγκατάσταση",

@@ -972,6 +972,7 @@
   "code.hermes_dashboard.error.cancelled": "Pornirea interfeței web Hermes Agent a fost anulată",
   "code.hermes_dashboard.error.dependencies_missing": "Lipsesc dependențe ale interfeței web Hermes Agent. Reinstalează Hermes Agent în Setări → Dependențe de mediu.",
   "code.hermes_dashboard.error.not_installed": "Hermes Agent nu este instalat. Instalează-l în Setări → Dependențe de mediu.",
+  "code.hermes_dashboard.error.open_failed": "Deschiderea interfeței web Hermes Agent a eșuat",
   "code.hermes_dashboard.error.startup_failed": "Pornirea interfeței web Hermes Agent a eșuat",
   "code.hermes_dashboard.error.stop_failed": "Oprirea interfeței web Hermes Agent a eșuat",
   "code.install": "Instalează",

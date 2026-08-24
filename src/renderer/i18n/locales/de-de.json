@@ -972,6 +972,7 @@
   "code.hermes_dashboard.error.cancelled": "Start der Hermes-Agent-Weboberfläche wurde abgebrochen",
   "code.hermes_dashboard.error.dependencies_missing": "Abhängigkeiten der Hermes-Agent-Weboberfläche fehlen. Installieren Sie Hermes Agent in Einstellungen → Umgebungsabhängigkeiten neu.",
   "code.hermes_dashboard.error.not_installed": "Hermes Agent ist nicht installiert. Installieren Sie ihn in Einstellungen → Umgebungsabhängigkeiten.",
+  "code.hermes_dashboard.error.open_failed": "Die Hermes-Agent-Weboberfläche konnte nicht geöffnet werden",
   "code.hermes_dashboard.error.startup_failed": "Die Hermes-Agent-Weboberfläche konnte nicht gestartet werden",
   "code.hermes_dashboard.error.stop_failed": "Die Hermes-Agent-Weboberfläche konnte nicht beendet werden",
   "code.install": "Installieren",

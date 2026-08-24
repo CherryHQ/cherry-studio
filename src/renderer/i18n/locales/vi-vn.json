@@ -972,6 +972,7 @@
   "code.hermes_dashboard.error.cancelled": "Đã hủy khởi động giao diện web của Hermes Agent",
   "code.hermes_dashboard.error.dependencies_missing": "Thiếu phần phụ thuộc của giao diện web Hermes Agent. Hãy cài đặt lại Hermes Agent trong Cài đặt → Phần phụ thuộc.",
   "code.hermes_dashboard.error.not_installed": "Hermes Agent chưa được cài đặt. Hãy cài đặt trong Cài đặt → Phần phụ thuộc.",
+  "code.hermes_dashboard.error.open_failed": "Không thể mở giao diện web của Hermes Agent",
   "code.hermes_dashboard.error.startup_failed": "Không thể khởi động giao diện web của Hermes Agent",
   "code.hermes_dashboard.error.stop_failed": "Không thể dừng giao diện web của Hermes Agent",
   "code.install": "Cài đặt",
