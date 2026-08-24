@@ -16,7 +16,7 @@ export function resolveConversationIslandSurface(snapshot: ConversationIslandSna
 
   return {
     kind: 'activity-list',
-    activities: snapshot.activities ?? [],
+    activities: snapshot.activities!,
     primaryActivityId: snapshot.activityId
   }
 }

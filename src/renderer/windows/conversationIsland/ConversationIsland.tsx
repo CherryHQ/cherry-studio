@@ -7,7 +7,6 @@ import type {
   ConversationIslandSnapshot,
   ConversationIslandStateKind
 } from '@shared/types/conversationIsland'
-import { Bot, MessageCircle } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
@@ -34,16 +33,6 @@ function IdentityAvatar({ avatar }: { avatar: string }) {
     <span aria-hidden="true" className="shrink-0">
       <EmojiIcon emoji={avatar || '🤖'} className="mr-0" size={18} fontSize={11} />
     </span>
-  )
-}
-
-function ConversationIslandStateIndicator({ state }: { state: ConversationIslandStateKind }) {
-  return (
-    <span
-      data-testid="state-indicator"
-      className={`size-2 shrink-0 rounded-full ${STATE_INDICATOR_CLASS[state]}`}
-      aria-hidden="true"
-    />
   )
 }
 
@@ -83,6 +72,8 @@ export default function ConversationIsland() {
   if (!snapshot) {
     return null
   }
+
+  const surfaceModel = resolveConversationIslandSurface(snapshot)
 
   const clearExpandTimer = () => {
     if (expandTimerRef.current !== null) clearTimeout(expandTimerRef.current)
@@ -157,9 +148,14 @@ export default function ConversationIsland() {
     typeof snapshot.notchWidth === 'number' &&
     Number.isFinite(snapshot.notchWidth) &&
     snapshot.notchWidth > 0
-  const ActivityIcon = snapshot.target.conversationType === 'agent' ? Bot : MessageCircle
-  const surfaceModel = resolveConversationIslandSurface(snapshot)
-  const usesSingleNotchDetail = usesNotchLayout && surfaceModel.kind === 'single-detail'
+
+  const stateIndicator = (state: ConversationIslandStateKind) => (
+    <span
+      data-testid="state-indicator"
+      className={`size-2 shrink-0 rounded-full ${STATE_INDICATOR_CLASS[state]}`}
+      aria-hidden="true"
+    />
+  )
 
   const openActivity = async (activity: ConversationIslandActivityItem) => {
     if (snapshot.exiting) return
@@ -189,139 +185,187 @@ export default function ConversationIsland() {
     await openActivity(activity)
   }
 
-  const activities =
-    surfaceModel.kind === 'activity-list'
-      ? surfaceModel.activities
-      : [surfaceModel.kind === 'single-detail' ? surfaceModel.activity : surfaceModel.primary]
-  const surface = snapshot.expanded ? (
-    <div
-      data-testid="conversation-island-surface"
-      data-state={snapshot.state}
-      aria-hidden={snapshot.exiting ? true : undefined}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
-      className={`${
-        usesNotchLayout
-          ? 'h-full w-full overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black text-white'
-          : 'h-full w-full overflow-hidden rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-md'
-      } ${snapshot.exiting ? 'pointer-events-none' : ''}`}>
-      {usesNotchLayout ? (
-        <div
-          data-testid="notch-expanded-header"
-          className="grid h-[38px] w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] text-xs">
-          <div
-            data-testid="notch-expanded-leading"
-            className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
-            {usesSingleNotchDetail ? (
-              <>
-                <IdentityAvatar avatar={snapshot.identityAvatar} />
-                <span className="min-w-0 truncate">{snapshot.identityName}</span>
-              </>
-            ) : (
-              <>
-                <ActivityIcon
-                  data-testid="notch-activity-icon"
-                  data-conversation-type={snapshot.target.conversationType}
-                  className="size-3.5 shrink-0 text-white/70"
-                  aria-hidden="true"
-                />
-                <ConversationIslandStateIndicator state={snapshot.state} />
-                <span className="min-w-0 truncate">{snapshot.statusText}</span>
-              </>
-            )}
-          </div>
-          <div data-testid="notch-expanded-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
-          <div
-            data-testid="notch-expanded-trailing"
-            className={`flex min-w-0 items-center justify-end overflow-hidden pr-3 text-white/60 ${usesSingleNotchDetail ? 'gap-2' : ''}`}>
-            {usesSingleNotchDetail ? (
-              <>
-                <ConversationIslandStateIndicator state={snapshot.state} />
-                <span className="min-w-0 truncate">{snapshot.statusText}</span>
-              </>
-            ) : (
-              <span className="min-w-0 truncate">{snapshot.activityCountText}</span>
-            )}
-          </div>
-        </div>
-      ) : null}
-      <div role="list" className="max-h-[220px] overflow-y-auto">
-        {activities.map((activity) => {
-          const isPrimary =
-            surfaceModel.kind !== 'activity-list' || activity.activityId === surfaceModel.primaryActivityId
-
-          return (
-            <div role="listitem" key={activity.activityId}>
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={`${activity.statusText}: ${activity.title}`}
-                data-state={activity.state}
-                disabled={snapshot.exiting}
-                onClick={() => void openExpandedActivity(activity)}
-                className={`h-11 min-h-11 w-full min-w-0 justify-start rounded-md px-3 py-0 text-xs shadow-none ${
-                  usesNotchLayout
-                    ? `${isPrimary ? 'bg-white/10 font-medium' : 'font-normal'} text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white`
-                    : `${isPrimary ? 'bg-accent font-medium' : 'font-normal'} text-popover-foreground hover:bg-accent focus-visible:bg-accent`
-                }`}>
-                {usesSingleNotchDetail ? null : <ConversationIslandStateIndicator state={activity.state} />}
-                {usesSingleNotchDetail ? null : <span className="shrink-0">{activity.statusText}</span>}
-                <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{activity.title}</span>
-              </Button>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  ) : (
-    <Button
-      type="button"
-      variant="ghost"
-      aria-hidden={snapshot.exiting ? true : undefined}
-      disabled={snapshot.exiting}
-      onClick={() => void openActivity(snapshot)}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
-      data-testid="conversation-island-surface"
-      data-state={snapshot.state}
-      className={`${
-        usesNotchLayout
-          ? 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black px-0 py-0 text-white text-xs shadow-none hover:bg-black hover:text-white focus-visible:bg-black focus-visible:text-white'
-          : 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-full border border-border bg-popover/95 px-3 py-0 text-popover-foreground text-xs shadow-md backdrop-blur-xs hover:bg-accent focus-visible:bg-accent'
-      } ${snapshot.exiting ? 'pointer-events-none' : ''}`}>
-      {usesNotchLayout ? (
-        <span className="grid h-full w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <span data-testid="notch-leading" className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
-            <ConversationIslandStateIndicator state={snapshot.state} />
-            <span className="min-w-0 truncate font-medium">{snapshot.statusText}</span>
-          </span>
-          <span data-testid="notch-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
+  const surface = (() => {
+    if (surfaceModel.kind === 'compact') {
+      const { primary, totalCount } = surfaceModel
+      const countBadge =
+        totalCount > 1 ? (
           <span
-            data-testid="notch-trailing"
-            className="flex min-w-0 items-center justify-end gap-2 overflow-hidden pr-3">
-            <span className="min-w-0 truncate text-white/60">{snapshot.title}</span>
-            {snapshot.secondaryCount > 0 ? (
-              <span className="shrink-0 rounded-full bg-white/10 px-1.5 text-white/70">+{snapshot.secondaryCount}</span>
-            ) : null}
+            aria-label={snapshot.activityCountText}
+            className={`shrink-0 rounded-full px-1.5 ${
+              usesNotchLayout ? 'bg-white/10 text-white/70' : 'bg-accent text-muted-foreground'
+            }`}>
+            {totalCount}
           </span>
-        </span>
-      ) : (
-        <>
-          <ConversationIslandStateIndicator state={snapshot.state} />
-          <span className="shrink-0 font-medium">{snapshot.statusText}</span>
-          <span className="shrink-0 text-muted-foreground" aria-hidden="true">
-            ·
-          </span>
-          <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{snapshot.title}</span>
-          {snapshot.secondaryCount > 0 ? (
-            <span className="shrink-0 rounded-full bg-accent px-1.5 text-muted-foreground">
-              +{snapshot.secondaryCount}
+        ) : null
+
+      return (
+        <Button
+          type="button"
+          variant="ghost"
+          aria-hidden={snapshot.exiting ? true : undefined}
+          disabled={snapshot.exiting}
+          onClick={() => void openActivity(primary)}
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={handlePointerLeave}
+          data-testid="conversation-island-surface"
+          data-state={primary.state}
+          className={`${
+            usesNotchLayout
+              ? 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black px-0 py-0 text-white text-xs shadow-none hover:bg-black hover:text-white focus-visible:bg-black focus-visible:text-white'
+              : 'h-full min-h-0 w-full min-w-0 justify-start overflow-hidden rounded-full border border-border bg-popover/95 px-3 py-0 text-popover-foreground text-xs shadow-md backdrop-blur-xs hover:bg-accent focus-visible:bg-accent'
+          } ${snapshot.exiting ? 'pointer-events-none' : ''}`}>
+          {usesNotchLayout ? (
+            <span className="grid h-full w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+              <span
+                data-testid="notch-leading"
+                className="flex min-w-0 items-center gap-2 overflow-hidden pl-3 text-left">
+                {stateIndicator(primary.state)}
+                <span className="min-w-0 truncate">{primary.statusText}</span>
+              </span>
+              <span data-testid="notch-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
+              <span
+                data-testid="notch-trailing"
+                className="flex min-w-0 items-center justify-end gap-2 overflow-hidden pr-3 text-white/60">
+                {countBadge ?? <span className="min-w-0 truncate">{primary.title}</span>}
+              </span>
             </span>
-          ) : null}
-        </>
-      )}
-    </Button>
-  )
+          ) : (
+            <span className="flex w-full min-w-0 items-center gap-3">
+              <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
+                {stateIndicator(primary.state)}
+                <span className="min-w-0 truncate">{primary.statusText}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2 text-muted-foreground">
+                {countBadge ?? <span className="min-w-0 truncate">{primary.title}</span>}
+              </span>
+            </span>
+          )}
+        </Button>
+      )
+    }
+
+    const isSingleDetail = surfaceModel.kind === 'single-detail'
+    const primary = isSingleDetail
+      ? surfaceModel.activity
+      : surfaceModel.activities.find((activity) => activity.activityId === surfaceModel.primaryActivityId)!
+    const summaryLeading = isSingleDetail ? (
+      <>
+        <IdentityAvatar avatar={primary.identityAvatar} />
+        <span className={`min-w-0 truncate ${usesNotchLayout ? 'text-white/70' : 'text-muted-foreground'}`}>
+          {primary.identityName}
+        </span>
+      </>
+    ) : (
+      <span className={`min-w-0 truncate ${usesNotchLayout ? 'text-white/70' : 'text-muted-foreground'}`}>
+        {snapshot.activityCountText}
+      </span>
+    )
+    const summaryTrailing = isSingleDetail ? (
+      <>
+        {stateIndicator(primary.state)}
+        <span className="min-w-0 truncate">{primary.statusText}</span>
+      </>
+    ) : null
+    const summary = usesNotchLayout ? (
+      <div
+        data-testid="notch-expanded-header"
+        className="grid h-[38px] w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] text-xs">
+        <div
+          data-testid="notch-expanded-leading"
+          className={`flex min-w-0 items-center overflow-hidden pl-3 text-left ${isSingleDetail ? 'gap-0.5' : 'gap-2'}`}>
+          {summaryLeading}
+        </div>
+        <div data-testid="notch-expanded-occlusion" aria-hidden="true" style={{ width: snapshot.notchWidth }} />
+        <div
+          data-testid="notch-expanded-trailing"
+          className="flex min-w-0 items-center justify-end gap-2 overflow-hidden pr-3 text-white/60">
+          {summaryTrailing}
+        </div>
+      </div>
+    ) : (
+      <div
+        data-testid="capsule-expanded-header"
+        className="flex h-[38px] w-full min-w-0 items-center justify-between gap-3 px-3 text-xs">
+        <div className={`flex min-w-0 items-center overflow-hidden text-left ${isSingleDetail ? 'gap-0.5' : 'gap-2'}`}>
+          {summaryLeading}
+        </div>
+        <div className="flex min-w-0 items-center justify-end gap-2 overflow-hidden text-muted-foreground">
+          {summaryTrailing}
+        </div>
+      </div>
+    )
+    const body = isSingleDetail ? (
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label={`${primary.statusText}: ${primary.title}`}
+        data-state={primary.state}
+        disabled={snapshot.exiting}
+        onClick={() => void openExpandedActivity(primary)}
+        className={`h-[44px] min-h-[44px] w-full min-w-0 justify-start rounded-none px-3 py-0 font-normal text-xs shadow-none ${
+          usesNotchLayout
+            ? 'text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white'
+            : 'text-popover-foreground hover:bg-accent focus-visible:bg-accent'
+        }`}>
+        <span className="min-w-0 flex-1 truncate text-left">{primary.title}</span>
+      </Button>
+    ) : (
+      <div role="list" className="max-h-[208px] overflow-y-auto">
+        {surfaceModel.activities.map((activity) => (
+          <div role="listitem" key={activity.activityId}>
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label={`${activity.statusText}: ${activity.title}`}
+              data-state={activity.state}
+              disabled={snapshot.exiting}
+              onClick={() => void openExpandedActivity(activity)}
+              className={`h-[52px] min-h-[52px] w-full min-w-0 flex-col items-stretch justify-center gap-2 rounded-none px-3 py-0 font-normal text-xs shadow-none ${
+                usesNotchLayout
+                  ? 'text-white hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white'
+                  : 'text-popover-foreground hover:bg-accent focus-visible:bg-accent'
+              }`}>
+              <span className="flex w-full min-w-0 items-center justify-between gap-3 leading-4">
+                <span
+                  className={`flex min-w-0 items-center gap-0.5 overflow-hidden ${
+                    usesNotchLayout ? 'text-white/60' : 'text-muted-foreground'
+                  }`}>
+                  <IdentityAvatar avatar={activity.identityAvatar} />
+                  <span className="min-w-0 truncate">{activity.identityName}</span>
+                </span>
+                <span
+                  className={`flex shrink-0 items-center gap-2 ${
+                    usesNotchLayout ? 'text-white/60' : 'text-muted-foreground'
+                  }`}>
+                  {stateIndicator(activity.state)}
+                  <span>{activity.statusText}</span>
+                </span>
+              </span>
+              <span className="w-full min-w-0 truncate text-left leading-4">{activity.title}</span>
+            </Button>
+          </div>
+        ))}
+      </div>
+    )
+
+    return (
+      <div
+        data-testid="conversation-island-surface"
+        data-state={primary.state}
+        aria-hidden={snapshot.exiting ? true : undefined}
+        onPointerEnter={handlePointerEnter}
+        onPointerLeave={handlePointerLeave}
+        className={`${
+          usesNotchLayout
+            ? 'h-full w-full overflow-hidden rounded-t-none rounded-b-[12px] border-0 bg-black text-white'
+            : 'h-full w-full overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-md'
+        } ${snapshot.exiting ? 'pointer-events-none' : ''}`}>
+        {summary}
+        {body}
+      </div>
+    )
+  })()
 
   const motionPlan = resolveConversationIslandMotion({
     exiting: snapshot.exiting,
@@ -341,7 +385,7 @@ export default function ConversationIsland() {
       transition={motionPlan.transition}>
       <AnimatePresence initial={false} mode="popLayout">
         <motion.div
-          key={snapshot.expanded ? 'expanded' : 'compact'}
+          key={surfaceModel.kind}
           className="h-full w-full"
           layout={!snapshot.reducedMotion}
           initial={snapshot.reducedMotion ? false : { opacity: 0, scale: 0.98 }}

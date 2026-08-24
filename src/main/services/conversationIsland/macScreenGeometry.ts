@@ -13,9 +13,11 @@ const MAX_NOTCH_WIDTH = 260
 const TOP_EDGE_TOLERANCE = 2
 const CENTER_TOLERANCE_RATIO = 0.1
 const EXPANDED_WIDTH = 420
-const EXPANDED_ROW_HEIGHT = 44
-const CAPSULE_VERTICAL_PADDING = 16
-const NOTCH_TOP_INSET = 38
+const MIN_COMPACT_NOTCH_WIDTH = 280
+const COMPACT_NOTCH_SIDE_WIDTH = 80
+const EXPANDED_HEADER_HEIGHT = 38
+const SINGLE_DETAIL_HEIGHT = 44
+const ACTIVITY_LIST_ROW_HEIGHT = 52
 
 export type ConversationIslandPresentation = 'notch' | 'capsule'
 
@@ -25,7 +27,7 @@ export interface ConversationIslandSize {
 }
 
 export const COMPACT_ISLAND_SIZE: ConversationIslandSize = { width: 320, height: 38 }
-export const MAX_VISIBLE_EXPANDED_ROWS = 5
+export const MAX_VISIBLE_EXPANDED_ROWS = 4
 
 const SCREEN_GEOMETRY_JXA = String.raw`
 ObjC.import('AppKit')
@@ -75,13 +77,12 @@ export interface ConversationIslandPlacement {
   notchWidth?: number
 }
 
-export function resolveConversationIslandSize(
-  presentation: ConversationIslandPresentation,
-  activityCount: number
-): ConversationIslandSize {
-  const visibleRows = Math.min(MAX_VISIBLE_EXPANDED_ROWS, activityCount)
-  const chromeHeight = presentation === 'notch' ? NOTCH_TOP_INSET : CAPSULE_VERTICAL_PADDING
-  return { width: EXPANDED_WIDTH, height: visibleRows * EXPANDED_ROW_HEIGHT + chromeHeight }
+export function resolveConversationIslandSize(activityCount: number): ConversationIslandSize {
+  const contentHeight =
+    activityCount === 1
+      ? SINGLE_DETAIL_HEIGHT
+      : Math.min(MAX_VISIBLE_EXPANDED_ROWS, activityCount) * ACTIVITY_LIST_ROW_HEIGHT
+  return { width: EXPANDED_WIDTH, height: EXPANDED_HEADER_HEIGHT + contentHeight }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -193,11 +194,16 @@ export function resolveConversationIslandBounds(
 
   if (!isAtTop || !isPlausibleWidth || !isCentered) return fallbackPlacement(display, size)
 
+  const isCompact = size.width === COMPACT_ISLAND_SIZE.width && size.height === COMPACT_ISLAND_SIZE.height
+  const width = isCompact
+    ? Math.min(EXPANDED_WIDTH, Math.max(MIN_COMPACT_NOTCH_WIDTH, gapWidth + COMPACT_NOTCH_SIDE_WIDTH * 2))
+    : size.width
+
   return {
     bounds: {
-      x: Math.round(display.bounds.x + (gapCenter - frame.x) - size.width / 2),
+      x: Math.round(display.bounds.x + (gapCenter - frame.x) - width / 2),
       y: Math.round(display.bounds.y),
-      width: size.width,
+      width,
       height: size.height
     },
     presentation: 'notch',

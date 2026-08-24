@@ -25,18 +25,36 @@ describe('macScreenGeometry', () => {
     const geometries = parseMacScreenGeometry(JSON.stringify([validGeometry]))
 
     expect(resolveConversationIslandBounds(display, geometries, { width: 320, height: 38 })).toEqual({
-      bounds: { x: 1400, y: 24, width: 320, height: 38 },
+      bounds: { x: 1420, y: 24, width: 280, height: 38 },
       presentation: 'notch',
       notchWidth: 120
     })
   })
 
+  it('sizes the compact island from the measured notch width', () => {
+    const geometries = parseMacScreenGeometry(
+      JSON.stringify([
+        {
+          ...validGeometry,
+          auxiliaryTopLeftArea: { x: 100, y: 688, width: 467.5, height: 32 },
+          auxiliaryTopRightArea: { x: 752.5, y: 688, width: 467.5, height: 32 }
+        }
+      ])
+    )
+
+    expect(resolveConversationIslandBounds(display, geometries, { width: 320, height: 38 })).toEqual({
+      bounds: { x: 1388, y: 24, width: 345, height: 38 },
+      presentation: 'notch',
+      notchWidth: 185
+    })
+  })
+
   it('uses the expanded notch size when placing multiple activities', () => {
     const geometries = parseMacScreenGeometry(JSON.stringify([validGeometry]))
-    const size = resolveConversationIslandSize('notch', 8)
+    const size = resolveConversationIslandSize(8)
 
     expect(resolveConversationIslandBounds(display, geometries, size)).toEqual({
-      bounds: { x: 1350, y: 24, width: 420, height: 258 },
+      bounds: { x: 1350, y: 24, width: 420, height: 246 },
       presentation: 'notch',
       notchWidth: 120
     })
@@ -59,10 +77,10 @@ describe('macScreenGeometry', () => {
   })
 
   it('uses the expanded capsule size when notch geometry is unavailable', () => {
-    const size = resolveConversationIslandSize('capsule', 8)
+    const size = resolveConversationIslandSize(8)
 
     expect(resolveConversationIslandBounds(display, new Map(), size)).toEqual({
-      bounds: { x: 1350, y: 32, width: 420, height: 236 },
+      bounds: { x: 1350, y: 32, width: 420, height: 246 },
       presentation: 'capsule'
     })
   })
@@ -96,15 +114,13 @@ describe('macScreenGeometry', () => {
   })
 
   it.each([
-    ['capsule', 1, { width: 420, height: 60 }],
-    ['capsule', 2, { width: 420, height: 104 }],
-    ['capsule', 5, { width: 420, height: 236 }],
-    ['capsule', 8, { width: 420, height: 236 }],
-    ['notch', 1, { width: 420, height: 82 }],
-    ['notch', 2, { width: 420, height: 126 }],
-    ['notch', 5, { width: 420, height: 258 }],
-    ['notch', 8, { width: 420, height: 258 }]
-  ] as const)('resolves %s size for %i activities', (presentation, activityCount, expected) => {
-    expect(resolveConversationIslandSize(presentation, activityCount)).toEqual(expected)
+    [1, { width: 420, height: 82 }],
+    [2, { width: 420, height: 142 }],
+    [3, { width: 420, height: 194 }],
+    [4, { width: 420, height: 246 }],
+    [5, { width: 420, height: 246 }],
+    [8, { width: 420, height: 246 }]
+  ] as const)('resolves the expanded size for %i activities', (activityCount, expected) => {
+    expect(resolveConversationIslandSize(activityCount)).toEqual(expected)
   })
 })

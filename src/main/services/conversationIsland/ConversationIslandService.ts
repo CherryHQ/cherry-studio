@@ -384,8 +384,7 @@ export class ConversationIslandService extends BaseService {
           this.pruneItemMetadataCache()
           this.clearExpiryTimer()
           try {
-            const compactPlacement = resolveConversationIslandBounds(display, this.geometries, COMPACT_ISLAND_SIZE)
-            const size = resolveConversationIslandSize(compactPlacement.presentation, activities.length)
+            const size = resolveConversationIslandSize(activities.length)
             const placement = resolveConversationIslandBounds(display, this.geometries, size)
             const snapshot = this.buildSnapshot(primary, activities.length - 1, placement, activities)
             this.showOrUpdateWindow(snapshot, placement.bounds)
