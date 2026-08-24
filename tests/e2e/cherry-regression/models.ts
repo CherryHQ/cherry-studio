@@ -8,8 +8,11 @@ export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Provider'
 
 export async function openSettingsSection(page: Page, section: string): Promise<void> {
   await dismissOnboarding(page)
-  await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await page.getByRole('button', { name: section, exact: true }).click()
+  const sectionButton = page.getByRole('button', { name: section, exact: true })
+  if (!(await sectionButton.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  }
+  await sectionButton.click()
 }
 
 async function addModel(page: Page, model: string): Promise<void> {
@@ -25,7 +28,7 @@ async function addModel(page: Page, model: string): Promise<void> {
   const modelId = dialog.getByRole('textbox', { name: 'Model ID', exact: true })
   await modelId.fill(model)
   await dialog.getByRole('button', { name: 'Add Model', exact: true }).click()
-  await expect(page.getByText(model, { exact: true })).toBeVisible()
+  await expect(page.getByText(model, { exact: true }).last()).toBeVisible()
 }
 
 export async function ensureCustomChatProvider(app: RegressionApp, page: Page): Promise<void> {

@@ -13,7 +13,7 @@ test('[M-02] 配置自定义聊天服务商并完成聊天 @custom-provider-chat
   let page = mainWindow
   await ensureCustomChatProvider(app, page)
   await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
-  await expect(page.getByText(app.config.customProvider.chatModel, { exact: true })).toBeVisible()
+  await expect(page.getByText(app.config.customProvider.chatModel, { exact: true }).last()).toBeVisible()
 
   await closeSettings(page)
   await selectChatModel(page, app.config.customProvider.chatModel)
