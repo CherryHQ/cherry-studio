@@ -84,7 +84,9 @@ export function useRichTextEditorKernel({
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
-    editor.setEditable(editable)
+    // Suppress the update event: an editability toggle is not a content change, and the
+    // default `emitUpdate = true` would replay the current document text through onUpdate.
+    editor.setEditable(editable, false)
   }, [editor, editable])
 
   return editor

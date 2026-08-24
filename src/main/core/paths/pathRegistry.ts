@@ -119,11 +119,20 @@ export function buildPathRegistry() {
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
+    // Cherry-provisioned CPython for pipx tools. mise is never told about it —
+    // naming a Python runtime there is what makes mise fetch its own from
+    // GitHub releases (see binaryManager/pythonRuntime.ts).
+    'feature.binary.data.uv_python': path.join(appUserDataToolchainMise, 'uv-python'),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
     'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
     'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
+    // mise's rust recipe drives rustup, which keeps its toolchains outside the
+    // mise install dir. Pinning both homes keeps install and execution pointed at
+    // the same copy — the user's real ~/.rustup is never read or written.
+    'feature.binary.data.isolated.rustup': path.join(appUserDataToolchainMise, 'rustup'),
+    'feature.binary.data.isolated.cargo': path.join(appUserDataToolchainMise, 'cargo'),
 
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),

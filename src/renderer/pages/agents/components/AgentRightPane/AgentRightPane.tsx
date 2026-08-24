@@ -64,6 +64,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
+  ArrowLeft,
   Bot,
   CheckCircle,
   Circle,
@@ -110,6 +111,7 @@ const logger = loggerService.withContext('AgentRightPane')
 // ── Agent-specific composition over the generic right panel ─────────────────
 
 const FLOW_TAB_PREFIX = 'flow:'
+const STATUS_PANE_ID = 'status'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 const TracePane = lazy(() =>
@@ -812,6 +814,28 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   )
 }
 
+function AgentFlowPanelTitle({ title }: { title: string }) {
+  const panelActions = useRightPanelActions()
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex min-w-0 items-center gap-0.5">
+      <Tooltip content={t('common.back')} delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={t('common.back')}
+          onClick={() => panelActions.tryOpen(STATUS_PANE_ID)}>
+          <ArrowLeft size={16} />
+        </Button>
+      </Tooltip>
+      <span className="min-w-0 flex-1 truncate px-1">{title}</span>
+    </div>
+  )
+}
+
 /**
  * Stops one background task without touching the turn. The runtime answers with a task notification
  * carrying status `stopped`, so the row updates from that rather than from optimistic local state;
@@ -1194,7 +1218,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
   {
     component: AgentStatusRightPanel,
     resolve: (scope) => ({
-      id: 'status',
+      id: STATUS_PANE_ID,
       instanceKey: `session:${scope.meta.sessionId ?? ''}`,
       title: scope.statusTitle,
       readiness: scope.meta.conversationState
@@ -1209,7 +1233,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       return {
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
-        title: tab.title,
+        title: <AgentFlowPanelTitle title={tab.title} />,
         readiness: scope.meta.conversationState
       }
     }
@@ -1355,11 +1379,11 @@ function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
   const panelState = useRightPanelState()
   const panelActions = useRightPanelActions()
   const { t } = useTranslation()
-  if (disabled || panelState.presentationMaximized || !panelActions.canOpen('status')) return null
+  if (disabled || panelState.presentationMaximized || !panelActions.canOpen(STATUS_PANE_ID)) return null
 
   const shortcut = (
     <RightPanelShortcut
-      tab="status"
+      tab={STATUS_PANE_ID}
       label={t('agent.right_pane.tabs.status')}
       icon={<Activity className="size-3.5" />}
       tooltip={false}

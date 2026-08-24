@@ -21,6 +21,11 @@ import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } f
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const imagePreviewShowMock = vi.hoisted(() => vi.fn())
+const openFilePreviewTabMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/components/FilePreview', () => ({
+  useOptionalOpenFilePreviewTab: () => openFilePreviewTabMock
+}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
@@ -213,6 +218,8 @@ beforeEach(() => {
   ipcRequestMock.mockResolvedValue(undefined)
   imagePreviewShowMock.mockReset()
   imagePreviewShowMock.mockResolvedValue(undefined)
+  openFilePreviewTabMock.mockReset()
+  openFilePreviewTabMock.mockReturnValue('file-preview-tab')
   readPastedTextMock.mockReset()
   readPastedTextMock.mockResolvedValue('第一段粘贴文本\n第二段粘贴文本')
   Object.defineProperty(window, 'api', {
@@ -521,6 +528,63 @@ describe('ComposerToken', () => {
     const token = expectFileTokenVariant(container, 'pdf')
     expect(token.querySelector('[data-composer-token-remove]')).toBeInTheDocument()
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
+  })
+
+  it('opens an editable Markdown attachment in the file preview tab by pointer or keyboard', async () => {
+    const user = userEvent.setup()
+    render(
+      <ComposerToken
+        token={{
+          id: 'file:markdown',
+          kind: 'file',
+          label: 'requirements.md',
+          payload: createFileMetadata({
+            name: 'managed-file.md',
+            origin_name: 'requirements.md',
+            path: '/tmp/managed-file.md',
+            ext: '.md',
+            type: FILE_TYPE.TEXT
+          })
+        }}
+      />
+    )
+
+    const attachment = screen.getByRole('button', { name: 'requirements.md' })
+    await user.click(attachment)
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+
+    openFilePreviewTabMock.mockClear()
+    attachment.focus()
+    await user.keyboard('{Enter}')
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+  })
+
+  it('opens a sent Markdown attachment from its managed file URL', async () => {
+    const user = userEvent.setup()
+    render(
+      <FileComposerToken
+        readOnly
+        readOnlyFilePreview={{ url: 'file:///tmp/message-files/managed-file.md', mediaType: 'text/markdown' }}
+        token={{
+          id: 'file:sent-markdown',
+          kind: 'file',
+          label: 'requirements.md',
+          payload: createFileMetadata({
+            name: 'managed-file.md',
+            origin_name: 'requirements.md',
+            path: '/tmp/original-file.md',
+            ext: '.md',
+            type: FILE_TYPE.TEXT
+          })
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'requirements.md' }))
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/message-files/managed-file.md', 'requirements.md')
   })
 
   it('renders office file tokens with dedicated variants', () => {
