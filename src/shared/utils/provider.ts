@@ -12,6 +12,7 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 
+import { getSupportedProviderDefaultEndpoint } from './endpoint'
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
 
@@ -228,7 +229,12 @@ function resolveServerToolEndpoint(
   provider: Pick<Provider, 'defaultChatEndpoint'>,
   endpointType: EndpointType | undefined
 ): EndpointType | undefined {
-  return endpointType ?? model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+  return (
+    endpointType ??
+    getSupportedProviderDefaultEndpoint(provider, model) ??
+    model.endpointTypes?.[0] ??
+    provider.defaultChatEndpoint
+  )
 }
 
 /** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */

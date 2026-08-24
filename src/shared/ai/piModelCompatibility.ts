@@ -17,6 +17,7 @@ import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTranspor
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { getSupportedProviderDefaultEndpoint } from '@shared/utils/endpoint'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
@@ -90,14 +91,17 @@ export function mapEndpointToPiApi(
 }
 
 /**
- * The effective chat endpoint the runtime would use: the model's first
- * declared endpoint, else the provider default. Mirrors
+ * The effective chat endpoint the runtime would use: a supported provider
+ * default, then the model's first declared endpoint, else the provider default. Mirrors
  * `resolveEffectiveEndpoint`'s endpoint selection (kept pure here so the
  * renderer, which has no main-only resolver, can reuse it).
  */
 function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
   return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
+    getSupportedProviderDefaultEndpoint(provider, model) ??
+    model.endpointTypes?.[0] ??
+    resolveGatewayChatRoute(provider, model)?.endpointType ??
+    provider.defaultChatEndpoint
   )
 }
 
