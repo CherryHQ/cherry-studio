@@ -4,6 +4,16 @@ import { describe, expect, it } from 'vitest'
 import { CreateModelSchema, UpdateModelSchema } from '../models'
 
 describe('model endpoint preference validation', () => {
+  it('accepts a create preference without a model-owned endpoint set', () => {
+    expect(
+      CreateModelSchema.parse({
+        providerId: 'relay',
+        modelId: 'model',
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+    ).toMatchObject({ preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES })
+  })
+
   it('rejects a create preference outside the declared endpoint set', () => {
     const result = CreateModelSchema.safeParse({
       providerId: 'relay',
@@ -23,5 +33,11 @@ describe('model endpoint preference validation', () => {
         preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       })
     ).toThrow()
+  })
+
+  it('accepts an update that changes only the preference', () => {
+    expect(UpdateModelSchema.parse({ preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })).toEqual({
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
   })
 })

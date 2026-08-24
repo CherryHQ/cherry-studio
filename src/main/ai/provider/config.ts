@@ -26,7 +26,6 @@ import {
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
 import {
-  isAnthropicOfficialHost,
   isAzureOpenAIProvider,
   isGeminiProvider,
   isOllamaProvider,
@@ -39,7 +38,7 @@ import { isEmpty } from 'es-toolkit/compat'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import { getBaseUrl, getExtraHeaders, isAnthropicOfficialHost, routeToEndpoint } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'

@@ -193,6 +193,40 @@ describe('Model drawers', () => {
     )
   })
 
+  it('clears a chosen endpoint when the add form removes it from the supported set', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: { id: 'new-api', name: 'New API' }
+    })
+
+    render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
+
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.anthropic' }))
+
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-only-model')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    )
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ preferredEndpointType: expect.anything() })
+    )
+  })
+
   it('pins the chosen endpoint without touching the supported set', async () => {
     const user = userEvent.setup()
     // doubao-shaped: an ordinary preset provider that speaks both chat completions and responses.

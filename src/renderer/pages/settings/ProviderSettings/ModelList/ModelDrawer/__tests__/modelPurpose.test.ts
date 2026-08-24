@@ -62,11 +62,19 @@ describe('getPreferredEndpointCandidates', () => {
 
   it('trusts an aggregator model that declares endpoints the provider config never lists', () => {
     expect(
-      getPreferredEndpointCandidates({ defaultChatEndpoint: undefined, endpointConfigs: undefined }, [
+      getPreferredEndpointCandidates({ id: 'new-api', defaultChatEndpoint: undefined, endpointConfigs: undefined }, [
         ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       ])
     ).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  })
+
+  it('does not offer an unconfigured endpoint for an ordinary provider', () => {
+    expect(
+      getPreferredEndpointCandidates({ id: 'relay', defaultChatEndpoint: undefined, endpointConfigs: undefined }, [
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ])
+    ).toEqual([])
   })
 
   it('leaves a single-endpoint provider with nothing to pick', () => {

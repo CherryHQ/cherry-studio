@@ -89,10 +89,9 @@ export function mapEndpointToPiApi(
 }
 
 /**
- * The effective chat endpoint the runtime would use: the model's first
- * declared endpoint, else the provider default. Mirrors
- * `resolveEffectiveEndpoint`'s endpoint selection (kept pure here so the
- * renderer, which has no main-only resolver, can reuse it).
+ * The effective chat endpoint the runtime would use: a valid persisted choice,
+ * then Pi's Anthropic suggestion for dual-protocol models, then the normal
+ * model/provider fallback. Kept pure so the renderer can reuse it.
  */
 function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
   const suggestedEndpointType =

@@ -35,7 +35,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
-import { isOllamaProvider } from '@shared/utils/provider'
+import { getModelPreferredEndpoint, isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -1127,8 +1127,8 @@ export class AiService extends BaseService {
       }
     }
 
-    const primaryEndpoint = model.endpointTypes?.[0]
-    const hasChatPrimaryEndpoint = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
+    const effectiveEndpoint = getModelPreferredEndpoint(model, provider)
+    const hasChatEndpoint = effectiveEndpoint != null && endpointImpliedCapability(effectiveEndpoint) === undefined
 
     // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
@@ -1152,9 +1152,9 @@ export class AiService extends BaseService {
         }
         return result
       })
-    } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
+    } else if (isEmbeddingModel(model) && !hasChatEndpoint) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
-    } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
+    } else if (isGenerateImageModel(model) && !hasChatEndpoint) {
       // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
       probe = this.generateImage({
         ...probeRequest,

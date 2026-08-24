@@ -1,6 +1,6 @@
 ---
 title: Models can pin the endpoint their requests use
-category: added
+category: changed
 severity: notice
 introduced_in_pr: "#17383"
 date: 2026-08-08
@@ -8,7 +8,7 @@ date: 2026-08-08
 
 ## What changed
 
-A model on a provider that serves more than one chat protocol (doubao, dashscope, deepseek, azure-openai, and multi-endpoint aggregator models) now shows a **Preferred Endpoint** choice in the model drawer. Exactly one endpoint is always selected, and requests for that model use it.
+A model on a provider that serves more than one chat protocol (doubao, dashscope, deepseek, azure-openai, and multi-endpoint aggregator models) now shows a **Preferred Endpoint** choice in the model drawer. The drawer always displays the effective route. A preference is persisted only after the user chooses one; otherwise requests retain the existing first-supported-endpoint and provider-default fallback.
 
 On aggregators (CherryIN, New API, AiOnly) this **replaces** the multi-select the edit drawer used to show. That control listed all eight protocols regardless of what the model actually speaks, and every edit overwrote the endpoint set the provider's own `/models` listing reported. Editing now offers exactly the protocols upstream reported for that model and changes only the route — the supported set stays as the provider reported it, which also keeps the code-agent, painting and TTS model filters reading the provider's answer instead of whatever was last clicked. Adding a model by hand is unchanged: with no upstream listing to go on, you still declare the set yourself.
 

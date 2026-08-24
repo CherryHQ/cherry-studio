@@ -1492,6 +1492,38 @@ describe('AiService tool approval', () => {
     }
   })
 
+  it('checks a mixed-capability model through its preferred chat endpoint', async () => {
+    const service = createService()
+    const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockProviderGetByProviderId.mockReturnValue(
+      makeProvider({
+        id: 'test-provider',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://relay.example.com/v1' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' }
+        }
+      })
+    )
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-model',
+      name: 'Test Model',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-model' })
+
+    expect(embedSpy).not.toHaveBeenCalled()
+    expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
+  })
+
   it('passes the selected API key override into text health checks', async () => {
     const service = createService()
     const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
