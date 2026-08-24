@@ -20,6 +20,10 @@ describe('imageParamsSchema (catalog-only IPC boundary schema)', () => {
     })
   })
 
+  it.each([true, false, [], ['4.5']])('rejects non-string/number numeric input %#', (value) => {
+    expect(imageParamsSchema.safeParse({ cfg: value }).success).toBe(false)
+  })
+
   it('keeps catalog keys and strips non-catalog keys (z.infer is exactly ParamValues)', () => {
     expect(imageParamsSchema.parse({ cfg: 7.5, notAParam: 'x' })).toEqual({ cfg: 7.5 })
   })
@@ -64,6 +68,13 @@ describe('buildParamsSchema', () => {
       customSize_width: 1024,
       customSize_height: 768
     })
+  })
+
+  it.each([true, false, [], ['1024']])('drops non-string/number numeric input %#', (value) => {
+    const parsed = schema.parse({ seed: value, customSize_width: value, customSize_height: value })
+    expect(parsed.seed).toBeUndefined()
+    expect(parsed.customSize_width).toBeUndefined()
+    expect(parsed.customSize_height).toBeUndefined()
   })
 
   it('passes through unknown/legacy keys untouched (loose)', () => {

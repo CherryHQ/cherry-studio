@@ -1,9 +1,9 @@
-/** Match the submit schema's blank handling and numeric-string coercion. */
-function finiteNumber(value: unknown): number | null {
-  if (value === '' || value == null) return null
+import { normalizeImageParamNumber } from '@cherrystudio/provider-registry'
 
-  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
-  return Number.isFinite(numeric) ? numeric : null
+/** Match the submit schema's strict numeric-input normalization. */
+function finiteNumber(value: unknown): number | null {
+  const numeric = normalizeImageParamNumber(value)
+  return typeof numeric === 'number' && Number.isFinite(numeric) ? numeric : null
 }
 
 /** Checked reads at the dynamic painting-params boundary. */

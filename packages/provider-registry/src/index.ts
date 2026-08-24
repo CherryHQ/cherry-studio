@@ -23,6 +23,7 @@ export {
   IMAGE_PARAM_CATALOG,
   IMAGE_PARAM_CATALOG_KEYS,
   imageParamsSchema,
+  normalizeImageParamNumber,
   paramCatalogEntry,
   wireName
 } from './schemas/imageParamCatalog'

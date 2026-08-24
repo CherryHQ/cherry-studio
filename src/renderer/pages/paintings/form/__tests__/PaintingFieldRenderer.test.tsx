@@ -41,6 +41,28 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
     expect(submitted.strength).toBe(4.5)
   })
 
+  it.each([true, false, [], ['4.5']])('drops invalid numeric input %# in both display and submit paths', (value) => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+    const submitted = buildParamsSchema(support, 'generate').parse({ strength: value })
+
+    render(
+      <PaintingFieldRenderer
+        item={{ type: 'slider', key: 'strength', min: 0, max: 10, initialValue: 4 }}
+        painting={{ strength: value }}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('spinbutton')).toHaveValue(4)
+    expect(submitted.strength).toBeUndefined()
+  })
+
   it('does not stringify an invalid text param into the input', () => {
     render(
       <PaintingFieldRenderer
