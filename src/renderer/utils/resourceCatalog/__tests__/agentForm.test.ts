@@ -61,6 +61,7 @@ describe('buildInitialAgentFormState', () => {
       configuration: {
         avatar: '🚀',
         permission_mode: 'bypassPermissions',
+        default_workspace_id: 'workspace-default',
         heartbeat_enabled: true,
         heartbeat_interval: 15,
         env_vars: {
@@ -74,6 +75,7 @@ describe('buildInitialAgentFormState', () => {
     expect(state.permissionMode).toBe('bypassPermissions')
     expect(state.heartbeatEnabled).toBe(true)
     expect(state.heartbeatInterval).toBe(15)
+    expect(state.defaultWorkspaceId).toBe('workspace-default')
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
   })
 
@@ -133,6 +135,18 @@ describe('diffAgentUpdate', () => {
     expect(result?.dto).toEqual({
       name: 'Renamed',
       instructions: 'new prompt'
+    })
+  })
+
+  it('sets and clears the default workspace through a configuration patch', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    const selected = { ...baseline, defaultWorkspaceId: 'workspace-default' }
+
+    expect(diffAgentUpdate(baseline, selected)?.dto).toEqual({
+      configuration: { default_workspace_id: 'workspace-default' }
+    })
+    expect(diffAgentUpdate(selected, baseline)?.dto).toEqual({
+      configuration: { default_workspace_id: undefined }
     })
   })
 

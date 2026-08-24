@@ -2556,6 +2556,29 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-pinned-agent'))
   })
 
+  it('uses the agent default workspace for a new routed conversation', async () => {
+    agentPageMocks.routeSearch = { agentId: 'agent-a' }
+    agentPageMocks.agents = [
+      {
+        id: 'agent-a',
+        model: 'model-a',
+        name: 'Agent A',
+        configuration: { default_workspace_id: 'workspace-next' }
+      }
+    ]
+    agentPageMocks.classicLayoutSessions = []
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-workspaces/workspace-next'))
+    await waitFor(() =>
+      expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith('agent-a', {
+        type: AGENT_WORKSPACE_TYPE.USER,
+        workspaceId: 'workspace-next'
+      })
+    )
+  })
+
   it('does not let a stale agentId entry replace a newer Agent conversation', async () => {
     type RouteSessionResult = {
       session: typeof agentPageMocks.persistedSession

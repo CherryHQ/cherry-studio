@@ -58,6 +58,14 @@ describe('resource create DTO mapping', () => {
     })
   })
 
+  it('persists an optional default workspace for new agent sessions', () => {
+    expect(buildCreateAgentCommand({ ...values, defaultWorkspaceId: 'workspace-default' }).configuration).toEqual({
+      avatar: '🤖',
+      permission_mode: 'auto',
+      default_workspace_id: 'workspace-default'
+    })
+  })
+
   it('falls back to the runtime default when a stale mode is unsupported', () => {
     expect(
       buildCreateAgentCommand({ ...values, agentType: 'pi', permissionMode: 'plan' }).configuration?.permission_mode
