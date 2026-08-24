@@ -22093,15 +22093,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.010612
+          "perMillionTokens": 0.011732
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.05306
+          "perMillionTokens": 0.05866
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.10612
+          "perMillionTokens": 0.11732
         }
       },
       "providerId": "openrouter",
@@ -22127,15 +22127,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.008
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.055
+          "perMillionTokens": 0.04
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.08
         }
       },
       "providerId": "openrouter",
@@ -27664,15 +27664,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.048
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.24
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.2
+          "perMillionTokens": 0.96
         }
       },
       "providerId": "openrouter",
@@ -29263,13 +29263,17 @@
       "apiModelId": "qwen/qwen3.5-397b-a17b",
       "modelId": "qwen3-5-397b-a17b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.39
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.34
+          "perMillionTokens": 3.6
         }
       },
       "providerId": "openrouter",
@@ -29377,17 +29381,13 @@
       "apiModelId": "qwen/qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.12
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.6
+          "perMillionTokens": 3.2
         }
       },
       "providerId": "openrouter",
@@ -37345,5 +37345,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a5c82bc4c3148c26"
+  "version": "7dd24299ba55bb84"
 }
