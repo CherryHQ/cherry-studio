@@ -31,7 +31,16 @@ const fakes = vi.hoisted(() => {
     controller: ReadableStreamDefaultController<unknown>
     closed: boolean
   }
-  type RefreshRequest = { reason: string; turnIds: readonly string[] }
+  type RecoveryRequest = {
+    recoveryId: string
+    attachmentGeneration: number
+    conversation: { kind: string; id: string }
+    turnId: string
+    executionId: string
+    reason: string
+    projection: Projection
+    replay?: { chunks: Array<{ chunk: unknown }>; throughChunkSeq: number }
+  }
 
   class FakeConversationStreamSubscription {
     readonly branches = new Map<string, Branch>()
@@ -39,7 +48,8 @@ const fakes = vi.hoisted(() => {
     readonly terminalListeners = new Set<(terminal: Terminal) => void>()
     readonly stateListeners = new Set<() => void>()
     readonly quiescedListeners = new Set<(turnId: string) => void>()
-    readonly refreshRequiredListeners = new Set<(request: RefreshRequest) => void>()
+    readonly recoveryRequiredListeners = new Set<(request: RecoveryRequest) => void>()
+    readonly recoveries = new Map<string, RecoveryRequest>()
     conversationOpen = false
     listenCalls = 0
     disposed = false
@@ -114,9 +124,27 @@ const fakes = vi.hoisted(() => {
       return () => this.quiescedListeners.delete(listener)
     }
 
-    onRefreshRequired(listener: (request: RefreshRequest) => void) {
-      this.refreshRequiredListeners.add(listener)
-      return () => this.refreshRequiredListeners.delete(listener)
+    onRecoveryRequired(listener: (request: RecoveryRequest) => void) {
+      this.recoveryRequiredListeners.add(listener)
+      return () => this.recoveryRequiredListeners.delete(listener)
+    }
+
+    completeRecovery(result: { recoveryId: string; executionId: string; disposition: string }) {
+      const request = this.recoveries.get(result.recoveryId)
+      if (!request || request.executionId !== result.executionId || !this.branches.has(result.executionId)) return null
+      this.recoveries.delete(result.recoveryId)
+      if (result.disposition === 'retired') {
+        this.retireExecution(result.executionId)
+        return null
+      }
+      if (result.disposition === 'rebased') {
+        this.unregister(result.executionId)
+        const stream = this.register(request.projection)
+        const branch = this.branches.get(result.executionId)!
+        for (const payload of request.replay?.chunks ?? []) branch.controller.enqueue(payload.chunk)
+        return stream
+      }
+      return this.branches.get(result.executionId)?.stream ?? null
     }
 
     dispose() {
@@ -156,8 +184,19 @@ const fakes = vi.hoisted(() => {
       for (const listener of this.quiescedListeners) listener(turnId)
     }
 
-    requestRefresh(turnId: string, reason = 'replay-gap') {
-      for (const listener of this.refreshRequiredListeners) listener({ reason, turnIds: [turnId] })
+    requestRecovery(projection: Projection, reason: string, replay?: RecoveryRequest['replay']) {
+      const request: RecoveryRequest = {
+        recoveryId: `recovery-${this.recoveries.size + 1}`,
+        attachmentGeneration: 1,
+        conversation: this.conversation,
+        turnId: projection.turnId,
+        executionId: projection.executionId,
+        reason,
+        projection,
+        replay
+      }
+      this.recoveries.set(request.recoveryId, request)
+      for (const listener of this.recoveryRequiredListeners) listener(request)
     }
   }
 
@@ -166,17 +205,36 @@ const fakes = vi.hoisted(() => {
 })
 
 vi.mock('../ConversationStreamSubscription', () => ({
-  ConversationStreamRefreshReason: {
+  ConversationStreamRecoveryDisposition: {
+    Rebased: 'rebased',
+    Retired: 'retired',
+    RetryAttach: 'retry-attach'
+  },
+  ConversationStreamRecoveryReason: {
+    Rebase: 'rebase',
     AttachUnavailable: 'attach-unavailable',
-    NotFound: 'not-found',
-    ReplayGap: 'replay-gap'
+    NotFound: 'not-found'
   },
   ConversationStreamSubscription: fakes.FakeConversationStreamSubscription
 }))
 
-import { ExecutionOverlayPhase, ExecutionStreamOverlayService } from '../ExecutionStreamOverlayService'
+import {
+  ConversationOverlayDurability,
+  ExecutionOverlayPhase,
+  ExecutionStreamOverlayService
+} from '../ExecutionStreamOverlayService'
 
 const modelId = 'openai::gpt-4o' as UniqueModelId
+
+const registerDurable = (
+  service: ExecutionStreamOverlayService,
+  conversation: ConversationRef,
+  refresh: () => Promise<unknown>
+) =>
+  service.registerRecoveryPort(conversation, {
+    durability: ConversationOverlayDurability.Durable,
+    refresh
+  })
 
 const chat = (id: string): ConversationRef => ({ kind: ConversationKind.Chat, id })
 const execution = (
@@ -306,7 +364,7 @@ describe('ExecutionStreamOverlayService', () => {
     const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
 
     service.acquire(conversation)
-    service.registerRefreshPort(conversation, refresh)
+    registerDurable(service, conversation, refresh)
     service.seedReservations(
       conversation,
       [assistant('assistant-1')],
@@ -335,20 +393,25 @@ describe('ExecutionStreamOverlayService', () => {
     expect(service.getView(conversation).activeNodeOverride).toBeNull()
   })
 
-  it('refreshes a replay gap without retiring the still-live execution', async () => {
+  it('rebases one live reader from a standalone retained snapshot and keeps streaming', async () => {
     const service = new ExecutionStreamOverlayService()
     const conversation = chat('live-replay-gap')
     const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+    const siblingExecution = execution('turn-1', 'execution-2', 'assistant-2')
     const refresh = vi.fn(async () => undefined)
 
     service.acquire(conversation)
-    service.registerRefreshPort(conversation, refresh)
-    service.syncExecutions(conversation, {}, [activeExecution], () => [assistant('assistant-1')])
+    registerDurable(service, conversation, refresh)
+    service.syncExecutions(conversation, {}, [activeExecution, siblingExecution], () => [
+      assistant('assistant-1'),
+      assistant('assistant-2')
+    ])
     const subscription = fakes.instances.get(conversationRefKey(conversation))!
     subscription.emit(activeExecution.executionId, {
       type: 'text-start',
       id: `text-${activeExecution.executionId}`
     } as CherryUIMessageChunk)
+    streamText(subscription, siblingExecution.executionId, 'sibling')
     subscription.emit(activeExecution.executionId, {
       type: 'text-delta',
       id: `text-${activeExecution.executionId}`,
@@ -356,17 +419,32 @@ describe('ExecutionStreamOverlayService', () => {
     } as CherryUIMessageChunk)
     await nextCommit()
 
-    subscription.requestRefresh(activeExecution.turnId)
-    await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+    subscription.requestRecovery(activeExecution, 'rebase', {
+      chunks: [
+        { chunk: { type: 'text-start', id: `rebased-${activeExecution.executionId}` } },
+        {
+          chunk: {
+            type: 'text-delta',
+            id: `rebased-${activeExecution.executionId}`,
+            delta: 'retained'
+          }
+        }
+      ],
+      throughChunkSeq: 10_001
+    })
+    await nextCommit()
 
+    expect(refresh).not.toHaveBeenCalled()
     expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(true)
     subscription.emit(activeExecution.executionId, {
       type: 'text-delta',
-      id: `text-${activeExecution.executionId}`,
+      id: `rebased-${activeExecution.executionId}`,
       delta: '-after'
     } as CherryUIMessageChunk)
     await nextCommit()
-    expect(overlayText(service, conversation, 'assistant-1')).toBe('before-after')
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('retained-after')
+    expect(overlayText(service, conversation, 'assistant-2')).toBe('sibling')
+    expect(subscription.hasOpenBranch(siblingExecution.executionId)).toBe(true)
   })
 
   it('refreshes before retiring an optimistic execution that Main reports as NotFound', async () => {
@@ -377,7 +455,9 @@ describe('ExecutionStreamOverlayService', () => {
     const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
 
     service.acquire(conversation)
-    service.registerRefreshPort(conversation, refresh)
+    registerDurable(service, conversation, refresh)
+    const consumer = {}
+    service.syncExecutions(conversation, consumer, [activeExecution], () => [assistant('assistant-1')])
     service.seedReservations(
       conversation,
       [assistant('assistant-1')],
@@ -388,7 +468,7 @@ describe('ExecutionStreamOverlayService', () => {
     )
     const subscription = fakes.instances.get(conversationRefKey(conversation))!
 
-    subscription.requestRefresh(activeExecution.turnId, 'not-found')
+    subscription.requestRecovery(activeExecution, 'not-found')
     await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
     expect(service.getView(conversation).activeNodeOverride).toEqual({
       previousActiveNodeId: null,
@@ -400,6 +480,13 @@ describe('ExecutionStreamOverlayService', () => {
     await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
     expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
     expect(service.getView(conversation).activeNodeOverride).toBeNull()
+
+    service.syncExecutions(conversation, consumer, [activeExecution], () => [assistant('assistant-1')])
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+    expect(service.getView(conversation).projectedExecutions).toEqual([])
+    service.syncExecutions(conversation, consumer, [], () => [])
+    service.syncExecutions(conversation, consumer, [activeExecution], () => [assistant('assistant-1')])
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(true)
   })
 
   it('starts an in-place retry from empty parts even when cached history still has the old failure', async () => {
@@ -477,7 +564,7 @@ describe('ExecutionStreamOverlayService', () => {
     let finishRefresh!: () => void
     const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
     service.acquire(conversation)
-    service.registerRefreshPort(conversation, refresh)
+    registerDurable(service, conversation, refresh)
     service.syncExecutions(conversation, {}, [active], () => [assistant('assistant-1')])
     const subscription = fakes.instances.get(conversationRefKey(conversation))!
     streamText(subscription, active.executionId, 'final')
@@ -503,7 +590,7 @@ describe('ExecutionStreamOverlayService', () => {
     const refresh = vi.fn(async () => undefined)
     service.acquire(conversation)
     service.onFinish(conversation, finished)
-    service.registerRefreshPort(conversation, refresh)
+    registerDurable(service, conversation, refresh)
     service.syncExecutions(conversation, {}, [first, second], () => [
       assistant('assistant-1'),
       assistant('assistant-2')
@@ -562,7 +649,8 @@ describe('ExecutionStreamOverlayService', () => {
     const first = execution('turn-1', 'execution-1', 'assistant-1')
     const second = execution('turn-2', 'execution-2', 'assistant-2')
     service.acquire(conversation)
-    service.registerRefreshPort(
+    registerDurable(
+      service,
       conversation,
       vi.fn(async () => undefined)
     )
@@ -874,7 +962,7 @@ describe('ExecutionStreamOverlayService', () => {
     const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
 
     service.acquire(conversation)
-    service.registerRefreshPort(conversation, refresh)
+    registerDurable(service, conversation, refresh)
     service.syncExecutions(conversation, {}, [activeExecution], () => [assistant('assistant-1')])
     const subscription = fakes.instances.get(conversationRefKey(conversation))!
     streamText(subscription, activeExecution.executionId, 'durable')

@@ -41,16 +41,21 @@ const mock = vi.hoisted(() => {
         finishListeners.set(key, listener)
         return () => finishListeners.delete(key)
       }),
-      registerRefreshPort: vi.fn((conversation: ConversationRef, refresh: () => Promise<unknown>) => {
+      registerRecoveryPort: vi.fn((conversation: ConversationRef, binding: { refresh?: () => Promise<unknown> }) => {
         const key = conversationRefKey(conversation)
-        refreshPorts.set(key, refresh)
+        if (binding.refresh) refreshPorts.set(key, binding.refresh)
         return () => refreshPorts.delete(key)
       })
     }
   }
 })
 
-vi.mock('@renderer/services/aiTransport', () => ({ executionStreamOverlayService: mock.service }))
+vi.mock('@renderer/services/aiTransport', () => ({
+  ConversationOverlayDurability: { Durable: 'durable', Ephemeral: 'ephemeral' },
+  executionStreamOverlayService: mock.service
+}))
+
+import { ConversationOverlayDurability } from '@renderer/services/aiTransport'
 
 import { useExecutionOverlay } from '../useExecutionOverlay'
 
@@ -104,7 +109,12 @@ describe('useExecutionOverlay', () => {
     const refreshA = vi.fn(async () => undefined)
     const refreshB = vi.fn(async () => undefined)
     const { rerender } = renderHook(
-      ({ ref, onFinish, refresh }) => useExecutionOverlay(ref, [], [], { onFinish, refreshOnQuiesced: refresh }),
+      ({ ref, onFinish, refresh }) =>
+        useExecutionOverlay(ref, [], [], {
+          durability: ConversationOverlayDurability.Durable,
+          onFinish,
+          refreshOnQuiesced: refresh
+        }),
       { initialProps: { ref: conversationA, onFinish: onFinishA, refresh: refreshA } }
     )
     const staleFinish = mock.finishListeners.get(conversationRefKey(conversationA))!

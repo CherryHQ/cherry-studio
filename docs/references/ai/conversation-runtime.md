@@ -75,7 +75,7 @@ Agent branching is disabled. The common history API still exposes a tree: the Ag
 | Stop or no subscribers | select Stop outcome, clear policy-selected inbox, abort exact executions | partial terminal persistence | durable/deferred |
 | attach or detach | no aggregate command | listener registry and compact replay | attached/not-found |
 | Channel, schedule, delivery | submit input with explicit provenance | independent admission owner hands target input to Conversation | accepted/rejected |
-| backup pause | close admission and drain effect resources | preserve inbox and join in-flight effects | drained/stragglers |
+| backup pause | close admission and drain effect resources | preserve inbox; defer exact foreground resume until the final hold releases | drained/stragglers |
 | model/workspace change | freeze active turn policy; reconcile at safe boundary | patch, rebuild, or close Agent connection | current/patched/rebuild/invalid/failed |
 | shutdown | close admission, Stop/drain, release resources last | terminal, delivery, trace, and connection cleanup | settled/stragglers |
 
@@ -178,16 +178,23 @@ attach response is `Live`, `Settled`, or `NotFound`; `NotFound` means refresh
 durable history, not EOF or Success. A Live response may include settled
 siblings, while Settled carries each execution terminal and the turn terminal.
 
-Each execution replay reports `throughChunkSeq`,
-`firstAvailableChunkSeq`, and `truncated`. The resource retains at most 10,000
-raw sequenced provider events. It filters `chunkSeq > requested cursor`, then
-semantically compacts the suffix and splits text/reasoning/tool deltas at 16
-KiB without crossing a sequence boundary. For a nonzero cursor, replay
-continues the Renderer-owned semantic part instead of synthesizing another
-start. Renderer buffers events during attach, reports only its continuously
-applied cursor, applies the snapshot and replay, and then drains buffered
-events without crossing a gap. IPC errors remain retryable renderer-local
-state; NotFound performs durable refresh before exact-turn retirement.
+Each execution replay is either `Continuous` or `Rebase`. `Continuous` covers
+every sequence after the requested cursor through `throughChunkSeq`. `Rebase`
+means the prefix is no longer recoverable and carries a standalone semantic
+snapshot built from the retained window, plus `firstAvailableChunkSeq` and its
+high-water. The resource retains at most 10,000 raw sequenced provider events
+and splits text/reasoning/tool deltas at 16 KiB without crossing a sequence
+boundary.
+
+`ConversationStreamSubscription` owns the attach generation, continuous cursor,
+and bounded live buffer. On `Rebase`, `ExecutionStreamOverlayService` cancels
+the exact old reader without publishing finish, seeds a fresh reader from the
+standalone snapshot, installs its high-water, and drains later live chunks. A
+terminal is an independent control fact and settles immediately even when
+attach or recovery fails; durable refresh supplies the complete final message.
+IPC errors remain retryable renderer-local state. Durable `NotFound` uses an
+exact execution tombstone and refresh-before-retire, while ephemeral overlays
+may retire immediately.
 
 ## Ports
 

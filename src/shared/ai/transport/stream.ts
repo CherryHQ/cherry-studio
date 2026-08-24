@@ -292,12 +292,23 @@ export interface AiAgentSessionWarmCloseRequest {
   sessionId: string
 }
 
-export interface ReplayWindow {
-  readonly chunks: StreamChunkPayload[]
-  readonly throughChunkSeq: number
-  readonly firstAvailableChunkSeq: number
-  readonly truncated: boolean
+export enum ConversationReplayWindowKind {
+  Continuous = 'continuous',
+  Rebase = 'rebase'
 }
+
+export type ReplayWindow =
+  | {
+      readonly kind: ConversationReplayWindowKind.Continuous
+      readonly chunks: StreamChunkPayload[]
+      readonly throughChunkSeq: number
+    }
+  | {
+      readonly kind: ConversationReplayWindowKind.Rebase
+      readonly chunks: StreamChunkPayload[]
+      readonly throughChunkSeq: number
+      readonly firstAvailableChunkSeq: number
+    }
 
 export type ExecutionAttachTerminal =
   | {

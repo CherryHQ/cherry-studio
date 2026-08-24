@@ -7,7 +7,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
-import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { ConversationOverlayDurability, ipcChatTransport } from '@renderer/services/aiTransport'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { cn } from '@renderer/utils/style'
 import { ConversationKind } from '@shared/ai/conversation'
@@ -103,7 +103,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     [temporaryTopicId]
   )
   const { activeExecutions, isPending } = useConversationStreamStatus(temporaryConversation)
-  const { liveAssistants } = useExecutionOverlay(temporaryConversation, activeExecutions, EMPTY_UI_MESSAGES)
+  const { liveAssistants } = useExecutionOverlay(temporaryConversation, activeExecutions, EMPTY_UI_MESSAGES, {
+    durability: ConversationOverlayDurability.Ephemeral
+  })
 
   useEffect(() => {
     if (isPending) {

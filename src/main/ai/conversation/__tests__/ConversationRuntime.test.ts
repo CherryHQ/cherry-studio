@@ -23,6 +23,7 @@ import {
   ConversationHistoryCommitKind,
   ConversationInputProvenance,
   ConversationResponderKind,
+  ConversationRunMode,
   type ConversationRuntimeIdFactory,
   type ConversationRuntimePortSet,
   type ConversationTerminalPersistenceResult,
@@ -37,12 +38,17 @@ describe('ConversationRuntime', () => {
   let sinks: ConversationExecutionSink[]
   let ports: ConversationRuntimePortSet
   let actors: Map<string, ConversationActor>
+  let effectSchedulingPaused: boolean
 
   const actorFor = (ref: ConversationRef) => {
     const key = `${ref.kind}:${ref.id}`
     let actor = actors.get(key)
     if (!actor) {
-      actor = new ConversationActor(ref, () => {}, { ports: { resolve: () => ports }, ids })
+      actor = new ConversationActor(ref, () => {}, {
+        ports: { resolve: () => ports },
+        ids,
+        isEffectSchedulingPaused: () => effectSchedulingPaused
+      })
       actors.set(key, actor)
     }
     return actor
@@ -52,6 +58,7 @@ describe('ConversationRuntime', () => {
 
   beforeEach(() => {
     sequence = 0
+    effectSchedulingPaused = false
     sinks = []
     ids = {
       turn: () => toConversationTurnId(`turn-${++sequence}`),
@@ -220,5 +227,57 @@ describe('ConversationRuntime', () => {
     expect(ports.execution.abort).toHaveBeenCalledWith(
       expect.objectContaining({ executionId: toConversationExecutionId('execution-1'), reason: 'user-stop' })
     )
+  })
+
+  it('defers an exact foreground resume while effect scheduling is paused and flushes it once', () => {
+    vi.mocked(ports.execution.suspend).mockReturnValue(true)
+    open(agent)
+    const actor = actorFor(agent)
+    actor.requestRuntimePreemption({
+      id: toConversationInputId('runtime-1'),
+      historyNodeId: 'runtime-1',
+      provenance: ConversationInputProvenance.Runtime,
+      responder: ConversationResponderKind.Headless
+    })
+    const preempting = actor.inspect()
+    if (preempting.phase !== ConversationPhase.Running || preempting.runMode !== ConversationRunMode.Preempting) {
+      throw new Error('runtime preemption did not reach the commit boundary')
+    }
+
+    effectSchedulingPaused = true
+    actor.failRuntimeTurnCommit(preempting.suspendEffectId)
+
+    expect(ports.execution.discardRuntimeBuffer).toHaveBeenCalledOnce()
+    expect(ports.execution.resumeSuspended).not.toHaveBeenCalled()
+    expect(actor.inFlightOperations()).toEqual([])
+
+    effectSchedulingPaused = false
+    actor.kickDeferredEffects()
+    actor.kickDeferredEffects()
+    expect(ports.execution.resumeSuspended).toHaveBeenCalledOnce()
+  })
+
+  it('drops a deferred foreground resume when Stop supersedes its exact run identity', () => {
+    vi.mocked(ports.execution.suspend).mockReturnValue(true)
+    open(agent)
+    const actor = actorFor(agent)
+    actor.requestRuntimePreemption({
+      id: toConversationInputId('runtime-1'),
+      historyNodeId: 'runtime-1',
+      provenance: ConversationInputProvenance.Runtime,
+      responder: ConversationResponderKind.Headless
+    })
+    const preempting = actor.inspect()
+    if (preempting.phase !== ConversationPhase.Running || preempting.runMode !== ConversationRunMode.Preempting) {
+      throw new Error('runtime preemption did not reach the commit boundary')
+    }
+
+    effectSchedulingPaused = true
+    actor.failRuntimeTurnCommit(preempting.suspendEffectId)
+    actor.stop('backup-cancelled-run')
+    effectSchedulingPaused = false
+    actor.kickDeferredEffects()
+
+    expect(ports.execution.resumeSuspended).not.toHaveBeenCalled()
   })
 })

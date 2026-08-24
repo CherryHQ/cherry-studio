@@ -29,6 +29,8 @@ import type {
 } from './conversationState'
 import {
   ConversationCommandType,
+  type ConversationEffect,
+  type ConversationEffectType,
   ConversationExecutionDriverKind,
   ConversationInputProvenance,
   type ConversationResponderKind,
@@ -161,6 +163,7 @@ interface ConversationAdmissionOperation {
 export interface ConversationActorControl {
   readonly ports: ConversationPortResolver
   readonly ids: ConversationRuntimeIdFactory
+  readonly isEffectSchedulingPaused?: () => boolean
   readonly onTransition?: (
     ref: ConversationRef,
     command: ConversationCommand,
@@ -187,9 +190,18 @@ export class ConversationActor {
   ) {
     this.state = createConversationState(conversation)
     if (control) {
-      this.effectExecutor = new ConversationEffectExecutor(conversation, control.ports, control.ids, (command) => {
-        this.commit(command)
-      })
+      this.effectExecutor = new ConversationEffectExecutor(
+        conversation,
+        control.ports,
+        control.ids,
+        (command) => {
+          this.commit(command)
+        },
+        {
+          shouldDeferResume: () => control.isEffectSchedulingPaused?.() === true,
+          isResumeApplicable: (effect) => this.isDeferredResumeApplicable(effect)
+        }
+      )
     }
   }
 
@@ -417,6 +429,7 @@ export class ConversationActor {
   commit(command: ConversationCommand): ConversationTransition {
     const transition = transitionConversation(this.state, command)
     this.state = transition.state
+    this.effectExecutor?.reconcileDeferredEffects()
     if (
       !transition.rejection &&
       (command.type === ConversationCommandType.TurnCommitted ||
@@ -636,6 +649,10 @@ export class ConversationActor {
     this.effectExecutor?.retryBlockedPersistence()
   }
 
+  kickDeferredEffects(): void {
+    this.effectExecutor?.flushDeferredEffects()
+  }
+
   inFlightPersistenceOperations() {
     return this.effectExecutor?.inFlightPersistenceOperations() ?? []
   }
@@ -646,6 +663,20 @@ export class ConversationActor {
       if (!this.hasPendingOperations) this.onIdle()
       throw new StaleConversationAdmissionError(this.conversation)
     }
+  }
+
+  private isDeferredResumeApplicable(
+    effect: Extract<ConversationEffect, { readonly type: ConversationEffectType.ResumeSuspendedExecution }>
+  ): boolean {
+    if (
+      this.state.phase !== ConversationPhase.Running ||
+      this.state.runMode !== ConversationRunMode.Foreground ||
+      this.state.turn.id !== effect.turnId
+    ) {
+      return false
+    }
+    const execution = this.state.turn.executions.get(effect.executionId)
+    return execution?.phase === ConversationExecutionPhase.Starting && execution.runEffectId === effect.runEffectId
   }
 
   private ids(): ConversationRuntimeIdFactory {

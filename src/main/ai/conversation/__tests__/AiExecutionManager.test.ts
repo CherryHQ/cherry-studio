@@ -9,6 +9,7 @@ import {
   toConversationInteractionId,
   toConversationTurnId
 } from '@shared/ai/conversation'
+import { ConversationReplayWindowKind } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
@@ -1638,9 +1639,8 @@ describe('AiExecutionManager', () => {
       isAlive: () => true
     })
     expect(snapshot.replay).toMatchObject({
-      throughChunkSeq: 4,
-      firstAvailableChunkSeq: 1,
-      truncated: false
+      kind: ConversationReplayWindowKind.Continuous,
+      throughChunkSeq: 4
     })
     expect(snapshot.replay.chunks).toMatchObject([
       { chunkSeq: 1, throughChunkSeq: 1, chunk: { type: 'text-start' } },
@@ -1654,7 +1654,10 @@ describe('AiExecutionManager', () => {
       { id: 'cursor', onChunk: vi.fn(), isAlive: () => true },
       [{ turnId, executionId, throughChunkSeq: 2 }]
     )
-    expect(cursorSnapshot.replay).toMatchObject({ throughChunkSeq: 4, truncated: false })
+    expect(cursorSnapshot.replay).toMatchObject({
+      kind: ConversationReplayWindowKind.Continuous,
+      throughChunkSeq: 4
+    })
     expect(cursorSnapshot.replay.chunks).toMatchObject([
       { chunkSeq: 3, throughChunkSeq: 3, chunk: { type: 'text-delta', delta: 'world' } },
       { chunkSeq: 4, throughChunkSeq: 4, chunk: { type: 'text-end' } }
@@ -1787,7 +1790,22 @@ describe('AiExecutionManager', () => {
       isAlive: () => true
     })
     expect(resolved.replay.chunks.map(({ chunk }) => chunk.type)).not.toContain('tool-approval-request')
-    expect(resolved.replay.truncated).toBe(true)
+    expect(resolved.replay.kind).toBe(ConversationReplayWindowKind.Rebase)
+    const replayErrors: unknown[] = []
+    const replayStream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        for (const { chunk } of resolved.replay.chunks) controller.enqueue(chunk)
+        controller.close()
+      }
+    })
+    for await (const message of readUIMessageStream<CherryUIMessage>({
+      stream: replayStream,
+      terminateOnError: false,
+      onError: (error) => replayErrors.push(error)
+    })) {
+      void message
+    }
+    expect(replayErrors).toEqual([])
 
     controlled.controller.close()
     await Promise.all(manager.inFlightRuns())
@@ -1840,7 +1858,11 @@ describe('AiExecutionManager', () => {
       onChunk: vi.fn(),
       isAlive: () => true
     })
-    expect(snapshot.replay).toMatchObject({ firstAvailableChunkSeq: 4, throughChunkSeq: 6, truncated: true })
+    expect(snapshot.replay).toMatchObject({
+      kind: ConversationReplayWindowKind.Rebase,
+      firstAvailableChunkSeq: 4,
+      throughChunkSeq: 6
+    })
     expect(snapshot.replay.chunks).toMatchObject([
       { chunk: { type: 'text-start', id: 'text-1' } },
       { chunk: { type: 'text-delta', id: 'text-1', delta: '234' } }
@@ -1900,7 +1922,7 @@ describe('AiExecutionManager', () => {
       onChunk: vi.fn(),
       isAlive: () => true
     })
-    expect(snapshot.replay.truncated).toBe(true)
+    expect(snapshot.replay.kind).toBe(ConversationReplayWindowKind.Rebase)
     const errors: unknown[] = []
     const stream = new ReadableStream<UIMessageChunk>({
       start(controller) {
@@ -1977,7 +1999,7 @@ describe('AiExecutionManager', () => {
       onChunk: vi.fn(),
       isAlive: () => true
     })
-    expect(snapshot.replay.truncated).toBe(false)
+    expect(snapshot.replay.kind).toBe(ConversationReplayWindowKind.Continuous)
     expect(snapshot.replay.chunks.map(({ chunk }) => chunk.type)).toEqual([
       'text-start',
       'text-delta',
@@ -2102,9 +2124,9 @@ describe('AiExecutionManager', () => {
       isAlive: () => true
     })
     expect(snapshot.replay).toMatchObject({
+      kind: ConversationReplayWindowKind.Rebase,
       firstAvailableChunkSeq: 3,
-      throughChunkSeq: 10_002,
-      truncated: true
+      throughChunkSeq: 10_002
     })
 
     controlled.controller.close()
@@ -2157,7 +2179,11 @@ describe('AiExecutionManager', () => {
       onChunk: vi.fn(),
       isAlive: () => true
     })
-    expect(snapshot.replay).toMatchObject({ firstAvailableChunkSeq: 2, throughChunkSeq: 3, truncated: true })
+    expect(snapshot.replay).toMatchObject({
+      kind: ConversationReplayWindowKind.Rebase,
+      firstAvailableChunkSeq: 2,
+      throughChunkSeq: 3
+    })
     expect(snapshot.replay.chunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta', 'text-end'])
     controlled.controller.close()
     await Promise.all(manager.inFlightRuns())

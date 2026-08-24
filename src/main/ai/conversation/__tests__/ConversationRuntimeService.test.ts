@@ -14,7 +14,9 @@ import {
   ConversationStatus,
   ConversationStreamTerminalStatus,
   toConversationEffectId,
-  toConversationInputId
+  toConversationExecutionId,
+  toConversationInputId,
+  toConversationTurnId
 } from '@shared/ai/conversation'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -45,11 +47,14 @@ import {
 } from '../../streamManager/context/ConversationHistoryPort'
 import {
   AiExecutionManager as ResourceExecutionManager,
+  type ConversationActor,
   type ConversationExecutionDriver,
+  ConversationExecutionDriverKind,
   ConversationInputProvenance,
   type ConversationNamingTaskExecutor,
   type ConversationQuiescenceTaskExecutor,
   ConversationResponderKind,
+  ConversationRunMode,
   ConversationRuntimeService as RuntimeConversationRuntimeService
 } from '..'
 
@@ -2381,6 +2386,66 @@ describe('ConversationRuntimeService', () => {
     expect(services.agentConnection.describeConversationAutonomous).not.toHaveBeenCalled()
 
     hold.dispose()
+  })
+
+  it('flushes a deferred foreground resume only after the last pause hold releases', async () => {
+    const service = new ConversationRuntimeService({ providers: [] })
+    const conversation = { kind: ConversationKind.Agent, id: 'session-1' } as const
+    const internals = service as unknown as {
+      actorFor: (ref: typeof conversation) => ConversationActor
+      executionResources: {
+        start: (effect: unknown, sink: unknown) => void
+        suspend: (effect: unknown) => boolean
+        resumeSuspended: (effect: unknown) => void
+        discardRuntimeBuffer: (effect: unknown) => void
+      }
+    }
+    vi.spyOn(internals.executionResources, 'start').mockImplementation(() => {})
+    vi.spyOn(internals.executionResources, 'suspend').mockReturnValue(true)
+    const resume = vi.spyOn(internals.executionResources, 'resumeSuspended').mockImplementation(() => {})
+    const discard = vi.spyOn(internals.executionResources, 'discardRuntimeBuffer').mockImplementation(() => {})
+    const actor = internals.actorFor(conversation)
+    actor.openTurn(
+      {
+        id: toConversationInputId('foreground-input'),
+        historyNodeId: 'foreground-input',
+        provenance: ConversationInputProvenance.Renderer,
+        responder: ConversationResponderKind.Interactive
+      },
+      [
+        {
+          id: toConversationExecutionId('foreground-execution'),
+          outputNodeId: 'foreground-assistant',
+          driver: ConversationExecutionDriverKind.Agent,
+          modelId,
+          startEffectId: toConversationEffectId('foreground-run')
+        }
+      ],
+      { turnId: toConversationTurnId('foreground-turn') }
+    )
+    actor.requestRuntimePreemption({
+      id: toConversationInputId('runtime-input'),
+      historyNodeId: 'runtime-input',
+      provenance: ConversationInputProvenance.Runtime,
+      responder: ConversationResponderKind.Headless
+    })
+    const preempting = actor.inspect()
+    if (preempting.phase !== ConversationPhase.Running || preempting.runMode !== ConversationRunMode.Preempting) {
+      throw new Error('runtime preemption did not reach the commit boundary')
+    }
+    const first = service.pause('backup-1')
+    const second = service.pause('backup-2')
+
+    actor.failRuntimeTurnCommit(preempting.suspendEffectId)
+    expect(discard).toHaveBeenCalledOnce()
+    expect(resume).not.toHaveBeenCalled()
+    await expect(service.drainInFlight({ timeoutMs: 100 })).resolves.toEqual({ stragglerIds: [] })
+
+    first.dispose()
+    await Promise.resolve()
+    expect(resume).not.toHaveBeenCalled()
+    second.dispose()
+    await vi.waitFor(() => expect(resume).toHaveBeenCalledOnce())
   })
 
   it('does not let an old turn cleanup overwrite a newer turn status', async () => {

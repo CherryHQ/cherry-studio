@@ -357,6 +357,40 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
     expect(adapter.seenMsgIds.has('stale-mid-flight')).toBe(false)
   })
 
+  it('does not let an old connect run roll back a newer dedup claim for the same message', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-08-24T00:00:00.000Z'))
+      const adapter = createAdapterWithConfig({ mention_only: false })
+      const events: any[] = []
+      adapter.on('message', (event: any) => events.push(event))
+      let finishOldDownload!: () => void
+      vi.spyOn(adapter, 'downloadAttachments')
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            finishOldDownload = () => resolve({})
+          })
+        )
+        .mockResolvedValue({})
+
+      const oldDispatch = activeDispatch(adapter)
+      const oldHandling = oldDispatch('GROUP_MESSAGE_CREATE', groupMessage('aba-1'))
+      await Promise.resolve()
+
+      vi.setSystemTime(new Date('2026-08-24T00:00:11.000Z'))
+      const currentDispatch = activeDispatch(adapter)
+      await currentDispatch('GROUP_MESSAGE_CREATE', groupMessage('aba-1'))
+      finishOldDownload()
+      await oldHandling
+
+      await currentDispatch('GROUP_MESSAGE_CREATE', groupMessage('aba-1'))
+      expect(events).toHaveLength(1)
+      expect(events[0].messageId).toBe('aba-1')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('mention_only=false: dedup—AT event then FULL event with same msg.id emits once', async () => {
     const adapter = createAdapterWithConfig({ mention_only: false })
     const events: any[] = []

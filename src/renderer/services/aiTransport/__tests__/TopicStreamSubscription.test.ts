@@ -8,12 +8,14 @@ import {
   toConversationExecutionId,
   toConversationTurnId
 } from '@shared/ai/conversation'
-import type {
-  AiStreamAttachResponse,
-  ConversationExecutionProjection,
-  StreamChunkPayload,
-  StreamDonePayload,
-  StreamErrorPayload
+import {
+  type AiStreamAttachResponse,
+  type ConversationExecutionProjection,
+  ConversationReplayWindowKind,
+  type ReplayWindow,
+  type StreamChunkPayload,
+  type StreamDonePayload,
+  type StreamErrorPayload
 } from '@shared/ai/transport'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
@@ -37,7 +39,7 @@ vi.mock('../StreamAttachmentService', () => ({
   streamAttachmentService: { acquire: (...args: unknown[]) => attachment.acquire(...args) }
 }))
 
-import { ConversationStreamRefreshReason, ConversationStreamSubscription } from '../ConversationStreamSubscription'
+import { ConversationStreamRecoveryReason, ConversationStreamSubscription } from '../ConversationStreamSubscription'
 
 const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
 const turn1 = toConversationTurnId('turn-1')
@@ -79,12 +81,13 @@ function payload(
   }
 }
 
-function replay(chunks: StreamChunkPayload[] = []) {
+function replay(
+  chunks: StreamChunkPayload[] = []
+): Extract<ReplayWindow, { kind: ConversationReplayWindowKind.Continuous }> {
   return {
+    kind: ConversationReplayWindowKind.Continuous,
     chunks,
-    throughChunkSeq: chunks.at(-1)?.throughChunkSeq ?? 0,
-    firstAvailableChunkSeq: chunks[0]?.chunkSeq ?? 1,
-    truncated: (chunks[0]?.chunkSeq ?? 1) > 1
+    throughChunkSeq: chunks.at(-1)?.throughChunkSeq ?? 0
   }
 }
 
@@ -441,14 +444,17 @@ describe('ConversationStreamSubscription legacy behavior contracts', () => {
   it('NotFound requests durable refresh without inventing EOF or Success', async () => {
     ipc.attach.mockResolvedValue({ status: ConversationAttachStatus.NotFound } satisfies AiStreamAttachResponse)
     const sub = new ConversationStreamSubscription(conversation)
-    const refresh = vi.fn()
-    sub.onRefreshRequired(refresh)
+    const recovery = vi.fn()
+    sub.onRecoveryRequired(recovery)
     sub.register(projection())
     await tick()
-    expect(refresh).toHaveBeenCalledWith({
-      reason: ConversationStreamRefreshReason.NotFound,
-      turnIds: [turn1]
-    })
+    expect(recovery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: ConversationStreamRecoveryReason.NotFound,
+        turnId: turn1,
+        executionId: executionA
+      })
+    )
     expect(sub.hasOpenBranch(executionA)).toBe(true)
     expect(sub.isSettled(executionA)).toBe(false)
     sub.dispose()

@@ -18,6 +18,7 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { ipcApi } from '@renderer/ipc'
+import { ConversationOverlayDurability } from '@renderer/services/aiTransport'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { ConversationKind, ConversationOpenTrigger, conversationRefKey } from '@shared/ai/conversation'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -156,6 +157,7 @@ export function useAgentChatRuntimeState({
     projectedExecutions,
     seedReservations: seedProjectionReservations
   } = useExecutionOverlay(conversation, activeExecutions, uiMessages, {
+    durability: ConversationOverlayDurability.Durable,
     refreshOnQuiesced: refresh
   })
   const seedReservedMessages = useCallback(

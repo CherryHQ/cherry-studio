@@ -7,7 +7,7 @@
  * switch) no longer tears the stream down, and remounting restores the live
  * overlay synchronously. Reader/seed semantics live in the service.
  */
-import { executionStreamOverlayService } from '@renderer/services/aiTransport'
+import { ConversationOverlayDurability, executionStreamOverlayService } from '@renderer/services/aiTransport'
 import { type ConversationExecutionId, type ConversationRef, conversationRefKey } from '@shared/ai/conversation'
 import type { ActiveNodeDecision, ConversationExecutionProjection } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -20,11 +20,25 @@ import type {
   ExecutionOverlayRecord
 } from '@renderer/services/aiTransport'
 
-export interface UseExecutionOverlayOptions {
+type ExecutionOverlayFinishOption = {
   onFinish?: (executionId: ConversationExecutionId, event: ExecutionFinishEvent) => void
-  /** Persistent projections refresh committed rows at Conversation quiescence. */
-  refreshOnQuiesced?: () => Promise<unknown>
 }
+
+export type UseExecutionOverlayOptions = ExecutionOverlayFinishOption &
+  (
+    | {
+        durability: ConversationOverlayDurability.Durable
+        refreshOnQuiesced: () => Promise<unknown>
+      }
+    | {
+        durability: ConversationOverlayDurability.Ephemeral
+        refreshOnQuiesced?: never
+      }
+    | {
+        durability?: undefined
+        refreshOnQuiesced?: never
+      }
+  )
 
 export interface ExecutionOverlayApi {
   /** messageId -> latest streamed parts. messageId = outputNodeId, or the
@@ -59,10 +73,14 @@ interface ConversationOverlayBinding {
   uiMessages: CherryUIMessage[]
   onFinish: UseExecutionOverlayOptions['onFinish']
   refreshOnQuiesced: UseExecutionOverlayOptions['refreshOnQuiesced']
+  readonly durability: ConversationOverlayDurability
   readonly getSeedMessages: () => CherryUIMessage[]
 }
 
-function createConversationOverlayBinding(conversation: ConversationRef): ConversationOverlayBinding {
+function createConversationOverlayBinding(
+  conversation: ConversationRef,
+  durability: ConversationOverlayDurability
+): ConversationOverlayBinding {
   const binding = {
     conversation,
     key: conversationRefKey(conversation),
@@ -70,6 +88,7 @@ function createConversationOverlayBinding(conversation: ConversationRef): Conver
     uiMessages: [],
     onFinish: undefined,
     refreshOnQuiesced: undefined,
+    durability,
     getSeedMessages: () => binding.uiMessages
   } satisfies ConversationOverlayBinding
   return binding
@@ -82,9 +101,10 @@ export function useExecutionOverlay(
   options: UseExecutionOverlayOptions = {}
 ): ExecutionOverlayApi {
   const key = conversationRefKey(conversation)
+  const durability = options.durability ?? ConversationOverlayDurability.Ephemeral
   const bindingRef = useRef<ConversationOverlayBinding>(undefined)
-  if (!bindingRef.current || bindingRef.current.key !== key) {
-    bindingRef.current = createConversationOverlayBinding(conversation)
+  if (!bindingRef.current || bindingRef.current.key !== key || bindingRef.current.durability !== durability) {
+    bindingRef.current = createConversationOverlayBinding(conversation, durability)
   }
   const binding = bindingRef.current
   binding.uiMessages = uiMessages
@@ -100,15 +120,18 @@ export function useExecutionOverlay(
     )
     // The service owns the quiesce → refresh → retire handoff (and its retry);
     // this only lends it the consumer's DB refetch while mounted.
-    const offRefresh = binding.refreshOnQuiesced
-      ? executionStreamOverlayService.registerRefreshPort(
-          binding.conversation,
-          () => binding.refreshOnQuiesced?.() ?? Promise.resolve()
-        )
-      : undefined
+    const offRecovery = executionStreamOverlayService.registerRecoveryPort(
+      binding.conversation,
+      binding.durability === ConversationOverlayDurability.Durable
+        ? {
+            durability: ConversationOverlayDurability.Durable,
+            refresh: () => binding.refreshOnQuiesced?.() ?? Promise.resolve()
+          }
+        : { durability: ConversationOverlayDurability.Ephemeral }
+    )
     return () => {
       offFinish()
-      offRefresh?.()
+      offRecovery()
       executionStreamOverlayService.release(binding.conversation, binding.consumer)
     }
   }, [binding])

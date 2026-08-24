@@ -10,7 +10,7 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { ExecutionOverlayPhase, ipcChatTransport } from '@renderer/services/aiTransport'
+import { ConversationOverlayDurability, ExecutionOverlayPhase, ipcChatTransport } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
@@ -154,7 +154,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const { records, clear: clearExecutionMessages } = useExecutionOverlay(
     temporaryConversation,
     activeExecutions,
-    EMPTY_UI_MESSAGES
+    EMPTY_UI_MESSAGES,
+    { durability: ConversationOverlayDurability.Ephemeral }
   )
 
   useEffect(() => {

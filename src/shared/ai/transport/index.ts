@@ -49,5 +49,6 @@ export type {
   StreamErrorPayload
 } from './stream'
 export { isConversationAdmissionReason } from './stream'
+export { ConversationReplayWindowKind } from './stream'
 export type { TurnStateFlags } from './turnState'
 export { classifyTurn, TURN_STATE } from './turnState'

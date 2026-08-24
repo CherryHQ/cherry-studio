@@ -8,10 +8,12 @@ import {
 } from '@shared/ai/conversation'
 import type { ActiveNodeDecision, ConversationExecutionProjection } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { isToolUIPart, readUIMessageStream } from 'ai'
+import { isToolUIPart, readUIMessageStream, type UIMessageChunk } from 'ai'
 
 import {
-  ConversationStreamRefreshReason,
+  ConversationStreamRecoveryDisposition,
+  ConversationStreamRecoveryReason,
+  type ConversationStreamRecoveryRequest,
   ConversationStreamSubscription,
   type ExecutionTerminal
 } from './ConversationStreamSubscription'
@@ -59,6 +61,10 @@ export interface ExecutionOverlayView {
 type FinishListener = (executionId: ConversationExecutionId, event: ExecutionFinishEvent) => void
 
 interface ReaderHandle {
+  readonly branch: ReadableStream<UIMessageChunk>
+  readonly execution: ConversationExecutionProjection
+  readonly seedFromEmpty: boolean | undefined
+  readonly getSeedMessages: () => CherryUIMessage[]
   cancel: () => void
   unregister: () => void
 }
@@ -88,10 +94,26 @@ interface Settlement {
 
 interface HandoffState {
   pendingTurnIds: Set<ConversationTurnId>
+  retireRecoveries: Map<string, ConversationStreamRecoveryRequest>
+  retryRecoveries: Map<string, ConversationStreamRecoveryRequest>
   attempt: number
   retryTimer: number | null
   inFlight: boolean
 }
+
+export enum ConversationOverlayDurability {
+  Durable = 'durable',
+  Ephemeral = 'ephemeral'
+}
+
+export type ConversationOverlayRecoveryBinding =
+  | {
+      readonly durability: ConversationOverlayDurability.Durable
+      readonly refresh: () => Promise<unknown>
+    }
+  | {
+      readonly durability: ConversationOverlayDurability.Ephemeral
+    }
 
 interface Entry {
   conversation: ConversationRef
@@ -106,9 +128,10 @@ interface Entry {
   optimisticSeeds: Map<ConversationExecutionId, () => CherryUIMessage[]>
   activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
   refreshError: Error | null
+  durability: ConversationOverlayDurability
   refreshPorts: Set<() => Promise<unknown>>
+  notFoundTombstones: Map<ConversationExecutionId, ConversationTurnId>
   handoff: HandoffState | null
-  projectionRefreshInFlight: Promise<void> | null
   snapshots: Map<ConversationExecutionId, CherryUIMessage>
   settlements: Map<ConversationExecutionId, Settlement>
   view: ExecutionOverlayView
@@ -131,6 +154,10 @@ const HANDOFF_RETRY_DELAYS_MS = [1_000, 2_000, 5_000, 15_000, 30_000]
 const MIN_COMMIT_INTERVAL_MS = 100
 const MAX_COMMIT_INTERVAL_MS = 3000
 const COMMIT_CHARS_PER_MS = 2000
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled Conversation overlay variant: ${String(value)}`)
+}
 
 const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
   overlay: Object.freeze({}),
@@ -341,6 +368,14 @@ export class ExecutionStreamOverlayService {
       const candidate = candidates.get(execution.executionId)
       if (candidate) union.set(execution.executionId, candidate)
     }
+    for (const [executionId, turnId] of entry.notFoundTombstones) {
+      const candidate = union.get(executionId)
+      if (!candidate || candidate.execution.turnId !== turnId) {
+        entry.notFoundTombstones.delete(executionId)
+      } else {
+        union.delete(executionId)
+      }
+    }
 
     if (entry.needsRemountReconcile) {
       entry.needsRemountReconcile = false
@@ -419,9 +454,12 @@ export class ExecutionStreamOverlayService {
     return () => entry.finishListeners.delete(listener)
   }
 
-  registerRefreshPort(conversation: ConversationRef, refresh: () => Promise<unknown>): () => void {
+  registerRecoveryPort(conversation: ConversationRef, binding: ConversationOverlayRecoveryBinding): () => void {
     const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return () => {}
+    if (binding.durability === ConversationOverlayDurability.Ephemeral) return () => {}
+    entry.durability = ConversationOverlayDurability.Durable
+    const refresh = binding.refresh
     entry.refreshPorts.add(refresh)
     if (entry.handoff && !entry.handoff.inFlight) {
       this.#clearHandoffTimer(entry)
@@ -481,6 +519,7 @@ export class ExecutionStreamOverlayService {
     entry.optimisticMessageTurnIds.clear()
     entry.optimisticExecutions.clear()
     entry.optimisticSeeds.clear()
+    entry.notFoundTombstones.clear()
     entry.activeNodeOverride = null
     entry.refreshError = null
     if (entry.snapshots.size > 0) this.#commitSnapshots(entry, new Map())
@@ -496,6 +535,8 @@ export class ExecutionStreamOverlayService {
     } else {
       entry.handoff = {
         pendingTurnIds: new Set([turnId]),
+        retireRecoveries: new Map(),
+        retryRecoveries: new Map(),
         attempt: 0,
         retryTimer: null,
         inFlight: false
@@ -504,28 +545,28 @@ export class ExecutionStreamOverlayService {
     this.#runHandoffRefresh(entry)
   }
 
-  #refreshProjection(entry: Entry): void {
-    if (entry.projectionRefreshInFlight || entry.dropped) return
-    const refresh = [...entry.refreshPorts].at(-1)
-    if (!refresh) return
-    const work = (async () => {
-      try {
-        await refresh()
-        if (!entry.dropped) this.setRefreshError(entry.conversation, null)
-      } catch (error) {
-        if (entry.dropped) return
-        const refreshError = error instanceof Error ? error : new Error(String(error))
-        this.setRefreshError(entry.conversation, refreshError)
-        logger.warn('conversation projection refresh failed; retaining live overlay', {
-          conversation: entry.conversation,
-          error: refreshError
-        })
-      }
-    })()
-    entry.projectionRefreshInFlight = work
-    void work.then(() => {
-      if (entry.projectionRefreshInFlight === work) entry.projectionRefreshInFlight = null
-    })
+  #beginRecoveryHandoff(
+    entry: Entry,
+    request: ConversationStreamRecoveryRequest,
+    disposition: ConversationStreamRecoveryDisposition.Retired | ConversationStreamRecoveryDisposition.RetryAttach
+  ): void {
+    const handoff =
+      entry.handoff ??
+      (entry.handoff = {
+        pendingTurnIds: new Set(),
+        retireRecoveries: new Map(),
+        retryRecoveries: new Map(),
+        attempt: 0,
+        retryTimer: null,
+        inFlight: false
+      })
+    const target =
+      disposition === ConversationStreamRecoveryDisposition.Retired ? handoff.retireRecoveries : handoff.retryRecoveries
+    target.set(request.recoveryId, request)
+    handoff.attempt = 0
+    if (handoff.inFlight) return
+    this.#clearHandoffTimer(entry)
+    this.#runHandoffRefresh(entry)
   }
 
   #runHandoffRefresh(entry: Entry): void {
@@ -536,6 +577,8 @@ export class ExecutionStreamOverlayService {
     this.#clearHandoffTimer(entry)
     handoff.inFlight = true
     const turnIds = new Set(handoff.pendingTurnIds)
+    const retireRecoveries = new Map(handoff.retireRecoveries)
+    const retryRecoveries = new Map(handoff.retryRecoveries)
     this.setRefreshError(entry.conversation, null)
     void (async () => {
       try {
@@ -554,10 +597,24 @@ export class ExecutionStreamOverlayService {
       }
       if (entry.handoff !== handoff) return
       handoff.inFlight = false
+      for (const request of retireRecoveries.values()) {
+        this.#completeRecovery(entry, request, ConversationStreamRecoveryDisposition.Retired)
+      }
+      for (const request of retryRecoveries.values()) {
+        entry.sub.completeRecovery({
+          recoveryId: request.recoveryId,
+          attachmentGeneration: request.attachmentGeneration,
+          executionId: request.executionId,
+          disposition: ConversationStreamRecoveryDisposition.RetryAttach
+        })
+      }
       this.#retireTurns(entry, turnIds)
       for (const turnId of turnIds) handoff.pendingTurnIds.delete(turnId)
-      if (handoff.pendingTurnIds.size > 0) this.#runHandoffRefresh(entry)
-      else {
+      for (const recoveryId of retireRecoveries.keys()) handoff.retireRecoveries.delete(recoveryId)
+      for (const recoveryId of retryRecoveries.keys()) handoff.retryRecoveries.delete(recoveryId)
+      if (handoff.pendingTurnIds.size > 0 || handoff.retireRecoveries.size > 0 || handoff.retryRecoveries.size > 0) {
+        this.#runHandoffRefresh(entry)
+      } else {
         entry.handoff = null
         this.setRefreshError(entry.conversation, null)
       }
@@ -621,6 +678,68 @@ export class ExecutionStreamOverlayService {
     else this.#commitSnapshots(entry, next)
   }
 
+  #completeRecovery(
+    entry: Entry,
+    request: ConversationStreamRecoveryRequest,
+    disposition: ConversationStreamRecoveryDisposition.Retired
+  ): void {
+    entry.sub.completeRecovery({
+      recoveryId: request.recoveryId,
+      attachmentGeneration: request.attachmentGeneration,
+      executionId: request.executionId,
+      disposition
+    })
+    this.#retireExecutionData(entry, request.executionId, request.projection.outputNodeId)
+  }
+
+  #retireExecutionData(entry: Entry, executionId: ConversationExecutionId, outputNodeId: string | undefined): void {
+    const handle = entry.readers.get(executionId)
+    if (handle) {
+      handle.cancel()
+      handle.unregister()
+    }
+    entry.sub.retireExecution(executionId)
+    entry.readers.delete(executionId)
+    entry.pendingSnapshots.delete(executionId)
+    entry.settlements.delete(executionId)
+    entry.optimisticExecutions.delete(executionId)
+    entry.optimisticSeeds.delete(executionId)
+    entry.readerVersions.delete(executionId)
+    const next = new Map(entry.snapshots)
+    next.delete(executionId)
+    if (outputNodeId) {
+      entry.optimisticMessageTurnIds.delete(outputNodeId)
+      entry.optimisticMessages.delete(outputNodeId)
+      if (entry.activeNodeOverride?.activeNodeId === outputNodeId) entry.activeNodeOverride = null
+    }
+    if (entry.pendingSnapshots.size === 0) this.#cancelCommit(entry)
+    this.#commitSnapshots(entry, next)
+    this.#publishView(entry)
+  }
+
+  #rebaseExecution(entry: Entry, request: ConversationStreamRecoveryRequest): void {
+    const handle = entry.readers.get(request.executionId)
+    if (!handle || handle.execution.turnId !== request.turnId || entry.sub.isSettled(request.executionId)) return
+    handle.cancel()
+    entry.readers.delete(request.executionId)
+    entry.pendingSnapshots.delete(request.executionId)
+    entry.settlements.delete(request.executionId)
+    entry.readerVersions.delete(request.executionId)
+    if (entry.snapshots.has(request.executionId)) {
+      const next = new Map(entry.snapshots)
+      next.delete(request.executionId)
+      this.#commitSnapshots(entry, next)
+    }
+    const branch = entry.sub.completeRecovery({
+      recoveryId: request.recoveryId,
+      attachmentGeneration: request.attachmentGeneration,
+      executionId: request.executionId,
+      disposition: ConversationStreamRecoveryDisposition.Rebased
+    })
+    if (!branch) return
+    this.#startReader(entry, handle.execution, handle.seedFromEmpty, handle.getSeedMessages, branch)
+  }
+
   #getOrCreate(conversation: ConversationRef): Entry {
     const key = conversationRefKey(conversation)
     const existing = this.#entries.get(key)
@@ -641,9 +760,10 @@ export class ExecutionStreamOverlayService {
       optimisticSeeds: new Map(),
       activeNodeOverride: null,
       refreshError: null,
+      durability: ConversationOverlayDurability.Ephemeral,
       refreshPorts: new Set(),
+      notFoundTombstones: new Map(),
       handoff: null,
-      projectionRefreshInFlight: null,
       snapshots: new Map(),
       settlements: new Map(),
       view: EMPTY_VIEW,
@@ -670,12 +790,40 @@ export class ExecutionStreamOverlayService {
     sub.onConversationQuiesced((turnId) => {
       if (this.#entries.get(key) === entry) this.#beginHandoff(entry, turnId)
     })
-    sub.onRefreshRequired(({ reason, turnIds }) => {
+    sub.onRecoveryRequired((request) => {
       if (this.#entries.get(key) !== entry) return
-      if (reason === ConversationStreamRefreshReason.NotFound) {
-        for (const turnId of turnIds) this.#beginHandoff(entry, turnId)
-      } else if (turnIds.length > 0) {
-        this.#refreshProjection(entry)
+      switch (request.reason) {
+        case ConversationStreamRecoveryReason.Rebase:
+          this.#rebaseExecution(entry, request)
+          return
+        case ConversationStreamRecoveryReason.NotFound:
+          entry.notFoundTombstones.set(request.executionId, request.turnId)
+          if (entry.durability === ConversationOverlayDurability.Ephemeral) {
+            this.#completeRecovery(entry, request, ConversationStreamRecoveryDisposition.Retired)
+          } else {
+            this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.Retired)
+          }
+          return
+        case ConversationStreamRecoveryReason.AttachUnavailable:
+          if (entry.sub.isSettled(request.executionId)) {
+            if (entry.durability === ConversationOverlayDurability.Durable) {
+              this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.Retired)
+            } else {
+              this.#completeRecovery(entry, request, ConversationStreamRecoveryDisposition.Retired)
+            }
+          } else if (entry.durability === ConversationOverlayDurability.Durable) {
+            this.#beginRecoveryHandoff(entry, request, ConversationStreamRecoveryDisposition.RetryAttach)
+          } else {
+            entry.sub.completeRecovery({
+              recoveryId: request.recoveryId,
+              attachmentGeneration: request.attachmentGeneration,
+              executionId: request.executionId,
+              disposition: ConversationStreamRecoveryDisposition.RetryAttach
+            })
+          }
+          return
+        default:
+          assertNever(request.reason)
       }
     })
     return entry
@@ -720,10 +868,11 @@ export class ExecutionStreamOverlayService {
     entry: Entry,
     execution: ConversationExecutionProjection,
     seedFromEmpty: boolean | undefined,
-    getSeedMessages: () => CherryUIMessage[]
+    getSeedMessages: () => CherryUIMessage[],
+    recoveredBranch?: ReadableStream<UIMessageChunk>
   ): void {
     const { executionId, outputNodeId, turnId } = execution
-    const branch = entry.sub.register(execution)
+    const branch = recoveredBranch ?? entry.sub.register(execution)
     if (!entry.sub.hasOpenBranch(executionId)) return
     const readerEpoch = entry.epoch
     const readerVersion = (entry.readerVersions.get(executionId) ?? 0) + 1
@@ -739,13 +888,17 @@ export class ExecutionStreamOverlayService {
     })
     const seed = pickSeed(getSeedMessages(), outputNodeId, seedFromEmpty)
     const handle: ReaderHandle = {
+      branch,
+      execution,
+      seedFromEmpty,
+      getSeedMessages,
       cancel: () => {
         cancelled = true
-        entry.sub.cancelBranch(executionId)
+        entry.sub.cancelBranch(executionId, branch)
       },
       unregister: () => {
         offTerminal()
-        entry.sub.unregister(executionId)
+        entry.sub.unregister(executionId, branch)
       }
     }
     entry.readers.set(executionId, handle)
@@ -777,7 +930,7 @@ export class ExecutionStreamOverlayService {
       } finally {
         offTerminal()
         if (entry.readers.get(executionId) === handle) {
-          entry.sub.unregister(executionId)
+          entry.sub.unregister(executionId, branch)
           entry.readers.delete(executionId)
         }
         if (!cancelled) {
@@ -883,7 +1036,11 @@ export class ExecutionStreamOverlayService {
     const projectedExecutions = projectActiveExecutions(
       [...entry.desired.values()].flatMap(({ executions }) => executions),
       [...entry.optimisticExecutions.values()]
-    ).filter((execution) => !entry.sub.isSettled(execution.executionId))
+    ).filter(
+      (execution) =>
+        !entry.sub.isSettled(execution.executionId) &&
+        entry.notFoundTombstones.get(execution.executionId) !== execution.turnId
+    )
     const knownExecutions = new Map<ConversationExecutionId, ConversationExecutionProjection>()
     for (const contribution of entry.desired.values()) {
       for (const execution of contribution.executions) knownExecutions.set(execution.executionId, execution)

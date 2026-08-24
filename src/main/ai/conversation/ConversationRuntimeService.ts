@@ -782,7 +782,7 @@ export class ConversationRuntimeService extends BaseService {
     return {
       dispose: () => {
         if (!this.pauseHolds.delete(token) || this.pauseHolds.size > 0) return
-        queueMicrotask(() => this.kickRetainedInputs())
+        queueMicrotask(() => this.kickRetainedWork())
       }
     }
   }
@@ -1479,6 +1479,7 @@ export class ConversationRuntimeService extends BaseService {
       actor = new ConversationActor(ref, () => this.onActorIdle(ref), {
         ports: { resolve: () => this.ports },
         ids: this.ids,
+        isEffectSchedulingPaused: () => this.isWriteQuiesced,
         onTransition: (conversation, command, transition) => this.afterTransition(conversation, command, transition)
       })
       this.actors.set(key, actor)
@@ -1831,7 +1832,8 @@ export class ConversationRuntimeService extends BaseService {
     this.actors.get(conversationRefKey(ref))?.clearCommittedInputs()
   }
 
-  private kickRetainedInputs(): void {
+  private kickRetainedWork(): void {
+    for (const actor of this.actors.values()) actor.kickDeferredEffects()
     for (const ref of this.bindings.conversationRefs()) this.actorFor(ref).kickInbox()
   }
 

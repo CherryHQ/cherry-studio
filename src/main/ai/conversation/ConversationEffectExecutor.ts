@@ -20,15 +20,27 @@ import {
 } from './conversationState'
 import { ConversationTerminalPersistenceCoordinator } from './ConversationTerminalPersistenceCoordinator'
 
+type DeferredResumeEffect = Extract<
+  ConversationEffect,
+  { readonly type: ConversationEffectType.ResumeSuspendedExecution }
+>
+
+export interface ConversationEffectSchedulePolicy {
+  readonly shouldDeferResume: () => boolean
+  readonly isResumeApplicable: (effect: DeferredResumeEffect) => boolean
+}
+
 /** Executes committed effects and reports exact result commands to one Conversation actor. */
 export class ConversationEffectExecutor {
   private readonly persistence = new ConversationTerminalPersistenceCoordinator()
+  private readonly deferredResumes = new Map<ConversationEffectId, DeferredResumeEffect>()
 
   constructor(
     private readonly conversation: ConversationRef,
     private readonly ports: ConversationPortResolver,
     private readonly ids: ConversationRuntimeIdFactory,
-    private readonly dispatch: (command: ConversationCommand) => void
+    private readonly dispatch: (command: ConversationCommand) => void,
+    private readonly schedulePolicy?: ConversationEffectSchedulePolicy
   ) {}
 
   execute(effect: ConversationEffect): void {
@@ -120,18 +132,11 @@ export class ConversationEffectExecutor {
       }
 
       case ConversationEffectType.ResumeSuspendedExecution:
-        try {
-          ports.execution.resumeSuspended(effect)
-        } catch (error) {
-          this.dispatch({
-            type: ConversationCommandType.ExecutionStartFailed,
-            turnId: effect.turnId,
-            executionId: effect.executionId,
-            runEffectId: effect.runEffectId,
-            error: serializeError(error),
-            persistenceEffectId: this.ids.effect()
-          })
+        if (this.schedulePolicy?.shouldDeferResume()) {
+          this.deferredResumes.set(effect.effectId, effect)
+          return
         }
+        this.resumeSuspended(effect)
         return
 
       case ConversationEffectType.DiscardRuntimeBuffer:
@@ -231,6 +236,36 @@ export class ConversationEffectExecutor {
 
   inFlightPersistenceOperations() {
     return this.persistence.inFlightOperations()
+  }
+
+  reconcileDeferredEffects(): void {
+    if (!this.schedulePolicy) return
+    for (const [effectId, effect] of this.deferredResumes) {
+      if (!this.schedulePolicy.isResumeApplicable(effect)) this.deferredResumes.delete(effectId)
+    }
+  }
+
+  flushDeferredEffects(): void {
+    if (!this.schedulePolicy || this.schedulePolicy.shouldDeferResume()) return
+    this.reconcileDeferredEffects()
+    const resumptions = [...this.deferredResumes.values()]
+    this.deferredResumes.clear()
+    for (const effect of resumptions) this.resumeSuspended(effect)
+  }
+
+  private resumeSuspended(effect: DeferredResumeEffect): void {
+    try {
+      this.ports.resolve(this.conversation).execution.resumeSuspended(effect)
+    } catch (error) {
+      this.dispatch({
+        type: ConversationCommandType.ExecutionStartFailed,
+        turnId: effect.turnId,
+        executionId: effect.executionId,
+        runEffectId: effect.runEffectId,
+        error: serializeError(error),
+        persistenceEffectId: this.ids.effect()
+      })
+    }
   }
 
   private executionSink(

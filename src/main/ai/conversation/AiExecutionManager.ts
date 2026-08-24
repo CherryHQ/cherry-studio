@@ -19,11 +19,12 @@ import {
   type ConversationTurnId,
   toConversationInteractionId
 } from '@shared/ai/conversation'
-import type {
-  ConversationExecutionProjection,
-  ExecutionReplayCursor,
-  ReplayWindow,
-  StreamChunkPayload
+import {
+  type ConversationExecutionProjection,
+  ConversationReplayWindowKind,
+  type ExecutionReplayCursor,
+  type ReplayWindow,
+  type StreamChunkPayload
 } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { MessageRuntimeSpan } from '@shared/data/types/message'
@@ -614,23 +615,31 @@ export class AiExecutionManager implements ConversationExecutionPort {
 
   private replayWindow(resource: ConversationExecutionResource, cursor: number): ReplayWindow {
     const suffix = resource.buffer.filter((payload) => payload.chunkSeq > cursor)
-    const chunks = buildCompactReplay(
-      suffix.flatMap((payload) => splitDeltaPayload(payload, MAX_REPLAY_DELTA_BYTES)),
-      { cursor, maxDeltaBytes: MAX_REPLAY_DELTA_BYTES }
-    )
-    const firstAvailableChunkSeq = resource.buffer[0]?.chunkSeq ?? resource.nextChunkSeq + 1
     let nextCoveredChunkSeq = cursor + 1
-    let truncated = firstAvailableChunkSeq > cursor + 1
+    let continuous = cursor <= resource.nextChunkSeq
     for (const payload of suffix) {
-      if (payload.chunkSeq > nextCoveredChunkSeq) truncated = true
-      nextCoveredChunkSeq = Math.max(nextCoveredChunkSeq, payload.chunkSeq + 1)
+      if (payload.chunkSeq !== nextCoveredChunkSeq) continuous = false
+      nextCoveredChunkSeq = payload.chunkSeq + 1
     }
-    if (nextCoveredChunkSeq <= resource.nextChunkSeq) truncated = true
+    continuous &&= nextCoveredChunkSeq === resource.nextChunkSeq + 1
+    if (continuous) {
+      return {
+        kind: ConversationReplayWindowKind.Continuous,
+        chunks: buildCompactReplay(
+          suffix.flatMap((payload) => splitDeltaPayload(payload, MAX_REPLAY_DELTA_BYTES)),
+          { cursor, maxDeltaBytes: MAX_REPLAY_DELTA_BYTES }
+        ),
+        throughChunkSeq: resource.nextChunkSeq
+      }
+    }
     return {
-      chunks,
+      kind: ConversationReplayWindowKind.Rebase,
+      chunks: buildCompactReplay(
+        resource.buffer.flatMap((payload) => splitDeltaPayload(payload, MAX_REPLAY_DELTA_BYTES)),
+        { maxDeltaBytes: MAX_REPLAY_DELTA_BYTES }
+      ),
       throughChunkSeq: resource.nextChunkSeq,
-      firstAvailableChunkSeq,
-      truncated
+      firstAvailableChunkSeq: resource.buffer[0]?.chunkSeq ?? resource.nextChunkSeq + 1
     }
   }
 

@@ -53,6 +53,12 @@ type QqTokenCache = {
   expiresAt: number
 }
 
+type QqDedupClaim = {
+  readonly messageId: string
+  readonly token: symbol
+  readonly markedAt: number
+}
+
 type QqAttachment = {
   content_type?: string
   filename?: string
@@ -115,8 +121,8 @@ class QqAdapter extends ChannelAdapter {
 
   private readonly mentionOnly: boolean
 
-  /** Dedup: msg ids seen recently (id → timestamp) to suppress duplicate @mention events. */
-  private readonly seenMsgIds = new Map<string, number>()
+  /** Dedup claims suppress twin events while allowing only their owner to roll a claim back. */
+  private readonly seenMsgIds = new Map<string, QqDedupClaim>()
 
   private readonly DEDUP_TTL_MS = 10_000
   private readonly DEDUP_MAX_ENTRIES = 500
@@ -419,8 +425,9 @@ class QqAdapter extends ChannelAdapter {
     // Must run before any await — processMessage downloads attachments, so an interleaved twin
     // event would otherwise observe "not seen" while the first copy is still in flight.
     // AT events are handled in both mention modes; mention_only only gates FULL events.
-    if (!this.markIfNew(msg.id)) return
-    await this.processGroupMessage(msg, chatId, signal)
+    const claim = this.markIfNew(msg.id)
+    if (!claim) return
+    await this.processGroupMessage(msg, chatId, signal, claim)
   }
 
   /** Group full-message handler (GROUP_MESSAGE_CREATE — all group messages when full mode is on). */
@@ -432,16 +439,16 @@ class QqAdapter extends ChannelAdapter {
     if (this.mentionOnly) return
 
     // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message
-    if (!this.markIfNew(msg.id)) return
+    const claim = this.markIfNew(msg.id)
+    if (!claim) return
 
-    await this.processGroupMessage(msg, chatId, signal)
+    await this.processGroupMessage(msg, chatId, signal, claim)
   }
 
-  /** Dedup gate shared by both group-message paths: false if already seen within the TTL window, otherwise marks and returns true. */
-  private markIfNew(msgId: string): boolean {
-    if (this.wasSeen(msgId)) return false
-    this.markSeen(msgId)
-    return true
+  /** Claims this message for the current run, or returns null while a live claim exists. */
+  private markIfNew(msgId: string): QqDedupClaim | null {
+    if (this.wasSeen(msgId)) return null
+    return this.markSeen(msgId)
   }
 
   /**
@@ -449,7 +456,12 @@ class QqAdapter extends ChannelAdapter {
    * twin event (or a platform re-push) can retry the message. The error is rethrown —
    * the rollback must not swallow it.
    */
-  private async processGroupMessage(msg: QqMessage, chatId: string, signal: AbortSignal): Promise<void> {
+  private async processGroupMessage(
+    msg: QqMessage,
+    chatId: string,
+    signal: AbortSignal,
+    claim: QqDedupClaim
+  ): Promise<void> {
     try {
       const processed = await this.processMessage(
         msg,
@@ -458,9 +470,9 @@ class QqAdapter extends ChannelAdapter {
         msg.author.username ?? '',
         signal
       )
-      if (!processed) this.seenMsgIds.delete(msg.id)
+      if (!processed) this.rollbackClaim(claim)
     } catch (err) {
-      this.seenMsgIds.delete(msg.id)
+      this.rollbackClaim(claim)
       throw err
     }
   }
@@ -470,20 +482,26 @@ class QqAdapter extends ChannelAdapter {
    * cap with oldest-first eviction — mirroring `recordInbound` — so the
    * map can never grow beyond the cap regardless of TTL.
    */
-  private markSeen(msgId: string): void {
-    this.seenMsgIds.set(msgId, Date.now())
+  private markSeen(msgId: string): QqDedupClaim {
+    const claim: QqDedupClaim = { messageId: msgId, token: Symbol(msgId), markedAt: Date.now() }
+    this.seenMsgIds.set(msgId, claim)
     while (this.seenMsgIds.size > this.DEDUP_MAX_ENTRIES) {
       const oldest = this.seenMsgIds.keys().next().value
       if (oldest === undefined) break
       this.seenMsgIds.delete(oldest)
     }
+    return claim
+  }
+
+  private rollbackClaim(claim: QqDedupClaim): void {
+    if (this.seenMsgIds.get(claim.messageId)?.token === claim.token) this.seenMsgIds.delete(claim.messageId)
   }
 
   /** Check whether a msg id was already processed (dedup). Cleans stale entries inline. */
   private wasSeen(msgId: string): boolean {
-    const ts = this.seenMsgIds.get(msgId)
-    if (ts === undefined) return false
-    if (Date.now() - ts > this.DEDUP_TTL_MS) {
+    const claim = this.seenMsgIds.get(msgId)
+    if (!claim) return false
+    if (Date.now() - claim.markedAt > this.DEDUP_TTL_MS) {
       this.seenMsgIds.delete(msgId)
       return false
     }

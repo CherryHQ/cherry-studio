@@ -23,6 +23,7 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
+import { ConversationOverlayDurability } from '@renderer/services/aiTransport'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -160,6 +161,7 @@ export function useChatRuntimeState({
     activeNodeOverride,
     seedReservations: seedProjectionReservations
   } = useExecutionOverlay(conversation, activeExecutions, messages, {
+    durability: ConversationOverlayDurability.Durable,
     onFinish: handleExecutionFinish,
     refreshOnQuiesced: refresh
   })

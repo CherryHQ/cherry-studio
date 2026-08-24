@@ -112,7 +112,7 @@ const fake = vi.hoisted(() => {
       return () => this.quiescedListeners.delete(listener)
     }
 
-    onRefreshRequired(listener: (request: RefreshRequest) => void) {
+    onRecoveryRequired(listener: (request: RefreshRequest) => void) {
       this.refreshListeners.add(listener)
       return () => this.refreshListeners.delete(listener)
     }
@@ -161,13 +161,20 @@ const fake = vi.hoisted(() => {
 })
 
 vi.mock('@renderer/services/aiTransport/ConversationStreamSubscription', () => ({
-  ConversationStreamRefreshReason: {
+  ConversationStreamRecoveryDisposition: {
+    Rebased: 'rebased',
+    Retired: 'retired',
+    RetryAttach: 'retry-attach'
+  },
+  ConversationStreamRecoveryReason: {
+    Rebase: 'rebase',
     AttachUnavailable: 'attach-unavailable',
-    NotFound: 'not-found',
-    ReplayGap: 'replay-gap'
+    NotFound: 'not-found'
   },
   ConversationStreamSubscription: fake.Subscription
 }))
+
+import { ConversationOverlayDurability } from '@renderer/services/aiTransport'
 
 import { useExecutionOverlay } from '../useExecutionOverlay'
 
@@ -489,7 +496,10 @@ describe('useExecutionOverlay retained behavior contracts', () => {
     const active = execution('turn-1', 'execution-1', 'assistant-1')
     const refresh = vi.fn(async () => undefined)
     const { result } = renderHook(() =>
-      useExecutionOverlay(ref, [active], [assistant('assistant-1')], { refreshOnQuiesced: refresh })
+      useExecutionOverlay(ref, [active], [assistant('assistant-1')], {
+        durability: ConversationOverlayDurability.Durable,
+        refreshOnQuiesced: refresh
+      })
     )
     streamText(ref, active, 'text-1', 'done')
     fake.instances.get(conversationRefKey(ref))!.settle(active)

@@ -6,7 +6,11 @@ import {
   toConversationExecutionId,
   toConversationTurnId
 } from '@shared/ai/conversation'
-import type { AiStreamAttachResponse, StreamChunkPayload } from '@shared/ai/transport'
+import {
+  type AiStreamAttachResponse,
+  ConversationReplayWindowKind,
+  type StreamChunkPayload
+} from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +34,12 @@ vi.mock('../StreamAttachmentService', () => ({
   streamAttachmentService: { acquire: () => () => {} }
 }))
 
-import { ConversationStreamRefreshReason, ConversationStreamSubscription } from '../ConversationStreamSubscription'
+import {
+  ConversationStreamRecoveryDisposition,
+  ConversationStreamRecoveryReason,
+  type ConversationStreamRecoveryRequest,
+  ConversationStreamSubscription
+} from '../ConversationStreamSubscription'
 
 const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
 const turnId = toConversationTurnId('turn-1')
@@ -94,7 +103,7 @@ describe('ConversationStreamSubscription', () => {
     expect(subscription.isSettled(executionId)).toBe(true)
   })
 
-  it('does not apply a truncated replay as though its missing prefix were complete', async () => {
+  it('hands a rebase snapshot to the presentation owner and continues from its high-water', async () => {
     ipc.attach.mockResolvedValue({
       status: ConversationAttachStatus.Live,
       turnId,
@@ -103,6 +112,7 @@ describe('ConversationStreamSubscription', () => {
           state: ConversationExecutionAttachState.Live,
           projection,
           replay: {
+            kind: ConversationReplayWindowKind.Rebase,
             chunks: [
               {
                 conversation,
@@ -110,29 +120,137 @@ describe('ConversationStreamSubscription', () => {
                 executionId,
                 modelId: projection.modelId,
                 outputNodeId: projection.outputNodeId,
-                chunkSeq: 2,
-                chunk: { type: 'text-delta', id: 'text-2', delta: 'replay' }
+                chunkSeq: 10_001,
+                chunk: { type: 'text-start', id: 'text-2' }
+              } satisfies StreamChunkPayload,
+              {
+                conversation,
+                turnId,
+                executionId,
+                modelId: projection.modelId,
+                outputNodeId: projection.outputNodeId,
+                chunkSeq: 10_002,
+                chunk: { type: 'text-delta', id: 'text-2', delta: 'retained' }
               } satisfies StreamChunkPayload
             ],
-            throughChunkSeq: 2,
-            firstAvailableChunkSeq: 2,
-            truncated: true
+            throughChunkSeq: 10_002,
+            firstAvailableChunkSeq: 3
           }
         }
       ]
     })
     const subscription = new ConversationStreamSubscription(conversation)
-    const refreshRequired = vi.fn()
-    subscription.onRefreshRequired(refreshRequired)
+    let recoveredStream: ReadableStream<UIMessageChunk> | null = null
+    const recoveryRequired = vi.fn((request) => {
+      recoveredStream = subscription.completeRecovery({
+        recoveryId: request.recoveryId,
+        attachmentGeneration: request.attachmentGeneration,
+        executionId: request.executionId,
+        disposition: ConversationStreamRecoveryDisposition.Rebased
+      })
+    })
+    subscription.onRecoveryRequired(recoveryRequired)
     subscription.register(projection)
 
-    await vi.waitFor(() =>
-      expect(refreshRequired).toHaveBeenCalledWith({
-        reason: ConversationStreamRefreshReason.ReplayGap,
-        turnIds: [turnId]
-      })
-    )
+    await vi.waitFor(() => expect(recoveryRequired).toHaveBeenCalledOnce())
+    expect(recoveryRequired.mock.calls[0]?.[0]).toMatchObject({
+      reason: ConversationStreamRecoveryReason.Rebase,
+      turnId,
+      executionId
+    })
+    const reader = recoveredStream!.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-start', id: 'text-2' } })
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'retained' } })
+    emit('ai.stream.chunk', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      chunkSeq: 10_003,
+      chunk: { type: 'text-delta', id: 'text-2', delta: '-live' }
+    } satisfies StreamChunkPayload)
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: '-live' } })
     expect(subscription.hasOpenBranch(executionId)).toBe(true)
+    await reader.cancel()
+    subscription.dispose()
+  })
+
+  it('bounds live recovery buffering and requests one updated rebase after overflow', async () => {
+    const rebase = (throughChunkSeq: number): AiStreamAttachResponse => ({
+      status: ConversationAttachStatus.Live,
+      turnId,
+      executions: [
+        {
+          state: ConversationExecutionAttachState.Live,
+          projection,
+          replay: {
+            kind: ConversationReplayWindowKind.Rebase,
+            chunks: [
+              {
+                conversation,
+                turnId,
+                executionId,
+                modelId: projection.modelId,
+                outputNodeId: projection.outputNodeId,
+                chunkSeq: throughChunkSeq,
+                chunk: { type: 'text-start', id: `text-${throughChunkSeq}` }
+              }
+            ],
+            throughChunkSeq,
+            firstAvailableChunkSeq: throughChunkSeq
+          }
+        }
+      ]
+    })
+    ipc.attach.mockResolvedValueOnce(rebase(100)).mockResolvedValueOnce(rebase(10_101))
+    const subscription = new ConversationStreamSubscription(conversation)
+    const recoveries: ConversationStreamRecoveryRequest[] = []
+    subscription.onRecoveryRequired((request) => recoveries.push(request))
+    subscription.register(projection)
+    await vi.waitFor(() => expect(recoveries).toHaveLength(1))
+
+    for (let chunkSeq = 101; chunkSeq <= 10_101; chunkSeq += 1) {
+      emit('ai.stream.chunk', {
+        conversation,
+        turnId,
+        executionId,
+        modelId: projection.modelId,
+        outputNodeId: projection.outputNodeId,
+        chunkSeq,
+        chunk: { type: 'text-delta', id: 'text-live', delta: 'x' }
+      } satisfies StreamChunkPayload)
+    }
+    const first = recoveries[0]
+    subscription.completeRecovery({
+      recoveryId: first.recoveryId,
+      attachmentGeneration: first.attachmentGeneration,
+      executionId,
+      disposition: ConversationStreamRecoveryDisposition.Rebased
+    })
+
+    await vi.waitFor(() => expect(recoveries).toHaveLength(2))
+    expect(ipc.attach).toHaveBeenCalledTimes(2)
+    const second = recoveries[1]
+    const current = subscription.completeRecovery({
+      recoveryId: second.recoveryId,
+      attachmentGeneration: second.attachmentGeneration,
+      executionId,
+      disposition: ConversationStreamRecoveryDisposition.Rebased
+    })
+    const reader = current!.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-start', id: 'text-10101' } })
+    emit('ai.stream.chunk', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      chunkSeq: 10_102,
+      chunk: { type: 'text-delta', id: 'text-10101', delta: 'live' }
+    } satisfies StreamChunkPayload)
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'live' } })
+    await reader.cancel()
     subscription.dispose()
   })
 
@@ -164,6 +282,7 @@ describe('ConversationStreamSubscription', () => {
           state: ConversationExecutionAttachState.Live,
           projection,
           replay: {
+            kind: ConversationReplayWindowKind.Continuous,
             chunks: [
               {
                 conversation,
@@ -175,9 +294,7 @@ describe('ConversationStreamSubscription', () => {
                 chunk: { type: 'text-start', id: 'text-1' }
               }
             ],
-            throughChunkSeq: 1,
-            firstAvailableChunkSeq: 1,
-            truncated: false
+            throughChunkSeq: 1
           }
         }
       ]
@@ -216,10 +333,9 @@ describe('ConversationStreamSubscription', () => {
           state: ConversationExecutionAttachState.Live,
           projection,
           replay: {
+            kind: ConversationReplayWindowKind.Continuous,
             chunks: [],
-            throughChunkSeq: 0,
-            firstAvailableChunkSeq: 1,
-            truncated: false
+            throughChunkSeq: 0
           }
         }
       ]
@@ -266,6 +382,7 @@ describe('ConversationStreamSubscription', () => {
           state: ConversationExecutionAttachState.Live,
           projection,
           replay: {
+            kind: ConversationReplayWindowKind.Continuous,
             chunks: [
               {
                 conversation,
@@ -298,16 +415,14 @@ describe('ConversationStreamSubscription', () => {
                 chunk: { type: 'text-delta', id: 'text-1', delta: 'snapshot-suffix' }
               } satisfies StreamChunkPayload
             ],
-            throughChunkSeq: 3,
-            firstAvailableChunkSeq: 1,
-            truncated: false
+            throughChunkSeq: 3
           }
         }
       ]
     })
     const subscription = new ConversationStreamSubscription(conversation)
-    const refreshRequired = vi.fn()
-    subscription.onRefreshRequired(refreshRequired)
+    const recoveryRequired = vi.fn()
+    subscription.onRecoveryRequired(recoveryRequired)
     const reader = subscription.register(projection).getReader()
     await Promise.resolve()
 
@@ -327,7 +442,7 @@ describe('ConversationStreamSubscription', () => {
       conversation,
       cursors: [{ turnId, executionId, throughChunkSeq: 0 }]
     })
-    expect(refreshRequired).not.toHaveBeenCalled()
+    expect(recoveryRequired).not.toHaveBeenCalled()
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-start' } })
     await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'live' } })
     await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'snapshot-suffix' } })
@@ -347,8 +462,7 @@ describe('ConversationStreamSubscription', () => {
     vi.useRealTimers()
   })
 
-  it('defers a terminal from a failed attach until replay restores the missing prefix', async () => {
-    vi.useFakeTimers()
+  it('settles a terminal immediately when attach fails with an incomplete replay', async () => {
     let rejectAttach!: (error: Error) => void
     ipc.attach
       .mockImplementationOnce(
@@ -365,6 +479,7 @@ describe('ConversationStreamSubscription', () => {
             state: ConversationExecutionAttachState.Settled,
             projection,
             replay: {
+              kind: ConversationReplayWindowKind.Continuous,
               chunks: [
                 {
                   conversation,
@@ -387,9 +502,7 @@ describe('ConversationStreamSubscription', () => {
                   chunk: { type: 'text-delta', id: 'text-1', delta: 'complete' }
                 }
               ],
-              throughChunkSeq: 2,
-              firstAvailableChunkSeq: 1,
-              truncated: false
+              throughChunkSeq: 2
             },
             terminal: { status: ConversationStreamTerminalStatus.Done }
           }
@@ -419,33 +532,29 @@ describe('ConversationStreamSubscription', () => {
       turnTerminal: true
     })
     rejectAttach(new Error('attach failed'))
-    await Promise.resolve()
-    expect(subscription.isSettled(executionId)).toBe(false)
-
-    await vi.advanceTimersByTimeAsync(250)
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-start' } })
-    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'complete' } })
+    await vi.waitFor(() => expect(subscription.isSettled(executionId)).toBe(true))
     await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
-    expect(subscription.isSettled(executionId)).toBe(true)
     subscription.dispose()
-    vi.useRealTimers()
   })
 
   it('bounds automatic attach retries and requests durable refresh without settling the branch', async () => {
     vi.useFakeTimers()
     ipc.attach.mockRejectedValue(new Error('ipc down'))
     const subscription = new ConversationStreamSubscription(conversation)
-    const refreshRequired = vi.fn()
-    subscription.onRefreshRequired(refreshRequired)
+    const recoveryRequired = vi.fn()
+    subscription.onRecoveryRequired(recoveryRequired)
     subscription.register(projection)
 
     await vi.advanceTimersByTimeAsync(2_000)
 
     expect(ipc.attach).toHaveBeenCalledTimes(4)
-    expect(refreshRequired).toHaveBeenCalledExactlyOnceWith({
-      reason: ConversationStreamRefreshReason.AttachUnavailable,
-      turnIds: [turnId]
-    })
+    expect(recoveryRequired).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        reason: ConversationStreamRecoveryReason.AttachUnavailable,
+        turnId,
+        executionId
+      })
+    )
     expect(subscription.hasOpenBranch(executionId)).toBe(true)
     expect(subscription.isSettled(executionId)).toBe(false)
     subscription.dispose()
@@ -455,18 +564,54 @@ describe('ConversationStreamSubscription', () => {
   it('requests durable refresh for NotFound without inventing a successful terminal', async () => {
     ipc.attach.mockResolvedValue({ status: ConversationAttachStatus.NotFound })
     const subscription = new ConversationStreamSubscription(conversation)
-    const refreshRequired = vi.fn()
-    subscription.onRefreshRequired(refreshRequired)
+    const recoveryRequired = vi.fn()
+    subscription.onRecoveryRequired(recoveryRequired)
     subscription.register(projection)
 
     await vi.waitFor(() =>
-      expect(refreshRequired).toHaveBeenCalledWith({
-        reason: ConversationStreamRefreshReason.NotFound,
-        turnIds: [turnId]
-      })
+      expect(recoveryRequired).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: ConversationStreamRecoveryReason.NotFound,
+          turnId,
+          executionId
+        })
+      )
     )
     expect(subscription.isSettled(executionId)).toBe(false)
     expect(subscription.hasOpenBranch(executionId)).toBe(true)
+    subscription.dispose()
+  })
+
+  it('settles a terminal received during NotFound recovery and rejects its late result', async () => {
+    ipc.attach.mockResolvedValue({ status: ConversationAttachStatus.NotFound })
+    const subscription = new ConversationStreamSubscription(conversation)
+    let recovery!: ConversationStreamRecoveryRequest
+    subscription.onRecoveryRequired((request) => {
+      recovery = request
+    })
+    const reader = subscription.register(projection).getReader()
+    await vi.waitFor(() => expect(recovery).toBeDefined())
+
+    emit('ai.stream.done', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      status: ConversationStreamTerminalStatus.Done,
+      turnTerminal: true
+    })
+
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
+    expect(subscription.isSettled(executionId)).toBe(true)
+    expect(
+      subscription.completeRecovery({
+        recoveryId: recovery.recoveryId,
+        attachmentGeneration: recovery.attachmentGeneration,
+        executionId,
+        disposition: ConversationStreamRecoveryDisposition.Retired
+      })
+    ).toBeNull()
     subscription.dispose()
   })
 
@@ -490,7 +635,7 @@ describe('ConversationStreamSubscription', () => {
         {
           state: ConversationExecutionAttachState.Settled,
           projection,
-          replay: { chunks: [], throughChunkSeq: 0, firstAvailableChunkSeq: 1, truncated: false },
+          replay: { kind: ConversationReplayWindowKind.Continuous, chunks: [], throughChunkSeq: 0 },
           terminal: { status: ConversationStreamTerminalStatus.Done }
         }
       ],

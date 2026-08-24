@@ -2,6 +2,8 @@
 // this barrel; the directory's other files are internal. See
 // docs/references/architecture/renderer.md §5.
 export {
+  ConversationOverlayDurability,
+  type ConversationOverlayRecoveryBinding,
   type ExecutionFinishEvent,
   type ExecutionOverlayActiveNodeOverride,
   ExecutionOverlayPhase,
