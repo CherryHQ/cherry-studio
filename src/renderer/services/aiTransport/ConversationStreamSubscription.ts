@@ -672,10 +672,11 @@ export class ConversationStreamSubscription {
     if ([...this.#branches.values()].some(({ recovery }) => recovery !== null)) return
     if (this.#session.phase === ConversationAttachmentPhase.Recovering) {
       this.#session = {
-        phase: ConversationAttachmentPhase.Attached,
+        phase: this.#releaseAttachment ? ConversationAttachmentPhase.Attached : ConversationAttachmentPhase.Detached,
         generation: this.#session.generation,
         attempts: 0
       }
+      if (!this.#releaseAttachment && this.hasAnyOpenBranch()) queueMicrotask(() => void this.#ensureAttached())
     }
   }
 

@@ -582,6 +582,52 @@ describe('ConversationStreamSubscription', () => {
     subscription.dispose()
   })
 
+  it('reattaches a branch registered while a lease-free recovery is completing', async () => {
+    const nextExecutionId = toConversationExecutionId('execution-2')
+    const nextProjection = {
+      ...projection,
+      executionId: nextExecutionId,
+      outputNodeId: 'assistant-2'
+    }
+    ipc.attach
+      .mockResolvedValueOnce({ status: ConversationAttachStatus.NotFound })
+      .mockResolvedValueOnce({ status: ConversationAttachStatus.Live, turnId, executions: [] })
+    const subscription = new ConversationStreamSubscription(conversation)
+    let recovery!: ConversationStreamRecoveryRequest
+    subscription.onRecoveryRequired((request) => {
+      recovery = request
+    })
+    subscription.register(projection)
+    await vi.waitFor(() => expect(recovery).toBeDefined())
+
+    const reader = subscription.register(nextProjection).getReader()
+    expect(ipc.attach).toHaveBeenCalledOnce()
+    subscription.completeRecovery({
+      recoveryId: recovery.recoveryId,
+      attachmentGeneration: recovery.attachmentGeneration,
+      executionId,
+      disposition: ConversationStreamRecoveryDisposition.Retired
+    })
+
+    await vi.waitFor(() => expect(ipc.attach).toHaveBeenCalledTimes(2))
+    expect(ipc.attach).toHaveBeenLastCalledWith({
+      conversation,
+      cursors: [{ turnId, executionId: nextExecutionId, throughChunkSeq: 0 }]
+    })
+    emit('ai.stream.chunk', {
+      conversation,
+      turnId,
+      executionId: nextExecutionId,
+      modelId: nextProjection.modelId,
+      outputNodeId: nextProjection.outputNodeId,
+      chunkSeq: 1,
+      chunk: { type: 'text-delta', id: 'text-2', delta: 'live' }
+    } satisfies StreamChunkPayload)
+    await expect(reader.read()).resolves.toMatchObject({ value: { delta: 'live' } })
+    await reader.cancel()
+    subscription.dispose()
+  })
+
   it('settles a terminal received during NotFound recovery and rejects its late result', async () => {
     ipc.attach.mockResolvedValue({ status: ConversationAttachStatus.NotFound })
     const subscription = new ConversationStreamSubscription(conversation)

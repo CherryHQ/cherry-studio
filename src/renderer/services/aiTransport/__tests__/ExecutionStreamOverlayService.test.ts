@@ -447,6 +447,29 @@ describe('ExecutionStreamOverlayService', () => {
     expect(subscription.hasOpenBranch(siblingExecution.executionId)).toBe(true)
   })
 
+  it('retires an unbound rebase branch so a later execution sync can keep streaming', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat('late-reader-sync')
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+
+    service.acquire(conversation)
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    subscription.register(activeExecution)
+    subscription.requestRecovery(activeExecution, 'rebase', {
+      chunks: [],
+      throughChunkSeq: 10_000
+    })
+
+    expect(subscription.recoveries.size).toBe(0)
+    expect(subscription.hasOpenBranch(activeExecution.executionId)).toBe(false)
+
+    service.syncExecutions(conversation, {}, [activeExecution], () => [assistant('assistant-1')])
+    streamText(subscription, activeExecution.executionId, 'after-sync')
+
+    await nextCommit()
+    expect(overlayText(service, conversation, 'assistant-1')).toBe('after-sync')
+  })
+
   it('refreshes before retiring an optimistic execution that Main reports as NotFound', async () => {
     const service = new ExecutionStreamOverlayService()
     const conversation = chat('not-found')

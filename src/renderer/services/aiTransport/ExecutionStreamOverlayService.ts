@@ -719,7 +719,16 @@ export class ExecutionStreamOverlayService {
 
   #rebaseExecution(entry: Entry, request: ConversationStreamRecoveryRequest): void {
     const handle = entry.readers.get(request.executionId)
-    if (!handle || handle.execution.turnId !== request.turnId || entry.sub.isSettled(request.executionId)) return
+    if (entry.sub.isSettled(request.executionId)) return
+    if (!handle || handle.execution.turnId !== request.turnId) {
+      entry.sub.completeRecovery({
+        recoveryId: request.recoveryId,
+        attachmentGeneration: request.attachmentGeneration,
+        executionId: request.executionId,
+        disposition: ConversationStreamRecoveryDisposition.Retired
+      })
+      return
+    }
     handle.cancel()
     entry.readers.delete(request.executionId)
     entry.pendingSnapshots.delete(request.executionId)
