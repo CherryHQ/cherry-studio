@@ -129,6 +129,11 @@ describe('remarkLiteralAutolinkFix', () => {
     expect(parse(source)).toEqual(parseWithoutPlugin(source))
   })
 
+  it('keeps character-reference stars intact — they are literal text, not emphasis markers', () => {
+    const source = '&ast;&ast;https://a.com/x**(y)'
+    expect(parse(source)).toEqual(parseWithoutPlugin(source))
+  })
+
   it('repairs an opener after an even backslash run — `\\\\**` is a literal slash plus real emphasis', () => {
     const source = '\\\\**https://a.com/x**(y)'
     expect(inlineChildren(source).map(shape)).toEqual([
