@@ -38,7 +38,8 @@ const mockBot = {
   reply: vi.fn().mockResolvedValue(undefined),
   sendTyping: vi.fn().mockResolvedValue(undefined),
   stopTyping: vi.fn().mockResolvedValue(undefined),
-  sendImage: vi.fn().mockResolvedValue(undefined)
+  sendImage: vi.fn().mockResolvedValue(undefined),
+  sendFile: vi.fn().mockResolvedValue(undefined)
 }
 
 vi.mock('../wechat/WeChatProtocol', () => ({
@@ -72,6 +73,7 @@ describe('WeChatAdapter', () => {
     mockBot.sendTyping.mockClear().mockResolvedValue(undefined)
     mockBot.stopTyping.mockClear().mockResolvedValue(undefined)
     mockBot.sendImage.mockClear().mockResolvedValue(undefined)
+    mockBot.sendFile.mockClear().mockResolvedValue(undefined)
     vi.mocked(application.get('IpcApiService').broadcastToType).mockClear()
   })
 
@@ -187,19 +189,40 @@ describe('WeChatAdapter', () => {
     expect(buffer.toString()).toBe('png-bytes')
   })
 
-  it('sendFile() rejects non-image files', async () => {
+  it('sendFile() forwards documents and videos with their filename and media type', async () => {
     const adapter = createAdapter()
     await adapter.connect()
 
-    await expect(
-      adapter.sendFile('user-123', {
-        filename: 'report.pdf',
-        data: '',
-        media_type: 'application/pdf',
-        size: 0
-      })
-    ).rejects.toThrow('WeChat can only forward image files')
-    expect(mockBot.sendImage).not.toHaveBeenCalled()
+    await adapter.sendFile('user-123', {
+      filename: 'report.pdf',
+      data: Buffer.from('pdf-bytes').toString('base64'),
+      media_type: 'application/pdf',
+      size: 9
+    })
+    await adapter.sendFile('user-123', {
+      filename: 'demo.mp4',
+      data: Buffer.from('video-bytes').toString('base64'),
+      media_type: 'video/mp4',
+      size: 11
+    })
+
+    expect(mockBot.sendFile).toHaveBeenNthCalledWith(
+      1,
+      'user-123',
+      'report.pdf',
+      Buffer.from('pdf-bytes'),
+      'application/pdf'
+    )
+    expect(mockBot.sendFile).toHaveBeenNthCalledWith(2, 'user-123', 'demo.mp4', Buffer.from('video-bytes'), 'video/mp4')
+  })
+
+  it('sendMessage() clears the typing indicator after delivery', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendMessage('user-123', 'Done')
+
+    expect(mockBot.stopTyping).toHaveBeenCalledWith('user-123')
   })
 
   it('sendTypingIndicator() calls bot.sendTyping()', async () => {

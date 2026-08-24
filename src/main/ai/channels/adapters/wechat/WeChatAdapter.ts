@@ -78,7 +78,7 @@ class WeChatAdapter extends ChannelAdapter {
 
   protected override async performDisconnect(): Promise<void> {
     if (this.bot) {
-      this.bot.stop()
+      await this.bot.stop()
       this.bot = null
       this.sendQrToRenderer('', 'disconnected')
       this.log.info('WeChat bot stopped')
@@ -91,14 +91,18 @@ class WeChatAdapter extends ChannelAdapter {
       throw new Error('Bot is not connected')
     }
 
-    const chunks = splitMessage(text, WECHAT_MAX_LENGTH)
+    const bot = this.bot
+    try {
+      const chunks = splitMessage(text, WECHAT_MAX_LENGTH)
+      for (let i = 0; i < chunks.length; i++) {
+        await bot.send(chatId, chunks[i])
 
-    for (let i = 0; i < chunks.length; i++) {
-      await this.bot.send(chatId, chunks[i])
-
-      if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        if (i < chunks.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
       }
+    } finally {
+      bot.stopTyping(chatId).catch(() => {})
     }
   }
 
@@ -106,12 +110,13 @@ class WeChatAdapter extends ChannelAdapter {
     if (!this.bot) {
       throw new Error('Bot is not connected')
     }
-    // The reverse-engineered WeChat protocol only supports outbound images today
-    // (WeixinBot.sendImage). Document upload would need protocol-level CDN work.
-    if (!file.media_type.startsWith('image/')) {
-      throw new Error(`WeChat can only forward image files, not "${file.media_type}" (${file.filename})`)
+
+    const data = Buffer.from(file.data, 'base64')
+    if (file.media_type.startsWith('image/')) {
+      await this.bot.sendImage(chatId, data)
+    } else {
+      await this.bot.sendFile(chatId, file.filename, data, file.media_type)
     }
-    await this.bot.sendImage(chatId, Buffer.from(file.data, 'base64'))
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
   }
 
@@ -175,7 +180,8 @@ class WeChatAdapter extends ChannelAdapter {
             return {
               filename: r.filename,
               data: r.data.toString('base64'),
-              media_type: FILE_EXTENSION_MIME_MAP[ext] || 'application/octet-stream',
+              media_type:
+                r.mediaType === 'application/octet-stream' ? FILE_EXTENSION_MIME_MAP[ext] || r.mediaType : r.mediaType,
               size: r.data.length
             } satisfies FileAttachment
           })
