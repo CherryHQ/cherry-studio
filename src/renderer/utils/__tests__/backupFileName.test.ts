@@ -1,5 +1,5 @@
 import { ipcApi } from '@renderer/ipc'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createDefaultBackupFileName } from '../backupFileName'
 
@@ -8,6 +8,10 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 describe('createDefaultBackupFileName', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -23,7 +27,13 @@ describe('createDefaultBackupFileName', () => {
     })
 
     vi.mocked(ipcApi.request).mockReturnValue(deviceType as never)
-    vi.stubGlobal('window', { api: { system: { getHostname: vi.fn(() => hostname) } } })
+    vi.stubGlobal('window', {
+      ...window,
+      api: {
+        ...window.api,
+        system: { ...window.api.system, getHostname: vi.fn(() => hostname) }
+      }
+    })
 
     const fileName = createDefaultBackupFileName()
 
