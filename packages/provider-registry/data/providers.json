@@ -247,9 +247,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "deepseek - AI model provider",
       "endpointConfigs": {
@@ -518,9 +515,6 @@
       "name": "PPIO"
     },
     {
-      "apiFeatures": {
-        "developerRole": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Qiniu - AI model provider",
       "endpointConfigs": {
@@ -530,7 +524,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.qnaigc.com"
+          "baseUrl": "https://api.qnaigc.com",
+          "dialect": {
+            "developerRole": false
+          }
         }
       },
       "id": "qiniu",
@@ -545,15 +542,29 @@
       "name": "Qiniu"
     },
     {
-      "apiFeatures": {
-        "reportsActualCost": true
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "OpenRouter - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://openrouter.ai/api"
+          "baseUrl": "https://openrouter.ai/api",
+          "requestControls": {
+            "serviceTier": {
+              "default": "standard",
+              "options": ["standard", "fast", "flex"],
+              "wire": {
+                "delivery": {
+                  "key": "service_tier",
+                  "type": "request-body"
+                },
+                "values": {
+                  "fast": "priority",
+                  "flex": "flex",
+                  "standard": "default"
+                }
+              }
+            }
+          }
         },
         "openai-chat-completions": {
           "adapterFamily": "openrouter",
@@ -599,6 +610,23 @@
                 ]
               }
             }
+          },
+          "requestControls": {
+            "serviceTier": {
+              "default": "standard",
+              "options": ["standard", "fast", "flex"],
+              "wire": {
+                "delivery": {
+                  "key": "service_tier",
+                  "type": "provider-option"
+                },
+                "values": {
+                  "fast": "priority",
+                  "flex": "flex",
+                  "standard": "default"
+                }
+              }
+            }
           }
         },
         "openai-image-generation": {
@@ -617,6 +645,7 @@
       },
       "name": "OpenRouter",
       "reportedCostCurrency": "USD",
+      "reportsActualCost": true,
       "serverTools": [
         {
           "id": "web-search",
@@ -781,16 +810,95 @@
       ]
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
-      },
       "authMethods": ["oauth"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI Codex - AI model provider",
       "endpointConfigs": {
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://chatgpt.com/backend-api/codex"
+          "baseUrl": "https://chatgpt.com/backend-api/codex",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "fastMode": {
@@ -827,15 +935,94 @@
       "name": "Grok CLI"
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
-      },
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
       "endpointConfigs": {
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://api.openai.com"
+          "baseUrl": "https://api.openai.com",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "openai",
@@ -880,7 +1067,86 @@
           "adapterFamily": "openai",
           "baseUrl": "https://opencode.ai/zen/go/v1",
           "reasoningFormat": {
-            "type": "openai-responses"
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
           }
         }
       },
@@ -903,7 +1169,89 @@
           "adapterFamily": "azure"
         },
         "openai-responses": {
-          "adapterFamily": "azure-responses"
+          "adapterFamily": "azure-responses",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "azure-openai",
@@ -992,26 +1340,6 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Github Models - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://models.github.ai/inference"
-        }
-      },
-      "id": "github",
-      "metadata": {
-        "website": {
-          "apiKey": "https://github.com/settings/tokens",
-          "docs": "https://docs.github.com/en/github-models",
-          "models": "https://github.com/marketplace/models",
-          "official": "https://github.com/marketplace/models"
-        }
-      },
-      "name": "Github Models"
-    },
-    {
-      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Github Copilot - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -1097,9 +1425,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "BAICHUAN AI - AI model provider",
       "endpointConfigs": {
@@ -1241,6 +1566,10 @@
           }
         }
       },
+      "fastMode": {
+        "serviceTier": "fast",
+        "transport": "openai-priority"
+      },
       "id": "doubao",
       "metadata": {
         "website": {
@@ -1260,9 +1589,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "MiniMax - AI model provider",
       "endpointConfigs": {
@@ -1287,9 +1613,6 @@
       "name": "MiniMax"
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Groq - AI model provider",
       "endpointConfigs": {
@@ -1298,6 +1621,24 @@
           "baseUrl": "https://api.groq.com/openai",
           "reasoningFormat": {
             "type": "none"
+          },
+          "requestControls": {
+            "serviceTier": {
+              "default": "standard",
+              "options": ["standard", "auto", "flex"],
+              "wire": {
+                "delivery": {
+                  "key": "serviceTier",
+                  "type": "provider-option"
+                },
+                "values": {
+                  "auto": "auto",
+                  "fast": "performance",
+                  "flex": "flex",
+                  "standard": "on_demand"
+                }
+              }
+            }
           }
         }
       },
@@ -1525,15 +1866,15 @@
       ]
     },
     {
-      "apiFeatures": {
-        "streamOptions": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Mistral - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "mistral",
-          "baseUrl": "https://api.mistral.ai"
+          "baseUrl": "https://api.mistral.ai",
+          "dialect": {
+            "streamOptions": false
+          }
         }
       },
       "id": "mistral",
@@ -1618,9 +1959,6 @@
       "name": "ModelScope"
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Xirang - AI model provider",
       "endpointConfigs": {
@@ -1769,10 +2107,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false,
-        "developerRole": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Poe - AI model provider",
       "endpointConfigs": {
@@ -1783,6 +2117,9 @@
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.poe.com/v1/",
+          "dialect": {
+            "developerRole": false
+          },
           "reasoningFormat": {
             "type": "openai-chat",
             "wire": {
@@ -1914,7 +2251,7 @@
       "description": "Hugging Face - AI model provider",
       "endpointConfigs": {
         "openai-responses": {
-          "adapterFamily": "huggingface",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
         }
       },
@@ -2073,5 +2410,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7dd1ae83c85245f9"
+  "version": "d4aebe86a12ca8f8"
 }

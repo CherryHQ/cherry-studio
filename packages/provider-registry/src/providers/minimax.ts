@@ -93,8 +93,5 @@ export default openaiCompatible({
     models: 'https://platform.minimaxi.com/document/Models',
     official: 'https://platform.minimaxi.com/'
   },
-  apiFeatures: {
-    arrayContent: false
-  },
   overrides: minimaxImageOverrides
 })

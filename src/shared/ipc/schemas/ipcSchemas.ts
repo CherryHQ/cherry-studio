@@ -35,7 +35,7 @@ import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
 import { webSearchRequestSchemas } from './webSearch'
-import { type WebviewEventSchemas, webviewRequestSchemas } from './webview'
+import { webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
@@ -113,7 +113,6 @@ export type IpcEventSchemas = AiEventSchemas &
   SystemEventSchemas &
   TabEventSchemas &
   TranslateEventSchemas &
-  WebviewEventSchemas &
   WindowEventSchemas
 /** Union of all declared event names. */
 export type IpcEventName = keyof IpcEventSchemas
