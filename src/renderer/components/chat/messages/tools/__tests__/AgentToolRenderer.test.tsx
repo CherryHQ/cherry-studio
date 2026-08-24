@@ -1083,7 +1083,7 @@ describe('AgentToolRenderer', () => {
             toolName: 'Agent',
             state: 'output-available',
             input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
-            output: "done. agentId: agent-77 (use SendMessage with to: 'agent-77')"
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
           }
         ]
       })

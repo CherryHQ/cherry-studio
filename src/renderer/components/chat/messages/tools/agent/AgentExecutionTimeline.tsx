@@ -84,27 +84,8 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       : undefined
   const resumedLaunch = useMemo(() => {
     if (stampedLaunchId) return { toolCallId: stampedLaunchId }
-    const scanned = resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
-    if (resumedAgentId && !scanned && fullPartsMap) {
-      // Diagnostic: dump every Agent/Task part the scan evaluates.
-      for (const [mid, mparts] of Object.entries(fullPartsMap)) {
-        for (const p of mparts) {
-          const r = p as Record<string, unknown>
-          if (r.toolName === 'Agent' || r.toolName === 'Task') {
-            console.warn('[resume-debug] candidate', {
-              messageId: mid,
-              toolCallId: String(r.toolCallId ?? ''),
-              toolName: String(r.toolName),
-              outputSnippet: JSON.stringify(r.output ?? '').slice(0, 120),
-              idMatch: JSON.stringify(r.output ?? '').includes(resumedAgentId)
-            })
-          }
-        }
-      }
-      console.warn('[resume-debug] scan failed for', resumedAgentId)
-    }
-    return scanned
-  }, [response, fullPartsMap, resumedAgentId])
+    return resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
+  }, [response, fullPartsMap, resumedAgentId, stampedLaunchId])
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />

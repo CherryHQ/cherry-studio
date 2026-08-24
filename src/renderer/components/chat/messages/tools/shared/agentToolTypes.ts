@@ -298,25 +298,14 @@ export function getResumedAgentId(output: unknown): string | undefined {
  * streaming under its launch tool-call id, so entries must point at that launch. Returns the
  * launch's toolCallId and description (which doubles as the agent's identity).
  */
-/** A candidate Agent/Task output is the launch receipt for `resumedAgentId` when its shape
- *  matches the CLI's receipt (trailer string or structured async-launch). Deferred envelopes are
- *  matched via their stringified excerpt, which preserves the trailer verbatim. */
+/** A candidate Agent/Task output is the launch receipt for `resumedAgentId` when its serialized
+ *  form mentions the id: the id is session-scoped and generated at launch time, so the earliest
+ *  matching part is always the launch itself, and any textual trailer check would break whenever
+ *  the CLI rewords its receipt between versions. */
 function isLaunchReceiptFor(output: unknown, resumedAgentId: string): boolean {
-  const serialized = typeof output === 'string' ? output : isRecord(output) ? JSON.stringify(output) : ''
-  if (!serialized) return false
-  // `\\s` on purpose: inside a template literal a single backslash is an identity escape.
-  // Lookahead tolerates whitespace, opening paren, or end-of-string (truncated excerpts).
-  if (!new RegExp(`agentId[:\\s]+${escapeRegExp(resumedAgentId)}(?=[\\s(]|$)`).test(serialized)) return false
-  // Structured async-launch form with matching agent field.
-  if (isRecord(output) && typeof output.status === 'string') {
-    return output.status === 'async_launched' || output.status === 'remote_launched'
-  }
-  // String form must carry the CLI's continue marker to distinguish launch receipts from quotes.
-  return serialized.includes('use SendMessage')
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  if (typeof output === 'string') return output.includes(resumedAgentId)
+  if (isRecord(output)) return JSON.stringify(output).includes(resumedAgentId)
+  return false
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

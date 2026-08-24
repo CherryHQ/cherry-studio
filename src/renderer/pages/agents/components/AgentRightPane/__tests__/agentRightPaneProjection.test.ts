@@ -118,7 +118,7 @@ describe('agent right pane projections', () => {
         undefined,
         'output-available',
         { prompt: 'Launch the review' },
-        'reviewing... agentId: af5051807ed7aaa30 (use SendMessage to continue)'
+        'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
       ),
       toolPart(
         'call_resume',
@@ -142,7 +142,7 @@ describe('agent right pane projections', () => {
   // A SendMessage receipt resolving to the selected launch splits its timeline: the prompt of
   // each continuation lands as a user message between the agent's rounds.
   it('interleaves resume prompts between the rounds of a continued agent', () => {
-    const launchOutput = 'reviewing... agentId: af5051807ed7aaa30 (use SendMessage to continue)'
+    const launchOutput = 'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
     const parts = [
       toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
       textPart('First round findings', 'call_launch'),
@@ -187,7 +187,7 @@ describe('agent right pane projections', () => {
         undefined,
         'output-available',
         { prompt: 'Launch the review' },
-        'reviewing... agentId: af5051807ed7aaa30 (use SendMessage to continue)'
+        'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
       ),
       textPart('First round findings', 'call_launch'),
       {
@@ -243,7 +243,7 @@ describe('agent right pane projections', () => {
       textPart('Second round findings', 'call_launch')
     ]
     const messages = [message('m1', parts)]
-    const resolvedOutput = 'reviewing... agentId: af5051807ed7aaa30 (use SendMessage to continue)'
+    const resolvedOutput = 'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
 
     const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch', resolvedOutput)
 

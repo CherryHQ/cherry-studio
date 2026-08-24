@@ -27,7 +27,9 @@ vi.mock('@renderer/services/AssistantService', () => ({
   }))
 }))
 
-const LAUNCH_OUTPUT = "done. agentId: agent-77 (use SendMessage with to: 'agent-77')"
+// Mirrors the CLI's real receipt (capitalized "Use SendMessage") so a casing-sensitive matcher
+// can never pass these tests again.
+const LAUNCH_OUTPUT = "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
 
 function launchParts(): Record<string, CherryMessagePart[]> {
   return {
