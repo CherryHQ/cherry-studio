@@ -223,7 +223,9 @@ exports.default = async function (context) {
   }
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
-  execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
+  execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch} --packaging`, {
+    stdio: 'inherit'
+  })
   // Fail the build rather than ship a half-empty resources/binaries/<platform>.
   require('./download-binaries').verifyBundledBinaries(platform, arch)
 

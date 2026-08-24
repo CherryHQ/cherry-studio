@@ -142,6 +142,19 @@ describe('useAgents', () => {
   })
 
   describe('agents list', () => {
+    it('refetches after a main-process Agent creation notification', () => {
+      const refetch = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockQueryResult('/agents', {
+        data: { items: [], total: 0, page: 1 } as any,
+        refetch
+      })
+
+      renderHook(() => useAgents())
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: ['agent-created'] }])
+
+      expect(refetch).toHaveBeenCalledOnce()
+    })
+
     it('returns empty array when data is undefined', () => {
       MockUseDataApiUtils.mockQueryLoading('/agents')
 
