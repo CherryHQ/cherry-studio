@@ -77,7 +77,6 @@ describe('main i18n', () => {
     })
   })
 
-
   describe('SUPPORTED_LANGUAGES', () => {
     it('lists every language main carries a catalog for', () => {
       expect(SUPPORTED_LANGUAGES).toEqual(
