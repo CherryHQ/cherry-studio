@@ -16,21 +16,30 @@ Edit JSON shapes (pass via --edits):
     {"format": "docx", "replacements": [{"paragraph": 3, "text": "new text"}]}
 
 xlsx: each cell is overwritten with the JSON value (number, string, or
-boolean); an existing formula in that cell is replaced by the value. The
-worksheet's <dimension> is widened when edits create cells outside it.
-Replacing a formula also drops xl/calcChain.xml (see drop_calc_chain), the
-only part besides the edited worksheet this script ever rewrites.
+boolean); an ordinary formula in that cell is replaced by the value, while a
+cell belonging to a shared or array formula group is refused (see
+reject_grouped_formula). The worksheet's <dimension> is widened when edits
+create cells outside it. Replacing a formula also drops xl/calcChain.xml (see
+drop_calc_chain); that and [Content_Types].xml / workbook.xml.rels are the only
+parts besides the edited worksheet this script ever rewrites.
 docx: 'paragraph' is the zero-based ordinal among BODY-LEVEL paragraphs
 (direct w:body children; tables excluded); the paragraph keeps its paragraph
-style and the first run's character style, but other inline content (extra
-run styling, hyperlinks) inside that one paragraph is flattened into the
-new text.
+style and the first run's character style, and extra run-level styling is
+flattened into the new text. Paragraphs holding bookmarks, comment anchors,
+fields or hyperlinks are refused (see reject_semantic_inline_content) because
+their markers can pair across paragraphs.
+
+The output is written to a staging file and renamed on success, so a failure
+never leaves a partial package behind (see atomic_output).
 """
 
 import argparse
+import contextlib
 import json
+import os
 import re
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -50,10 +59,33 @@ MAX_ZIP_ENTRIES = 10_000
 MAX_ENTRY_BYTES = 256 * 1024 * 1024
 MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 
+# The SpreadsheetML grid (ECMA-376): columns A..XFD, rows 1..1048576. A1 notation happily spells
+# coordinates past both, and writing one produces a cell Excel cannot place.
+MAX_COLUMN_INDEX = 16_384
+MAX_ROW_NUMBER = 1_048_576
+
 
 def fail(message: str) -> "sys.NoReturn":
     print(f"error: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+@contextlib.contextmanager
+def atomic_output(out_path: Path):
+    """Yield a staging path in the destination directory, renamed onto `out_path` only on success.
+
+    Nothing partial ever appears at the destination: a failure removes the staging file, so the same
+    command can be retried without tripping the "output path already exists" check.
+    """
+    handle, staging_name = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.", suffix=".part")
+    os.close(handle)
+    staging = Path(staging_name)
+    try:
+        yield staging
+        staging.replace(out_path)
+    except BaseException:
+        staging.unlink(missing_ok=True)
+        raise
 
 
 def column_to_index(letters: str) -> int:
@@ -75,7 +107,13 @@ def parse_a1_cell(ref: str) -> tuple[int, int]:
     match = A1_CELL_RE.match(ref)
     if not match:
         fail(f"invalid A1 cell reference: {ref!r}")
-    return column_to_index(match.group(1)), int(match.group(2))
+    column, row = column_to_index(match.group(1)), int(match.group(2))
+    if column > MAX_COLUMN_INDEX or row > MAX_ROW_NUMBER:
+        fail(
+            f"cell {ref!r} is outside the worksheet grid "
+            f"(max {index_to_column(MAX_COLUMN_INDEX)}{MAX_ROW_NUMBER}); Excel cannot place it"
+        )
+    return column, row
 
 
 def preflight_zip(archive: zipfile.ZipFile) -> None:
@@ -178,6 +216,27 @@ def drop_calc_chain(archive: zipfile.ZipFile) -> dict[str, bytes]:
     return {CONTENT_TYPES_PART: serialize_part(content_types), WORKBOOK_RELS_PART: serialize_part(rels)}
 
 
+def reject_grouped_formula(formula, ref: str) -> None:
+    """Refuse cells whose formula is shared with, or spills into, cells we are not editing.
+
+    A shared-formula master (`<f t="shared" ref="B2:B4" si="0">`) is the only place the expression is
+    stored; its followers carry just `si`. An array formula owns its whole `ref` range the same way.
+    Deleting either one silently guts cells the caller never named — openpyxl reads the orphaned
+    followers back as a bare "=" — so this is a refusal, not something to repair.
+    """
+    formula_type = formula.getAttribute("t")
+    if formula_type not in ("shared", "array"):
+        return
+    # The master carries `ref` (the range it owns); a shared follower carries only `si`.
+    group = formula.getAttribute("ref")
+    scope = f"covering {group}" if group else f"in shared group si={formula.getAttribute('si')!r}"
+    fail(
+        f"cell {ref} holds a {formula_type} formula {scope}; overwriting it would strip the formula from "
+        f"the other cells in that group. Rewrite the whole range with a library "
+        f"(`uv run --with openpyxl python`) instead of patch-copy."
+    )
+
+
 def set_cell_value(doc: minidom.Document, cell, value) -> None:
     for child in list(cell.childNodes):
         cell.removeChild(child)
@@ -262,7 +321,9 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
         column, row_number = parse_a1_cell(ref)
         row = find_or_create_ordered(doc, sheet_data, "row", lambda r: int(r), row_number, str(row_number))
         cell = find_or_create_ordered(doc, row, "c", lambda r: parse_a1_cell(r)[0], column, ref)
-        if first_child(cell, "f") is not None:
+        formula = first_child(cell, "f")
+        if formula is not None:
+            reject_grouped_formula(formula, ref)
             replaced_formula = True
         set_cell_value(doc, cell, value)
         edited.append((column, row_number))
@@ -277,6 +338,44 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
 
 
 # ── docx ─────────────────────────────────────────────────────────────────────
+
+
+# Inline markers whose meaning lives outside the paragraph: bookmarks, comment anchors and fields all
+# pair a start with an end that may sit in a different paragraph. Flattening the paragraph deletes one
+# half and leaves the document with an unmatched marker, so these are refused rather than dropped.
+SEMANTIC_INLINE_TAGS = {
+    "bookmarkStart": "a bookmark",
+    "bookmarkEnd": "a bookmark",
+    "commentRangeStart": "a comment anchor",
+    "commentRangeEnd": "a comment anchor",
+    "fldSimple": "a field",
+    "fldChar": "a field",
+    "instrText": "a field",
+    "hyperlink": "a hyperlink",
+}
+
+
+def reject_semantic_inline_content(paragraph, index: int) -> None:
+    """Refuse to flatten a paragraph that carries inline content this rewrite cannot preserve."""
+    found = {}
+
+    def walk(node) -> None:
+        for child in element_children(node):
+            local_name = child.tagName.rsplit(":", 1)[-1]
+            if local_name in SEMANTIC_INLINE_TAGS:
+                found.setdefault(SEMANTIC_INLINE_TAGS[local_name], local_name)
+            walk(child)
+
+    walk(paragraph)
+    if not found:
+        return
+    described = ", ".join(sorted(found))
+    fail(
+        f"paragraph {index} contains {described}, which this rewrite would delete rather than keep "
+        f"(and a start marker whose matching end lives in another paragraph would leave the document "
+        f"unbalanced). Edit it with python-docx (`uv run --with python-docx python`), which preserves "
+        f"inline structure, or target a paragraph without these markers."
+    )
 
 
 def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes], set[str]]:
@@ -299,6 +398,8 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
         if index >= len(paragraphs):
             fail(f"paragraph {index} out of range (document has {len(paragraphs)} body paragraphs)")
         paragraph = paragraphs[index]
+
+        reject_semantic_inline_content(paragraph, index)
 
         properties = first_child(paragraph, "pPr")
         first_run = first_child(paragraph, "r")
@@ -347,17 +448,21 @@ def main() -> None:
         fail(f"unsupported edits format: {edits.get('format')!r} (use xlsx or docx)")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(src) as archive:
-        preflight_zip(archive)
-        replaced_parts, dropped_parts = patcher(archive, edits)
-        with zipfile.ZipFile(out_path, "w") as derived:
-            for item in archive.infolist():
-                if item.filename in dropped_parts:
-                    continue
-                data = replaced_parts.get(item.filename, None)
-                if data is None:
-                    data = archive.read(item.filename)
-                derived.writestr(item, data, compress_type=item.compress_type)
+    # Build beside the target and rename only on success. A package written in place and interrupted
+    # mid-copy stays a readable file with the edit already applied — it just silently misses the parts
+    # that never got copied — and then blocks the retry with "output path already exists".
+    with atomic_output(out_path) as staging:
+        with zipfile.ZipFile(src) as archive:
+            preflight_zip(archive)
+            replaced_parts, dropped_parts = patcher(archive, edits)
+            with zipfile.ZipFile(staging, "w") as derived:
+                for item in archive.infolist():
+                    if item.filename in dropped_parts:
+                        continue
+                    data = replaced_parts.get(item.filename, None)
+                    if data is None:
+                        data = archive.read(item.filename)
+                    derived.writestr(item, data, compress_type=item.compress_type)
     print(str(out_path))
 
 
