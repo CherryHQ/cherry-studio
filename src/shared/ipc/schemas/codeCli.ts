@@ -58,6 +58,23 @@ export const codeCliRequestSchemas = {
     input: codeCliRunInputSchema,
     output: operationResultSchema
   }),
+  'code_cli.read_config': defineRoute({
+    // Targets, not paths — the same enum allow-list as write_config. Duplicate
+    // targets are deduplicated here (first occurrence wins): one entry per file.
+    input: z.object({
+      targets: z.array(z.enum(CLI_CONFIG_TARGET_IDS)).transform((targets) => [...new Set(targets)])
+    }),
+    // content === null ⇔ the file does not exist (ENOENT); other read errors reject.
+    output: z.object({
+      files: z.array(
+        z.object({
+          target: z.enum(CLI_CONFIG_TARGET_IDS),
+          path: z.string(),
+          content: z.string().nullable()
+        })
+      )
+    })
+  }),
   'code_cli.write_config': defineRoute({
     // Targets, not paths: the enum is the write allow-list, and main resolves
     // each target to its spec path itself — a compromised renderer cannot point
