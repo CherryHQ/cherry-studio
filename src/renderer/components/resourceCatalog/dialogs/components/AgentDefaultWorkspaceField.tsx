@@ -13,7 +13,7 @@ export function AgentDefaultWorkspaceField({
 }) {
   const { t } = useTranslation()
   const { data: workspaces } = useQuery('/agent-workspaces')
-  const selected = workspaces?.find((workspace) => workspace.id === value)
+  const selected = Array.isArray(workspaces) ? workspaces.find((workspace) => workspace.id === value) : undefined
   const label =
     selected?.name ??
     (value ? t('agent.session.workspace_selector.placeholder') : t('agent.session.workspace_selector.no_project'))

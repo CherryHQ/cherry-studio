@@ -95,7 +95,10 @@ export function WorkspaceSelector({
   }, [open, refetch])
 
   const filteredWorkspaces = useMemo(
-    () => (workspaces ?? []).filter((workspace) => workspaceMatchesSearch(workspace, searchValue)),
+    () =>
+      (Array.isArray(workspaces) ? workspaces : []).filter((workspace) =>
+        workspaceMatchesSearch(workspace, searchValue)
+      ),
     [searchValue, workspaces]
   )
 
