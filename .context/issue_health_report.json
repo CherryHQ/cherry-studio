@@ -1,69 +1,78 @@
 {
-  "generated_at": "2026-08-23T17:00:00Z",
-  "total_open_issues": 929,
+  "generated_at": "2026-08-24T17:30:00Z",
+  "total_open_issues": 936,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Aug 16-23)",
-      "count": 80,
-      "pct": "8.6%",
+      "description": "Updated within last 7 days (Aug 17-24)",
+      "count": 85,
+      "pct": "9.1%",
       "note": "Estimated from top-100 sample; most-recent-activity bias means true active count likely higher"
     },
     "aging": {
-      "description": "7-30 days since last update (Jul 24 - Aug 15)",
-      "count": 50,
-      "pct": "5.4%"
+      "description": "7-30 days since last update (Jul 25 - Aug 16)",
+      "count": 52,
+      "pct": "5.6%"
     },
     "stale": {
-      "description": "30-90 days without update (May 24 - Jul 23), many auto-labeled 'inactive'",
-      "count": 250,
+      "description": "30-90 days without update (May 25 - Jul 24), many auto-labeled 'inactive'",
+      "count": 252,
       "pct": "26.9%",
       "inactive_label_count": 65
     },
     "zombie": {
-      "description": "90+ days open with no resolution (before May 24)",
-      "count": 549,
-      "pct": "59.1%",
-      "p1_zombies": [14899, 13608, 13193]
+      "description": "90+ days open with no resolution (before May 25)",
+      "count": 547,
+      "pct": "58.4%",
+      "p1_zombies": [15431, 8730]
     }
   },
   "triage_queue": {
-    "needs_triage_count": 36,
+    "needs_triage_count": 38,
     "needs_repro_count": 9,
     "top_needs_triage": [
       {"number": 19116, "title": "v2.0.8 bundle missing fixes — response_format and reasoning_content regressions", "priority": "critical"},
       {"number": 19093, "title": "S3 backup/restore issues reported on v2.0.7 Windows", "priority": "high"},
       {"number": 19105, "title": "Build an end-to-end diagnostics and error reporting system", "priority": "medium"},
-      {"number": 19041, "title": "Job schedule time calendar needs single owner", "priority": "medium"},
+      {"number": 19325, "title": "Show progress and failure stages for Harness installation and upgrades", "priority": "medium"},
       {"number": 19242, "title": "Expose safe runtime information to Custom Agents", "priority": "low"}
     ]
   },
-  "hot_areas_aug23": {
-    "dsh_integration": {
-      "count": 3,
-      "issues": [19262, 19096, 19244],
-      "description": "DSH/dsh startup failures, PATH not inherited, credentials format conflict — all opened this week"
+  "hot_areas_aug24": {
+    "dsh_deepseek_agent_cluster": {
+      "count": 5,
+      "p1_count": 4,
+      "issues": [19313, 19316, 19321, 19322, 19312],
+      "description": "CRITICAL CLUSTER: DSH missing npm scope, DSH 400 developer-role, reasoning_text dropped on tool continuations, Zstandard log first-frame contract failure, DSML tool-call leak → agent stall loop. All filed today. Coordinated DSH/DeepSeek integration breakage."
     },
     "agent_reliability": {
       "count": 5,
-      "issues": [19243, 19248, 19241, 19188, 19203],
-      "description": "Agent actions without user request, paste images broken, skills not discovered, output dead-loop, heartbeat dropped"
+      "p1_count": 3,
+      "issues": [19326, 19290, 19272, 19271, 19203],
+      "description": "Retry state poisoning conversation turns (P1), Claude SDK double-prompt injection (P1), MiniMax-M3 disconnection (P1), augment claude agent bug (P1), heartbeat interval dropped from JobManager migration"
+    },
+    "performance_batch": {
+      "count": 8,
+      "issues": [19333, 19332, 19331, 19330, 19329, 19209, 19211, 19208],
+      "description": "DeJeune performance optimization batch: lazy-load settings panels, file hydration, agent tool renderers, IPC in search, subscription isolation, CodeMirror lazy-load, TabRouter stability"
     },
     "model_metadata": {
       "count": 4,
-      "issues": [19261, 19255, 19233, 19254],
-      "description": "DeepSeek V4 metadata wrong, trailing # in API address, vision multimodal block misbuilt, endpoint type hidden"
+      "issues": [19327, 19314, 19261, 19254],
+      "description": "V2 model detection skips image-generation models, DeepSeek V4 Pro reasoning incomplete, V4 Flash/Pro metadata wrong, multimodal vision block misbuilt"
     },
-    "performance_optimization": {
-      "count": 12,
-      "issues": [19208, 19209, 19210, 19211, 19139, 19140, 19141, 18356, 18242, 17286, 17287, 17288],
-      "description": "Ongoing DeJeune performance batch: lazy-load CodeMirror, isolate subscriptions, stabilize callbacks, exclude devtools from prod"
+    "mcp_oauth": {
+      "count": 2,
+      "issues": [19268, 19048],
+      "description": "MCP OAuth redesign task (coordinator-owned background workflow), MCP OAuth 300s blocking timeout on startup"
     }
   },
   "summary_deltas_vs_yesterday": {
-    "open_issues_change": "+9",
-    "new_p1_issues": 0,
+    "open_issues_change": "+7",
+    "new_p1_issues": 5,
+    "new_p1_detail": "DSH/DeepSeek agent cluster: #19313, #19316, #19321, #19322 (SiinXu), #19316 (kangfenmao)",
     "resolved_p1_issues": 0,
     "newly_needs_triage": "+2",
-    "newly_inactive": "+2"
+    "newly_inactive": "+0",
+    "today_theme": "DSH/DeepSeek Agent integration instability — 5 new P1 bugs all touching the DSH or DeepSeek agent pipeline, filed within a 2-hour window (12:18–12:44 UTC). Likely coordinated discovery after a recent DSH version bump."
   }
 }

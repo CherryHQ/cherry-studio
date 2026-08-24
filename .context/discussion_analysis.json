@@ -1,11 +1,26 @@
 {
-  "generated_at": "2026-08-23T17:00:00Z",
+  "generated_at": "2026-08-24T17:30:00Z",
   "note": "GitHub Discussions GraphQL not available in this session. Discussion-labeled issues used as proxy.",
   "discussion_issues_in_sample": [
     {
+      "number": 19335,
+      "title": "[Discussion]: Does the new version support conversation import functionality?",
+      "labels": [
+        "help wanted",
+        "discussion",
+        "data"
+      ],
+      "created_at": "2026-08-24",
+      "comments": 0
+    },
+    {
       "number": 19182,
       "title": "agent",
-      "labels": ["needs-more-info", "help wanted", "discussion"],
+      "labels": [
+        "needs-more-info",
+        "help wanted",
+        "discussion"
+      ],
       "created_at": "2026-08-22",
       "comments": 0,
       "sentiment": "unclear — vague title, needs triage"
@@ -13,7 +28,11 @@
     {
       "number": 18069,
       "title": "[Discussion]: V2 portable version starts very slowly",
-      "labels": ["help wanted", "discussion", "performance"],
+      "labels": [
+        "help wanted",
+        "discussion",
+        "performance"
+      ],
       "created_at": "2026-08-07",
       "comments": 2,
       "sentiment": "negative — startup performance regression in V2 portable; community concern"
@@ -21,7 +40,12 @@
     {
       "number": 17191,
       "title": "[Discussion]: The knowledge base invocation window has disappeared",
-      "labels": ["help wanted", "discussion", "ui-ux", "inactive"],
+      "labels": [
+        "help wanted",
+        "discussion",
+        "ui-ux",
+        "inactive"
+      ],
       "created_at": "2026-07-20",
       "comments": 2,
       "sentiment": "negative — KB UI missing; v2 regression; marked inactive"
@@ -29,7 +53,13 @@
     {
       "number": 17271,
       "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
-      "labels": ["help wanted", "discussion", "rag", "assistant", "inactive"],
+      "labels": [
+        "help wanted",
+        "discussion",
+        "rag",
+        "assistant",
+        "inactive"
+      ],
       "created_at": "2026-07-22",
       "comments": 1,
       "sentiment": "negative — agent + RAG integration gap; marked inactive"
@@ -37,7 +67,9 @@
     {
       "number": 17260,
       "title": "[Privacy Concern]: Agent mode hard-coded to Claude Code SDK — no user opt-out",
-      "labels": ["inactive"],
+      "labels": [
+        "inactive"
+      ],
       "created_at": "2026-07-22",
       "comments": 3,
       "sentiment": "negative — user privacy and model choice autonomy concern"
@@ -45,7 +77,12 @@
     {
       "number": 16010,
       "title": "[Discussion]: Which models are supported by the agent, what is the logic",
-      "labels": ["help wanted", "discussion", "models", "inactive"],
+      "labels": [
+        "help wanted",
+        "discussion",
+        "models",
+        "inactive"
+      ],
       "created_at": "2026-06-12",
       "comments": 3,
       "sentiment": "confused — model support matrix unclear to users; documentation gap"

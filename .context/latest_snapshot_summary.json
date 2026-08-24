@@ -1,250 +1,344 @@
 {
-  "generated_at": "2026-08-23T17:00:00Z",
-  "open_issues_total": 929,
-  "open_issues_delta_24h": 9,
+  "generated_at": "2026-08-24T17:30:00Z",
+  "open_issues_total": 936,
+  "open_issues_delta_24h": 7,
   "open_prs_total": 100,
   "p1_issues": [
     {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["planned", "p1", "feature", "ui-ux"],
-      "created_at": "2026-05-07",
-      "age_days": 108,
+      "number": 19326,
+      "title": "[Bug]: Retry state can persist after success and poison later conversation turns",
+      "labels": ["bug", "p1", "needs-more-info", "chat"],
+      "created_at": "2026-08-24",
+      "age_days": 0,
+      "comments": 0,
+      "status": "Active"
+    },
+    {
+      "number": 19322,
+      "title": "[Bug]: Newly created DSH Zstandard session logs fail the first-frame contract",
+      "labels": ["bug", "p1", "windows", "agent"],
+      "created_at": "2026-08-24",
+      "age_days": 0,
+      "comments": 0,
+      "status": "Active"
+    },
+    {
+      "number": 19321,
+      "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
+      "labels": ["bug", "p1", "models", "agent"],
+      "created_at": "2026-08-24",
+      "age_days": 0,
+      "comments": 0,
+      "status": "Active"
+    },
+    {
+      "number": 19316,
+      "title": "[Bug]: DeepSeek Harness (dsh) Agent 会话报 400：所选服务商不接受 messages[0].role=developer",
+      "labels": ["bug", "p1", "models", "agent"],
+      "created_at": "2026-08-24",
+      "age_days": 0,
+      "comments": 1,
+      "status": "Active"
+    },
+    {
+      "number": 19313,
+      "title": "[Bug]: Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
+      "labels": ["bug", "p1", "agent"],
+      "created_at": "2026-08-24",
+      "age_days": 0,
+      "comments": 0,
+      "status": "Active"
+    },
+    {
+      "number": 19290,
+      "title": "[Bug] Claude Agent SDK session injects the full Claude Code developer prompt twice",
+      "labels": ["bug", "p1", "agent"],
+      "created_at": "2026-08-24",
+      "age_days": 0,
+      "comments": 3,
+      "status": "Active"
+    },
+    {
+      "number": 19272,
+      "title": "[Bug]: I found a bug when I used it with augment claude type agent",
+      "labels": ["bug", "p1", "needs-more-info", "agent"],
+      "created_at": "2026-08-24",
+      "age_days": 0,
+      "comments": 1,
+      "status": "Active"
+    },
+    {
+      "number": 19271,
+      "title": "[Bug] MiniMax-M3 agent intermittent disconnection: reasoning-0 not found, cron task failures not retried",
+      "labels": ["bug", "p1", "models", "agent"],
+      "created_at": "2026-08-24",
+      "age_days": 0,
+      "comments": 0,
+      "status": "Active"
+    },
+    {
+      "number": 19254,
+      "title": "[Bug]: Multimodal content block built incorrectly — images not passed to vision models",
+      "labels": ["bug", "p1", "models", "chat"],
+      "created_at": "2026-08-23",
+      "age_days": 1,
+      "comments": 5,
+      "status": "Active"
+    },
+    {
+      "number": 15431,
+      "title": "[Bug]: Quick Assist feature not working",
+      "labels": ["bug", "p1", "ui-ux", "inactive"],
+      "created_at": "2026-05-30",
+      "age_days": 86,
       "comments": 0,
       "status": "Zombie"
     },
     {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["p1", "models"],
-      "created_at": "2026-03-18",
-      "age_days": 158,
-      "comments": 8,
-      "status": "Zombie"
-    },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI AI_APICallError Resource not found (responses API)",
-      "labels": ["p1", "models"],
-      "created_at": "2026-03-04",
-      "age_days": 172,
-      "comments": 1,
+      "number": 8730,
+      "title": "[讨论]: cherry studio是否无法接入商汤大模型？",
+      "labels": ["bug", "p1", "models", "inactive"],
+      "created_at": "2025-07-31",
+      "age_days": 390,
+      "comments": 0,
       "status": "Zombie"
     }
   ],
-  "needs_triage_count": 36,
+  "needs_triage_count": 38,
   "inactive_stale_count": 65,
-  "bug_labeled_count": 17,
+  "bug_labeled_count": 19,
   "label_distribution_top15": {
-    "internal-team": 50,
-    "feature": 37,
-    "needs-triage": 36,
-    "assistant": 34,
-    "models": 26,
+    "internal-team": 52,
+    "feature": 39,
+    "needs-triage": 38,
+    "assistant": 35,
+    "models": 30,
     "ui-ux": 27,
+    "performance": 22,
     "rag": 19,
-    "performance": 19,
     "inactive": 65,
     "data": 13,
-    "bug": 17,
+    "bug": 19,
     "mcp": 13,
     "planned": 13,
-    "needs-repro": 9,
-    "connectivity": 9
+    "agent": 12,
+    "needs-repro": 9
   },
-  "new_issues_today_aug23": [
+  "new_issues_today_aug24": [
     {
-      "number": 19262,
-      "title": "[Bug]: deepseek harness coding partner fails to start: credentials file format incompatible with dsh 0.1.1-rc.2",
-      "labels": [],
-      "severity": "high"
-    },
-    {
-      "number": 19261,
-      "title": "[Bug]: DeepSeek V4 Flash/Pro model metadata incorrect: reasoning effort levels and pricing don't match official API docs",
-      "labels": ["models"],
-      "severity": "medium"
-    },
-    {
-      "number": 19255,
-      "title": "[Bug]: Trailing '#' in a model's API Address does not prevent auto-appending the API version path",
-      "labels": ["models"],
-      "severity": "medium"
-    },
-    {
-      "number": 19254,
-      "title": "[Bug]: Multimodal content block built incorrectly in single-model chat — images not passed to vision models",
-      "labels": [],
-      "severity": "high"
-    },
-    {
-      "number": 19250,
-      "title": "[Feature]: Suggest restoring the optional model search from version 1.9 in version 2.0",
-      "labels": ["models"],
+      "number": 19335,
+      "title": "[Discussion]: Does the new version support conversation import?",
+      "labels": ["help wanted", "discussion", "data"],
       "severity": "low"
     },
     {
-      "number": 19248,
-      "title": "[Bug]: Pasting images in Agent / built-in advisor sessions has no effect, but uploading as attachment works",
-      "labels": [],
+      "number": 19334,
+      "title": "Words like 'contemplation' and 'daydreaming' seem outdated",
+      "labels": ["assistant"],
+      "severity": "low"
+    },
+    {
+      "number": 19333,
+      "title": "[Bug]: Lazy-load inactive Data Settings panels",
+      "labels": ["performance"],
       "severity": "medium"
     },
     {
-      "number": 19247,
-      "title": "[Feature]: Apply providerSettings patches as JSON Merge Patch (RFC 7396)",
+      "number": 19332,
+      "title": "[Bug]: Hydrate only newly paginated Files entries",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19331,
+      "title": "[Bug]: Lazy-load Agent tool renderers from ordinary chat",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19330,
+      "title": "[Bug]: Avoid per-file IPC in Notes full-text search",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19329,
+      "title": "[Bug]: Isolate topic rename subscriptions per row",
+      "labels": ["performance"],
+      "severity": "medium"
+    },
+    {
+      "number": 19328,
+      "title": "[Feature] Per-topic agent binding for Telegram channels",
       "labels": [],
       "severity": "low"
     },
     {
-      "number": 19244,
-      "title": "[Bug]: Pi and DSH runtimes do not inherit the user's CLI PATH on macOS",
-      "labels": [],
-      "severity": "high"
+      "number": 19327,
+      "title": "[Bug]: V2 model detection is slower and skips image-generation models",
+      "labels": ["bug", "p2", "needs-more-info", "models", "performance"],
+      "severity": "medium"
     },
     {
-      "number": 19243,
-      "title": "[Bug]: Referenced conversations can trigger actions without a current user request",
-      "labels": [],
-      "severity": "high"
+      "number": 19326,
+      "title": "[Bug]: Retry state can persist after success and poison later conversation turns",
+      "labels": ["bug", "p1", "needs-more-info", "chat"],
+      "severity": "critical"
     },
     {
-      "number": 19242,
-      "title": "[Feature]: Expose safe runtime information to Custom Agents",
-      "labels": ["mcp", "needs-triage", "assistant"],
+      "number": 19325,
+      "title": "[Feature]: Show progress and failure stages for Harness installation and upgrades",
+      "labels": ["p3", "feature", "needs-triage", "ui-ux", "agent"],
       "severity": "low"
     },
     {
-      "number": 19241,
-      "title": "[Bug]: Workspace .agents/skills are not automatically discovered",
-      "labels": [],
+      "number": 19324,
+      "title": "[Bug]: Cross-turn web citations lose the original URL",
+      "labels": ["bug", "p2", "needs-more-info", "ui-ux"],
       "severity": "medium"
     },
     {
-      "number": 19240,
-      "title": "[Bug]: macOS screenshot overlay follows Space switches and keeps showing the previous Space's frozen capture",
-      "labels": [],
+      "number": 19323,
+      "title": "[Bug]: V2 knowledge-base indexing is slower than V1",
+      "labels": ["bug", "p2", "needs-more-info", "rag", "performance"],
       "severity": "medium"
     },
     {
-      "number": 19239,
-      "title": "[Task]: Hot-toggle developer tracing at runtime",
+      "number": 19322,
+      "title": "[Bug]: Newly created DSH Zstandard session logs fail the first-frame contract",
+      "labels": ["bug", "p1", "windows", "agent"],
+      "severity": "critical"
+    },
+    {
+      "number": 19321,
+      "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
+      "labels": ["bug", "p1", "models", "agent"],
+      "severity": "critical"
+    },
+    {
+      "number": 19320,
+      "title": "[Feature]: Include openpyxl in the managed Agent code runtime",
+      "labels": ["p3", "feature", "needs-triage", "assistant", "agent"],
+      "severity": "low"
+    },
+    {
+      "number": 19319,
+      "title": "[Bug]: Modal overlay flickers while the pointer moves",
+      "labels": ["bug", "p2", "needs-more-info", "windows", "ui-ux"],
+      "severity": "medium"
+    },
+    {
+      "number": 19317,
+      "title": "[Task]: Upgrade Electron 41.8.0 → 43.4.1",
       "labels": ["Dev Team", "internal-team"],
-      "severity": "low"
+      "severity": "medium"
     },
     {
-      "number": 19238,
-      "title": "[Task]: Remove orphaned IPC trace propagation patch",
-      "labels": ["Dev Team", "internal-team"],
-      "severity": "low"
+      "number": 19316,
+      "title": "[Bug]: DeepSeek Harness (dsh) Agent 400 — messages[0].role=developer not accepted",
+      "labels": ["bug", "p1", "models", "agent"],
+      "severity": "critical"
     },
     {
-      "number": 19235,
-      "title": "[Task]: Make developer mode take effect without an app restart",
-      "labels": ["Dev Team", "internal-team"],
-      "severity": "low"
+      "number": 19315,
+      "title": "[Feature]: Managed local-only security mode for sensitive shared workstations",
+      "labels": ["p2", "feature"],
+      "severity": "medium"
     },
     {
-      "number": 19233,
-      "title": "[Bug]: No way to choose endpoint type for preset-provider models",
+      "number": 19314,
+      "title": "[Bug]: DeepSeek V4 Pro reasoning can finish without a final answer",
+      "labels": ["bug", "p2", "models"],
+      "severity": "medium"
+    },
+    {
+      "number": 19313,
+      "title": "[Bug]: Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
+      "labels": ["bug", "p1", "agent"],
+      "severity": "critical"
+    },
+    {
+      "number": 19312,
+      "title": "[Bug]: DeepSeek DSML tool-call leak (single-bar variant) bypasses dsmlParser — agent sessions stall",
       "labels": ["models"],
-      "severity": "medium"
-    },
-    {
-      "number": 19232,
-      "title": "[Bug]: Composer reasoning effort / service tier / fast mode ignored when regenerating a message",
-      "labels": [],
-      "severity": "medium"
-    },
-    {
-      "number": 19231,
-      "title": "[Task]: Reasoning effort vocabularies unioned across sources",
-      "labels": ["Dev Team", "models", "internal-team"],
-      "severity": "low"
-    },
-    {
-      "number": 19230,
-      "title": "[Task]: Reorder Agent system prompt for prefix-cache stability",
-      "labels": ["Dev Team", "internal-team"],
-      "severity": "low"
+      "severity": "high"
     }
   ],
   "critical_bugs_needing_attention": [
     {
-      "number": 19262,
-      "title": "deepseek harness coding partner fails to start — credentials file format incompatible with dsh 0.1.1-rc.2",
+      "number": 19313,
+      "title": "Managed DSH fails to start — @deepseek-ai/dsh-scope missing",
+      "severity": "critical",
+      "reason": "All users of Managed DSH mode blocked on startup. Missing npm scope dependency.",
+      "opened_today": true
+    },
+    {
+      "number": 19316,
+      "title": "DSH Agent 400 — provider rejects messages[0].role=developer",
+      "severity": "critical",
+      "reason": "Every DSH agent session returns 400. DSH Harness protocol mismatch with provider expectations.",
+      "opened_today": true
+    },
+    {
+      "number": 19321,
+      "title": "Local API drops DeepSeek reasoning_text on tool continuations",
+      "severity": "critical",
+      "reason": "DeepSeek reasoning output silently discarded when tool calls are chained. Affects all DSH+tool sessions.",
+      "opened_today": true
+    },
+    {
+      "number": 19326,
+      "title": "Retry state persists after success — poisons later conversation turns",
+      "severity": "critical",
+      "reason": "Stale retry state corrupts subsequent messages in an active conversation. Data integrity risk.",
+      "opened_today": true
+    },
+    {
+      "number": 19312,
+      "title": "DeepSeek DSML tool-call leak bypasses dsmlParser — agent sessions stall in premature end_turn loop",
       "severity": "high",
-      "reason": "All users of DSH integration blocked on startup. Cherry writes API key as top-level key, incompatible with version:1 + refs: format required by new dsh.",
+      "reason": "Single-bar DSML variant not caught by parser; agent enters infinite end_turn loop.",
       "opened_today": true
     },
     {
       "number": 19254,
-      "title": "Multimodal content block built incorrectly — images not passed to vision models in single-model chat",
+      "title": "Multimodal content block wrong — images not passed to vision models",
       "severity": "high",
       "reason": "Core vision feature broken for GLM-4V-Flash 1213, DeepSeek vision and likely others.",
-      "opened_today": true
-    },
-    {
-      "number": 19244,
-      "title": "Pi and DSH runtimes do not inherit user's CLI PATH on macOS",
-      "severity": "high",
-      "reason": "Agent subprocesses cannot find user-installed tools (brew, nvm, etc.). Breaks all macOS agent workflows relying on custom PATH.",
-      "opened_today": true
-    },
-    {
-      "number": 19243,
-      "title": "Referenced conversations can trigger actions without a current user request",
-      "severity": "high",
-      "reason": "Security/UX concern: background conversation references executing agent actions autonomously.",
-      "opened_today": true
-    },
-    {
-      "number": 19203,
-      "title": "Agent heartbeat interval no longer schedules anything — ensureHeartbeatTask dropped in JobManager migration",
-      "severity": "high",
-      "reason": "Silent regression: agent background tasks (health checks, timeouts) never fire. Affects all agent sessions."
-    },
-    {
-      "number": 19188,
-      "title": "Agent output stops mid-generation — tool_calls emitted as plain text in thinking block",
-      "severity": "high",
-      "reason": "Dead-loop: model sends tool_calls in thinking text, parser does not detect them, injects 'no visible output' repeatedly."
-    },
-    {
-      "number": 19119,
-      "title": "Agent stream stuck/empty after manual interrupt + immediate regenerate",
-      "severity": "high",
-      "reason": "Reproducible race on stop+regenerate: empty stream (11ms/$0) or frozen UI."
+      "opened_today": false
     },
     {
       "number": 19116,
-      "title": "v2.0.8 bundle missing #18702 and #18121 fixes (response_format retry + reasoning_content)",
+      "title": "v2.0.8 bundle missing #18702 and #18121 fixes",
       "severity": "critical",
-      "reason": "Release QA gap confirmed: two known fixes absent from shipped bundle. Affects all v2.0.8 users."
+      "reason": "Release QA gap: two known fixes absent from shipped bundle. Affects all v2.0.8 users.",
+      "opened_today": false
     }
   ],
   "pr_summary": {
     "total_open": 100,
-    "targeting_main": 94,
+    "targeting_main": 95,
     "targeting_v2": 0,
-    "targeting_v1": 2,
+    "targeting_v1": 1,
     "targeting_other": 4,
-    "draft_prs": 3,
+    "draft_prs": 2,
     "labels_distribution": {
-      "needs-review": 4,
-      "p1": 2,
-      "v2": 2,
-      "v1": 2,
-      "ready-to-merge": 1
+      "needs-review": 9,
+      "ready-to-merge": 2,
+      "p1": 1,
+      "p2": 1,
+      "bug": 1,
+      "v1": 1
     }
   },
   "issue_health_estimates": {
-    "total_open": 929,
-    "active_7d": 80,
-    "aging_7_30d": 50,
-    "stale_30_90d": 250,
-    "zombie_90d_plus": 549,
-    "zombie_pct": 59.1,
-    "unlabeled_pct": 22.0,
+    "total_open": 936,
+    "active_7d": 85,
+    "aging_7_30d": 52,
+    "stale_30_90d": 252,
+    "zombie_90d_plus": 547,
+    "zombie_pct": 58.4,
+    "unlabeled_pct": 21.0,
     "note": "Estimated from 100-issue sample (most recently updated) extrapolated to full set"
   }
 }

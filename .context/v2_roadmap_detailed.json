@@ -1,12 +1,16 @@
 {
-  "generated_at": "2026-08-23T17:00:00Z",
+  "generated_at": "2026-08-24T17:30:00Z",
   "v2_branch_open_prs": 0,
   "v2_branch_note": "No open PRs targeting v2 base branch. All active v2 development merges to main. V2 branch may be maintained for stable release line separately.",
   "v2_related_open_issues": [
     {
       "number": 9011,
       "title": "显示推理 tokens 数量 (Show reasoning token count)",
-      "labels": ["feature", "v2", "blocked-v2"],
+      "labels": [
+        "feature",
+        "v2",
+        "blocked-v2"
+      ],
       "created_at": "2025-08-09",
       "age_days": 379,
       "status": "Blocked — waiting on v2 APIs"
@@ -28,33 +32,131 @@
   "active_sprint_aug23": {
     "theme": "DSH/Agent stability + Performance isolation + Model metadata accuracy",
     "new_issues_filed_today": [
-      {"number": 19262, "title": "DSH credentials format incompatible with dsh 0.1.1-rc.2", "severity": "high"},
-      {"number": 19261, "title": "DeepSeek V4 Flash/Pro model metadata incorrect", "severity": "medium"},
-      {"number": 19255, "title": "Trailing '#' in API address not preventing version path append", "severity": "medium"},
-      {"number": 19254, "title": "Multimodal content block built incorrectly for vision models", "severity": "high"},
-      {"number": 19248, "title": "Paste images in Agent/advisor sessions broken", "severity": "medium"},
-      {"number": 19244, "title": "Pi and DSH runtimes don't inherit CLI PATH on macOS", "severity": "high"},
-      {"number": 19243, "title": "Referenced conversations can trigger actions without user request", "severity": "high"},
-      {"number": 19241, "title": "Workspace .agents/skills not auto-discovered", "severity": "medium"},
-      {"number": 19240, "title": "macOS screenshot overlay shows wrong Space's capture", "severity": "medium"}
+      {
+        "number": 19262,
+        "title": "DSH credentials format incompatible with dsh 0.1.1-rc.2",
+        "severity": "high"
+      },
+      {
+        "number": 19261,
+        "title": "DeepSeek V4 Flash/Pro model metadata incorrect",
+        "severity": "medium"
+      },
+      {
+        "number": 19255,
+        "title": "Trailing '#' in API address not preventing version path append",
+        "severity": "medium"
+      },
+      {
+        "number": 19254,
+        "title": "Multimodal content block built incorrectly for vision models",
+        "severity": "high"
+      },
+      {
+        "number": 19248,
+        "title": "Paste images in Agent/advisor sessions broken",
+        "severity": "medium"
+      },
+      {
+        "number": 19244,
+        "title": "Pi and DSH runtimes don't inherit CLI PATH on macOS",
+        "severity": "high"
+      },
+      {
+        "number": 19243,
+        "title": "Referenced conversations can trigger actions without user request",
+        "severity": "high"
+      },
+      {
+        "number": 19241,
+        "title": "Workspace .agents/skills not auto-discovered",
+        "severity": "medium"
+      },
+      {
+        "number": 19240,
+        "title": "macOS screenshot overlay shows wrong Space's capture",
+        "severity": "medium"
+      }
     ],
     "performance_sprint_ongoing": {
       "lead": "DeJeune",
-      "open_issues": [19208, 19209, 19210, 19211, 19139, 19140, 19141],
+      "open_issues": [
+        19208,
+        19209,
+        19210,
+        19211,
+        19139,
+        19140,
+        19141
+      ],
       "description": "Lazy-load CodeMirror, isolate message subscriptions, stabilize virtualized file callbacks, exclude devtools from prod bundle"
     },
     "internal_dev_tasks": {
       "lead": "EurFelux",
-      "open_tasks": [19230, 19231, 19235, 19238, 19239, 19249],
+      "open_tasks": [
+        19230,
+        19231,
+        19235,
+        19238,
+        19239,
+        19249
+      ],
       "description": "Reorder agent system prompt, hot-toggle tracing, remove orphaned IPC patch, distinguish integer vs continuous param ranges"
     }
   },
   "roadmap_planned_items": [
-    {"number": 18984, "title": "Traceable Knowledge Base Citations", "labels": ["planned", "feature", "rag", "internal-team"], "age_days": 3},
-    {"number": 18980, "title": "Conversation and Agent Session Archive", "labels": ["planned", "feature", "internal-team"], "age_days": 3},
-    {"number": 15661, "title": "Appshots — Screen Capture as Vision Input (User Button + Agent Tool)", "labels": ["assistant", "ui-ux", "internal-team"], "age_days": 80},
-    {"number": 14899, "title": "Unified Notification Center", "labels": ["planned", "p1", "feature", "ui-ux"], "age_days": 108},
-    {"number": 18264, "title": "Global Memory toggle for Agents + memory overview docs", "labels": ["docs", "assistant", "ui-ux"], "age_days": 14}
+    {
+      "number": 18984,
+      "title": "Traceable Knowledge Base Citations",
+      "labels": [
+        "planned",
+        "feature",
+        "rag",
+        "internal-team"
+      ],
+      "age_days": 3
+    },
+    {
+      "number": 18980,
+      "title": "Conversation and Agent Session Archive",
+      "labels": [
+        "planned",
+        "feature",
+        "internal-team"
+      ],
+      "age_days": 3
+    },
+    {
+      "number": 15661,
+      "title": "Appshots — Screen Capture as Vision Input (User Button + Agent Tool)",
+      "labels": [
+        "assistant",
+        "ui-ux",
+        "internal-team"
+      ],
+      "age_days": 80
+    },
+    {
+      "number": 14899,
+      "title": "Unified Notification Center",
+      "labels": [
+        "planned",
+        "p1",
+        "feature",
+        "ui-ux"
+      ],
+      "age_days": 108
+    },
+    {
+      "number": 18264,
+      "title": "Global Memory toggle for Agents + memory overview docs",
+      "labels": [
+        "docs",
+        "assistant",
+        "ui-ux"
+      ],
+      "age_days": 14
+    }
   ],
   "pr_pipeline_targets_main": {
     "count": 94,
