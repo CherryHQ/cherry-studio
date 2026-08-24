@@ -179,6 +179,20 @@ describe('AgentService', () => {
   }
 
   describe('createAgent', () => {
+    it('notifies live agent lists after creation', () => {
+      notifyDataApiDataChangeMock.mockClear()
+
+      const agent = createAgentForTest({
+        type: 'claude-code',
+        name: 'Externally Created',
+        model: TEST_MODEL_ID
+      })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }
+      ])
+    })
+
     it('persists plan and small models when provided', async () => {
       const agent = createAgentForTest({
         type: 'claude-code',

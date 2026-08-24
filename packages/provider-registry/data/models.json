@@ -780,6 +780,14 @@
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.012
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.144
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.115
@@ -7715,7 +7723,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.08
         }
       },
       "reasoning": {
@@ -11104,6 +11112,7 @@
                 "default": 4.5,
                 "max": 20,
                 "min": 1,
+                "step": 0.1,
                 "type": "range"
               },
               "negativePrompt": {
@@ -21691,5 +21700,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "0466a619ad0e4c0d"
+  "version": "d79c669552c0989f"
 }

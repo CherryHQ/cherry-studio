@@ -1,7 +1,9 @@
-import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'
+import type { MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { googleReasoningCache } from '../../reasoningCache'
+import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
 import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
 
@@ -256,6 +258,59 @@ describe('AiSdkToAnthropicSse', () => {
         return false
       })
       expect(toolBlocks.length).toBe(1)
+    })
+
+    // Anthropic's wire format has nowhere to carry Gemini's thought signature, and
+    // Gemini 3 rejects a replayed functionCall without it — writer and reader must
+    // agree on the cache key. Two calls of the same tool pin that the key is the call
+    // id: keying by tool name hands both replays the second call's signature.
+    it('round-trips each parallel call signature onto the tool call replayed next turn', async () => {
+      const model = 'gemini:models/gemini-flash-latest'
+      const adapter = new AiSdkToAnthropicSse({ model })
+
+      await collectEvents(
+        adapter.transform(
+          createMockStream([
+            {
+              type: 'tool-input-available',
+              toolCallId: 'call_sig_1',
+              toolName: 'Bash',
+              input: { command: 'ls' },
+              providerMetadata: { google: { thoughtSignature: 'sig-abc' } }
+            },
+            {
+              type: 'tool-input-available',
+              toolCallId: 'call_sig_2',
+              toolName: 'Bash',
+              input: { command: 'pwd' },
+              providerMetadata: { google: { thoughtSignature: 'sig-def' } }
+            },
+            createFinish('tool-calls')
+          ])
+        )
+      )
+
+      const messages = new AnthropicMessageConverter({ googleReasoningCache }).toUIMessages({
+        model,
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'call_sig_1', name: 'Bash', input: { command: 'ls' } },
+              { type: 'tool_use', id: 'call_sig_2', name: 'Bash', input: { command: 'pwd' } }
+            ]
+          }
+        ]
+      } as MessageCreateParams)
+
+      const signatures = messages[0].parts.map(
+        (part) => (part as { callProviderMetadata?: { google?: { thoughtSignature?: string } } }).callProviderMetadata
+      )
+      expect(signatures).toEqual([
+        { google: { thoughtSignature: 'sig-abc' } },
+        { google: { thoughtSignature: 'sig-def' } }
+      ])
     })
   })
 

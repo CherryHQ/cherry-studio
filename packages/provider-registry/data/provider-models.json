@@ -23727,15 +23727,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.009772
+          "perMillionTokens": 0.01148
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.04886
+          "perMillionTokens": 0.0574
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.09772
+          "perMillionTokens": 0.1148
         }
       },
       "providerId": "openrouter",
@@ -23761,7 +23761,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.008
         },
         "input": {
           "currency": "USD",
@@ -23769,7 +23769,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.08
         }
       },
       "providerId": "openrouter",
@@ -30897,13 +30897,17 @@
       "apiModelId": "qwen/qwen3.5-397b-a17b",
       "modelId": "qwen3-5-397b-a17b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.39
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.34
+          "perMillionTokens": 3.6
         }
       },
       "providerId": "openrouter",
@@ -31011,17 +31015,13 @@
       "apiModelId": "qwen/qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.12
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.6
+          "perMillionTokens": 3.2
         }
       },
       "providerId": "openrouter",
@@ -38979,5 +38979,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "5d160fd91e8baa2e"
+  "version": "f92a96233ace4b10"
 }
