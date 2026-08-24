@@ -35,7 +35,7 @@ export interface PiConnectionSnapshot {
   enabledApiKeys: readonly ApiKeyEntry[]
   additionalSkillPaths: readonly string[]
   mcpServerSnapshots: McpServerSnapshotMap
-  linkedChannel: Pick<AgentChannelEntity, 'id'> | null
+  linkedChannel: Pick<AgentChannelEntity, 'id' | 'type'> | null
   signature: string
 }
 
@@ -96,7 +96,7 @@ export async function capturePiConnectionSnapshot(
           workspaceSkillPaths,
           mcpServers,
           mcpTools,
-          linkedChannelId: linkedChannel?.id ?? null,
+          linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
         })
       )
@@ -114,7 +114,7 @@ export async function capturePiConnectionSnapshot(
       ...workspaceSkillPaths
     ],
     mcpServerSnapshots,
-    linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
+    linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
     signature
   }
 }

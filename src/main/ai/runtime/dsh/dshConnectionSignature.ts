@@ -39,7 +39,7 @@ export interface DshConnectionSnapshot {
   additionalSkillPaths: readonly string[]
   /** Entity snapshot per agent MCP id used to construct the host-side in-memory bridge. */
   mcpServerSnapshots: McpServerSnapshotMap
-  linkedChannel: Pick<AgentChannelEntity, 'id'> | null
+  linkedChannel: Pick<AgentChannelEntity, 'id' | 'type'> | null
   signature: string
 }
 
@@ -100,7 +100,7 @@ export async function captureDshConnectionSnapshot(
           workspaceSkillPaths,
           mcpServers,
           mcpTools,
-          linkedChannelId: linkedChannel?.id ?? null,
+          linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
           // the warm connection (claude's credentialsFingerprint parity); null on native routes.
@@ -122,7 +122,7 @@ export async function captureDshConnectionSnapshot(
       ...workspaceSkillPaths
     ],
     mcpServerSnapshots,
-    linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
+    linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
     signature
   }
 }

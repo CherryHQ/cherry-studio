@@ -21,7 +21,7 @@ import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 const logger = loggerService.withContext('AgentMcpServers')
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
-export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id'> | null
+export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id' | 'type'> | null
 
 export interface AgentMcpServer {
   name: string
@@ -53,8 +53,8 @@ export function buildAgentMcpServers(
     }
   }
 
-  const sourceChannelId =
-    linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot?.id
+  const sourceChannel =
+    linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
     name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
@@ -64,7 +64,7 @@ export function buildAgentMcpServers(
       sessionId: session.id,
       workspaceSource,
       workspacePath: session.workspace.path,
-      sourceChannelId,
+      sourceChannel: sourceChannel ?? undefined,
       canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)
@@ -118,10 +118,10 @@ function toWorkspaceSource(session: AgentSessionEntity): AgentSessionWorkspaceSo
   }
 }
 
-function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
+function resolveSourceChannel(agentId: string, sessionId: string): LinkedChannelSnapshot | undefined {
   try {
     const channel = channelService.findBySessionId(sessionId)
-    return channel?.agentId === agentId ? channel.id : undefined
+    return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : undefined
   } catch {
     return undefined
   }

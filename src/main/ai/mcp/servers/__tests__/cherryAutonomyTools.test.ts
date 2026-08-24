@@ -128,14 +128,20 @@ const { CherryAutonomyTools } = await import('../cherryAutonomyTools')
 type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
 const WORKSPACE_SOURCE = { type: 'system' as const }
 const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
+let defaultSourceChannelId: string | null = null
 
-function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
+function createServer(
+  agentId = 'agent_test',
+  workspacePath = WORKSPACE_PATH,
+  sourceChannelId = defaultSourceChannelId
+) {
   // getKnowledgeBaseIds is required on CherryAgentContext but unused by the autonomy tools.
   return new CherryAutonomyTools({
     agentId,
     sessionId: 'session_test',
     workspaceSource: WORKSPACE_SOURCE,
     workspacePath,
+    sourceChannel: sourceChannelId ? { id: sourceChannelId, type: 'telegram' } : undefined,
     getKnowledgeBaseIds: () => []
   })
 }
@@ -162,7 +168,7 @@ describe('CherryAutonomyTools', () => {
   })
 
   it('should list all tools', () => {
-    const server = createServer()
+    const server = createServer('agent_test', WORKSPACE_PATH, 'ch1')
     const tools = server.tools()
     expect(tools).toHaveLength(8)
     expect(tools.map((t) => t.name)).toEqual([
@@ -178,6 +184,22 @@ describe('CherryAutonomyTools', () => {
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
     })
+    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('Files are first-class deliverables')
+    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain(
+      'Current source channel: telegram (ch1).'
+    )
+  })
+
+  it('hides notify for sessions without a source channel', async () => {
+    const server = createServer('agent_test', WORKSPACE_PATH, null)
+
+    expect(server.tools().map((tool) => tool.name)).not.toContain('notify')
+    expect(server.handles('notify')).toBe(false)
+
+    const result = await callTool(server, { message: 'Hello' }, 'notify')
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('notify is only available in sessions started from a channel')
+    expect(mockGetNotifyAdapters).not.toHaveBeenCalled()
   })
 
   describe('session tools', () => {
@@ -648,6 +670,14 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('notify tool', () => {
+    beforeEach(() => {
+      defaultSourceChannelId = 'ch1'
+    })
+
+    afterEach(() => {
+      defaultSourceChannelId = null
+    })
+
     function makeAdapter(channelId: string, chatIds: string[]) {
       return {
         channelId,
@@ -657,9 +687,9 @@ describe('CherryAutonomyTools', () => {
       }
     }
 
-    it('should send notification to all notify adapters', async () => {
+    it('should send notification only to the source channel by default', async () => {
       mockSendMessage.mockResolvedValue(undefined)
-      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200'])])
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200']), makeAdapter('ch2', ['300'])])
 
       const server = createServer('agent_1')
       const result = await callTool(server, { message: 'Hello user!' }, 'notify')
@@ -668,6 +698,7 @@ describe('CherryAutonomyTools', () => {
       expect(mockSendMessage).toHaveBeenCalledTimes(2)
       expect(mockSendMessage).toHaveBeenCalledWith('100', 'Hello user!')
       expect(mockSendMessage).toHaveBeenCalledWith('200', 'Hello user!')
+      expect(mockSendMessage).not.toHaveBeenCalledWith('300', 'Hello user!')
       expect(result.content[0].text).toContain('Message sent to 2 chat(s)')
     })
 

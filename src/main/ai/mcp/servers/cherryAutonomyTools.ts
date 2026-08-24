@@ -28,6 +28,7 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -40,7 +41,7 @@ export interface CherryAgentContext {
   agentId: string
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
-  sourceChannelId?: string
+  sourceChannel?: Pick<AgentChannelEntity, 'id' | 'type'>
   /** Built-in Assistant can use every knowledge base without a configured binding. Re-read live so deletion fails closed. */
   canAccessAllKnowledgeBases?: () => boolean
   /**
@@ -133,7 +134,7 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: NOTIFY_TOOL_NAME,
   description:
-    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
+    'Deliver a message, a workspace file, or both to the user who started this channel session. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to this session’s source channel; provide channel_id only to deliver through another channel owned by this Agent.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -144,11 +145,11 @@ const NOTIFY_TOOL: Tool = {
       file_path: {
         type: 'string',
         description:
-          'Optional: path to a file in your workspace to forward to the user (relative to the workspace, or an absolute path inside it). The file must reside within the session workspace.'
+          'A workspace file to deliver. Provide this, message, or both. Use a relative path or an absolute path inside the session workspace.'
       },
       channel_id: {
         type: 'string',
-        description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
+        description: 'Optional explicit destination channel. Omit to deliver to this session’s source channel.'
       }
     }
     // ponytail: no root anyOf — some providers (xAI) reject union root schemas; the handler
@@ -364,21 +365,32 @@ export class CherryAutonomyTools {
   private sessionId: string
   private workspace: AgentSessionWorkspaceSource
   private workspacePath: string
-  private sourceChannelId: string | undefined
+  private sourceChannel: Pick<AgentChannelEntity, 'id' | 'type'> | undefined
 
   constructor(context: CherryAutonomyContext) {
     this.agentId = context.agentId
     this.sessionId = context.sessionId
     this.workspace = context.workspaceSource
     this.workspacePath = context.workspacePath
-    this.sourceChannelId = context.sourceChannelId
+    this.sourceChannel = context.sourceChannel
   }
 
   tools(): Tool[] {
-    return [...AUTONOMY_TOOLS]
+    return AUTONOMY_TOOLS.flatMap((tool) => {
+      if (tool.name !== NOTIFY_TOOL_NAME) return [tool]
+      return this.sourceChannel
+        ? [
+            {
+              ...tool,
+              description: `${tool.description} Current source channel: ${this.sourceChannel.type} (${this.sourceChannel.id}).`
+            }
+          ]
+        : []
+    })
   }
 
   handles(toolName: string): boolean {
+    if (toolName === NOTIFY_TOOL_NAME) return this.sourceChannel !== undefined
     return AUTONOMY_TOOLS.some((tool) => tool.name === toolName)
   }
 
@@ -399,6 +411,9 @@ export class CherryAutonomyTools {
           }
         }
         case NOTIFY_TOOL_NAME:
+          if (!this.sourceChannel) {
+            throw new McpError(ErrorCode.InvalidRequest, 'notify is only available in sessions started from a channel')
+          }
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
@@ -693,8 +708,8 @@ export class CherryAutonomyTools {
           throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
       }
       channelIds = rawChannelIds
-    } else if (this.sourceChannelId) {
-      channelIds = [this.sourceChannelId]
+    } else if (this.sourceChannel) {
+      channelIds = [this.sourceChannel.id]
     }
 
     const task = application.get('AgentJobsService').createTask(this.agentId, {
@@ -731,12 +746,16 @@ export class CherryAutonomyTools {
       throw new McpError(ErrorCode.InvalidParams, "Provide 'message', 'file_path', or both for notify")
     }
 
-    const targetChannelId = typeof args.channel_id === 'string' ? args.channel_id : undefined
-    let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
-
-    if (targetChannelId) {
-      adapters = adapters.filter((a) => a.channelId === targetChannelId)
+    const explicitChannelId = typeof args.channel_id === 'string' ? args.channel_id.trim() : undefined
+    const targetChannelId = explicitChannelId || this.sourceChannel?.id
+    if (!targetChannelId) {
+      throw new McpError(ErrorCode.InvalidRequest, 'notify is only available in sessions started from a channel')
     }
+
+    const adapters = application
+      .get('ChannelManager')
+      .getAgentAdapters(this.agentId)
+      .filter((adapter) => adapter.channelId === targetChannelId)
 
     if (adapters.length === 0) {
       return {

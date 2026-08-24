@@ -108,7 +108,7 @@ describe('captureDshConnectionSnapshot', () => {
   it('returns the exact provider, model, skills, MCP, and channel facts signed by the snapshot', async () => {
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
     mocks.listLocalSkillPaths.mockResolvedValue(['/workspace/.agents/skills/review'])
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', agentId: agent.id })
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', type: 'telegram', agentId: agent.id })
 
     const snapshot = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
 
@@ -117,7 +117,7 @@ describe('captureDshConnectionSnapshot', () => {
       model: { id: 'provider::model' },
       enabledApiKeys: [{ id: 'key-1', key: 'secret', enabled: true }],
       additionalSkillPaths: ['/skills/pdf', '/workspace/.agents/skills/review'],
-      linkedChannel: { id: 'channel-1' }
+      linkedChannel: { id: 'channel-1', type: 'telegram' }
     })
     expect(snapshot.mcpServerSnapshots.get('mcp-1')).toMatchObject({ id: 'mcp-1', name: 'server' })
   })
