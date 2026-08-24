@@ -1,5 +1,4 @@
 import { toast } from '@renderer/services/toast'
-import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,40 +31,15 @@ describe('useBinaryActions', () => {
     ipcRequestMock.mockResolvedValue({ version: '1.0.0' })
   })
 
-  it('installs a pinned CLI tool at its pinned version, not at latest', async () => {
-    const pinnedVersion = CODE_CLI_TOOL_PRESET_MAP[CodeCli.CLAUDE_CODE].pinnedVersion
-    // Guards the assertion below: without a pin it would degrade into asserting
-    // the name-only call and stop catching a dropped pin.
-    expect(pinnedVersion).toEqual(expect.stringMatching(/^\d+\.\d+\.\d+/))
-
+  it('installs a CLI tool by name only, letting main resolve the recipe and its pin', async () => {
     const { result } = renderHook(() => useBinaryActions())
 
     await act(async () => {
       await result.current.install(CodeCli.CLAUDE_CODE)
     })
 
-    expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'claude', targetVersion: pinnedVersion })
-    expect(toast.success).toHaveBeenCalledWith('code.install_success')
-  })
-
-  it('installs an unpinned CLI tool by name only, letting main resolve the recipe', async () => {
-    const { result } = renderHook(() => useBinaryActions())
-
-    await act(async () => {
-      await result.current.install(CodeCli.OPENAI_CODEX)
-    })
-
-    expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'codex' })
-  })
-
-  it('upgrades a pinned CLI tool without its pin, so the pin never freezes an upgrade', async () => {
-    const { result } = renderHook(() => useBinaryActions())
-
-    await act(async () => {
-      await result.current.upgrade(CodeCli.CLAUDE_CODE)
-    })
-
     expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'claude' })
+    expect(toast.success).toHaveBeenCalledWith('code.install_success')
   })
 
   it('forwards a retry target version so a failed update repeats the same targeted install', async () => {

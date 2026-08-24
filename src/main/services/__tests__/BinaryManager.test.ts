@@ -1,7 +1,11 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import { CodeCli } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const DSH_PIN = CODE_CLI_TOOL_PRESET_MAP[CodeCli.DEEPSEEK_HARNESS].pinnedVersion
 
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
@@ -2337,19 +2341,17 @@ describe('BinaryManager', () => {
         if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
         if (args[0] === 'ls' && args.length === 2) {
           return {
-            stdout: JSON.stringify(
-              installed ? { 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] } : {}
-            ),
+            stdout: JSON.stringify(installed ? { 'npm:@deepseek-ai/dsh': [{ version: DSH_PIN, active: true }] } : {}),
             stderr: ''
           }
         }
         if (args[0] === 'ls') {
           return {
-            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] }),
+            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: DSH_PIN, active: true }] }),
             stderr: ''
           }
         }
-        if (args.includes('npm:@deepseek-ai/dsh@latest')) installed = true
+        if (args.includes(`npm:@deepseek-ai/dsh@${DSH_PIN}`)) installed = true
         if (args[0] === 'which' && args[1] === 'node') {
           return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
         }
@@ -2365,7 +2367,7 @@ describe('BinaryManager', () => {
       const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
       expect(useCalls.map((call: any[]) => call[1])).toEqual([
         ['use', '-g', '--pin', 'node@22.23.2'],
-        ['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest']
+        ['use', '-g', '--minimum-release-age', '0s', `npm:@deepseek-ai/dsh@${DSH_PIN}`]
       ])
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
         'latest',
@@ -2768,6 +2770,71 @@ describe('BinaryManager', () => {
       expect(env['XDG_CONFIG_HOME']).toBe('/mock/feature.binary.data/xdg/config')
       expect(env['XDG_CACHE_HOME']).toBe('/mock/feature.binary.data/xdg/cache')
       expect(env['XDG_STATE_HOME']).toBe('/mock/feature.binary.data/xdg/state')
+    })
+  })
+
+  describe('Code CLI version pin', () => {
+    // The pin has to resolve here, not at the call site: CodeCliService.run installs
+    // name-only on first launch, so a renderer-side pin would leave that path on latest.
+    const installSpec = async (
+      definition: { name: string; tool: string; requestedVersion?: string },
+      targetVersion?: string
+    ): Promise<string | undefined> => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { PATH: '/mock/mise/shims:/usr/bin' }
+      // mise reports back whatever version the install asked for, so the post-install
+      // check in getInstalledVersion passes and the assertion is about the spec sent.
+      let installedVersion = 'latest'
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'use') {
+          installedVersion = args.at(-1)!.slice(definition.tool.length + 1)
+          return { stdout: '', stderr: '' }
+        }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ [definition.tool]: [{ version: installedVersion, active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: `/mock/mise/shims/${definition.name}\n`, stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await (service as any).installWithMise(definition, targetVersion, [])
+
+      // Flattened across every `use` call: a shell-out tool pins its Node runtime
+      // in a separate `use` before the one carrying the tool spec.
+      return mockExecFileAsync.mock.calls
+        .flatMap((call: any[]) => (call[1][0] === 'use' ? call[1] : []))
+        .find((arg: string) => arg.startsWith(`${definition.tool}@`))
+    }
+
+    it('installs a pinned Code CLI at its pin when the caller named no version', async () => {
+      expect(DSH_PIN).toEqual(expect.stringMatching(/^\d+\.\d+\.\d+/))
+
+      await expect(installSpec({ name: 'dsh', tool: 'npm:@deepseek-ai/dsh' })).resolves.toBe(
+        `npm:@deepseek-ai/dsh@${DSH_PIN}`
+      )
+    })
+
+    it('lets an explicit target version override the pin, so an upgrade is never frozen', async () => {
+      await expect(installSpec({ name: 'dsh', tool: 'npm:@deepseek-ai/dsh' }, '0.9.9')).resolves.toBe(
+        'npm:@deepseek-ai/dsh@0.9.9'
+      )
+    })
+
+    it('leaves an unpinned Code CLI on latest', async () => {
+      expect(CODE_CLI_TOOL_PRESET_MAP[CodeCli.OPENAI_CODEX].pinnedVersion).toBeUndefined()
+
+      await expect(installSpec({ name: 'codex', tool: 'codex' })).resolves.toBe('codex@latest')
+    })
+
+    it('never applies a Code CLI pin to a same-named tool with a different recipe', async () => {
+      await expect(installSpec({ name: 'dsh', tool: 'npm:someone-elses-dsh' })).resolves.toBe(
+        'npm:someone-elses-dsh@latest'
+      )
     })
   })
 

@@ -52,9 +52,8 @@ export function useBinaryActions() {
 
   // `targetVersion` is only supplied when retrying a failed one-shot update, so
   // the retry repeats the same targeted install instead of a name-only no-op.
-  // Otherwise a fresh install resolves to the tool's pinned version, so a user
-  // never lands on an upstream release this Cherry build was never verified
-  // against. Upgrade deliberately skips the pin — that button means "latest".
+  // A name-only install resolves to the tool's pinned version in BinaryManager,
+  // which is also where the lazy first-launch install gets it.
   const install = useCallback(
     (toolId: CodeCli, targetVersion?: string) =>
       runInstallTool(
@@ -64,7 +63,7 @@ export function useBinaryActions() {
           successKey: 'code.install_success',
           logLabel: 'Failed to install:'
         },
-        targetVersion ?? CODE_CLI_TOOL_PRESET_MAP[toolId].pinnedVersion
+        targetVersion
       ),
     [runInstallTool]
   )

@@ -216,6 +216,15 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     { name: preset.executable, tool: preset.miseTool }
   ])
 ])
+// The verified version a Code CLI installs at when the caller named no version.
+// Resolved here rather than at each call site so every install entry point —
+// the Code page, the lazy first-launch install in CodeCliService, the MCP tool —
+// gets the same protection. Matched on the full recipe so a same-named custom
+// tool can never pick up a Code CLI's pin.
+const pinnedCodeCliVersion = (definition: FixedToolDefinition): string | undefined =>
+  CODE_CLI_TOOL_PRESETS.find((preset) => preset.executable === definition.name && preset.miseTool === definition.tool)
+    ?.pinnedVersion
+
 // Re-exported for main-process callers and tests.
 export { validateBinaryToolDefinition }
 
@@ -1141,7 +1150,10 @@ export class BinaryManager extends BaseService {
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
   ): Promise<string> {
-    const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
+    // The pin is the last fallback before 'latest', so an explicit one-shot target
+    // (upgrade, retry) and a custom definition's own version both still win, and
+    // it never reaches the applied-no-op or prune branches keyed on targetVersion.
+    const requested = targetVersion ?? definition.requestedVersion ?? pinnedCodeCliVersion(definition) ?? 'latest'
     const backend = definition.tool.split(':')[0]
     const defaultRuntime = RUNTIME_DEPS[backend]
     const runtimeName = defaultRuntime?.split('@')[0]
