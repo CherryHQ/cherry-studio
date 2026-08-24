@@ -131,7 +131,7 @@ Does this R→M channel go through IpcApi?
 | Channel | Disposition |
 |---|---|
 | `Tab_MoveWindow` | **Out** — escape hatch (gated + documented) |
-| `Python_ExecutionResponse` | Separate — renderer-as-server reverse RPC (request-id correlated, carries error); IpcApi's main-as-server `request` model doesn't fit, handle on its own |
+| `Python_ExecutionResponse` / `Python_ExecutionCancel` | Separate — renderer-as-server reverse RPC (request-id correlated, carries error, plus the M→R leg that cancels an in-flight request); IpcApi's main-as-server `request` model doesn't fit, so the whole trio migrates together, on its own |
 | `Cache_Sync` | Stays in the Cache subsystem |
 
 ## Not In Scope For IpcApi
