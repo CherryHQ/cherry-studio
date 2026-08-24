@@ -26,6 +26,10 @@ import { visit } from 'unist-util-visit'
  */
 
 const CLOSER = '**'
+// Caps the chained-tail recursion on adversarially long chains (each repaired link spends 1);
+// over-budget links keep their GFM shape — content is never dropped. Real citation lists stay
+// far below this.
+const MAX_TAIL_REPAIRS = 50
 // Chars after the markers that continue a URL (scheme/port/query/path/extension); anything
 // else — letters, CJK, brackets, whitespace, EOF — is prose resuming.
 const URL_CONTINUATION_REGEX = /^[/:#?&=%@+~.\-_]/
@@ -110,7 +114,8 @@ function computeCut(node: Link & { children: [Text] }): Cut | undefined {
 
 // Repair one flat inline sequence for chains of back-to-back bolded urls: cut, wrap in
 // strong, recurse on the tail. The escape check uses the tail substring as its own source.
-function repairTailNodes(nodes: PhrasingContent[], tailSource: string): PhrasingContent[] {
+// `budget` spends one per repaired link; over-budget links keep their GFM shape.
+function repairTailNodes(nodes: PhrasingContent[], tailSource: string, budget = MAX_TAIL_REPAIRS): PhrasingContent[] {
   const repaired: PhrasingContent[] = []
   for (const node of nodes) {
     if (node.type === 'link' && isSwallowedLiteralAutolink(node)) {
@@ -118,7 +123,13 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string): Phrasing
       const opener = toTextNode(prev)
       const openerSource =
         opener?.position && tailSource.slice(opener.position.start.offset, opener.position.end.offset)
-      if (opener && openerSource && opener.value.endsWith(CLOSER) && openerHasLiteralMarkers(opener, openerSource)) {
+      if (
+        budget > 0 &&
+        opener &&
+        openerSource &&
+        opener.value.endsWith(CLOSER) &&
+        openerHasLiteralMarkers(opener, openerSource)
+      ) {
         const cut = computeCut(node)
         if (cut) {
           const text = node.children[0]
@@ -134,7 +145,7 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string): Phrasing
           }
           const strong: Strong = { type: 'strong', children: [node] }
           repaired.push(strong)
-          repaired.push(...repairTailNodes(parseInlineTail(cut.tail), cut.tail))
+          repaired.push(...repairTailNodes(parseInlineTail(cut.tail), cut.tail, budget - 1))
           continue
         }
       }

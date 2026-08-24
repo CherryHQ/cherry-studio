@@ -160,14 +160,66 @@ describe('remarkLiteralAutolinkFix', () => {
     }
   })
 
-  it('preserves a structural tail instead of dropping it', () => {
-    // `>` is URL-admissible, so `>q` gets swallowed and parses back as a blockquote denatured
-    // to plain text below — the important contract is that no user-visible suffix vanishes.
-    const tree = parse('**https://a.com/x**(y)**>q')
-    const paragraph = tree.children[0]
-    if (paragraph?.type !== 'paragraph') throw new Error('expected a paragraph')
-    const labels = paragraph.children.filter((child) => child.type === 'text').map((child) => child.value)
-    expect(labels.join('')).toContain('>q')
+  it('degrades a structural tail to plain text via the parseInlineTail fallback', () => {
+    // `>` starts the tail, so the sub-parse yields a blockquote top level and the fallback
+    // branch returns it as one plain text node instead of dropping the suffix.
+    const source = '**https://a.com/x**>q'
+    expect(inlineChildren(source).map(shape)).toEqual([
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
+      },
+      { type: 'text', value: '>q' }
+    ])
+  })
+
+  it('degrades an unclosed code-fence tail to plain text too', () => {
+    const source = '**https://a.com/x**```'
+    expect(inlineChildren(source).map(shape)).toEqual([
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
+      },
+      { type: 'text', value: '```' }
+    ])
+  })
+
+  it('keeps inline-paragraph tails intact without the fallback branch', () => {
+    // `>q` mid-span is not at line start here, so this tail stays on the flat path — pinning
+    // that both parseInlineTail branches preserve the suffix.
+    const source = '**https://a.com/x**(y)**>q'
+    expect(inlineChildren(source).map(shape)).toEqual([
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'https://a.com/x', children: [{ type: 'text', value: 'https://a.com/x' }] }]
+      },
+      { type: 'text', value: '(y)**>q' }
+    ])
+  })
+
+  it('stops repairing after the chain budget and keeps every over-budget url readable', () => {
+    let source = ''
+    for (let i = 0; i < 60; i++) source += `**https://a.com/${i}**(x)`
+    const kids = inlineChildren(source)
+    const counts: Record<string, number> = {}
+    for (const kid of kids) counts[kid.type] = (counts[kid.type] ?? 0) + 1
+    // Initial repair + MAX_TAIL_REPAIRS recursive ones; the rest stay as their GFM shape.
+    expect(counts.strong).toBe(51)
+
+    // Content contract: every url remains present somewhere in the output.
+    const flattened = JSON.stringify(kids.map(shape))
+    for (let i = 0; i < 60; i++) expect(flattened).toContain(`https://a.com/${i}`)
+  })
+
+  it('pins the glued-chain shape where the shared closer leaves the second url opener-less', () => {
+    const source = '**https://a.com/1****https://b.com/2**(y)'
+    expect(inlineChildren(source).map(shape)).toEqual([
+      {
+        type: 'strong',
+        children: [{ type: 'link', url: 'https://a.com/1', children: [{ type: 'text', value: 'https://a.com/1' }] }]
+      },
+      { type: 'link', url: 'https://b.com/2**(y)', children: [{ type: 'text', value: 'https://b.com/2**(y)' }] }
+    ])
   })
 
   it('repairs chained bolded urls — the citation-list shape', () => {
