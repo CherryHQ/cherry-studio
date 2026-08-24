@@ -1,7 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { DSH_RUNTIME_ENTRY_NAMES, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
+import {
+  DSH_RUNTIME_ENTRY_NAMES,
+  type DshRuntimeEntrySpecifier,
+  resolveBundledDshRuntimeEntry
+} from '@cherrystudio/dsh-bridge'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
@@ -9,7 +13,7 @@ const projectRoot = path.join(import.meta.dirname, '..', '..')
 
 describe('DSH runtime packaging', () => {
   it('builds every DSH subprocess entry into a bounded bundle directory', () => {
-    for (const specifier of Object.keys(DSH_RUNTIME_ENTRY_NAMES)) {
+    for (const specifier of Object.keys(DSH_RUNTIME_ENTRY_NAMES) as DshRuntimeEntrySpecifier[]) {
       expect(existsSync(resolveBundledDshRuntimeEntry(specifier)), specifier).toBe(true)
     }
 
