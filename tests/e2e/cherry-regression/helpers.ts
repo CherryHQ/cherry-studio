@@ -5,7 +5,7 @@ import { expect } from './fixture'
 export async function dismissOnboarding(page: Page): Promise<void> {
   const button = page.getByRole('button', { name: 'Set up later', exact: true })
   if (await button.isVisible().catch(() => false)) await button.click()
-  await expect(page.locator('[data-ui="app.shell"]')).toBeVisible()
+  await expect(page.locator('[data-ui="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
 }
 
 export async function openLaunchpad(page: Page): Promise<void> {

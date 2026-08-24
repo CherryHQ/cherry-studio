@@ -1,4 +1,4 @@
-name: Cherry 全链路回归测试
+name: Cherry End-to-End Regression Test
 
 on:
   push:
@@ -7,12 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "要测试的可信引用：main、release/* 或 v* 发布标签"
+        description: "Trusted reference to test: main, release/*, or a v* release tag"
         required: true
         default: "main"
         type: string
       task:
-        description: "要执行的回归任务"
+        description: "Regression task to run"
         required: true
         default: "all"
         type: choice
@@ -59,25 +59,25 @@ jobs:
       sha: ${{ steps.ref.outputs.sha }}
       task: ${{ steps.ref.outputs.task }}
     steps:
-      - name: 检出工作流控制代码
+      - name: Checkout workflow controller
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
           fetch-depth: 1
 
-      - name: 配置 pnpm
+      - name: Set up pnpm
         uses: pnpm/action-setup@v5
 
-      - name: 配置 Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           cache: pnpm
 
-      - name: 安装控制代码依赖
+      - name: Install controller dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: 解析并校验测试引用
+      - name: Resolve and validate test reference
         id: ref
         shell: bash
         env:
@@ -124,42 +124,42 @@ jobs:
       MCP_TIMEOUT: "30000"
       MCP_TOOL_TIMEOUT: "240000"
     steps:
-      - name: 检出工作流控制代码
+      - name: Checkout workflow controller
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
           fetch-depth: 1
 
-      - name: 检出待测应用
+      - name: Checkout application under test
         uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           path: target-app
           fetch-depth: 1
 
-      - name: 配置 pnpm
+      - name: Set up pnpm
         uses: pnpm/action-setup@v5
 
-      - name: 配置 Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           cache: pnpm
 
-      - name: 导出固定 Node.js 版本
+      - name: Export pinned Node.js version
         shell: bash
         run: echo "NODE_VERSION=$(node -p 'process.versions.node')" >> "$GITHUB_ENV"
 
-      - name: 安装控制代码依赖
+      - name: Install controller dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: 定义隔离测试目录
+      - name: Define isolated test directory
         shell: bash
         run: |
           echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
           echo "CHERRY_TEST_RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
 
-      - name: 安装待测代码工具
+      - name: Install code tools under test
         shell: bash
         run: |
           npm install --global @anthropic-ai/claude-code@2.1.239 @openai/codex@0.149.0 openclaw@2026.6.11
@@ -167,7 +167,7 @@ jobs:
           codex --version
           openclaw --version
 
-      - name: 初始化隔离测试目录
+      - name: Initialize isolated test directory
         shell: bash
         env:
           TEST_MODE: ${{ needs.resolve.outputs.mode }}
@@ -185,7 +185,7 @@ jobs:
           --runner "$TEST_RUNNER"
           --task "$TEST_TASK"
 
-      - name: 校验测试配置
+      - name: Validate test configuration
         shell: bash
         env:
           CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
@@ -201,15 +201,15 @@ jobs:
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
         run: pnpm exec tsx scripts/cherry-regression-test/cli.ts preflight
 
-      - name: 安装待测应用依赖
+      - name: Install application dependencies
         if: needs.resolve.outputs.mode == 'branch'
         run: pnpm --dir target-app install --frozen-lockfile
 
-      - name: 下载待测应用二进制依赖
+      - name: Download application binary dependencies
         if: needs.resolve.outputs.mode == 'branch'
         run: pnpm --dir target-app download:binaries
 
-      - name: 下载并安装发布版本
+      - name: Download and install release
         if: needs.resolve.outputs.mode == 'tag'
         shell: bash
         env:
@@ -220,7 +220,7 @@ jobs:
           --repository "${{ github.repository }}"
           --arch "${{ runner.arch }}"
 
-      - name: 启动一次受控 Cherry Studio
+      - name: Launch controlled Cherry Studio once
         id: launch
         shell: bash
         run: >-
@@ -229,7 +229,7 @@ jobs:
           --target-root "$TARGET_DIR"
           --run-key "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}"
 
-      - name: 准备端到端测试配置
+      - name: Prepare end-to-end test configuration
         shell: bash
         env:
           CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
@@ -261,7 +261,7 @@ jobs:
             printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
           done
 
-      - name: 阶段 01 — 应用启动冒烟
+      - name: Phase 01 - Application startup smoke
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'startup-smoke')
@@ -275,7 +275,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 02 — 小程序与笔记
+      - name: Phase 02 - Mini Apps and Notes
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mini-app' || needs.resolve.outputs.task == 'notes')
@@ -289,7 +289,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 03 — 模型与自定义助手
+      - name: Phase 03 - Models and Custom Assistants
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-provider-chat' || needs.resolve.outputs.task == 'custom-assistant')
@@ -303,7 +303,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 04 — 翻译
+      - name: Phase 04 - Translation
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'translation')
@@ -317,7 +317,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 05 — 快捷助手与划词助手
+      - name: Phase 05 - Quick Assistant and Selection Assistant
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'quick-assistant' || needs.resolve.outputs.task == 'selection-assistant')
@@ -331,7 +331,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 06 — 知识库
+      - name: Phase 06 - Knowledge Base
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-import' || needs.resolve.outputs.task == 'knowledge-qa')
@@ -345,7 +345,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 07 — MCP 与 Skill
+      - name: Phase 07 - MCP and Skills
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp' || needs.resolve.outputs.task == 'skill-import')
@@ -359,7 +359,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 08 — 代码工具
+      - name: Phase 08 - Code Tools
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'code-cli' || needs.resolve.outputs.task == 'openclaw')
@@ -373,7 +373,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 09 — CherryIN 与图片生成
+      - name: Phase 09 - CherryIN and Image Generation
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat' || needs.resolve.outputs.task == 'image-generation')
@@ -387,7 +387,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 阶段 10 — Agent Runtime 与 PPT
+      - name: Phase 10 - Agent Runtimes and PPT
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
           (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime' || needs.resolve.outputs.task == 'pi-runtime' || needs.resolve.outputs.task == 'deepseek-harness-runtime' || needs.resolve.outputs.task == 'agent-ppt')
@@ -401,7 +401,7 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: 清除端到端测试配置
+      - name: Clear end-to-end test configuration
         if: always()
         shell: bash
         run: |
@@ -422,7 +422,7 @@ jobs:
             echo "$name=" >> "$GITHUB_ENV"
           done
 
-      - name: 生成平台报告
+      - name: Generate platform report
         if: always()
         shell: bash
         env:
@@ -432,7 +432,7 @@ jobs:
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
         run: pnpm exec tsx scripts/cherry-regression-test/cli.ts finalize --run-dir "$RUN_DIR"
 
-      - name: 上传平台报告与证据
+      - name: Upload platform report and evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -446,12 +446,12 @@ jobs:
             ${{ runner.temp }}/cherry-regression/fixtures
             ${{ runner.temp }}/cherry-regression/release/installation.json
 
-      - name: 校验平台结论
+      - name: Validate platform result
         if: always()
         shell: bash
         run: pnpm exec tsx scripts/cherry-regression-test/cli.ts gate --run-dir "$RUN_DIR"
 
-      - name: 停止受控应用
+      - name: Stop controlled application
         if: always()
         shell: bash
         run: pnpm exec tsx scripts/cherry-regression-test/cli.ts cleanup --run-dir "$RUN_DIR"
@@ -463,25 +463,25 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: 检出工作流控制代码
+      - name: Checkout workflow controller
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
           fetch-depth: 1
 
-      - name: 配置 pnpm
+      - name: Set up pnpm
         uses: pnpm/action-setup@v5
 
-      - name: 配置 Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           cache: pnpm
 
-      - name: 安装控制代码依赖
+      - name: Install controller dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: 下载平台报告
+      - name: Download platform reports
         continue-on-error: true
         uses: actions/download-artifact@v8
         with:
@@ -489,14 +489,14 @@ jobs:
           pattern: cherry-regression-*
           merge-multiple: false
 
-      - name: 生成汇总报告
+      - name: Generate aggregate report
         run: >-
           pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate
           --input downloaded-reports
           --output combined-report
           --mode "${{ needs.resolve.outputs.mode }}"
 
-      - name: 上传汇总报告
+      - name: Upload aggregate report
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -504,7 +504,7 @@ jobs:
           path: combined-report
           retention-days: 30
 
-      - name: 校验汇总结论
+      - name: Validate aggregate result
         if: always()
         run: >-
           pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate-gate
