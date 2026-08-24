@@ -298,24 +298,21 @@ export function getResumedAgentId(output: unknown): string | undefined {
  * streaming under its launch tool-call id, so entries must point at that launch. Returns the
  * launch's toolCallId and description (which doubles as the agent's identity).
  */
-/** A candidate Agent/Task output is the launch receipt for `resumedAgentId` only when its shape
- *  matches the CLI's receipt — the trailing `agentId: <id> (use SendMessage…)` string, or the
- *  structured async-launch form. A mere mention of the id elsewhere must not hijack the entry. */
+/** A candidate Agent/Task output is the launch receipt for `resumedAgentId` when its shape
+ *  matches the CLI's receipt (trailer string or structured async-launch). Deferred envelopes are
+ *  matched via their stringified excerpt, which preserves the trailer verbatim. */
 function isLaunchReceiptFor(output: unknown, resumedAgentId: string): boolean {
-  if (typeof output === 'string') {
-    // `\\s` on purpose: inside a template literal a single backslash is an identity escape.
-    return (
-      new RegExp(`agentId[:\\s]+${escapeRegExp(resumedAgentId)}(?=[\\s(])`).test(output) &&
-      output.includes('use SendMessage')
-    )
+  const serialized = typeof output === 'string' ? output : isRecord(output) ? JSON.stringify(output) : ''
+  if (!serialized) return false
+  // `\\s` on purpose: inside a template literal a single backslash is an identity escape.
+  // Lookahead tolerates whitespace, opening paren, or end-of-string (truncated excerpts).
+  if (!new RegExp(`agentId[:\\s]+${escapeRegExp(resumedAgentId)}(?=[\\s(]|$)`).test(serialized)) return false
+  // Structured async-launch form with matching agent field.
+  if (isRecord(output) && typeof output.status === 'string') {
+    return output.status === 'async_launched' || output.status === 'remote_launched'
   }
-  if (isRecord(output)) {
-    const launch = output.status === 'async_launched' || output.status === 'remote_launched'
-    if (!launch) return false
-    const id = output.agentId ?? output.agent_id ?? output.taskId
-    return typeof id === 'string' && id === resumedAgentId
-  }
-  return false
+  // String form must carry the CLI's continue marker to distinguish launch receipts from quotes.
+  return serialized.includes('use SendMessage')
 }
 
 function escapeRegExp(value: string): string {
