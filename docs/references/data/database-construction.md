@@ -75,7 +75,7 @@ Every flagged item needs exactly one disposition in `migrations/downgrade-contra
 
 A `CHECK` or unique disposition also carries the `value` it was reviewed against (the constraint body, or the index's columns), so editing that constraint again needs a fresh review instead of inheriting the old verdict.
 
-The contract also drives cleanup: once the baseline advances past a `scheduled` entry's `in` and the break still hasn't landed, the check fails ("apply it now, or move `in` to the next minor"). `pnpm db:downgrade:baseline` — run by [prepare-release](../../../.agents/skills/prepare-release/SKILL.md) when the version is bumped — advances the baseline, refuses to run on a prerelease or to cut a release older than a landed break's `in`, and drops what the new baseline absorbed.
+The contract also drives cleanup: once the baseline advances past a `scheduled` entry's `in` and the break still hasn't landed, the check fails ("apply it now, or move `in` to the next minor"). `pnpm db:downgrade:baseline` — run by [prepare-release](../../../.agents/skills/prepare-release/SKILL.md) when the version is bumped — first applies the same disposition checks as CI, requires a strictly newer stable version, refuses to cut a release older than a landed break's `in`, and drops what the new baseline absorbed.
 
 A DB column `DEFAULT` is effectively **near-permanent** (SQLite has no `ALTER COLUMN SET DEFAULT`; changing it forces a rebuild that never touches existing rows) — prefer service-layer `?? DEFAULT` for product-chosen values. See [Default Values & Nullability § DB defaults are near-permanent](./best-practice-default-values-and-nullability.md#db-defaults-are-near-permanent).
 

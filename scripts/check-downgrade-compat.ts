@@ -233,6 +233,18 @@ export function advanceBaseline(
   if (!/^\d+\.\d+\.\d+$/.test(target.version)) {
     throw new Error(`Cannot advance the baseline onto ${target.version}: only a stable x.y.z release moves it.`)
   }
+  if (compareVersions(target.version, contract.baseline.version) <= 0) {
+    throw new Error(
+      `Cannot advance the baseline onto ${target.version}: it must be newer than the current baseline ${contract.baseline.version}.`
+    )
+  }
+
+  const failures = reconcile(violations, contract)
+  if (failures.length > 0) {
+    throw new Error(
+      `Cannot advance the baseline: the contract has unresolved downgrade-compatibility violations:\n${failures.map((failure) => `  ${failure}`).join('\n')}`
+    )
+  }
 
   for (const violation of violations) {
     const scheduled = contract.scheduled.find((entry) => key(entry) === key(violation))

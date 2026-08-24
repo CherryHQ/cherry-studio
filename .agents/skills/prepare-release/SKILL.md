@@ -174,6 +174,6 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 ## Constraints
 
 - Always read `electron-builder.yml` before modifying it to understand the current format.
-- Never modify files other than `package.json`, `electron-builder.yml`, `resources/cherry-studio/release-history.json`, and the generated `resources/builtin-agents/cherry-assistant/product-manifest.json`.
+- Never modify files other than `package.json`, `electron-builder.yml`, `resources/cherry-studio/release-history.json`, the generated `resources/builtin-agents/cherry-assistant/product-manifest.json`, and `migrations/downgrade-contract.json`.
 - Never push directly to `main`.
 - Always show the generated release notes to the user before creating the branch/PR (unless running in CI with no interactive user).

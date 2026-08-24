@@ -256,6 +256,18 @@ describe('advanceBaseline', () => {
     )
   })
 
+  it.each(['2.0.8', '2.0.7'])('refuses to move the baseline backward or onto itself (%s)', (version) => {
+    expect(() => advanceBaseline(contract(), { version, snapshot: '0018_head' }, [])).toThrow(
+      'must be newer than the current baseline 2.0.8'
+    )
+  })
+
+  it('refuses to absorb an undisposed downgrade violation', () => {
+    expect(() => advanceBaseline(contract(), { version: '2.1.0', snapshot: '0018_head' }, dropped)).toThrow(
+      'has unresolved downgrade-compatibility violations'
+    )
+  })
+
   it('refuses to cut a patch release that carries a landed minor-scheduled break', () => {
     expect(() =>
       advanceBaseline(contract({ scheduled }), { version: '2.0.9', snapshot: '0018_head' }, dropped)
@@ -269,13 +281,24 @@ describe('advanceBaseline', () => {
   })
 
   it('absorbs what the new baseline now contains and clears acknowledgements', () => {
+    const changedCheck = getDowngradeViolations(
+      snapshot({
+        prompt: {
+          columns: BASELINE.tables.prompt.columns,
+          checkConstraints: { c: { value: "title IN ('a','b')" } }
+        }
+      }),
+      snapshot({
+        prompt: { columns: BASELINE.tables.prompt.columns, checkConstraints: { c: { value: "title IN ('a')" } } }
+      })
+    )
     const advanced = advanceBaseline(
       contract({
         scheduled: [...scheduled, { id: 'x.y', kind: 'column-removed', in: '2.2.0', reason: 'later' }],
-        acknowledged: [{ id: 'prompt.c', kind: 'check-changed', reason: 'widened' }]
+        acknowledged: [{ id: 'prompt.c', kind: 'check-changed', value: "title IN ('a')", reason: 'reviewed' }]
       }),
       { version: '2.1.0', snapshot: '0018_head' },
-      dropped
+      [...dropped, ...changedCheck]
     )
 
     expect(advanced).toEqual({
