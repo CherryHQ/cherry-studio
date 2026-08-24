@@ -20,8 +20,6 @@
  * @see https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code
  */
 
-export { isAnthropicOfficialHost } from '@shared/utils/provider'
-
 const ONE_MILLION = 1_000_000
 
 export function with1mSuffix(

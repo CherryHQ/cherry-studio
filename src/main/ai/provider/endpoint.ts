@@ -60,8 +60,12 @@ export function resolveEffectiveEndpoint(
   options?: EndpointResolutionOptions
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
+  const isRuntimeCandidateAvailable = (endpointType: EndpointType) =>
+    model.endpointTypes?.length
+      ? isModelEndpointTypeAvailable(model, provider, endpointType)
+      : gatewayRoute?.endpointType === endpointType
   const requiredEndpoint =
-    options?.requiredEndpointType && isModelEndpointTypeAvailable(model, provider, options.requiredEndpointType)
+    options?.requiredEndpointType && isRuntimeCandidateAvailable(options.requiredEndpointType)
       ? options.requiredEndpointType
       : undefined
   const userPreferredEndpoint =
@@ -69,7 +73,7 @@ export function resolveEffectiveEndpoint(
       ? model.preferredEndpointType
       : undefined
   const suggestedEndpoint =
-    options?.suggestedEndpointType && isModelEndpointTypeAvailable(model, provider, options.suggestedEndpointType)
+    options?.suggestedEndpointType && isRuntimeCandidateAvailable(options.suggestedEndpointType)
       ? options.suggestedEndpointType
       : undefined
   const selectedEndpoint = requiredEndpoint ?? userPreferredEndpoint ?? suggestedEndpoint

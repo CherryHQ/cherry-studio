@@ -63,6 +63,16 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
   return { ...headers, 'X-Source': 'cherry-studio' }
 }
 
+/** Unset URLs use the Anthropic SDK default, which is the official API host. */
+export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
+  if (!baseUrl) return true
+  try {
+    return new URL(baseUrl).hostname === 'api.anthropic.com'
+  } catch {
+    return false
+  }
+}
+
 export function defaultHeaders(provider: Provider): Record<string, string> {
   const apiKey = providerService.getRotatedApiKey(provider.id)
   return {

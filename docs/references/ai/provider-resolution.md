@@ -16,7 +16,7 @@ settings, hitting which URL. Three pieces of state determine that:
 | Field | Lives on | Example |
 |---|---|---|
 | `provider.id` | `Provider` row | `minimax`, `silicon`, `my-relay` |
-| `endpointType` | `model.endpointTypes[0]` or `provider.defaultChatEndpoint` | `openai-chat-completions`, `anthropic-messages` |
+| `endpointType` | resolved from runtime constraints, model preference/capabilities, and provider routes | `openai-chat-completions`, `anthropic-messages` |
 | `adapterFamily` | `provider.endpointConfigs[endpointType].adapterFamily` | `openai-compatible`, `anthropic`, `azure-responses` |
 
 `adapterFamily` is the actual SDK selector. `provider.id` is the user-facing
@@ -30,11 +30,30 @@ See [Adapter Family](./adapter-family.md) for the full design.
 `src/main/ai/provider/endpoint.ts` exposes four pure helpers:
 
 ```ts
-resolveEffectiveEndpoint(provider, model): { endpointType, baseUrl, providerOptionsKey? }
+resolveEffectiveEndpoint(provider, model, { requiredEndpointType?, suggestedEndpointType? }): {
+  endpointType,
+  baseUrl,
+  providerOptionsKey?
+}
 resolveProviderVariant(baseProviderId, endpointType): AppProviderId
 resolveAiSdkProviderId(provider, endpointType): AppProviderId
 resolveProviderOptionsKey(aiSdkProviderId, context): string
 ```
+
+`resolveEffectiveEndpoint` resolves candidates in this order:
+
+1. A caller's hard requirement for a runtime that speaks exactly one protocol.
+2. The model's persisted `preferredEndpointType`.
+3. A caller suggestion, such as Pi preferring Anthropic Messages for a dual-protocol model.
+4. The first entry in `model.endpointTypes` (the legacy routing contract).
+5. A registered per-model gateway route.
+6. `provider.defaultChatEndpoint`.
+
+Ordinary providers require a live endpoint configuration; a hand-added model with no
+`endpointTypes` can use any configured provider route. New API, CherryIN, and AIOnly models
+instead treat their upstream-reported endpoint set as authoritative because it can include
+protocols not represented by separate local config keys. Invalid stored preferences are skipped;
+runtime requirements and suggestions also require a model declaration or registered gateway route.
 
 `resolveAiSdkProviderId` is the runtime hot-path entry. It reads
 `provider.endpointConfigs[endpointType].adapterFamily`, applies the

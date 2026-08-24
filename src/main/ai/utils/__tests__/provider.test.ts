@@ -2,7 +2,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures'
-import { getBaseUrl, getExtraHeaders } from '../provider'
+import { getBaseUrl, getExtraHeaders, isAnthropicOfficialHost } from '../provider'
 
 function relayProvider() {
   return makeProvider({
@@ -131,5 +131,20 @@ describe('getExtraHeaders', () => {
     const provider = makeProvider({ id: 'openai', settings: { extraHeaders: { 'X-Custom': 'keep' } } })
 
     expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep' })
+  })
+})
+
+describe('isAnthropicOfficialHost', () => {
+  it('accepts the official host and an unset SDK-default URL', () => {
+    expect(isAnthropicOfficialHost('https://api.anthropic.com')).toBe(true)
+    expect(isAnthropicOfficialHost('https://api.anthropic.com/')).toBe(true)
+    expect(isAnthropicOfficialHost(undefined)).toBe(true)
+    expect(isAnthropicOfficialHost('')).toBe(true)
+  })
+
+  it('rejects custom proxy hosts and invalid URLs', () => {
+    expect(isAnthropicOfficialHost('https://anthropic.mycorp.com')).toBe(false)
+    expect(isAnthropicOfficialHost('https://api.deepseek.com/anthropic')).toBe(false)
+    expect(isAnthropicOfficialHost('not a url')).toBe(false)
   })
 })

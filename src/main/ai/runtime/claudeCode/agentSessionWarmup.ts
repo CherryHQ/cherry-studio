@@ -37,7 +37,7 @@ import {
 } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { getExtraHeaders } from '../../utils/provider'
+import { getExtraHeaders, isAnthropicOfficialHost } from '../../utils/provider'
 import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
@@ -46,7 +46,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
-import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,

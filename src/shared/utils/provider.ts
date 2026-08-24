@@ -95,7 +95,7 @@ export function isCherryAIProvider(provider: Provider): boolean {
   return provider.id === CHERRYAI_PROVIDER_ID || provider.presetProviderId === CHERRYAI_PROVIDER_ID
 }
 
-export function isNewApiProvider(provider: Provider): boolean {
+export function isNewApiProvider(provider: Pick<Provider, 'id' | 'presetProviderId'>): boolean {
   return matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')
 }
 
@@ -221,24 +221,18 @@ function hasEndpointConfig(provider: EndpointRoutingProvider, endpointType: Endp
   return provider.endpointConfigs != null && Object.hasOwn(provider.endpointConfigs, endpointType)
 }
 
-/** Unset URLs use the Anthropic SDK default, which is the official API host. */
-export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
-  if (!baseUrl) return true
-  try {
-    return new URL(baseUrl).hostname === 'api.anthropic.com'
-  } catch {
-    return false
-  }
-}
-
 /** Whether this model can still reach an endpoint through its current provider row. */
 export function isModelEndpointTypeAvailable(
   model: EndpointRoutingModel,
   provider: EndpointRoutingProvider,
   endpointType: EndpointType
 ): boolean {
+  // Aggregators expose all protocols through one host, so their upstream model declaration is the route contract.
+  if (model.endpointTypes?.length && isNewApiProvider(provider)) {
+    return model.endpointTypes.includes(endpointType)
+  }
   if (!hasEndpointConfig(provider, endpointType)) return false
-  if (model.endpointTypes?.includes(endpointType)) return true
+  if (!model.endpointTypes?.length || model.endpointTypes.includes(endpointType)) return true
   return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType === endpointType
 }
 

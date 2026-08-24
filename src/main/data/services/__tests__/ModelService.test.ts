@@ -650,6 +650,95 @@ describe('ModelService.create', () => {
     ).toThrowError(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
   })
 
+  it('persists a provider-configured preference for a custom model without endpointTypes', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('relay', 'Relay'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://relay.example.com/chat' },
+        'openai-responses': { baseUrl: 'https://relay.example.com/responses' }
+      }
+    })
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'relay',
+          modelId: 'manual-model',
+          preferredEndpointType: 'openai-responses'
+        }
+      }
+    ])
+
+    expect(created).toMatchObject({
+      endpointTypes: undefined,
+      preferredEndpointType: 'openai-responses'
+    })
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'relay::manual-model'))
+    expect(row.preferredEndpointType).toBe('openai-responses')
+  })
+
+  it('accepts an aggregator preference declared upstream but absent from provider config', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('aionly', 'AIOnly'),
+      presetProviderId: 'aionly'
+    })
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'aionly',
+          modelId: 'claude-model',
+          endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+          preferredEndpointType: 'anthropic-messages'
+        }
+      }
+    ])
+
+    expect(created.preferredEndpointType).toBe('anthropic-messages')
+  })
+
+  it('stores a preset model preference as a user delta', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('relay', 'Relay'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://relay.example.com/chat' },
+        'openai-responses': { baseUrl: 'https://relay.example.com/responses' }
+      }
+    })
+    const registryData = {
+      presetModel: {
+        id: 'preset-model',
+        name: 'Preset Model',
+        endpointTypes: ['openai-chat-completions', 'openai-responses']
+      } as any,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    lookupModelMock.mockReturnValue(registryData)
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'relay',
+          modelId: 'preset-model',
+          preferredEndpointType: 'openai-responses'
+        },
+        registryData
+      }
+    ])
+
+    expect(created.preferredEndpointType).toBe('openai-responses')
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'relay::preset-model'))
+    expect(row).toMatchObject({
+      endpointTypes: null,
+      preferredEndpointType: 'openai-responses'
+    })
+  })
+
   it('uses DTO maxInputTokens over registry values during merge', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 
@@ -1516,8 +1605,11 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     }))
 
-    modelService.list({ providerId: 'preset-route' })
-    modelService.list({ providerId: 'custom-route' })
+    const [presetModel] = modelService.list({ providerId: 'preset-route' })
+    const [customModel] = modelService.list({ providerId: 'custom-route' })
+
+    expect(presetModel.preferredEndpointType).toBe('openai-responses')
+    expect(customModel.preferredEndpointType).toBe('openai-responses')
 
     expect(lookupModelMock).toHaveBeenCalledWith('preset-route', 'qwen-plus', expect.any(Map), {
       endpointTypes: ['openai-chat-completions', 'openai-responses'],

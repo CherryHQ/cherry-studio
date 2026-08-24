@@ -378,6 +378,7 @@ export default function AddModelFormPanel({
             onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
             onEndpointTypesChange={(next) => {
               setEndpointTypeTouched(false)
+              setPreferredEndpointType((current) => (current && next.includes(current) ? current : undefined))
               setFormState((current) => ({ ...current, endpointTypes: [...next] }))
             }}
           />

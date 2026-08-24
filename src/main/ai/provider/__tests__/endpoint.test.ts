@@ -404,6 +404,29 @@ describe('resolveEffectiveEndpoint', () => {
     })
   })
 
+  it('keeps a hard runtime requirement ahead of a valid user preference', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/chat' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example.com/anthropic' }
+      }
+    })
+    const model = {
+      id: 'relay::model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    } as never
+
+    expect(
+      resolveEffectiveEndpoint(provider, model, { requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
+    ).toMatchObject({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: 'https://relay.example.com/anthropic'
+    })
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
   it('prefers model.endpointTypes[0] over provider.defaultChatEndpoint', () => {
     const provider = makeProvider({
       id: 'minimax',

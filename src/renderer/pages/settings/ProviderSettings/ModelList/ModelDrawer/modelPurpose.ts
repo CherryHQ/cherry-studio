@@ -1,4 +1,5 @@
 import {
+  createUniqueModelId,
   ENDPOINT_TYPE,
   type EndpointType,
   MODALITY,
@@ -7,7 +8,7 @@ import {
   type ModelCapability
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { matchesPreset } from '@shared/utils/provider'
+import { isModelEndpointTypeAvailable, matchesPreset } from '@shared/utils/provider'
 import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 import type { ModelDrawerMode } from './types'
@@ -43,7 +44,8 @@ export interface ApplyModelPurposeOptions {
 }
 
 type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId'>
-export type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
+export type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'> &
+  Partial<Pick<Provider, 'id' | 'presetProviderId'>>
 
 function isModelChatEndpointType(endpointType: string | undefined): endpointType is ModelChatEndpointType {
   return MODEL_CHAT_ENDPOINT_TYPES.some((candidate) => candidate === endpointType)
@@ -91,9 +93,8 @@ export function getProviderChatEndpointTypes(provider: ProviderChatEndpoints): M
  * The chat endpoints a model could be routed to. Two or more means the user has a real choice and the
  * preferred-endpoint picker is worth showing; one or none means there is nothing to pick.
  *
- * A model that declares its own endpoints narrows the provider's list to those (a model may support
- * fewer protocols than its host); aggregator models declare endpoints the provider config never lists,
- * so an empty intersection falls back to what the model declares.
+ * A model that declares its own endpoints narrows an ordinary provider's configured routes. Aggregator
+ * declarations come from the upstream model listing and can exceed the locally persisted route keys.
  */
 export function getPreferredEndpointCandidates(
   provider: ProviderChatEndpoints,
@@ -110,9 +111,17 @@ export function getPreferredEndpointCandidates(
     return []
   }
 
-  const providerEndpointTypes = getProviderChatEndpointTypes(provider)
-  const narrowed = declared.filter((endpointType) => providerEndpointTypes.includes(endpointType))
-  return narrowed.length > 0 ? narrowed : declared
+  const routingProvider = {
+    id: provider.id ?? '',
+    presetProviderId: provider.presetProviderId,
+    defaultChatEndpoint: provider.defaultChatEndpoint,
+    endpointConfigs: provider.endpointConfigs
+  }
+  const routingModel = {
+    id: createUniqueModelId(routingProvider.id || 'provider', 'model'),
+    endpointTypes: [...modelEndpointTypes]
+  }
+  return declared.filter((endpointType) => isModelEndpointTypeAvailable(routingModel, routingProvider, endpointType))
 }
 
 export function inferModelPurpose(fields: ModelPurposeFields): ModelPurpose {
