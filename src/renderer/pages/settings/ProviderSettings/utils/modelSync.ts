@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
+import type { ProviderPreset } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -24,6 +25,7 @@ export class ModelSyncError extends Error {
 }
 
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
+type ProviderPresetPath = Extract<ConcreteApiPaths, `/providers/${string}/preset`>
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
 
 export function resolveCreateModelEndpointTypes(
@@ -41,25 +43,34 @@ export function resolveCreateModelEndpointTypes(
   return provider.defaultChatEndpoint ? [provider.defaultChatEndpoint] : undefined
 }
 
+function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string {
+  return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
+}
+
 export function toCreateModelDto(
   providerId: string,
   model: Model,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
-  const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
+  const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
-    ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
+    ...(capabilities ? { capabilities: [...capabilities] } : {}),
+    ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
+    // Discovered rather than registry-supplied for local providers — Ollama's window comes from
+    // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
   }
 }
 
 /**
- * Enrich raw v2 models from `ipcApi.request('ai.list_models', …)` with registry
+ * Enrich raw v2 models from `ipcApi.request('ai.provider.model.list', …)` with registry
  * metadata fetched via `/providers/:id/models:resolve`. The IPC already
  * returns v2 `Partial<Model>` (with `apiModelId`, `endpointTypes`, etc.)
  * — this layer overlays preset capabilities/limits/pricing that aren't
@@ -88,6 +99,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 
   const REGISTRY_FIELDS = [
     'name',
+    'presetModelId',
     'description',
     'group',
     'capabilities',
@@ -106,21 +118,28 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   return filteredModels.map((fetched) => {
     const base = fetched as Model
     const apiId = fetched.apiModelId ?? ''
-    const registry =
-      resolvedMap.get(apiId) ??
-      resolvedMap.get(apiId.includes('/') ? apiId.substring(apiId.lastIndexOf('/') + 1) : apiId) ??
-      resolvedMap.get((apiId.includes('/') ? apiId.substring(apiId.lastIndexOf('/') + 1) : apiId).replaceAll('.', '-'))
+    // `resolveModels` keys every result by the exact raw id it was sent, so an exact lookup always hits —
+    // no fuzzy fallback needed (a slash/dot-stripping fallback used to overlay siblings onto one canonical
+    // row, collapsing their distinct display names).
+    const registry = resolvedMap.get(apiId)
 
     if (!registry) {
       return base
     }
 
     const merged = { ...base }
+    // An unmatched (custom) resolved row only carries a prettified id as its name. If the provider's
+    // /models returned a real display name — one that differs from the raw id — keep it instead of
+    // overwriting with the prettified id. Matched rows (presetModelId set) own the curated name.
+    const keepFetchedName = !registry.presetModelId && !!base.name && base.name !== base.apiModelId
+
     for (const field of REGISTRY_FIELDS) {
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }
-
+      if (field === 'name' && keepFetchedName) {
+        continue
+      }
       const value = registry[field]
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
         ;(merged as Record<string, unknown>)[field] = value
@@ -140,7 +159,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 export async function fetchResolvedProviderModels(providerId: string): Promise<Model[]> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
-    const fetched = await ipcApi.request('ai.list_models', { providerId, throwOnError: true })
+    const fetched = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     return await enrichFetchedModels(providerId, fetched)
   } catch (error) {
@@ -150,6 +169,7 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<M
 }
 
 export async function fetchProviderCatalogModels(providerId: string): Promise<Model[]> {
-  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
-  return (await dataApiService.get(resolveModelsPath)) as Model[]
+  const presetPath: ProviderPresetPath = `/providers/${providerId}/preset`
+  const preset = (await dataApiService.get(presetPath, { query: { fields: 'models' } })) as ProviderPreset
+  return preset.models ?? []
 }

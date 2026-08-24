@@ -1,3 +1,10 @@
+---
+description: The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics
+sources:
+  - src/main/ai/runtime/aiSdk/Agent.ts
+  - src/main/ai/runtime/aiSdk/params/composeHooks.ts
+---
+
 # Agent Loop
 
 ## What it is
@@ -12,7 +19,8 @@ with a stable id for the first emitted message.
 
 The stream is **single-pass**: `Agent.stream` runs the AI SDK stream exactly
 once and pipes it through. There is no mid-stream message injection — steering
-a chat turn is handled upstream by abort-and-restart (see
+a chat turn is handled upstream by queueing a steer, yielding at a step
+boundary, and chaining a continuation (see
 [Stream Manager](./stream-manager.md#steering)).
 
 `Agent` does not know about topics, IPC, persistence, or multi-model
@@ -38,8 +46,7 @@ const dispose = agent.on('onStepFinish', step => { … })
 ```
 
 `stream()` and `generate()` share the underlying agent — only the AI SDK
-call differs. Future `runToCompletion()` / `toTool()` are placeholders;
-they don't ship in this PR.
+call differs. `runToCompletion()` / `toTool()` are not part of the current API.
 
 ## Hooks model
 
@@ -51,6 +58,7 @@ interface AgentLoopHooks {
   onToolExecutionStart?: (event) => Promise<void> | void
   onToolExecutionEnd?: (event) => Promise<void> | void
   onFinish?: () => Promise<void> | void
+  onAbort?: () => Promise<void> | void
   onError?: (ctx) => 'retry' | 'abort'
 }
 ```
@@ -61,18 +69,18 @@ Hook contributions come from three sources, all folded by `composeHooks`:
    (injects `message-metadata` chunks carrying token usage).
 2. **Feature contributions** (`hookParts` param) — each `RequestFeature`'s
    `contributeHooks(scope)` (see [Params Pipeline](./params-pipeline.md)).
-3. **Caller hooks** — `AiService` adds the analytics hook only (token-usage
-   accounting via `onStepFinish` / `onFinish`). It does *not* contribute a
-   root-span/trace lifecycle hook — the OTel root span is owned by
-   `AiStreamManager.runExecutionLoop`.
+3. **Caller hooks** — `AiService` adds the analytics hook only (usage is
+   accumulated via `onStepFinish`, then flushed idempotently from `onFinish`,
+   `onAbort`, or `onError`). It does *not* contribute a root-span/trace lifecycle hook —
+   the OTel root span is owned by `AiStreamManager.runExecutionLoop`.
 
 Composition rules per hook key:
 
 | key | rule |
 |---|---|
-| `onStart`, `onFinish`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
+| `onStart`, `onFinish`, `onAbort`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
 | `prepareStep` | chained — each invocation receives the previous return value |
-| `onError` | every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
+| `onError` | `chainOnError` — every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
 
 All void hooks share the same `chainVoid` helper in `composeHooks.ts` —
 there is no `Promise.allSettled` / parallel path.
@@ -90,21 +98,37 @@ removed and hook signatures stay stable.
 There is no in-loop steering. `Agent.stream` makes a single AI SDK pass and
 never folds a mid-flight follow-up into the running turn — doing so mutated
 in-flight history and had no clean turn boundary. A new chat submission to a
-live topic is handled one level up by the stream manager: the dispatcher
-aborts the running turn, waits for it to persist as `paused`, and starts a
-fresh one — see [Stream Manager → Steering](./stream-manager.md#steering).
+live topic is handled one level up by the stream manager: it persists and
+queues the steer, the current step loop yields cleanly, and a continuation
+answers the queued row — see [Stream Manager → Steering](./stream-manager.md#steering).
 
-Agent-session runtimes are different: they queue their own follow-ups on the
-session's `pendingTurns` and interrupt between turns rather than restarting —
+Agent-session runtimes are different: a driver with `redirect` can inject the
+follow-up at a runtime-native safe point; otherwise the host queues it on
+`pendingTurns` for the next turn —
 see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 
 ## Error and abort
 
-- `signal.aborted` is honoured throughout; aborted streams settle with
-  the accumulated chunks already broadcast.
+- `signal.aborted` is honoured throughout `stream()` and `generate()`. Aborted
+  streams settle cleanly with the accumulated chunks already broadcast,
+  including when the SDK rejects result metadata while unwinding the aborted
+  stream. Clean cancellation calls `onAbort` (not `onError`) so per-run
+  resources and analytics can finalize.
 - Thrown errors are caught and routed through `onError`. Returning
   `'retry'` is reserved for a future implementation — today the loop
-  logs and aborts.
+  logs and aborts. Call-level retry/fallback lives one layer below at the
+  model wrapper — see [Model Retry & Fallback](./model-retry.md).
+- Trusted local tools can return a structured terminal failure (`terminal:
+  true`, `retryable: false`). A generic process-local provenance marker
+  prevents matching JSON from MCP or provider-executed tools from controlling
+  the loop. Wrappers such as deferred `tool_invoke` pass the same object
+  reference through, so Agent Core never parses tool names or wrapper payloads.
+  The feature stops at that step boundary and `Agent` converts the finish into
+  an error.
+- The effective step-cap condition records when it actually returns `true`;
+  `Agent` converts only that outcome into an explicit error. This avoids
+  treating an approval pause as cap exhaustion. If a queued steer and the cap
+  both trigger on one step, the clean steer yield takes precedence.
 - The writer is settled exactly once via the `then`/`catch` of the
   internal IIFE — listeners never see a half-closed stream.
 

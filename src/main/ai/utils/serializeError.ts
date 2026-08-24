@@ -75,6 +75,7 @@ export function serializeError(error: unknown): SerializedError {
     if ('responses' in e) serialized.responses = e.responses as string[]
     if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
     if ('values' in e) serialized.values = (e.values as unknown[]).map((v) => toSerializable(v))
+    if ('i18nKey' in e && typeof e.i18nKey === 'string') serialized.i18nKey = e.i18nKey
 
     return serialized
   }

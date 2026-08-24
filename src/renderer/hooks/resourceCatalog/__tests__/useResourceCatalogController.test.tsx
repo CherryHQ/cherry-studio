@@ -11,8 +11,17 @@ type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
 const controllerMocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
+  createGroup: vi.fn(),
+  dataApiGet: vi.fn(),
   duplicateAssistant: vi.fn(),
-  ensureTags: vi.fn(),
+  groups: [] as Array<{
+    id: string
+    entityType: 'assistant'
+    name: string
+    orderKey: string
+    createdAt: string
+    updatedAt: string
+  }>,
   refetch: vi.fn(),
   resourceLibraryOptions: [] as unknown[],
   resourceLibraryState: {
@@ -26,6 +35,10 @@ const controllerMocks = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: { get: controllerMocks.dataApiGet }
 }))
 
 vi.mock('../useResourceLibrary', () => ({
@@ -55,12 +68,14 @@ vi.mock('../agentAdapter', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useEnsureTags: () => ({ ensureTags: controllerMocks.ensureTags }),
-  useTagList: () => ({ tags: [] })
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroups: () => ({ groups: controllerMocks.groups }),
+  useGroupMutations: () => ({ createGroup: controllerMocks.createGroup })
 }))
 
 const createValues = {
+  agentType: 'claude-code' as const,
+  permissionMode: 'auto' as const,
   avatar: 'A',
   description: 'A focused helper',
   knowledgeBaseIds: ['kb-1'],
@@ -78,7 +93,7 @@ const assistantResource = {
   avatar: 'A',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
-  raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', tags: [] }
+  raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', groupId: null }
 } as unknown as ResourceItem
 
 describe('useResourceCatalogController', () => {
@@ -86,8 +101,10 @@ describe('useResourceCatalogController', () => {
     vi.clearAllMocks()
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
+    controllerMocks.dataApiGet.mockResolvedValue([])
     controllerMocks.refetch.mockResolvedValue(undefined)
     controllerMocks.resourceLibraryOptions.length = 0
+    controllerMocks.groups.length = 0
     controllerMocks.resourceLibraryState.allResources = []
     controllerMocks.resourceLibraryState.error = undefined
     controllerMocks.resourceLibraryState.isLoading = false
@@ -141,10 +158,11 @@ describe('useResourceCatalogController', () => {
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
       configuration: {
         avatar: createValues.avatar,
-        permission_mode: 'bypassPermissions'
+        permission_mode: 'auto'
       },
       description: createValues.description,
       instructions: createValues.prompt,
+      knowledgeBaseIds: createValues.knowledgeBaseIds,
       model: createValues.modelId,
       name: createValues.name,
       planModel: createValues.modelId,
@@ -168,6 +186,20 @@ describe('useResourceCatalogController', () => {
     expect(controllerMocks.refetch).not.toHaveBeenCalled()
   })
 
+  it('stores only the resource key when opening the edit dialog', () => {
+    controllerMocks.resourceLibraryState.resources = [assistantResource]
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    act(() => {
+      result.current.gridProps.onEdit(assistantResource)
+    })
+
+    expect(result.current.dialogs.editDialogTarget).toEqual({
+      kind: 'assistant',
+      id: 'assistant-to-duplicate'
+    })
+  })
+
   it('reports assistant export failures without throwing', async () => {
     controllerMocks.saveFile.mockRejectedValueOnce(new Error('export failed'))
     const { result } = renderHook(() => useResourceCatalogController('assistant'))
@@ -181,31 +213,90 @@ describe('useResourceCatalogController', () => {
     })
   })
 
-  it('clears the active tag when the resource type changes', async () => {
+  it('counts non-empty groups and resolves the exported assistant group name', async () => {
+    controllerMocks.dataApiGet.mockResolvedValueOnce([
+      {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        title: 'Context prompt',
+        content: 'Context body',
+        visibility: 'restricted',
+        orderKey: 'a0',
+        createdAt: '2026-04-20T00:00:00.000Z',
+        updatedAt: '2026-04-20T00:00:00.000Z'
+      }
+    ])
+    controllerMocks.groups.push(
+      {
+        id: 'group-work',
+        entityType: 'assistant',
+        name: 'Work',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      },
+      {
+        id: 'group-empty',
+        entityType: 'assistant',
+        name: 'Empty',
+        orderKey: 'a1',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      }
+    )
+    const groupedAssistant = {
+      ...assistantResource,
+      groupId: 'group-work',
+      raw: { ...assistantResource.raw, groupId: 'group-work' }
+    } as ResourceItem
+    controllerMocks.resourceLibraryState.allResources = [
+      groupedAssistant,
+      { ...groupedAssistant, id: 'assistant-2', raw: { ...groupedAssistant.raw, id: 'assistant-2' } } as ResourceItem
+    ]
+
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    expect(result.current.gridProps.groups).toEqual([{ id: 'group-work', name: 'Work', count: 2 }])
+
+    act(() => {
+      result.current.gridProps.onExport(groupedAssistant)
+    })
+
+    await waitFor(() => expect(controllerMocks.saveFile).toHaveBeenCalledOnce())
+    const exportedBytes = controllerMocks.saveFile.mock.calls[0][1] as Uint8Array
+    expect(controllerMocks.dataApiGet).toHaveBeenCalledWith('/prompt-bindings/assistant/assistant-to-duplicate')
+    expect(JSON.parse(new TextDecoder().decode(exportedBytes))).toMatchObject([
+      {
+        group: ['Work'],
+        regularPhrases: [{ title: 'Context prompt', content: 'Context body', order: 0 }]
+      }
+    ])
+  })
+
+  it('clears the active group when the resource type changes', async () => {
     const { result, rerender } = renderHook(
       ({ resourceType }: { resourceType: ControllerResourceType }) => useResourceCatalogController(resourceType),
       { initialProps: { resourceType: 'assistant' as ControllerResourceType } }
     )
 
     act(() => {
-      result.current.gridProps.onTagFilter('stale-tag')
+      result.current.gridProps.onGroupFilter('11111111-1111-4111-8111-111111111111')
     })
 
     await waitFor(() => {
-      expect(result.current.gridProps.activeTag).toBe('stale-tag')
+      expect(result.current.gridProps.activeGroupId).toBe('11111111-1111-4111-8111-111111111111')
     })
 
     rerender({ resourceType: 'agent' })
 
     await waitFor(() => {
-      expect(result.current.gridProps.activeTag).toBeNull()
+      expect(result.current.gridProps.activeGroupId).toBeNull()
     })
 
     rerender({ resourceType: 'assistant' })
 
     await waitFor(() => {
       expect(controllerMocks.resourceLibraryOptions.at(-1)).toEqual(
-        expect.objectContaining({ activeTag: null, resourceType: 'assistant' })
+        expect.objectContaining({ activeGroupId: null, resourceType: 'assistant' })
       )
     })
   })

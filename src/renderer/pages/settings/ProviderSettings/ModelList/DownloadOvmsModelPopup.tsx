@@ -1,6 +1,17 @@
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
@@ -173,7 +184,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       try {
         setCancelled(true) // Mark as cancelled by user
         logger.info('Stopping download...')
-        await window.api.ovms.stopAddModel()
+        await ipcApi.request('ovms.cancel_add_model')
         stopFakeProgress(false)
         setLoading(false)
       } catch (error) {
@@ -208,7 +219,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       logger.info(
         `🔄 Downloading model: ${modelName} with ID: ${modelId}, source: ${normalizedModelSource}, task: ${task}`
       )
-      const result = await window.api.ovms.addModel(modelName, modelId, normalizedModelSource, task)
+      const result = await ipcApi.request('ovms.add_model', {
+        modelName,
+        modelId,
+        modelSource: normalizedModelSource,
+        task
+      })
 
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
@@ -219,7 +235,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
         logger.error(`Download failed, is it cancelled? ${cancelled}`)
         // Only show error if not cancelled by user
         if (!cancelled) {
-          setError(result.message)
+          setError(result.message ?? null)
         }
       }
     } catch (error: any) {
@@ -254,7 +270,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       footer={footer}>
       <div className={drawerClasses.fieldList}>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_id.label')}</Label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelId}
@@ -281,7 +297,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           </div>
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_name.label')}</Label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelName}
@@ -293,7 +309,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           />
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_source')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_source')}</Label>
           <Select
             value={formValues.modelSource}
             onValueChange={(value) => updateField('modelSource', value)}
@@ -309,7 +325,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           </Select>
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_task')}</Label>
           <Select
             value={formValues.task}
             onValueChange={(value) => updateField('task', value as OvmsDownloadTask)}
@@ -330,7 +346,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
             <div className={drawerClasses.healthProgressTrack}>
               <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
             </div>
-            <div className="text-center text-foreground-muted text-sm">
+            <div className="text-center text-foreground-tertiary text-sm">
               {Math.round(progress)}% · {t('ovms.download.tip')}
             </div>
           </div>

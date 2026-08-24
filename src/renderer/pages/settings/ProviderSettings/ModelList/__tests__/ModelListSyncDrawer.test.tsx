@@ -36,9 +36,17 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
+}))
+
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelModule>()),
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
 }))
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -156,18 +164,34 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
-    expect(screen.getByTestId('drawer-content')).toHaveClass('w-[min(calc(100vw-24px),620px)]')
-    expect(screen.getByTestId('drawer-body')).toHaveClass('pt-0')
-    expect(screen.getByText('gpt-5')).toBeInTheDocument()
-    expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
-    expect(screen.getByText('legacy-model')).toBeInTheDocument()
+    expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
+    expect(screen.getByText('GPT 5')).toBeInTheDocument()
+    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
+    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
+  })
+
+  // The raw api id moved out of a visible subtitle line into the title's tooltip, so it must stay
+  // reachable without a mouse: a focusable title (which opens the tooltip on focus) described by an
+  // off-screen copy of the id. Names can collide — the id is what disambiguates them.
+  it('keeps each raw api model id reachable by keyboard and screen reader', () => {
+    renderDrawer()
+
+    for (const [name, apiModelId] of [
+      ['GPT 5', 'gpt-5'],
+      ['Claude Sonnet', 'claude-sonnet'],
+      ['Legacy Model', 'legacy-model']
+    ]) {
+      const title = screen.getByText(name)
+      expect(title).toHaveAttribute('tabindex', '0')
+      expect(document.getElementById(title.getAttribute('aria-describedby')!)).toHaveTextContent(apiModelId)
+    }
   })
 
   it('renders a fallback group for models without explicit groups', () => {
     renderDrawer()
 
     expect(screen.getByText('custom')).toBeInTheDocument()
-    expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
+    expect(screen.queryByText('models.group.ungrouped')).not.toBeInTheDocument()
     expect(screen.queryByText('__ungrouped__')).not.toBeInTheDocument()
   })
 
@@ -178,24 +202,24 @@ describe('ModelListSyncDrawer', () => {
       target: { value: 'claude' }
     })
 
-    expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
-    expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
-    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+    expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
+    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
+    expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
   })
 
   it('shows search matches inside collapsed groups and restores the collapsed state after search', () => {
     renderDrawer()
 
     fireEvent.click(screen.getByText('legacy').closest('button')!)
-    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
       target: { value: 'legacy' }
     })
-    expect(screen.getByText('legacy-model')).toBeInTheDocument()
+    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
-    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
   })
 
   it('clears model search', () => {
@@ -204,12 +228,12 @@ describe('ModelListSyncDrawer', () => {
     fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
       target: { value: 'legacy' }
     })
-    expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
+    expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
 
     expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).toHaveValue('')
-    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+    expect(screen.getByText('GPT 5')).toBeInTheDocument()
   })
 
   it('adds all filtered models that are not already local', () => {
@@ -346,7 +370,7 @@ describe('ModelListSyncDrawer', () => {
 
     expect(screen.queryByText('settings.models.manage.sync_pull_failed')).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).toBeInTheDocument()
-    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+    expect(screen.getByText('GPT 5')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_pull_failed' }))
 
@@ -361,17 +385,25 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.getByRole('button', { name: 'settings.models.manage.add_listed.label' })).not.toBeDisabled()
   })
 
-  it('filters stale models from the filter tabs', async () => {
+  it('keeps the destructive stale filter clickable immediately after All when horizontally scrolled', async () => {
     const user = userEvent.setup()
     renderDrawer({ staleModelCount: 1, staleModelIds: ['openai::legacy-model'] })
 
-    await user.click(screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' }))
+    const tabList = screen.getByRole('tablist')
+    const tabs = screen.getAllByRole('tab')
+    const staleTab = screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' })
+
+    expect(tabs[0]).toHaveAccessibleName('models.all')
+    expect(tabs[1]).toBe(staleTab)
+
+    fireEvent.scroll(tabList, { target: { scrollLeft: 120 } })
+    await user.click(staleTab)
 
     await waitFor(() => {
-      expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
+      expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
     })
-    expect(screen.getByText('legacy-model')).toBeInTheDocument()
-    expect(screen.queryByText('claude-sonnet')).not.toBeInTheDocument()
+    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
+    expect(screen.queryByText('Claude Sonnet')).not.toBeInTheDocument()
   })
 
   it('keeps search available and disables bulk action while applying', () => {

@@ -11,22 +11,37 @@
  * Zod schemas are the single source of truth — all types derived via z.infer<>
  */
 
-import type { EndpointType } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
+import type { EndpointType, ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
+import {
+  CURRENCY,
+  ENDPOINT_TYPE,
+  FastModeTransportSchema,
+  objectValues,
+  ServerToolConfigSchema
+} from '@cherrystudio/provider-registry'
 import * as z from 'zod'
+
+export type { ServerTool, ServerToolConfig }
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
 
 const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 
-/** API feature flags controlling request construction at the SDK level */
-const CatalogApiFeaturesSchema = z.object({
-  arrayContent: z.boolean().optional(),
+/**
+ * How a host deviates from one endpoint's dialect. Endpoint-scoped because a
+ * provider serving both chat-completions and Responses may answer differently
+ * for each.
+ */
+export const EndpointDialectSchema = z.object({
+  /** Accepts chat-completions `stream_options` for usage data. Absent ⇒ true. */
   streamOptions: z.boolean().optional(),
+  /** Accepts messages with `role: "developer"`. Absent ⇒ false. */
   developerRole: z.boolean().optional(),
-  serviceTier: z.boolean().optional(),
-  verbosity: z.boolean().optional()
+  /** Accepts OpenAI Responses `reasoning.summary`. Absent ⇒ use the registry wire. */
+  reasoningSummary: z.boolean().optional()
 })
+
+export type EndpointDialect = z.infer<typeof EndpointDialectSchema>
 
 /** Provider website schema (type used for catalog ProviderWebsite type) */
 const ProviderWebsiteSchema = z.object({
@@ -37,35 +52,6 @@ const ProviderWebsiteSchema = z.object({
     models: z.url().optional()
   })
 })
-
-export type OpenAIServiceTier = 'auto' | 'default' | 'flex' | 'priority' | null | undefined
-export type GroqServiceTier = 'auto' | 'on_demand' | 'flex' | undefined | null
-export type ServiceTier = OpenAIServiceTier | GroqServiceTier
-
-export const OpenAIServiceTiers = {
-  auto: 'auto',
-  default: 'default',
-  flex: 'flex',
-  priority: 'priority'
-} as const
-
-export const GroqServiceTiers = {
-  auto: 'auto',
-  on_demand: 'on_demand',
-  flex: 'flex'
-} as const
-
-export function isOpenAIServiceTier(tier: string | null | undefined): tier is OpenAIServiceTier {
-  return tier === null || tier === undefined || Object.hasOwn(OpenAIServiceTiers, tier)
-}
-
-export function isGroqServiceTier(tier: string | undefined | null): tier is GroqServiceTier {
-  return tier === null || tier === undefined || Object.hasOwn(GroqServiceTiers, tier)
-}
-
-export function isServiceTier(tier: string | null | undefined): tier is ServiceTier {
-  return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
-}
 
 export const ApiKeyEntrySchema = z.object({
   /** UUID for referencing this key */
@@ -150,12 +136,6 @@ export type AuthConfig = z.infer<typeof AuthConfigSchema>
 /** The OAuth variant of {@link AuthConfig}, narrowed for token-bearing providers. */
 export type OAuthAuthConfig = Extract<AuthConfig, { type: 'oauth' }>
 
-export const ApiFeaturesSchema = CatalogApiFeaturesSchema
-export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
-
-export const RuntimeApiFeaturesSchema = ApiFeaturesSchema.required()
-export type RuntimeApiFeatures = z.infer<typeof RuntimeApiFeaturesSchema>
-
 export type ProviderWebsite = z.infer<typeof ProviderWebsiteSchema>
 
 /** Flat website links schema for runtime Provider (without the catalog wrapper) */
@@ -169,16 +149,6 @@ export const ProviderWebsitesSchema = z.object({
 export type ProviderWebsites = z.infer<typeof ProviderWebsitesSchema>
 
 export const ProviderSettingsSchema = z.object({
-  // OpenAI / Groq.
-  //
-  // PATCH semantics for these nullable override fields, applied by `ProviderService.update`'s shallow
-  // merge: key absent = leave the stored value unchanged; `null` = explicitly clear the stored
-  // override; a value = set it. Downstream, `null` and absent produce byte-identical requests
-  // (consumers guard on truthiness / `!= null`), so `null` exists only as the PATCH-level "clear"
-  // marker — the renderer's "off" (null) and "ignore" (absent) options are equivalent on the wire.
-  serviceTier: z.string().nullable().optional(),
-  verbosity: z.string().nullable().optional(),
-  summaryText: z.enum(['auto', 'detailed', 'concise']).nullable().optional(),
   streamOptions: z
     .object({
       includeUsage: z.boolean().optional()
@@ -217,25 +187,11 @@ export const ProviderSettingsSchema = z.object({
 
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 
-export const REASONING_FORMAT_TYPES = [
-  'openai-chat',
-  'openai-responses',
-  'anthropic',
-  'gemini',
-  'openrouter',
-  'enable-thinking',
-  'thinking-type',
-  'dashscope',
-  'self-hosted'
-] as const
-
-export const ReasoningFormatTypeSchema = z.enum(REASONING_FORMAT_TYPES)
-export type ReasoningFormatType = z.infer<typeof ReasoningFormatTypeSchema>
-
 /** URLs for fetching available models, separated by model category */
 export const ModelsApiUrlsSchema = z.object({
   default: z.string().optional(),
   embedding: z.string().optional(),
+  image: z.string().optional(),
   reranker: z.string().optional()
 })
 
@@ -245,15 +201,31 @@ export type ModelsApiUrls = z.infer<typeof ModelsApiUrlsSchema>
 export const EndpointConfigSchema = z.object({
   /** Base URL for this endpoint type's API */
   baseUrl: z.string().optional(),
-  /** How this endpoint type expects reasoning parameters */
-  reasoningFormatType: ReasoningFormatTypeSchema.optional(),
   /** URLs for fetching available models via this endpoint type */
   modelsApiUrls: ModelsApiUrlsSchema.optional(),
   /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
-  adapterFamily: z.string().optional()
+  adapterFamily: z.string().optional(),
+  /** Dialect deviations of this host's implementation of the endpoint */
+  dialect: EndpointDialectSchema.optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
+
+/**
+ * The row-persisted subset of {@link EndpointConfigSchema} — only fields the
+ * user explicitly owns. Registry-owned fields (`modelsApiUrls`,
+ * `adapterFamily`) resolve from the registry at read time; persisting them
+ * through the renderer write contract would freeze a snapshot that goes stale
+ * (#17096).
+ */
+export const EndpointConfigOverrideSchema = z.object({
+  /** User-owned base URL override for this endpoint type's API */
+  baseUrl: z.string().optional(),
+  /** User-owned dialect overrides — the only way a custom provider states its deviations */
+  dialect: EndpointDialectSchema.optional()
+})
+
+export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>
 
 export const ProviderSchema = z.object({
   /** Provider ID */
@@ -262,11 +234,24 @@ export const ProviderSchema = z.object({
   presetProviderId: z.string().optional(),
   /** Display name */
   name: z.string(),
+  /**
+   * Preset logo key — a `icon:<providerId>` brand-icon ref. Absent for preset
+   * providers rendered by id, and for custom providers with an uploaded logo
+   * (those carry {@link logoSrc} instead). Never a URL or data URL.
+   */
+  logo: z.string().optional(),
+  /**
+   * Ready-to-render URL for an uploaded logo, resolved main-side from the
+   * `file_entry` (`file://…`). Mutually exclusive with {@link logo}. The
+   * renderer renders it directly and never reconstructs a disk path — the file
+   * storage layout stays a main-process detail.
+   */
+  logoSrc: z.string().optional(),
   /** Description */
   description: z.string().optional(),
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),
-  /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
+  /** Per-endpoint-type connection configuration */
   endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
     z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>
   >,
@@ -278,6 +263,8 @@ export const ProviderSchema = z.object({
    * the registry; absent/`'api'` for normal providers.
    */
   modelListSource: z.enum(['api', 'registry']).optional(),
+  /** Provider-native (server-executed) built-in tools resolved from the registry. */
+  serverTools: z.array(ServerToolConfigSchema).optional(),
   /**
    * Which credential kinds this provider accepts (`'api-key'` / `'oauth'` /
    * `'external-cli'`) — a set, since a provider can offer more than one (CherryIN
@@ -286,12 +273,26 @@ export const ProviderSchema = z.object({
    * {@link isLoginBasedProvider}.
    */
   authMethods: z.array(z.enum(['api-key', 'oauth', 'external-cli'])).optional(),
+  /**
+   * Registry capability: the provider serves requests without any credential
+   * (local server — ollama / lmstudio / gpustack / ovms), so the missing-API-key
+   * guards (model sync, painting/OpenClaw gating) skip the key check. Carried
+   * from the registry; absent ⇒ false.
+   */
+  authOptional: z.boolean().optional(),
+  /**
+   * Registry-owned currency for provider-reported costs that omit currency
+   * from the wire payload. Never inferred for custom providers.
+   */
+  reportedCostCurrency: z.enum(objectValues(CURRENCY)).optional(),
+  /** Whether usage responses carry the actual billed amount. */
+  reportsActualCost: z.boolean(),
+  /** Provider-owned transport for Fast requests. Effective availability is model-specific. */
+  fastMode: z.object({ transport: FastModeTransportSchema, serviceTier: z.string().optional() }).optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */
   authType: AuthTypeSchema,
-  /** Merged API feature support */
-  apiFeatures: RuntimeApiFeaturesSchema,
   /** Provider settings */
   settings: ProviderSettingsSchema,
   /** Whether this provider is enabled */
@@ -299,13 +300,5 @@ export const ProviderSchema = z.object({
 })
 
 export type Provider = z.infer<typeof ProviderSchema>
-
-export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
-  arrayContent: true,
-  streamOptions: true,
-  developerRole: false,
-  serviceTier: false,
-  verbosity: false
-}
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {}

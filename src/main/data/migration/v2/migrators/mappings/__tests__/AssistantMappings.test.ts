@@ -1,5 +1,7 @@
+import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { describe, expect, it } from 'vitest'
 
 import { transformAssistant } from '../AssistantMappings'
@@ -159,30 +161,46 @@ describe('AssistantMappings', () => {
       expect(result.assistant.description).toBe('')
       // mcpMode/enableWebSearch were null/undefined upstream, so settings stays at the default.
       expect(result.assistant.settings).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
-      expect(result.tags).toStrictEqual([])
+      expect(result.legacyTagName).toBeNull()
     })
 
-    it('should extract valid tags and filter invalid entries', () => {
+    it('should normalize the legacy assistant group name', () => {
       const result = transformAssistant({
         id: 'ast-10',
-        tags: ['work', '', 'coding', null as any, 42 as any, 'personal']
+        tags: [' work ']
       })
-      expect(result.tags).toStrictEqual(['work', 'coding', 'personal'])
+      expect(result.legacyTagName).toBe('work')
+      expect(result.discardedLegacyTagCount).toBe(0)
     })
 
-    it('should return empty tags when tags is not an array', () => {
+    it('should keep the first valid legacy tag and report additional entries', () => {
+      const result = transformAssistant({ id: 'ast-10b', tags: ['a', 'b'] })
+
+      expect(result.legacyTagName).toBe('a')
+      expect(result.discardedLegacyTagCount).toBe(1)
+    })
+
+    it('should skip invalid entries before the first valid legacy tag', () => {
+      const result = transformAssistant({ id: 'ast-10c', tags: ['', ' work '] })
+
+      expect(result.legacyTagName).toBe('work')
+      expect(result.discardedLegacyTagCount).toBe(1)
+    })
+
+    it('should return no legacy group when tags is not an array', () => {
       const result = transformAssistant({ id: 'ast-11', tags: 'not-an-array' as any })
-      expect(result.tags).toStrictEqual([])
+      expect(result.legacyTagName).toBeNull()
     })
 
-    it('should return empty tags when tags is null or undefined', () => {
-      expect(transformAssistant({ id: 'ast-12', tags: null }).tags).toStrictEqual([])
-      expect(transformAssistant({ id: 'ast-13' }).tags).toStrictEqual([])
+    it('should return no legacy group when tags is empty, null, or undefined', () => {
+      expect(transformAssistant({ id: 'ast-12', tags: [] }).legacyTagName).toBeNull()
+      expect(transformAssistant({ id: 'ast-13', tags: null }).legacyTagName).toBeNull()
+      expect(transformAssistant({ id: 'ast-14' }).legacyTagName).toBeNull()
     })
 
     it('should build settings from top-level fields when settings object is absent', () => {
       const result = transformAssistant({
-        id: 'ast-14',
+        id: 'ast-15',
         mcpMode: 'auto',
         enableWebSearch: true
       })
@@ -214,6 +232,43 @@ describe('AssistantMappings', () => {
         enableMaxTokens: false
         // maxTokens and mcpMode stay at DEFAULT (sanitiser dropped invalid).
       })
+    })
+
+    // v1 took `contextCount + 2` then dropped leading non-user rows; v2 extends
+    // backward instead, so the same history needs N = C + 1.
+    // The regression this guards: v1's default assistant of 5 migrates the
+    // GLOBAL limit to 6, so an assistant the user had explicitly set to v1's
+    // "unlimited" must not come back inheriting 6.
+    it('keeps a v1 unlimited assistant unlimited under a limited migrated global', () => {
+      const migrated = transformAssistant({ id: 'ast-19', settings: { contextCount: 100 } as never })
+
+      const effective = resolveContextSettings({
+        globals: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 6 },
+        assistant: migrated.assistant.settings.contextSettings
+      })
+
+      expect(effective.maxMessages).toBeNull()
+    })
+
+    it('maps v1 contextCount to contextSettings.maxMessages with the +1 offset', () => {
+      const maxMessagesOf = (contextCount: unknown) =>
+        transformAssistant({ id: 'ast-16', settings: { contextCount } as never }).assistant.settings.contextSettings
+          ?.maxMessages
+
+      // v1 C=5 served [u,a,u,a,u,a,u] (7 rows) → v2 N=6 extends back to the same 7.
+      expect(maxMessagesOf(5)).toBe(6)
+      expect(maxMessagesOf(1)).toBe(2)
+      // C=0 meant "no history": v1's user-start filter left only the current
+      // user message, which is N=1 (no offset — +1 would add a turn back).
+      expect(maxMessagesOf(0)).toBe(1)
+      // MAX_CONTEXT_COUNT (100) meant unlimited → the three-state contract's
+      // EXPLICIT null, not absent: absent means "inherit", and the v1 default
+      // assistant migrates into a finite global that would then re-limit it.
+      expect(maxMessagesOf(100)).toBeNull()
+      // Garbage stays out.
+      expect(
+        transformAssistant({ id: 'ast-18', settings: { contextCount: 2.5 } as never }).assistant.settings
+      ).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
     })
   })
 })

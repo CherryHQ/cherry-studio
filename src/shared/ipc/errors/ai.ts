@@ -1,3 +1,4 @@
+import { type AiStreamAdmissionReason, isAiStreamAdmissionReason } from '@shared/ai/transport'
 import type { SerializedError } from '@shared/types/error'
 
 import { IpcError } from './IpcError'
@@ -15,7 +16,30 @@ export const aiErrorCodes = {
    * show provider error detail — Electron's invoke reject would otherwise drop
    * everything but `message`.
    */
-  AI_REQUEST_FAILED: 'AI_REQUEST_FAILED'
+  AI_REQUEST_FAILED: 'AI_REQUEST_FAILED',
+  /** A live-stream execution change was rejected; `data.reason` is renderer-localized. */
+  AI_STREAM_ADMISSION_REJECTED: 'AI_STREAM_ADMISSION_REJECTED',
+  /**
+   * An `ai.agent.task.*` command referenced a task that does not exist, is not
+   * an `agent.task` schedule, or belongs to another agent (the three cases are
+   * deliberately indistinguishable — no existence leak across agents).
+   *
+   * Minted without a renderer branch (unlike the demand-first plain Errors for
+   * agent/channel guards): the handler detects the miss as a `null`/`false`
+   * return and must synthesize an IpcError from scratch — labelling a
+   * well-defined, client-addressable miss `INTERNAL` would be wrong transport
+   * semantics. A future consumer (e.g. "task deleted elsewhere → drop it from
+   * the list") can branch on it without a protocol change.
+   */
+  AI_AGENT_TASK_NOT_FOUND: 'AI_AGENT_TASK_NOT_FOUND',
+  /**
+   * The task trigger failed scheduling-semantics validation (cron expression /
+   * IANA timezone parse, interval or once delay out of timer range) — a user
+   * input error the renderer maps to a form hint. Translated from the internal
+   * `JOB_SCHEDULE_TRIGGER_INVALID` by the `ai.agent.task.create/update`
+   * handlers so the renderer keeps a branchable code instead of `INTERNAL`.
+   */
+  AI_AGENT_TASK_TRIGGER_INVALID: 'AI_AGENT_TASK_TRIGGER_INVALID'
 } as const
 
 /**
@@ -26,4 +50,10 @@ export const aiErrorCodes = {
  */
 export function aiErrorDetail(e: unknown): SerializedError | undefined {
   return e instanceof IpcError && e.code === aiErrorCodes.AI_REQUEST_FAILED ? (e.data as SerializedError) : undefined
+}
+
+export function aiStreamAdmissionReason(e: unknown): AiStreamAdmissionReason | undefined {
+  if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_STREAM_ADMISSION_REJECTED) return undefined
+  if (!e.data || typeof e.data !== 'object' || !('reason' in e.data)) return undefined
+  return isAiStreamAdmissionReason(e.data.reason) ? e.data.reason : undefined
 }

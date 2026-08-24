@@ -5,6 +5,7 @@ import {
   type ImageAttachment,
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
@@ -174,8 +175,12 @@ class DiscordStreamingController {
 
   private async editMessage(text: string): Promise<void> {
     if (!this.messageId) return
-    // Discord messages max 2000 chars — truncate with indicator if needed
-    const content = text.length > DISCORD_MAX_LENGTH ? text.slice(0, DISCORD_MAX_LENGTH - 3) + '...' : text
+    // Discord messages max 2000 chars — truncate with indicator if needed,
+    // keeping any surrogate pair at the cut whole so we don't send a lone surrogate.
+    const content =
+      text.length > DISCORD_MAX_LENGTH
+        ? text.slice(0, clampSurrogateBoundary(text, DISCORD_MAX_LENGTH - 3)) + '...'
+        : text
     await this.apiRequest(`${DISCORD_API_BASE}/channels/${this.discordChannelId}/messages/${this.messageId}`, {
       method: 'PATCH',
       body: { content }

@@ -17,6 +17,8 @@ src/main/data/db/
 │   ├── message.ts        # Message table + MESSAGE_FTS_STATEMENTS (FTS5 vtable & triggers)
 │   └── ...               # Other tables
 ├── seeding/              # Data seeding (see seeding/README.md)
+├── restore/              # Backup-restore promotion primitives (see restore/README.md)
+├── applyMigrations.ts    # Shared migration path (drizzle migrate + custom SQL replay)
 ├── customSqls.ts         # Custom SQL (triggers, virtual tables) — replayed every boot
 └── DbService.ts          # Database connection management
 ```
@@ -27,7 +29,7 @@ src/main/data/db/
 
 - **Table names**: Singular snake_case (`topic`, `message`, `app_state`)
 - **Export names**: `xxxTable` pattern (`topicTable`, `messageTable`)
-- **Inferred row types**: `XxxRow` (`$inferSelect`) / `InsertXxxRow` (`$inferInsert`) — e.g. `McpServerRow`, `InsertMcpServerRow`. The `Row` suffix keeps the DB-row type distinct from the API `XxxEntity`. See [naming-conventions.md §5.3](../../../../docs/references/naming-conventions.md#53-drizzle-schema-inferred-row-types)
+- **Inferred row types**: `XxxRow` (`$inferSelect`) / `InsertXxxRow` (`$inferInsert`) — e.g. `McpServerRow`, `InsertMcpServerRow`. The `Row` suffix keeps the DB-row type distinct from the API `XxxEntity`. See [naming-conventions.md §5.3](../../../../docs/references/architecture/naming-conventions.md#53-drizzle-schema-inferred-row-types)
 
 ### Common Commands
 

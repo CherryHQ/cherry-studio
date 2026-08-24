@@ -4,6 +4,9 @@ import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { readErrorMessage } from '../readErrorMessage'
 import { fileToDataUrl } from '../transportUtils'
+import { resolveDmxapiFamily } from './dmxapiImageRouting'
+
+export { resolveDmxapiFamily } from './dmxapiImageRouting'
 
 export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
 
@@ -16,27 +19,12 @@ interface NormalizedInput {
 }
 
 /**
- * Per-model descriptor injected by `paintingPipeline` from
- * `modes[mode].vendorTransport`. `endpoint` carries the path the transport
- * POSTs to (with `{model}` substitution for the gemini family); `id` drives
- * `resolveDmxapiFamily` to pick the body builder + response parser.
- */
-export interface DmxapiModelDescriptor {
-  id: string
-  endpoint: string
-  isSync?: boolean
-  mode?: string
-}
-
-/**
  * Vendor-specific fields forwarded through `providerOptions.dmxapi`. AI SDK
  * native fields (size / n / seed / prompt) source from `input.*` at submit
- * entry, not from this bag — canonicalGenerate's POSITIONAL_RENAME +
- * AI_SDK_NATIVE_KEYS partition puts them on the AI SDK call options instead.
+ * entry. DMXAPI dispatches by `resolveDmxapiFamily(input.modelId)` to a family
+ * path under `this.baseURL`, so it needs no `modelDescriptor` routing.
  */
 export interface DmxapiProviderParams {
-  model?: string
-  modelDescriptor?: DmxapiModelDescriptor
   /** doubao-seedream multi-image options. */
   sequentialImageGeneration?: 'auto' | 'disabled'
   maxImages?: number
@@ -45,34 +33,13 @@ export interface DmxapiProviderParams {
   addWatermark?: boolean
   /** wan family extras (DashScope-passthrough). */
   promptExtend?: boolean
-  /** Snake-cased by `buildImageProviderOptions` default branch. */
-  negative_prompt?: string
+  /** Canonical camelCase (the transport receives the vendorBag directly). */
+  negativePrompt?: string
 }
 
 export interface DmxapiTransportSettings {
   apiKey: string
   baseURL?: string
-}
-
-export type DmxapiFamily =
-  | 'openai-flat' // gpt-image / dall-e / seededit — handled by OpenAICompatibleImageModel
-  | 'responses-string' // doubao-seedream family — `/v1/responses` with `input: "<prompt>"`
-  | 'responses-messages' // alibaba wan family — `/v1/responses` with DashScope-style messages
-  | 'openai-flat-async' // qwen-image family — `/v1/images/generations` body, wrapped `extra.output.results[].url` response
-
-interface DmxapiFamilyMatcher {
-  family: Exclude<DmxapiFamily, 'openai-flat'>
-  match: (modelId: string) => boolean
-}
-
-const DMXAPI_FAMILY_TABLE: DmxapiFamilyMatcher[] = [
-  { family: 'responses-string', match: (id) => id.startsWith('doubao-seedream') },
-  { family: 'responses-messages', match: (id) => /^wan\d/i.test(id) },
-  { family: 'openai-flat-async', match: (id) => id.startsWith('qwen-image') }
-]
-
-export function resolveDmxapiFamily(modelId: string): DmxapiFamily {
-  return DMXAPI_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-flat'
 }
 
 /**
@@ -184,7 +151,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     if (normalized.size) parameters.size = normalized.size.replace(/x/i, '*')
     if (normalized.n && normalized.n > 1) parameters.n = normalized.n
     if (typeof normalized.seed === 'number') parameters.seed = normalized.seed
-    if (params.negative_prompt) parameters.negative_prompt = params.negative_prompt
+    if (params.negativePrompt) parameters.negative_prompt = params.negativePrompt
     if (params.promptExtend !== undefined) parameters.prompt_extend = params.promptExtend
     if (params.addWatermark !== undefined) parameters.watermark = params.addWatermark
 

@@ -6,6 +6,7 @@ import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatMcpError } from '@renderer/utils/error'
@@ -13,13 +14,14 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { CircleXIcon, SquareArrowOutUpRight } from 'lucide-react'
+import { CircleXIcon, ExternalLink } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
+import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 
 const logger = loggerService.withContext('McpServerCard')
@@ -30,7 +32,7 @@ interface McpServerCardProps {
 }
 
 const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
-  const { updateMcpServer, deleteMcpServer } = useMcpServerMutations(server.id)
+  const { updateMcpServer, removeMcpServer } = useMcpServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const runtimeStatus = useMcpRuntimeStatus(server.id, server.isActive)
@@ -44,7 +46,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const fetchServerVersion = useCallback(async (s: McpServer) => {
     if (!s.isActive) return
     try {
-      const v = await window.api.mcp.getServerVersion(s.id)
+      const v = await ipcApi.request('mcp.server.get_version', { serverId: s.id })
       setVersion(v)
     } catch {
       setVersion(null)
@@ -62,6 +64,15 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
+      if (active && isQVerisApiKeyMissing(server)) {
+        void popup.error({
+          title: t('settings.mcp.startError'),
+          content: <QVerisApiKeyGuide />,
+          centered: true
+        })
+        return
+      }
+
       let serverForUpdate = server
       if (active) {
         const trustedServer = await ensureServerTrusted(server)
@@ -76,7 +87,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           await updateMcpServer({ body: { isActive: true } })
           try {
             await fetchServerVersion({ ...serverForUpdate, isActive: true })
-            await window.api.mcp.refreshTools(serverForUpdate.id)
+            await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
           } catch (error: any) {
             void popup.error({
               title: t('settings.mcp.startError'),
@@ -86,7 +97,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           }
         } else {
           await updateMcpServer({ body: { isActive: false } })
-          await window.api.mcp.stopServer(serverForUpdate.id)
+          await ipcApi.request('mcp.server.stop', { serverId: serverForUpdate.id })
           setVersion(null)
         }
       } catch (error: any) {
@@ -111,13 +122,12 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       })
       if (!confirmed) return
 
-      await window.api.mcp.removeServer(server.id)
-      await deleteMcpServer({})
+      await removeMcpServer()
       toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
       toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
-  }, [server, deleteMcpServer, t])
+  }, [removeMcpServer, t])
 
   const handleOpenUrl = useCallback(
     (event: React.MouseEvent) => {
@@ -135,9 +145,9 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const getTypeBadgeClass = () => {
     switch (server.type) {
       case 'sse':
-        return 'bg-success/10 text-success'
+        return 'border-success-border bg-success-subtle text-success-subtle-foreground'
       case 'streamableHttp':
-        return 'bg-info/10 text-info'
+        return 'border-info-border bg-info-subtle text-info-subtle-foreground'
       default:
         return 'bg-muted text-muted-foreground'
     }
@@ -176,7 +186,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
                 fontFamily: 'monospace',
                 userSelect: 'text',
                 marginRight: 20,
-                color: 'var(--color-error-base)'
+                color: 'var(--error)'
               }}>
               {errorDetails}
             </div>
@@ -190,7 +200,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           showIcon
           type="error"
           style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
-          description={<div className="line-clamp-3 text-error-base text-xs leading-5">{errorDetails}</div>}
+          description={<div className="line-clamp-3 text-error text-xs leading-5">{errorDetails}</div>}
           onClick={onClickDetails}
           action={
             <div className="flex items-center gap-1">
@@ -243,7 +253,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
               className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
               onClick={handleOpenUrl}
               data-no-dnd>
-              <SquareArrowOutUpRight size={13} />
+              <ExternalLink size={13} />
             </Button>
           )}
         </SourceCell>
@@ -254,7 +264,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             key={server.id}
             disabled={isLoading}
             size="xs"
-            className="shadow-none data-[state=checked]:bg-success/85"
+            className="shadow-none data-[state=checked]:bg-success"
             onCheckedChange={handleToggleActive}
             data-no-dnd
           />
@@ -267,7 +277,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-0 py-1.5 text-sm transition-colors',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border-subtle border-b px-0 py-1.5 text-sm transition-colors',
       className
     )}
     {...props}
@@ -279,7 +289,7 @@ const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<
 )
 
 const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-bold text-[14px] leading-5', className)} {...props} />
+  <span className={cn('min-w-0 truncate text-[14px] leading-5', className)} {...props} />
 )
 
 const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
@@ -312,9 +322,9 @@ const ActiveDot = ({
   <div
     className={cn(
       'size-1.5 shrink-0 rounded-full',
-      $state === 'connected' && 'bg-success/85',
-      $state === 'connecting' && 'bg-warning/85',
-      $state === 'error' && 'bg-destructive/85',
+      $state === 'connected' && 'bg-success',
+      $state === 'connecting' && 'bg-warning',
+      $state === 'error' && 'bg-error',
       $state === 'disabled' && 'bg-muted-foreground/30',
       className
     )}
@@ -325,7 +335,7 @@ const ActiveDot = ({
 const MetaBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Badge>) => (
   <Badge
     variant="secondary"
-    className={cn('h-5 max-w-full rounded-md border-transparent px-2 font-medium text-[11px] leading-none', className)}
+    className={cn('h-5 max-w-full rounded-md border-transparent px-2 text-[11px] leading-none', className)}
     {...props}
   />
 )

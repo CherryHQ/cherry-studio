@@ -24,6 +24,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<object>()
 
@@ -38,7 +46,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
 }))
 
 vi.mock('../../components/FreeTrialModelTag', () => ({
@@ -140,8 +148,9 @@ describe('ModelListItem', () => {
     expect(onEdit).not.toHaveBeenCalled()
   })
 
-  it('disables the row delete button when deletion is disabled', () => {
+  it('disables row mutations while model checks are running', () => {
     const onDelete = vi.fn()
+    const onEdit = vi.fn()
 
     render(
       <ModelListItem
@@ -155,15 +164,19 @@ describe('ModelListItem', () => {
           } as any
         }
         disabled
-        onEdit={vi.fn()}
+        onEdit={onEdit}
         onDelete={onDelete}
       />
     )
 
+    const settingsButton = screen.getByLabelText('common.settings')
     const deleteButton = screen.getByLabelText('settings.models.manage.remove_model')
+    expect(settingsButton).toBeDisabled()
     expect(deleteButton).toBeDisabled()
 
+    fireEvent.click(settingsButton)
     fireEvent.click(deleteButton)
+    expect(onEdit).not.toHaveBeenCalled()
     expect(onDelete).not.toHaveBeenCalled()
   })
 

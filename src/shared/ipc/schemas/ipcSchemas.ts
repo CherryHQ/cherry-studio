@@ -1,17 +1,40 @@
 import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
-import { appRequestSchemas } from './app'
+import { type ApiGatewayEventSchemas, apiGatewayRequestSchemas } from './apiGateway'
+import { type AppEventSchemas, appRequestSchemas } from './app'
+import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
+import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
-import { fileRequestSchemas } from './file'
+import { citationRequestSchemas } from './citation'
+import { codeCliRequestSchemas } from './codeCli'
+import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
+import { diagnosticsRequestSchemas } from './diagnostics'
+import { exportRequestSchemas } from './export'
+import { externalAppRequestSchemas } from './externalApp'
+import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
-import { navigationRequestSchemas } from './navigation'
+import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
+import { miniAppRequestSchemas } from './miniApp'
+import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
+import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
+import { openclawRequestSchemas } from './openclaw'
+import { ovmsRequestSchemas } from './ovms'
 import { printRequestSchemas } from './print'
+import { profileRequestSchemas } from './profile'
+import { providerRequestSchemas } from './provider'
+import { type QuickAssistantEventSchemas, quickAssistantRequestSchemas } from './quickAssistant'
+import { type ScreenshotEventSchemas, screenshotRequestSchemas } from './screenshot'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
+import { skillRequestSchemas } from './skill'
+import { type SystemEventSchemas, systemRequestSchemas } from './system'
+import { type TabEventSchemas, tabRequestSchemas } from './tab'
+import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
 import { webSearchRequestSchemas } from './webSearch'
+import { webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
@@ -23,23 +46,46 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  */
 export const ipcRequestSchemas = {
   ...aiRequestSchemas,
+  ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
+  ...backupRequestSchemas,
   ...binaryRequestSchemas,
+  ...channelRequestSchemas,
   ...cherryinRequestSchemas,
+  ...citationRequestSchemas,
+  ...codeCliRequestSchemas,
+  ...deepSeekHarnessRequestSchemas,
+  ...diagnosticsRequestSchemas,
+  ...exportRequestSchemas,
+  ...externalAppRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
   ...localModelRequestSchemas,
+  ...mcpRequestSchemas,
+  ...miniAppRequestSchemas,
   ...navigationRequestSchemas,
+  ...notificationRequestSchemas,
   ...oauthRequestSchemas,
+  ...openclawRequestSchemas,
+  ...ovmsRequestSchemas,
   ...printRequestSchemas,
+  ...profileRequestSchemas,
+  ...providerRequestSchemas,
+  ...quickAssistantRequestSchemas,
+  ...screenshotRequestSchemas,
   ...selectionRequestSchemas,
+  ...skillRequestSchemas,
+  ...systemRequestSchemas,
+  ...tabRequestSchemas,
+  ...translateRequestSchemas,
   ...webSearchRequestSchemas,
+  ...webviewRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>
 
 export type IpcRequestSchemas = typeof ipcRequestSchemas
-/** Union of all declared request routes (`never` until a domain is migrated). */
+/** Union of all declared request routes. */
 export type IpcRoute = keyof IpcRequestSchemas
 
 /**
@@ -48,10 +94,23 @@ export type IpcRoute = keyof IpcRequestSchemas
  * its own `*EventSchemas` type here.
  */
 export type IpcEventSchemas = AiEventSchemas &
+  ApiGatewayEventSchemas &
+  AppEventSchemas &
+  BackupEventSchemas &
   BinaryEventSchemas &
+  ChannelEventSchemas &
+  FileEventSchemas &
   LocalModelEventSchemas &
+  McpEventSchemas &
+  NavigationEventSchemas &
+  NotificationEventSchemas &
   OAuthEventSchemas &
+  QuickAssistantEventSchemas &
+  ScreenshotEventSchemas &
   SelectionEventSchemas &
+  SystemEventSchemas &
+  TabEventSchemas &
+  TranslateEventSchemas &
   WindowEventSchemas
-/** Union of all declared event names (`never` until a domain is migrated). */
+/** Union of all declared event names. */
 export type IpcEventName = keyof IpcEventSchemas

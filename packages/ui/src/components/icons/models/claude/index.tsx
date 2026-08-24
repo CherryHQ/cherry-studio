@@ -9,7 +9,7 @@ const Claude = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const ClaudeIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Claude, {
   Avatar: ClaudeAvatar,
-  colorPrimary: '#d97757'
+  colorPrimary: '#D97757'
 })
 
 export default ClaudeIcon

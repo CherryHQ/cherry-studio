@@ -18,7 +18,7 @@ const densityClassNames: Record<ToolbarDensity, string> = {
 
 const variantClassNames: Record<ToolbarVariant, string> = {
   plain: '',
-  surface: 'border-border/60 border-b bg-background'
+  surface: 'border-border-subtle border-b bg-background'
 }
 
 export function Toolbar({

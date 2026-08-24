@@ -1,6 +1,17 @@
 export { agentAdapter, useAgentMutations, useAgentMutationsById } from './agentAdapter'
-export { assistantAdapter, useAssistantMutations, useAssistantMutationsById } from './assistantAdapter'
-export { promptAdapter, usePromptMutations, usePromptMutationsById } from './promptAdapter'
+export {
+  assistantAdapter,
+  useAssistantMutations,
+  useAssistantMutationsById,
+  useImportAssistantMutation
+} from './assistantAdapter'
+export {
+  promptAdapter,
+  usePromptBindingMutations,
+  usePromptMutations,
+  usePromptMutationsById,
+  usePromptTargetMutations
+} from './promptAdapter'
 export { skillAdapter, useSkillMutationsById } from './skillAdapter'
 export type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 export { useResourceCatalogController } from './useResourceCatalogController'

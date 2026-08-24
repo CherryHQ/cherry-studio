@@ -27,6 +27,8 @@ import type {
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
+import { installCacheApiMock } from './testUtils'
+
 // Undo the global mocks from renderer.setup.ts — the functional-updater tests
 // need the real wiring so the hook setter and our assertions read/write the same
 // single store. (The type-only suites below don't touch these modules at runtime.)
@@ -44,7 +46,7 @@ describe('Template Key Type Utilities', () => {
     })
 
     it('should detect fixed keys as false', () => {
-      const fixedResult1: IsTemplateKey<'app.user.avatar'> = false
+      const fixedResult1: IsTemplateKey<'app.path.resources'> = false
       const fixedResult2: IsTemplateKey<'chat.web_search.searching'> = false
       expect(fixedResult1).toBe(false)
       expect(fixedResult2).toBe(false)
@@ -70,9 +72,9 @@ describe('Template Key Type Utilities', () => {
     })
 
     it('should leave fixed keys unchanged', () => {
-      type Expanded = ExpandTemplateKey<'app.user.avatar'>
-      const key: Expanded = 'app.user.avatar'
-      expect(key).toBe('app.user.avatar')
+      type Expanded = ExpandTemplateKey<'app.path.resources'>
+      const key: Expanded = 'app.path.resources'
+      expect(key).toBe('app.path.resources')
     })
   })
 
@@ -84,17 +86,17 @@ describe('Template Key Type Utilities', () => {
     })
 
     it('should keep fixed keys unchanged', () => {
-      type Processed = ProcessKey<'app.user.avatar'>
-      const key: Processed = 'app.user.avatar'
-      expect(key).toBe('app.user.avatar')
+      type Processed = ProcessKey<'app.path.resources'>
+      const key: Processed = 'app.path.resources'
+      expect(key).toBe('app.path.resources')
     })
   })
 
   describe('UseCacheKey', () => {
     it('should include fixed keys', () => {
-      const key1: UseCacheKey = 'app.user.avatar'
+      const key1: UseCacheKey = 'app.path.resources'
       const key2: UseCacheKey = 'chat.web_search.searching'
-      expect(key1).toBe('app.user.avatar')
+      expect(key1).toBe('app.path.resources')
       expect(key2).toBe('chat.web_search.searching')
     })
 
@@ -111,7 +113,7 @@ describe('Template Key Type Utilities', () => {
   describe('InferUseCacheValue', () => {
     it('should infer value type for fixed keys', () => {
       // These type assertions verify the type system works
-      const avatarType: InferUseCacheValue<'app.user.avatar'> = 'test'
+      const avatarType: InferUseCacheValue<'app.path.resources'> = 'test'
       const generatingType: InferUseCacheValue<'chat.web_search.searching'> = true
       expectTypeOf(avatarType).toBeString()
       expectTypeOf(generatingType).toBeBoolean()
@@ -134,7 +136,7 @@ describe('Template Key Type Utilities', () => {
   describe('UseCacheCasualKey', () => {
     it('should block fixed schema keys', () => {
       // Fixed keys should resolve to never
-      type BlockedFixed = UseCacheCasualKey<'app.user.avatar'>
+      type BlockedFixed = UseCacheCasualKey<'app.path.resources'>
       expectTypeOf<BlockedFixed>().toBeNever()
     })
 
@@ -158,7 +160,7 @@ describe('Template Key Type Utilities', () => {
 
       expect(isTemplate('scroll.position.${id}')).toBe(true)
       expect(isTemplate('entity.cache.${type}_${id}')).toBe(true)
-      expect(isTemplate('app.user.avatar')).toBe(false)
+      expect(isTemplate('app.path.resources')).toBe(false)
       expect(isTemplate('chat.web_search.searching')).toBe(false)
     })
   })
@@ -205,16 +207,7 @@ describe('functional updater (runtime)', () => {
   beforeEach(() => {
     // CacheService best-effort broadcasts cross-window sync through window.api.cache;
     // stub it so the in-process Map operations we assert on run without warnings.
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        cache: {
-          broadcastSync: vi.fn(),
-          onSync: vi.fn(),
-          getAllShared: vi.fn(async () => ({}))
-        }
-      }
-    })
+    installCacheApiMock()
 
     // Reset the singleton keys these suites touch (state persists across tests).
     cacheService.set('chat.selected_message_ids', [])
@@ -309,6 +302,52 @@ describe('functional updater (runtime)', () => {
         result.current[1](['🔥'])
       })
       expect(cacheService.getPersist('ui.emoji.recently_used')).toEqual(['🔥'])
+    })
+  })
+
+  // The pair below is what lets a write-only call site drop the hook: the updater
+  // reads the latest persisted value at WRITE time, so nothing about the write needs
+  // a subscription — and the subscription is exactly what rerenders consumers that
+  // never read the value.
+  describe('persist tier (imperative setPersist)', () => {
+    it('resolves the updater against the latest persisted value', () => {
+      cacheService.setPersist('ui.emoji.recently_used', ['😀'])
+
+      // A concurrent write lands between the caller's last read and its own write.
+      cacheService.setPersist('ui.emoji.recently_used', ['😀', '🎉'])
+      cacheService.setPersist('ui.emoji.recently_used', (prev) => ['🔥', ...prev])
+
+      expect(cacheService.getPersist('ui.emoji.recently_used')).toEqual(['🔥', '😀', '🎉'])
+    })
+
+    it('does not rerender a consumer that only holds the setter', () => {
+      let viaHookRenders = 0
+      let imperativeRenders = 0
+
+      // The shape write-only call sites must avoid: a hook taken purely for its
+      // setter still registers useSyncExternalStore, so any write rerenders it.
+      renderHook(() => {
+        viaHookRenders++
+        return usePersistCache('ui.emoji.recently_used')[1]
+      })
+      // The shape it was replaced with: the setter lives on cacheService, so the
+      // consumer holds no subscription at all.
+      renderHook(() => {
+        imperativeRenders++
+        return (next: string[]) => cacheService.setPersist('ui.emoji.recently_used', next)
+      })
+
+      const viaHookBaseline = viaHookRenders
+      const imperativeBaseline = imperativeRenders
+
+      act(() => {
+        cacheService.setPersist('ui.emoji.recently_used', ['🎉'])
+      })
+
+      expect(imperativeRenders).toBe(imperativeBaseline)
+      // Control group: without it the assertion above would hold vacuously — this
+      // proves the write really was observable to a subscriber.
+      expect(viaHookRenders).toBe(viaHookBaseline + 1)
     })
   })
 })

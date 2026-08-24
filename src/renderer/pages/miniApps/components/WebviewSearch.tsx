@@ -13,17 +13,27 @@ interface WebviewSearchProps {
   webviewRef: React.RefObject<WebviewTag | null>
   isWebviewReady: boolean
   appId: string
+  /**
+   * Whether this instance answers the host window's Find shortcut. In split
+   * view every pane mounts one of these, and the host `keydown` listener is
+   * global — without a gate, one Ctrl/Cmd+F opens every pane's search at once.
+   * Keys replayed from a guest route by target instead, so they ignore this.
+   */
+  hostShortcutEnabled?: boolean
 }
 
 const logger = loggerService.withContext('WebviewSearch')
 
-const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId }) => {
+const OVERLAY_SELECTOR = '[data-webview-search-overlay]'
+
+const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId, hostShortcutEnabled = true }) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const [query, setQuery] = useState('')
   const [matchCount, setMatchCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
   const attachedWebviewRef = useRef<WebviewTag | null>(null)
@@ -181,54 +191,6 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   }, [activeWebview, handleFoundInPage, stopFindOnWebview])
 
   useEffect(() => {
-    if (!activeWebview) return
-    if (!isWebviewReady) return
-    const onFindShortcut = window.api?.webview?.onFindShortcut
-    if (!onFindShortcut) return
-
-    let webContentsId: number | undefined
-    try {
-      webContentsId = activeWebview.getWebContentsId?.()
-    } catch (error) {
-      logger.debug('WebviewSearch: getWebContentsId failed', { appId, error })
-      return
-    }
-
-    if (!webContentsId) {
-      logger.warn('WebviewSearch: missing webContentsId', { appId })
-      return
-    }
-
-    const unsubscribe = onFindShortcut(({ webviewId, key, control, meta, shift }) => {
-      if (webviewId !== webContentsId) return
-
-      if ((control || meta) && key === 'f') {
-        openSearch()
-        return
-      }
-
-      if (!isVisible) return
-
-      if (key === 'escape') {
-        closeSearch()
-        return
-      }
-
-      if (key === 'enter') {
-        if (shift) {
-          goToPrevious()
-        } else {
-          goToNext()
-        }
-      }
-    })
-
-    return () => {
-      unsubscribe?.()
-    }
-  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, isWebviewReady, openSearch])
-
-  useEffect(() => {
     if (!isVisible) return
     focusInput()
   }, [focusInput, isVisible])
@@ -244,13 +206,30 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
+      // A key replayed from a MiniApp guest carries its `<webview>` as target, which
+      // names the pane it belongs to. Host keys have no such owner and fall through
+      // to the ownership rules below.
+      const guestTarget = event.target instanceof Element && event.target.tagName === 'WEBVIEW' ? event.target : null
+      if (guestTarget && guestTarget !== webviewRef.current) return
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        // Only the pane that owns the shortcut opens; the others must not, or
+        // one keypress opens every mounted pane's search overlay.
+        if (!guestTarget && !hostShortcutEnabled) return
         event.preventDefault()
         openSearch()
         return
       }
 
       if (!isVisible) return
+
+      // A lone overlay is unambiguously the target and always answers; with
+      // rivals, focus decides, and pane ownership only when none holds it.
+      const active = document.activeElement
+      const ownsFocus = overlayRef.current?.contains(active) ?? false
+      const overlayFocused = active instanceof Element && active.closest(OVERLAY_SELECTOR) !== null
+      const hasRival = document.querySelectorAll(OVERLAY_SELECTOR).length > 1
+      if (!guestTarget && hasRival && (overlayFocused ? !ownsFocus : !hostShortcutEnabled)) return
 
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -272,7 +251,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     return () => {
       window.removeEventListener('keydown', handleKeydown, true)
     }
-  }, [closeSearch, goToNext, goToPrevious, isVisible, openSearch])
+  }, [closeSearch, goToNext, goToPrevious, hostShortcutEnabled, isVisible, openSearch, webviewRef])
 
   useEffect(() => {
     if (!isWebviewReady) {
@@ -311,7 +290,10 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const disableNavigation = !query || matchCount === 0
 
   return (
-    <div className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
+    <div
+      ref={overlayRef}
+      data-webview-search-overlay=""
+      className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
       <Input
         ref={inputRef}
         autoFocus
@@ -322,7 +304,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         className="h-8 w-60 border-0 bg-transparent px-2 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
       />
       <span
-        className="min-w-11 text-center text-foreground-secondary text-sm tabular-nums"
+        className="min-w-11 text-center text-muted-foreground text-sm tabular-nums"
         title={noResultTitle}
         role="status"
         aria-live="polite"
@@ -337,7 +319,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onClick={goToPrevious}
         disabled={disableNavigation}
         aria-label={t('common.previous_match')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <ChevronUp size={16} />
       </Button>
       <Button
@@ -347,7 +329,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onClick={goToNext}
         disabled={disableNavigation}
         aria-label={t('common.next_match')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <ChevronDown size={16} />
       </Button>
       <div className="h-4 w-px bg-border" />
@@ -357,7 +339,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         size="icon-sm"
         onClick={closeSearch}
         aria-label={t('common.close')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <X size={16} />
       </Button>
     </div>

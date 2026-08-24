@@ -1,6 +1,7 @@
 # Logs
 logs
-*.log*
+*.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -41,6 +42,7 @@ stats.html
 .eslintcache
 # Downloaded native binaries (mise, etc.)
 resources/binaries/
+scripts/linux-native/prebuilt/
 
 # ENV
 .env
@@ -65,6 +67,9 @@ local
 !.zed/settings.json.example
 CLAUDE.local.md
 AGENTS.override.md
+
+# Local Electron development
+.context/cherry-electron-dev/
 
 # vitest
 coverage

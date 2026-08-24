@@ -6,18 +6,20 @@
  * `disallowedTools`, so the live gate and the fresh-connection block stay consistent.
  */
 
+import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import {
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
-  CHERRY_BUILTIN_MCP_SERVER,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
-import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+  findBuiltinToolPolicy,
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from '@main/ai/toolApproval/builtinToolPolicy'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { KB_MANAGE_TOOL_NAME, TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getMcpServerById: vi.fn(),
+  findMcpServer: vi.fn(),
   applicationGet: vi.fn(),
   listMcpTools: vi.fn()
 }))
@@ -28,7 +30,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { getById: mocks.getMcpServerById } }))
+vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { findByIdOrName: mocks.findMcpServer } }))
 
 vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
 
@@ -51,7 +53,7 @@ function createDeferred<T>() {
 describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getMcpServerById.mockReturnValue({ id: 'mcp-1', name: 'server' })
+    mocks.findMcpServer.mockReturnValue({ id: 'mcp-1', name: 'server' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
       throw new Error(`Unexpected application.get(${name})`)
@@ -105,6 +107,52 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
       id: 'mcp__server__searchDocs',
       name: 'search_docs'
     })
+  })
+
+  it('resolves an MCP entry referenced by server name, not only by id', async () => {
+    // `agent.mcps` may hold a server name; findByIdOrName resolves it where the old getById(id) threw.
+    // The arg-sensitive mock (returns undefined for anything but the name) proves the name is passed through.
+    mocks.findMcpServer.mockImplementation((idOrName: string) =>
+      idOrName === 'server' ? { id: 'mcp-1', name: 'server' } : undefined
+    )
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['server']))
+
+    expect(mocks.findMcpServer).toHaveBeenCalledWith('server')
+    expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({ name: 'search_docs' })
+  })
+
+  it('drops a server that becomes unknown on a later update instead of carrying it forward', async () => {
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
+    expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({ name: 'search_docs' })
+
+    // Server deleted → resolver returns undefined. Unlike a transient listTools failure, a genuinely
+    // missing server must drop its descriptor, not resurrect it via the carry-forward path.
+    mocks.findMcpServer.mockReturnValue(undefined)
+    await snapshot.update(makeAgent([], ['mcp-1']))
+
+    expect(snapshot.resolve('mcp__server__searchDocs')).toBeUndefined()
+  })
+
+  it('preserves prior descriptors of a name-referenced server on a transient failure', async () => {
+    // agent.mcps holds the server NAME; failedMcpIds must be keyed by the resolved server.id so the
+    // carry-forward (which matches against prior descriptors' sourceId = server.id) still fires.
+    mocks.findMcpServer.mockImplementation((idOrName: string) =>
+      idOrName === 'docs' ? { id: 'mcp-1', name: 'docs' } : undefined
+    )
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['docs']))
+    expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
+
+    // Transient catalog failure on the same (name-referenced) server must not drop its descriptor.
+    mocks.listMcpTools.mockImplementationOnce(() => {
+      throw new Error('catalog unavailable')
+    })
+    await snapshot.update(makeAgent([], ['docs']))
+
+    expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
   })
 
   it('keeps the newest policy when an older rebuild completes late', async () => {
@@ -187,37 +235,59 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     mocks.listMcpTools.mockReturnValue([])
   })
 
-  // Drive the snapshot with the SAME values settingsBuilder.buildToolPermissions wires in production:
-  // the cherry-tools auto-allow prefix plus the approval exceptions derived from the shared constant.
-  // The literal-string tests above stay green even if these constants are emptied or .map() drifts;
-  // these fail the moment the real gate stops carving the mutating tools out.
-  const PREFIX = `mcp__${CHERRY_BUILTIN_MCP_SERVER}__`
+  const CHERRY_ONLY_SERVERS: ReadonlySet<string> = new Set(['cherry-tools'])
+  const HOST_SERVERS: ReadonlySet<string> = new Set(['assistant', 'assistant-files'])
+  // Drive the snapshot with the same derived values settingsBuilder supplies in production.
+  const cherryPolicies = listBuiltinToolPolicies({ mountedServers: CHERRY_ONLY_SERVERS }).filter(
+    (entry) => entry.serverName === 'cherry-tools'
+  )
+  const autoApprovedRuntimeNames = cherryPolicies.filter((entry) => entry.approval === 'auto').map(toMcpRuntimeName)
+  const approvalRequiredRuntimeNames = cherryPolicies
+    .filter((entry) => entry.approval === 'required')
+    .map(toMcpRuntimeName)
   const productionOptions = {
-    autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    autoAllowRuntimeNames: autoApprovedRuntimeNames,
     autoAllowRuntimeNamePrefixes: [],
-    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    autoAllowRuntimeNameExceptions: approvalRequiredRuntimeNames
   }
 
-  it('keeps kb_manage approval-gated and the two policy sets disjoint', () => {
-    // Catches the gate being undone: kb_manage dropped from approval-required, or added to
-    // auto-approved, or the two sets overlapping. (It cannot catch a brand-new mutating tool added
-    // only to auto-approved — nothing marks a tool as mutating — that is the human reviewer's job.)
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(KB_MANAGE_TOOL_NAME)
-    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(KB_MANAGE_TOOL_NAME)
-    const autoApproved = new Set<string>(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES)
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
-    // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
-    expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
+  it('keeps mutating and read-only Cherry tools classified on their own entries', () => {
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME), CHERRY_ONLY_SERVERS)?.approval).toBe(
+      'required'
+    )
+    expect(
+      findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_INSTALL_TOOL_NAME), CHERRY_ONLY_SERVERS)?.approval
+    ).toBe('required')
+    expect(
+      findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_CREATE_TOOL_NAME), CHERRY_ONLY_SERVERS)
+    ).toMatchObject({
+      approval: 'required',
+      bypassApproval: 'enforce'
+    })
+    for (const name of [CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, TO_MARKDOWN_TOOL_NAME]) {
+      expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(name), CHERRY_ONLY_SERVERS)?.approval).toBe('auto')
+    }
   })
 
-  it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {
+  it('keeps Assistant read-only and sensitive tools classified on their own entries', () => {
+    expect(findBuiltinToolPolicy('mcp__assistant__navigate', HOST_SERVERS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__assistant__product_info', HOST_SERVERS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', HOST_SERVERS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant__apply_setting', HOST_SERVERS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant__create_agent', HOST_SERVERS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant-files__read_file', HOST_SERVERS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__assistant-files__move_to_trash', HOST_SERVERS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant-files__save_attachment', HOST_SERVERS)?.approval).toBe('required')
+  })
+
+  it('applies every derived Cherry policy entry under the real wiring', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
 
-    for (const name of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES) {
-      expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'prompt' })
+    for (const runtimeName of approvalRequiredRuntimeNames) {
+      expect(snapshot.resolve(runtimeName)).toMatchObject({ approval: 'prompt' })
     }
-    for (const name of CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES) {
-      expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'auto' })
+    for (const runtimeName of autoApprovedRuntimeNames) {
+      expect(snapshot.resolve(runtimeName)).toMatchObject({ approval: 'auto' })
     }
   })
 

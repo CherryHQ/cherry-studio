@@ -37,6 +37,10 @@ export interface ClaudeToolDescriptorDef {
   dependsOn?: readonly string[]
   /** Set for in-process MCP tools — the server hosting this tool (drives injection). */
   mcpServer?: 'cherry-tools' | 'agent-memory' | 'skills'
+  /** Tool is unavailable unless the agent has at least one bound knowledge base. */
+  requiresKnowledgeScope?: true
+  /** The tool cannot complete meaningfully without a live user's response. */
+  requiresUserInteraction?: true
 }
 
 /**
@@ -127,20 +131,23 @@ const CLAUDE_TOOL_REGISTRY = {
     name: 'ExitPlanMode',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Exits plan mode and presents the plan'
+    description: 'Exits plan mode and presents the plan',
+    requiresUserInteraction: true
   },
   EnterPlanMode: {
     name: 'EnterPlanMode',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Enters plan mode'
+    description: 'Enters plan mode',
+    requiresUserInteraction: true
   },
   // Condition-gated (workspace has .git) — see toolConditions.ts in main.
   EnterWorktree: {
     name: 'EnterWorktree',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Switches into a git worktree'
+    description: 'Switches into a git worktree',
+    requiresUserInteraction: true
   },
   ExitWorktree: {
     name: 'ExitWorktree',
@@ -152,7 +159,8 @@ const CLAUDE_TOOL_REGISTRY = {
     name: 'AskUserQuestion',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Asks the user a structured question'
+    description: 'Asks the user a structured question',
+    requiresUserInteraction: true
   },
   // Meta tool surfaced via ENABLE_TOOL_SEARCH; not a member of the SDK tool union.
   ToolSearch: {
@@ -278,7 +286,8 @@ const CLAUDE_TOOL_REGISTRY = {
     category: 'context',
     exposure: 'user',
     description: 'Searches your knowledge bases',
-    mcpServer: 'cherry-tools'
+    mcpServer: 'cherry-tools',
+    requiresKnowledgeScope: true
   },
   // Lists the bases, or outlines one base's structure when given a baseId. No separate toggle, but it
   // follows the visible "Knowledge Search" toggle (dependsOn kb_search): disabling search also revokes
@@ -289,7 +298,8 @@ const CLAUDE_TOOL_REGISTRY = {
     exposure: 'internal',
     description: 'Lists your knowledge bases, or outlines one base’s structure',
     dependsOn: ['mcp__cherry-tools__kb_search'],
-    mcpServer: 'cherry-tools'
+    mcpServer: 'cherry-tools',
+    requiresKnowledgeScope: true
   },
   // Deep-read tool (infrastructure the agent reaches for after a search) — internal, no separate
   // toggle. It returns whole documents (more than kb_search's chunks), so it follows the visible
@@ -300,7 +310,8 @@ const CLAUDE_TOOL_REGISTRY = {
     exposure: 'internal',
     description: 'Reads a knowledge base document, or greps within it',
     dependsOn: ['mcp__cherry-tools__kb_search'],
-    mcpServer: 'cherry-tools'
+    mcpServer: 'cherry-tools',
+    requiresKnowledgeScope: true
   },
   // The one mutating KB tool (add/delete/refresh sources) — exposed as its own toggle so the user
   // can see and disable write access; it still requires per-call approval at runtime.
@@ -309,6 +320,17 @@ const CLAUDE_TOOL_REGISTRY = {
     category: 'context',
     exposure: 'user',
     description: 'Adds, deletes, or refreshes knowledge base documents',
+    mcpServer: 'cherry-tools',
+    requiresKnowledgeScope: true
+  },
+  // Converts a local document (pdf/office/epub/csv/…) the ordinary text tools cannot read. Its own
+  // toggle because it reads local files outside the workspace, so disabling Read must not leave a
+  // second, unrelated door open.
+  CherryToMarkdown: {
+    name: 'mcp__cherry-tools__to_markdown',
+    category: 'file',
+    exposure: 'user',
+    description: 'Markdown is easier for the agent to read',
     mcpServer: 'cherry-tools'
   },
   // agent autonomy / channels (hosted by cherry-tools). notify needs a connected channel to do anything.
@@ -336,6 +358,15 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Inspects and manages this agent configuration and channels',
     mcpServer: 'cherry-tools'
   },
+  // media (image generation). Hosted by cherry-tools; requires per-call approval and returns a
+  // "configure a painting model" note at runtime when none is set (see builtinToolPolicy.ts).
+  CherryGenerateImage: {
+    name: 'mcp__cherry-tools__generate_image',
+    category: 'media',
+    exposure: 'user',
+    description: 'Generates an image from a text prompt using your configured painting model',
+    mcpServer: 'cherry-tools'
+  },
   // agent-memory (cross-session memory)
   AgentMemory: {
     name: 'mcp__agent-memory__memory',
@@ -344,12 +375,19 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Stores and recalls cross-session memory',
     mcpServer: 'agent-memory'
   },
-  // skills (marketplace + authoring)
-  Skills: {
-    name: 'mcp__skills__skills',
+  // skills (marketplace discovery + install)
+  SearchSkills: {
+    name: 'mcp__skills__search_skills',
     category: 'context',
     exposure: 'internal',
-    description: 'Searches, installs, and authors skills',
+    description: 'Searches the skill marketplace',
+    mcpServer: 'skills'
+  },
+  InstallSkill: {
+    name: 'mcp__skills__install_skill',
+    category: 'context',
+    exposure: 'internal',
+    description: 'Installs a marketplace skill into the library',
     mcpServer: 'skills'
   }
 } as const satisfies Record<string, ClaudeToolDescriptorDef>
@@ -358,8 +396,24 @@ export type ClaudeToolKey = keyof typeof CLAUDE_TOOL_REGISTRY
 
 export const CLAUDE_TOOL_DEFS: readonly ClaudeToolDescriptorDef[] = Object.values(CLAUDE_TOOL_REGISTRY)
 
+const CLAUDE_TOOL_DEF_BY_NAME = new Map(CLAUDE_TOOL_DEFS.map((def) => [def.name, def]))
+
+/** Intrinsic tool capability used by the runtime's headless guard; no parallel name list. */
+export function claudeToolRequiresUserInteraction(toolName: string): boolean {
+  return CLAUDE_TOOL_DEF_BY_NAME.get(toolName)?.requiresUserInteraction === true
+}
+
 /** A tool is an in-process MCP tool iff it declares a hosting server. */
 export const isMcpTool = (def: ClaudeToolDescriptorDef): boolean => def.mcpServer !== undefined
+
+/**
+ * MCP wire names of the in-process knowledge-base tools (kb_search / kb_read / kb_list /
+ * kb_manage). The edit-dialog catalog uses this set; cherryKnowledgeTools maintains the
+ * corresponding bare runtime names, with a drift test keeping the two surfaces aligned.
+ */
+export const CLAUDE_KNOWLEDGE_TOOL_NAMES: ReadonlySet<string> = new Set(
+  CLAUDE_TOOL_DEFS.filter((def) => def.requiresKnowledgeScope).map((def) => def.name)
+)
 
 /**
  * Descriptors for the canUseTool / catalog policy layer: every non-disabled SDK tool.
@@ -400,10 +454,12 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__web_fetch': 'Web Fetch',
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
   'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
+  'mcp__cherry-tools__to_markdown': 'File to Markdown',
   'mcp__agent-memory__memory': 'Memory',
   'mcp__cherry-tools__cron': 'Scheduler',
   'mcp__cherry-tools__notify': 'Notify',
-  'mcp__cherry-tools__config': 'Configuration'
+  'mcp__cherry-tools__config': 'Configuration',
+  'mcp__cherry-tools__generate_image': 'Generate Image'
 }
 
 /**

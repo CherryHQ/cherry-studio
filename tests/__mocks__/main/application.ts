@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
+import { MockMainFileManagerExport } from './FileManager'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
 /**
@@ -48,6 +49,8 @@ const mockWindowManager = {
   getWindowIdByWebContents: vi.fn(() => undefined),
   open: vi.fn(() => 'mock-window-id'),
   close: vi.fn(() => true),
+  suspendPool: vi.fn(() => 0),
+  resumePool: vi.fn(),
   show: vi.fn(() => true),
   hide: vi.fn(() => true),
   focus: vi.fn(() => true),
@@ -59,12 +62,20 @@ const mockWindowManager = {
 
 /**
  * Minimal IpcApiService mock — services push main→renderer events via
- * `application.get('IpcApiService').send(windowId, event, payload)` (directed) or
- * `.broadcast(event, payload)` (all windows). Tests can assert on these spies.
+ * `application.get('IpcApiService').send(windowId, event, payload)` (directed),
+ * `.broadcast(event, payload)` (all windows), or
+ * `.broadcastToType(windowType, event, payload)` (one window type). Tests can assert on these spies.
  */
 const mockIpcApiService = {
   send: vi.fn(),
-  broadcast: vi.fn()
+  broadcast: vi.fn(),
+  broadcastToType: vi.fn()
+}
+
+/** Minimal JobManager mock for handler registration and startup enqueues. */
+export const mockJobManager = {
+  registerHandler: vi.fn(),
+  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
 
 /** Default service instances from existing mock files */
@@ -73,9 +84,11 @@ export const defaultServiceInstances = {
   CacheService: MockMainCacheServiceExport.cacheService,
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
+  FileManager: MockMainFileManagerExport.fileManager,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
-  IpcApiService: mockIpcApiService
+  IpcApiService: mockIpcApiService,
+  JobManager: mockJobManager
 } as const
 
 /** Type for per-service overrides */
@@ -100,6 +113,16 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }
+    // Mirror real ServiceContainer semantics: every default mock service is
+    // non-conditional, so getOptional() on it THROWS (catches code that
+    // wrongly "falls back" from get() to getOptional() for regular services);
+    // unknown names return undefined, like an excluded/unregistered service.
+    getOptional(name: string) {
+      if (name in serviceInstances) {
+        throw new Error(`[ServiceContainer] Service '${name}' is not conditional — use get('${name}').`)
+      }
+      return undefined
+    }
     has(name: string) {
       return name in serviceInstances
     }
@@ -110,6 +133,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
 
   return {
     get: vi.fn((name: string) => container.get(name)),
+    getOptional: vi.fn((name: string) => container.getOptional(name)),
     getContainer: vi.fn(() => container),
     // Deterministic stub for path lookups — returns "/mock/<key>" (or
     // "/mock/<key>/<filename>") so tests that instantiate services with
@@ -121,6 +145,9 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    relaunch: vi.fn(),
+    forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.

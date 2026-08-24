@@ -8,21 +8,20 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import { getBackupProgressLabelKey } from '@renderer/i18n/label'
-import { backup, backupToLanTransfer } from '@renderer/services/BackupService'
+import { backup } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('BackupPopup')
-
 interface OwnProps {
-  backupType?: 'direct' | 'lan-transfer'
+  forceFullBackup?: boolean
 }
 
-type Props = OwnProps & PopupInjectedProps<any>
+type Props = OwnProps & PopupInjectedProps<void>
 
 type ProgressStageType = 'preparing' | 'copying_database' | 'copying_files' | 'compressing' | 'completed'
 
@@ -32,8 +31,9 @@ interface ProgressData {
   total: number
 }
 
-const PopupContainer: React.FC<Props> = ({ backupType = 'direct', open, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, open, resolve }) => {
   const [progressData, setProgressData] = useState<ProgressData>()
+  const [submitting, setSubmitting] = useState(false)
   const { t } = useTranslation()
   const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
 
@@ -48,18 +48,19 @@ const PopupContainer: React.FC<Props> = ({ backupType = 'direct', open, resolve 
   }, [])
 
   const onOk = async () => {
-    logger.debug(`skipBackupFile: ${skipBackupFile}, backupType: ${backupType}`)
-
-    if (backupType === 'lan-transfer') {
-      await backupToLanTransfer()
-    } else {
-      await backup(skipBackupFile)
+    setSubmitting(true)
+    try {
+      await backup(forceFullBackup ? false : skipBackupFile)
+      resolve()
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error))
+      setProgressData(undefined)
+      setSubmitting(false)
     }
-    resolve({})
   }
 
   const onCancel = () => {
-    resolve({})
+    resolve()
   }
 
   const getProgressText = () => {
@@ -73,12 +74,11 @@ const PopupContainer: React.FC<Props> = ({ backupType = 'direct', open, resolve 
     return t(getBackupProgressLabelKey(progressData.stage))
   }
 
-  const isDisabled = progressData ? progressData.stage !== 'completed' : false
-  const isLanTransferMode = backupType === 'lan-transfer'
+  const isDisabled = submitting || (progressData ? progressData.stage !== 'completed' : false)
 
-  const title = isLanTransferMode ? t('settings.data.export_to_phone.file.title') : t('backup.title')
-  const okText = isLanTransferMode ? t('settings.data.export_to_phone.file.button') : t('backup.confirm.button')
-  const content = isLanTransferMode ? t('settings.data.export_to_phone.file.content') : t('backup.content')
+  const title = t('backup.title')
+  const okText = t('backup.confirm.button')
+  const content = t('backup.content')
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
@@ -115,15 +115,6 @@ const PopupContainer: React.FC<Props> = ({ backupType = 'direct', open, resolve 
   )
 }
 
-const BackupPopupImpl = createPopup<OwnProps, any>(PopupContainer, { dismissResult: {} })
-
-/**
- * Preserve the legacy positional `show(backupType)` API — call sites pass
- * `'lan-transfer'` or nothing — on top of createPopup's props-object handle.
- */
-const BackupPopup = {
-  show: (backupType: 'direct' | 'lan-transfer' = 'direct'): Promise<any> => BackupPopupImpl.show({ backupType }),
-  hide: (): void => BackupPopupImpl.hide()
-}
+const BackupPopup = createPopup<OwnProps, void>(PopupContainer)
 
 export default BackupPopup

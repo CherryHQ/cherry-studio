@@ -34,7 +34,8 @@ export interface TabsContextValue {
   // Basic operations
   addTab: (tab: Tab) => void
   closeTab: (id: string) => void
-  closeTabs: (ids: readonly string[]) => void
+  /** Close tabs in one batch; `activateId` designates the surviving tab to activate when the active tab is closed. */
+  closeTabs: (ids: readonly string[], activateId?: string) => void
   setActiveTab: (id: string) => void
   updateTab: (id: string, updates: Partial<Tab>) => void
 

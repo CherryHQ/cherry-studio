@@ -133,8 +133,17 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return <span onClick={handleClick}>{children}</span>
     },
-    DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
-      <div data-testid="dropdown-menu-content">{children}</div>
+    DropdownMenuContent: ({
+      children,
+      onCloseAutoFocus
+    }: {
+      children: React.ReactNode
+      onCloseAutoFocus?: () => void
+    }) => (
+      <div data-testid="dropdown-menu-content">
+        {children}
+        <button type="button" data-testid="dropdown-menu-close-complete" onClick={onCloseAutoFocus} />
+      </div>
     ),
     DropdownMenuSeparator: () => <hr />,
     DropdownMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -170,6 +179,11 @@ vi.mock('@cherrystudio/ui', () => {
       <span data-testid="mock-tooltip" data-content={typeof content === 'string' ? content : undefined}>
         {children}
       </span>
+    ),
+    Scrollbar: ({ children, className }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div data-testid="mock-scrollbar" className={className}>
+        {children}
+      </div>
     )
   }
 })
@@ -381,6 +395,37 @@ describe('CommandContextMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
+  })
+
+  it('runs selected cherry menu actions after closing even if the menu unmounts', () => {
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+    const deferredActions: FrameRequestCallback[] = []
+    const requestFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      deferredActions.push(callback)
+      return deferredActions.length
+    })
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+
+    const { unmount } = renderMenu({
+      onOpenChange,
+      extraItems: [{ type: 'item', id: 'tool:web-search', label: 'Web Search', onSelect }]
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+    fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
+
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    expect(requestFrameSpy).toHaveBeenCalledOnce()
+    expect(onSelect).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
+    unmount()
+
+    deferredActions[0]?.(0)
+    deferredActions[1]?.(0)
+    expect(onSelect).toHaveBeenCalledTimes(2)
+    requestFrameSpy.mockRestore()
   })
 
   it('stops cherry context-menu events after an inner menu handles them', () => {
@@ -662,10 +707,15 @@ describe('CommandContextMenu', () => {
     })
   })
 
-  it('triggers onOpenChange(true) when clicked in cherry mode, and onOpenChange(false) when selecting item', async () => {
+  it('runs deferred cherry popup actions after the close lifecycle finishes', () => {
     preferenceValues['menu.presentation_mode'] = 'cherry'
     const onOpenChange = vi.fn()
     const onSelect = vi.fn()
+    let frameCallback: FrameRequestCallback | undefined
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frameCallback = callback
+      return 1
+    })
 
     render(
       <CommandContextKeyProvider>
@@ -673,6 +723,7 @@ describe('CommandContextMenu', () => {
           <CommandPopupMenu
             location="webcontents.context"
             onOpenChange={onOpenChange}
+            deferActionsUntilClosed
             extraItems={[{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect }]}>
             <button type="button">trigger-popup</button>
           </CommandPopupMenu>
@@ -685,10 +736,15 @@ describe('CommandContextMenu', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Branch/ }))
     expect(onOpenChange).toHaveBeenNthCalledWith(2, false)
+    expect(onSelect).not.toHaveBeenCalled()
 
-    await waitFor(() => {
-      expect(onSelect).toHaveBeenCalledOnce()
-    })
+    fireEvent.click(screen.getByTestId('dropdown-menu-close-complete'))
+    expect(onSelect).not.toHaveBeenCalled()
+
+    act(() => frameCallback?.(0))
+    expect(onSelect).toHaveBeenCalledOnce()
+
+    requestAnimationFrameSpy.mockRestore()
   })
 
   it('keeps disabled popup extra item descriptions in a tooltip in cherry mode', () => {

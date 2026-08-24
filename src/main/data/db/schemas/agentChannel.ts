@@ -1,17 +1,25 @@
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { ChannelType } from '@shared/data/types/channel'
 import { sql } from 'drizzle-orm'
-import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentSessionTable } from './agentSession'
 import { jobScheduleTable } from './job'
 
+/**
+ * `type` and `permissionMode` are enums, but deliberately carry no CHECK constraint:
+ * a SQL copy of an enum makes every added member a table recreate, and the copies drift
+ * the moment one is added in a hurry. Both are `$type`-narrowed here for internal callers
+ * and validated by their zod schemas at the DataApi boundary.
+ */
 export const agentChannelTable = sqliteTable(
   'agent_channel',
   {
     id: uuidPrimaryKey(),
-    type: text().notNull(),
+    type: text().$type<ChannelType>().notNull(),
     name: text().notNull(),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     sessionId: text().references(() => agentSessionTable.id, { onDelete: 'set null' }),
@@ -19,18 +27,39 @@ export const agentChannelTable = sqliteTable(
     config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     isActive: integer({ mode: 'boolean' }).notNull().default(true),
     activeChatIds: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
-    permissionMode: text(),
+    permissionMode: text().$type<AgentPermissionMode | null>(),
     ...createUpdateTimestamps
   },
   (t) => [
     index('agent_channel_agent_id_idx').on(t.agentId),
     index('agent_channel_type_idx').on(t.type),
-    index('agent_channel_session_id_idx').on(t.sessionId),
-    check('agent_channel_type_check', sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack')`),
+    index('agent_channel_session_id_idx').on(t.sessionId)
+  ]
+)
+
+export const agentChannelSessionTable = sqliteTable(
+  'agent_channel_session',
+  {
+    sessionId: text()
+      .primaryKey()
+      .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
+    channelId: text()
+      .notNull()
+      .references(() => agentChannelTable.id, { onDelete: 'cascade' }),
+    // NULL identifies a migrated legacy session whose external owner cannot be proven.
+    conversationId: text(),
+    isActive: integer({ mode: 'boolean' }).notNull().default(false)
+  },
+  (t) => [
+    index('agent_channel_session_channel_id_idx').on(t.channelId),
+    uniqueIndex('agent_channel_session_active_uniq')
+      .on(t.channelId, t.conversationId)
+      .where(sql`${t.isActive} = 1 AND ${t.conversationId} IS NOT NULL`),
     check(
-      'agent_channel_permission_mode_check',
-      sql`${t.permissionMode} IS NULL OR ${t.permissionMode} IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')`
-    )
+      'agent_channel_session_conversation_id_nonempty_check',
+      sql`${t.conversationId} IS NULL OR length(trim(${t.conversationId})) > 0`
+    ),
+    check('agent_channel_session_active_conversation_check', sql`${t.isActive} = 0 OR ${t.conversationId} IS NOT NULL`)
   ]
 )
 
@@ -56,5 +85,7 @@ export const agentChannelTaskTable = sqliteTable(
 
 export type AgentChannelRow = typeof agentChannelTable.$inferSelect
 export type InsertAgentChannelRow = typeof agentChannelTable.$inferInsert
+export type AgentChannelSessionRow = typeof agentChannelSessionTable.$inferSelect
+export type InsertAgentChannelSessionRow = typeof agentChannelSessionTable.$inferInsert
 export type AgentChannelTaskRow = typeof agentChannelTaskTable.$inferSelect
 export type InsertAgentChannelTaskRow = typeof agentChannelTaskTable.$inferInsert

@@ -12,6 +12,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { FolderOpen } from 'lucide-react'
@@ -78,7 +79,7 @@ const NotesSettings: FC = () => {
 
   const handleResetToDefault = async () => {
     try {
-      const info = await window.api.getAppInfo()
+      const info = await ipcApi.request('app.get_info')
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
       toast.success(t('notes.settings.data.reset_to_default'))
@@ -191,6 +192,15 @@ const NotesSettings: FC = () => {
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.show_table_of_contents_description')}</SettingHelpText>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('notes.settings.display.line_breaks')}</SettingRowTitle>
+          <Switch
+            checked={settings.lineBreaks}
+            onCheckedChange={(checked) => updateSettings({ lineBreaks: checked })}
+          />
+        </SettingRow>
+        <SettingHelpText>{t('notes.settings.display.line_breaks_description')}</SettingHelpText>
       </SettingGroup>
     </SettingContainer>
   )

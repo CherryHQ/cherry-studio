@@ -4,19 +4,19 @@
  * Transforms legacy Redux Assistant/AssistantPreset objects to:
  * - assistant table row (with modelId from model/defaultModel)
  * - junction table rows (assistant_mcp_server, assistant_knowledge_base)
- * - tag/entity_tag rows (via tags[] field)
+ * - normalized legacy tag name (converted to assistant.groupId by AssistantMigrator)
  *
  * Field mapping:
  * - model/defaultModel -> assistant.modelId (primary model, composite format)
  * - mcpServers[] -> assistant_mcp_server junction rows
  * - knowledge_bases[] -> assistant_knowledge_base junction rows
- * - tags[] -> tag + entity_tag tables
+ * - first non-empty string in tags[] -> assistant group name
  * - type -> dropped (design flaw)
  * - messages -> dropped (feature removed)
  * - topics -> dropped (decoupled)
  * - content/targetLanguage -> dropped (translation-specific)
  * - enableGenerateImage/enableUrlContext/knowledgeRecognition/webSearchProviderId -> dropped
- * - regularPhrases -> dropped (future: FK IDs)
+ * - regularPhrases -> migrated separately by PromptMigrator into the global prompt table
  */
 
 import type { InsertAssistantRow } from '@data/db/schemas/assistant'
@@ -105,7 +105,10 @@ export interface OldMcpServer {
  * Dropped fields (documented for traceability):
  * topics, messages, content, targetLanguage,
  * enableGenerateImage, enableUrlContext, knowledgeRecognition,
- * webSearchProviderId, regularPhrases
+ * webSearchProviderId
+ *
+ * regularPhrases is intentionally omitted from the assistant row shape because
+ * PromptMigrator reads it from Redux and flattens it into the global prompt table.
  */
 export interface OldAssistant {
   id: string
@@ -121,7 +124,7 @@ export interface OldAssistant {
   mcpServers?: OldMcpServer[] | null
   knowledge_bases?: OldKnowledgeBase[] | null
   enableWebSearch?: boolean | null
-  tags?: string[] | null
+  tags?: unknown[] | null
 }
 
 // ============================================================================
@@ -129,10 +132,11 @@ export interface OldAssistant {
 // ============================================================================
 
 export interface AssistantTransformResult {
-  assistant: Omit<InsertAssistantRow, 'orderKey'>
+  assistant: Omit<InsertAssistantRow, 'groupId' | 'orderKey'>
   mcpServers: (typeof assistantMcpServerTable.$inferInsert)[]
   knowledgeBases: (typeof assistantKnowledgeBaseTable.$inferInsert)[]
-  tags: string[]
+  legacyTagName: string | null
+  discardedLegacyTagCount: number
 }
 
 // ============================================================================
@@ -165,6 +169,56 @@ function extractKnowledgeBaseIds(source: OldAssistant): string[] {
   }, [])
 }
 
+function extractLegacyTag(source: OldAssistant): { name: string | null; discardedCount: number } {
+  if (!Array.isArray(source.tags)) return { name: null, discardedCount: 0 }
+
+  let name: string | null = null
+  for (const tag of source.tags) {
+    if (name !== null || typeof tag !== 'string') continue
+
+    const candidate = tag.trim()
+    if (candidate) name = candidate
+  }
+
+  return {
+    name,
+    discardedCount: source.tags.length - (name === null ? 0 : 1)
+  }
+}
+
+/** v1's MAX_CONTEXT_COUNT — the slider's top stop, which meant "unlimited". */
+const V1_UNLIMITED_CONTEXT_COUNT = 100
+
+/**
+ * v1 `contextCount` → v2 `contextSettings.maxMessages`. Returns `undefined` for
+ * "leave absent" (unlimited or unusable input).
+ *
+ * The units differ by one. v1's pipeline was `takeRight(contextCount + 2)`
+ * followed by a filter that DROPS leading non-user rows, so `C = 1` on an
+ * alternating path ending at the current user served three rows
+ * (`[prev user, prev assistant, current user]`). v2's window keeps the last N
+ * and then EXTENDS BACKWARD to a user row, so the same three rows come from
+ * `N = 2`. Mapping C→N directly would hand every migrated assistant two
+ * messages less context than it had in v1.
+ *
+ * Sentinels: 100 (v1's slider max) meant unlimited → `null`, the three-state
+ * contract's EXPLICIT unlimited, not absent. Absent means "inherit", and since
+ * the v1 default assistant migrates into a finite global, returning absent here
+ * would quietly re-limit an assistant the user had set to unlimited. `0` meant
+ * "no history" and v1's user-start filter collapsed it to the current user
+ * alone → `N = 1` (no offset — +1 would hand a whole turn back). Unusable input
+ * → `undefined`, which really is "nothing to say, inherit".
+ *
+ * Shared with the default-assistant → global-preference mapping so both sides
+ * of the migration convert identically.
+ */
+export function contextCountToMaxMessages(raw: unknown): number | null | undefined {
+  if (typeof raw !== 'number' || !Number.isInteger(raw)) return undefined
+  if (raw < 0) return undefined
+  if (raw >= V1_UNLIMITED_CONTEXT_COUNT) return null
+  return raw === 0 ? 1 : raw + 1
+}
+
 /**
  * Transform a legacy Redux Assistant to v2 assistant table row + junction rows.
  *
@@ -176,6 +230,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   const primaryModelId = extractPrimaryModelId(source)
   const mcpServerIds = extractMcpServerIds(source)
   const knowledgeBaseIds = extractKnowledgeBaseIds(source)
+  const legacyTag = extractLegacyTag(source)
 
   // Build settings JSON: merge legacy top-level fields into settings object
   const legacySettings: Record<string, unknown> = source.settings ? { ...source.settings } : {}
@@ -193,6 +248,11 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   // life with a value that future PATCHes will reject.
   const sanitized = sanitizeLegacySettings(legacySettings)
   const settings: InsertAssistantRow['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
+  // The per-field sanitiser drops `contextCount` — no such column in v2.
+  const maxMessages = contextCountToMaxMessages(legacySettings.contextCount)
+  if (maxMessages !== undefined) {
+    settings.contextSettings = { ...settings.contextSettings, maxMessages }
+  }
 
   return {
     assistant: {
@@ -206,8 +266,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
     },
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),
     knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })),
-    tags: Array.isArray(source.tags)
-      ? source.tags.filter((t): t is string => typeof t === 'string' && t.length > 0)
-      : []
+    legacyTagName: legacyTag.name,
+    discardedLegacyTagCount: legacyTag.discardedCount
   }
 }

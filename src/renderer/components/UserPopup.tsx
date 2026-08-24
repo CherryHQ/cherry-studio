@@ -15,14 +15,12 @@ import {
   PopoverTrigger,
   RowFlex
 } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import DefaultAvatar from '@renderer/assets/images/avatar.png'
 import useAvatar from '@renderer/hooks/useAvatar'
-import ImageStorage from '@renderer/services/ImageStorage'
+import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { fileToAvatarDataUrl } from '@renderer/utils/image'
+import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,12 +46,13 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     }
   }
 
+  // The `profile.set_avatar` handler owns the `app.user.avatar` Preference write;
+  // the Preference auto-syncs back to `useAvatar`, so these flows don't write the
+  // value themselves. A superseded file_entry is left for the orphan sweep, not
+  // pruned here.
   const handleEmojiClick = async (emoji: string) => {
     try {
-      // set emoji string
-      await ImageStorage.set('avatar', emoji)
-      // update avatar display
-      cacheService.set('app.user.avatar', emoji)
+      await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -63,8 +62,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
 
   const handleReset = async () => {
     try {
-      await ImageStorage.set('avatar', DefaultAvatar)
-      cacheService.set('app.user.avatar', DefaultAvatar)
+      // Reset falls back to the bundled default avatar (see useAvatar).
+      await ipcApi.request('profile.set_avatar', { kind: 'default' })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -73,10 +72,18 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   }
 
   const handleUploadAvatar = async (file: File) => {
+    const sizeError = checkEntityImageSize(file)
+    if (sizeError) {
+      toast.error(sizeError)
+      return
+    }
     try {
-      const dataUrl = await fileToAvatarDataUrl(file)
-      await ImageStorage.set('avatar', dataUrl)
-      cacheService.set('app.user.avatar', dataUrl)
+      // Normalize to a 128² WebP in the renderer, then send the small payload; the
+      // handler creates the file_entry and stores a `file:<id>` ref in the Preference
+      // (the avatar has no file_ref table). A processing failure throws a localized
+      // retry message.
+      const data = await prepareEntityImageBytes(file)
+      await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -105,7 +112,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                   type="button"
                   variant="ghost"
                   aria-label={t('common.avatar')}
-                  className="size-20 rounded-[25%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
+                  className="size-20 rounded-[25%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:bg-transparent focus-visible:opacity-80">
                   {isEmoji(avatar) ? (
                     <EmojiAvatar size={80} fontSize={40}>
                       {avatar}
@@ -126,7 +133,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                       ref={fileInputRef}
                       className="hidden"
                       type="file"
-                      accept="image/png, image/jpeg, image/gif"
+                      accept="image/png, image/jpeg, image/gif, image/webp"
                       onChange={(event) => {
                         const file = event.target.files?.[0]
                         event.target.value = ''

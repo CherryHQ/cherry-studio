@@ -7,7 +7,7 @@ import { toast } from '@renderer/services/toast'
 import { isEmpty } from 'es-toolkit/compat'
 import { ArrowLeftRight } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
@@ -20,20 +20,25 @@ const Translate: FC<Props> = ({ text }) => {
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.mini_window.target_lang')
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
-  const { translate: runTranslate, isTranslating } = useTranslate({
+  const { translate: runTranslate, cancel } = useTranslate({
     loggerContext: 'TranslateWindow',
     onResponse: setResult
   })
 
-  const translate = useCallback(async () => {
-    if (!text.trim() || !translateModel) return
-    if (isTranslating) return
-    await runTranslate(text, targetLanguage)
-  }, [text, targetLanguage, translateModel, isTranslating, runTranslate])
+  const translateCurrentText = useEffectEvent(() => {
+    if (!text.trim() || !translateModel) {
+      cancel()
+      return
+    }
+    void runTranslate(text, targetLanguage)
+  })
 
   useEffect(() => {
-    void translate()
-  }, [translate])
+    translateCurrentText()
+    // `translateCurrentText` is an Effect Event that reads the latest request functions.
+    // Only primitive request inputs should start or replace a translation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, targetLanguage, translateModel?.id])
 
   useHotkeys('c', () => {
     void navigator.clipboard.writeText(result)
@@ -43,7 +48,7 @@ const Translate: FC<Props> = ({ text }) => {
   return (
     <div className="flex flex-1 flex-col overflow-hidden p-3 [-webkit-app-region:no-drag]">
       <div className="mb-4 flex w-full flex-row items-center justify-center gap-5">
-        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-muted text-sm opacity-70">
+        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-disabled text-sm">
           <span className="truncate">{t('translate.any.language')}</span>
         </div>
         <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
@@ -59,7 +64,7 @@ const Translate: FC<Props> = ({ text }) => {
       </div>
       <div className="flex w-full flex-1 overflow-hidden">
         {isEmpty(result) ? (
-          <div className="text-foreground-muted italic">{t('translate.output.placeholder')}...</div>
+          <div className="text-foreground-tertiary italic">{t('translate.output.placeholder')}...</div>
         ) : (
           <Scrollbar className="flex flex-1 flex-col gap-2.5">
             <div className="w-full whitespace-pre-wrap break-words">{result}</div>

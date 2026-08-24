@@ -1,20 +1,19 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
-import { FinderIcon } from '@renderer/components/icons/SvgIcon'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
+import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@renderer/components/OpenTarget'
+import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import { isMac, isWin } from '@renderer/utils/platform'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
-import type { TFunction } from 'i18next'
-import { ExternalLink, FolderOpen } from 'lucide-react'
-import { type MouseEvent, useCallback, useMemo } from 'react'
+import type { ExternalOpenTarget } from '@shared/types/externalApp'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { ChevronDown } from 'lucide-react'
+import { type MouseEvent, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
+import { useOptionalMessageListActions } from '../../MessageListProvider'
 
 export type ReportArtifactsToolResponse = McpToolResponse | NormalToolResponse
 
@@ -66,28 +65,28 @@ function getArtifactFileName(path: string): string {
   return segments.at(-1) ?? path
 }
 
-function getFileManagerName(t: TFunction): string {
-  if (isMac) return t('agent.session.file_manager.finder')
-  if (isWin) return t('agent.session.file_manager.file_explorer')
-  return t('agent.session.file_manager.files')
-}
-
 function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) {
   const { t } = useTranslation()
-  const ui = useOptionalMessageListUi()
   const actions = useOptionalMessageListActions()
   const openArtifactFile = actions?.openArtifactFile
-  const openPath = actions?.openPath
-  const showInFolder = actions?.showInFolder
-  const openInExternalApp = actions?.openInExternalApp
   const copyText = actions?.copyText
   const notifyError = actions?.notifyError
-  const availableEditors = useMemo(() => ui?.externalCodeEditors ?? [], [ui?.externalCodeEditors])
+  const resolvePath = actions?.resolvePath
   const displayPath = useMemo(() => normalizeInlineFilePath(artifact.path), [artifact.path])
-  const targetPath = useMemo(() => resolveInlineFilePath(artifact.path), [artifact.path])
+  const unresolvedTargetPath = useMemo(() => resolveInlineFilePath(artifact.path), [artifact.path])
+  const targetPath = useMemo(
+    () => resolvePath?.(unresolvedTargetPath) ?? unresolvedTargetPath,
+    [resolvePath, unresolvedTargetPath]
+  )
   const fileName = useMemo(() => getArtifactFileName(displayPath), [displayPath])
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
-  const fileManagerName = useMemo(() => getFileManagerName(t), [t])
+  const [popupMenuOpen, setPopupMenuOpen] = useState(false)
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
+  const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
+  const { data, error, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
+    enabled: hasAbsoluteTargetPath && (popupMenuOpen || contextMenuOpen)
+  })
+  const hasOpenActions = Boolean(openArtifactFile || hasAbsoluteTargetPath)
 
   const handlePreview = useCallback(() => {
     if (!openArtifactFile) return
@@ -96,20 +95,6 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     })
   }, [notifyError, openArtifactFile, t, targetPath])
 
-  const handleOpenExternal = useCallback(() => {
-    if (!openPath) return
-    Promise.resolve(openPath(targetPath)).catch(() => {
-      notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
-    })
-  }, [notifyError, openPath, t, targetPath])
-
-  const handleReveal = useCallback(() => {
-    if (!showInFolder) return
-    Promise.resolve(showInFolder(targetPath)).catch(() => {
-      notifyError?.(t('chat.input.tools.file_not_found', { path: targetPath }))
-    })
-  }, [notifyError, showInFolder, t, targetPath])
-
   const handleCopyPath = useCallback(() => {
     if (!copyText) return
     Promise.resolve(copyText(displayPath, { successMessage: t('common.copied') })).catch(() => {
@@ -117,14 +102,13 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     })
   }, [copyText, displayPath, notifyError, t])
 
-  const handleOpenInEditor = useCallback(
-    (app: ExternalAppInfo) => {
-      if (!openInExternalApp) return
-      Promise.resolve(openInExternalApp(app, targetPath)).catch(() => {
+  const handleOpenTarget = useCallback(
+    (target: ExternalOpenTarget) => {
+      void openTarget(target).catch(() => {
         notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
       })
     },
-    [notifyError, openInExternalApp, t, targetPath]
+    [notifyError, openTarget, t, targetPath]
   )
 
   const contextMenuItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
@@ -137,33 +121,24 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onSelect: handlePreview
       })
     }
-    if (openPath) {
+    if (hasAbsoluteTargetPath && targets.length === 0 && !data && !error) {
       items.push({
         type: 'item',
-        id: 'artifact.open',
-        label: t('chat.input.tools.open_file'),
-        onSelect: handleOpenExternal
+        id: 'artifact.open-target.loading',
+        label: t('common.loading'),
+        enabled: false,
+        onSelect: () => undefined
       })
     }
-    if (showInFolder) {
+    for (const target of targets) {
       items.push({
         type: 'item',
-        id: 'artifact.reveal',
-        label: fileManagerName,
-        icon: <span aria-hidden="true">{isMac ? <FinderIcon className="size-4" /> : <FolderOpen size={16} />}</span>,
-        onSelect: handleReveal
+        id: `artifact.open-target.${target.id}`,
+        label: getOpenTargetLabel(target, t),
+        icon: <OpenTargetIcon target={target} />,
+        badge: getOpenTargetBadge(target, t),
+        onSelect: () => handleOpenTarget(target)
       })
-    }
-    if (openInExternalApp) {
-      for (const app of availableEditors) {
-        items.push({
-          type: 'item',
-          id: `artifact.open-editor.${app.id}`,
-          label: app.name,
-          icon: getEditorIcon(app),
-          onSelect: () => handleOpenInEditor(app)
-        })
-      }
     }
     if (copyText) {
       if (items.length > 0) items.push({ type: 'separator' })
@@ -176,19 +151,16 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     }
     return items
   }, [
-    availableEditors,
     copyText,
-    fileManagerName,
+    data,
+    error,
     handleCopyPath,
-    handleOpenExternal,
-    handleOpenInEditor,
+    handleOpenTarget,
     handlePreview,
-    handleReveal,
+    hasAbsoluteTargetPath,
     openArtifactFile,
-    openInExternalApp,
-    openPath,
-    showInFolder,
-    t
+    t,
+    targets
   ])
 
   const card = (
@@ -205,19 +177,27 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         </span>
         <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
       </button>
-      {openPath && (
-        <Tooltip content={t('chat.input.tools.open_file')} delay={500}>
-          <button
+      {hasOpenActions && (
+        <CommandPopupMenu
+          location="webcontents.context"
+          extraItems={contextMenuItems}
+          onOpenChange={setPopupMenuOpen}
+          align="end"
+          side="bottom"
+          sideOffset={6}
+          contentClassName="min-w-44">
+          <Button
             type="button"
-            aria-label={`${t('chat.input.tools.open_file')} ${fileName}`}
+            variant="outline"
+            aria-label={`${t('chat.input.tools.open_with')} ${fileName}`}
             onClick={(event: MouseEvent<HTMLButtonElement>) => {
               event.stopPropagation()
-              handleOpenExternal()
             }}
-            className="mr-2 flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted opacity-70 transition-colors hover:bg-background hover:text-foreground hover:opacity-100">
-            <ExternalLink size={15} />
-          </button>
-        </Tooltip>
+            className="mr-2 rounded-lg data-[state=open]:bg-accent">
+            {t('chat.input.tools.open_with')}
+            <ChevronDown className="text-muted-foreground" size={14} />
+          </Button>
+        </CommandPopupMenu>
       )}
     </div>
   )
@@ -227,7 +207,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   }
 
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems} onOpenChange={setContextMenuOpen}>
       {card}
     </CommandContextMenu>
   )

@@ -1,5 +1,5 @@
 import type { Tab } from '@renderer/hooks/tab'
-import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
+import { ipcApi } from '@renderer/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -67,6 +67,7 @@ export function useTabDrag({
     tabClosed: false,
     originalRects: new Map<string, DOMRectReadOnly>(),
     boundaryRect: null as DOMRectReadOnly | null,
+    leftInsetWidth: 0,
     rightInsetWidth: 0,
     grabOffsetX: 0,
     grabOffsetY: 0
@@ -121,14 +122,14 @@ export function useTabDrag({
       if (tabId === dragState.tabId) {
         const translateX = dragRef.current.currentX - dragRef.current.startX
         const draggedRect = dragRef.current.originalRects.get(tabId)
-        const { boundaryRect, rightInsetWidth } = dragRef.current
+        const { boundaryRect, leftInsetWidth, rightInsetWidth } = dragRef.current
 
         if (!draggedRect || !boundaryRect) {
           return translateX
         }
 
         return applyHorizontalRubberBandTranslateX(translateX, draggedRect, boundaryRect, {
-          leftInset: TAB_DRAG_SAFE_INSET,
+          leftInset: TAB_DRAG_SAFE_INSET + leftInsetWidth,
           rightInset: TAB_DRAG_SAFE_INSET + rightInsetWidth
         })
       }
@@ -156,6 +157,8 @@ export function useTabDrag({
 
       const list = tabType === 'pinned' ? pinnedTabs : normalTabs
       const index = list.findIndex((t) => t.id === tab.id)
+      const tabList = tabListRef.current
+      const leftInsetWidth = tabList ? Number.parseFloat(window.getComputedStyle(tabList).paddingLeft) || 0 : 0
       const rightInsetWidth = rightInsetRef.current?.getBoundingClientRect().width ?? 0
 
       const target = e.currentTarget as HTMLElement
@@ -179,7 +182,8 @@ export function useTabDrag({
         detachedCreated: false,
         tabClosed: false,
         originalRects,
-        boundaryRect: tabListRef.current?.getBoundingClientRect() ?? null,
+        boundaryRect: tabList?.getBoundingClientRect() ?? null,
+        leftInsetWidth,
         // Reserve the sticky right-side button plus the visual gap before applying right-edge rubber-band overdrag.
         rightInsetWidth: rightInsetWidth > 0 ? rightInsetWidth + TAB_GAP : 0,
         grabOffsetX: e.screenX - window.screenX,
@@ -212,9 +216,7 @@ export function useTabDrag({
       if (e.pointerId !== dragRef.current.pointerId) return
 
       dragRef.current.currentX = e.clientX
-      // Refresh cached layout each frame so window/sidebar resize, late ref
-      // attachment, or right-side sticky button width changes during the drag don't
-      // leave rubber-band math anchored to stale geometry.
+      // Refresh live bounds so resizing and sticky-button changes do not leave stale drag geometry.
       const liveBoundary = tabListRef.current?.getBoundingClientRect()
       if (liveBoundary) {
         dragRef.current.boundaryRect = liveBoundary
@@ -254,9 +256,8 @@ export function useTabDrag({
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
           if (tab) {
-            window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+            void ipcApi.request('tab.detach', {
               ...tab,
-              url: resolveSidebarAppTabEntryUrl(tab),
               x: e.screenX - 400,
               y: e.screenY - 20
             })
@@ -293,7 +294,24 @@ export function useTabDrag({
         }
       }
 
-      if (dragState.mode === 'reorder') {
+      // `dragState.mode` lags behind (setState flushes after the pointer events), so
+      // key off the ref that the detach branch sets synchronously.
+      const detaching = dragState.mode === 'detach' || dragRef.current.detachedCreated
+      if (detaching) {
+        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
+          closeTab(dragState.tabId)
+        }
+        // A fast drop can beat the pointermoves that position the fresh sub-window
+        // (SubWindowService keeps position-aware windows hidden until a move shows them).
+        if (dragRef.current.detachedCreated) {
+          window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
+            tabId: dragState.tabId,
+            x: e.screenX - 400,
+            y: e.screenY - 20
+          })
+        }
+        void ipcApi.request('tab.drag_end')
+      } else if (dragState.mode === 'reorder') {
         didDragRef.current = true
         const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
         const oldIndex = list.findIndex((t) => t.id === dragState.tabId)
@@ -308,11 +326,6 @@ export function useTabDrag({
             reorderTabs(dragRef.current.tabType, oldIndex, adjustedIndex)
           }
         }
-      } else if (dragState.mode === 'detach') {
-        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
-          closeTab(dragState.tabId)
-        }
-        window.electron.ipcRenderer.send(IpcChannel.Tab_DragEnd)
       }
 
       if (rafId.current !== null) {

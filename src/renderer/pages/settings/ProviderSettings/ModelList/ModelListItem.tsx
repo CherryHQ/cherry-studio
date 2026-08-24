@@ -1,7 +1,10 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
+import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { toast } from '@renderer/services/toast'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { Bolt, Minus } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,18 +13,37 @@ import { FreeTrialModelTag } from '../components/FreeTrialModelTag'
 import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getModelOperationErrorMessage } from './errorMessage'
+import ModelCheckStatus from './ModelCheckStatus'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
+  provider?: Provider
   disabled?: boolean
   isDefaultModel?: boolean
+  modelStatus?: ModelWithStatus
+  apiKeyEntries?: readonly ApiKeyEntry[]
+  savingKeyId?: string | null
+  onToggleApiKey?: (keyId: string, enabled: boolean) => Promise<void>
   onEdit: (model: Model) => void
   onDelete: (model: Model) => Promise<void>
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isDefaultModel, onEdit, onDelete }) => {
+const ModelListItem: React.FC<ModelListItemProps> = ({
+  ref,
+  model,
+  provider,
+  disabled,
+  isDefaultModel,
+  modelStatus,
+  apiKeyEntries = [],
+  savingKeyId = null,
+  onToggleApiKey,
+  onEdit,
+  onDelete
+}) => {
   const { t } = useTranslation()
+  const Icon = useIcon(getModelLogoRef(model))
   const deleteTooltip = isDefaultModel
     ? t('settings.models.manage.default_model_cannot_remove')
     : t('settings.models.manage.remove_model')
@@ -46,10 +68,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
     <div ref={ref} className={modelListClasses.row}>
       <RowFlex className={modelListClasses.rowMain}>
         {(() => {
-          const Icon = getModelLogo(model)
           return Icon ? (
             <span className={modelListClasses.rowAvatar}>
-              <Icon.Avatar size={30} shape="rounded" />
+              <Icon.Avatar size={26} shape="circle" />
             </span>
           ) : (
             <Avatar className={modelListClasses.rowAvatar}>
@@ -59,7 +80,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
         })()}
         <div className={modelListClasses.rowBody}>
           <div className="flex h-7 min-w-0 items-center gap-1.5">
-            <span className="inline-flex h-7 min-w-0 shrink select-text items-center overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-foreground/90 text-sm leading-none">
+            <span className="inline-flex h-7 min-w-0 shrink select-text items-center overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-foreground text-sm leading-none">
               {model.name}
             </span>
           </div>
@@ -69,11 +90,19 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
             <div className={modelListClasses.rowCapabilityTagCluster}>
-              <ModelTagsWithLabel model={model} size={12} style={{ flexWrap: 'nowrap' }} />
+              <ModelTagsWithLabel model={model} provider={provider} size={12} style={{ flexWrap: 'nowrap' }} />
             </div>
             <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
           </div>
           <div className={modelListClasses.rowInlineActions}>
+            {modelStatus && onToggleApiKey ? (
+              <ModelCheckStatus
+                result={modelStatus}
+                apiKeyEntries={apiKeyEntries}
+                savingKeyId={savingKeyId}
+                onToggleKey={onToggleApiKey}
+              />
+            ) : null}
             <Tooltip content={t('common.settings')} placement="top">
               <Button
                 type="button"
@@ -81,6 +110,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
                 size="icon-sm"
                 className={modelListClasses.rowActionButton}
                 aria-label={t('common.settings')}
+                disabled={disabled}
                 onClick={handleEdit}>
                 <Bolt className="size-4" />
               </Button>

@@ -3,7 +3,7 @@ import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettin
 import { createFileRoute } from '@tanstack/react-router'
 
 const McpInstallWrapper = () => (
-  <SettingsContentColumn className="bg-inherit">
+  <SettingsContentColumn className="bg-inherit pt-2">
     <EnvironmentDependencies />
   </SettingsContentColumn>
 )

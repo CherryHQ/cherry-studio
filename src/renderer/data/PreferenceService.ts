@@ -107,6 +107,11 @@ export class PreferenceService {
   public async get<K extends UnifiedPreferenceKeyType>(key: K): Promise<UnifiedPreferenceType[K]> {
     // Check cache first
     if (key in this.cache && this.cache[key] !== undefined) {
+      if (!this.subscribedKeys.has(key)) {
+        // Heal cached-but-unsubscribed keys (failed subscription, set()-seeded
+        // cache) — fire-and-forget like subscribeChange.
+        void this.subscribeToKeyInternal([key])
+      }
       return this.cache[key] as UnifiedPreferenceType[K]
     }
 
@@ -252,24 +257,22 @@ export class PreferenceService {
     }
 
     // Fetch uncached keys from main process
+    let uncachedResults: Partial<UnifiedPreferenceType> = {}
     if (uncachedKeys.length > 0) {
       try {
-        const uncachedResults = await window.api.preference.getMultipleRaw(uncachedKeys)
+        uncachedResults = await window.api.preference.getMultipleRaw(uncachedKeys)
 
         // Update cache with new results
         for (const [key, value] of Object.entries(uncachedResults)) {
           this.cache[key as UnifiedPreferenceKeyType] = value
 
           this.notifyChangeListeners(key)
-
-          await this.subscribeToKeyInternal([key as UnifiedPreferenceKeyType])
         }
-
-        return { ...cachedResults, ...uncachedResults } as UnifiedPreferenceMultipleResultType<K>
       } catch (error) {
         logger.error('Failed to get multiple preferences:', error as Error)
 
-        // Fill in default values for failed keys
+        // Fill in default values for failed keys (not cached, not subscribed —
+        // the next read retries both)
         const defaultResults = Object.fromEntries(
           uncachedKeys.map((key) => [key, getDefaultValue(key)])
         ) as Partial<UnifiedPreferenceType>
@@ -278,7 +281,11 @@ export class PreferenceService {
       }
     }
 
-    return cachedResults as UnifiedPreferenceMultipleResultType<K>
+    // Subscribe to every requested key in one batched IPC (deduped internally).
+    // Unconditional on purpose: cached-but-unsubscribed keys are healed too.
+    await this.subscribeToKeyInternal(keys)
+
+    return { ...cachedResults, ...uncachedResults } as UnifiedPreferenceMultipleResultType<K>
   }
 
   /**
@@ -404,11 +411,15 @@ export class PreferenceService {
     const keysToSubscribe = keys.filter((key) => !this.subscribedKeys.has(key))
     if (keysToSubscribe.length === 0) return
 
+    // Optimistically mark as subscribed before the IPC round-trip so concurrent
+    // callers don't send duplicate subscriptions; rolled back on failure.
+    keysToSubscribe.forEach((key) => this.subscribedKeys.add(key))
+
     try {
       await window.api.preference.subscribe(keysToSubscribe)
-      keysToSubscribe.forEach((key) => this.subscribedKeys.add(key))
       logger.verbose(`Subscribed to preference keys: ${keysToSubscribe.join(', ')}`)
     } catch (error) {
+      keysToSubscribe.forEach((key) => this.subscribedKeys.delete(key))
       logger.error(`Failed to subscribe to preference keys ${keysToSubscribe.join(', ')}:`, error as Error)
     }
   }
@@ -471,9 +482,12 @@ export class PreferenceService {
 
   /**
    * Load all preferences from main process at once for optimal performance
-   * @returns Promise resolving to all preference values
+   *
+   * Fire-and-forget warm-up: failures are swallowed after logging — the cache
+   * degrades to defaults plus lazy per-key self-heal in get().
+   * @returns Promise that resolves when preloading completes
    */
-  public async preloadAll(): Promise<UnifiedPreferenceType> {
+  public async preloadAll(): Promise<void> {
     try {
       const allPreferences = await window.api.preference.getAll()
 
@@ -489,11 +503,8 @@ export class PreferenceService {
 
       this.fullCacheLoaded = true
       logger.info(`Loaded all ${Object.keys(allPreferences).length} preferences into cache`)
-
-      return allPreferences
     } catch (error) {
       logger.error('Failed to load all preferences:', error as Error)
-      throw error
     }
   }
 
@@ -511,15 +522,15 @@ export class PreferenceService {
    * @returns Promise that resolves when preloading completes
    */
   public async preload(keys: UnifiedPreferenceKeyType[]): Promise<void> {
-    const uncachedKeys = keys.filter((key) => !this.isCached(key))
+    if (keys.length === 0) return
 
-    if (uncachedKeys.length > 0) {
-      try {
-        const values = await this.getMultipleRaw(uncachedKeys)
-        logger.debug(`Preloaded ${Object.keys(values).length} preferences`)
-      } catch (error) {
-        logger.error('Failed to preload preferences:', error as Error)
-      }
+    // No cached-key pre-filter: getMultipleRaw only fetches uncached keys and
+    // its batched subscription must still run for cached-but-unsubscribed ones.
+    try {
+      const values = await this.getMultipleRaw(keys)
+      logger.debug(`Preloaded ${Object.keys(values).length} preferences`)
+    } catch (error) {
+      logger.error('Failed to preload preferences:', error as Error)
     }
   }
 

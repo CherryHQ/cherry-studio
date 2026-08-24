@@ -1,6 +1,6 @@
 import i18n from '@renderer/i18n/resolver'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
-import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { toast } from '@renderer/services/toast'
 
 import { createPaintingGenerateError, presentPaintingGenerateError } from '../errors/paintingGenerateError'
@@ -15,11 +15,11 @@ export async function presentPaintingGenerationGuardFeedback(
   error?: Error,
   providerId?: string
 ) {
-  if (reason === 'provider_disabled' || reason === 'no_api_key') {
+  if (reason === 'provider_disabled') {
     if (providerId) {
       if (
         await popup.warning({
-          content: i18n.t(reason === 'provider_disabled' ? 'error.provider_disabled' : 'error.no_api_key'),
+          content: i18n.t('error.provider_disabled'),
           centered: true,
           closable: true,
           okText: i18n.t('common.go_to_settings')
@@ -29,9 +29,7 @@ export async function presentPaintingGenerationGuardFeedback(
       }
       return
     }
-    presentPaintingGenerateError(
-      createPaintingGenerateError(reason === 'provider_disabled' ? 'PROVIDER_DISABLED' : 'NO_API_KEY')
-    )
+    presentPaintingGenerateError(createPaintingGenerateError('PROVIDER_DISABLED'))
     return
   }
   if (reason === 'catalog_error') {

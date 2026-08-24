@@ -3,24 +3,18 @@ import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 import { app } from 'electron'
 
-// Main process owns an independent, statically-imported locale catalog (this
-// directory), mirroring the renderer's locales/ (human) + translate/ (machine)
-// split. It carries only the keys main actually renders — app menu, tray,
-// dialogs, context menu, the OAuth callback page and a few shared strings — so
-// importing all 12 languages up front costs ~48 KB.
+import deDE from './locales/de-de.json'
+import elGR from './locales/el-gr.json'
 import EnUs from './locales/en-us.json'
+import esES from './locales/es-es.json'
+import frFR from './locales/fr-fr.json'
+import JaJP from './locales/ja-jp.json'
+import ptPT from './locales/pt-pt.json'
+import roRO from './locales/ro-ro.json'
+import RuRu from './locales/ru-ru.json'
+import viVN from './locales/vi-vn.json'
 import ZhCn from './locales/zh-cn.json'
 import ZhTw from './locales/zh-tw.json'
-// Machine translation
-import deDE from './translate/de-de.json'
-import elGR from './translate/el-gr.json'
-import esES from './translate/es-es.json'
-import frFR from './translate/fr-fr.json'
-import JaJP from './translate/ja-jp.json'
-import ptPT from './translate/pt-pt.json'
-import roRO from './translate/ro-ro.json'
-import RuRu from './translate/ru-ru.json'
-import viVN from './translate/vi-vn.json'
 
 const locales = Object.fromEntries(
   [
@@ -39,6 +33,9 @@ const locales = Object.fromEntries(
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
+/** Every language main carries a catalog for — the source of truth other modules should key off of. */
+export const SUPPORTED_LANGUAGES = Object.keys(locales) as LanguageVarious[]
+
 export const getAppLanguage = (): LanguageVarious => {
   const language = application.get('PreferenceService').get('app.language')
   const appLocale = app.getLocale()
@@ -50,33 +47,30 @@ export const getAppLanguage = (): LanguageVarious => {
   return (Object.keys(locales).includes(appLocale) ? appLocale : defaultLanguage) as LanguageVarious
 }
 
-export const getI18n = (): Record<string, any> => {
-  const language = getAppLanguage()
-  return locales[language]
-}
-
 /**
- * Get translation by key path (e.g., 'dialog.save_file')
+ * Get translation by key (e.g., 'dialog.save_file')
  * This is a simplified version for main process, similar to i18next's t() function.
  *
- * Resolution order: the current app language, then the en-US catalog, then the key
- * itself. Supports i18next-style `{{var}}` interpolation: pass `params` and any
- * `{{name}}` placeholder in the resolved string is replaced with `params.name`.
- * Placeholders without a matching param are left intact.
+ * Catalogs are flat, so the dotted key is looked up literally — there is no path walk.
+ *
+ * Resolution order: `language` (defaults to the current app language), then the
+ * en-US catalog, then the key itself. Supports i18next-style `{{var}}`
+ * interpolation: pass `params` and any `{{name}}` placeholder in the resolved
+ * string is replaced with `params.name`. Placeholders without a matching param
+ * are left intact.
+ *
+ * The optional `language` override lets a caller resolve a string in a language
+ * other than the app's current one — e.g. the API gateway's OpenAPI docs render
+ * one translation per requested language, independent of `app.language`.
  */
-export const t = (key: string, params?: Record<string, string | number>): string => {
-  const resolve = (translation: any): string | undefined => {
-    let result: any = translation
-    for (const k of key.split('.')) {
-      result = result?.[k]
-      if (result === undefined) {
-        return undefined
-      }
-    }
-    return typeof result === 'string' ? result : undefined
+export const t = (key: string, params?: Record<string, string | number>, language?: LanguageVarious): string => {
+  const resolve = (translation: Record<string, string>): string | undefined => {
+    const result = translation[key]
+    return typeof result === 'string' && !result.startsWith('[to be translated]') ? result : undefined
   }
 
-  const value = resolve(getI18n().translation) ?? resolve(locales[defaultLanguage].translation)
+  const value =
+    resolve(locales[language ?? getAppLanguage()].translation) ?? resolve(locales[defaultLanguage].translation)
   if (value === undefined) {
     return key
   }

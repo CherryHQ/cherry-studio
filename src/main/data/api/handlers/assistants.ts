@@ -14,6 +14,8 @@ import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
 import {
   CreateAssistantSchema,
   DeleteAssistantQuerySchema,
+  DuplicateAssistantSchema,
+  ImportAssistantSchema,
   ListAssistantsQuerySchema,
   UpdateAssistantSchema
 } from '@shared/data/api/schemas/assistants'
@@ -32,6 +34,20 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     }
   },
 
+  '/assistants:import': {
+    POST: async ({ body }) => {
+      const parsed = ImportAssistantSchema.parse(body)
+      return assistantDataService.createFromImport(parsed)
+    }
+  },
+
+  '/assistants/:id/duplicate': {
+    POST: async ({ params, body }) => {
+      const parsed = DuplicateAssistantSchema.parse(body)
+      return assistantDataService.duplicate(params.id, parsed)
+    }
+  },
+
   '/assistants/:id': {
     GET: async ({ params }) => {
       return assistantDataService.getById(params.id)
@@ -40,7 +56,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAssistantSchema.parse(body)
       // Entity schema fields like `prompt` / `emoji` / `settings` carry `.default()`,
-      // and `.partial()` does not strip those — `.parse({ tagIds: [...] })` would inject
+      // and `.partial()` does not strip those — `.parse({ groupId: ... })` would inject
       // defaults for every omitted field and the service would overwrite the row with them.
       // Keep only keys actually present in the request body so PATCH stays partial.
       const bodyKeys = body && typeof body === 'object' ? new Set(Object.keys(body)) : new Set<string>()
