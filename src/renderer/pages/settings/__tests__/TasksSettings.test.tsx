@@ -912,7 +912,8 @@ describe('TasksSettings routing and creation', () => {
         {
           ...taskDataMock.defaultTask,
           id: 'queued-task',
-          name: 'Queued task'
+          name: 'Queued task',
+          nextRun: '2026-06-26T11:00:00.000Z'
         },
         { status: 'queued' }
       ),
@@ -927,10 +928,17 @@ describe('TasksSettings routing and creation', () => {
 
     render(<TasksSettings />)
 
-    expect(await screen.findByText('agent.tasks.runSummary.running')).toBeInTheDocument()
-    expect(screen.getByText('agent.tasks.runSummary.queued')).toBeInTheDocument()
-    expect(screen.getAllByText(/agent.tasks.nextRun/)).toHaveLength(2)
-    expect((await screen.findAllByText('agent.tasks.status.paused')).length).toBeGreaterThan(1)
+    const runningTask = await screen.findByRole('link', { name: /Running task/ })
+    const neverRunTask = screen.getByRole('link', { name: /Never-run task/ })
+    const queuedTask = screen.getByRole('link', { name: /Queued task/ })
+    const pausedTask = screen.getByRole('link', { name: /Paused task/ })
+
+    expect(within(runningTask).getByText('agent.tasks.runSummary.running')).toBeInTheDocument()
+    expect(within(queuedTask).getByText('agent.tasks.runSummary.queued')).toBeInTheDocument()
+    expect(within(runningTask).getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
+    expect(within(neverRunTask).getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
+    expect(within(queuedTask).getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
+    expect(within(pausedTask).queryByText(/agent.tasks.nextRun/)).not.toBeInTheDocument()
   })
 
   it('navigates all task-list pages instead of stopping at the first page', async () => {
