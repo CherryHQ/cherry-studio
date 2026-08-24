@@ -283,8 +283,9 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   resolveArtifactPaneFileSelection: (...args: unknown[]) => resolveArtifactPaneFileSelectionMock(...args)
 }))
 
-vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
-  default: () => <button type="button">Open external</button>
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: () => <button type="button">Open external</button>,
+  loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
 vi.mock('@renderer/hooks/useFileEditSession', () => {
@@ -1150,6 +1151,30 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
+  })
+
+  it('returns from a subagent flow to the status panel', async () => {
+    const user = userEvent.setup()
+
+    renderStatusTasks([
+      {
+        id: 'subagent-1',
+        status: 'in_progress',
+        title: 'Inspect task state',
+        taskType: 'local_agent',
+        toolUseId: 'tool-use-1'
+      }
+    ])
+
+    const rightPane = screen.getByTestId('right-pane')
+    await user.click(within(rightPane).getByRole('button', { name: /Inspect task state/ }))
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByText('agent.right_pane.info.subagents')).toBeInTheDocument()
   })
 
   it('shows a dsh todo_write snapshot in the floating task capsule', () => {

@@ -16,6 +16,7 @@ import type {
 } from 'ai'
 import * as z from 'zod'
 
+import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
@@ -139,6 +140,7 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 /** Request controls frozen when an assistant turn is created. */
 export interface AssistantTurnOptions {
   reasoningEffort?: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
   fastMode?: boolean
 }
 
@@ -407,6 +409,12 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
     if (
       v.turnOptions.reasoningEffort !== undefined &&
       !ReasoningEffortOptionSchema.safeParse(v.turnOptions.reasoningEffort).success
+    ) {
+      return false
+    }
+    if (
+      v.turnOptions.serviceTier !== undefined &&
+      !ServiceTierSelectionSchema.safeParse(v.turnOptions.serviceTier).success
     ) {
       return false
     }
