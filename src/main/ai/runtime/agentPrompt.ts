@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
-import { resolveEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -109,7 +109,7 @@ ${instructions}
 }
 
 function getLanguageInstruction(agent: AgentEntity): string {
-  const language = resolveEffectiveAgentLanguage(agent)
+  const language = getEffectiveAgentLanguage(agent)
   if (!language) return ''
   return `By default, respond in ${language}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
 }

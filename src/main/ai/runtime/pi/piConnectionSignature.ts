@@ -13,7 +13,7 @@ import {
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
 import { skillService } from '@main/ai/skills/SkillService'
-import { resolveEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -110,7 +110,7 @@ export async function capturePiConnectionSnapshot(
           linkedChannel,
           notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          effectiveLanguage: resolveEffectiveAgentLanguage(agent)
+          effectiveLanguage: getEffectiveAgentLanguage(agent)
         })
       )
     )

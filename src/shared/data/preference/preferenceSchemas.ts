@@ -41,7 +41,7 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'agent.input.toolbar.pinned_tools': string[]
     // target-key-definitions/complex/complex
-    'agent.language': string | null
+    'agent.language': PreferenceTypes.AgentLanguagePreference | null
     // target-key-definitions/complex/complex
     'agent.session.display_mode': PreferenceTypes.AgentSessionDisplayMode
     // target-key-definitions/complex/complex

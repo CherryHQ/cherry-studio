@@ -17,7 +17,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { resolveEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
@@ -391,7 +391,7 @@ async function deriveConnectionConfigFromSnapshot(
     // language instruction is baked into the next prompt and prompt cache. This
     // trades cache preservation for correctness — first turn after change pays
     // full input-token cost until the new prefix is cached.
-    language: resolveEffectiveAgentLanguage(agent),
+    language: getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.

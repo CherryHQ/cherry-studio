@@ -1,42 +1,39 @@
 import { application } from '@application'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { AGENT_LANGUAGE_MAX_LENGTH } from '@shared/data/api/schemas/agents'
+import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 
-/**
- * Trimmed, length-bounded language label, or null when empty or over
- * AGENT_LANGUAGE_MAX_LENGTH. The same bound is enforced on writes by the
- * per-agent zod schema.
- */
-export function normalizeAgentLanguage(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  if (!trimmed || trimmed.length > AGENT_LANGUAGE_MAX_LENGTH) return null
-  return trimmed
-}
-
-function resolveGlobalAgentLanguage(): string | null {
-  try {
-    return normalizeAgentLanguage(application.get('PreferenceService').get('agent.language'))
-  } catch {
-    return null
-  }
+/** Trimmed, non-empty, length-bounded label via the shared schema; null when invalid. */
+function normalizeAgentLanguage(value: unknown): string | null {
+  const parsed = AgentLanguageSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
 }
 
 /**
- * Resolve the effective reply language for an agent without implicit UI-locale coupling.
+ * Pure precedence rule between the two language sources:
  *
- * - Global `agent.language`: `null`/missing/empty = no constraint; non-empty string = default.
- * - Per-agent `configuration.language`: `undefined` = inherit global, `null` = explicitly no
- *   constraint, non-empty string = override (whitespace-only inherits).
- * - Values are human-readable language labels (e.g. "English", "ไทย"), not app locale codes.
+ * - Per-agent `configuration.language`: non-empty string overrides; `null`
+ *   explicitly opts out; anything else inherits the global value.
+ * - Global `agent.language` preference: valid label = default; null/invalid = none.
  */
-export function resolveEffectiveAgentLanguage(agent: AgentEntity): string | null {
-  const perAgent = (agent.configuration as Record<string, unknown> | undefined)?.language
+export function resolveEffectiveAgentLanguage(
+  agent: AgentEntity,
+  globalLanguage: string | null | undefined
+): string | null {
+  const perAgent = agent.configuration?.language
 
   if (perAgent === null) return null
-  if (typeof perAgent === 'string' && perAgent.trim() !== '') {
-    return normalizeAgentLanguage(perAgent)
-  }
-  // Per-agent undefined / whitespace-only / unexpected type => inherit global
-  return resolveGlobalAgentLanguage()
+  return normalizeAgentLanguage(perAgent) ?? normalizeAgentLanguage(globalLanguage)
+}
+
+/**
+ * Resolve the effective reply language for an agent against the live
+ * `agent.language` preference. Unlike the pure rule above, this reads ambient
+ * state and does not swallow errors: a failing PreferenceService must surface
+ * to the caller constructing the connection/prompt, not silently drop the
+ * language constraint.
+ *
+ * Values are human-readable language labels (e.g. "English", "ไทย"), not app locale codes.
+ */
+export function getEffectiveAgentLanguage(agent: AgentEntity): string | null {
+  return resolveEffectiveAgentLanguage(agent, application.get('PreferenceService').get('agent.language'))
 }

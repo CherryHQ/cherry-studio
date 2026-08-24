@@ -12,84 +12,62 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { normalizeAgentLanguage, resolveEffectiveAgentLanguage } = await import('../agentLanguage')
-const { AGENT_LANGUAGE_MAX_LENGTH } = await import('@shared/data/api/schemas/agents')
+const { getEffectiveAgentLanguage, resolveEffectiveAgentLanguage } = await import('../agentLanguage')
 
 function agentWithLanguage(language: unknown): AgentEntity {
   return { configuration: { language } } as unknown as AgentEntity
 }
 
-describe('normalizeAgentLanguage', () => {
-  it('trims surrounding whitespace and keeps interior text', () => {
-    expect(normalizeAgentLanguage('  Thai  ')).toBe('Thai')
-    expect(normalizeAgentLanguage('ไทย')).toBe('ไทย')
+describe('resolveEffectiveAgentLanguage', () => {
+  it('returns null when neither per-agent nor global language provides a value', () => {
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined), null)).toBeNull()
+    expect(resolveEffectiveAgentLanguage({} as AgentEntity, null)).toBeNull()
   })
 
-  it('returns null for empty, whitespace-only, and non-string values', () => {
-    expect(normalizeAgentLanguage('')).toBeNull()
-    expect(normalizeAgentLanguage('   ')).toBeNull()
-    expect(normalizeAgentLanguage(null)).toBeNull()
-    expect(normalizeAgentLanguage(undefined)).toBeNull()
-    expect(normalizeAgentLanguage(42)).toBeNull()
+  it('inherits the global language when per-agent is unset', () => {
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined), 'English')).toBe('English')
   })
 
-  it('rejects values over the max length instead of truncating', () => {
-    expect(normalizeAgentLanguage('a'.repeat(AGENT_LANGUAGE_MAX_LENGTH))).toBe('a'.repeat(AGENT_LANGUAGE_MAX_LENGTH))
-    expect(normalizeAgentLanguage('a'.repeat(AGENT_LANGUAGE_MAX_LENGTH + 1))).toBeNull()
+  it('per-agent string overrides the global default and is trimmed', () => {
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage('  Thai '), 'English')).toBe('Thai')
+  })
+
+  it('per-agent null explicitly opts out of an inherited global default', () => {
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage(null), 'English')).toBeNull()
+  })
+
+  it('invalid per-agent value (whitespace-only or oversized) inherits the global default', () => {
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage('   '), 'English')).toBe('English')
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage('x'.repeat(51)), 'English')).toBe('English')
+  })
+
+  it('global value is normalized: whitespace trimmed, invalid treated as unset', () => {
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined), '  中文 ')).toBe('中文')
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined), 'x'.repeat(51))).toBeNull()
+    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined), '')).toBeNull()
   })
 })
 
-describe('resolveEffectiveAgentLanguage', () => {
+describe('getEffectiveAgentLanguage', () => {
   beforeEach(() => {
     preferenceGet.mockReset()
     preferenceGet.mockReturnValue(null)
   })
 
-  it('returns null when neither per-agent nor global language is set', () => {
-    preferenceGet.mockReturnValue(null)
-
-    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined))).toBeNull()
-    expect(resolveEffectiveAgentLanguage({} as AgentEntity)).toBeNull()
-  })
-
-  it('inherits the global language when per-agent is unset', () => {
+  it('resolves against the live agent.language preference', () => {
     preferenceGet.mockReturnValue('English')
 
-    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined))).toBe('English')
+    expect(getEffectiveAgentLanguage(agentWithLanguage(undefined))).toBe('English')
+
+    preferenceGet.mockReturnValue('ไทย')
+    expect(getEffectiveAgentLanguage(agentWithLanguage(undefined))).toBe('ไทย')
   })
 
-  it('per-agent string overrides the global default and is trimmed', () => {
-    preferenceGet.mockReturnValue('English')
-
-    expect(resolveEffectiveAgentLanguage(agentWithLanguage('  Thai '))).toBe('Thai')
-  })
-
-  it('per-agent null explicitly opts out of an inherited global default', () => {
-    preferenceGet.mockReturnValue('English')
-
-    expect(resolveEffectiveAgentLanguage(agentWithLanguage(null))).toBeNull()
-  })
-
-  it('per-agent whitespace-only inherits the global default', () => {
-    preferenceGet.mockReturnValue('English')
-
-    expect(resolveEffectiveAgentLanguage(agentWithLanguage('   '))).toBe('English')
-  })
-
-  it('global value is normalized: whitespace trimmed, oversized treated as unset', () => {
-    preferenceGet.mockReturnValue('  中文 ')
-
-    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined))).toBe('中文')
-
-    preferenceGet.mockReturnValue('x'.repeat(51))
-    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined))).toBeNull()
-  })
-
-  it('returns null when the PreferenceService is unavailable', () => {
+  it('propagates PreferenceService failures instead of silently dropping the constraint', () => {
     preferenceGet.mockImplementation(() => {
       throw new Error('service not ready')
     })
 
-    expect(resolveEffectiveAgentLanguage(agentWithLanguage(undefined))).toBeNull()
+    expect(() => getEffectiveAgentLanguage(agentWithLanguage(undefined))).toThrow('service not ready')
   })
 })
