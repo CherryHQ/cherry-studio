@@ -57,6 +57,21 @@ export class RegressionApp {
         })
       if (page) {
         await page.locator('#root').waitFor({ state: 'visible', timeout: 60_000 })
+        if (this.record.profile === 'authenticated') {
+          const status = await page.evaluate(() => window.api.preference.get('app.onboarding.provider_setup.status'))
+          if (status === 'pending') {
+            await page.evaluate(async () => {
+              await window.api.preference.setMultiple({
+                'app.onboarding.provider_setup.status': 'skipped',
+                'app.privacy.data_collection.enabled': false
+              })
+            })
+          }
+          await page
+            .locator('[data-ui="app.shell"]')
+            .first()
+            .waitFor({ state: 'visible', timeout: 2 * 60_000 })
+        }
         return page
       }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))

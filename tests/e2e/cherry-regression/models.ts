@@ -4,7 +4,7 @@ import type { RegressionApp } from './app'
 import { expect } from './fixture'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 
-export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Custom Provider 31415'
+export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Provider'
 
 export async function openSettingsSection(page: Page, section: string): Promise<void> {
   await dismissOnboarding(page)
@@ -47,7 +47,7 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
     await page.getByRole('button', { name: 'Add', exact: true }).click()
   }
 
-  await page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first().click()
+  await page.getByRole('button', { name: CUSTOM_CHAT_PROVIDER, exact: true }).click()
   const enabled = page.getByRole('switch').last()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
   await addModel(page, chatModel)
