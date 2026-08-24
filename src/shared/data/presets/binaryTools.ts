@@ -62,7 +62,7 @@ export interface BinaryToolPreset {
 
 /** The BinaryManager tool name for the BabelDOC PDF layout-preserving engine. */
 export const BABELDOC_TOOL_NAME = 'babeldoc-stream'
-export const BABELDOC_MINIMUM_VERSION = '0.6.4.post3'
+export const BABELDOC_MINIMUM_VERSION = '0.6.4.post4'
 
 export type BabelDocInstallationStatus = 'missing' | 'outdated' | 'available'
 

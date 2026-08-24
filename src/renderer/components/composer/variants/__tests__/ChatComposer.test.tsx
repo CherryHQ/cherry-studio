@@ -73,8 +73,10 @@ const mocks = vi.hoisted(() => ({
     | {
         model: Model
         reasoningEffort: string
+        serviceTier: string
         fastMode: boolean
         onReasoningEffortChange: (effort: string) => void
+        onServiceTierChange: (tier: 'standard' | 'auto' | 'fast' | 'flex') => void
         onFastModeChange: (enabled: boolean) => void
       }
     | undefined
@@ -284,8 +286,10 @@ vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', as
     ComposerSpeedControl: (props: {
       model: Model
       reasoningEffort: string
+      serviceTier: string
       fastMode: boolean
       onReasoningEffortChange: (effort: string) => void
+      onServiceTierChange: (tier: 'standard' | 'auto' | 'fast' | 'flex') => void
       onFastModeChange: (enabled: boolean) => void
     }) => {
       mocks.speedControlProps = props
@@ -947,6 +951,25 @@ describe('ChatComposer', () => {
       reasoning_effort: 'high',
       reasoning_effort_by_model: { 'other::model': 'low', [model.id]: 'high' }
     })
+  })
+
+  it('persists and snapshots a newly selected service tier before its Assistant PATCH finishes', async () => {
+    mocks.model = {
+      ...model,
+      requestControls: { serviceTier: { default: 'standard', options: ['standard', 'fast', 'flex'] } }
+    }
+    const onSend = vi.fn()
+    mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    act(() => mocks.speedControlProps?.onServiceTierChange('flex'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'use flex', tokens: [] })
+    })
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ service_tier: 'flex' })
+    expect(onSend).toHaveBeenCalledWith('use flex', expect.objectContaining({ serviceTier: 'flex' }))
   })
 
   it('submits Fast for an eligible Codex model', async () => {
@@ -2015,7 +2038,8 @@ describe('ChatComposer', () => {
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'high'] }],
         selectableEfforts: ['low', 'high']
-      }
+      },
+      requestControls: { serviceTier: { default: 'standard', options: ['standard', 'fast', 'flex'] } }
     }
     mocks.mentionedModels = [mocks.model]
     mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
@@ -2023,6 +2047,7 @@ describe('ChatComposer', () => {
 
     act(() => {
       mocks.speedControlProps?.onReasoningEffortChange('high')
+      mocks.speedControlProps?.onServiceTierChange('flex')
       mocks.speedControlProps?.onFastModeChange(true)
     })
     await act(async () => {
@@ -2030,13 +2055,17 @@ describe('ChatComposer', () => {
     })
 
     fireEvent.click(screen.getByText('select model 2'))
-    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
+    act(() => {
+      mocks.speedControlProps?.onReasoningEffortChange('low')
+      mocks.speedControlProps?.onServiceTierChange('standard')
+    })
     const queueContent = mocks.surfaceProps?.queueContent as any
     await act(async () => {
       await queueContent.props.onEdit(queueContent.props.items[0].id)
     })
 
     await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('high'))
+    expect(mocks.speedControlProps?.serviceTier).toBe('flex')
     expect(mocks.speedControlProps?.fastMode).toBe(true)
     expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: model.id, supportsFastMode: true })
@@ -3824,6 +3853,7 @@ describe('ChatComposer', () => {
     })
     expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array), {
       reasoningEffort: 'default',
+      serviceTier: 'standard',
       fastMode: false
     })
     expect(editMessage).not.toHaveBeenCalled()
@@ -4199,6 +4229,7 @@ describe('ChatComposer', () => {
     const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
     expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array), {
       reasoningEffort: 'default',
+      serviceTier: 'standard',
       fastMode: false
     })
     expect(editedParts[0]).toMatchObject({
@@ -4250,6 +4281,7 @@ describe('ChatComposer', () => {
 
     expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: '  new text  ' }], {
       reasoningEffort: 'default',
+      serviceTier: 'standard',
       fastMode: true
     })
     expect(editMessage).not.toHaveBeenCalled()
@@ -4586,6 +4618,7 @@ describe('ChatComposer', () => {
 
     expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'new text' }], {
       reasoningEffort: 'default',
+      serviceTier: 'standard',
       fastMode: false
     })
     expect(editMessage).not.toHaveBeenCalled()

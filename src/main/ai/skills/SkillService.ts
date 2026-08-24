@@ -218,9 +218,7 @@ export class SkillService {
     return this.installSkillDir(canonicalPath, 'local', pathToFileURL(canonicalPath).href)
   }
 
-  /**
-   * List local skills from an agent workdir's .claude/skills/ directory.
-   */
+  /** List user-owned workspace skills from supported project skill roots. */
   async listLocal(workdir: string): Promise<Array<{ name: string; description?: string; filename: string }>> {
     const results: Array<{ name: string; description?: string; filename: string }> = []
 
@@ -256,22 +254,35 @@ export class SkillService {
     return names
   }
 
-  private async listLocalSkillDirectories(workdir: string): Promise<Array<{ name: string; path: string }>> {
-    const skillsDir = path.join(workdir, '.claude', 'skills')
-    const results: Array<{ name: string; path: string }> = []
+  /** Resolve workspace skill directories for runtimes that accept explicit skill paths. */
+  async listLocalSkillPaths(workdir: string): Promise<string[]> {
+    const paths: string[] = []
+    for (const skill of await this.listLocalSkillDirectories(workdir)) {
+      if (await findSkillMdPath(skill.path)) paths.push(skill.path)
+    }
+    return paths
+  }
 
-    try {
-      const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
-      for (const entry of entries) {
-        if (!(await this.isLocalSkillDirectoryEntry(skillsDir, entry))) continue
-        results.push({ name: entry.name, path: path.join(skillsDir, entry.name) })
+  private async listLocalSkillDirectories(workdir: string): Promise<Array<{ name: string; path: string }>> {
+    const results: Array<{ name: string; path: string }> = []
+    const seenNames = new Set<string>()
+
+    // Keep the existing Claude-specific root first when duplicate folder names exist.
+    for (const skillsDir of [path.join(workdir, '.claude', 'skills'), path.join(workdir, '.agents', 'skills')]) {
+      try {
+        const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (seenNames.has(entry.name) || !(await this.isLocalSkillDirectoryEntry(skillsDir, entry))) continue
+          seenNames.add(entry.name)
+          results.push({ name: entry.name, path: path.join(skillsDir, entry.name) })
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        logger.warn('Failed to enumerate skills directory', {
+          skillsDir,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return results
-      logger.warn('Failed to enumerate skills directory', {
-        skillsDir,
-        error: error instanceof Error ? error.message : String(error)
-      })
     }
 
     return results
@@ -380,7 +391,7 @@ export class SkillService {
 
   /**
    * `listLocal` is only for user/project-owned workspace skills that already
-   * live under `.claude/skills/`. Those entries can be real directories or
+   * live under `.claude/skills/` or `.agents/skills/`. Those entries can be real directories or
    * user-created symlinks to directories.
    *
    * Cherry-managed skills also appear under `.claude/skills/` as app-owned mirror

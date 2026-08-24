@@ -24,7 +24,6 @@ import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import { useSearch } from '@tanstack/react-router'
 import {
   ArrowRight,
   ChevronDown,
@@ -40,7 +39,6 @@ import type { FC, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { validateModelSettingsSearch } from './modelSettingsFocus'
 import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
@@ -54,6 +52,7 @@ interface ModelSettingsProps {
   autoFillEmptyModels?: boolean
   onDefaultModelSelected?: (model: Model) => void | Promise<void>
   compact?: boolean
+  focus?: 'default' | 'translate'
   className?: string
 }
 
@@ -121,6 +120,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   autoFillEmptyModels = false,
   onDefaultModelSelected,
   compact = false,
+  focus,
   className
 }) => {
   const {
@@ -137,7 +137,6 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { focus } = validateModelSettingsSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const defaultRowRef = useRef<HTMLDivElement | null>(null)
   const translateRowRef = useRef<HTMLDivElement | null>(null)
   const [showFocusGuide, setShowFocusGuide] = useState(false)
