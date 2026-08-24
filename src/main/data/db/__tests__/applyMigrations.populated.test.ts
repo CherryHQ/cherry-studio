@@ -426,7 +426,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('moves existing agent and message avatars into the strict avatar columns', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0016_strange_jack_murdock'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     const chatSnapshot = JSON.stringify({
       id: 'assistant-avatar-migrate',
       name: 'Cherry Assistant',

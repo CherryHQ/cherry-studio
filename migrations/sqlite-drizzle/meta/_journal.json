@@ -116,8 +116,15 @@
     {
       "idx": 16,
       "version": "6",
-      "when": 1787482328193,
-      "tag": "0016_strange_jack_murdock",
+      "when": 1787514273959,
+      "tag": "0016_agent_session_message_reasoning_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1787546007220,
+      "tag": "0017_lethal_omega_red",
       "breakpoints": true
     }
   ],
