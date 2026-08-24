@@ -3,7 +3,7 @@ import { toast } from '@renderer/services/toast'
 import { type MenuPresentationMode, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppearanceSettings, { confirmMenuPresentationModeChange } from '../AppearanceSettings'
@@ -354,6 +354,28 @@ describe('AppearanceSettings selectors', () => {
       'settings.theme.title',
       'settings.general.common.sections.display_language'
     ])
+  })
+
+  it('routes each list position row to its own module preference', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.position', 'left')
+    MockUsePreferenceUtils.setPreferenceValue('agent.session.position', 'left')
+
+    render(<AppearanceSettings />)
+
+    const chatRow = screen.getByText('settings.display.list_position.chat').parentElement as HTMLElement
+    fireEvent.click(within(chatRow).getByRole('button', { name: 'settings.topic.position.right' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.position')).toBe('right')
+    })
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.position')).toBe('left')
+
+    const workRow = screen.getByText('settings.display.list_position.work').parentElement as HTMLElement
+    fireEvent.click(within(workRow).getByRole('button', { name: 'settings.topic.position.right' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.position')).toBe('right')
+    })
   })
 
   it('shows migration guidance for marked v1 custom CSS', () => {

@@ -100,7 +100,7 @@ default and must remain an explicit user setting.
 The UI contract is covered by:
 
 ```bash
-pnpm test src/renderer/components/CodeBlockView/__tests__/CodeBlockView.test.tsx
+pnpm test:renderer src/renderer/components/CodeBlockView/__tests__/CodeBlockView.test.tsx
 ```
 
 Serialization, timeout-terminates-worker, and the cross-process cancel handshake
