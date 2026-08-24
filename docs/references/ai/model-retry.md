@@ -40,7 +40,7 @@ Settings UI lives in `src/renderer/pages/settings/ModelSettings/ModelSettings.ts
 (toggle + max attempts + backoff + multi-model picker via `ModelSelector`
 with `multiple` / `selectionType="id"`).
 
-These keys are generated from `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json`
+These keys are generated from `scripts/preference-schema/registry.json`
 — edit there and regenerate, never edit `preferenceSchemas.ts` by hand.
 
 ## How it plugs in

@@ -57,4 +57,4 @@ this.registerDisposable(power.registerShutdownHandler(() => flushCriticalState()
   an OS-initiated shutdown just like a user quit — bounded by the hard shutdown-handler
   timeout, since the OS cannot be blocked indefinitely.
 - The user-facing toggle lives in Settings → General; the preference is defined in the
-  data-classify `target-key-definitions.json` (no v1 source).
+  canonical `scripts/preference-schema/registry.json` (no v1 source).

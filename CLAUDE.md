@@ -218,7 +218,7 @@ The v2 refactor has landed. v1 data reaches v2 only through the migrators in `sr
 
 ### Data Classification Toolchain
 
-`v2-refactor-temp/tools/data-classify/` is the code generation pipeline for the v2 data layer; `classification.json` is the single source of truth (see its README). Four files are **auto-generated — NEVER edit them by hand**: `src/shared/data/preference/preferenceSchemas.ts`, `src/shared/data/bootConfig/bootConfigSchemas.ts`, and `PreferencesMappings.ts` + `BootConfigMappings.ts` in `src/main/data/migration/v2/migrators/mappings/`. To change them, edit `classification.json` or `target-key-definitions.json` (both in `data/`), then run `cd v2-refactor-temp/tools/data-classify && npm run generate`.
+Preference keys are owned by `scripts/preference-schema/registry.json`; generate and verify `src/shared/data/preference/preferenceSchemas.ts` with `pnpm preferences:generate` and `pnpm preferences:check`. The migration-only `v2-refactor-temp/tools/data-classify/` pipeline continues to own `classification.json`, `src/shared/data/bootConfig/bootConfigSchemas.ts`, and the v2 `PreferencesMappings.ts` + `BootConfigMappings.ts`. Generated files are **NEVER edited by hand**.
 
 ### Breaking Changes Log
 

@@ -50,6 +50,8 @@
     "skills:sync": "tsx scripts/skills-sync.ts",
     "skills:check": "tsx scripts/skills-check.ts",
     "gen:system-provider-ids": "tsx scripts/generate-system-provider-ids.ts",
+    "preferences:generate": "node scripts/preference-schema/generate.mjs",
+    "preferences:check": "node scripts/preference-schema/generate.mjs --check",
     "update:languages": "tsx scripts/update-languages.ts",
     "pretest": "pnpm rebuild:node",
     "test": "vitest run --silent --project main && vitest run --silent --project renderer && vitest run --silent --project aiCore --project ui --project shared --project provider-registry --project scripts",
@@ -92,7 +94,7 @@
     "changeset:publish": "changeset publish",
     "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build",
     "packages:release": "pnpm packages:build && changeset publish",
-    "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:hardcoded:strict && pnpm skills:check && pnpm docs:check",
+    "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:hardcoded:strict && pnpm skills:check && pnpm preferences:check && pnpm docs:check",
     "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:provider-registry && pnpm test:scripts",
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },

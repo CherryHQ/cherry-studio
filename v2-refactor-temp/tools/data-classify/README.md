@@ -32,7 +32,7 @@ v2-refactor-temp/tools/data-classify/
 │   ├── lib/
 │   │   └── classificationUtils.js          # 共享工具函数（仅被下方已弃用脚本使用）
 │   ├── generate-all.js                     # 运行所有生成器
-│   ├── generate-preferences.js             # 生成 preferenceSchemas.ts
+│   ├── generate-all.js                     # 调用长期 Preference 生成器，再生成迁移产物
 │   ├── generate-boot-config.js             # 生成 bootConfigSchemas.ts
 │   ├── generate-migration.js               # 生成 PreferencesMappings.ts + BootConfigMappings.ts
 │   ├── DO-NOT-USE-extract-inventory.js     # [已弃用] 从源码提取数据清单
@@ -42,7 +42,7 @@ v2-refactor-temp/tools/data-classify/
 ├── data/
 │   ├── classification.json         # 分类映射（自动生成，人工维护）
 │   ├── inventory.json              # 数据清单（脚本生成）
-│   └── target-key-definitions.json # 复杂映射的 target key 定义（人工维护）
+│   └── classification.json         # v1 到 v2 的迁移分类（人工维护）
 ├── package.json
 └── README.md                       # 本文档
 ```
@@ -140,10 +140,10 @@ npm run generate:migration     # 仅生成 PreferencesMappings.ts + BootConfigMa
 
 | 脚本                      | 输入                                    | 输出                                          | 依赖                                                                           |
 | ------------------------- | --------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------ |
-| `generate-preferences.js` | `classification.json`                   | `preferenceSchemas.ts`                        | 无                                                                             |
+| `scripts/preference-schema/generate.mjs` | `scripts/preference-schema/registry.json` | `preferenceSchemas.ts` | 无 |
 | `generate-boot-config.js` | `classification.json`                   | `bootConfigSchemas.ts`                        | 无                                                                             |
 | `generate-migration.js`   | `classification.json`                   | `PreferencesMappings.ts`, `BootConfigMappings.ts` | 无                                                                             |
-| `generate-all.js`         | -                                       | 运行三个生成器                                | `generate-preferences.js`, `generate-boot-config.js`, `generate-migration.js`  |
+| `generate-all.js`         | -                                       | 运行长期 Preference 生成器和两个迁移生成器 | `scripts/preference-schema/generate.mjs`, `generate-boot-config.js`, `generate-migration.js` |
 | `DO-NOT-USE-extract-inventory.js` _(已弃用)_    | 源代码文件                              | `data/inventory.json`                         | `classificationUtils.js`                                                       |
 | `DO-NOT-USE-validate-consistency.js` _(已弃用)_ | `inventory.json`, `classification.json` | `validation-report.md`                        | `classificationUtils.js`                                                       |
 | `DO-NOT-USE-validate-generation.js` _(已弃用)_  | 生成的 `.ts` 文件                       | 控制台输出                                    | 无                                                                             |
@@ -574,7 +574,7 @@ Boot config 在整个启动链的最前端，为后续所有阶段提供基础�
 
 **在代码生成中的作用**:
 
-1. **`generate-preferences.js`**: 作为四大偏好数据源之一（`electronStore`、`redux`、`localStorage`、`dexieSettings`），参与生成 `preferenceSchemas.ts`
+1. **Preference schema**: 当前 key 由 `scripts/preference-schema/registry.json` 独立维护；本目录的分类只服务迁移映射
 2. **`generate-migration.js`**: 生成独立的 `DEXIE_SETTINGS_MAPPINGS` 映射数组，用于迁移器从 Dexie settings 表读取数据
 
 **去重优先级**（当多个数据源映射到相同 targetKey 时）:
@@ -666,7 +666,7 @@ Dexie `settings` 表是一个通用 KV 存储（`{ id: string, value: any }`）�
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  target-key-definitions.json                                 │
+│  scripts/preference-schema/registry.json                     │
 │  ─────────────────────────────────────────                  │
 │  用途1: 复杂迁移 - 定义需要特殊转换逻辑的 target keys          │
 │  用途2: 纯新增 - 添加 v2 新功能的 preferences（非迁移）        │
@@ -677,9 +677,9 @@ Dexie `settings` 表是一个通用 KV 存储（`{ id: string, value: any }`）�
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### target-key-definitions.json
+### Preference registry
 
-用于定义无法通过 `classification.json` 简单映射处理的 preference keys。主要用于两个场景：
+`scripts/preference-schema/registry.json` 定义全部当前 Preference keys。迁移转换仍留在本目录。主要用于两个场景：
 
 1. **复杂迁移**: 定义需要特殊转换逻辑（对象拆分、多源合并、值计算等）产生的 target keys
 2. **纯新增（非迁移）**: 添加 v2 新功能的 preferences，这些配置不是从旧代码迁移的
@@ -746,7 +746,7 @@ Dexie `settings` 表是一个通用 KV 存储（`{ id: string, value: any }`）�
 
 **与复杂迁移的区别**:
 - 复杂迁移需要在 `PreferenceTransformers.ts` 和 `ComplexPreferenceMappings.ts` 中实现转换逻辑
-- 纯新增只需要在 `target-key-definitions.json` 中定义，无需额外代码
+- 纯新增只需要在 `scripts/preference-schema/registry.json` 中定义，无需修改迁移分类
 
 **建议**: 在 `description` 中注明是"复杂迁移"还是"v2 新增，非迁移"，便于后续维护。
 
@@ -790,7 +790,7 @@ src/main/data/migration/v2/migrators/
 
 **添加复杂映射的步骤**:
 
-1. 在 `target-key-definitions.json` 中定义 target keys（设 `status: "classified"`）
+1. 在 `scripts/preference-schema/registry.json` 中定义 target keys
 2. 在 `PreferenceTransformers.ts` 中实现转换函数
 3. 在 `ComplexPreferenceMappings.ts` 中添加映射配置
 4. 运行 `npm run generate:preferences` 重新生成 preferenceSchemas.ts

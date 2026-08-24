@@ -112,7 +112,7 @@
 | [Database Schema Guidelines](./references/data/database-patterns.md) | Database schema authoring patterns - file organization, naming, column helpers, write serialization (withWriteTx) |
 | [Database Seeding Guide](./references/data/database-seeding-guide.md) | Seeding architecture - SeedRunner journal in app_state, execution policies, version strategies, adding seeders |
 | [Preference System Overview](./references/data/preference-overview.md) | Preference architecture - generated key schema, SQLite ownership, BootConfig routing, renderer cache, and cross-window sync |
-| [Preference Schema Guide](./references/data/preference-schema-guide.md) | How to add Preference keys through the data-classify generator without editing generated schemas |
+| [Preference Schema Guide](./references/data/preference-schema-guide.md) | How to add Preference keys through the canonical registry without editing generated schemas |
 | [Preference Usage Guide](./references/data/preference-usage.md) | Current usePreference, useMultiplePreferences, and direct PreferenceService APIs |
 | [Migration V2 (Main Process)](./references/data/v2-migration-guide.md) | One-shot v1-to-v2 migration engine - upgrade gate, migrator contracts, data source readers, status tracking |
 

@@ -12,7 +12,7 @@
  * Usage:
  * 1. Define transformation function in a colocated mapping file under `mappings/`
  * 2. Add mapping configuration to COMPLEX_PREFERENCE_MAPPINGS below
- * 3. Add target key definitions in target-key-definitions.json
+ * 3. Add target key definitions in scripts/preference-schema/registry.json
  *
  * IMPORTANT: Ensure no conflicts between simple mappings and complex mappings.
  * The system uses strict mode - conflicts will cause errors at runtime.
@@ -112,7 +112,7 @@ function transformV1CustomCss(sources: Record<string, unknown>): TransformResult
  * 3. List all target keys it produces
  * 4. Provide a transformation function
  *
- * Remember to also define the target keys in target-key-definitions.json!
+ * Remember to also define the target keys in scripts/preference-schema/registry.json!
  */
 /**
  * v1's default assistant carried the context policy every NEW assistant was

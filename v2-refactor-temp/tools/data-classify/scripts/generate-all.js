@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-const PreferencesGenerator = require('./generate-preferences')
+const { spawnSync } = require('node:child_process')
+const path = require('node:path')
 const BootConfigGenerator = require('./generate-boot-config')
 const MigrationGenerator = require('./generate-migration')
 
@@ -10,8 +11,12 @@ async function generateAll() {
   try {
     // 步骤1: 生成preferences.ts
     console.log('📋 步骤 1/3: 生成preferences.ts')
-    const preferencesGenerator = new PreferencesGenerator()
-    preferencesGenerator.generate()
+    const repositoryRoot = path.resolve(__dirname, '../../../..')
+    const result = spawnSync(process.execPath, [path.join(repositoryRoot, 'scripts/preference-schema/generate.mjs')], {
+      cwd: repositoryRoot,
+      stdio: 'inherit'
+    })
+    if (result.status !== 0) throw new Error('Preference schema generation failed')
     console.log('✅ preferences.ts 生成完成\n')
 
     // 步骤2: 生成bootConfigSchemas.ts

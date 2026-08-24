@@ -5,7 +5,7 @@ sources:
   - src/renderer/components/command
   - src/renderer/hooks/command
   - src/main/services/CommandService.ts
-  - v2-refactor-temp/tools/data-classify/data/target-key-definitions.json
+  - scripts/preference-schema/registry.json
 ---
 
 # Command System — Usage
@@ -108,13 +108,12 @@ single-surface action local when no cross-surface contract is needed.
    `src/renderer/i18n/locales/en-us.json`. When adding keys, run
    `pnpm i18n:sync` and translate the generated entries in every locale.
 3. If the command has a keybinding, add `shortcut.<commandId>` to
-   `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json` with
-   `type: "PreferenceTypes.PreferenceShortcutType"`, a matching `{ binding,
-   enabled }` default, and `status: "classified"`. Regenerate the owned files:
+   `scripts/preference-schema/registry.json` with
+   `type: "PreferenceTypes.PreferenceShortcutType"` and a matching `{ binding,
+   enabled }` default. Regenerate the owned file:
 
    ```bash
-   cd v2-refactor-temp/tools/data-classify
-   npm run generate
+   pnpm preferences:generate
    ```
 
    Never edit `src/shared/data/preference/preferenceSchemas.ts` by hand.

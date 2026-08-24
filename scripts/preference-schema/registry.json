@@ -1,0 +1,1692 @@
+{
+  "schemaVersion": 1,
+  "description": "Canonical registry for all persisted Preference keys.",
+  "entries": [
+    {
+      "key": "agent.icon_type",
+      "type": "PreferenceTypes.AssistantIconType",
+      "defaultValue": "emoji",
+      "description": "Agent rail entity icon style (emoji/model/none), independent of the assistant icon type"
+    },
+    {
+      "key": "agent.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["composer:new-session", "skills", "permission-mode"],
+      "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
+    },
+    {
+      "key": "agent.session.display_mode",
+      "type": "PreferenceTypes.AgentSessionDisplayMode",
+      "defaultValue": "agent",
+      "description": "Agent session sidebar display grouping mode"
+    },
+    {
+      "key": "agent.session.position",
+      "type": "PreferenceTypes.TopicTabPosition",
+      "defaultValue": "left",
+      "description": "Agent session resource pane position (left/right), independent of the Home topic pane"
+    },
+    {
+      "key": "app.developer_mode.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/enableDeveloperMode"
+    },
+    {
+      "key": "app.dist.auto_update.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/autoCheckUpdate"
+    },
+    {
+      "key": "app.dist.test_plan.channel",
+      "type": "PreferenceTypes.UpgradeChannel",
+      "defaultValue": "VALUE: PreferenceTypes.UpgradeChannel.LATEST",
+      "description": "redux/settings/testChannel"
+    },
+    {
+      "key": "app.dist.test_plan.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/testPlan"
+    },
+    {
+      "key": "app.fetch.allow_private_network",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "Allow web fetch tools to reach local and private network addresses (v2 new feature, no v1 source)"
+    },
+    {
+      "key": "app.language",
+      "type": "PreferenceTypes.LanguageVarious | null",
+      "defaultValue": "VALUE: null",
+      "description": "redux/settings/language"
+    },
+    {
+      "key": "app.launch_on_boot",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/launchOnBoot"
+    },
+    {
+      "key": "app.notification.assistant.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/notification.assistant"
+    },
+    {
+      "key": "app.notification.backup.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/notification.backup"
+    },
+    {
+      "key": "app.notification.knowledge.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/notification.knowledge"
+    },
+    {
+      "key": "app.notification.update.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
+    },
+    {
+      "key": "app.onboarding.provider_setup.status",
+      "type": "PreferenceTypes.OnboardingProviderSetupStatus",
+      "defaultValue": "pending",
+      "description": "Status of the main-window first-run provider setup onboarding flow"
+    },
+    {
+      "key": "app.power.prevent_sleep_when_busy",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
+    },
+    {
+      "key": "app.privacy.data_collection.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/enableDataCollection"
+    },
+    {
+      "key": "app.privacy.policy_version",
+      "type": "string",
+      "defaultValue": "",
+      "description": "Latest privacy policy version acknowledged by the user"
+    },
+    {
+      "key": "app.proxy.bypass_rules",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/proxyBypassRules"
+    },
+    {
+      "key": "app.proxy.mode",
+      "type": "PreferenceTypes.ProxyMode",
+      "defaultValue": "system",
+      "description": "redux/settings/proxyMode"
+    },
+    {
+      "key": "app.proxy.url",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/proxyUrl"
+    },
+    {
+      "key": "app.spell_check.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/enableSpellCheck"
+    },
+    {
+      "key": "app.spell_check.languages",
+      "type": "string[]",
+      "defaultValue": [],
+      "description": "redux/settings/spellCheckLanguages"
+    },
+    {
+      "key": "app.tray.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/tray"
+    },
+    {
+      "key": "app.tray.on_close",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/trayOnClose"
+    },
+    {
+      "key": "app.tray.on_launch",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/launchToTray"
+    },
+    {
+      "key": "app.use_system_title_bar",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/useSystemTitleBar"
+    },
+    {
+      "key": "app.user.avatar",
+      "type": "string",
+      "defaultValue": "",
+      "description": "dexieSettings/settings/image://avatar"
+    },
+    {
+      "key": "app.user.id",
+      "type": "string",
+      "defaultValue": "",
+      "description": "electronStore/ClientId/clientId"
+    },
+    {
+      "key": "app.user.name",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/userName"
+    },
+    {
+      "key": "app.zoom_factor",
+      "type": "number",
+      "defaultValue": 1,
+      "description": "electronStore/ZoomFactor/ZoomFactor"
+    },
+    {
+      "key": "assistant.icon_type",
+      "type": "PreferenceTypes.AssistantIconType",
+      "defaultValue": "emoji",
+      "description": "redux/settings/assistantIconType"
+    },
+    {
+      "key": "assistant.tab.sort_type",
+      "type": "PreferenceTypes.AssistantTabSortType",
+      "defaultValue": "list",
+      "description": "redux/settings/assistantsTabSortType"
+    },
+    {
+      "key": "chat.code.collapsible",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeCollapsible"
+    },
+    {
+      "key": "chat.code.editor.autocompletion",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/codeEditor.autocompletion"
+    },
+    {
+      "key": "chat.code.editor.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeEditor.enabled"
+    },
+    {
+      "key": "chat.code.editor.fold_gutter",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeEditor.foldGutter"
+    },
+    {
+      "key": "chat.code.editor.highlight_active_line",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeEditor.highlightActiveLine"
+    },
+    {
+      "key": "chat.code.editor.keymap",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeEditor.keymap"
+    },
+    {
+      "key": "chat.code.editor.theme_dark",
+      "type": "string",
+      "defaultValue": "auto",
+      "description": "redux/settings/codeEditor.themeDark"
+    },
+    {
+      "key": "chat.code.editor.theme_light",
+      "type": "string",
+      "defaultValue": "auto",
+      "description": "redux/settings/codeEditor.themeLight"
+    },
+    {
+      "key": "chat.code.execution.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeExecution.enabled"
+    },
+    {
+      "key": "chat.code.execution.timeout_minutes",
+      "type": "number",
+      "defaultValue": 1,
+      "description": "redux/settings/codeExecution.timeoutMinutes"
+    },
+    {
+      "key": "chat.code.fancy_block",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/codeFancyBlock"
+    },
+    {
+      "key": "chat.code.image_tools",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeImageTools"
+    },
+    {
+      "key": "chat.code.preview.theme_dark",
+      "type": "string",
+      "defaultValue": "auto",
+      "description": "redux/settings/codePreview.themeDark"
+    },
+    {
+      "key": "chat.code.preview.theme_light",
+      "type": "string",
+      "defaultValue": "auto",
+      "description": "redux/settings/codePreview.themeLight"
+    },
+    {
+      "key": "chat.code.show_line_numbers",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeShowLineNumbers"
+    },
+    {
+      "key": "chat.code.viewer.theme_dark",
+      "type": "string",
+      "defaultValue": "auto",
+      "description": "redux/settings/codeViewer.themeDark"
+    },
+    {
+      "key": "chat.code.viewer.theme_light",
+      "type": "string",
+      "defaultValue": "auto",
+      "description": "redux/settings/codeViewer.themeLight"
+    },
+    {
+      "key": "chat.code.wrappable",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/codeWrappable"
+    },
+    {
+      "key": "chat.context_settings.compress.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "Enable LLM history compression when the conversation exceeds the model context budget"
+    },
+    {
+      "key": "chat.context_settings.compress.model_id",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "Explicit compression model (UniqueModelId). null = use the current request model"
+    },
+    {
+      "key": "chat.context_settings.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "Master toggle for the context-build (chef) layer: truncation + compaction + compression"
+    },
+    {
+      "key": "chat.context_settings.max_messages",
+      "type": "number | null",
+      "defaultValue": null,
+      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow"
+    },
+    {
+      "key": "chat.context_settings.truncate_threshold",
+      "type": "number",
+      "defaultValue": 50000,
+      "description": "Char count above which a tool result is persisted to the VFS and replaced with a marker"
+    },
+    {
+      "key": "chat.default_model_id",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "key": "chat.input.newline_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut | null",
+      "defaultValue": "VALUE: null",
+      "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
+    },
+    {
+      "key": "chat.input.send_message_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: ['Enter']",
+      "description": "redux/settings/sendMessageShortcut"
+    },
+    {
+      "key": "chat.input.show_estimated_tokens",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/showInputEstimatedTokens"
+    },
+    {
+      "key": "chat.input.steer_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut | null",
+      "defaultValue": "VALUE: null",
+      "description": "A second send-style shortcut that, in Agent mode while the session is streaming, sends the draft straight into the running turn instead of queueing it. No stored default: the effective default is platform-dependent (Command+Enter on macOS, Ctrl+Enter elsewhere) and resolved at read time. Send / newline / steer shortcuts are mutually exclusive."
+    },
+    {
+      "key": "chat.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["composer:new-conversation", "web-search"],
+      "description": "Ordered tool ids pinned on the chat composer toolbar (v2 new feature, no v1 source)"
+    },
+    {
+      "key": "chat.input.translate.auto_translate_with_space",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/autoTranslateWithSpace"
+    },
+    {
+      "key": "chat.input.translate.show_confirm",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/showTranslateConfirm"
+    },
+    {
+      "key": "chat.input.translate.target_language",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "en-us",
+      "description": "redux/settings/targetLanguage"
+    },
+    {
+      "key": "chat.message.confirm_delete",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/confirmDeleteMessage"
+    },
+    {
+      "key": "chat.message.confirm_regenerate",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/confirmRegenerateMessage"
+    },
+    {
+      "key": "chat.message.font",
+      "type": "string",
+      "defaultValue": "system",
+      "description": "redux/settings/messageFont"
+    },
+    {
+      "key": "chat.message.font_size",
+      "type": "number",
+      "defaultValue": 14,
+      "description": "redux/settings/fontSize"
+    },
+    {
+      "key": "chat.message.math.single_dollar",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/mathEnableSingleDollar"
+    },
+    {
+      "key": "chat.message.multi_model.fold_display_mode",
+      "type": "PreferenceTypes.MultiModelFoldDisplayMode",
+      "defaultValue": "expanded",
+      "description": "redux/settings/foldDisplayMode"
+    },
+    {
+      "key": "chat.message.multi_model.grid_columns",
+      "type": "number",
+      "defaultValue": 2,
+      "description": "redux/settings/gridColumns"
+    },
+    {
+      "key": "chat.message.multi_model.grid_popover_trigger",
+      "type": "PreferenceTypes.MultiModelGridPopoverTrigger",
+      "defaultValue": "click",
+      "description": "redux/settings/gridPopoverTrigger"
+    },
+    {
+      "key": "chat.message.multi_model.style",
+      "type": "PreferenceTypes.MultiModelMessageStyle",
+      "defaultValue": "horizontal",
+      "description": "redux/settings/multiModelMessageStyle"
+    },
+    {
+      "key": "chat.message.navigation_mode",
+      "type": "PreferenceTypes.ChatMessageNavigationMode",
+      "defaultValue": "anchor",
+      "description": "redux/settings/messageNavigation"
+    },
+    {
+      "key": "chat.message.render_as_markdown",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/renderInputMessageAsMarkdown"
+    },
+    {
+      "key": "chat.message.show_divider",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/showMessageDivider"
+    },
+    {
+      "key": "chat.message.show_outline",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/showMessageOutline"
+    },
+    {
+      "key": "chat.message.style",
+      "type": "PreferenceTypes.ChatMessageStyle",
+      "defaultValue": "bubble",
+      "description": "redux/settings/messageStyle"
+    },
+    {
+      "key": "chat.message.thought.auto_collapse",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/thoughtAutoCollapse"
+    },
+    {
+      "key": "chat.narrow_mode",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/narrowMode"
+    },
+    {
+      "key": "chat.retry.backoff_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
+    },
+    {
+      "key": "chat.retry.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "Enable model call retry/fallback (v2 新增，非迁移)"
+    },
+    {
+      "key": "chat.retry.fallback_model_ids",
+      "type": "PreferenceTypes.RetryFallbackModelId[]",
+      "defaultValue": [],
+      "description": "Fallback model UniqueModelIds tried in order on failure (v2 新增，非迁移)"
+    },
+    {
+      "key": "chat.retry.max_attempts",
+      "type": "number",
+      "defaultValue": 3,
+      "description": "Max same-model retry attempts for transient errors (v2 新增，非迁移)"
+    },
+    {
+      "key": "chat.web_search.client_tools_preferred",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "Prefer client web search and fetch tools over equivalent provider-native tools when both are available (v2 new feature, no v1 source)"
+    },
+    {
+      "key": "chat.web_search.compression.cutoff_limit",
+      "type": "number",
+      "defaultValue": 2000,
+      "description": "Web search compression cutoff limit (from complex migration; defaults when legacy value is empty)"
+    },
+    {
+      "key": "chat.web_search.compression.method",
+      "type": "PreferenceTypes.WebSearchCompressionMethod",
+      "defaultValue": "cutoff",
+      "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 — new installs only, migrated profiles keep their explicit value)"
+    },
+    {
+      "key": "chat.web_search.default_fetch_urls_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": "jina",
+      "description": "Default Web Search provider for URL fetch capability"
+    },
+    {
+      "key": "chat.web_search.default_search_keywords_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": "exa-mcp",
+      "description": "Default Web Search provider for keyword search capability"
+    },
+    {
+      "key": "chat.web_search.exclude_domains",
+      "type": "string[]",
+      "defaultValue": [],
+      "description": "Web search excluded domains (from complex migration)"
+    },
+    {
+      "key": "chat.web_search.max_results",
+      "type": "number",
+      "defaultValue": 5,
+      "description": "Web search max results (from complex migration)"
+    },
+    {
+      "key": "chat.web_search.provider_overrides",
+      "type": "PreferenceTypes.WebSearchProviderOverrides",
+      "defaultValue": {},
+      "description": "Web search provider overrides (from complex migration)"
+    },
+    {
+      "key": "data.backup.general.skip_backup_file",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/skipBackupFile"
+    },
+    {
+      "key": "data.backup.local.auto_sync",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/localBackupAutoSync"
+    },
+    {
+      "key": "data.backup.local.dir",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/localBackupDir"
+    },
+    {
+      "key": "data.backup.local.max_backups",
+      "type": "number",
+      "defaultValue": 0,
+      "description": "redux/settings/localBackupMaxBackups"
+    },
+    {
+      "key": "data.backup.local.skip_backup_file",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/localBackupSkipBackupFile"
+    },
+    {
+      "key": "data.backup.local.sync_interval",
+      "type": "number",
+      "defaultValue": 0,
+      "description": "redux/settings/localBackupSyncInterval"
+    },
+    {
+      "key": "data.backup.nutstore.auto_sync",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/nutstore/nutstoreAutoSync"
+    },
+    {
+      "key": "data.backup.nutstore.max_backups",
+      "type": "number",
+      "defaultValue": 0,
+      "description": "redux/nutstore/nutstoreMaxBackups"
+    },
+    {
+      "key": "data.backup.nutstore.path",
+      "type": "string",
+      "defaultValue": "/cherry-studio",
+      "description": "redux/nutstore/nutstorePath"
+    },
+    {
+      "key": "data.backup.nutstore.skip_backup_file",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/nutstore/nutstoreSkipBackupFile"
+    },
+    {
+      "key": "data.backup.nutstore.sync_interval",
+      "type": "number",
+      "defaultValue": 0,
+      "description": "redux/nutstore/nutstoreSyncInterval"
+    },
+    {
+      "key": "data.backup.nutstore.token",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/nutstore/nutstoreToken"
+    },
+    {
+      "key": "data.backup.s3.access_key_id",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/s3.accessKeyId"
+    },
+    {
+      "key": "data.backup.s3.auto_sync",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/s3.autoSync"
+    },
+    {
+      "key": "data.backup.s3.bucket",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/s3.bucket"
+    },
+    {
+      "key": "data.backup.s3.endpoint",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/s3.endpoint"
+    },
+    {
+      "key": "data.backup.s3.max_backups",
+      "type": "number",
+      "defaultValue": 0,
+      "description": "redux/settings/s3.maxBackups"
+    },
+    {
+      "key": "data.backup.s3.region",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/s3.region"
+    },
+    {
+      "key": "data.backup.s3.root",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/s3.root"
+    },
+    {
+      "key": "data.backup.s3.secret_access_key",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/s3.secretAccessKey"
+    },
+    {
+      "key": "data.backup.s3.skip_backup_file",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/s3.skipBackupFile"
+    },
+    {
+      "key": "data.backup.s3.sync_interval",
+      "type": "number",
+      "defaultValue": 0,
+      "description": "redux/settings/s3.syncInterval"
+    },
+    {
+      "key": "data.backup.webdav.auto_sync",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/webdavAutoSync"
+    },
+    {
+      "key": "data.backup.webdav.disable_stream",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/webdavDisableStream"
+    },
+    {
+      "key": "data.backup.webdav.host",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/webdavHost"
+    },
+    {
+      "key": "data.backup.webdav.max_backups",
+      "type": "number",
+      "defaultValue": 0,
+      "description": "redux/settings/webdavMaxBackups"
+    },
+    {
+      "key": "data.backup.webdav.pass",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/webdavPass"
+    },
+    {
+      "key": "data.backup.webdav.path",
+      "type": "string",
+      "defaultValue": "/cherry-studio",
+      "description": "redux/settings/webdavPath"
+    },
+    {
+      "key": "data.backup.webdav.skip_backup_file",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/webdavSkipBackupFile"
+    },
+    {
+      "key": "data.backup.webdav.sync_interval",
+      "type": "number",
+      "defaultValue": 0,
+      "description": "redux/settings/webdavSyncInterval"
+    },
+    {
+      "key": "data.backup.webdav.user",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/webdavUser"
+    },
+    {
+      "key": "data.export.markdown.exclude_citations",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/excludeCitationsInExport"
+    },
+    {
+      "key": "data.export.markdown.force_dollar_math",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/forceDollarMathInMarkdown"
+    },
+    {
+      "key": "data.export.markdown.path",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "redux/settings/markdownExportPath"
+    },
+    {
+      "key": "data.export.markdown.show_model_name",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/showModelNameInMarkdown"
+    },
+    {
+      "key": "data.export.markdown.show_model_provider",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/showModelProviderInMarkdown"
+    },
+    {
+      "key": "data.export.markdown.standardize_citations",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/standardizeCitationsInExport"
+    },
+    {
+      "key": "data.export.markdown.use_topic_naming_for_message_title",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/useTopicNamingForMessageTitle"
+    },
+    {
+      "key": "data.export.menus.docx",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.docx"
+    },
+    {
+      "key": "data.export.menus.image",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.image"
+    },
+    {
+      "key": "data.export.menus.joplin",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.joplin"
+    },
+    {
+      "key": "data.export.menus.markdown",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.markdown"
+    },
+    {
+      "key": "data.export.menus.markdown_reason",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.markdown_reason"
+    },
+    {
+      "key": "data.export.menus.notion",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.notion"
+    },
+    {
+      "key": "data.export.menus.obsidian",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.obsidian"
+    },
+    {
+      "key": "data.export.menus.plain_text",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.plain_text"
+    },
+    {
+      "key": "data.export.menus.siyuan",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.siyuan"
+    },
+    {
+      "key": "data.export.menus.yuque",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/exportMenuOptions.yuque"
+    },
+    {
+      "key": "data.integration.joplin.export_reasoning",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/joplinExportReasoning"
+    },
+    {
+      "key": "data.integration.joplin.token",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/joplinToken"
+    },
+    {
+      "key": "data.integration.joplin.url",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/joplinUrl"
+    },
+    {
+      "key": "data.integration.notion.api_key",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/notionApiKey"
+    },
+    {
+      "key": "data.integration.notion.database_id",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/notionDatabaseID"
+    },
+    {
+      "key": "data.integration.notion.export_reasoning",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/notionExportReasoning"
+    },
+    {
+      "key": "data.integration.notion.page_name_key",
+      "type": "string",
+      "defaultValue": "Name",
+      "description": "redux/settings/notionPageNameKey"
+    },
+    {
+      "key": "data.integration.obsidian.default_vault",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/defaultObsidianVault"
+    },
+    {
+      "key": "data.integration.siyuan.api_url",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "redux/settings/siyuanApiUrl"
+    },
+    {
+      "key": "data.integration.siyuan.box_id",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "redux/settings/siyuanBoxId"
+    },
+    {
+      "key": "data.integration.siyuan.root_path",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "redux/settings/siyuanRootPath"
+    },
+    {
+      "key": "data.integration.siyuan.token",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "redux/settings/siyuanToken"
+    },
+    {
+      "key": "data.integration.yuque.repo_id",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/yuqueRepoId"
+    },
+    {
+      "key": "data.integration.yuque.token",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/yuqueToken"
+    },
+    {
+      "key": "data.integration.yuque.url",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/yuqueUrl"
+    },
+    {
+      "key": "feature.api_gateway.api_key",
+      "type": "string | null",
+      "defaultValue": "VALUE: null",
+      "description": "redux/settings/apiServer.apiKey"
+    },
+    {
+      "key": "feature.api_gateway.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/apiServer.enabled"
+    },
+    {
+      "key": "feature.api_gateway.host",
+      "type": "string",
+      "defaultValue": "127.0.0.1",
+      "description": "redux/settings/apiServer.host"
+    },
+    {
+      "key": "feature.api_gateway.port",
+      "type": "number",
+      "defaultValue": 23333,
+      "description": "redux/settings/apiServer.port"
+    },
+    {
+      "key": "feature.binary.install_settings",
+      "type": "PreferenceTypes.BinaryInstallSettings",
+      "defaultValue": {
+        "githubMirror": "",
+        "githubToken": "",
+        "npmRegistry": "",
+        "pipIndexUrl": "",
+        "verifySignatures": true
+      },
+      "description": "BinaryManager's isolated mise install settings"
+    },
+    {
+      "key": "feature.binary.tools",
+      "type": "PreferenceTypes.CustomToolDefinition[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.CustomToolDefinition[]",
+      "description": "BinaryManager custom tool registry: each entry is a user-added custom tool definition; requestedVersion is an optional version pin"
+    },
+    {
+      "key": "feature.code_cli.configs",
+      "type": "PreferenceTypes.CodeCliConfigs",
+      "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliConfigs",
+      "description": "Fresh v2 key (no migration): per-tool CLI configs with per-provider modelId, config blob, and sortIndex. v1 codeTools is throwaway."
+    },
+    {
+      "key": "feature.file_processing.default_document_to_markdown",
+      "type": "PreferenceTypes.FileProcessorId | null",
+      "defaultValue": "VALUE: null",
+      "description": "redux/preprocess/defaultProvider"
+    },
+    {
+      "key": "feature.file_processing.default_image_to_text",
+      "type": "PreferenceTypes.FileProcessorId | null",
+      "defaultValue": "VALUE: null",
+      "description": "redux/ocr/imageProviderId"
+    },
+    {
+      "key": "feature.file_processing.overrides",
+      "type": "PreferenceTypes.FileProcessorOverrides",
+      "defaultValue": "VALUE: {} as PreferenceTypes.FileProcessorOverrides",
+      "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
+    },
+    {
+      "key": "feature.local_model.hardware_acceleration.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
+    },
+    {
+      "key": "feature.mini_app.max_keep_alive",
+      "type": "number",
+      "defaultValue": 3,
+      "description": "redux/settings/maxKeepAliveMinapps"
+    },
+    {
+      "key": "feature.mini_app.open_link_external",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/minappsOpenLinkExternal"
+    },
+    {
+      "key": "feature.mini_app.region",
+      "type": "PreferenceTypes.MiniAppRegionFilter",
+      "defaultValue": "auto",
+      "description": "redux/settings/minAppRegion"
+    },
+    {
+      "key": "feature.notes.default_edit_mode",
+      "type": "string",
+      "defaultValue": "preview",
+      "description": "redux/note/settings.defaultEditMode"
+    },
+    {
+      "key": "feature.notes.default_view_mode",
+      "type": "string",
+      "defaultValue": "edit",
+      "description": "redux/note/settings.defaultViewMode"
+    },
+    {
+      "key": "feature.notes.font_family",
+      "type": "string",
+      "defaultValue": "default",
+      "description": "redux/note/settings.fontFamily"
+    },
+    {
+      "key": "feature.notes.font_size",
+      "type": "number",
+      "defaultValue": 16,
+      "description": "redux/note/settings.fontSize"
+    },
+    {
+      "key": "feature.notes.full_width",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/note/settings.isFullWidth"
+    },
+    {
+      "key": "feature.notes.line_breaks",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
+    },
+    {
+      "key": "feature.notes.path",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/note/notesPath"
+    },
+    {
+      "key": "feature.notes.show_tab_status",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/note/settings.showTabStatus"
+    },
+    {
+      "key": "feature.notes.show_table_of_contents",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/note/settings.showTableOfContents"
+    },
+    {
+      "key": "feature.notes.show_workspace",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/note/settings.showWorkspace"
+    },
+    {
+      "key": "feature.notes.sort_type",
+      "type": "string",
+      "defaultValue": "sort_a2z",
+      "description": "redux/note/sortType"
+    },
+    {
+      "key": "feature.openclaw.gateway_port",
+      "type": "number",
+      "defaultValue": 18790,
+      "description": "OpenClaw gateway port"
+    },
+    {
+      "key": "feature.openclaw.selected_model_id",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "OpenClaw selected model UniqueModelId (provider::modelId, from complex mapping openclaw_preferences)"
+    },
+    {
+      "key": "feature.paintings.default_model_id",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "Paintings default image-generation model UniqueModelId (provider::modelId)"
+    },
+    {
+      "key": "feature.paintings.default_provider",
+      "type": "string",
+      "defaultValue": "zhipu",
+      "description": "redux/settings/defaultPaintingProvider"
+    },
+    {
+      "key": "feature.quick_assistant.assistant_id",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/llm/quickAssistantId"
+    },
+    {
+      "key": "feature.quick_assistant.click_tray_to_show",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/clickTrayToShowQuickAssistant"
+    },
+    {
+      "key": "feature.quick_assistant.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/settings/enableQuickAssistant"
+    },
+    {
+      "key": "feature.quick_assistant.model_id",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "Quick assistant model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "key": "feature.quick_assistant.read_clipboard_at_startup",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/readClipboardAtStartup"
+    },
+    {
+      "key": "feature.screenshot.auto_ocr",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "Whether OCR runs automatically after a selection is made"
+    },
+    {
+      "key": "feature.screenshot.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "Whether interactive screen capture is enabled"
+    },
+    {
+      "key": "feature.selection.action_items",
+      "type": "PreferenceTypes.SelectionActionItem[]",
+      "defaultValue": [
+        {
+          "enabled": true,
+          "icon": "languages",
+          "id": "translate",
+          "isBuiltIn": true,
+          "name": "selection.action.builtin.translate"
+        },
+        {
+          "enabled": true,
+          "icon": "file-question",
+          "id": "explain",
+          "isBuiltIn": true,
+          "name": "selection.action.builtin.explain"
+        },
+        {
+          "enabled": true,
+          "icon": "scan-text",
+          "id": "summary",
+          "isBuiltIn": true,
+          "name": "selection.action.builtin.summary"
+        },
+        {
+          "enabled": true,
+          "icon": "search",
+          "id": "search",
+          "isBuiltIn": true,
+          "name": "selection.action.builtin.search",
+          "searchEngine": "Google|https://www.google.com/search?q={{queryString}}"
+        },
+        {
+          "enabled": true,
+          "icon": "clipboard-copy",
+          "id": "copy",
+          "isBuiltIn": true,
+          "name": "selection.action.builtin.copy"
+        },
+        {
+          "enabled": false,
+          "icon": "wand-sparkles",
+          "id": "refine",
+          "isBuiltIn": true,
+          "name": "selection.action.builtin.refine"
+        },
+        {
+          "enabled": false,
+          "icon": "quote",
+          "id": "quote",
+          "isBuiltIn": true,
+          "name": "selection.action.builtin.quote"
+        }
+      ],
+      "description": "redux/selectionStore/actionItems"
+    },
+    {
+      "key": "feature.selection.action_window_opacity",
+      "type": "number",
+      "defaultValue": 100,
+      "description": "redux/selectionStore/actionWindowOpacity"
+    },
+    {
+      "key": "feature.selection.auto_close",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/selectionStore/isAutoClose"
+    },
+    {
+      "key": "feature.selection.auto_pin",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/selectionStore/isAutoPin"
+    },
+    {
+      "key": "feature.selection.compact",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/selectionStore/isCompact"
+    },
+    {
+      "key": "feature.selection.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/selectionStore/selectionEnabled"
+    },
+    {
+      "key": "feature.selection.filter_list",
+      "type": "string[]",
+      "defaultValue": [],
+      "description": "redux/selectionStore/filterList"
+    },
+    {
+      "key": "feature.selection.filter_mode",
+      "type": "PreferenceTypes.SelectionFilterMode",
+      "defaultValue": "VALUE: PreferenceTypes.SelectionFilterMode.Default",
+      "description": "redux/selectionStore/filterMode"
+    },
+    {
+      "key": "feature.selection.follow_toolbar",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/selectionStore/isFollowToolbar"
+    },
+    {
+      "key": "feature.selection.remember_win_size",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/selectionStore/isRemeberWinSize"
+    },
+    {
+      "key": "feature.selection.trigger_mode",
+      "type": "PreferenceTypes.SelectionTriggerMode",
+      "defaultValue": "VALUE: PreferenceTypes.SelectionTriggerMode.Selected",
+      "description": "redux/selectionStore/triggerMode"
+    },
+    {
+      "key": "feature.translate.action.alter_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "en-us",
+      "description": "ActionTranslate alternate language"
+    },
+    {
+      "key": "feature.translate.action.preferred_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "description": "ActionTranslate preferred language"
+    },
+    {
+      "key": "feature.translate.auto_detection_method",
+      "type": "PreferenceTypes.AutoDetectionMethod",
+      "defaultValue": "auto",
+      "description": "dexieSettings/settings/translate:detect:method"
+    },
+    {
+      "key": "feature.translate.mini_window.target_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "description": "TranslateWindow target language"
+    },
+    {
+      "key": "feature.translate.model_id",
+      "type": "string | null",
+      "defaultValue": null,
+      "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "key": "feature.translate.model_prompt",
+      "type": "string",
+      "defaultValue": "VALUE: TRANSLATE_PROMPT",
+      "description": "redux/settings/translateModelPrompt"
+    },
+    {
+      "key": "feature.translate.page.auto_copy",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "redux/translate/settings.autoCopy"
+    },
+    {
+      "key": "feature.translate.page.bidirectional_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "dexieSettings/settings/translate:bidirectional:enabled"
+    },
+    {
+      "key": "feature.translate.page.bidirectional_pair",
+      "type": "PreferenceTypes.TranslateBidirectionalPair",
+      "defaultValue": ["zh-cn", "en-us"],
+      "description": "Translate page bidirectional language pair (from complex migration)"
+    },
+    {
+      "key": "feature.translate.page.enable_markdown",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "dexieSettings/settings/translate:markdown:enabled"
+    },
+    {
+      "key": "feature.translate.page.scroll_sync",
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "dexieSettings/settings/translate:scroll:sync"
+    },
+    {
+      "key": "feature.translate.page.source_language",
+      "type": "PreferenceTypes.TranslateSourceLanguage",
+      "defaultValue": "auto",
+      "description": "Translate page source language (from complex migration)"
+    },
+    {
+      "key": "feature.translate.page.target_language",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "description": "Translate page target language (from complex migration)"
+    },
+    {
+      "key": "menu.presentation_mode",
+      "type": "PreferenceTypes.MenuPresentationMode",
+      "defaultValue": "cherry",
+      "description": "Global menu presentation mode: native system menus or Cherry custom menus"
+    },
+    {
+      "key": "shortcut.app.fullscreen.exit",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["Escape"],
+        "enabled": true
+      },
+      "description": "Command shortcut: app.fullscreen.exit (unified command system)"
+    },
+    {
+      "key": "shortcut.app.print",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "P"],
+        "enabled": true
+      },
+      "description": "Command shortcut: app.print (unified command system)"
+    },
+    {
+      "key": "shortcut.app.search",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "F"],
+        "enabled": true
+      },
+      "description": "Command shortcut: app.search (unified command system)"
+    },
+    {
+      "key": "shortcut.app.settings.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", ","],
+        "enabled": true
+      },
+      "description": "Command shortcut: app.settings.open (unified command system)"
+    },
+    {
+      "key": "shortcut.app.sidebar.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "["],
+        "enabled": true
+      },
+      "description": "Command shortcut: app.sidebar.toggle (unified command system)"
+    },
+    {
+      "key": "shortcut.app.window.show",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "description": "Command shortcut: app.window.show (unified command system)"
+    },
+    {
+      "key": "shortcut.app.zoom.in",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "="],
+        "enabled": true
+      },
+      "description": "Command shortcut: app.zoom.in (unified command system)"
+    },
+    {
+      "key": "shortcut.app.zoom.out",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "-"],
+        "enabled": true
+      },
+      "description": "Command shortcut: app.zoom.out (unified command system)"
+    },
+    {
+      "key": "shortcut.app.zoom.reset",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "0"],
+        "enabled": true
+      },
+      "description": "Command shortcut: app.zoom.reset (unified command system)"
+    },
+    {
+      "key": "shortcut.chat.context.toggle_new",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "K"],
+        "enabled": true
+      },
+      "description": "Command shortcut: chat.context.toggle_new (unified command system)"
+    },
+    {
+      "key": "shortcut.chat.message.copy_last",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "C"],
+        "enabled": false
+      },
+      "description": "Command shortcut: chat.message.copy_last (unified command system)"
+    },
+    {
+      "key": "shortcut.chat.message.edit_last_user",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "E"],
+        "enabled": false
+      },
+      "description": "Command shortcut: chat.message.edit_last_user (unified command system)"
+    },
+    {
+      "key": "shortcut.chat.message.search",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "F"],
+        "enabled": true
+      },
+      "description": "Command shortcut: chat.message.search (unified command system)"
+    },
+    {
+      "key": "shortcut.chat.model.select",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "M"],
+        "enabled": true
+      },
+      "description": "Command shortcut: chat.model.select (unified command system)"
+    },
+    {
+      "key": "shortcut.quick_assistant.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "E"],
+        "enabled": false
+      },
+      "description": "Command shortcut: quick_assistant.toggle (unified command system)"
+    },
+    {
+      "key": "shortcut.screenshot.capture",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "A"],
+        "enabled": true
+      },
+      "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "key": "shortcut.selection.capture_text",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "description": "Command shortcut: selection.capture_text (unified command system)"
+    },
+    {
+      "key": "shortcut.selection.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "description": "Command shortcut: selection.toggle (unified command system)"
+    },
+    {
+      "key": "shortcut.tab.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Tab"],
+        "enabled": true
+      },
+      "description": "Command shortcut: tab.next (unified command system)"
+    },
+    {
+      "key": "shortcut.tab.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "Tab"],
+        "enabled": true
+      },
+      "description": "Command shortcut: tab.prev (unified command system)"
+    },
+    {
+      "key": "shortcut.topic.clear_messages",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "L"],
+        "enabled": true
+      },
+      "description": "Command shortcut: topic.clear_messages (unified command system)"
+    },
+    {
+      "key": "shortcut.topic.create",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "N"],
+        "enabled": true
+      },
+      "description": "Command shortcut: topic.create (unified command system)"
+    },
+    {
+      "key": "shortcut.topic.rename",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "T"],
+        "enabled": false
+      },
+      "description": "Command shortcut: topic.rename (unified command system)"
+    },
+    {
+      "key": "shortcut.topic.sidebar.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "]"],
+        "enabled": true
+      },
+      "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
+    },
+    {
+      "key": "topic.naming_prompt",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/topicNamingPrompt"
+    },
+    {
+      "key": "topic.naming.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/enableTopicNaming"
+    },
+    {
+      "key": "topic.tab.display_mode",
+      "type": "PreferenceTypes.TopicDisplayMode",
+      "defaultValue": "assistant",
+      "description": "Topic sidebar display grouping mode"
+    },
+    {
+      "key": "topic.tab.position",
+      "type": "PreferenceTypes.TopicTabPosition",
+      "defaultValue": "left",
+      "description": "redux/settings/topicPosition"
+    },
+    {
+      "key": "topic.tab.show",
+      "type": "boolean",
+      "defaultValue": true,
+      "description": "redux/settings/showTopics"
+    },
+    {
+      "key": "ui.custom_css",
+      "type": "string",
+      "defaultValue": "",
+      "description": "Custom CSS for v2. Non-empty v1 CSS is preserved in this key with a versioned first-line marker that keeps it disabled until reviewed."
+    },
+    {
+      "key": "ui.launchpad.app_order",
+      "type": "PreferenceTypes.SidebarFavorite[]",
+      "defaultValue": [],
+      "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
+    },
+    {
+      "key": "ui.navbar.position",
+      "type": "'left' | 'top'",
+      "defaultValue": "top",
+      "description": "redux/settings/navbarPosition"
+    },
+    {
+      "key": "ui.sidebar.favorites",
+      "type": "PreferenceTypes.SidebarFavoriteItem[]",
+      "defaultValue": [
+        {
+          "id": "assistants",
+          "type": "app"
+        },
+        {
+          "id": "agents",
+          "type": "app"
+        },
+        {
+          "id": "translate",
+          "type": "app"
+        },
+        {
+          "id": "paintings",
+          "type": "app"
+        },
+        {
+          "id": "knowledge",
+          "type": "app"
+        }
+      ],
+      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
+    },
+    {
+      "key": "ui.theme_mode",
+      "type": "PreferenceTypes.ThemeMode",
+      "defaultValue": "VALUE: PreferenceTypes.ThemeMode.system",
+      "description": "redux/settings/theme"
+    },
+    {
+      "key": "ui.theme_user.code_font_family",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/userTheme.userCodeFontFamily"
+    },
+    {
+      "key": "ui.theme_user.color_primary",
+      "type": "string",
+      "defaultValue": "#00b96b",
+      "description": "redux/settings/userTheme.colorPrimary"
+    },
+    {
+      "key": "ui.theme_user.font_family",
+      "type": "string",
+      "defaultValue": "",
+      "description": "redux/settings/userTheme.userFontFamily"
+    },
+    {
+      "key": "ui.window_style",
+      "type": "PreferenceTypes.WindowStyle",
+      "defaultValue": "transparent",
+      "description": "redux/settings/windowStyle"
+    }
+  ]
+}
