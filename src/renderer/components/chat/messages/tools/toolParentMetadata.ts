@@ -26,6 +26,16 @@ function getParentMetadata(part: CherryMessagePart): Record<string, unknown> | u
   return undefined
 }
 
+/** The launch root tool-call id stamped onto a SendMessage receipt by the adapter. */
+export function getPartLaunchToolCallId(part: CherryMessagePart): string | undefined {
+  for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata']) {
+    const metadata = getMetadataRecord(part, field)
+    const entry = metadata?.cherry
+    if (isRecord(entry) && typeof entry.launchToolCallId === 'string') return entry.launchToolCallId
+  }
+  return undefined
+}
+
 export function getPartParentToolCallId(part: CherryMessagePart): string | undefined {
   const direct = (part as unknown as { parentToolUseId?: unknown }).parentToolUseId
   if (typeof direct === 'string' && direct) return direct

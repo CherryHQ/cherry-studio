@@ -1216,14 +1216,18 @@ export class ClaudeCodeStreamAdapter {
       const taskId = getLaunchedBackgroundTaskId(normalizedResult)
       if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
     }
-    // A SendMessage receipt that resumed a background agent re-tags subsequent content of that
-    // agent (which keeps streaming under the launch id) so the flow view can split its rounds.
-    // Only-overwrite, never clear: the turn's result reaches us before the resumed content does.
+    // A SendMessage receipt that resumed a background agent carries the launch root id in its
+    // own metadata (so the renderer can navigate without scanning) AND re-tags subsequent
+    // content of that agent for round splitting. Only-overwrite, never clear.
     if (!isError && isRecord(normalizedResult)) {
       const resumedAgentId = normalizedResult.resumedAgentId
       if (typeof resumedAgentId === 'string') {
         const launchToolCallId = this.backgroundTaskToolCallIds.get(resumedAgentId)
-        if (launchToolCallId) this.resumeMarkers.set(launchToolCallId, result.tool_use_id)
+        if (launchToolCallId) {
+          this.resumeMarkers.set(launchToolCallId, result.tool_use_id)
+          const cherry = providerMetadata.cherry as Record<string, unknown>
+          cherry.launchToolCallId = launchToolCallId
+        }
       }
     }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {

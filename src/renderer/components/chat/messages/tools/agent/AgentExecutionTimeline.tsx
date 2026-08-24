@@ -12,6 +12,7 @@ import {
   resolveResumedAgent
 } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext, ToolHeader } from '../shared/GenericTools'
+import { getPartLaunchToolCallId } from '../toolParentMetadata'
 import { isToolPartAwaitingApproval, type ToolResponseLike } from '../toolResponse'
 import { AgentToolCallCard, getAgentToolFlowTitle } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
@@ -76,10 +77,15 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   // Hooks stay above every early return below: a tool flipping out of its approval wait must not
   // change this component's hook count (React #310).
   const resumedAgentId = tool?.name === AgentToolsType.SendMessage ? getResumedAgentId(response) : undefined
-  const resumedLaunch = useMemo(
-    () => (resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined),
-    [response, fullPartsMap, resumedAgentId]
-  )
+  // Primary source: adapter-stamped launch root (zero scanning). Fallback: cross-message scan.
+  const stampedLaunchId =
+    tool?.name === AgentToolsType.SendMessage
+      ? getPartLaunchToolCallId(toolResponse as unknown as CherryMessagePart)
+      : undefined
+  const resumedLaunch = useMemo(() => {
+    if (stampedLaunchId) return { toolCallId: stampedLaunchId }
+    return resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
+  }, [stampedLaunchId, response, fullPartsMap, resumedAgentId])
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
