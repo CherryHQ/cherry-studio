@@ -135,9 +135,6 @@ export class WebviewService extends BaseService {
     }
 
     const pdfData = await webview.printToPDF({
-      margins: {
-        marginType: 'default'
-      },
       printBackground: true,
       landscape: false,
       pageSize: 'A4',
