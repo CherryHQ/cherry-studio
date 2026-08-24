@@ -105,6 +105,7 @@ vi.mock('../WindowFooter', () => ({
 }))
 
 vi.mock('@renderer/services/aiTransport', () => ({
+  ConversationOverlayDurability: { Durable: 'durable', Ephemeral: 'ephemeral' },
   ipcChatTransport: {}
 }))
 

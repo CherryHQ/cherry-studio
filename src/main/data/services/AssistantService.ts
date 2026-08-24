@@ -611,17 +611,18 @@ export class AssistantDataService {
         deletedTopicIds = topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
       }
 
+      topicService.addReadModelEffects(tx.effects, deletedTopicIds ?? [], 'membership')
+      pinService.addPurgeReadModelEffect(tx.effects)
+      promptService.addTargetBindingsChangedEffects(tx.effects)
+
       return true
     })
 
     if (!deleted) {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
-    topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership')
-    pinService.notifyPurged()
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
-    promptService.notifyTargetBindingsChanged()
     return { deleted, deletedTopicIds }
   }
 

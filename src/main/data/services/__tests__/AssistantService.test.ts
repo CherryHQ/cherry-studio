@@ -22,6 +22,7 @@ import {
   type ListAssistantsQuery,
   ListAssistantsQuerySchema
 } from '@shared/data/api/schemas/assistants'
+import { DataApiDataChangeScope } from '@shared/data/api/types'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -47,7 +48,6 @@ describe('AssistantDataService', () => {
     // Reset preference state between tests so one test's
     // `chat.default_model_id` override does not leak into the next.
     MockMainPreferenceServiceUtils.resetMocks()
-    MockMainDbServiceExport.dbService.withWriteTx.mockImplementation((fn) => dbh.db.transaction(fn as never))
     await seedModelRefs()
   })
 
@@ -1356,7 +1356,21 @@ describe('AssistantDataService', () => {
 
       const pinRows = await dbh.db.select().from(pinTable)
       expect(pinRows).toHaveLength(0)
-      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/pins', kind: 'membership' },
+        { endpoint: '/prompts', kind: 'membership' },
+        { endpoint: '/prompt-bindings', kind: 'membership' },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        {
+          endpoint: '/prompts/:id/bindings',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        }
+      ])
     })
 
     it('should remove prompt bindings for the deleted assistant', async () => {
