@@ -2817,6 +2817,8 @@
   "provider.tokenhub": "TokenHub",
   "provider.vertexai": "Vertex AI",
   "provider.voyageai": "Voyage AI",
+  "provider.xfyun": "讯飞星辰 MaaS",
+  "provider.xfyun-coding": "讯飞星辰 Coding Plan",
   "provider.xirang": "天翼云息壤",
   "provider.yi": "零一万物",
   "provider.zai": "Z.ai",

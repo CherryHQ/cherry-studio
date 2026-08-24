@@ -169,6 +169,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-omni-flash' },
   { pattern: '^gemini-robotics' },
   { pattern: 'gemma-?4' },
+  // iflytek
+  { pattern: '^spark-x2' },
   // inception
   { pattern: '^mercury-2' },
   // meituan

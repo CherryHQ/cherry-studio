@@ -2817,6 +2817,8 @@
   "provider.tokenhub": "TokenHub",
   "provider.vertexai": "Vertex AI",
   "provider.voyageai": "Voyage AI",
+  "provider.xfyun": "iFlytek Astron MaaS",
+  "provider.xfyun-coding": "iFlytek Astron Coding Plan",
   "provider.xirang": "State Cloud Xirang",
   "provider.yi": "Yi",
   "provider.zai": "Z.ai",

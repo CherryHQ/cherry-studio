@@ -10633,6 +10633,30 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 196608,
+      "id": "spark-x2",
+      "metadata": {},
+      "name": "Spark X2",
+      "ownedBy": "iflytek"
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 262144,
+      "id": "spark-x2-agent",
+      "metadata": {},
+      "name": "Spark X2 Agent",
+      "ownedBy": "iflytek"
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 262144,
+      "id": "spark-x2-flash",
+      "metadata": {},
+      "name": "Spark X2 Flash",
+      "ownedBy": "iflytek"
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 128000,
       "family": "mercury",
       "id": "mercury-2",
@@ -21699,5 +21723,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "0a900dcf6dab1f85"
+  "version": "e4ea88ccc3d885ec"
 }
