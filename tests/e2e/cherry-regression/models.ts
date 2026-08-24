@@ -30,13 +30,9 @@ async function addModel(page: Page, model: string): Promise<void> {
 export async function ensureCustomChatProvider(app: RegressionApp, page: Page): Promise<void> {
   const { baseUrl, apiKey, chatModel } = app.config.customProvider
   await openSettingsSection(page, 'Model Provider')
+  const providerItem = page.locator('[data-testid^="provider-list-item-"]').filter({ hasText: CUSTOM_CHAT_PROVIDER })
 
-  if (
-    !(await page
-      .getByText(CUSTOM_CHAT_PROVIDER, { exact: true })
-      .isVisible()
-      .catch(() => false))
-  ) {
+  if (!(await providerItem.isVisible().catch(() => false))) {
     await page.getByRole('button', { name: 'Add Provider', exact: true }).click()
     await page.getByPlaceholder('Example: OpenAI', { exact: true }).fill(CUSTOM_CHAT_PROVIDER)
     const apiKeyInput = page.getByRole('textbox', { name: 'API Key', exact: true })
@@ -47,7 +43,9 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
     await page.getByRole('button', { name: 'Add', exact: true }).click()
   }
 
-  await page.getByRole('button', { name: CUSTOM_CHAT_PROVIDER, exact: true }).click()
+  const providerHeading = page.getByRole('heading', { name: CUSTOM_CHAT_PROVIDER, exact: true, level: 1 })
+  if (!(await providerHeading.isVisible().catch(() => false))) await providerItem.click()
+  await expect(providerHeading).toBeVisible()
   const enabled = page.getByRole('switch').last()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
   await addModel(page, chatModel)
