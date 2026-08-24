@@ -10,6 +10,12 @@ export interface CodeCliToolPreset {
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
+  /**
+   * Version a fresh install resolves to, verified against this release. Absent
+   * means "latest". Upgrades always go to latest regardless — see
+   * `useBinaryActions`.
+   */
+  pinnedVersion?: string
 }
 
 type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
@@ -24,21 +30,36 @@ function defineCodeCliTool(definition: CodeCliToolDefinition): Readonly<CodeCliT
 /**
  * Single source of truth for executable names, npm packages, and mise install
  * specs used by both main and renderer processes.
+ *
+ * `pinnedVersion` is carried by the CLIs whose private config files Cherry
+ * writes into: an upstream format change breaks a fresh install on the day it
+ * ships, so new installs resolve to the version verified for this release
+ * instead of whatever is latest. Bumping them is a release-checklist step.
  */
 export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   defineCodeCliTool({
     id: CodeCli.CLAUDE_CODE,
     executable: 'claude',
     packageName: '@anthropic-ai/claude-code',
-    install: 'registry'
+    install: 'registry',
+    pinnedVersion: '2.1.238'
   }),
   defineCodeCliTool({
     id: CodeCli.OPENAI_CODEX,
     executable: 'codex',
     packageName: '@openai/codex',
     install: 'registry'
+    // Unpinnable: mise resolves codex through `aqua:openai/codex`, whose versions
+    // are per-platform tags (`0.144.4-darwin-arm64`). One constant cannot name them
+    // all, and a bare `0.144.4` fails getInstalledVersion's semver equality check.
   }),
-  defineCodeCliTool({ id: CodeCli.OPEN_CODE, executable: 'opencode', packageName: 'opencode-ai', install: 'registry' }),
+  defineCodeCliTool({
+    id: CodeCli.OPEN_CODE,
+    executable: 'opencode',
+    packageName: 'opencode-ai',
+    install: 'registry',
+    pinnedVersion: '1.18.21'
+  }),
   defineCodeCliTool({ id: CodeCli.OPENCLAW, executable: 'openclaw', packageName: 'openclaw', install: 'npm' }),
   defineCodeCliTool({
     id: CodeCli.DEEPSEEK_HARNESS,
@@ -47,20 +68,29 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     install: 'npm',
     misePrerelease: true,
     // mise 2026.7.14 aube exceeds its 16-pass fixed-point limit on DSH's recursive peer graph.
-    miseNpmShellOut: true
+    miseNpmShellOut: true,
+    pinnedVersion: '0.1.1-rc.2'
   }),
   defineCodeCliTool({
     id: CodeCli.GEMINI_CLI,
     executable: 'gemini',
     packageName: '@google/gemini-cli',
-    install: 'npm'
+    install: 'npm',
+    pinnedVersion: '0.56.0'
   }),
-  defineCodeCliTool({ id: CodeCli.QWEN_CODE, executable: 'qwen', packageName: '@qwen-code/qwen-code', install: 'npm' }),
+  defineCodeCliTool({
+    id: CodeCli.QWEN_CODE,
+    executable: 'qwen',
+    packageName: '@qwen-code/qwen-code',
+    install: 'npm',
+    pinnedVersion: '0.21.15'
+  }),
   defineCodeCliTool({
     id: CodeCli.KIMI_CODE,
     executable: 'kimi',
     packageName: '@moonshot-ai/kimi-code',
-    install: 'npm'
+    install: 'npm',
+    pinnedVersion: '0.38.0'
   }),
   defineCodeCliTool({
     id: CodeCli.QODER_CLI,
@@ -78,7 +108,8 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     id: CodeCli.PI,
     executable: 'pi',
     packageName: '@earendil-works/pi-coding-agent',
-    install: 'npm'
+    install: 'npm',
+    pinnedVersion: '0.84.2'
   })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 
