@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { GEMINI_GATEWAY_MODEL_SUFFIX } from '@shared/utils/apiGateway'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft, CliConfigTarget } from '../index'
@@ -12,6 +13,12 @@ import {
   readCliConfigDraft,
   updateCliConfigDraftConfig
 } from '../index'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
 
 function mockGet(handlers: Record<string, () => unknown>) {
   const prefixes = Object.keys(handlers).sort((a, b) => b.length - a.length)
@@ -61,13 +68,14 @@ async function buildDraft(
 }
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-      file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
-    }
-  })
+  // On-disk configs read as empty through code_cli.read_config (old readExternal → '').
+  mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => ({
+    files: input.targets.map((target) => ({
+      target,
+      path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+      content: ''
+    }))
+  }))
 })
 
 async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promise<CliConfigFileDraft[]> {
