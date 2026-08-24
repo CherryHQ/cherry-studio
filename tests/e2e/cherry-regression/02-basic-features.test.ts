@@ -29,7 +29,7 @@ test('[N-01] 创建和保存笔记 @notes', async ({ app, mainWindow }) => {
     await title.fill('Cherry Regression Note 31415')
     await title.press('Enter')
     await page.locator('[data-ui="notes.editor"] [contenteditable="true"]').fill('NOTE_AUTOSAVE_PASS_27182')
-    await expect(page.locator('[data-ui="notes.editor"]')).toContainText('NOTE_AUTOSAVE_PASS_27182')
+    await expect(page.locator('[data-ui="notes.editor"]').first()).toContainText('NOTE_AUTOSAVE_PASS_27182')
   }
 
   await selectSidebarApp(page, 'Chat')

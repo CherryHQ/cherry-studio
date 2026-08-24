@@ -38,7 +38,7 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
       .catch(() => false))
   ) {
     await page.getByRole('button', { name: 'Add Provider', exact: true }).click()
-    await page.getByRole('textbox', { name: 'Provider Name*', exact: true }).fill(CUSTOM_CHAT_PROVIDER)
+    await page.getByPlaceholder('Example: OpenAI', { exact: true }).fill(CUSTOM_CHAT_PROVIDER)
     const apiKeyInput = page.getByRole('textbox', { name: 'API Key', exact: true })
     await expect(apiKeyInput).toHaveAttribute('type', 'password')
     await apiKeyInput.fill(apiKey)
