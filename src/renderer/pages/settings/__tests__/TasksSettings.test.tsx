@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TasksSettings, { formStateToTrigger, type ScheduleFormState, triggerToFormState } from '../TasksSettings'
 
+type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
+
 const taskLogsMock = vi.hoisted(() => {
   const defaultTaskLog = {
     id: 'log-1',
@@ -106,7 +108,7 @@ const channelDataMock = vi.hoisted(() => ({
 
 const translationMock = vi.hoisted(() => ({
   i18n: { language: 'en-US' },
-  t: (key: string) => key
+  t: ((key: string) => key) as TranslationFunction
 }))
 
 const promptPolishActionsMock = vi.hoisted(() => vi.fn())
