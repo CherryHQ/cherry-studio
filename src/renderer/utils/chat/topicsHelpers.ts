@@ -214,35 +214,29 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
     )
   }
 
-  return withTopicGroupIdPrefix(
-    composeResourceListGroupResolvers(pinnedResolver, (topic) => {
-      const assistantId = topic.assistantId
+  return withTopicGroupIdPrefix((topic) => {
+    const assistantId = topic.assistantId
 
-      if (!assistantId) {
-        return { id: 'assistant:unknown', label: labels.assistant.unlinked }
-      }
-
-      const assistant = assistantById?.get(assistantId)
-      if (assistant) {
-        return { id: `assistant:${assistant.id}`, label: assistant.name }
-      }
-
+    if (!assistantId) {
       return { id: 'assistant:unknown', label: labels.assistant.unlinked }
-    })
-  )
+    }
+
+    const assistant = assistantById?.get(assistantId)
+    if (assistant) {
+      return { id: `assistant:${assistant.id}`, label: assistant.name }
+    }
+
+    return { id: 'assistant:unknown', label: labels.assistant.unlinked }
+  })
 }
 
-function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
+function getAssistantGroupRank<T extends Pick<Topic, 'assistantId'>>(
   topic: T,
   assistantRankById?: ReadonlyMap<string, number>
 ) {
-  if (topic.pinned === true) {
-    return 0
-  }
-
   const assistantRank = topic.assistantId ? assistantRankById?.get(topic.assistantId) : undefined
   if (assistantRank !== undefined) {
-    return assistantRank + 1
+    return assistantRank
   }
 
   return TOPIC_UNLINKED_ASSISTANT_RANK
@@ -259,11 +253,17 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
   const isPinned = (topic: T) => topic.pinned === true
 
   if (options.mode === 'assistant') {
-    return sortRankedResourceItems(topics, {
-      getRank: (topic) => getAssistantGroupRank(topic, options.assistantRankById),
-      isPinned,
-      compareWithinGroup: (a, b) => compareResourceOrderKey(readOptionalOrderKey(a), readOptionalOrderKey(b))
-    })
+    return topics
+      .map((topic, index) => ({ topic, index, rank: getAssistantGroupRank(topic, options.assistantRankById) }))
+      .sort((a, b) => {
+        if (a.rank !== b.rank) return a.rank - b.rank
+        if (a.topic.pinned !== b.topic.pinned) return a.topic.pinned ? -1 : 1
+        if (a.topic.pinned && b.topic.pinned) return a.index - b.index
+        return (
+          compareResourceOrderKey(readOptionalOrderKey(a.topic), readOptionalOrderKey(b.topic)) || a.index - b.index
+        )
+      })
+      .map(({ topic }) => topic)
   }
 
   return sortRankedResourceItems(topics, {
