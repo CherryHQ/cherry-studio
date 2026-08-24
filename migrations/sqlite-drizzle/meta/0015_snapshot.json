@@ -4230,7 +4230,8 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "'global'"
         },
         "order_key": {
           "name": "order_key",
@@ -4945,6 +4946,13 @@
         },
         "auth_config": {
           "name": "auth_config",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "api_features": {
+          "name": "api_features",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

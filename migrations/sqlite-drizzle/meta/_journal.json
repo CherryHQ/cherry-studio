@@ -119,20 +119,6 @@
       "when": 1787514273959,
       "tag": "0016_agent_session_message_reasoning_backfill",
       "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "6",
-      "when": 1787543212836,
-      "tag": "0017_provider_api_features_downgrade_compat",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "6",
-      "when": 1787544400728,
-      "tag": "0018_prompt_visibility_default",
-      "breakpoints": true
     }
   ],
   "version": "7"

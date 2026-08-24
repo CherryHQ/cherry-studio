@@ -17,7 +17,7 @@ CREATE TABLE `__new_prompt` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
 	`content` text NOT NULL,
-	`visibility` text NOT NULL,
+	`visibility` text DEFAULT 'global' NOT NULL,
 	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,

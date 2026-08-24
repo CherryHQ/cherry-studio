@@ -4847,6 +4847,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "api_features": {
+          "name": "api_features",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "provider_settings": {
           "name": "provider_settings",
           "type": "text",

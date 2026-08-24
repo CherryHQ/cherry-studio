@@ -62,6 +62,8 @@ A user who installs a release and rolls back runs the **previous app against the
 
 `pnpm db:downgrade:check` (CI, in the DB Migrations Check step) diffs the **last released snapshot** against the tip snapshot and flags seven things: a removed table, a removed column, any `NOT NULL` tightening, a new `NOT NULL` column without a default, an existing `NOT NULL` column losing its default, a new/changed `CHECK`, a new/changed unique constraint or index. The baseline is a pointer (`meta/<tag>_snapshot.json` is immutable and committed), not a copied schema — so a table rebuild that silently omits a column is caught without anyone annotating it.
 
+The check runs in the PR that introduces the schema change. If that migration has not shipped, fix the schema source, delete that PR's generated `.sql` and snapshot, and regenerate it; do not append a second migration just to undo the first one. Do not hand-edit generated schema DDL or snapshots. Hand-written data movement belongs inside the regenerated migration and needs a populated-database contract test.
+
 A DB default rescues only the **new**-column case. On a column the released app already knows, the app writes it explicitly, and SQLite applies `DEFAULT` only when a column is omitted — so a tightening is flagged whether or not it carries one.
 
 Every flagged item needs exactly one disposition in `migrations/downgrade-contract.json`:

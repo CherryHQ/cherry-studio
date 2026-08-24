@@ -4814,6 +4814,13 @@
     "user_provider": {
       "checkConstraints": {},
       "columns": {
+        "api_features": {
+          "autoincrement": false,
+          "name": "api_features",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
         "api_keys": {
           "autoincrement": false,
           "default": "'[]'",

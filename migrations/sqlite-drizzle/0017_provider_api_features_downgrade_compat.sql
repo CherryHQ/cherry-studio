@@ -1,1 +1,0 @@
-ALTER TABLE `user_provider` ADD `api_features` text;

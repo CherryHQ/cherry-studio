@@ -73,5 +73,3 @@ WHERE json_valid(`api_features`)
     json_type(`endpoint_configs`, '$."openai-responses"') = 'object'
     OR `default_chat_endpoint` = 'openai-responses'
   );
---> statement-breakpoint
-ALTER TABLE `user_provider` DROP COLUMN `api_features`;

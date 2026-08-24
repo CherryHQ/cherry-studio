@@ -189,12 +189,13 @@ describe('applyMigrations over a populated database', () => {
       ['responses-relay', { 'openai-responses': { dialect: { developerRole: false } } }],
       ['anthropic-relay', null]
     ])
-    // A downgraded app still SELECTs api_features, so the column has to survive
-    // the move — emptied, which reads as "use the preset default".
-    expect(sqlite.prepare('SELECT api_features FROM user_provider').all()).toEqual([
-      { api_features: null },
-      { api_features: null },
-      { api_features: null }
+    const apiFeatures = sqlite.prepare('SELECT api_features FROM user_provider ORDER BY order_key').all() as Array<{
+      api_features: string | null
+    }>
+    expect(apiFeatures.map(({ api_features }) => (api_features ? JSON.parse(api_features) : null))).toEqual([
+      { streamOptions: false, developerRole: true, arrayContent: false },
+      { streamOptions: false, developerRole: false },
+      { streamOptions: false, developerRole: true }
     ])
   })
 
@@ -470,7 +471,7 @@ describe('applyMigrations over a populated database', () => {
       }
     ])
 
-    // A downgraded app inserts prompts without the column it never knew about (0018).
+    // A downgraded app inserts prompts without the column it never knew about.
     sqlite
       .prepare(
         `INSERT INTO prompt (id, title, content, order_key, created_at, updated_at)
