@@ -12,7 +12,11 @@
  */
 import { pathToFileURL } from 'node:url'
 
-import { type BridgePermissionMode, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
+import {
+  type BridgePermissionMode,
+  type DshRuntimeEntrySpecifier,
+  resolveBundledDshRuntimeEntry
+} from '@cherrystudio/dsh-bridge'
 import { isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import type { DshApi } from '@shared/ai/dshModelCompatibility'
@@ -21,7 +25,7 @@ import { stringify } from 'yaml'
 import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
 
 /** Resolve a composition plugin specifier to its packaged on-disk entry. */
-export function resolveDshPluginPath(specifier: string): string {
+export function resolveDshPluginPath(specifier: DshRuntimeEntrySpecifier): string {
   return toAsarUnpackedPath(resolveBundledDshRuntimeEntry(specifier))
 }
 
@@ -127,7 +131,11 @@ function buildSpineConfig(input: DshCompositionInput, isWindows: boolean): Recor
 
 export function buildDshCompositionYaml(input: DshCompositionInput): string {
   const isWindows = input.platform === undefined ? isWin : input.platform === 'win32'
-  const entry = (id: string, specifier: string, config?: Record<string, unknown>): DshCompositionEntry => ({
+  const entry = (
+    id: string,
+    specifier: DshRuntimeEntrySpecifier,
+    config?: Record<string, unknown>
+  ): DshCompositionEntry => ({
     id,
     name: toDshPluginUrl(resolveDshPluginPath(specifier), isWindows),
     ...(config ? { config } : {})

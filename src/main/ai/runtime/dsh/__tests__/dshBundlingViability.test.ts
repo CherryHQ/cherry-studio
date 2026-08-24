@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
+import { type DshRuntimeEntrySpecifier, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { describe, expect, it } from 'vitest'
 
 import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
@@ -58,7 +58,7 @@ describe('dsh SDK bundling viability', () => {
       '@deepseek-ai/dsh-shell-env',
       '@deepseek-ai/dsh-tool-pwsh',
       '@cherrystudio/dsh-bridge/plugin'
-    ]
+    ] satisfies DshRuntimeEntrySpecifier[]
     for (const specifier of specifiers) {
       const resolved = resolveBundledDshRuntimeEntry(specifier)
       expect(path.isAbsolute(resolved), `not absolute: ${resolved}`).toBe(true)
