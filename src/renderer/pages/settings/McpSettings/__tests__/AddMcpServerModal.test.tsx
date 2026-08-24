@@ -157,7 +157,32 @@ describe('AddMcpServerModal', () => {
     fireEvent.change(screen.getByLabelText('package upload'), { target: { files: [packageFile] } })
     await userEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
-    expect(mocks.toastError).toHaveBeenCalledWith('message.error.dimension_too_large')
+    expect(mocks.toastError).toHaveBeenCalledWith('settings.mcp.addServer.importFrom.packageTooLarge')
+    expect(arrayBuffer).not.toHaveBeenCalled()
+    expect(mocks.checkConnectivity).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+  })
+
+  it('reports an empty MCP package without reading or sending it', async () => {
+    const onSuccess = vi.fn(async (dtos: CreateMcpServerDto[]) => toCreatedServers(dtos))
+    const packageFile = new File([], 'empty.mcpb', { type: 'application/octet-stream' })
+    const arrayBuffer = vi.fn()
+    Object.defineProperty(packageFile, 'arrayBuffer', { value: arrayBuffer })
+
+    render(
+      <AddMcpServerModal
+        visible
+        onClose={vi.fn()}
+        onSuccess={onSuccess}
+        existingServers={[]}
+        initialImportMethod="mcpb"
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('package upload'), { target: { files: [packageFile] } })
+    await userEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    expect(mocks.toastError).toHaveBeenCalledWith('settings.mcp.addServer.importFrom.packageEmpty')
     expect(arrayBuffer).not.toHaveBeenCalled()
     expect(mocks.checkConnectivity).not.toHaveBeenCalled()
     expect(onSuccess).not.toHaveBeenCalled()

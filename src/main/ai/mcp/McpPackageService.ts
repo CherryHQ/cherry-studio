@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
+import { MAX_MCP_PACKAGE_BYTES } from '@shared/types/mcp'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
@@ -104,8 +105,6 @@ export interface McpPackageUploadResult {
 }
 
 export type McpPackageFormat = 'dxt' | 'mcpb'
-
-const MCP_PACKAGE_UPLOAD_MAX_BYTES = 100 * 1024 * 1024
 
 /**
  * Validate and sanitize a command to prevent path traversal attacks.
@@ -295,8 +294,10 @@ export function validatePackageUploadPayload(
   if (buffer.byteLength === 0) {
     throw new Error('Invalid MCP package upload: file buffer cannot be empty')
   }
-  if (buffer.byteLength > MCP_PACKAGE_UPLOAD_MAX_BYTES) {
-    throw new Error('Invalid MCP package upload: file exceeds the 100 MiB size limit')
+  if (buffer.byteLength > MAX_MCP_PACKAGE_BYTES) {
+    throw new Error(
+      `Invalid MCP package upload: file exceeds the ${MAX_MCP_PACKAGE_BYTES / 1024 / 1024} MiB size limit`
+    )
   }
 
   return buffer

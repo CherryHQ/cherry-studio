@@ -178,8 +178,14 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           return
         }
 
-        if (packageFile.size === 0 || packageFile.size > MAX_MCP_PACKAGE_BYTES) {
-          toast.error(t('message.error.dimension_too_large'))
+        if (packageFile.size === 0) {
+          toast.error(t('settings.mcp.addServer.importFrom.packageEmpty'))
+          setLoading(false)
+          return
+        }
+
+        if (packageFile.size > MAX_MCP_PACKAGE_BYTES) {
+          toast.error(t('settings.mcp.addServer.importFrom.packageTooLarge'))
           setLoading(false)
           return
         }
