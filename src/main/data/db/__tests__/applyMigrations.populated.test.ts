@@ -328,6 +328,55 @@ describe('applyMigrations over a populated database', () => {
     ).toThrow(/UNIQUE|constraint/i)
   })
 
+  it('backfills cleanup policy only for referenced files predating its rollout', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const cleanupPolicyRollout = 1785514531244
+    const legacyReferenced = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const legacyUnreferenced = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    const recentReferenced = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    const insertEntry = sqlite.prepare(
+      `INSERT INTO file_entry
+        (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
+       VALUES (?, 'internal', ?, 'png', 1, NULL, 'manual', ?, ?, NULL)`
+    )
+    insertEntry.run(legacyReferenced, 'legacy-referenced', cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    insertEntry.run(legacyUnreferenced, 'legacy-unreferenced', cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    insertEntry.run(recentReferenced, 'recent-referenced', cleanupPolicyRollout + 1, cleanupPolicyRollout + 1)
+
+    const insertProvider = sqlite.prepare(
+      `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    insertProvider.run('legacy-provider', 'Legacy', 'a0', cleanupPolicyRollout - 1, cleanupPolicyRollout - 1)
+    insertProvider.run('recent-provider', 'Recent', 'a1', cleanupPolicyRollout + 1, cleanupPolicyRollout + 1)
+    const insertRef = sqlite.prepare(
+      `INSERT INTO provider_logo_file_ref (id, file_entry_id, source_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    insertRef.run(
+      'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      legacyReferenced,
+      'legacy-provider',
+      cleanupPolicyRollout - 1,
+      cleanupPolicyRollout - 1
+    )
+    insertRef.run(
+      'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      recentReferenced,
+      'recent-provider',
+      cleanupPolicyRollout + 1,
+      cleanupPolicyRollout + 1
+    )
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT name, cleanup_policy FROM file_entry ORDER BY name`).all()).toEqual([
+      { name: 'legacy-referenced', cleanup_policy: 'delete_when_unreferenced' },
+      { name: 'legacy-unreferenced', cleanup_policy: 'manual' },
+      { name: 'recent-referenced', cleanup_policy: 'manual' }
+    ])
+  })
+
   it('backfills durable refs for existing agent-session attachments', () => {
     // The backfill shipped in 0006. Pin its baseline explicitly so a later schema migration does
     // not move the seed after the backfill and silently stop testing the populated upgrade path.
