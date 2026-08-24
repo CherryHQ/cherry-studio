@@ -63,15 +63,14 @@ describe('clearCliConfig', () => {
         resolveSecond = resolve
       })
       const resolvePath = vi.fn(() => (resolvePath.mock.calls.length === 1 ? first : second))
+      const readExternal = vi.fn(async (path: string) => {
+        throw new Error(`File does not exist: ${path}`)
+      })
       Object.defineProperty(window, 'api', {
         configurable: true,
         value: {
           resolvePath,
-          file: {
-            readExternal: vi.fn(async (path: string) => {
-              throw new Error(`File does not exist: ${path}`)
-            })
-          }
+          file: { readExternal }
         }
       })
 
@@ -82,6 +81,8 @@ describe('clearCliConfig', () => {
       resolveSecond(secondPath)
 
       await clearing
+      expect(readExternal).toHaveBeenCalledWith(firstPath)
+      expect(readExternal).toHaveBeenCalledWith(secondPath)
       expect(mocks.request).not.toHaveBeenCalled()
     }
   )
