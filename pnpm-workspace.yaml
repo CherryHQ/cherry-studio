@@ -79,7 +79,6 @@ patchedDependencies:
   '@ai-sdk/openai@3.0.53': patches/@ai-sdk__openai@3.0.53.patch
   '@ai-sdk/google@3.0.64': patches/@ai-sdk__google@3.0.64.patch
   '@ai-sdk/anthropic': patches/@ai-sdk__anthropic.patch
-  '@ai-sdk/deepseek@2.0.30': patches/@ai-sdk__deepseek@2.0.30.patch
   '@tiptap/extension-drag-handle@3.26.1': patches/@tiptap__extension-drag-handle@3.26.1.patch
   '@tiptap/markdown@3.26.1': patches/@tiptap__markdown@3.26.1.patch
   '@openrouter/ai-sdk-provider@2.10.0': patches/@openrouter__ai-sdk-provider@2.10.0.patch
@@ -92,6 +91,7 @@ patchedDependencies:
   ppu-paddle-ocr@6.0.0: patches/ppu-paddle-ocr@6.0.0.patch
   '@ai-sdk/react@3.0.187': patches/@ai-sdk__react@3.0.187.patch
   '@streamdown/code@1.1.1': patches/@streamdown__code@1.1.1.patch
+  # Version-pinned: hunk targets a content-hashed dist chunk; bumps hard-fail install until key+hunk are re-derived.
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
 

@@ -61,8 +61,7 @@ overrides:
 
 patchedDependencies:
   '@ai-sdk/anthropic': a6fee9768531a088c004ca35f2889025e90645eabb4aeb2a867d169ed1462b34
-  '@ai-sdk/deepseek@2.0.30': db4c4c1e60c18e61952ec4432de7a401adf44420bdbfe4bb6f726a8958642790
-  '@ai-sdk/google@3.0.64': 8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312
+  '@ai-sdk/google@3.0.64': aa5ab9dff5281d7b3c163e6724fc727980aee1b3f921e504ae4b266be7c5912a
   '@ai-sdk/open-responses@1.0.34': 7a7a5a05a06775293425dfb63c279d62fded2d6ac0667ba64664cc43bfef0648
   '@ai-sdk/openai-compatible@2.0.62': 7130c492d179d6e18e356f38e8c8d5a3a12ef14c253743842dfe61b9f61e0966
   '@ai-sdk/openai@3.0.53': 50619577d7cf96a09abeecda737973c96a6322848afd76a778923d094e2d07ee
@@ -83,7 +82,7 @@ patchedDependencies:
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
-  streamdown@2.5.0: f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f
+  streamdown@2.5.0: e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
 
 importers:
@@ -243,7 +242,7 @@ importers:
         version: 3.0.104(zod@4.3.4)
       '@ai-sdk/google':
         specifier: 3.0.64
-        version: 3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.3.4)
+        version: 3.0.64(patch_hash=aa5ab9dff5281d7b3c163e6724fc727980aee1b3f921e504ae4b266be7c5912a)(zod@4.3.4)
       '@ai-sdk/google-vertex':
         specifier: ^4.0.112
         version: 4.0.112(zod@4.3.4)
@@ -1125,7 +1124,7 @@ importers:
         version: 1.9.1
       streamdown:
         specifier: ^2.5.0
-        version: 2.5.0(patch_hash=f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 2.5.0(patch_hash=e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       strict-url-sanitise:
         specifier: ^0.0.1
         version: 0.0.1
@@ -1423,7 +1422,7 @@ importers:
         version: 3.0.103(patch_hash=a6fee9768531a088c004ca35f2889025e90645eabb4aeb2a867d169ed1462b34)(zod@4.4.3)
       '@ai-sdk/google':
         specifier: ^3.0.64
-        version: 3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.4.3)
+        version: 3.0.64(patch_hash=aa5ab9dff5281d7b3c163e6724fc727980aee1b3f921e504ae4b266be7c5912a)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: ^3.0.53
         version: 3.0.53(patch_hash=50619577d7cf96a09abeecda737973c96a6322848afd76a778923d094e2d07ee)(zod@4.4.3)
@@ -1456,11 +1455,11 @@ importers:
         specifier: ^3.0.54
         version: 3.0.54(zod@4.3.4)
       '@ai-sdk/deepseek':
-        specifier: ^2.0.30
-        version: 2.0.30(patch_hash=db4c4c1e60c18e61952ec4432de7a401adf44420bdbfe4bb6f726a8958642790)(zod@4.3.4)
+        specifier: ^2.0.57
+        version: 2.0.57(zod@4.3.4)
       '@ai-sdk/google':
         specifier: ^3.0.64
-        version: 3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.3.4)
+        version: 3.0.64(patch_hash=aa5ab9dff5281d7b3c163e6724fc727980aee1b3f921e504ae4b266be7c5912a)(zod@4.3.4)
       '@ai-sdk/openai':
         specifier: ^3.0.53
         version: 3.0.53(patch_hash=50619577d7cf96a09abeecda737973c96a6322848afd76a778923d094e2d07ee)(zod@4.3.4)
@@ -1967,7 +1966,7 @@ importers:
         version: 2.0.1
       streamdown:
         specifier: ^2.5.0
-        version: 2.5.0(patch_hash=f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 2.5.0(patch_hash=e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       tailwind-merge:
         specifier: ^2.5.5
         version: 2.6.1
@@ -2110,8 +2109,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/deepseek@2.0.30':
-    resolution: {integrity: sha512-ATqXxA0u2h201mrtr8KYp6hJGKbnorby9gti/Jgk5m9A3HzWpnw2AjO0uFHTRkhHonhoZD6QH/WyIEQGKDtmIg==}
+  '@ai-sdk/deepseek@2.0.57':
+    resolution: {integrity: sha512-dGSieE6Q9JLSuSYajEgYZYL4o1vKEEXOgM8eNQGT+9HdoCYBNqLybVdjJB+iu127s0jKLCxK0Nq53ufN+mofEg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -2219,10 +2218,6 @@ packages:
 
   '@ai-sdk/provider@3.0.8':
     resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
-    engines: {node: '>=18'}
-
-  '@ai-sdk/provider@3.0.9':
-    resolution: {integrity: sha512-/ngMKqKdL9dSlY/eQ3NFDzzFyw0Hix+cbFFlyuKEKcOgpHdBt/spKUvX/i0wGrDLFPYJeVvv3N0j92LxWRL7yQ==}
     engines: {node: '>=18'}
 
   '@ai-sdk/react@3.0.187':
@@ -16006,9 +16001,9 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/deepseek@2.0.30(patch_hash=db4c4c1e60c18e61952ec4432de7a401adf44420bdbfe4bb6f726a8958642790)(zod@4.3.4)':
+  '@ai-sdk/deepseek@2.0.57(zod@4.3.4)':
     dependencies:
-      '@ai-sdk/provider': 3.0.9
+      '@ai-sdk/provider': 3.0.15
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       zod: 4.3.4
 
@@ -16035,7 +16030,7 @@ snapshots:
   '@ai-sdk/google-vertex@4.0.112(zod@4.3.4)':
     dependencies:
       '@ai-sdk/anthropic': 3.0.103(patch_hash=a6fee9768531a088c004ca35f2889025e90645eabb4aeb2a867d169ed1462b34)(zod@4.3.4)
-      '@ai-sdk/google': 3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.3.4)
+      '@ai-sdk/google': 3.0.64(patch_hash=aa5ab9dff5281d7b3c163e6724fc727980aee1b3f921e504ae4b266be7c5912a)(zod@4.3.4)
       '@ai-sdk/openai-compatible': 2.0.41(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
@@ -16044,13 +16039,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@ai-sdk/google@3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.3.4)':
+  '@ai-sdk/google@3.0.64(patch_hash=aa5ab9dff5281d7b3c163e6724fc727980aee1b3f921e504ae4b266be7c5912a)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/google@3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.4.3)':
+  '@ai-sdk/google@3.0.64(patch_hash=aa5ab9dff5281d7b3c163e6724fc727980aee1b3f921e504ae4b266be7c5912a)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.40(zod@4.4.3)
@@ -16157,10 +16152,6 @@ snapshots:
       json-schema: 0.4.0
 
   '@ai-sdk/provider@3.0.8':
-    dependencies:
-      json-schema: 0.4.0
-
-  '@ai-sdk/provider@3.0.9':
     dependencies:
       json-schema: 0.4.0
 
@@ -30582,7 +30573,7 @@ snapshots:
     dependencies:
       stream-chain: 2.2.5
 
-  streamdown@2.5.0(patch_hash=f8c01e1f74fe6a736653e8c2f76de065c5c420701f79f124ba69f2c5ccb7278f)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  streamdown@2.5.0(patch_hash=e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       clsx: 2.1.1
       hast-util-to-jsx-runtime: 2.3.6
