@@ -67,6 +67,30 @@ describe('settings search', () => {
     }
   })
 
+  it('matches labels without requiring their display whitespace in the query', () => {
+    const sections = createSections([
+      {
+        path: '/settings/api-gateway',
+        labelKey: 'apiGateway.title',
+        icon: null,
+        search: { prefixes: ['apiGateway'] }
+      }
+    ])
+    const catalog = {
+      'apiGateway.apiKey': 'API Key',
+      'apiGateway.title': 'API Gateway'
+    }
+    const translations: Record<string, string> = {
+      'apiGateway.apiKey': 'API 密钥',
+      'apiGateway.title': 'API 网关'
+    }
+    const entries = buildSettingsSearchEntries(sections, catalog, (key) => translations[key] ?? key)
+
+    expect(filterSettingsSearchEntries(entries, 'API密钥').map((entry) => entry.path)).toEqual([
+      '/settings/api-gateway'
+    ])
+  })
+
   it('requires every word in a query to match the same setting', () => {
     const sections = createSections([
       {

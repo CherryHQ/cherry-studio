@@ -12,6 +12,7 @@ export interface SettingsSearchEntry {
 
 interface SettingsSearchHaystack {
   searchText: string
+  whitespaceFreeText: string
   pinyinText: string
 }
 
@@ -63,7 +64,11 @@ export function buildSettingsSearchEntries(
       haystacks: Array.from(keysByPath.get(item.path) ?? [], (key) => {
         const texts = new Set([translate(key).trim(), englishCatalog[key]?.trim()].filter(Boolean))
         const searchText = Array.from(texts).join(' ').toLowerCase()
-        return { searchText, pinyinText: buildPinyinText(searchText) }
+        return {
+          searchText,
+          whitespaceFreeText: searchText.replace(/\s+/g, ''),
+          pinyinText: buildPinyinText(searchText)
+        }
       })
     }
   })
@@ -78,7 +83,12 @@ export function filterSettingsSearchEntries(
 
   return entries.filter((entry) =>
     entry.haystacks.some((haystack) =>
-      keywords.every((keyword) => haystack.searchText.includes(keyword) || haystack.pinyinText.includes(keyword))
+      keywords.every(
+        (keyword) =>
+          haystack.searchText.includes(keyword) ||
+          haystack.whitespaceFreeText.includes(keyword) ||
+          haystack.pinyinText.includes(keyword)
+      )
     )
   )
 }
