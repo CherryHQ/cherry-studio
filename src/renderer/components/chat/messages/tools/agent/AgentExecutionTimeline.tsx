@@ -84,8 +84,16 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       : undefined
   const resumedLaunch = useMemo(() => {
     if (stampedLaunchId) return { toolCallId: stampedLaunchId }
-    return resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
-  }, [stampedLaunchId, response, fullPartsMap, resumedAgentId])
+    const scanned = resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
+    if (resumedAgentId && !scanned) {
+      console.warn('[resume-debug] scan failed', {
+        resumedAgentId,
+        fullPartsMapKeys: fullPartsMap ? Object.keys(fullPartsMap) : null,
+        fullPartsMapNull: fullPartsMap === null
+      })
+    }
+    return scanned
+  }, [response, fullPartsMap, resumedAgentId])
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
