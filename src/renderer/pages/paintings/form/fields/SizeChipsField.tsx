@@ -10,8 +10,8 @@ const MIN_THUMB = 6
 const DEFAULT_COLUMNS = 3
 
 const chipClass = {
-  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] border px-1 py-1 text-[11px] leading-tight outline-none transition-colors focus-visible:border-border-selected focus-visible:bg-accent focus-visible:text-accent-foreground',
-  active: 'border-border-selected bg-background text-foreground',
+  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] border px-1 py-1 text-[11px] leading-tight outline-none transition-colors focus-visible:border-primary focus-visible:bg-accent focus-visible:text-accent-foreground',
+  active: 'border-primary bg-primary/10 text-foreground',
   inactive:
     'border-border-subtle bg-transparent text-muted-foreground hover:border-border hover:bg-accent hover:text-accent-foreground',
   disabled: 'cursor-not-allowed opacity-50'

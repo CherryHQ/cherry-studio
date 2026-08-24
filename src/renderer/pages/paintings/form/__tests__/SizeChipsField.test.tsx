@@ -29,8 +29,8 @@ describe('SizeChipsField', () => {
     renderChips()
 
     const selected = screen.getByRole('button', { name: '4K' })
-    // Selected uses the inset border-selected token; an outer ring would clip at the scrollport.
-    expect(selected).toHaveClass('border-border-selected', 'bg-background')
+    // Selected uses the theme primary border/tint; an outer ring would clip at the scrollport.
+    expect(selected).toHaveClass('border-primary', 'bg-primary/10')
     expect(selected).not.toHaveClass('ring-1')
   })
 
