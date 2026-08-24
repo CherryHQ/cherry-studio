@@ -57,11 +57,15 @@ import {
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
+  RUNTIME_INFO_DESCRIPTION,
+  RUNTIME_INFO_TOOL_NAME,
+  runtimeInfoInputSchema,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
   webFetchInputSchema,
   webSearchInputSchema
 } from '@shared/ai/builtinTools'
+import { app } from 'electron'
 import * as z from 'zod'
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'
@@ -116,6 +120,26 @@ const HANDLERS: Record<string, ToolHandler> = {
     run: async (args) => {
       const { artifacts } = reportArtifactsInputSchema.parse(args)
       return { type: 'text', value: `Recorded ${artifacts.length} artifact(s).` }
+    }
+  },
+  [RUNTIME_INFO_TOOL_NAME]: {
+    description: RUNTIME_INFO_DESCRIPTION,
+    inputSchema: runtimeInfoInputSchema,
+    run: async (args) => {
+      runtimeInfoInputSchema.parse(args)
+      return {
+        type: 'json',
+        value: {
+          appVersion: app.getVersion(),
+          platform: process.platform,
+          arch: process.arch,
+          runtimes: {
+            node: process.versions.node,
+            electron: process.versions.electron ?? null,
+            chrome: process.versions.chrome ?? null
+          }
+        }
+      }
     }
   }
 }

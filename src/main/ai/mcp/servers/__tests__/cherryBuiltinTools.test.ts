@@ -56,6 +56,8 @@ vi.mock('@application', () => ({
   }
 }))
 
+vi.mock('electron', () => ({ app: { getVersion: () => '2.0.8-test' } }))
+
 const {
   callCherryBuiltinTool: callCherryBuiltinToolRaw,
   listCherryBuiltinTools: listCherryBuiltinToolsRaw,
@@ -140,6 +142,7 @@ describe('cherryBuiltinTools', () => {
       'kb_read',
       'kb_search',
       'report_artifacts',
+      'runtime_info',
       'web_fetch',
       'web_search'
     ])
@@ -154,7 +157,7 @@ describe('cherryBuiltinTools', () => {
     const names = listCherryBuiltinTools([])
       .map((t) => t.name)
       .sort()
-    expect(names).toEqual(['generate_image', 'report_artifacts', 'web_fetch', 'web_search'])
+    expect(names).toEqual(['generate_image', 'report_artifacts', 'runtime_info', 'web_fetch', 'web_search'])
   })
 
   it('exposes every kb_* tool for unrestricted built-in Assistant access', async () => {
@@ -608,6 +611,30 @@ describe('cherryBuiltinTools', () => {
 
     expect(result.isError).toBeFalsy()
     expect(textOf(result)).toBe('Recorded 1 artifact(s).')
+  })
+
+  it('returns only non-sensitive process metadata from runtime_info', async () => {
+    const result = await callCherryBuiltinTool('runtime_info', {}, signal)
+    const value = JSON.parse(textOf(result))
+
+    expect(value).toEqual({
+      appVersion: '2.0.8-test',
+      platform: process.platform,
+      arch: process.arch,
+      runtimes: {
+        node: process.versions.node,
+        electron: process.versions.electron ?? null,
+        chrome: process.versions.chrome ?? null
+      }
+    })
+    expect(value).not.toHaveProperty('settings')
+    expect(value).not.toHaveProperty('workspace')
+  })
+
+  it('rejects arguments passed to runtime_info', async () => {
+    const result = await callCherryBuiltinTool('runtime_info', { includeSettings: true }, signal)
+
+    expect(result.isError).toBe(true)
   })
 
   it('rejects invalid report_artifacts declarations', async () => {
