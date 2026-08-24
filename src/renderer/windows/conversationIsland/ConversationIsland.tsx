@@ -16,8 +16,8 @@ import { resolveConversationIslandSurface } from './conversationIslandSurface'
 const logger = loggerService.withContext('ConversationIsland')
 
 const STATE_INDICATOR_CLASS: Record<ConversationIslandStateKind, string> = {
-  pending: 'bg-info motion-safe:animate-pulse motion-reduce:animate-none',
-  streaming: 'bg-primary motion-safe:animate-pulse motion-reduce:animate-none',
+  pending: 'bg-muted-foreground motion-safe:animate-pulse motion-reduce:animate-none',
+  streaming: 'bg-info motion-safe:animate-pulse motion-reduce:animate-none',
   'awaiting-confirmation': 'bg-warning',
   done: 'bg-success',
   error: 'bg-error'
