@@ -776,10 +776,7 @@ export class McpRuntimeService extends BaseService {
       events
     })
 
-    // Wait a short grace window so that a user who was already at the consent page
-    // completes without any status change. If the code does not arrive in time, fail
-    // fast (so other servers can activate) and keep the callback server alive in
-    // background — when the code eventually arrives the server auto-reconnects.
+    // Short grace window for in-flight consent; otherwise surface pending-auth and finish OAuth in background.
     let graceExpired = false
     let authCode: string | undefined
     let callbackServerClose: Promise<void> | undefined
