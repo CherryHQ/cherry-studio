@@ -2,6 +2,7 @@ import type { ConversationContinuationTrigger } from '@shared/ai/conversation'
 import { type ConversationRef } from '@shared/ai/conversation'
 import type { AiStreamOpenRequest, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 export interface MainContinueConversationRequest {
@@ -16,6 +17,7 @@ export interface MainSteerContinuationRequest {
   readonly conversation: ConversationRef
   readonly userMessageId: string
   readonly reasoningEffort?: ReasoningEffortOption
+  readonly serviceTier?: ServiceTierSelection
   readonly fastMode: boolean
 }
 

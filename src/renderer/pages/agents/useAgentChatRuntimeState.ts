@@ -4,7 +4,6 @@ import {
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
@@ -19,6 +18,7 @@ import {
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { ipcApi } from '@renderer/ipc'
 import { ConversationOverlayDurability } from '@renderer/services/aiTransport'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { ConversationKind, ConversationOpenTrigger, conversationRefKey } from '@shared/ai/conversation'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -110,7 +110,7 @@ export interface AgentChatRuntimeState {
   loadOlder?: () => void
   isPending: boolean
   stop: () => Promise<void>
-  sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
   composerContext: ComposerContextValue
@@ -188,6 +188,7 @@ export function useAgentChatRuntimeState({
       conversation: target.conversation,
       userMessageParts: getAgentTurnParts(input),
       reasoningEffort: input.options?.body?.reasoningEffort,
+      serviceTier: input.options?.body?.serviceTier,
       ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
     }),
     []
@@ -203,7 +204,7 @@ export function useAgentChatRuntimeState({
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
-      await send({ text: message?.text ?? '', options })
+      return send({ text: message?.text ?? '', options })
     },
     [send]
   )

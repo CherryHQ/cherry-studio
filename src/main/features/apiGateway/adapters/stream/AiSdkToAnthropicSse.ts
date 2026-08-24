@@ -27,6 +27,7 @@ import type {
   RawMessageStartEvent,
   RawMessageStopEvent,
   RawMessageStreamEvent,
+  SignatureDelta,
   StopReason,
   TextBlock,
   TextDelta,
@@ -138,10 +139,13 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         break
 
       case 'reasoning-delta':
+        // @ai-sdk/anthropic delivers the signature on an empty-delta chunk's metadata.
+        this.captureThinkingSignature(chunk.id, chunk.providerMetadata)
         this.emitThinkingDelta(chunk.delta || '', chunk.id)
         break
 
       case 'reasoning-end':
+        this.captureThinkingSignature(chunk.id, chunk.providerMetadata)
         this.stopThinkingBlock(chunk.id)
         break
 
@@ -328,12 +332,32 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     this.emit(event)
   }
 
+  /** Store the upstream thinking signature so clients get a replayable block. */
+  private captureThinkingSignature(reasoningId: string | undefined, providerMetadata: unknown): void {
+    const signature = (providerMetadata as { anthropic?: { signature?: unknown } } | undefined)?.anthropic?.signature
+    if (typeof signature !== 'string' || !signature) return
+
+    const targetId = reasoningId || this.state.currentThinkingId
+    if (!targetId) return
+    const index = this.state.thinkingBlocks.get(targetId)
+    if (index === undefined) return
+    const block = this.state.blocks.get(index)
+    if (block) block.signature = signature
+  }
+
   private stopThinkingBlock(reasoningId?: string): void {
     const targetId = reasoningId || this.state.currentThinkingId
     if (!targetId) return
 
     const index = this.state.thinkingBlocks.get(targetId)
     if (index === undefined) return
+
+    const signature = this.state.blocks.get(index)?.signature
+    if (signature) {
+      const delta: SignatureDelta = { type: 'signature_delta', signature }
+      const deltaEvent: RawContentBlockDeltaEvent = { type: 'content_block_delta', index, delta }
+      this.emit(deltaEvent)
+    }
 
     const event: RawContentBlockStopEvent = {
       type: 'content_block_stop',
@@ -503,9 +527,9 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
           content.push({
             type: 'thinking',
             thinking: block.content,
-            // ThinkingBlock requires a signature; the gateway has no real one to
-            // forward, matching the empty signature used when the block is opened.
-            signature: ''
+            // Real signature when the upstream provided one; '' matches the empty
+            // signature used when the block is opened.
+            signature: block.signature ?? ''
           } as ThinkingBlock)
           break
         case 'tool_use':

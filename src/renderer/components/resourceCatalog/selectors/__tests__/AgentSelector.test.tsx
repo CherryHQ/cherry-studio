@@ -67,6 +67,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create/steps/CapabilitySte
   CapabilityStep: () => <div data-testid="capability-step" />
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTab', () => ({
+  PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return actual
@@ -162,7 +166,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
-          'library.config.prompt.label': 'Prompt',
+          'library.config.prompt.label': 'System Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'selector.agent.create_new': 'Create agent',
           'selector.agent.empty_text': 'No agents yet. Create one first.',
@@ -184,7 +188,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
           'library.config.dialogs.edit.basic_tab': 'Basic',
-          'library.config.dialogs.edit.prompt_tab': 'Prompt',
+          'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
           'selector.edit_dialog.refresh_failed': 'Saved, but refresh failed'

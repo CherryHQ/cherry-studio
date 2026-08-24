@@ -2056,6 +2056,7 @@ describe('MessageService', () => {
 
     it('clearTopicMessages removes every content message, keeps the virtual root, and clears activeNodeId', async () => {
       await seedMultiModelTree() // root + m-root/m-a1/m-a2/m-follow, activeNodeId='m-follow'
+      publishedEffects.mockClear()
 
       const result = messageService.clearTopicMessages('topic-1')
       expect(result.deletedIds.slice().sort()).toEqual(['m-a1', 'm-a2', 'm-follow', 'm-root'])
@@ -2064,17 +2065,40 @@ describe('MessageService', () => {
       expect(remaining.map((r) => r.id)).toEqual([virtualRootId])
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
       expect(topicRow.activeNodeId).toBeNull()
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'membership',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: result.deletedIds
+        },
+        {
+          endpoint: '/topics/:topicId/tree',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: result.deletedIds
+        },
+        ...result.deletedIds.map((id) => ({
+          endpoint: '/messages/:id' as const,
+          routeParams: { id },
+          entityIds: [id]
+        })),
+        { endpoint: '/topics', kind: 'projection', entityIds: ['topic-1'] },
+        { endpoint: '/topics/:id', routeParams: { id: 'topic-1' }, entityIds: ['topic-1'] },
+        { endpoint: '/topics/latest' }
+      ])
     })
 
     it('clearTopicMessages on an empty topic is a no-op that keeps the root', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-empty', activeNodeId: null, orderKey: 'a0' })
       messageService.createRootMessageTx(dbh.db, 'topic-empty')
+      publishedEffects.mockClear()
 
       const result = messageService.clearTopicMessages('topic-empty')
       expect(result.deletedIds).toEqual([])
       const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-empty'))
       expect(rows).toHaveLength(1)
       expect(rows[0].role).toBe('root')
+      expect(publishedEffects).not.toHaveBeenCalled()
     })
 
     it('cascade-deleting the active first-turn subtree clears activeNodeId (never points it at the root)', async () => {

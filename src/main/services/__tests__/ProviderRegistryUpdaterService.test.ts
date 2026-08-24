@@ -59,6 +59,8 @@ vi.mock('electron', () => ({
   net: { fetch: netFetchMock }
 }))
 
+import { REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
+
 import { ProviderRegistryUpdaterService } from '../ProviderRegistryUpdaterService'
 
 const response = (body: string, ok = true) => ({ ok, status: ok ? 200 : 404, text: async () => body })
@@ -85,7 +87,7 @@ function mockRemote(
   const files = { 'models.json': dataVersion, 'providers.json': dataVersion, 'provider-models.json': dataVersion }
   const manifestBody =
     manifest === undefined
-      ? JSON.stringify({ minAppVersion, sourceAppVersion, revision, schemaVersion: 1, files })
+      ? JSON.stringify({ minAppVersion, sourceAppVersion, revision, schemaVersion: REGISTRY_SCHEMA_VERSION, files })
       : manifest
   netFetchMock.mockImplementation(async (url: string) => {
     if (url.endsWith('/manifest.json')) {
@@ -177,7 +179,7 @@ describe('ProviderRegistryUpdaterService.check', () => {
               minAppVersion: '1.0.0',
               sourceAppVersion: '2.0.0',
               revision: 2,
-              schemaVersion: 1,
+              schemaVersion: REGISTRY_SCHEMA_VERSION,
               files
             })
           )
@@ -198,7 +200,7 @@ describe('ProviderRegistryUpdaterService.check', () => {
             minAppVersion: '1.0.0',
             sourceAppVersion: '2.0.0',
             revision: 2,
-            schemaVersion: 1,
+            schemaVersion: REGISTRY_SCHEMA_VERSION,
             files
           })
         )
@@ -238,7 +240,7 @@ describe('ProviderRegistryUpdaterService.check', () => {
         minAppVersion: 'not-a-version',
         sourceAppVersion: '2.0.0',
         revision: 2,
-        schemaVersion: 1,
+        schemaVersion: REGISTRY_SCHEMA_VERSION,
         files
       }),
       dataVersion: 'v2'
@@ -256,7 +258,7 @@ describe('ProviderRegistryUpdaterService.check', () => {
         minAppVersion: '1.0.0',
         sourceAppVersion: '2.0.0',
         revision: 2,
-        schemaVersion: 2,
+        schemaVersion: REGISTRY_SCHEMA_VERSION + 1,
         files
       }),
       dataVersion: 'v2'
@@ -292,6 +294,9 @@ describe('ProviderRegistryUpdaterService.check', () => {
 
     await service.check()
 
-    expect(netFetchMock).toHaveBeenCalledWith(expect.stringContaining('/v1/models.json'), expect.anything())
+    expect(netFetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(`/v${REGISTRY_SCHEMA_VERSION}/models.json`),
+      expect.anything()
+    )
   })
 })

@@ -1181,7 +1181,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionRebuildDeferred,
       connection,
-      target: { modelId: 'provider::next', reasoningEffort: 'medium', knowledgeBaseIds: [] }
+      target: { modelId: 'provider::next', reasoningEffort: 'medium', serviceTier: 'standard', knowledgeBaseIds: [] }
     }).state
     const drained = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionOccupancy,
@@ -2696,6 +2696,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       expect(current.reconcile).toHaveBeenCalledExactlyOnceWith({
         modelId: 'provider::model',
         reasoningEffort: 'default',
+        serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false
       })
@@ -2903,6 +2904,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       expect(current.reconcile).toHaveBeenCalledExactlyOnceWith({
         modelId: 'provider::model',
         reasoningEffort: 'default',
+        serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false
       })

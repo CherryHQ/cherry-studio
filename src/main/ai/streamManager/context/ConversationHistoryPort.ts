@@ -13,7 +13,7 @@ import type {
   MessageRuntimeTiming,
   MessageSnapshot
 } from '@shared/data/types/message'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Model, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 
@@ -94,6 +94,7 @@ export type ConversationExecutionPreparationDescriptor =
       readonly messages: readonly CherryUIMessage[]
       readonly knowledgeBaseIds?: readonly string[]
       readonly reasoningEffort?: ReasoningEffortOption
+      readonly serviceTier?: ServiceTierSelection
       readonly fastMode: boolean
     }
   | {
@@ -103,6 +104,7 @@ export type ConversationExecutionPreparationDescriptor =
       readonly agentType: string
       readonly modelId: UniqueModelId
       readonly reasoningEffort: ReasoningEffortOption
+      readonly serviceTier: ServiceTierSelection
       readonly fastMode: boolean
       readonly outputNodeId: string
       readonly userMessage: AgentSessionMessageEntity
@@ -119,6 +121,7 @@ export type ConversationExecutionPreparationDescriptor =
       readonly agentId: string
       readonly modelId: UniqueModelId
       readonly reasoningEffort: ReasoningEffortOption
+      readonly serviceTier: ServiceTierSelection
       readonly fastMode: boolean
       readonly knowledgeBaseIds: readonly string[]
       readonly headless: boolean
@@ -201,6 +204,7 @@ export interface CommittedConversationExecution {
 export interface CommittedConversationInput {
   readonly historyNodeId: string
   readonly pendingSteerReasoningEffort?: ReasoningEffortOption
+  readonly pendingSteerServiceTier?: ServiceTierSelection
   readonly pendingSteerFastMode?: boolean
 }
 
@@ -301,6 +305,7 @@ export interface ValidatedAgentIntent {
   agentName: string
   uniqueModelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
+  serviceTier: ServiceTierSelection
   fastMode?: boolean
   headless: boolean
   messageSnapshot: MessageSnapshot

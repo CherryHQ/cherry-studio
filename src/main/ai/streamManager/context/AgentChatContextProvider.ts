@@ -151,6 +151,7 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
       agentName: agent.name,
       uniqueModelId,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
+      serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: req.headless === true,
       messageSnapshot: {
@@ -226,6 +227,7 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
       agentType: validated.agentType,
       modelId: validated.uniqueModelId,
       reasoningEffort: validated.reasoningEffort,
+      serviceTier: validated.serviceTier,
       fastMode: validated.fastMode === true,
       outputNodeId: assistantMessageId,
       userMessage,
@@ -313,6 +315,7 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
       agentId: intent.agentId,
       modelId: intent.modelId,
       reasoningEffort: intent.reasoningEffort,
+      serviceTier: intent.serviceTier,
       fastMode: intent.fastMode,
       knowledgeBaseIds: intent.knowledgeBaseIds,
       headless: intent.headless,
@@ -562,6 +565,7 @@ export class AgentChatContextProvider implements ConversationHistoryPort {
               { id: descriptor.outputNodeId, role: 'assistant', parts: [] }
             ],
             reasoningEffort: descriptor.reasoningEffort,
+            serviceTier: descriptor.serviceTier,
             ...(descriptor.fastMode ? { fastMode: true } : {}),
             runtime: {
               kind: AiRuntimeKind.AgentSession,

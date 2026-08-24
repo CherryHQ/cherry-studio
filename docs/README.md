@@ -38,6 +38,7 @@
 | [Observability](./references/ai/observability.md) | OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks |
 | [Params Pipeline](./references/ai/params-pipeline.md) | buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request |
 | [Provider Resolution](./references/ai/provider-resolution.md) | Endpoint resolution chain from provider.endpointConfigs and adapterFamily to the AI SDK provider id and variants |
+| [Provider State Ownership](./references/ai/provider-state-ownership.md) | Ownership rules for provider facts, endpoint dialects, user connection overrides, and per-request controls |
 | [Execution resource managers](./references/ai/stream-manager.md) | Provider execution and prompt-stream resource managers beneath ConversationRuntimeService |
 | [Tool Approval](./references/ai/tool-approval.md) | Conversation-owned tool interactions, Main-authoritative decisions, and Chat versus Agent resume modes |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |

@@ -8,6 +8,14 @@ import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+type TestModel = {
+  id: `${string}::${string}`
+  modelId: string
+  name: string
+  providerId: string
+  group: string
+}
+
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
   defaultModel: {
@@ -17,6 +25,13 @@ const state = vi.hoisted(() => ({
     providerId: 'cherryai',
     group: 'CherryAI'
   },
+  quickModel: {
+    id: 'anthropic::claude-sonnet',
+    modelId: 'claude-sonnet',
+    name: 'Claude Sonnet',
+    providerId: 'anthropic',
+    group: 'Anthropic'
+  } as TestModel | undefined,
   messages: [] as never[],
   activeExecutions: [] as never[],
   records: [] as Array<{
@@ -68,7 +83,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: state.defaultModel })
+  useDefaultModel: () => ({ defaultModel: state.defaultModel, quickModel: state.quickModel })
 }))
 
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
@@ -116,27 +131,43 @@ vi.mock('../components/InputBar', () => ({
   default: ({
     text,
     placeholder,
-    handleChange
+    handleChange,
+    handleKeyDown
   }: {
     text: string
     placeholder: string
     handleChange: (event: React.ChangeEvent<HTMLInputElement>) => void
-  }) => <input data-testid="quick-input" value={text} placeholder={placeholder} onChange={handleChange} />
+    handleKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+  }) => (
+    <input
+      data-testid="quick-input"
+      value={text}
+      placeholder={placeholder}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+    />
+  )
 }))
 
 vi.mock('../components/FeatureMenus', () => ({
   default: vi.fn(
     ({
       ref,
-      setRoute
+      setRoute,
+      onSendMessage
     }: {
       ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null>
       setRoute: (route: 'chat') => void
+      onSendMessage: () => void
     }) => {
-      if (ref) {
-        ref.current = { useFeature: vi.fn(), resetSelectedIndex: vi.fn() }
+      const useFeature = () => {
+        setRoute('chat')
+        onSendMessage()
       }
-      return <button type="button" data-testid="feature-menus" onClick={() => setRoute('chat')} />
+      if (ref) {
+        ref.current = { useFeature, resetSelectedIndex: vi.fn() }
+      }
+      return <button type="button" data-testid="feature-menus" onClick={useFeature} />
     }
   )
 }))
@@ -204,6 +235,13 @@ describe('HomeWindow', () => {
     state.messages = []
     state.activeExecutions = []
     state.records = []
+    state.quickModel = {
+      id: 'anthropic::claude-sonnet',
+      modelId: 'claude-sonnet',
+      name: 'Claude Sonnet',
+      providerId: 'anthropic',
+      group: 'Anthropic'
+    }
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.setMessages.mockClear()
@@ -212,10 +250,26 @@ describe('HomeWindow', () => {
     state.resetTemporaryTopic.mockClear()
   })
 
-  it('renders the input surface in model-only quick assistant mode', () => {
+  it('uses the configured quick model in model-only mode', () => {
+    const quickModelId = state.quickModel!.id
     render(<HomeWindow draggable={false} />)
 
-    expect(screen.getByTestId('quick-input')).toHaveAttribute('placeholder', 'Ask Qwen')
+    const input = screen.getByTestId('quick-input')
+    expect(input).toHaveAttribute('placeholder', 'Ask Claude Sonnet')
+
+    fireEvent.change(input, { target: { value: 'hello' } })
+    fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
+
+    expect(state.sendMessage).toHaveBeenCalledWith({ text: 'hello' }, { body: { mentionedModels: [quickModelId] } })
+  })
+
+  it('does not fall back to the default model while the quick model is unresolved', () => {
+    state.quickModel = undefined
+
+    render(<HomeWindow draggable={false} />)
+
+    expect(screen.queryByTestId('quick-input')).not.toBeInTheDocument()
+    expect(state.sendMessage).not.toHaveBeenCalled()
   })
 
   it('keeps typed input out of the clipboard preview', () => {

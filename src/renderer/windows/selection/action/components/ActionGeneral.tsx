@@ -71,7 +71,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         }
 
         if (action.prompt.includes('{{text}}')) {
-          userContent = action.prompt.replaceAll('{{text}}', action.selectedText!)
+          userContent = action.prompt.replaceAll('{{text}}', () => action.selectedText!)
           break
         }
 

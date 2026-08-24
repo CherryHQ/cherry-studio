@@ -18,7 +18,9 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['Escape'],
-      editable: false
+      editable: false,
+      // A MiniApp guest owns Escape (closing its own dialogs); the host must not steal it.
+      when: '!webview.focused'
     }
   }),
   defineCommand({

@@ -81,7 +81,7 @@ describe('useConversationTurnController', () => {
     mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
     const { result, rerender, historyAdapter, refreshMetadata } = renderController('agent:a')
 
-    let sendFromA!: Promise<AiStreamOpenResponse | null>
+    let sendFromA!: Promise<boolean>
     act(() => {
       sendFromA = result.current.send('from A')
     })
@@ -104,10 +104,12 @@ describe('useConversationTurnController', () => {
     )
 
     mocks.streamOpen.mockResolvedValueOnce({ mode: ConversationOpenMode.Started, reservedMessages: [] })
+    let sentFromB: boolean | undefined
     await act(async () => {
-      await result.current.send('from B')
+      sentFromB = await result.current.send('from B')
     })
 
+    expect(sentFromB).toBe(true)
     expect(result.current.phase).toBe('streaming')
   })
 
@@ -119,10 +121,12 @@ describe('useConversationTurnController', () => {
     })
     const { result, historyAdapter } = renderController()
 
+    let sent: boolean | undefined
     await act(async () => {
-      await result.current.send('blocked message')
+      sent = await result.current.send('blocked message')
     })
 
+    expect(sent).toBe(false)
     expect(result.current.phase).toBe('ready')
     expect(mocks.toastError).toHaveBeenCalledWith('Workspace access is required')
     expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()

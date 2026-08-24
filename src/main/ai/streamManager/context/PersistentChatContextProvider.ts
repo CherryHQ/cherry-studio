@@ -412,6 +412,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
         input: {
           historyNodeId: userMessage.id,
           pendingSteerReasoningEffort: req.reasoningEffort,
+          pendingSteerServiceTier: req.serviceTier,
           pendingSteerFastMode: req.fastMode === true
         },
         executions: [],
@@ -431,6 +432,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
         : undefined
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode === true
     }
 
@@ -589,6 +591,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
     }
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
+      serviceTier: req.serviceTier ?? target.data.turnOptions?.serviceTier,
       fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
     }
     const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
@@ -756,6 +759,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode
     }
 
@@ -867,6 +871,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
             outputNodeId,
             descriptor.knowledgeBaseIds ? [...descriptor.knowledgeBaseIds] : undefined,
             descriptor.turnOptions.reasoningEffort,
+            descriptor.turnOptions.serviceTier,
             descriptor.turnOptions.fastMode === true,
             retainedContext
           )
@@ -1148,6 +1153,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
     reasoningEffort: AiStreamRequest['reasoningEffort'],
+    serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
     retainedContext?: RetainedContext
   ): AiStreamRequest {
@@ -1160,6 +1166,7 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
       messageId,
       knowledgeBaseIds,
       reasoningEffort,
+      serviceTier,
       fastMode,
       ...(retainedContext ? { retainedContext } : {})
     }

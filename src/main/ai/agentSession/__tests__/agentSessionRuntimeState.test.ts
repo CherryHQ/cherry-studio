@@ -519,7 +519,7 @@ describe('agentSessionRuntimeState owner migration', () => {
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionRebuildDeferred,
       connection,
-      target: { modelId: 'model-2', reasoningEffort: 'default', knowledgeBaseIds: ['kb-1'] }
+      target: { modelId: 'model-2', reasoningEffort: 'default', serviceTier: 'standard', knowledgeBaseIds: ['kb-1'] }
     }).state
 
     const result = transitionAgentConnectionResource(state, {

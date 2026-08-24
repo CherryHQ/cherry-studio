@@ -4,6 +4,7 @@ import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessagePartsScopeProvider } from '../../blocks/MessagePartsContext'
+import type * as AgentTools from '../agent'
 import MessageTools from '../MessageTools'
 
 const { useToolResultMock, renderedResponses, conversationMock } = vi.hoisted(() => ({
@@ -26,7 +27,8 @@ vi.mock('../MessageTool', () => ({
   canRenderMessageToolResponse: () => true
 }))
 vi.mock('../mcp/MessageMcpTool', () => ({ default: () => <div data-testid="mcp-tool" /> }))
-vi.mock('../agent', () => ({
+vi.mock('../agent', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentTools>()),
   isReportArtifactsToolResponse: () => false,
   MessageChannelConfigTool: () => null
 }))

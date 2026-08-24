@@ -10,6 +10,7 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { promptService } from '@data/services/PromptService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -261,10 +262,8 @@ export class AgentService {
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
   /**
-   * DB-only create primitive for main-process command orchestration.
-   *
-   * The caller owns non-database side effects (for example provisioning the
-   * agent data directory) and supplies the already-reserved id.
+   * Create primitive for main-process command orchestration. The caller owns
+   * non-data side effects and supplies the already-reserved id.
    */
   createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
@@ -333,6 +332,7 @@ export class AgentService {
           for (const skillId of skillIds) {
             globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
+          addAgentReadModelEffects(tx.effects, [id])
           return result
         }),
       defaultHandlersFor('Agent', id)
@@ -819,6 +819,7 @@ export class AgentService {
             agentTaskService.addReadModelEffects(tx.effects, taskImpacts)
             agentSessionService.addReadModelEffects(tx.effects, sessionImpact.sessionIds, sessionImpact.changeKind)
             pinService.addPurgeReadModelEffect(tx.effects)
+            promptService.addTargetBindingsChangedEffects(tx.effects)
           }
           return { ...deleteResult, sessionImpact }
         }),
@@ -841,6 +842,7 @@ export class AgentService {
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
     pinService.purgeForEntityTx(tx, 'agent', id)
+    promptService.purgeForTargetTx(tx, 'agent', id)
     const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
     return { rowsAffected: result.changes }
   }

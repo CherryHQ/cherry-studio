@@ -947,6 +947,7 @@ export class ConversationRuntimeService extends BaseService {
             conversation: ref,
             userMessageId,
             reasoningEffort: committed.input.pendingSteerReasoningEffort,
+            serviceTier: committed.input.pendingSteerServiceTier,
             fastMode: committed.input.pendingSteerFastMode === true,
             headless: request.headless
           }

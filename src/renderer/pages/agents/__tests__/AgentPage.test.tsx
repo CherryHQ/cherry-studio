@@ -2098,7 +2098,7 @@ describe('AgentPage', () => {
   })
 
   it('writes locate state into the current tab for a global-search session message', async () => {
-    render(<AgentPage />)
+    const { rerender } = render(<AgentPage />)
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
@@ -2111,12 +2111,14 @@ describe('AgentPage', () => {
     })
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    rerender(<AgentPage />)
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
   })
 
   it('cancels a pending message locate when the user selects another session', async () => {
     const user = userEvent.setup()
-    render(<AgentPage />)
+    const { rerender } = render(<AgentPage />)
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
@@ -2127,6 +2129,8 @@ describe('AgentPage', () => {
     act(() => {
       sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
     })
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    rerender(<AgentPage />)
     await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open'))
 
     await user.click(screen.getByRole('button', { name: 'Select session next' }))
@@ -2135,12 +2139,42 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
+  it('drops a pending message locate when the route swaps the session underneath', async () => {
+    const { rerender } = render(<AgentPage />)
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
+    })
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    rerender(<AgentPage />)
+    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open'))
+
+    agentPageMocks.routeSearch = { sessionId: 'session-external' }
+    activeSessionMocks.session = {
+      id: 'session-external',
+      agentId: 'agent-a',
+      name: 'External session',
+      workspaceId: agentPageMocks.workspace.id,
+      workspace: agentPageMocks.workspace
+    }
+    rerender(<AgentPage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-external'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+  })
+
   it('waits for file-navigation confirmation before applying a global-search session jump', async () => {
     let pendingTransition: (() => void) | undefined
     agentPageMocks.fileNavigationRequest.mockImplementation((transition) => {
       pendingTransition = transition
     })
-    render(<AgentPage />)
+    const { rerender } = render(<AgentPage />)
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
@@ -2158,6 +2192,8 @@ describe('AgentPage', () => {
     act(() => pendingTransition?.())
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    rerender(<AgentPage />)
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
   })
 
@@ -2406,7 +2442,7 @@ describe('AgentPage', () => {
     )
   })
 
-  it('keeps the new tab session identity while the previous session remains visible', async () => {
+  it('does not expose the previous session while the new route session is loading', async () => {
     agentPageMocks.routeSearch = { sessionId: 'session-1' }
     activeSessionMocks.session = {
       id: 'session-1',
@@ -2430,7 +2466,7 @@ describe('AgentPage', () => {
     rerender(<AgentPage />)
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-2'))
-    expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
+    expect(screen.getByTestId('active-session')).toHaveTextContent('')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
       expect.objectContaining({ appId: 'agents', preserveVisuals: true })
@@ -2491,6 +2527,93 @@ describe('AgentPage', () => {
 
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('creates and activates a conversation for an agentId entry with no session yet', async () => {
+    agentPageMocks.routeSearch = { agentId: 'agent-a' }
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.classicLayoutSessions = []
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-pinned-agent',
+      agentId: 'agent-a',
+      name: '',
+      workspaceId: '',
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    })
+
+    render(<AgentPage />)
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
+        '/agent-sessions',
+        expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-a' }) })
+      )
+    )
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-pinned-agent'))
+  })
+
+  it('does not let a stale agentId entry replace a newer Agent conversation', async () => {
+    type RouteSessionResult = {
+      session: typeof agentPageMocks.persistedSession
+      created: boolean
+      deletedDuplicateSessionIds: string[]
+    }
+    let resolveAgentA!: (result: RouteSessionResult) => void
+    let resolveAgentB!: (result: RouteSessionResult) => void
+    const sessionA = { ...agentPageMocks.persistedSession, id: 'session-agent-a', agentId: 'agent-a' }
+    const sessionB = { ...agentPageMocks.persistedSession, id: 'session-agent-b', agentId: 'agent-b' }
+
+    agentPageMocks.routeSearch = { agentId: 'agent-a' }
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.reuseOrCreateSession.mockImplementation(
+      (agentId: string) =>
+        new Promise<RouteSessionResult>((resolve) => {
+          if (agentId === 'agent-a') resolveAgentA = resolve
+          if (agentId === 'agent-b') resolveAgentB = resolve
+        })
+    )
+
+    const { rerender } = render(<AgentPage />)
+    await waitFor(() => expect(resolveAgentA).toEqual(expect.any(Function)))
+
+    agentPageMocks.routeSearch = { agentId: 'agent-b' }
+    rerender(<AgentPage />)
+    await waitFor(() => expect(resolveAgentB).toEqual(expect.any(Function)))
+
+    await act(async () => {
+      resolveAgentB({ session: sessionB, created: true, deletedDuplicateSessionIds: [] })
+      await Promise.resolve()
+    })
+    await waitFor(() =>
+      expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: { sessionId: 'session-agent-b' },
+        replace: true
+      })
+    )
+
+    await act(async () => {
+      resolveAgentA({ session: sessionA, created: true, deletedDuplicateSessionIds: [] })
+      await Promise.resolve()
+    })
+
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: { sessionId: 'session-agent-b' },
+      replace: true
+    })
+    expect(agentPageMocks.navigate).not.toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: { sessionId: 'session-agent-a' },
+      replace: true
+    })
   })
 
   it('records the visible agent reported by the chat body', async () => {

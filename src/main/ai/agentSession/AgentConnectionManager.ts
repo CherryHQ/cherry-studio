@@ -55,7 +55,7 @@ import type {
   MessageRuntimeSpan,
   MessageSnapshot
 } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
@@ -149,6 +149,7 @@ export interface PrepareAgentConnectionTurnInput {
   agentType: string
   modelId: UniqueModelId
   reasoningEffort?: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
   fastMode?: boolean
   assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
@@ -193,6 +194,7 @@ export interface AgentConversationRuntimeTurnIntent {
   readonly agentId: string
   readonly modelId: UniqueModelId
   readonly reasoningEffort: ReasoningEffortOption
+  readonly serviceTier: ServiceTierSelection
   readonly fastMode: boolean
   readonly knowledgeBaseIds: readonly string[]
   readonly headless: boolean
@@ -241,6 +243,7 @@ type AgentTurnStreamResource = {
   /** Whether this initial turn owns the session's one automatic AI naming attempt. */
   shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
+  serviceTier: ServiceTierSelection
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   controller?: ReadableStreamDefaultController<UIMessageChunk>
@@ -268,6 +271,7 @@ type SteerContinuationReservation = {
 type AgentConnectionTarget = AgentConnectionTargetSnapshot & {
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
+  serviceTier: ServiceTierSelection
   fastMode: boolean
 }
 
@@ -521,6 +525,7 @@ export class AgentConnectionManager extends BaseService {
       messageSnapshot,
       shouldAutoName: input.shouldAutoName === true,
       reasoningEffort: input.reasoningEffort ?? 'default',
+      serviceTier: input.serviceTier ?? 'standard',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
       activeToolIds: new Set(),
@@ -923,6 +928,7 @@ export class AgentConnectionManager extends BaseService {
     opts: {
       headless?: boolean
       reasoningEffort?: ReasoningEffortOption
+      serviceTier?: ServiceTierSelection
       fastMode?: boolean
       messageSnapshot?: MessageSnapshot
     } = {}
@@ -931,12 +937,14 @@ export class AgentConnectionManager extends BaseService {
     const turn = entry ? this.currentTurn(entry) : undefined
     if (!entry || !turn || opts.headless === true || turn.headless === true) return false
     const reasoningEffort = opts.reasoningEffort ?? 'default'
+    const serviceTier = opts.serviceTier ?? 'standard'
     const fastMode = opts.fastMode === true
     const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? []
     const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
     if (
       turn.modelId !== entry.modelId ||
       turn.reasoningEffort !== reasoningEffort ||
+      turn.serviceTier !== serviceTier ||
       turn.fastMode !== fastMode ||
       !knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, turn.knowledgeBaseIds),
@@ -1433,10 +1441,17 @@ export class AgentConnectionManager extends BaseService {
       ? {
           modelId: turn.modelId,
           reasoningEffort: turn.reasoningEffort,
+          serviceTier: turn.serviceTier,
           knowledgeBaseIds: turn.knowledgeBaseIds,
           fastMode: turn.fastMode
         }
-      : { modelId: entry.modelId, reasoningEffort: 'default', knowledgeBaseIds: [], fastMode: false }
+      : {
+          modelId: entry.modelId,
+          reasoningEffort: 'default',
+          serviceTier: 'standard',
+          knowledgeBaseIds: [],
+          fastMode: false
+        }
   }
 
   private connectionTargetEquals(entry: AgentConnectionEntry, target: AgentConnectionTarget): boolean {
@@ -1445,6 +1460,7 @@ export class AgentConnectionManager extends BaseService {
     return (
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
+      current.serviceTier === target.serviceTier &&
       current.fastMode === target.fastMode &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, current.knowledgeBaseIds),
@@ -1577,6 +1593,7 @@ export class AgentConnectionManager extends BaseService {
       agentId: entry.agentId,
       modelId: target.modelId,
       reasoningEffort: target.reasoningEffort,
+      serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
@@ -2473,13 +2490,14 @@ export class AgentConnectionManager extends BaseService {
     ) {
       throw new Error(`No autonomous output is awaiting a Conversation turn for session ${sessionId}`)
     }
-    const { modelId, knowledgeBaseIds, fastMode } = this.connectionTarget(entry)
+    const { modelId, serviceTier, knowledgeBaseIds, fastMode } = this.connectionTarget(entry)
     return {
       kind: AgentConversationRuntimeTurnKind.Autonomous,
       conversation: entry.conversation,
       agentId: entry.agentId,
       modelId,
       reasoningEffort: 'default',
+      serviceTier,
       fastMode,
       knowledgeBaseIds,
       headless,
@@ -2506,6 +2524,7 @@ export class AgentConnectionManager extends BaseService {
       agentId: entry.agentId,
       modelId: transition.sourceTurn.modelId,
       reasoningEffort: transition.sourceTurn.reasoningEffort,
+      serviceTier: transition.sourceTurn.serviceTier,
       fastMode: transition.sourceTurn.fastMode,
       knowledgeBaseIds: transition.sourceTurn.knowledgeBaseIds,
       headless: transition.headless,
@@ -2551,6 +2570,7 @@ export class AgentConnectionManager extends BaseService {
       modelId: intent.modelId,
       messageSnapshot: intent.messageSnapshot,
       reasoningEffort: intent.reasoningEffort,
+      serviceTier: intent.serviceTier,
       knowledgeBaseIds: intent.knowledgeBaseIds,
       fastMode: intent.fastMode,
       activeToolIds: new Set(),

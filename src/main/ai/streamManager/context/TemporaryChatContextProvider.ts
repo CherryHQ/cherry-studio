@@ -175,6 +175,7 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode === true
     }
     return {
@@ -219,6 +220,7 @@ export class TemporaryChatContextProvider implements ConversationHistoryPort {
       messages: [...descriptor.messages],
       knowledgeBaseIds: descriptor.knowledgeBaseIds ? [...descriptor.knowledgeBaseIds] : undefined,
       reasoningEffort: descriptor.reasoningEffort,
+      serviceTier: descriptor.serviceTier,
       ...(descriptor.fastMode ? { fastMode: true } : {})
     }
     return {

@@ -191,7 +191,12 @@ describe('Agent connection resource state', () => {
   it('fences stale connection attempts and tears down background and compaction occupancy together', () => {
     const connection = {} as AgentRuntimeConnection
     const replacement = {} as AgentRuntimeConnection
-    const target = { modelId: 'provider::model', reasoningEffort: 'medium', knowledgeBaseIds: [] }
+    const target = {
+      modelId: 'provider::model',
+      reasoningEffort: 'medium',
+      serviceTier: 'standard',
+      knowledgeBaseIds: []
+    }
     let state = createAgentConnectionResourceState<Turn, never>()
     state = transitionAgentConnectionResource(state, {
       type: AgentConnectionResourceEventType.ConnectionStarted,

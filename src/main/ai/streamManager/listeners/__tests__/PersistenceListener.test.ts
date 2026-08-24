@@ -437,7 +437,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: {
         parts: makeFinalMessage().parts,
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
       },
       status: ConversationOutcomeKind.Success,
       runtimeStats: undefined

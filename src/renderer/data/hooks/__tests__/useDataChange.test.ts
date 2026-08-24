@@ -83,6 +83,7 @@ describe('useDataChange', () => {
     const listener = vi.fn()
     const endpoint: '/topics' | '/topics/:id' = Math.random() > 0.5 ? '/topics' : '/topics/:id'
 
+    // oxlint-disable-next-line eslint(no-constant-condition) -- Compile-only negative overload assertion.
     if (false) {
       // A runtime endpoint union cannot prove that every call targets the template route.
       // @ts-expect-error Conditional endpoint unions must be narrowed before routeParams are supplied.

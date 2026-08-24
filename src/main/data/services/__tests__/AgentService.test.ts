@@ -11,6 +11,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
@@ -25,6 +26,7 @@ import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
+import { DataApiDataChangeScope } from '@shared/data/api/types'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
@@ -179,6 +181,21 @@ describe('AgentService', () => {
   }
 
   describe('createAgent', () => {
+    it('notifies live agent lists after creation', () => {
+      publishedEffects.mockClear()
+
+      const agent = createAgentForTest({
+        type: 'claude-code',
+        name: 'Externally Created',
+        model: TEST_MODEL_ID
+      })
+
+      expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: agent.id }, entityIds: [agent.id] }
+      ])
+    })
+
     it('persists plan and small models when provided', async () => {
       const agent = createAgentForTest({
         type: 'claude-code',
@@ -1075,8 +1092,30 @@ describe('AgentService', () => {
       expect(publishedEffects).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/agents', kind: 'membership', entityIds: [id] },
         { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] },
-        { endpoint: '/pins', kind: 'membership' }
+        { endpoint: '/pins', kind: 'membership' },
+        { endpoint: '/prompts', kind: 'membership' },
+        { endpoint: '/prompt-bindings', kind: 'membership' },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        { endpoint: '/prompts/:id/bindings', kind: 'membership', scope: DataApiDataChangeScope.AllRoutes }
       ])
+    })
+
+    it('purges prompt bindings without deleting the global prompt', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_prompt_001' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440021'
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
+
+      agentService.deleteAgent(id)
+
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
     })
 
     it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
@@ -1138,7 +1177,15 @@ describe('AgentService', () => {
           entityIds: ['session-delete-with-agent']
         },
         { endpoint: '/agent-sessions/latest' },
-        { endpoint: '/pins', kind: 'membership' }
+        { endpoint: '/pins', kind: 'membership' },
+        { endpoint: '/prompts', kind: 'membership' },
+        { endpoint: '/prompt-bindings', kind: 'membership' },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        { endpoint: '/prompts/:id/bindings', kind: 'membership', scope: DataApiDataChangeScope.AllRoutes }
       ])
     })
 
@@ -1204,7 +1251,15 @@ describe('AgentService', () => {
           entityIds: ['session-default-detach']
         },
         { endpoint: '/agent-sessions/latest' },
-        { endpoint: '/pins', kind: 'membership' }
+        { endpoint: '/pins', kind: 'membership' },
+        { endpoint: '/prompts', kind: 'membership' },
+        { endpoint: '/prompt-bindings', kind: 'membership' },
+        {
+          endpoint: '/prompt-bindings/:targetType/:targetId',
+          kind: 'membership',
+          scope: DataApiDataChangeScope.AllRoutes
+        },
+        { endpoint: '/prompts/:id/bindings', kind: 'membership', scope: DataApiDataChangeScope.AllRoutes }
       ])
     })
 

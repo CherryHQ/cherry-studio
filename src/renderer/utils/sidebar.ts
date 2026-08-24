@@ -171,10 +171,6 @@ function createSidebarAppFavorite(id: SidebarAppId): SidebarFavoriteItem {
   return { type: 'app', id }
 }
 
-function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
-  return { type: 'mini_app', id }
-}
-
 /**
  * Stable identity for a favorite — its react key and reorder-matching key.
  *
@@ -191,6 +187,8 @@ function isForwardCompatibleSidebarFavoriteItem(favorite: SidebarFavoriteItem): 
     typeof item.type === 'string' &&
     item.type !== 'app' &&
     item.type !== 'mini_app' &&
+    item.type !== 'agent' &&
+    item.type !== 'assistant' &&
     typeof item.id === 'string' &&
     item.id.length > 0
   )
@@ -232,6 +230,9 @@ function normalizeSidebarFavoriteItem(favorite: SidebarFavoriteItem): SidebarFav
     case 'app':
       return isSidebarAppId(favorite.id) ? { ...favorite } : undefined
     case 'mini_app':
+      return favorite.id ? { ...favorite } : undefined
+    case 'agent':
+    case 'assistant':
       return favorite.id ? { ...favorite } : undefined
     default: {
       // Untrusted storage boundary: an unknown type (corrupt or written by a newer
@@ -365,22 +366,44 @@ export function setSidebarAppPinned(
   return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarAppFavorite(id)])
 }
 
+type SidebarLeafFavoriteType = 'mini_app' | 'agent' | 'assistant'
+
+// LEAF-ONLY: recurse into group.items when a 'group' variant is added.
+const isSidebarLeafFavorite = (item: SidebarFavoriteItem, type: SidebarLeafFavoriteType, id: string) =>
+  item.type === type && item.id === id
+
+/** Toggle a leaf favorite in place: present → filtered out, absent → appended to the end. */
+function toggleSidebarLeafFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: SidebarLeafFavoriteType,
+  id: string
+): SidebarFavoriteItem[] {
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+
+  if (items.some((item) => isSidebarLeafFavorite(item, type, id))) {
+    return removeSidebarLeafFavorite(favorites, type, id)
+  }
+  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, { type, id }])
+}
+
+/** Remove a leaf favorite, preserving everything else in place. */
+function removeSidebarLeafFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: SidebarLeafFavoriteType,
+  id: string
+): SidebarFavoriteItem[] {
+  return preserveForwardCompatibleSidebarFavoriteItems(
+    favorites,
+    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !isSidebarLeafFavorite(item, type, id))
+  )
+}
+
 /** Toggle a mini app favorite, preserving everything else. Adding appends to the end. */
 export function toggleSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  const isTarget = (item: SidebarFavoriteItem) => item.type === 'mini_app' && item.id === id
-
-  if (items.some(isTarget)) {
-    return preserveForwardCompatibleSidebarFavoriteItems(
-      favorites,
-      items.filter((item) => !isTarget(item))
-    )
-  }
-  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarMiniAppFavorite(id)])
+  return toggleSidebarLeafFavorite(favorites, 'mini_app', id)
 }
 
 /** Remove a mini app favorite, preserving everything else in place. */
@@ -388,11 +411,29 @@ export function removeSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  return preserveForwardCompatibleSidebarFavoriteItems(
-    favorites,
-    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !(item.type === 'mini_app' && item.id === id))
-  )
+  return removeSidebarLeafFavorite(favorites, 'mini_app', id)
+}
+
+/**
+ * Toggle a pinned user entity (agent / assistant) favorite, preserving
+ * everything else in place. Adding appends to the end of the whole list,
+ * removing filters the target out — mirrors {@link toggleSidebarMiniApp}.
+ */
+export function toggleSidebarEntityFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: 'agent' | 'assistant',
+  id: string
+): SidebarFavoriteItem[] {
+  return toggleSidebarLeafFavorite(favorites, type, id)
+}
+
+/** Remove a pinned user entity (agent / assistant) favorite, preserving everything else in place. */
+export function removeSidebarEntityFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: 'agent' | 'assistant',
+  id: string
+): SidebarFavoriteItem[] {
+  return removeSidebarLeafFavorite(favorites, type, id)
 }
 
 // --- Launchpad app order --------------------------------------------------

@@ -191,6 +191,8 @@ export interface ContentBlockState {
   toolId?: string
   toolName?: string
   toolInput?: string
+  // For thinking blocks — captured from reasoning chunk providerMetadata
+  signature?: string
 }
 
 /**

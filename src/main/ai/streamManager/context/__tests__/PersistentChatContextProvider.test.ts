@@ -463,6 +463,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: ConversationContinuationTrigger.ContinueSteer,
         conversation,
         userMessageId: 'u2',
+        serviceTier: 'flex',
         fastMode: false
       } satisfies MainSteerContinuationRequest,
       { hasLiveStream: false }
@@ -471,6 +472,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(resolveAssistantModelId).not.toHaveBeenCalled()
     expect(resolveModels).toHaveBeenLastCalledWith([MODEL_ID], MODEL_ID)
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-steer'])
+    expect(prepared.models[0].request.serviceTier).toBe('flex')
 
     // A fresh assistant placeholder is created under u2 — no new user row.
     const children = messageService.getChildrenByParentId('u2')
@@ -980,7 +982,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           topicId: 'topic-1',
           role: 'assistant',
           data: {
-            turnOptions: { reasoningEffort: 'high', fastMode: true },
+            turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true },
             parts: [
               { type: 'text', text: 'let me call a tool' },
               {
@@ -1064,7 +1066,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       | undefined
     expect(toolPart?.state).toBe('approval-responded')
     expect(toolPart?.approval).toEqual({ id: APPROVAL_ID, approved: true })
-    expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
+    expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', serviceTier: 'flex', fastMode: true })
   })
 
   it('records a denied live tool approval as a terminal tool state', () => {
@@ -1118,6 +1120,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       spans: []
     })
     expect(prepared.models[0].request.reasoningEffort).toBe('high')
+    expect(prepared.models[0].request.serviceTier).toBe('flex')
     expect(prepared.models[0].request.fastMode).toBe(true)
 
     // No placeholder row was created — the path to the anchor is unchanged.

@@ -2152,7 +2152,7 @@ export class MessageService {
    * so the single-root invariant holds — and clears `activeNodeId`.
    */
   clearTopicMessages(topicId: string): { deletedIds: string[] } {
-    return application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       const rootId = this.getRootMessageIdTx(tx, topicId)
 
       const rows = tx
@@ -2170,9 +2170,25 @@ export class MessageService {
         .run()
       getDataService('TopicService').clearActiveNodeTx(tx, topicId)
 
+      tx.effects.add({
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: deletedIds
+      })
+      tx.effects.add({ endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: deletedIds })
+      for (const messageId of deletedIds) {
+        tx.effects.add({ endpoint: '/messages/:id', routeParams: { id: messageId }, entityIds: [messageId] })
+      }
+      tx.effects.add({ endpoint: '/topics', kind: 'projection', entityIds: [topicId] })
+      tx.effects.add({ endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] })
+      tx.effects.add({ endpoint: '/topics/latest' })
+
       logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
       return { deletedIds }
     })
+
+    return result
   }
 
   /**

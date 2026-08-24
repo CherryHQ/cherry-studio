@@ -80,6 +80,7 @@ export type AgentDriverOutcome =
 export interface AgentConnectionTargetSnapshot {
   modelId: string
   reasoningEffort: string
+  serviceTier: string
   knowledgeBaseIds: readonly string[]
 }
 

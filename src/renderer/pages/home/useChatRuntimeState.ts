@@ -29,9 +29,9 @@ import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import { ConversationKind, ConversationOpenTrigger, ConversationTargetMode } from '@shared/ai/conversation'
-import type { ComposerChatTarget } from '@shared/ai/transport'
+import type { AiStreamOpenRequest, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -47,6 +47,7 @@ export interface ChatTurnInput {
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
+    serviceTier?: ServiceTierSelection
     fastMode?: boolean
     chatTarget?: ComposerChatTarget
   }
@@ -236,13 +237,8 @@ export function useChatRuntimeState({
     }),
     [cache.rollbackBranch, refresh, seedReservedMessages]
   )
-  const turnController = useConversationTurnController<
-    ChatTurnInput,
-    { topicId: string; parentAnchorId: string | null }
-  >({
-    scopeKey: topic.id,
-    historyAdapter,
-    ensureConversation: async ({ options }) => {
+  const ensureConversation = useCallback(
+    async ({ options }: ChatTurnInput) => {
       if (isHistoryLoading) return null
 
       return {
@@ -250,11 +246,18 @@ export function useChatRuntimeState({
         parentAnchorId: options?.chatTarget ? options.chatTarget.parentAnchorId : (activeNodeId ?? null)
       }
     },
-    buildStreamRequest: ({ text, options }, conversation) => {
+    [activeNodeId, isHistoryLoading, topic.id]
+  )
+  const buildStreamRequest = useCallback(
+    (
+      { text, options }: ChatTurnInput,
+      conversation: { topicId: string; parentAnchorId: string | null }
+    ): AiStreamOpenRequest => {
       const requestOptions = {
         conversation: { kind: ConversationKind.Chat, id: conversation.topicId } as const,
         mentionedModelIds: options?.mentionedModels,
         reasoningEffort: options?.reasoningEffort,
+        serviceTier: options?.serviceTier,
         ...(options?.fastMode ? { fastMode: true as const } : {})
       }
 
@@ -266,7 +269,21 @@ export function useChatRuntimeState({
         ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
       }
     },
-    refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
+    []
+  )
+  const refreshMetadata = useCallback(
+    ({ topicId }: { topicId: string }) => invalidateCache(['/topics', `/topics/${topicId}`]),
+    [invalidateCache]
+  )
+  const { phase: turnPhase, send } = useConversationTurnController<
+    ChatTurnInput,
+    { topicId: string; parentAnchorId: string | null }
+  >({
+    scopeKey: topic.id,
+    historyAdapter,
+    ensureConversation,
+    buildStreamRequest,
+    refreshMetadata
   })
 
   const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -330,23 +347,20 @@ export function useChatRuntimeState({
     seedReservedMessages,
     scrollToBottom,
     startNewContextBlocked:
-      isHistoryLoading ||
-      conversationBusy ||
-      turnController.phase === 'persisting' ||
-      turnController.phase === 'opening',
+      isHistoryLoading || conversationBusy || turnPhase === 'persisting' || turnPhase === 'opening',
     assistant
   })
 
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        await turnController.send({ text, options })
+        return await send({ text, options })
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [turnController]
+    [send]
   )
 
   return {

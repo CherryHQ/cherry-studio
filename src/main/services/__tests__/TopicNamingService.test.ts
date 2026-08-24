@@ -86,7 +86,7 @@ const unnamedTranslations = [
   'locales/ru-ru',
   'locales/vi-vn',
   'locales/zh-tw'
-].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8')).common.unnamed)
+].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8'))['common.unnamed'])
 
 function createService() {
   return new TopicNamingService()
