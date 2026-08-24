@@ -7,6 +7,7 @@ export enum CodeCli {
   GEMINI_CLI = 'gemini-cli',
   QWEN_CODE = 'qwen-code',
   KIMI_CODE = 'kimi-code',
+  MCODE = 'mcode',
   QODER_CLI = 'qoder-cli',
   GITHUB_COPILOT_CLI = 'github-copilot-cli',
   PI = 'pi'

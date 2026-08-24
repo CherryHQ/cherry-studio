@@ -41,6 +41,7 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
       ])
     case CodeCli.QODER_CLI:
     case CodeCli.GITHUB_COPILOT_CLI:
+    case CodeCli.MCODE:
       return false
     default:
       return false

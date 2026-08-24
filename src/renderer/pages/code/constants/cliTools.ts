@@ -10,7 +10,7 @@ import {
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
-import { Deepseek, Openclaw } from '@cherrystudio/ui/icons/providers'
+import { Deepseek, MinimaxAgent, Openclaw } from '@cherrystudio/ui/icons/providers'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -24,6 +24,7 @@ export const CLI_TOOLS = [
   { value: CodeCli.OPEN_CODE, label: 'code.cli_tools.opencode', icon: OpenCode },
   { value: CodeCli.QWEN_CODE, label: 'code.cli_tools.qwen_code', icon: QwenCode },
   { value: CodeCli.KIMI_CODE, label: 'code.cli_tools.kimi_code', icon: KimiCode },
+  { value: CodeCli.MCODE, label: 'code.cli_tools.mcode', icon: MinimaxAgent },
   { value: CodeCli.QODER_CLI, label: 'code.cli_tools.qoder_cli', icon: QoderCli },
   { value: CodeCli.GITHUB_COPILOT_CLI, label: 'code.cli_tools.github_copilot_cli', icon: GithubCopilotCli },
   { value: CodeCli.PI, label: 'code.cli_tools.pi', icon: PiCli },
@@ -36,7 +37,11 @@ export const CLI_TOOLS = [
  * device code) rather than a Cherry provider + model. They launch with a
  * working directory only — no provider config or model selection is offered.
  */
-export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([CodeCli.QODER_CLI, CodeCli.GITHUB_COPILOT_CLI])
+export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
+  CodeCli.MCODE,
+  CodeCli.QODER_CLI,
+  CodeCli.GITHUB_COPILOT_CLI
+])
 
 /** Aggregators fronting Gemini behind a non-Gemini provider type, surfaced
  * here so gemini-cli can select them despite lacking a Gemini endpoint. */
@@ -67,7 +72,7 @@ const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_
  * - Gemini CLI: inject reads the Gemini-format endpoint (`google-generate-content`).
  * - Qwen Code / Kimi CLI: inject reads an OpenAI-compatible endpoint.
  * - Pi: injects any endpoint supported by Pi's custom-provider schema.
- * - Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
+ * - MCode / Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),
@@ -86,6 +91,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter((p) => isGeminiProvider(p) || hasGemini(p) || GEMINI_AGGREGATOR_PROVIDERS.has(p.id)),
   [CodeCli.QWEN_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.KIMI_CODE]: (providers) => providers.filter(hasOpenAILike),
+  [CodeCli.MCODE]: () => [],
   [CodeCli.QODER_CLI]: () => [],
   [CodeCli.GITHUB_COPILOT_CLI]: () => [],
   [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p))

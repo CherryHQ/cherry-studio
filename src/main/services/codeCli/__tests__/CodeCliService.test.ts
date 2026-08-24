@@ -985,12 +985,12 @@ describe('CodeCliService', () => {
       expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
     })
 
-    it('exempts providerless CLIs (Qoder) from the provider/model requirement', async () => {
+    it('exempts providerless CLIs (MCode) from the provider/model requirement', async () => {
       const { codeCliService } = await loadModules()
 
       const result = await codeCliService.run({
         mode: 'own-login',
-        cliTool: CodeCli.QODER_CLI,
+        cliTool: CodeCli.MCODE,
         directory: '/tmp/project'
       })
 

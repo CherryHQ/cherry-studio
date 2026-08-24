@@ -44,7 +44,7 @@ const codeCliRunInputSchema = z.discriminatedUnion('mode', [
     cliTool: z.literal(CodeCli.CLAUDE_CODE)
   }),
   // Launch with no injected provider: the tool's own stored login (login-capable
-  // CLIs) and providerless CLIs (qoder/copilot) both send this shape.
+  // CLIs) and providerless CLIs (MCode/Qoder/Copilot) both send this shape.
   runBaseSchema.extend({
     mode: z.literal('own-login')
   })

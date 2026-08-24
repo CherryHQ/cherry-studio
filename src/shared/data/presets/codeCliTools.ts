@@ -63,6 +63,12 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     install: 'npm'
   }),
   defineCodeCliTool({
+    id: CodeCli.MCODE,
+    executable: 'mcode',
+    packageName: '@minimax-ai/code',
+    install: 'npm'
+  }),
+  defineCodeCliTool({
     id: CodeCli.QODER_CLI,
     executable: 'qoderclicn',
     packageName: '@qodercn-ai/qoderclicn',

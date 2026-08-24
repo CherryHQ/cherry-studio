@@ -240,8 +240,8 @@ describe('useLaunchDialogController', () => {
   it('resolves the same fallback for provider-less launches', async () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
-        selectedCliTool: CodeCli.QODER_CLI,
-        toolName: 'Qoder',
+        selectedCliTool: CodeCli.MCODE,
+        toolName: 'MCode',
         directory: '/tmp/project',
         isOwnLoginSelected: false,
         selectedTerminal: undefined,
