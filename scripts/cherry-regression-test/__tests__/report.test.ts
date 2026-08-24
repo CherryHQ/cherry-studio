@@ -1,5 +1,5 @@
-import { aggregateRuns, renderJUnit, renderMarkdown, renderTaskMarkdown } from '../report'
-import { completeCase, createRun, finalizeRun } from '../state'
+import { aggregateRuns, renderAggregateMarkdown, renderJUnit, renderMarkdown } from '../report'
+import { completeE2eCase, createRun, finalizeRun } from '../state'
 
 describe('regression report gate', () => {
   it('does not report a release pass when either platform is blocked', () => {
@@ -14,7 +14,7 @@ describe('regression report gate', () => {
         task: 'all'
       })
     )
-    const windows = completeCase(
+    const windows = completeE2eCase(
       createRun({
         appVersion: '2.0.8',
         commitSha: 'sha',
@@ -26,7 +26,7 @@ describe('regression report gate', () => {
       }),
       'C-02',
       'blocked',
-      'No interactive desktop'
+      '没有可交互的桌面'
     )
 
     expect(aggregateRuns([macos, finalizeRun(windows)]).verdict).toBe('release_blocked')
@@ -45,32 +45,21 @@ describe('regression report gate', () => {
       })
     )
 
-    expect(renderMarkdown(run)).toContain('| M-01 | 登录 CherryIN 并完成聊天 | blocked |')
-    expect(renderMarkdown(run)).toContain('Task did not finish before finalization')
-    expect(renderJUnit(run)).toContain('<skipped message="Task did not finish before finalization"')
+    const markdown = renderMarkdown(run)
+    expect(markdown).toContain('# Cherry Studio 全链路回归测试报告')
+    expect(markdown).toContain('> **总体结论：⛔ 开发分支测试受阻**')
+    expect(markdown).toContain('| M-01 | 登录 CherryIN 并完成聊天 | ⛔ 阻塞 | 任务在生成最终报告前未完成 | 0 |')
+    expect(markdown).toContain('任务在生成最终报告前未完成')
+    expect(markdown).not.toContain('## Results')
+    expect(markdown).not.toContain('Failures and Blockers')
+    expect(renderJUnit(run)).toContain('<skipped message="任务在生成最终报告前未完成"')
     expect(renderJUnit(run)).toContain('tests="23"')
   })
 
-  it('renders an actionable task summary', () => {
-    const run = finalizeRun(
-      createRun({
-        appVersion: 'development',
-        commitSha: 'sha',
-        mode: 'branch',
-        platform: 'macos',
-        ref: 'main',
-        runner: 'macos-latest',
-        task: 'startup-smoke'
-      })
-    )
-
-    const markdown = renderTaskMarkdown(run, 'startup-smoke', 'reached maximum number of turns (13)')
-    expect(markdown).toContain('### Task `startup-smoke`')
-    expect(markdown).toContain('Agent execution: reached maximum number of turns (13)')
-    expect(markdown).toContain('| S-01 | blocked | Task did not finish before finalization |')
-  })
-
   it('keeps a missing branch matrix in the development verdict namespace', () => {
-    expect(aggregateRuns([], 'branch').verdict).toBe('development_blocked')
+    const report = aggregateRuns([], 'branch')
+    expect(report.verdict).toBe('development_blocked')
+    expect(renderAggregateMarkdown(report)).toContain('> **总体结论：⛔ 开发分支测试受阻**')
+    expect(renderAggregateMarkdown(report)).toContain('**缺少平台报告：**macOS、Windows')
   })
 })

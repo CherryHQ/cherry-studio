@@ -1,0 +1,90 @@
+import { join } from 'node:path'
+
+import type { Page } from '@playwright/test'
+
+import type { RegressionApp } from './app'
+import { expect } from './fixture'
+import { selectSidebarApp } from './helpers'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
+
+export async function createAgent(
+  app: RegressionApp,
+  page: Page,
+  options: { name: string; runtime: string; permission?: string }
+): Promise<void> {
+  await selectSidebarApp(page, 'Work')
+  if (
+    await page
+      .getByText(options.name, { exact: true })
+      .isVisible()
+      .catch(() => false)
+  ) {
+    await page.getByText(options.name, { exact: true }).first().click()
+    return
+  }
+
+  await page.getByRole('button', { name: 'Add Agent', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill(options.name)
+  await page.getByText(options.runtime, { exact: true }).click()
+  if (options.permission) {
+    const permission = page.getByRole('combobox').last()
+    await permission.click()
+    await page.getByRole('option', { name: options.permission, exact: true }).click()
+  }
+  await page.getByRole('button', { name: 'Model', exact: true }).click()
+  const search = page.getByPlaceholder(/Search/i).last()
+  await search.fill(app.config.cherryIn.chatModel)
+  await page.getByRole('option').filter({ hasText: app.config.cherryIn.chatModel }).first().click()
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(page.getByText(options.name, { exact: true }).first()).toBeVisible()
+}
+
+export async function selectAgentWorkspace(app: RegressionApp, page: Page): Promise<void> {
+  const current = page.getByRole('button', { name: /No work directory|agent-workspace/, exact: true })
+  if ((await current.textContent())?.includes('agent-workspace')) return
+  await current.click()
+  const existing = page.getByText('agent-workspace', { exact: true })
+  if (await existing.isVisible().catch(() => false)) {
+    await existing.click()
+  } else {
+    await page.getByText('Add new work directory', { exact: true }).click()
+    chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
+  }
+  await expect(page.getByRole('button', { name: 'agent-workspace', exact: true })).toBeVisible({ timeout: 30_000 })
+}
+
+export async function runAgentFileTask(
+  app: RegressionApp,
+  page: Page,
+  fileName: string,
+  approve: boolean
+): Promise<void> {
+  const output = join(app.paths.workspace, fileName)
+  await page
+    .locator('[data-ui="chat.composer"] [contenteditable="true"]')
+    .first()
+    .fill(`Create ${fileName} directly in the current working directory with the exact text AGENT_FILE_TASK_PASS.`)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  if (approve) {
+    const allow = page.getByRole('button', { name: /Allow/ }).first()
+    await expect(allow).toBeVisible({ timeout: 60_000 })
+    await allow.click()
+  }
+  await expect
+    .poll(
+      async () => {
+        try {
+          const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
+          await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+          return true
+        } catch {
+          return false
+        }
+      },
+      { timeout: 2 * 60_000 }
+    )
+    .toBe(true)
+}

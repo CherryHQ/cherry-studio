@@ -1,15 +1,7 @@
-import { execFileSync, spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import {
-  agentRetryDelaySeconds,
-  assertAgentPreflightOutput,
-  assertAgentTaskOutput,
-  buildTaskSkillInstructions,
-  describeAgentFailure,
-  isRetryableAgentFailure
-} from './agent'
 import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
@@ -18,57 +10,9 @@ import { installReleaseArtifact, launchApp, stopOwnedApp } from './lifecycle'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { createRedactor } from './redaction'
 import { parseRemoteRefs, resolveTrustedRef } from './ref'
-import { aggregateRuns, renderAggregateMarkdown, renderTaskMarkdown, writeReports } from './report'
-import {
-  blockIncompleteTaskCases,
-  createRun,
-  finalizeRun,
-  getRunVerdict,
-  getTaskCaseResults,
-  readRun,
-  setCapabilities,
-  updateRunMetadata,
-  writeRun
-} from './state'
-import { PLATFORMS, type RegressionRun, RUN_MODES, TASK_IDS, TASK_SELECTIONS, type TaskId } from './types'
-
-const AGENT_ALLOWED_TOOLS = [
-  'Read',
-  'Glob',
-  'Grep',
-  'mcp__cherry-regression__get-run-context',
-  'mcp__cherry-regression__begin-case',
-  'mcp__cherry-regression__inspect-ui',
-  'mcp__cherry-regression__interact',
-  'mcp__cherry-regression__authenticate-cherryin',
-  'mcp__cherry-regression__system-action',
-  'mcp__cherry-regression__restart-app',
-  'mcp__cherry-regression__record-evidence',
-  'mcp__cherry-regression__complete-case'
-] as const
-
-const AGENT_DISALLOWED_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent'] as const
-
-const HEAVY_AGENT_TASKS = new Set<TaskId>([
-  'cherryin-chat',
-  'custom-provider-chat',
-  'custom-assistant',
-  'agent-ppt',
-  'claude-agent-runtime',
-  'pi-runtime',
-  'deepseek-harness-runtime',
-  'image-generation',
-  'translation',
-  'code-cli',
-  'openclaw'
-])
-const MAX_AGENT_ATTEMPTS = 3
-
-function agentTaskTimeoutMinutes(task: TaskId): number {
-  if (task === 'startup-smoke') return 8
-  if (HEAVY_AGENT_TASKS.has(task)) return 18
-  return 13
-}
+import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
+import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
+import { PLATFORMS, type RegressionRun, RUN_MODES, TASK_SELECTIONS } from './types'
 
 function argument(name: string, required = true): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
@@ -169,238 +113,6 @@ async function preflightCommand(): Promise<void> {
   process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
 }
 
-async function prepareAgentSettingsCommand(): Promise<void> {
-  const paths = runDirectory()
-  const run = readRun(paths.runState)
-  const config = loadTestConfig()
-  const environment = Object.fromEntries(REQUIRED_CONFIG.map((name) => [name, process.env[name]]))
-  const tasks: TaskId[] = run.metadata.task === 'all' ? [...TASK_IDS] : [run.metadata.task]
-  const outputs = tasks.map((task) => {
-    const output = join(paths.root, `claude-settings-${task}.json`)
-    writeFileSync(
-      output,
-      `${JSON.stringify(
-        {
-          env: {
-            ...environment,
-            CHERRY_TEST_RUN_DIR: paths.root,
-            CHERRY_TEST_TASK: task
-          }
-        },
-        null,
-        2
-      )}\n`,
-      { mode: 0o600 }
-    )
-    return output
-  })
-  const redacted = createRedactor(getSensitiveConfigValues(config))
-  process.stdout.write(`${JSON.stringify(redacted({ outputs, tasks }))}\n`)
-}
-
-async function agentPreflightCommand(): Promise<void> {
-  const paths = runDirectory()
-  const claudePath = resolve(argument('claude-path') ?? '')
-  const config = loadTestConfig()
-  const marker = 'CHERRY_TEST_AGENT_READY'
-  const environment = { ...process.env }
-  for (const name of REQUIRED_CONFIG) delete environment[name]
-  environment.ANTHROPIC_BASE_URL = config.customProvider.baseUrl
-  environment.ANTHROPIC_API_KEY = config.customProvider.apiKey
-  const result = spawnSync(
-    claudePath,
-    [
-      '--print',
-      '--bare',
-      '--model',
-      config.customProvider.chatModel,
-      '--output-format',
-      'json',
-      '--no-session-persistence',
-      '--tools',
-      '',
-      '--system-prompt',
-      'Respond with only the requested marker.',
-      `Reply exactly ${marker}.`
-    ],
-    {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      env: environment,
-      maxBuffer: 10 * 1024 * 1024,
-      timeout: 120_000
-    }
-  )
-  const redact = createRedactor(getSensitiveConfigValues(config))
-  writeFileSync(
-    join(paths.logs, 'agent-preflight.json'),
-    `${JSON.stringify(
-      redact({
-        error: result.error?.message,
-        signal: result.signal,
-        status: result.status,
-        stderr: result.stderr,
-        stdout: result.stdout
-      }),
-      null,
-      2
-    )}\n`,
-    { mode: 0o600 }
-  )
-  if (result.error || result.status !== 0) {
-    throw new Error('Test agent preflight failed; inspect the redacted platform evidence')
-  }
-  assertAgentPreflightOutput(result.stdout, marker)
-  process.stdout.write('Test agent preflight passed\n')
-}
-
-async function runAgentTaskCommand(): Promise<void> {
-  const paths = runDirectory()
-  const task = oneOf(argument('task') ?? '', TASK_IDS, 'task')
-  const claudePath = resolve(argument('claude-path') ?? '')
-  const settingsPath = join(paths.root, `claude-settings-${task}.json`)
-  const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
-    env?: Record<string, string | undefined>
-  }
-  if (!settings.env) throw new Error(`Agent settings are missing environment values for ${task}`)
-
-  const config = loadTestConfig(settings.env)
-  const skillInstructions = buildTaskSkillInstructions(
-    readFileSync(resolve('.agents/skills/cherry-regression-test/SKILL.md'), 'utf8'),
-    task
-  )
-  const environment = {
-    ...process.env,
-    ...settings.env,
-    ANTHROPIC_BASE_URL: config.customProvider.baseUrl,
-    ANTHROPIC_API_KEY: config.customProvider.apiKey
-  }
-  const mcpConfig = JSON.stringify({
-    mcpServers: {
-      'cherry-regression': {
-        command: 'node',
-        args: ['node_modules/tsx/dist/cli.mjs', 'scripts/cherry-regression-test/server.ts']
-      }
-    }
-  })
-  const timeoutMinutes = agentTaskTimeoutMinutes(task)
-  const redact = createRedactor(getSensitiveConfigValues(config))
-  const initialRun = readRun(paths.runState)
-  let agentFailure: string | undefined
-  let run = initialRun
-
-  for (let attempt = 1; attempt <= MAX_AGENT_ATTEMPTS; attempt += 1) {
-    process.stdout.write(
-      `Starting regression task ${task}, agent attempt ${attempt}/${MAX_AGENT_ATTEMPTS} (timeout: ${timeoutMinutes} minutes)\n`
-    )
-    const result = spawnSync(
-      claudePath,
-      [
-        '--print',
-        '--bare',
-        '--model',
-        config.customProvider.chatModel,
-        '--output-format',
-        'json',
-        '--no-session-persistence',
-        '--settings',
-        settingsPath,
-        '--append-system-prompt',
-        skillInstructions,
-        '--mcp-config',
-        mcpConfig,
-        '--strict-mcp-config',
-        '--allowedTools',
-        AGENT_ALLOWED_TOOLS.join(','),
-        '--disallowedTools',
-        AGENT_DISALLOWED_TOOLS.join(','),
-        '--permission-mode',
-        'dontAsk',
-        [
-          `Run task ${task} and complete it within ${timeoutMinutes} minutes.`,
-          `This is agent attempt ${attempt} of ${MAX_AGENT_ATTEMPTS}; resume only cases reported as pending or running.`,
-          'Use only the CI MCP workflow for application control and evidence.',
-          'Follow the common instructions and only the detailed numbered section matching the requested task; do not navigate to unrelated pages.',
-          'Do not inspect an interaction again after it succeeds unless the next documented step requires that state.',
-          'Do not repeat an equivalent failed inspection or interaction more than once.',
-          'If a required model call shows an explicit authentication or API error after the documented wait, complete the case as failed instead of trying another model.',
-          'Reserve the final two tool calls for complete-case and get-run-context.',
-          'Once every applicable case is terminal, respond immediately without another tool call.'
-        ].join(' ')
-      ],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf8',
-        env: environment,
-        maxBuffer: 100 * 1024 * 1024,
-        timeout: timeoutMinutes * 60_000
-      }
-    )
-    const agentLog = `${JSON.stringify(
-      redact({
-        error: result.error?.message,
-        signal: result.signal,
-        status: result.status,
-        stderr: result.stderr,
-        stdout: result.stdout
-      }),
-      null,
-      2
-    )}\n`
-    writeFileSync(join(paths.logs, `agent-${task}-attempt-${attempt}.json`), agentLog, { mode: 0o600 })
-    writeFileSync(join(paths.logs, `agent-${task}.json`), agentLog, {
-      mode: 0o600
-    })
-
-    agentFailure = describeAgentFailure(result, { timeoutMinutes })
-    if (!agentFailure) {
-      try {
-        assertAgentTaskOutput(result.stdout)
-      } catch (error) {
-        agentFailure = error instanceof Error ? error.message : String(error)
-      }
-    }
-
-    run = readRun(paths.runState)
-    const incompleteCases = getTaskCaseResults(run, task).filter(({ status }) =>
-      ['pending', 'running'].includes(status)
-    )
-    const shouldRetry =
-      incompleteCases.length > 0 && attempt < MAX_AGENT_ATTEMPTS && (isRetryableAgentFailure(result) || !agentFailure)
-    if (!shouldRetry) break
-
-    const reason = agentFailure ?? 'returned before completing every applicable case'
-    const retryDelaySeconds = agentRetryDelaySeconds(result, initialRun.metadata.platform)
-    process.stdout.write(
-      `Test agent ${reason}; retrying ${task} in a fresh session after ${retryDelaySeconds} seconds\n`
-    )
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, retryDelaySeconds * 1_000))
-  }
-
-  const incompleteCases = getTaskCaseResults(run, task).filter(({ status }) => ['pending', 'running'].includes(status))
-  if (incompleteCases.length > 0) {
-    const reason = agentFailure ?? 'returned without completing every applicable case'
-    run = blockIncompleteTaskCases(run, task, `Test agent ${reason}`)
-    writeRun(paths.runState, run)
-  }
-
-  const results = getTaskCaseResults(run, task).filter(({ status }) => status !== 'not_applicable')
-  const taskMarkdown = redact(renderTaskMarkdown(run, task, agentFailure ?? 'completed'))
-  process.stdout.write(`${taskMarkdown}\n`)
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${taskMarkdown}\n`)
-
-  const nonPassing = results.filter(({ status }) => status !== 'passed')
-  if (nonPassing.length > 0) {
-    const statuses = nonPassing.map(({ id, status }) => `${id}=${status}`).join(', ')
-    throw new Error(`Regression task ${task} did not pass: ${statuses}`)
-  }
-  if (agentFailure) {
-    process.stderr.write(`Test agent ${agentFailure} after all ${task} cases were completed; accepting case results\n`)
-  } else {
-    process.stdout.write(`Test agent completed ${task}\n`)
-  }
-}
-
 async function releaseCommand(): Promise<void> {
   const paths = runDirectory()
   let run = readRun(paths.runState)
@@ -474,7 +186,7 @@ async function finalizeCommand(): Promise<void> {
 async function gateCommand(): Promise<void> {
   const paths = runDirectory()
   const verdict = getRunVerdict(readRun(paths.runState))
-  process.stdout.write(`Cherry regression verdict: ${verdict}\n`)
+  process.stdout.write(`Cherry 回归测试结论：${verdict}\n`)
   if (!verdict.endsWith('_pass')) process.exitCode = 1
 }
 
@@ -491,7 +203,7 @@ async function aggregateCommand(): Promise<void> {
   writeFileSync(join(output, 'combined-results.json'), `${JSON.stringify(report, null, 2)}\n`)
   writeFileSync(join(output, 'combined-report.md'), markdown)
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${markdown}\n`)
-  process.stdout.write(`Combined Cherry regression verdict: ${report.verdict}\n`)
+  process.stdout.write(`Cherry 回归测试汇总结论：${report.verdict}\n`)
 }
 
 async function aggregateGateCommand(): Promise<void> {
@@ -500,23 +212,14 @@ async function aggregateGateCommand(): Promise<void> {
     verdict: string
   }
   if (!report.verdict.endsWith('_pass')) {
-    process.stderr.write(`Combined Cherry regression verdict is ${report.verdict}\n`)
+    process.stderr.write(`Cherry 回归测试汇总未通过：${report.verdict}\n`)
     process.exitCode = 1
   }
 }
 
 async function cleanupCommand(): Promise<void> {
   const paths = runDirectory()
-  const settingsFiles = new Set(TASK_IDS.map((task) => `claude-settings-${task}.json`))
-  try {
-    await stopOwnedApp(paths)
-  } finally {
-    for (const entry of readdirSync(paths.root, { withFileTypes: true })) {
-      if (entry.isFile() && settingsFiles.has(entry.name)) {
-        rmSync(join(paths.root, entry.name))
-      }
-    }
-  }
+  await stopOwnedApp(paths)
 }
 
 async function main(): Promise<void> {
@@ -530,15 +233,6 @@ async function main(): Promise<void> {
       break
     case 'preflight':
       await preflightCommand()
-      break
-    case 'prepare-agent-settings':
-      await prepareAgentSettingsCommand()
-      break
-    case 'agent-preflight':
-      await agentPreflightCommand()
-      break
-    case 'run-agent-task':
-      await runAgentTaskCommand()
       break
     case 'release':
       await releaseCommand()

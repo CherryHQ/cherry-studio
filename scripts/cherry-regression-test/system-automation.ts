@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, statSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 
+import { readAppRecord } from './lifecycle'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
 import type { Platform } from './types'
@@ -100,24 +101,32 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
 export function chooseNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)
+  const electronPid = readAppRecord(paths).electronPid
   if (platform === 'macos') {
     const script = [
       'on run argv',
       'tell application "System Events"',
+      'set frontmost of first application process whose unix id is (item 2 of argv as integer) to true',
+      'delay 0.5',
       'keystroke "g" using {command down, shift down}',
       'delay 1',
       'keystroke (item 1 of argv)',
       'key code 36',
-      'delay 1',
+      'delay 1.5',
       'key code 36',
       'end tell',
       'end run'
     ].join('\n')
-    execFileSync('osascript', ['-e', script, '--', filePath], { stdio: 'ignore', timeout: 15_000 })
+    execFileSync('osascript', ['-e', script, '--', filePath, String(electronPid)], {
+      stdio: 'ignore',
+      timeout: 15_000
+    })
   } else {
     const script = statSync(filePath).isDirectory()
       ? [
           '$shell = New-Object -ComObject WScript.Shell',
+          `$null = $shell.AppActivate(${electronPid})`,
+          'Start-Sleep -Milliseconds 500',
           '$shell.SendKeys("%d")',
           'Start-Sleep -Milliseconds 250',
           `$shell.SendKeys('${escapePowerShell(filePath)}')`,
@@ -127,6 +136,8 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
         ].join('; ')
       : [
           '$shell = New-Object -ComObject WScript.Shell',
+          `$null = $shell.AppActivate(${electronPid})`,
+          'Start-Sleep -Milliseconds 500',
           `$shell.SendKeys('${escapePowerShell(filePath)}')`,
           '$shell.SendKeys("{ENTER}")'
         ].join('; ')
@@ -142,10 +153,13 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
   const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
   const directory = dirname(filePath)
   mkdirSync(directory, { recursive: true })
+  const electronPid = readAppRecord(paths).electronPid
   if (platform === 'macos') {
     const script = [
       'on run argv',
       'tell application "System Events"',
+      'set frontmost of first application process whose unix id is (item 3 of argv as integer) to true',
+      'delay 0.5',
       'keystroke "g" using {command down, shift down}',
       'delay 1',
       'keystroke (item 1 of argv)',
@@ -157,13 +171,15 @@ export function saveNativeFile(platform: Platform, paths: RunPaths, candidatePat
       'end tell',
       'end run'
     ].join('\n')
-    execFileSync('osascript', ['-e', script, '--', directory, basename(filePath)], {
+    execFileSync('osascript', ['-e', script, '--', directory, basename(filePath), String(electronPid)], {
       stdio: 'ignore',
       timeout: 15_000
     })
   } else {
     const script = [
       '$shell = New-Object -ComObject WScript.Shell',
+      `$null = $shell.AppActivate(${electronPid})`,
+      'Start-Sleep -Milliseconds 500',
       '$shell.SendKeys("%n")',
       'Start-Sleep -Milliseconds 250',
       `$shell.SendKeys('${escapePowerShell(filePath)}')`,

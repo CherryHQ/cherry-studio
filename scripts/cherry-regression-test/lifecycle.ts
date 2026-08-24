@@ -30,7 +30,7 @@ export interface InstallationRecord {
 
 export interface AppRecord {
   schemaVersion: 1
-  ownership: 'agent'
+  ownership: 'regression-driver'
   policy: 'ephemeral'
   mode: RunMode
   platform: Platform
@@ -357,7 +357,7 @@ export async function launchApp(
     const { electronPid, targetUrl } = await waitForCdp(child.pid, options.platform)
     const record: AppRecord = {
       schemaVersion: 1,
-      ownership: 'agent',
+      ownership: 'regression-driver',
       policy: 'ephemeral',
       mode: options.mode,
       platform: options.platform,
@@ -396,7 +396,7 @@ export async function launchApp(
 
 export function readAppRecord(paths: RunPaths): AppRecord {
   const record = readJson<AppRecord>(paths.appRecord)
-  if (record.schemaVersion !== 1 || record.ownership !== 'agent' || record.policy !== 'ephemeral') {
+  if (record.schemaVersion !== 1 || record.ownership !== 'regression-driver' || record.policy !== 'ephemeral') {
     throw new Error('Refusing to control an unowned application record')
   }
   if (!isPathInside(paths.root, record.logPath)) throw new Error('Application record points outside the run directory')

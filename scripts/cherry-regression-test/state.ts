@@ -1,16 +1,7 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 
-import { getRegressionCase, REGRESSION_CASES } from './cases'
-import type {
-  CapabilityResult,
-  CaseResult,
-  CaseStatus,
-  EvidenceRecord,
-  RegressionRun,
-  RunMetadata,
-  RunVerdict,
-  TaskId
-} from './types'
+import { REGRESSION_CASES } from './cases'
+import type { CapabilityResult, CaseStatus, RegressionRun, RunMetadata, RunVerdict } from './types'
 
 export function createRun(metadata: RunMetadata): RegressionRun {
   return {
@@ -28,11 +19,10 @@ export function createRun(metadata: RunMetadata): RegressionRun {
               ? 'pending'
               : 'not_applicable',
           summary: !testCase.modes.includes(metadata.mode)
-            ? `Not applicable in ${metadata.mode} mode`
+            ? `不适用于 ${metadata.mode} 模式`
             : metadata.task !== 'all' && testCase.task !== metadata.task
-              ? `Not selected for task ${metadata.task}`
-              : '',
-          evidence: []
+              ? `未被任务 ${metadata.task} 选中`
+              : ''
         }
       ])
     )
@@ -41,8 +31,8 @@ export function createRun(metadata: RunMetadata): RegressionRun {
 
 export function beginCase(run: RegressionRun, caseId: string): RegressionRun {
   const result = run.cases[caseId]
-  if (!result) throw new Error(`Unknown regression test case: ${caseId}`)
-  if (result.status === 'not_applicable') throw new Error(`${caseId} is not applicable in ${run.metadata.mode} mode`)
+  if (!result) throw new Error(`未知的回归测试项：${caseId}`)
+  if (result.status === 'not_applicable') throw new Error(`${caseId} 不适用于 ${run.metadata.mode} 模式`)
   return {
     ...run,
     cases: {
@@ -52,73 +42,31 @@ export function beginCase(run: RegressionRun, caseId: string): RegressionRun {
   }
 }
 
-export function addEvidence(run: RegressionRun, caseId: string, evidence: EvidenceRecord): RegressionRun {
-  const result = run.cases[caseId]
-  if (!result) throw new Error(`Unknown regression test case: ${caseId}`)
-  const testCase = getRegressionCase(caseId)
-  const expected = testCase.evidence.find(({ id }) => id === evidence.id)
-  if (!expected) throw new Error(`${evidence.id} is not declared evidence for ${caseId}`)
-  if (expected.kind !== evidence.kind) {
-    throw new Error(`${caseId}/${evidence.id} requires ${expected.kind} evidence, received ${evidence.kind}`)
-  }
-  const existing = result.evidence.filter(({ id }) => id !== evidence.id)
-  return {
-    ...run,
-    cases: {
-      ...run.cases,
-      [caseId]: { ...result, evidence: [...existing, evidence] }
-    }
-  }
-}
-
-export function completeCase(
+export function completeE2eCase(
   run: RegressionRun,
   caseId: string,
   status: Extract<CaseStatus, 'blocked' | 'failed' | 'passed'>,
-  summary: string
+  summary: string,
+  artifacts: string[] = []
 ): RegressionRun {
   const result = run.cases[caseId]
-  if (!result) throw new Error(`Unknown regression test case: ${caseId}`)
-  if (result.status === 'not_applicable') throw new Error(`${caseId} is not applicable in ${run.metadata.mode} mode`)
-  if (!summary.trim()) throw new Error(`${caseId} requires a result summary`)
-
-  if (status === 'passed') {
-    const missingEvidence = getRegressionCase(caseId).evidence.filter(
-      (required) =>
-        !result.evidence.some((record) => record.id === required.id && record.passed && record.source === 'driver')
-    )
-    if (missingEvidence.length > 0) {
-      throw new Error(
-        `${caseId} cannot pass without machine evidence: ${missingEvidence.map(({ id }) => id).join(', ')}`
-      )
-    }
-  }
+  if (!result) throw new Error(`未知的回归测试项：${caseId}`)
+  if (result.status === 'not_applicable') throw new Error(`${caseId} 不适用于 ${run.metadata.mode} 模式`)
+  if (!summary.trim() || !/[\u3400-\u9fff]/.test(summary)) throw new Error(`${caseId} 的结果摘要必须使用简体中文`)
 
   return {
     ...run,
     cases: {
       ...run.cases,
-      [caseId]: { ...result, status, summary: summary.trim(), finishedAt: new Date().toISOString() }
+      [caseId]: {
+        ...result,
+        artifacts,
+        status,
+        summary: summary.trim(),
+        finishedAt: new Date().toISOString()
+      }
     }
   }
-}
-
-export function getTaskCaseResults(run: RegressionRun, task: TaskId): CaseResult[] {
-  return REGRESSION_CASES.filter((testCase) => testCase.task === task).map((testCase) => run.cases[testCase.id])
-}
-
-export function blockIncompleteTaskCases(run: RegressionRun, task: TaskId, summary: string): RegressionRun {
-  const taskCaseIds = new Set(REGRESSION_CASES.filter((testCase) => testCase.task === task).map(({ id }) => id))
-  const finishedAt = new Date().toISOString()
-  const cases = Object.fromEntries(
-    Object.entries(run.cases).map(([caseId, result]) => {
-      if (!taskCaseIds.has(caseId) || (result.status !== 'pending' && result.status !== 'running')) {
-        return [caseId, result]
-      }
-      return [caseId, { ...result, status: 'blocked' as const, summary, finishedAt }]
-    })
-  )
-  return { ...run, cases }
 }
 
 export function finalizeRun(run: RegressionRun): RegressionRun {
@@ -130,7 +78,7 @@ export function finalizeRun(run: RegressionRun): RegressionRun {
         {
           ...result,
           status: 'blocked' as const,
-          summary: 'Task did not finish before finalization',
+          summary: '任务在生成最终报告前未完成',
           finishedAt: new Date().toISOString()
         }
       ]

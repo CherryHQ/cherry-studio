@@ -50,7 +50,7 @@ describe('owned application lifecycle', () => {
     ensureRunDirectories(paths)
     const record: AppRecord = {
       schemaVersion: 1,
-      ownership: 'agent',
+      ownership: 'regression-driver',
       policy: 'ephemeral',
       mode: 'branch',
       platform: 'macos',
@@ -89,7 +89,7 @@ describe('owned application lifecycle', () => {
     const targetRoot = 'D:\\target-app'
     const record: AppRecord = {
       schemaVersion: 1,
-      ownership: 'agent',
+      ownership: 'regression-driver',
       policy: 'ephemeral',
       mode: 'branch',
       platform: 'windows',
@@ -147,7 +147,7 @@ describe('owned application lifecycle', () => {
     const targetRoot = 'D:\\target-app'
     const record: AppRecord = {
       schemaVersion: 1,
-      ownership: 'agent',
+      ownership: 'regression-driver',
       policy: 'ephemeral',
       mode: 'branch',
       platform: 'windows',
@@ -189,7 +189,7 @@ describe('owned application lifecycle', () => {
     const targetRoot = '/tmp/target-app'
     const record: AppRecord = {
       schemaVersion: 1,
-      ownership: 'agent',
+      ownership: 'regression-driver',
       policy: 'ephemeral',
       mode: 'branch',
       platform: 'macos',
@@ -231,7 +231,7 @@ describe('owned application lifecycle', () => {
     const targetRoot = '/tmp/target-app'
     const record: AppRecord = {
       schemaVersion: 1,
-      ownership: 'agent',
+      ownership: 'regression-driver',
       policy: 'ephemeral',
       mode: 'branch',
       platform: 'macos',

@@ -1,10 +1,12 @@
-import { CONFIG_REFS, loadTestConfig, REQUIRED_CONFIG } from '../config'
+import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from '../config'
 
 describe('regression test configuration', () => {
   const validEnv = {
     CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: 'https://gateway.example.test/v1',
     CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: 'provider-secret',
     CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: 'Qwen/Qwen3.6-27B',
+    CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: 'https://embedding.example.test/v1',
+    CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: 'embedding-secret',
     CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: 'text-embedding-test',
     CHERRY_TEST_CHERRYIN_CHAT_MODEL: 'cherry-chat-test',
     CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL: 'gemini-image-test',
@@ -18,6 +20,8 @@ describe('regression test configuration', () => {
       'CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL',
       'CHERRY_TEST_CUSTOM_PROVIDER_API_KEY',
       'CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL',
+      'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL',
+      'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY',
       'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL',
       'CHERRY_TEST_CHERRYIN_CHAT_MODEL',
       'CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL',
@@ -28,14 +32,25 @@ describe('regression test configuration', () => {
     expect(REQUIRED_CONFIG.some((name) => /^CHERRY_TEST_(PROVIDER|EMBEDDING|GEMINI|IMAGE2)_/.test(name))).toBe(false)
   })
 
-  it('loads values exposed to the test driver by stable config refs', () => {
+  it('loads provider-scoped values for Playwright', () => {
     const config = loadTestConfig(validEnv)
 
     expect(config.customProvider.chatModel).toBe('Qwen/Qwen3.6-27B')
-    expect(config.customProvider.embeddingModel).toBe('text-embedding-test')
+    expect(config.customEmbeddingProvider).toEqual({
+      apiKey: 'embedding-secret',
+      baseUrl: 'https://embedding.example.test/v1',
+      model: 'text-embedding-test'
+    })
     expect(config.cherryIn.geminiImageModel).toBe('gemini-image-test')
-    expect(CONFIG_REFS.customProviderApiKey(config)).toBe('provider-secret')
-    expect(CONFIG_REFS.cherryInPassword(config)).toBe('account-secret')
+    expect(config.customProvider.apiKey).toBe('provider-secret')
+    expect(config.customEmbeddingProvider.apiKey).toBe('embedding-secret')
+    expect(config.cherryIn.password).toBe('account-secret')
+    expect(getSensitiveConfigValues(config)).toEqual([
+      'provider-secret',
+      'embedding-secret',
+      'automation@example.test',
+      'account-secret'
+    ])
   })
 
   it('fails before application launch when any required value is blank', () => {
@@ -48,5 +63,14 @@ describe('regression test configuration', () => {
     ).toThrow(
       'Missing regression test configuration: CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL, CHERRY_TEST_CHERRYIN_ACCOUNT'
     )
+  })
+
+  it('validates both provider base URLs before application launch', () => {
+    expect(() =>
+      loadTestConfig({
+        ...validEnv,
+        CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: 'not-a-url'
+      })
+    ).toThrow('CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL must be an absolute URL')
   })
 })

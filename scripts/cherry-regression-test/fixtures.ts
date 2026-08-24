@@ -11,6 +11,7 @@ export const FIXTURE_MARKERS = {
   assistantResponse: 'ASSISTANT_PROMPT_PASS',
   cherryInChat: 'CHERRYIN_CHAT_PASS',
   claudeAgentName: 'Cherry Regression Claude Agent 31415',
+  customEmbeddingProviderName: 'Cherry Regression Embedding Provider 31415',
   customProviderName: 'Cherry Regression Custom Provider 31415',
   customProviderChat: 'CUSTOM_PROVIDER_CHAT_PASS',
   everythingName: 'everything',

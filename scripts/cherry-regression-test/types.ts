@@ -1,16 +1,15 @@
 export const PLATFORMS = ['macos', 'windows'] as const
 export const RUN_MODES = ['branch', 'tag'] as const
 export const CASE_STATUSES = ['pending', 'running', 'passed', 'failed', 'blocked', 'not_applicable'] as const
-export const EVIDENCE_KINDS = ['file', 'process', 'restart', 'screenshot', 'ui'] as const
 export const TASK_IDS = [
   'startup-smoke',
   'mini-app',
   'notes',
   'custom-provider-chat',
   'custom-assistant',
+  'translation',
   'quick-assistant',
   'selection-assistant',
-  'translation',
   'knowledge-import',
   'knowledge-qa',
   'everything-mcp',
@@ -18,10 +17,10 @@ export const TASK_IDS = [
   'code-cli',
   'openclaw',
   'cherryin-chat',
+  'image-generation',
+  'claude-agent-runtime',
   'pi-runtime',
   'deepseek-harness-runtime',
-  'claude-agent-runtime',
-  'image-generation',
   'agent-ppt'
 ] as const
 export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
@@ -29,16 +28,9 @@ export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
 export type Platform = (typeof PLATFORMS)[number]
 export type RunMode = (typeof RUN_MODES)[number]
 export type CaseStatus = (typeof CASE_STATUSES)[number]
-export type EvidenceKind = (typeof EVIDENCE_KINDS)[number]
 export type TaskId = (typeof TASK_IDS)[number]
 export type TaskSelection = (typeof TASK_SELECTIONS)[number]
 export type TestProfile = 'authenticated' | 'clean'
-
-export interface EvidenceRequirement {
-  id: string
-  kind: EvidenceKind
-  description: string
-}
 
 export interface RegressionCase {
   id: string
@@ -46,22 +38,6 @@ export interface RegressionCase {
   task: TaskId
   profile: TestProfile
   modes: RunMode[]
-  requiredCapabilities?: string[]
-  restartBefore?: boolean
-  steps: string[]
-  acceptance: string[]
-  evidence: EvidenceRequirement[]
-}
-
-export interface EvidenceRecord {
-  id: string
-  kind: EvidenceKind
-  observedAt: string
-  passed: boolean
-  source: 'driver'
-  summary: string
-  artifactPath?: string
-  details?: unknown
 }
 
 export interface CaseResult {
@@ -70,7 +46,7 @@ export interface CaseResult {
   summary: string
   startedAt?: string
   finishedAt?: string
-  evidence: EvidenceRecord[]
+  artifacts?: string[]
 }
 
 export interface RunMetadata {
