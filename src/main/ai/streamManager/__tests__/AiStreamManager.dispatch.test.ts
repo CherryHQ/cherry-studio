@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ConversationActor, ConversationAdmissionOperationKind } from '../../conversation/ConversationActor'
 import { ConversationRuntimeService } from '../../conversation/ConversationRuntimeService'
+import { PersistentChatContextProvider } from '../context/PersistentChatContextProvider'
 
 const mocks = vi.hoisted(() => ({
   findCrashOrphanedAssistantMessages: vi.fn<() => Array<{ id: string; topicId: string; data: { parts: unknown[] } }>>(
@@ -115,7 +116,7 @@ describe('ConversationRuntimeService — boot reconcile boundary', () => {
       order.push('reconcile')
       return []
     })
-    const service = new ConversationRuntimeService({ providers: [] })
+    const service = new ConversationRuntimeService({ providers: [new PersistentChatContextProvider()] })
 
     await service._doInit()
     order.push('initialized')
@@ -128,7 +129,7 @@ describe('ConversationRuntimeService — boot reconcile boundary', () => {
       { id: 'stale-1', topicId: 'topic-1', data: { parts: [] } },
       { id: 'stale-2', topicId: 'topic-2', data: { parts: [] } }
     ])
-    const service = new ConversationRuntimeService({ providers: [] })
+    const service = new ConversationRuntimeService({ providers: [new PersistentChatContextProvider()] })
 
     await service._doInit()
 
