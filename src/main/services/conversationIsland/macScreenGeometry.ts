@@ -13,6 +13,8 @@ const MAX_NOTCH_WIDTH = 260
 const TOP_EDGE_TOLERANCE = 2
 const CENTER_TOLERANCE_RATIO = 0.1
 const EXPANDED_WIDTH = 420
+const MIN_COMPACT_NOTCH_WIDTH = 280
+const COMPACT_NOTCH_SIDE_WIDTH = 80
 const EXPANDED_HEADER_HEIGHT = 38
 const SINGLE_DETAIL_HEIGHT = 44
 const ACTIVITY_LIST_ROW_HEIGHT = 52
@@ -192,11 +194,16 @@ export function resolveConversationIslandBounds(
 
   if (!isAtTop || !isPlausibleWidth || !isCentered) return fallbackPlacement(display, size)
 
+  const isCompact = size.width === COMPACT_ISLAND_SIZE.width && size.height === COMPACT_ISLAND_SIZE.height
+  const width = isCompact
+    ? Math.min(EXPANDED_WIDTH, Math.max(MIN_COMPACT_NOTCH_WIDTH, gapWidth + COMPACT_NOTCH_SIDE_WIDTH * 2))
+    : size.width
+
   return {
     bounds: {
-      x: Math.round(display.bounds.x + (gapCenter - frame.x) - size.width / 2),
+      x: Math.round(display.bounds.x + (gapCenter - frame.x) - width / 2),
       y: Math.round(display.bounds.y),
-      width: size.width,
+      width,
       height: size.height
     },
     presentation: 'notch',

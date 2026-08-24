@@ -25,9 +25,27 @@ describe('macScreenGeometry', () => {
     const geometries = parseMacScreenGeometry(JSON.stringify([validGeometry]))
 
     expect(resolveConversationIslandBounds(display, geometries, { width: 320, height: 38 })).toEqual({
-      bounds: { x: 1400, y: 24, width: 320, height: 38 },
+      bounds: { x: 1420, y: 24, width: 280, height: 38 },
       presentation: 'notch',
       notchWidth: 120
+    })
+  })
+
+  it('sizes the compact island from the measured notch width', () => {
+    const geometries = parseMacScreenGeometry(
+      JSON.stringify([
+        {
+          ...validGeometry,
+          auxiliaryTopLeftArea: { x: 100, y: 688, width: 467.5, height: 32 },
+          auxiliaryTopRightArea: { x: 752.5, y: 688, width: 467.5, height: 32 }
+        }
+      ])
+    )
+
+    expect(resolveConversationIslandBounds(display, geometries, { width: 320, height: 38 })).toEqual({
+      bounds: { x: 1388, y: 24, width: 345, height: 38 },
+      presentation: 'notch',
+      notchWidth: 185
     })
   })
 
