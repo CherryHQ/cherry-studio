@@ -916,9 +916,13 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
 
-    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledTimes(1)
+    const effortUpdater = mocks.updateAssistantSettings.mock.calls[0][0] as (
+      latest: Record<string, unknown>
+    ) => Record<string, unknown>
+    expect(effortUpdater({ reasoning_effort_by_model: { 'other::model': 'low' } })).toEqual({
       reasoning_effort: 'high',
-      reasoning_effort_by_model: { [model.id]: 'high' }
+      reasoning_effort_by_model: { 'other::model': 'low', [model.id]: 'high' }
     })
     expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
 
@@ -947,7 +951,11 @@ describe('ChatComposer', () => {
 
     act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
 
-    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledTimes(1)
+    const effortUpdater = mocks.updateAssistantSettings.mock.calls[0][0] as (
+      latest: Record<string, unknown>
+    ) => Record<string, unknown>
+    expect(effortUpdater(mocks.assistant.settings)).toEqual({
       reasoning_effort: 'high',
       reasoning_effort_by_model: { 'other::model': 'low', [model.id]: 'high' }
     })
