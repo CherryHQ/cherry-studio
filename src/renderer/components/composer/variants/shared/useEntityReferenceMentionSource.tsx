@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../quickPanel'
-import { fetchEntityReferencePromptText } from './entityReferenceContext'
+import { fetchAgentSessionReferencePointer, fetchEntityReferencePromptText } from './entityReferenceContext'
 
 const REFERENCE_RESULT_LIMIT = 50
 // List endpoints page pinned-first in manual order, so recency sorting happens client-side
@@ -174,12 +174,14 @@ export function useEntityReferenceMentionItems({
 
               void (async () => {
                 try {
-                  const promptText = await fetchEntityReferencePromptText(
+                  const target =
                     entityType === 'topic'
-                      ? { entityType, id: hit.id, name: title }
-                      : { entityType, id: hit.id, name: title, agentId: hit.agentId },
-                    { maxTotalChars: remainingChars }
-                  )
+                      ? ({ entityType, id: hit.id, name: title } as const)
+                      : ({ entityType, id: hit.id, name: title, agentId: hit.agentId } as const)
+                  const promptText =
+                    target.entityType === 'session'
+                      ? await fetchAgentSessionReferencePointer(target)
+                      : await fetchEntityReferencePromptText(target, { maxTotalChars: remainingChars })
                   settlePendingReferenceToken(editor, tokenId, promptText)
                 } catch {
                   settlePendingReferenceToken(editor, tokenId, null)

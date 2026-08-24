@@ -24,6 +24,7 @@ import {
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
+  SESSION_READ_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
@@ -298,6 +299,21 @@ const SESSION_SEARCH_TOOL: Tool = {
   }
 }
 
+const SESSION_READ_TOOL: Tool = {
+  name: SESSION_READ_TOOL_NAME,
+  description:
+    'Read consecutive turns from an addressable Cherry Agent Session. Results are chronological within each page; next_cursor reads the next older page.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      session_id: { type: 'string', description: 'Session id returned by session_list or session_search.' },
+      cursor: { type: 'string', description: 'Opaque next_cursor from the previous page.' },
+      limit: { type: 'number', description: 'Maximum turns to return (default 10, max 100).' }
+    },
+    required: ['session_id']
+  }
+}
+
 const SESSION_DELIVERIES_TOOL: Tool = {
   name: SESSION_DELIVERIES_TOOL_NAME,
   description: 'Inspect durable incoming or outgoing cross-Session requests, results, and delivery state.',
@@ -353,6 +369,7 @@ const AUTONOMY_TOOLS: readonly Tool[] = [
   NOTIFY_TOOL,
   CONFIG_TOOL,
   SESSION_LIST_TOOL,
+  SESSION_READ_TOOL,
   SESSION_SEARCH_TOOL,
   SESSION_CREATE_TOOL,
   SESSION_DELIVERIES_TOOL,
@@ -402,6 +419,8 @@ export class CherryAutonomyTools {
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
+        case SESSION_READ_TOOL_NAME:
+          return this.readSession(args)
         case SESSION_SEARCH_TOOL_NAME:
           return this.searchSessions(args)
         case SESSION_CREATE_TOOL_NAME:
@@ -485,6 +504,36 @@ export class CherryAutonomyTools {
     }))
     return {
       content: [{ type: 'text' as const, text: JSON.stringify({ sessions, nextCursor: page.nextCursor }) }]
+    }
+  }
+
+  private readSession(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const sessionId = typeof args.session_id === 'string' ? args.session_id.trim() : ''
+    if (!sessionId) throw new McpError(ErrorCode.InvalidParams, "'session_id' is required")
+    if (!agentSessionService.isAddressable(sessionId)) {
+      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'The target Session is not addressable')
+    }
+    const cursor = typeof args.cursor === 'string' && args.cursor.trim() ? args.cursor.trim() : undefined
+    const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 10
+    const page = agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit })
+    const turns = page.items.toReversed().map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: (message.data.parts ?? [])
+        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+        .map((part) => part.text)
+        .join('\n'),
+      createdAt: message.createdAt
+    }))
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ sessionId, turns, next_cursor: page.nextCursor })
+        }
+      ]
     }
   }
 
