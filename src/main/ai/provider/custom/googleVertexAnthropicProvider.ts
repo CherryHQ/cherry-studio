@@ -54,7 +54,7 @@ export function createGoogleVertexAnthropic(
     if (!Object.isExtensible(config) || Object.isFrozen(config)) {
       try {
         return new AnthropicMessagesLanguageModel(modelId, {
-          ...(config as Record<string, unknown>),
+          ...config,
           supportsNativeStructuredOutput: false,
           supportsStrictTools: false,
           supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] })
