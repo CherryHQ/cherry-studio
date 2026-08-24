@@ -40,7 +40,7 @@ import {
   SquareSplitHorizontal,
   X
 } from 'lucide-react'
-import { memo, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HtmlArtifactPreviewSurface, { htmlArtifactPreviewRequiresInteractive } from './HtmlArtifactPreviewSurface'
@@ -206,6 +206,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   // Authorization is scoped to the exact content, synchronously: the stored html must
   // match the current html in the same render, so new bytes (e.g. a still-streaming
   // source) can never inherit a previous run action — no effect-timing window.
+  const interactiveDisclosureId = useId()
   const [interactiveAuth, setInteractiveAuth] = useState<{ html: string; authorized: boolean }>({
     html: '',
     authorized: false
@@ -238,9 +239,13 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
                 size="sm"
                 className="pointer-events-auto border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent"
                 aria-label={t('html_artifacts.interactive_preview.action')}
+                aria-describedby={interactiveDisclosureId}
                 onClick={() => setInteractiveAuth({ html, authorized: true })}>
                 <ShieldAlert className="size-3.5 text-warning" />
                 {t('html_artifacts.interactive_preview.action')}
+                <span id={interactiveDisclosureId} className="sr-only">
+                  {t('html_artifacts.interactive_preview.description')}
+                </span>
               </Button>
             </Tooltip>
           </div>
