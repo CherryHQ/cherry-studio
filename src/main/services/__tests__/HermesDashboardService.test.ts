@@ -101,6 +101,27 @@ describe('HermesDashboardService', () => {
     expect(write).not.toHaveBeenCalled()
   })
 
+  it('does not start the Dashboard until an earlier Hermes config write completes', async () => {
+    let resolveWrite: (() => void) | undefined
+    const service = new HermesDashboardService()
+    const writing = service.writeConfigFiles(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrite = resolve
+        })
+    )
+    await vi.waitFor(() => expect(resolveWrite).toBeDefined())
+
+    const starting = service.start()
+    await Promise.resolve()
+    expect(mocks.spawn).not.toHaveBeenCalled()
+
+    resolveWrite?.()
+    await writing
+    await expect(starting).resolves.toMatchObject({ success: true })
+    expect(mocks.spawn).toHaveBeenCalledOnce()
+  })
+
   it('reports a missing Hermes binary without spawning a process', async () => {
     mocks.appGet.mockReturnValue({
       getToolSnapshots: vi.fn(async () => ({ hermes: { availability: { source: 'none' } } }))

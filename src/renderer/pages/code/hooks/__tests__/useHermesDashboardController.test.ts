@@ -57,6 +57,76 @@ describe('useHermesDashboardController', () => {
     })
   })
 
+  it('clears busy state when a pending launch is superseded by stop', async () => {
+    let resolveStart: ((value: { success: true; url: string }) => void) | undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'hermes_dashboard.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'hermes_dashboard.start') {
+        return new Promise((resolve) => {
+          resolveStart = resolve
+        })
+      }
+      if (route === 'hermes_dashboard.stop') return Promise.resolve({ success: true })
+      throw new Error(`Unexpected IPC route: ${route}`)
+    })
+    const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
+
+    let start: Promise<void>
+    await act(async () => {
+      start = result.current.onLaunch()
+      await Promise.resolve()
+    })
+    expect(result.current.launching).toBe(true)
+
+    await act(async () => {
+      await result.current.onStop()
+    })
+    expect(result.current.launching).toBe(false)
+    expect(result.current.stopping).toBe(false)
+
+    resolveStart?.({ success: true, url: 'http://127.0.0.1:49152' })
+    await act(async () => {
+      await start
+    })
+    expect(result.current.launching).toBe(false)
+    expect(result.current.stopping).toBe(false)
+  })
+
+  it('clears busy state when a pending stop is superseded by launch', async () => {
+    let resolveStop: ((value: { success: true }) => void) | undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'hermes_dashboard.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'hermes_dashboard.start') return Promise.resolve({ success: true, url: 'http://127.0.0.1:49152' })
+      if (route === 'hermes_dashboard.stop') {
+        return new Promise((resolve) => {
+          resolveStop = resolve
+        })
+      }
+      throw new Error(`Unexpected IPC route: ${route}`)
+    })
+    const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
+
+    let stop: Promise<boolean>
+    await act(async () => {
+      stop = result.current.onStop()
+      await Promise.resolve()
+    })
+    expect(result.current.stopping).toBe(true)
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+    expect(result.current.launching).toBe(false)
+    expect(result.current.stopping).toBe(false)
+
+    resolveStop?.({ success: true })
+    await act(async () => {
+      await stop
+    })
+    expect(result.current.launching).toBe(false)
+    expect(result.current.stopping).toBe(false)
+  })
+
   it('uses the authoritative Dashboard URL when reopening after another window restarts it', async () => {
     const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
 

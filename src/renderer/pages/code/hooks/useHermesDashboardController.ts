@@ -30,8 +30,7 @@ export function useHermesDashboardController(
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const [status, setStatus] = useState<HermesDashboardStatus>('stopped')
-  const [launching, setLaunching] = useState(false)
-  const [stopping, setStopping] = useState(false)
+  const [pendingOperation, setPendingOperation] = useState<{ epoch: number; type: 'launch' | 'stop' } | null>(null)
   const statusRef = useRef(status)
   const statusEpochRef = useRef(0)
   const operationInFlightRef = useRef(false)
@@ -63,8 +62,8 @@ export function useHermesDashboardController(
   const onLaunch = useCallback(async () => {
     const operationEpoch = ++statusEpochRef.current
     operationInFlightRef.current = true
+    setPendingOperation({ epoch: operationEpoch, type: 'launch' })
     try {
-      setLaunching(true)
       applyStatus('starting')
       const result = await ipcApi.request('hermes_dashboard.start')
       if (operationEpoch !== statusEpochRef.current) return
@@ -84,7 +83,7 @@ export function useHermesDashboardController(
     } finally {
       if (operationEpoch === statusEpochRef.current) {
         operationInFlightRef.current = false
-        setLaunching(false)
+        setPendingOperation(null)
       }
     }
   }, [applyStatus, openDashboard, t])
@@ -92,8 +91,8 @@ export function useHermesDashboardController(
   const onStop = useCallback(async () => {
     const operationEpoch = ++statusEpochRef.current
     operationInFlightRef.current = true
+    setPendingOperation({ epoch: operationEpoch, type: 'stop' })
     try {
-      setStopping(true)
       const result = await ipcApi.request('hermes_dashboard.stop')
       if (operationEpoch !== statusEpochRef.current) return false
       if (!result.success) {
@@ -111,7 +110,7 @@ export function useHermesDashboardController(
     } finally {
       if (operationEpoch === statusEpochRef.current) {
         operationInFlightRef.current = false
-        setStopping(false)
+        setPendingOperation(null)
       }
     }
   }, [applyStatus, t])
@@ -165,10 +164,10 @@ export function useHermesDashboardController(
   })
 
   return {
-    launching: isHermes && launching,
+    launching: isHermes && pendingOperation?.type === 'launch',
     running: isHermes && status === 'running',
     starting: isHermes && status === 'starting',
-    stopping: isHermes && stopping,
+    stopping: isHermes && pendingOperation?.type === 'stop',
     onLaunch,
     onOpenDashboard,
     onStop
