@@ -22,6 +22,7 @@ const logger = loggerService.withContext('AgentMcpServers')
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
 export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id' | 'type'> | null
+export type TrustedNotifyChannelSnapshot = readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
 
 export interface AgentMcpServer {
   name: string
@@ -36,7 +37,8 @@ export function buildAgentMcpServers(
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  trustedNotifyChannels?: TrustedNotifyChannelSnapshot
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
   const capabilities = resolveAgentCapabilities(agent)
@@ -53,8 +55,9 @@ export function buildAgentMcpServers(
     }
   }
 
-  const sourceChannel =
+  const linkedChannel =
     linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot
+  const effectiveTrustedNotifyChannels = trustedNotifyChannels ?? (linkedChannel ? [linkedChannel] : [])
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
     name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
@@ -64,7 +67,8 @@ export function buildAgentMcpServers(
       sessionId: session.id,
       workspaceSource,
       workspacePath: session.workspace.path,
-      sourceChannel: sourceChannel ?? undefined,
+      trustedNotifyChannels: effectiveTrustedNotifyChannels,
+      allowAnyOwnedNotifyChannel: trustedNotifyChannels === undefined && linkedChannel != null,
       canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)

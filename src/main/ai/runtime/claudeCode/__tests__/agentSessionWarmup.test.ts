@@ -388,7 +388,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
       expect(options?.linkedChannelSnapshot).toBeNull()
       // Simulate an external channel binding while settings are still being materialized.
-      mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+      mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
       return { env: {}, skills: [] }
     })
 
@@ -1105,8 +1105,8 @@ describe('deriveConnectionConfig', () => {
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
   })
 
-  async function deriveSignature() {
-    const result = await deriveConnectionConfig('session-1')
+  async function deriveSignature(trustedNotifyChannels?: readonly { id: string; type: 'telegram' | 'feishu' }[]) {
+    const result = await deriveConnectionConfig('session-1', undefined, 'default', false, [], trustedNotifyChannels)
     if (!result.ok) throw new Error('expected ok derive')
     return result.config
   }
@@ -1367,6 +1367,18 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['proxyEnvironment'])
   })
 
+  it('changes the rebuild signature when task notification recipients change', async () => {
+    const first = await deriveSignature([{ id: 'channel-1', type: 'telegram' }])
+    const changed = await deriveSignature([{ id: 'channel-2', type: 'feishu' }])
+
+    expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
+    expect(
+      Object.keys(first.rebuildFactFingerprints).filter(
+        (name) => first.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['trustedNotifyChannelIds'])
+  })
+
   it('changes the rebuild signature when model context metadata changes', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
@@ -1393,7 +1405,7 @@ describe('deriveConnectionConfig', () => {
   it('changes the rebuild signature for each rebuild-group input', async () => {
     const base = await deriveSignature()
 
-    mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
     const channelChanged = await deriveSignature()
     expect(channelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
     mocks.findChannelBySessionId.mockReturnValue(null)

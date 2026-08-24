@@ -216,14 +216,16 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.trustedNotifyChannels
     )
     await warmDshMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const snapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.trustedNotifyChannels
     )
     const { agent, session } = snapshot
     const workspacePath = session.workspace?.path
@@ -320,7 +322,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           snapshot.mcpServerSnapshots,
           snapshot.linkedChannel,
           this.agentDataPath,
-          this.input.knowledgeBaseIds
+          this.input.knowledgeBaseIds,
+          this.input.trustedNotifyChannels
         ),
         { agentsDataRoot, toolResultRoot }
       )
@@ -329,7 +332,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         this.input.modelId,
-        this.input.knowledgeBaseIds
+        this.input.knowledgeBaseIds,
+        this.input.trustedNotifyChannels
       )
       if (finalSnapshot.signature !== snapshot.signature) {
         throw new Error(`dsh connection materialization changed during startup: ${this.input.sessionId}`)
@@ -435,6 +439,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]
+    trustedNotifyChannels?: AgentRuntimeConnectInput['trustedNotifyChannels']
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -448,6 +453,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]
+    trustedNotifyChannels?: AgentRuntimeConnectInput['trustedNotifyChannels']
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -455,7 +461,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         input.modelId,
-        input.knowledgeBaseIds
+        input.knowledgeBaseIds,
+        input.trustedNotifyChannels
       )
     } catch (error) {
       if (error instanceof DshInvalidConnectionSnapshotError) return 'invalid'

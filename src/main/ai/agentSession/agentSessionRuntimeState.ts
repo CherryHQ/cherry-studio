@@ -1,3 +1,4 @@
+import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { UIMessageChunk } from 'ai'
 
 import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
@@ -24,6 +25,7 @@ export interface AgentSessionRuntimeConnectionTarget {
   reasoningEffort: string
   serviceTier: string
   knowledgeBaseIds: readonly string[]
+  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
 }
 
 /**

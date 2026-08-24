@@ -8,7 +8,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
-import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
+import type { McpServerSnapshotMap, TrustedNotifyChannelSnapshot } from '@main/ai/runtime/agentMcpServers'
 import { resolveDshInjectionApi } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -54,7 +54,8 @@ export async function captureDshConnectionSnapshot(
   sessionId: string,
   agentId: string,
   requestedModelId?: UniqueModelId,
-  selectedKnowledgeBaseIds?: readonly string[]
+  selectedKnowledgeBaseIds?: readonly string[],
+  trustedNotifyChannels?: TrustedNotifyChannelSnapshot
 ): Promise<DshConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
@@ -83,6 +84,12 @@ export async function captureDshConnectionSnapshot(
   )
   const channel = agentChannelService.findBySessionId(sessionId)
   const linkedChannel = channel?.agentId === agent.id ? channel : null
+  const effectiveTrustedNotifyChannels: TrustedNotifyChannelSnapshot = (
+    trustedNotifyChannels ?? (linkedChannel ? [linkedChannel] : [])
+  )
+    .map((notifyChannel) => ({ id: notifyChannel.id, type: notifyChannel.type }))
+    .sort((left, right) => left.id.localeCompare(right.id))
+  const allowAnyOwnedNotifyChannel = trustedNotifyChannels === undefined && linkedChannel !== null
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
 
@@ -101,6 +108,8 @@ export async function captureDshConnectionSnapshot(
           mcpServers,
           mcpTools,
           linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
+          trustedNotifyChannels: effectiveTrustedNotifyChannels,
+          allowAnyOwnedNotifyChannel,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
           // the warm connection (claude's credentialsFingerprint parity); null on native routes.

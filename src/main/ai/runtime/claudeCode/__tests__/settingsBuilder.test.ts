@@ -2399,7 +2399,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('excludes Assistant MCP capability for channel-linked sessions', async () => {
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',

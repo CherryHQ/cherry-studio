@@ -805,6 +805,26 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
     })
 
+    it('does not carry a task’s notification recipients into a queued ordinary follow-up', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        headless: true,
+        trustedNotifyChannels: [{ id: 'channel-task', type: 'telegram' }]
+      })
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      expect(getEntry(service).pendingTurns[0].trustedNotifyChannels).toBeUndefined()
+
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const entry = getEntry(service)
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.trustedNotifyChannels).toBeUndefined()
+      expect((service as any).connectionTarget(entry).trustedNotifyChannels).toBeUndefined()
+    })
+
     it('stamps a queued follow-up with its enqueue-time snapshot, not the prior turn snapshot', async () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = {
@@ -1299,6 +1319,27 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
     expect(getEntry(service).currentTurn.headless).toBe(true)
+  })
+
+  it('clears scheduled notification recipients before an ordinary turn reuses the runtime entry', () => {
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: userMessage('user-task'),
+      headless: true,
+      trustedNotifyChannels: [{ id: 'channel-task', type: 'telegram' }]
+    })
+
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+    const ordinary = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-ordinary',
+      userMessage: userMessage('user-ordinary')
+    })
+
+    expect(getEntry(service).currentTurn.trustedNotifyChannels).toBeUndefined()
+    expect((service as any).connectionTarget(getEntry(service)).trustedNotifyChannels).toBeUndefined()
+    expect(ordinary.turnId).not.toBe(first.turnId)
   })
 
   it('reconnects an idle runtime when the agent model changes before the next turn', async () => {

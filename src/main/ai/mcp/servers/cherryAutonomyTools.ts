@@ -41,7 +41,10 @@ export interface CherryAgentContext {
   agentId: string
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
-  sourceChannel?: Pick<AgentChannelEntity, 'id' | 'type'>
+  /** Notification recipients authorized for this exact turn, supplied only by the runtime. */
+  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  /** Source-channel turns may explicitly select another live channel owned by this Agent. */
+  allowAnyOwnedNotifyChannel?: boolean
   /** Built-in Assistant can use every knowledge base without a configured binding. Re-read live so deletion fails closed. */
   canAccessAllKnowledgeBases?: () => boolean
   /**
@@ -115,7 +118,7 @@ const CRON_TOOL: Tool = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Channel IDs to send task results to. Omit to use the current source channel when invoked from a channel; otherwise no channel delivery is configured. Use an empty array [] to skip channel delivery.'
+          'Channel IDs to send task results to. Omit to use this turn’s configured notification recipients; otherwise no channel delivery is configured. Use an empty array [] to skip channel delivery.'
       },
       timeout_minutes: {
         type: 'number',
@@ -134,7 +137,7 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: NOTIFY_TOOL_NAME,
   description:
-    'Deliver a message, a workspace file, or both to the user who started this channel session. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to this session’s source channel; provide channel_id only to deliver through another channel owned by this Agent.',
+    'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -149,7 +152,8 @@ const NOTIFY_TOOL: Tool = {
       },
       channel_id: {
         type: 'string',
-        description: 'Optional explicit destination channel. Omit to deliver to this session’s source channel.'
+        description:
+          'Optional explicit destination channel. Omit to deliver to all configured recipients for this turn.'
       }
     }
     // ponytail: no root anyOf — some providers (xAI) reject union root schemas; the handler
@@ -365,24 +369,26 @@ export class CherryAutonomyTools {
   private sessionId: string
   private workspace: AgentSessionWorkspaceSource
   private workspacePath: string
-  private sourceChannel: Pick<AgentChannelEntity, 'id' | 'type'> | undefined
+  private trustedNotifyChannels: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
+  private allowAnyOwnedNotifyChannel: boolean
 
   constructor(context: CherryAutonomyContext) {
     this.agentId = context.agentId
     this.sessionId = context.sessionId
     this.workspace = context.workspaceSource
     this.workspacePath = context.workspacePath
-    this.sourceChannel = context.sourceChannel
+    this.trustedNotifyChannels = context.trustedNotifyChannels ?? []
+    this.allowAnyOwnedNotifyChannel = context.allowAnyOwnedNotifyChannel === true
   }
 
   tools(): Tool[] {
     return AUTONOMY_TOOLS.flatMap((tool) => {
       if (tool.name !== NOTIFY_TOOL_NAME) return [tool]
-      return this.sourceChannel
+      return this.trustedNotifyChannels.length > 0
         ? [
             {
               ...tool,
-              description: `${tool.description} Current source channel: ${this.sourceChannel.type} (${this.sourceChannel.id}).`
+              description: `${tool.description} Configured recipients: ${this.trustedNotifyChannels.map((channel) => `${channel.type} (${channel.id})`).join(', ')}.`
             }
           ]
         : []
@@ -390,7 +396,7 @@ export class CherryAutonomyTools {
   }
 
   handles(toolName: string): boolean {
-    if (toolName === NOTIFY_TOOL_NAME) return this.sourceChannel !== undefined
+    // Keep hidden tools routable so a stale catalog receives the policy error from `call()`.
     return AUTONOMY_TOOLS.some((tool) => tool.name === toolName)
   }
 
@@ -411,8 +417,11 @@ export class CherryAutonomyTools {
           }
         }
         case NOTIFY_TOOL_NAME:
-          if (!this.sourceChannel) {
-            throw new McpError(ErrorCode.InvalidRequest, 'notify is only available in sessions started from a channel')
+          if (this.trustedNotifyChannels.length === 0) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              'notify is unavailable because this turn has no configured notification recipients'
+            )
           }
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
@@ -708,8 +717,8 @@ export class CherryAutonomyTools {
           throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
       }
       channelIds = rawChannelIds
-    } else if (this.sourceChannel) {
-      channelIds = [this.sourceChannel.id]
+    } else if (this.trustedNotifyChannels.length > 0) {
+      channelIds = this.trustedNotifyChannels.map((channel) => channel.id)
     }
 
     const task = application.get('AgentJobsService').createTask(this.agentId, {
@@ -747,15 +756,30 @@ export class CherryAutonomyTools {
     }
 
     const explicitChannelId = typeof args.channel_id === 'string' ? args.channel_id.trim() : undefined
-    const targetChannelId = explicitChannelId || this.sourceChannel?.id
-    if (!targetChannelId) {
-      throw new McpError(ErrorCode.InvalidRequest, 'notify is only available in sessions started from a channel')
+    const targetChannelIds = explicitChannelId
+      ? [explicitChannelId]
+      : this.trustedNotifyChannels.map((channel) => channel.id)
+    if (targetChannelIds.length === 0) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'notify is unavailable because this turn has no configured notification recipients'
+      )
+    }
+    const targetChannelIdSet = new Set(targetChannelIds)
+    const allAgentAdapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
+    if (explicitChannelId && !this.trustedNotifyChannels.some((channel) => channel.id === explicitChannelId)) {
+      if (
+        !this.allowAnyOwnedNotifyChannel ||
+        !allAgentAdapters.some((adapter) => adapter.channelId === explicitChannelId)
+      ) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Channel "${explicitChannelId}" is not a configured notification recipient for this turn`
+        )
+      }
     }
 
-    const adapters = application
-      .get('ChannelManager')
-      .getAgentAdapters(this.agentId)
-      .filter((adapter) => adapter.channelId === targetChannelId)
+    const adapters = allAgentAdapters.filter((adapter) => targetChannelIdSet.has(adapter.channelId))
 
     if (adapters.length === 0) {
       return {

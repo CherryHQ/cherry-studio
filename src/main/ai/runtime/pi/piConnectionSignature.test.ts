@@ -118,6 +118,47 @@ describe('capturePiConnectionSnapshot', () => {
     expect(snapshot.mcpServerSnapshots.get('mcp-1')).toMatchObject({ id: 'mcp-1', name: 'server' })
   })
 
+  it('signs exact task notification recipients so a changed target set rebuilds the connection', async () => {
+    const first = await capturePiConnectionSnapshot(
+      'session-1',
+      agent.id,
+      'provider::model',
+      [],
+      [{ id: 'channel-1', type: 'telegram' }]
+    )
+    const changed = await capturePiConnectionSnapshot(
+      'session-1',
+      agent.id,
+      'provider::model',
+      [],
+      [{ id: 'channel-2', type: 'feishu' }]
+    )
+
+    expect(changed.signature).not.toBe(first.signature)
+  })
+
+  it('does not rebuild when unrelated source-channel fields change', async () => {
+    mocks.findBySessionId.mockReturnValue({
+      id: 'channel-1',
+      type: 'telegram',
+      agentId: agent.id,
+      name: 'Before',
+      activeChatIds: ['chat-1']
+    })
+    const first = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.findBySessionId.mockReturnValue({
+      id: 'channel-1',
+      type: 'telegram',
+      agentId: agent.id,
+      name: 'After',
+      activeChatIds: ['chat-1', 'chat-2']
+    })
+
+    const changed = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+
+    expect(changed.signature).toBe(first.signature)
+  })
+
   it('does not attach a session link owned by another agent', async () => {
     mocks.findBySessionId.mockReturnValue({ id: 'channel-1', agentId: 'agent-2' })
 

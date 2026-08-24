@@ -11,6 +11,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
@@ -54,6 +55,8 @@ export type ValidatedAgentDispatch = {
   serviceTier: ServiceTierSelection
   fastMode?: boolean
   headless: boolean
+  /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
+  trustedNotifyChannels?: readonly Pick<AgentChannelEntity, 'id' | 'type'>[]
   messageSnapshot: MessageSnapshot
   userMessageId: string
   userMessageParts: CherryMessagePart[]
@@ -139,6 +142,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: req.headless === true,
+      ...(req.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: req.trustedNotifyChannels } : {}),
       messageSnapshot: {
         id: agent.id,
         name: agent.name,
@@ -235,6 +239,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         assistantMessageId,
         userMessage,
         headless: validated.headless,
+        trustedNotifyChannels: validated.trustedNotifyChannels,
         traceId,
         messageSnapshot: validated.messageSnapshot,
         shouldAutoName: validated.shouldAutoNameInitialTurn
@@ -298,6 +303,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
+        trustedNotifyChannels: validated.trustedNotifyChannels,
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
