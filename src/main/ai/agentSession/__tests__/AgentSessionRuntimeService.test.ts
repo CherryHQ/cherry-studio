@@ -3141,6 +3141,27 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).toHaveBeenCalledOnce()
   })
 
+  it('waits for a pending connection attempt when synchronous close cleanup falls back', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connectionAttempt = createDeferred<void>()
+    ;(service as any).connectionAttempts.set('session-1', { promise: connectionAttempt.promise })
+    mocks.cacheDeleteShared.mockImplementationOnce(() => {
+      throw new Error('cache cleanup failed')
+    })
+
+    let settled = false
+    const closing = service.closeSession('session-1').then(() => {
+      settled = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(settled).toBe(false)
+
+    connectionAttempt.resolve()
+    await expect(closing).resolves.toBeUndefined()
+  })
+
   it('also closes a replacement entry created while the prior entry is still closing', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

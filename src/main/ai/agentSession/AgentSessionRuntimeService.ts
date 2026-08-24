@@ -931,12 +931,15 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
     const fallbackConnection = this.currentConnection(entry)
+    const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
     let closing: Promise<void>
     try {
       closing = this.closeEntry(entry)
     } catch (error) {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
-      closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
+      const fallbackClosings: Promise<unknown>[] = [this.closeRuntimeConnection(fallbackConnection, sessionId)]
+      if (connectionAttempt) fallbackClosings.push(connectionAttempt)
+      closing = Promise.allSettled(fallbackClosings).then(() => undefined)
     }
     const combinedClosing = Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(
       () => undefined
