@@ -3,7 +3,7 @@ import type { ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
-import { modeWire } from './wires'
+import { modeWire, openaiResponsesSummaryWire } from './wires'
 
 const fixedSupport: ReasoningSupport = { controls: [] }
 
@@ -41,10 +41,14 @@ const chatFixedModels = [
 
 const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
+  { modelId: 'deepseek-v4-flash-vision-exp', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
   { modelId: 'glm-5-2', values: ['high', 'max'] },
   { modelId: 'hy3', values: ['none', 'low', 'high'] },
-  { modelId: 'kimi-k3', values: ['max'] }
+  { modelId: 'kimi-k3', values: ['max'] },
+  // Stealth model, no creator entry: models.dev routes it through `@ai-sdk/openai-compatible`
+  // and prints an effort ladder, so pin chat/completions rather than let it fall back unpinned.
+  { modelId: 'ox-alpha', values: ['low', 'high', 'max'] }
 ]
 
 const anthropicFixedModels = ['minimax-m2-5', 'minimax-m2-7']
@@ -144,7 +148,7 @@ export default defineProvider({
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://opencode.ai/zen/go/v1',
-      reasoningFormat: { type: 'openai-responses' }
+      reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
   metadata: {

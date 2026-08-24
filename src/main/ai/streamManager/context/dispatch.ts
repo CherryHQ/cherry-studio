@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspace'
@@ -43,6 +44,8 @@ export interface MainSteerContinuationRequest {
   userMessageId: string
   /** Selection captured with the original busy submit. */
   reasoningEffort?: ReasoningEffortOption
+  /** Provider request tier captured with the original busy submit. */
+  serviceTier?: ServiceTierSelection
   /** Fast selection captured with the original busy submit. */
   fastMode: boolean
 }
@@ -128,6 +131,7 @@ export async function dispatchStreamRequest(
       req.topicId,
       prepared.pendingSteerUserMessageId,
       prepared.pendingSteerReasoningEffort,
+      prepared.pendingSteerServiceTier,
       prepared.pendingSteerFastMode === true
     )
   } else if (

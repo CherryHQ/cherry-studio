@@ -174,7 +174,7 @@ Safety rules:
 - a workspace is selected when the user opens a session for the new agent
 - permission_mode defaults to 'default' (read-mostly); user can change later in the UI
 
-The tool returns the new agent id. After creation, query product_info and navigate to the current package's Agents route.`,
+The tool returns the new agent details, and Cherry Studio presents a Go to chat action. Do not call navigate after a successful creation.`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -198,6 +198,17 @@ The tool returns the new agent id. After creation, query product_info and naviga
       }
     },
     required: ['name', 'instructions']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      ok: { type: 'boolean', const: true },
+      agentId: { type: 'string' },
+      name: { type: 'string' },
+      model: { type: 'string' }
+    },
+    required: ['ok', 'agentId', 'name', 'model'],
+    additionalProperties: false
   }
 }
 
@@ -492,13 +503,15 @@ class AssistantServer {
         }
       })
       logger.info('create_agent succeeded', { agentId: result.id, name })
+      const output = {
+        ok: true as const,
+        agentId: result.id,
+        name: result.name,
+        model: result.model
+      }
       return {
-        content: [
-          {
-            type: 'text' as const,
-            text: `Agent created. id=${result.id}, name=${result.name}, model=${result.model}. Query product_info for the current Agents route, then use navigate to open it.`
-          }
-        ]
+        content: [{ type: 'text' as const, text: JSON.stringify(output) }],
+        structuredContent: output
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)

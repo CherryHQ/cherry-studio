@@ -327,8 +327,9 @@ describe('JobManager schedule control APIs', () => {
       await new Promise((resolve) => setTimeout(resolve, 30))
 
       const advancedNextRun = jobScheduleService.getById(schedule.id)?.nextRun
-      expect(Date.parse(advancedNextRun ?? '')).toBeGreaterThan(Date.parse(initialNextRun ?? ''))
-      expect(Date.parse(advancedNextRun ?? '')).toBeGreaterThan(Date.now())
+      // Bound against the fire cadence, not Date.now(): a stalled event loop
+      // can let the interval fire again and leave the last write in the past.
+      expect(Date.parse(advancedNextRun ?? '')).toBeGreaterThanOrEqual(Date.parse(initialNextRun ?? '') + 20)
     })
 
     it('unregisterJobSchedule(type, name) deletes the row', async () => {

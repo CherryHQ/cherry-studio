@@ -4,6 +4,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isToolUIPart } from 'ai'
 
+import { isCreateAgentResultPart } from '../tools/agent'
 import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isGeneratedImageResultPart } from '../tools/painting/generateImageTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
@@ -133,7 +134,7 @@ function isAskUserQuestionPart(part: CherryMessagePart): boolean {
 }
 
 function isInlineResultToolPart(part: CherryMessagePart): boolean {
-  return isChannelAuthQrPart(part) || isGeneratedImageResultPart(part)
+  return isChannelAuthQrPart(part) || isCreateAgentResultPart(part) || isGeneratedImageResultPart(part)
 }
 
 function isVisibleReasoningPart(part: CherryMessagePart): boolean {

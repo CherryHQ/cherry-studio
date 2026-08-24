@@ -5,7 +5,7 @@ import { PassThrough } from 'node:stream'
 import { BaseService } from '@main/core/lifecycle'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import type * as DeepSeekHarnessConfigModule from '../config'
@@ -91,7 +91,7 @@ const provider = {
   isEnabled: true,
   authOptional: false,
   apiKeys: [{ id: 'key', isEnabled: true }],
-  apiFeatures: DEFAULT_API_FEATURES,
+  reportsActualCost: false,
   settings: {},
   endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' } }
 } as Provider
