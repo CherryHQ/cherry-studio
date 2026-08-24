@@ -11,15 +11,24 @@ import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 const EChartsPreview = ({
   children,
   enableToolbar = false,
+  isStreaming = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const wasStreamingRef = useRef(isStreaming)
 
   const renderChart = useCallback(
     async (content: string, container: HTMLDivElement) => {
       if (!content) {
+        return
+      }
+
+      // While the source is still streaming, never surface temporary parse errors
+      // or commit a partially-generated option. The caller will trigger an immediate
+      // render once streaming completes.
+      if (isStreaming) {
         return
       }
 
@@ -36,10 +45,21 @@ const EChartsPreview = ({
 
       chartRef.current.setOption(option, true)
     },
-    [t, theme]
+    [isStreaming, t, theme]
   )
 
-  const { containerRef, error, isLoading } = useDebouncedRender(children, renderChart, { debounceDelay: 300 })
+  const { containerRef, error, isLoading, triggerImmediateRender } = useDebouncedRender(children, renderChart, {
+    debounceDelay: 300
+  })
+
+  // Render the exact final option immediately when streaming completes. After that,
+  // ordinary children changes continue to be debounced by useDebouncedRender.
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) {
+      triggerImmediateRender(children)
+    }
+    wasStreamingRef.current = isStreaming
+  }, [children, isStreaming, triggerImmediateRender])
 
   useEffect(() => {
     return () => {
@@ -66,7 +86,7 @@ const EChartsPreview = ({
 
   return (
     <ImagePreviewLayout
-      loading={isLoading}
+      loading={isLoading || isStreaming}
       error={error}
       enableToolbar={enableToolbar}
       ref={ref}

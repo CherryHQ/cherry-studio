@@ -364,12 +364,12 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
     return (
       <Suspense fallback={null}>
-        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
+        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools} isStreaming={isStreaming}>
           {children}
         </SpecialView>
       </Suspense>
     )
-  }, [children, codeImageTools, language])
+  }, [children, codeImageTools, isStreaming, language])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {

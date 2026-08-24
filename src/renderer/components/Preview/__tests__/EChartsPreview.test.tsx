@@ -181,4 +181,87 @@ describe('EChartsPreview', () => {
 
     expect(mocks.chart.resize).toHaveBeenCalledTimes(1)
   })
+
+  it('does not surface JSON parse errors while streaming', async () => {
+    render(<EChartsPreview isStreaming>{'{invalid'}</EChartsPreview>)
+
+    await advanceDebounce()
+
+    expect(screen.queryByText('Invalid JSON configuration')).not.toBeInTheDocument()
+    expect(mocks.init).not.toHaveBeenCalled()
+  })
+
+  it('does not commit a partial option even if it parses as valid JSON while streaming', async () => {
+    const partial = JSON.stringify({ xAxis: { type: 'category' } })
+    render(<EChartsPreview isStreaming>{partial}</EChartsPreview>)
+
+    await advanceDebounce()
+
+    expect(mocks.init).not.toHaveBeenCalled()
+    expect(mocks.chart.setOption).not.toHaveBeenCalled()
+  })
+
+  it('keeps suppressing errors and partial renders through a streaming pause longer than the debounce delay', async () => {
+    const { rerender } = render(<EChartsPreview isStreaming>{'{invalid'}</EChartsPreview>)
+
+    // Pause longer than the 300 ms debounce while still streaming.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+
+    expect(screen.queryByText('Invalid JSON configuration')).not.toBeInTheDocument()
+    expect(mocks.init).not.toHaveBeenCalled()
+
+    rerender(<EChartsPreview>{validOption}</EChartsPreview>)
+
+    // Should render immediately without waiting for the debounce interval.
+    await act(async () => {})
+
+    expect(mocks.init).toHaveBeenCalledTimes(1)
+    expect(mocks.chart.setOption).toHaveBeenCalledWith(JSON.parse(validOption), true)
+  })
+
+  it('renders the final option immediately when streaming completes', async () => {
+    const { rerender } = render(<EChartsPreview isStreaming>{'{invalid'}</EChartsPreview>)
+    await advanceDebounce()
+
+    rerender(<EChartsPreview>{validOption}</EChartsPreview>)
+
+    // Should render immediately without waiting for the debounce interval.
+    await act(async () => {})
+
+    expect(mocks.init).toHaveBeenCalledTimes(1)
+    expect(mocks.chart.setOption).toHaveBeenCalledWith(JSON.parse(validOption), true)
+  })
+
+  it('surfaces invalid JSON after streaming completes', async () => {
+    const { rerender } = render(<EChartsPreview isStreaming>{'{invalid'}</EChartsPreview>)
+    await advanceDebounce()
+
+    rerender(<EChartsPreview>{'{invalid'}</EChartsPreview>)
+
+    await act(async () => {})
+
+    expect(screen.getByText('Invalid JSON configuration')).toBeInTheDocument()
+    expect(mocks.init).not.toHaveBeenCalled()
+  })
+
+  it('debounces updates after streaming completes', async () => {
+    const { rerender } = render(<EChartsPreview isStreaming>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
+    rerender(<EChartsPreview>{validOption}</EChartsPreview>)
+    await act(async () => {})
+    expect(mocks.chart.setOption).toHaveBeenCalledTimes(1)
+
+    const updatedOption = JSON.stringify({ series: [{ data: [3, 4], type: 'line' }] })
+    rerender(<EChartsPreview>{updatedOption}</EChartsPreview>)
+
+    expect(mocks.chart.setOption).toHaveBeenCalledTimes(1)
+
+    await advanceDebounce()
+
+    expect(mocks.chart.setOption).toHaveBeenCalledTimes(2)
+    expect(mocks.chart.setOption).toHaveBeenLastCalledWith(JSON.parse(updatedOption), true)
+  })
 })
