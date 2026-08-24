@@ -61,9 +61,9 @@ on the left and portals the active plugin toolbar to the right. Do not pass form
 `embedded`, `showBackButton`, or page-specific callbacks to `FilePreview`.
 
 When an embedded host owns in-app file navigation, wrap the preview in `FilePreviewNavigationProvider` and provide
-its absolute-path opener. The Markdown plugin then resolves schemeless links relative to the current Markdown file
-and returns the absolute target to that host. Without this capability, previews retain Streamdown's default safe link
-treatment.
+the workspace root and its absolute-path opener. The Markdown plugin then resolves schemeless links relative to that
+workspace root and returns the absolute target to the host. Without this capability, previews retain Streamdown's
+default safe link treatment.
 
 Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
 stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox

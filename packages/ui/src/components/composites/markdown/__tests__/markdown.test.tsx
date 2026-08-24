@@ -161,6 +161,28 @@ describe('Markdown (static)', () => {
     expect(container.innerHTML).not.toContain('alert(2)')
   })
 
+  it('preserves file hrefs without bypassing hardening for other links and images', () => {
+    const { container } = render(
+      <Markdown
+        id="file-links"
+        preserveFileLinkHrefs
+        components={{
+          a: ({ children, href }) => <a href={href}>{children}</a>
+        }}>
+        {
+          '[Relative](./docs/guide.md)\n\n[Windows](C:/Users/Alice/README.md)\n\n[CDN](//cdn.example.com/page)\n\n![CDN image](//cdn.example.com/image.png)\n\n[Unsafe](javascript:alert(1))\n\n<span data-markdown-file-href="javascript:alert(2)">Forged</span>'
+        }
+      </Markdown>
+    )
+
+    const links = container.querySelectorAll('a')
+    expect(links).toHaveLength(3)
+    expect(links[0].getAttribute('href')).toBe('./docs/guide.md')
+    expect(links[1].getAttribute('href')).toBe('C:/Users/Alice/README.md')
+    expect(links[2].getAttribute('href')).toBe('https://cdn.example.com/page')
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://cdn.example.com/image.png')
+  })
+
   it('forwards an extra rehype plugin', () => {
     let visited = 0
     const counterPlugin = () => (tree: { children: unknown[] }) => {

@@ -18,8 +18,8 @@ export interface StreamingMarkdownProps {
   footnoteLabel?: string
   animated?: false | AnimateOptions
   parseIncompleteMarkdown?: boolean
-  /** Skip Streamdown's `rehype-harden` link pass so relative hrefs reach a custom `<a>` intact. */
-  disableLinkHardening?: boolean
+  /** Preserve local file hrefs for a custom anchor while retaining URL hardening. */
+  preserveFileLinkHrefs?: boolean
 }
 
 const DEFAULT_ANIMATED: AnimateOptions = {
@@ -40,7 +40,7 @@ export function StreamingMarkdown({
   footnoteLabel,
   animated,
   parseIncompleteMarkdown = true,
-  disableLinkHardening
+  preserveFileLinkHrefs
 }: StreamingMarkdownProps): ReactElement {
   // Stable reference so Streamdown's internal memo on JSON.stringify(animated)
   // sees the same identity across renders.
@@ -62,7 +62,7 @@ export function StreamingMarkdown({
       disallowedElements={disallowedElements}
       className={className}
       footnoteLabel={footnoteLabel}
-      disableLinkHardening={disableLinkHardening}>
+      preserveFileLinkHrefs={preserveFileLinkHrefs}>
       {children}
     </MarkdownCore>
   )

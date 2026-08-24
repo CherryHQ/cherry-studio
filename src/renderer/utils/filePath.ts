@@ -12,6 +12,7 @@ const WORKSPACE_RELATIVE_FILE_PATH_PATTERN = new RegExp(
   String.raw`^(?:${PATH_SEGMENT_PATTERN}/)+${PATH_SEGMENT_PATTERN}\.[^/\`"'<>|.]+$`
 )
 const INLINE_FILE_PATH_LOCATION_PATTERN = /(?::\d+){1,2}$/
+const WINDOWS_DRIVE_FILE_PATH_PATTERN = /^[A-Za-z]:[/\\]/
 
 let inlineFilePathHomePath = ''
 
@@ -51,9 +52,9 @@ export function isInlineFilePath(value: string): boolean {
  * The markdown link-safety pipeline (defaultUrlTransform + rehype-sanitize +
  * rehype-harden) only lets protocol-less hrefs through, so a workspace file link is
  * exactly a schemeless target: relative (`./x`, `.agents/x.md`, `README.md`) or
- * POSIX-absolute (`/Users/x.md`). Anything with an explicit scheme (http/https/
- * mailto/file/`C:`…) is treated as external. Query and hash are stripped and
- * percent-encoding decoded, so `./Docs%20Notes.md#section` opens `./Docs Notes.md`.
+ * an absolute POSIX/Windows path. Explicit URI schemes are treated as external.
+ * Query and hash are stripped and percent-encoding decoded, so
+ * `./Docs%20Notes.md#section` opens `./Docs Notes.md`.
  *
  * This is the link-boundary counterpart to `isInlineFilePath` (which classifies
  * inline *text*): any schemeless target is treated as a file, so single-segment
@@ -62,7 +63,7 @@ export function isInlineFilePath(value: string): boolean {
 export function parseFileLinkHref(href: string | undefined): string | null {
   if (!href) return null
   if (href.startsWith('//')) return null // protocol-relative → external
-  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return null // any explicit scheme → external
+  if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(href) && /^[a-z][a-z0-9+.-]*:/i.test(href)) return null
   const path = href.replace(/[?#].*$/, '') // drop query + hash
   if (!path) return null
   try {

@@ -31,7 +31,9 @@ describe('parseFileLinkHref', () => {
     ['README.md', 'README.md'],
     ['./src/', './src/'],
     ['.agents/skills/gh-create-pr/SKILL.md', '.agents/skills/gh-create-pr/SKILL.md'],
-    ['/abs/path/x.md', '/abs/path/x.md']
+    ['/abs/path/x.md', '/abs/path/x.md'],
+    ['C:/Users/Alice/README.md', 'C:/Users/Alice/README.md'],
+    ['C:\\Users\\Alice\\README.md', 'C:\\Users\\Alice\\README.md']
   ])('parses schemeless file path %s → %s', (href, expected) => {
     expect(parseFileLinkHref(href)).toBe(expected)
   })
@@ -42,9 +44,6 @@ describe('parseFileLinkHref', () => {
     ['mailto:a@b.com'],
     ['//cdn.example.com/x.md'], // protocol-relative
     ['#section'], // in-page anchor
-    // Scheme-prefixed absolute paths never reach Link — the markdown link-safety pipeline
-    // strips them upstream — so they are treated as external (unsupported by design).
-    ['C:/Users/Alice/README.md'],
     ['file:///C:/Users/Alice/README.md'],
     ['file:///Users/x.md'],
     [''],

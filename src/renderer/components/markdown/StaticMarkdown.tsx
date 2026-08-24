@@ -16,8 +16,6 @@ interface Props {
   id?: string
   className?: string
   components?: Partial<Components>
-  /** Skip link hardening only when `components.a` provides the replacement safety boundary. */
-  disableLinkHardening?: boolean
 }
 
 /**
@@ -30,7 +28,7 @@ interface Props {
  * Host-specific actions stay optional, so an embedded file preview can supply a
  * local-file opener without coupling this shared renderer to that feature.
  */
-export const StaticMarkdown: FC<Props> = ({ children, id, className, components, disableLinkHardening }) => {
+export const StaticMarkdown: FC<Props> = ({ children, id, className, components }) => {
   const { t } = useTranslation()
   const generatedId = useId()
   const blockId = id ?? generatedId
@@ -48,7 +46,7 @@ export const StaticMarkdown: FC<Props> = ({ children, id, className, components,
       components={markdownComponents}
       className={className}
       footnoteLabel={t('common.footnotes')}
-      disableLinkHardening={disableLinkHardening ?? Boolean(openFilePath)}>
+      preserveFileLinkHrefs={Boolean(openFilePath)}>
       {content}
     </Markdown>
   )

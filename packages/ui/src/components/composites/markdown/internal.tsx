@@ -23,6 +23,11 @@ import type { Pluggable } from 'unified'
 
 import { MarkdownBlockContext } from './context'
 import { rehypeHeadingIds, rehypePrefixSvgReferences } from './plugins'
+import {
+  FILE_LINK_MARKER_PROPERTY,
+  rehypePrepareFileLinks,
+  rehypeRestoreFileLinks
+} from './plugins/rehype-preserve-file-links'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
 import {
   createMarkdownSanitizeSchema,
@@ -83,13 +88,8 @@ export interface MarkdownCoreProps {
   disallowedElements?: readonly string[]
   /** Override the default 'Footnotes' label (for i18n). */
   footnoteLabel?: string
-  /**
-   * Skip Streamdown's `rehype-harden` link/image pass. Harden origin-resolves every
-   * link href (`./x` → `/x`), which destroys relative file paths a caller may want to
-   * recover in a custom `<a>` component. Disable it only when the caller renders links
-   * through its own safety-aware component; sanitization (protocol allow-list) still runs.
-   */
-  disableLinkHardening?: boolean
+  /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
+  preserveFileLinkHrefs?: boolean
 }
 
 export function MarkdownCore({
@@ -105,7 +105,7 @@ export function MarkdownCore({
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes',
-  disableLinkHardening = false
+  preserveFileLinkHrefs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
 
@@ -118,21 +118,33 @@ export function MarkdownCore({
   const rehypePlugins = useMemo(() => {
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
-    const result: Pluggable[] = [raw]
+    const effectiveSchema = preserveFileLinkHrefs
+      ? {
+          ...extendedSchema,
+          attributes: {
+            ...extendedSchema.attributes,
+            span: [
+              ...(extendedSchema.attributes?.span ?? []),
+              ...(extendedSchema.attributes?.a ?? []),
+              FILE_LINK_MARKER_PROPERTY
+            ]
+          }
+        }
+      : extendedSchema
+    const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
-      [sanitizeFn, extendedSchema] as Pluggable,
+      [sanitizeFn, effectiveSchema] as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
-      [rehypePrefixSvgReferences, (extendedSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
+      [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
       // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
       // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
-      ...(disableLinkHardening
-        ? []
-        : [[hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable]),
+      [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
+      ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
     if (extraRehypePlugins?.length) result.push(...extraRehypePlugins)
     return result
-  }, [hasSvgElement, id, extraRehypePlugins, disableLinkHardening])
+  }, [hasSvgElement, id, extraRehypePlugins, preserveFileLinkHrefs])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value

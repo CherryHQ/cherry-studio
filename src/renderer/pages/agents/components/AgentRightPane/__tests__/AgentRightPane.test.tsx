@@ -242,7 +242,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     selectedFile: string | null
   }) => {
-    const openFile = useOptionalFilePreviewNavigation()
+    const navigation = useOptionalFilePreviewNavigation()
 
     return (
       <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
@@ -272,7 +272,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
         {previewFileSelection && (
           <div data-testid="artifact-file-preview-overlay">
             {previewFileSelection.filePath}
-            <button type="button" onClick={() => openFile?.('/workspace/DESIGN.md' as AbsoluteFilePath)}>
+            <button type="button" onClick={() => navigation?.openFile('/workspace/DESIGN.md' as AbsoluteFilePath)}>
               open Markdown file link
             </button>
             {headerVariant === 'pane' ? null : (

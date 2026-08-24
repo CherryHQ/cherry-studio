@@ -704,9 +704,12 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />
   )
+  const workspacePath = AbsoluteFilePathSchema.safeParse(state.workspacePath)
 
-  return actions.canOpenArtifactFile ? (
-    <FilePreviewNavigationProvider openFile={actions.openArtifactFile}>{pane}</FilePreviewNavigationProvider>
+  return actions.canOpenArtifactFile && workspacePath.success ? (
+    <FilePreviewNavigationProvider openFile={actions.openArtifactFile} workspacePath={workspacePath.data}>
+      {pane}
+    </FilePreviewNavigationProvider>
   ) : (
     pane
   )

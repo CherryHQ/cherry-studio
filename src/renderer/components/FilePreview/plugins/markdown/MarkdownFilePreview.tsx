@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
+import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
@@ -81,28 +82,16 @@ function MarkdownPreviewEmpty() {
 }
 
 interface MarkdownPreviewContentProps {
-  filePath: AbsoluteFilePath
   loadState: MarkdownFileLoadState
   markdownId: string
   mode: MarkdownFilePreviewMode
 }
 
-function getFilePathDirname(filePath: AbsoluteFilePath): string {
-  const separatorIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
-  if (separatorIndex === 0) return '/'
-  if (separatorIndex < 0) return filePath
-
-  const dirname = filePath.slice(0, separatorIndex)
-  return /^[A-Za-z]:$/.test(dirname) ? filePath.slice(0, separatorIndex + 1) : dirname
-}
-
-function resolveMarkdownFileLink(sourceFilePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
+function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
   const linkPath = parseFileLinkHref(href)
   if (!linkPath) return null
 
-  const candidate = AbsoluteFilePathSchema.safeParse(linkPath).success
-    ? linkPath
-    : `${getFilePathDirname(sourceFilePath).replace(/[/\\]+$/g, '')}/${linkPath}`
+  const candidate = AbsoluteFilePathSchema.safeParse(linkPath).success ? linkPath : joinPath(workspacePath, linkPath)
 
   try {
     return normalizeFilePreviewPath(candidate)
@@ -111,14 +100,15 @@ function resolveMarkdownFileLink(sourceFilePath: AbsoluteFilePath, href: string 
   }
 }
 
-function MarkdownPreviewContent({ filePath, loadState, markdownId, mode }: MarkdownPreviewContentProps): ReactNode {
-  const openFile = useOptionalFilePreviewNavigation()
+function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreviewContentProps): ReactNode {
+  const navigation = useOptionalFilePreviewNavigation()
   const openFilePath = useCallback(
     (path: string) => {
-      const target = resolveMarkdownFileLink(filePath, path)
-      if (target && openFile) return openFile(target)
+      if (!navigation) return
+      const target = resolveMarkdownFileLink(navigation.workspacePath, path)
+      if (target) return navigation.openFile(target)
     },
-    [filePath, openFile]
+    [navigation]
   )
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
@@ -148,7 +138,7 @@ function MarkdownPreviewContent({ filePath, loadState, markdownId, mode }: Markd
     </div>
   )
 
-  return openFile ? <MarkdownHostProvider openFilePath={openFilePath}>{markdown}</MarkdownHostProvider> : markdown
+  return navigation ? <MarkdownHostProvider openFilePath={openFilePath}>{markdown}</MarkdownHostProvider> : markdown
 }
 
 export default function MarkdownFilePreview({ filePath, metadata, refreshKey, type = 'file' }: FilePreviewPluginProps) {
@@ -189,12 +179,7 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
         <MarkdownFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
       ) : null}
       <FilePreviewLayout.Content>
-        <MarkdownPreviewContent
-          filePath={filePath}
-          loadState={loadState}
-          markdownId={markdownId}
-          mode={effectiveMode}
-        />
+        <MarkdownPreviewContent loadState={loadState} markdownId={markdownId} mode={effectiveMode} />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

@@ -31,8 +31,8 @@ export interface MarkdownProps {
   className?: string
   /** Override the default 'Footnotes' label for i18n. */
   footnoteLabel?: string
-  /** Skip Streamdown's `rehype-harden` link pass so relative hrefs reach a custom `<a>` intact. */
-  disableLinkHardening?: boolean
+  /** Preserve local file hrefs for a custom anchor while retaining URL hardening. */
+  preserveFileLinkHrefs?: boolean
 }
 
 export function Markdown({
@@ -45,7 +45,7 @@ export function Markdown({
   disallowedElements,
   className,
   footnoteLabel,
-  disableLinkHardening
+  preserveFileLinkHrefs
 }: MarkdownProps): ReactElement {
   return (
     <MarkdownCore
@@ -58,7 +58,7 @@ export function Markdown({
       disallowedElements={disallowedElements}
       className={className}
       footnoteLabel={footnoteLabel}
-      disableLinkHardening={disableLinkHardening}>
+      preserveFileLinkHrefs={preserveFileLinkHrefs}>
       {children}
     </MarkdownCore>
   )

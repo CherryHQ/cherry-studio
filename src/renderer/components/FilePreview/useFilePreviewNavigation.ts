@@ -3,8 +3,13 @@ import { createContext, use } from 'react'
 
 export type FilePreviewFileOpener = (filePath: AbsoluteFilePath) => void | Promise<void>
 
-export const FilePreviewNavigationContext = createContext<FilePreviewFileOpener | null>(null)
+export interface FilePreviewNavigation {
+  workspacePath: AbsoluteFilePath
+  openFile: FilePreviewFileOpener
+}
 
-export function useOptionalFilePreviewNavigation(): FilePreviewFileOpener | null {
+export const FilePreviewNavigationContext = createContext<FilePreviewNavigation | null>(null)
+
+export function useOptionalFilePreviewNavigation(): FilePreviewNavigation | null {
   return use(FilePreviewNavigationContext)
 }

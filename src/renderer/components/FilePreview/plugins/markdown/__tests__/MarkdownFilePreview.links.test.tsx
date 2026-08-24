@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
+  codeBlockView: vi.fn(),
   readText: vi.fn()
 }))
 
@@ -18,26 +19,26 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
-  CodeBlockView: ({ children, language }: { children: string; language: string }) => (
-    <pre data-testid="cherry-code-block" data-language={language}>
-      {children}
-    </pre>
-  )
-}))
-
-vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsCard', () => ({
-  default: ({ html }: { html: string }) => <div data-testid="cherry-html-artifact">{html}</div>
+  CodeBlockView: (props: { children: string; language: string; showToolbar?: boolean }) => {
+    mocks.codeBlockView(props)
+    return (
+      <pre data-testid="cherry-code-block" data-language={props.language} data-show-toolbar={String(props.showToolbar)}>
+        {props.children}
+      </pre>
+    )
+  }
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const filePath = '/tmp/workspace/DESIGN.md' as AbsoluteFilePath
+const filePath = '/tmp/workspace/docs/DESIGN.md' as AbsoluteFilePath
+const workspacePath = '/tmp/workspace' as AbsoluteFilePath
 
 function renderArtifactPreview(openFile: (path: AbsoluteFilePath) => void) {
   return render(
-    <FilePreviewNavigationProvider openFile={openFile}>
+    <FilePreviewNavigationProvider openFile={openFile} workspacePath={workspacePath}>
       <MarkdownFilePreview
         filePath={filePath}
         fileName="DESIGN.md"
@@ -60,7 +61,7 @@ describe('MarkdownFilePreview links', () => {
     })
   })
 
-  it('opens a relative Markdown link through the host without Streamdown link safety', async () => {
+  it('opens a relative Markdown link from the workspace root through the host', async () => {
     mocks.readText.mockResolvedValue('[Design token system](./packages/ui/docs/design-token-system.md)')
     const openFile = vi.fn()
     const user = userEvent.setup()
@@ -76,6 +77,17 @@ describe('MarkdownFilePreview links', () => {
     expect(screen.queryByText('Open external link?')).not.toBeInTheDocument()
   })
 
+  it('opens a Windows drive-form Markdown link through the host', async () => {
+    mocks.readText.mockResolvedValue('[README](C:/Users/Alice/README.md)')
+    const openFile = vi.fn()
+    const user = userEvent.setup()
+
+    renderArtifactPreview(openFile)
+    await user.click(await screen.findByRole('link', { name: 'README' }))
+
+    expect(openFile).toHaveBeenCalledWith('C:\\Users\\Alice\\README.md')
+  })
+
   it('keeps external links out of the local file opener', async () => {
     mocks.readText.mockResolvedValue('[Cherry Studio](https://cherry-ai.com)')
     const openFile = vi.fn()
@@ -88,14 +100,16 @@ describe('MarkdownFilePreview links', () => {
     expect(openFile).not.toHaveBeenCalled()
   })
 
-  it('renders fenced code and tables with the Cherry Studio component set', async () => {
+  it('renders fenced source without chat execution or HTML artifact controls', async () => {
     mocks.readText.mockResolvedValue(
-      '```tsx\n<Button />\n```\n\n| Token | Role |\n| --- | --- |\n| link | clickable text |'
+      '```tsx\n<Button />\n```\n\n```html\n<button>Run</button>\n```\n\n| Token | Role |\n| --- | --- |\n| link | clickable text |'
     )
 
     renderArtifactPreview(vi.fn())
 
-    expect(await screen.findByTestId('cherry-code-block')).toHaveAttribute('data-language', 'tsx')
+    const codeBlocks = await screen.findAllByTestId('cherry-code-block')
+    expect(codeBlocks.map((block) => block.getAttribute('data-language'))).toEqual(['tsx', 'html'])
+    expect(codeBlocks.every((block) => block.getAttribute('data-show-toolbar') === 'false')).toBe(true)
     expect(screen.getByRole('table').closest('.table-wrapper')).not.toBeNull()
   })
 })

@@ -16,14 +16,12 @@ interface ClickableFilePathProps {
   path: string
   displayName?: string
   interactive?: boolean
-  onOpen?: (path: string) => void
 }
 
 export const ClickableFilePath = memo(function ClickableFilePath({
   path,
   displayName,
-  interactive = true,
-  onOpen
+  interactive = true
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
@@ -39,13 +37,12 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
   const openPath = interactive ? actions?.openPath : undefined
   const notifyError = actions?.notifyError
-  const canOpenWithActions = Boolean(openArtifactFile || openPath)
-  const canOpen = Boolean(onOpen || canOpenWithActions)
+  const canOpen = Boolean(openArtifactFile || openPath)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
   const { isLoading, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
-    enabled: canOpenWithActions && hasAbsoluteTargetPath && actionsMenuOpen
+    enabled: canOpen && hasAbsoluteTargetPath && actionsMenuOpen
   })
-  const hasMoreActions = canOpenWithActions && hasAbsoluteTargetPath
+  const hasMoreActions = canOpen && hasAbsoluteTargetPath
 
   const handleOpenTarget = useCallback(
     (target: ExternalOpenTarget) => {
@@ -60,10 +57,6 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     async (e: React.MouseEvent | React.KeyboardEvent) => {
       if (!canOpen) return
       e.stopPropagation()
-      if (onOpen) {
-        onOpen(targetPath)
-        return
-      }
       try {
         if (openArtifactFile) {
           await openArtifactFile(targetPath)
@@ -74,7 +67,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
         notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
       }
     },
-    [canOpen, onOpen, notifyError, openArtifactFile, openPath, t, targetPath]
+    [canOpen, notifyError, openArtifactFile, openPath, t, targetPath]
   )
 
   const handleKeyDown = useCallback(

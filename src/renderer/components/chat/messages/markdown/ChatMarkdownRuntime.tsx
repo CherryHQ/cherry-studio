@@ -103,7 +103,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
       footnoteLabel={footnoteLabel}
       animated={isStreaming && content.length <= MAX_ANIMATED_CONTENT_LENGTH ? undefined : false}
       parseIncompleteMarkdown={isStreaming}
-      disableLinkHardening={canOpenWorkspaceFiles}>
+      preserveFileLinkHrefs={canOpenWorkspaceFiles}>
       {content}
     </StreamingMarkdown>
   ) : (
@@ -114,7 +114,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
       components={mergedComponents}
       className={className}
       footnoteLabel={footnoteLabel}
-      disableLinkHardening={canOpenWorkspaceFiles}>
+      preserveFileLinkHrefs={canOpenWorkspaceFiles}>
       {content}
     </Markdown>
   )
