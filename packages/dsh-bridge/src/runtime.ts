@@ -52,6 +52,6 @@ export function resolveBundledDshRuntimeEntry(specifier: DshRuntimeEntrySpecifie
   return entryPath
 }
 
-export function listBundledDshRuntimeEntries(): readonly string[] {
-  return Object.keys(readRuntimeManifest().entries).sort()
+export function listBundledDshRuntimeEntries(): readonly DshRuntimeEntrySpecifier[] {
+  return Object.keys(readRuntimeManifest().entries).sort() as DshRuntimeEntrySpecifier[]
 }

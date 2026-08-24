@@ -4,6 +4,9 @@ const { createRequire } = require('node:module')
 const path = require('node:path')
 
 const DSH_BRIDGE_PACKAGE = '@cherrystudio/dsh-bridge'
+const DEFAULT_RUNTIME_ENTRY_SPECIFIERS = Object.keys(
+  JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'src', 'runtime-entrypoints.json'), 'utf8'))
+)
 const RUNTIME_CODE_EXTENSIONS = new Set(['.cjs', '.js', '.mjs'])
 const NATIVE_EXTENSIONS = new Set(['.dll', '.dylib', '.exe', '.node', '.so', '.wasm'])
 const NATIVE_FILE_NAMES = new Set(['landlock-run', 'spawn-helper'])
@@ -194,9 +197,9 @@ function addEntry(entries, specifier, target, allowSource = false) {
   entries.set(specifier, target)
 }
 
-function collectRuntimeEntries(packageRoot, records) {
-  const entries = new Map()
-  addEntry(entries, `${DSH_BRIDGE_PACKAGE}/plugin`, path.join(packageRoot, 'src', 'plugin.ts'), true)
+function collectRuntimeEntries(packageRoot, records, requestedSpecifiers = DEFAULT_RUNTIME_ENTRY_SPECIFIERS) {
+  const allEntries = new Map()
+  addEntry(allEntries, `${DSH_BRIDGE_PACKAGE}/plugin`, path.join(packageRoot, 'src', 'plugin.ts'), true)
 
   const firstByName = new Map()
   for (const record of records) {
@@ -231,8 +234,14 @@ function collectRuntimeEntries(packageRoot, records) {
           continue
         }
       }
-      if (target && isRuntimeCodePath(target)) addEntry(entries, candidate.specifier, target)
+      if (target && isRuntimeCodePath(target)) addEntry(allEntries, candidate.specifier, target)
     }
+  }
+  const entries = new Map()
+  for (const specifier of requestedSpecifiers) {
+    const target = allEntries.get(specifier)
+    if (!target) throw new Error(`Missing configured DSH runtime entry ${specifier}`)
+    entries.set(specifier, target)
   }
   return entries
 }
@@ -341,10 +350,15 @@ function collectForeignOnlyPackages(records, platform, arch) {
   return foreignOnly
 }
 
-function discoverDshRuntimePackaging({ packageRoot, platform = process.platform, arch = process.arch } = {}) {
+function discoverDshRuntimePackaging({
+  packageRoot,
+  platform = process.platform,
+  arch = process.arch,
+  entrySpecifiers = DEFAULT_RUNTIME_ENTRY_SPECIFIERS
+} = {}) {
   const resolvedPackageRoot = packageRoot ?? path.join(__dirname, '..')
   const records = collectPackageGraph(resolvedPackageRoot)
-  const entries = collectRuntimeEntries(resolvedPackageRoot, records)
+  const entries = collectRuntimeEntries(resolvedPackageRoot, records, entrySpecifiers)
   const externalRoots = new Set(
     records
       .filter((record) => record.name && packageHasRuntimeSidecar(record, platform, arch))
@@ -379,6 +393,7 @@ function discoverDshRuntimePackaging({ packageRoot, platform = process.platform,
 
 module.exports = {
   DSH_BRIDGE_PACKAGE,
+  DEFAULT_RUNTIME_ENTRY_SPECIFIERS,
   discoverDshRuntimePackaging,
   isDshRuntimePackage,
   isForeignNativePath,

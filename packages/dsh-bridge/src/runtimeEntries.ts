@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 
-export type DshRuntimeEntrySpecifier = string
+import type runtimeEntrypoints from './runtime-entrypoints.json'
+
+export type DshRuntimeEntrySpecifier = keyof typeof runtimeEntrypoints
 
 export function runtimeEntryFileName(specifier: string): string {
   if (specifier === '@cherrystudio/dsh-bridge/plugin') return 'cherry-bridge.mjs'

@@ -5,9 +5,8 @@ import { listBundledDshRuntimeEntries, resolveBundledDshRuntimeEntry } from '@ch
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
-const { discoverDshRuntimePackaging, isForeignNativePath, isNativeFilePath } = await import(
-  '../../packages/dsh-bridge/scripts/runtimeEntries.cjs'
-)
+const { DEFAULT_RUNTIME_ENTRY_SPECIFIERS, discoverDshRuntimePackaging, isForeignNativePath, isNativeFilePath } =
+  await import('../../packages/dsh-bridge/scripts/runtimeEntries.cjs')
 
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 
@@ -30,6 +29,7 @@ describe('DSH runtime packaging', () => {
       platform: 'darwin',
       arch: 'arm64'
     })
+    expect(Object.keys(runtime.entries).sort()).toEqual([...DEFAULT_RUNTIME_ENTRY_SPECIFIERS].sort())
     expect(runtime.entries['@cherrystudio/dsh-bridge/plugin']).toBe('cherry-bridge.mjs')
     expect(runtime.entries['@deepseek-ai/dsh-sdk-jsonrpc-demo/bin']).toBeTruthy()
     expect(runtime.externalPackageNames).toEqual(
@@ -40,6 +40,15 @@ describe('DSH runtime packaging', () => {
         expect.objectContaining({ packageName: 'node-pty', relative: 'prebuilds/darwin-x64/pty.node' })
       ])
     )
+  })
+
+  it('fails when a configured runtime root is no longer resolvable', () => {
+    expect(() =>
+      discoverDshRuntimePackaging({
+        packageRoot: path.join(projectRoot, 'packages/dsh-bridge'),
+        entrySpecifiers: ['@deepseek-ai/dsh-missing-entry']
+      })
+    ).toThrow('Missing configured DSH runtime entry @deepseek-ai/dsh-missing-entry')
   })
 
   it('does not encode the DSH dependency closure in static asar rules', () => {
