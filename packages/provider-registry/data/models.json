@@ -7697,13 +7697,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "low", "xhigh"]
+            "values": ["none", "high", "max"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "low", "xhigh"]
+        "supportedEfforts": ["none", "high", "max"]
       }
     },
     {
@@ -7765,13 +7765,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "high", "max", "xhigh"]
+            "values": ["low", "high", "max"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "high", "max", "xhigh", "none"]
+        "supportedEfforts": ["low", "high", "max", "none"]
       }
     },
     {
@@ -7804,13 +7804,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "xhigh"]
+            "values": ["none", "high", "max"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "high", "max"]
       }
     },
     {
@@ -14680,10 +14680,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "minimal", "low", "medium", "high", "max", "xhigh"]
+            "values": ["none", "minimal", "low", "medium", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "max"]
       }
     },
     {
@@ -21419,13 +21419,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["high", "max", "none", "minimal", "low", "medium", "xhigh"]
+            "values": ["high", "max"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["high", "max", "none", "minimal", "low", "medium", "xhigh"]
+        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -21699,5 +21699,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "0a900dcf6dab1f85"
+  "version": "552fe4b678738d8d"
 }
