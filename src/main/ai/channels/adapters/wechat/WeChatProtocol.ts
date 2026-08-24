@@ -866,11 +866,16 @@ export class WeixinBot {
 
   /** Send an image to a user by uploading it to the WeChat CDN. */
   async sendImage(userId: string, imageData: Buffer): Promise<void> {
+    const contextToken = this.contextTokenFor(userId)
     const uploaded = await this.uploadMedia(userId, imageData, UploadMediaType.IMAGE)
-    await this.sendMediaMessage(userId, {
-      type: MessageItemType.IMAGE,
-      image_item: { media: this.toCdnMedia(uploaded), mid_size: uploaded.ciphertextSize }
-    })
+    await this.sendMediaMessage(
+      userId,
+      {
+        type: MessageItemType.IMAGE,
+        image_item: { media: this.toCdnMedia(uploaded), mid_size: uploaded.ciphertextSize }
+      },
+      contextToken
+    )
   }
 
   /** Send a video as video media and every other non-image type as a file attachment. */
@@ -880,20 +885,29 @@ export class WeixinBot {
       return
     }
 
+    const contextToken = this.contextTokenFor(userId)
     if (mediaType.startsWith('video/')) {
       const uploaded = await this.uploadMedia(userId, data, UploadMediaType.VIDEO)
-      await this.sendMediaMessage(userId, {
-        type: MessageItemType.VIDEO,
-        video_item: { media: this.toCdnMedia(uploaded), video_size: uploaded.ciphertextSize }
-      })
+      await this.sendMediaMessage(
+        userId,
+        {
+          type: MessageItemType.VIDEO,
+          video_item: { media: this.toCdnMedia(uploaded), video_size: uploaded.ciphertextSize }
+        },
+        contextToken
+      )
       return
     }
 
     const uploaded = await this.uploadMedia(userId, data, UploadMediaType.FILE)
-    await this.sendMediaMessage(userId, {
-      type: MessageItemType.FILE,
-      file_item: { media: this.toCdnMedia(uploaded), file_name: filename, len: String(data.length) }
-    })
+    await this.sendMediaMessage(
+      userId,
+      {
+        type: MessageItemType.FILE,
+        file_item: { media: this.toCdnMedia(uploaded), file_name: filename, len: String(data.length) }
+      },
+      contextToken
+    )
   }
 
   async run(): Promise<void> {
@@ -910,22 +924,11 @@ export class WeixinBot {
     }
   }
 
-  async stop(): Promise<void> {
+  stop(): void {
     this.stopped = true
     this.currentPollController?.abort()
     this.loginAbort?.abort()
-
-    const credentials = this.credentials ?? (this.tokenPath ? await loadCredentials(this.tokenPath) : undefined)
-    if (!credentials) return
-    this.baseUrl = normalizeBaseUrl(credentials.baseUrl)
-
-    try {
-      await apiNotifyLifecycle(this.baseUrl, credentials.token, this.uin, 'stop')
-    } catch (error) {
-      logger.warn('Failed to notify WeChat that the bot stopped', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
+    void this.notifyStop()
   }
 
   private async runLoop(): Promise<void> {
@@ -1016,16 +1019,19 @@ export class WeixinBot {
     await apiSendMessage(this.baseUrl, credentials.token, this.uin, buildTextMessage(userId, contextToken, text))
   }
 
+  private contextTokenFor(userId: string): string {
+    const contextToken = this.contextTokens.get(userId)
+    if (!contextToken) {
+      logger.warn('No cached context token for media, sending without context', { userId })
+    }
+    return contextToken ?? ''
+  }
+
   private async uploadMedia(
     userId: string,
     data: Buffer,
     mediaType: UploadMediaType
   ): Promise<{ downloadEncryptedQueryParam: string; aeskey: Buffer; ciphertextSize: number }> {
-    const contextToken = this.contextTokens.get(userId)
-    if (!contextToken) {
-      logger.warn('No cached context token for media, sending without context', { userId })
-    }
-
     const credentials = await this.ensureCredentials()
     const uploaded = await cdnUploadMedia(this.baseUrl, credentials.token, this.uin, userId, data, mediaType)
     if (!uploaded) throw new Error('Failed to upload media to WeChat CDN')
@@ -1040,7 +1046,7 @@ export class WeixinBot {
     }
   }
 
-  private async sendMediaMessage(userId: string, item: MessageItem): Promise<void> {
+  private async sendMediaMessage(userId: string, item: MessageItem, contextToken: string): Promise<void> {
     const credentials = await this.ensureCredentials()
     await apiSendMessage(this.baseUrl, credentials.token, this.uin, {
       from_user_id: '',
@@ -1048,9 +1054,23 @@ export class WeixinBot {
       client_id: randomUUID(),
       message_type: MessageType.BOT,
       message_state: MessageState.FINISH,
-      context_token: this.contextTokens.get(userId) ?? '',
+      context_token: contextToken,
       item_list: [item]
     })
+  }
+
+  private async notifyStop(): Promise<void> {
+    const credentials = this.credentials ?? (this.tokenPath ? await loadCredentials(this.tokenPath) : undefined)
+    if (!credentials) return
+    this.baseUrl = normalizeBaseUrl(credentials.baseUrl)
+
+    try {
+      await apiNotifyLifecycle(this.baseUrl, credentials.token, this.uin, 'stop')
+    } catch (error) {
+      logger.warn('Failed to notify WeChat that the bot stopped', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   private async dispatchMessage(message: IncomingMessage): Promise<void> {

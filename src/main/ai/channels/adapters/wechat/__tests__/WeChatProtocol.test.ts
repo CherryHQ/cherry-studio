@@ -96,9 +96,31 @@ describe('WeixinBot media protocol', () => {
     ])
   })
 
-  it('notifies WeChat when polling starts and stops', async () => {
+  it('keeps the originating context token while media upload is in flight', async () => {
+    let resolveUploadUrl!: (response: Response) => void
+    netFetchMock
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => (resolveUploadUrl = resolve)))
+      .mockResolvedValueOnce(new Response('', { status: 200, headers: { 'x-encrypted-param': 'download-token' } }))
+      .mockResolvedValueOnce(jsonResponse({ ret: 0 }))
+
+    const bot = new WeixinBot({ tokenPath })
+    const contextTokens = bot as unknown as { contextTokens: Map<string, string> }
+    contextTokens.contextTokens.set('user-1', 'context-before-upload')
+
+    const sending = bot.sendFile('user-1', 'report.pdf', Buffer.from('pdf'), 'application/pdf')
+    await vi.waitFor(() => expect(netFetchMock).toHaveBeenCalledTimes(1))
+    contextTokens.contextTokens.set('user-1', 'context-after-upload')
+    resolveUploadUrl(jsonResponse({ upload_param: 'upload-token' }))
+    await sending
+
+    const sent = requestBody(2).msg as { context_token: string }
+    expect(sent.context_token).toBe('context-before-upload')
+  })
+
+  it('stops polling without waiting for the lifecycle notification', async () => {
     netFetchMock.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.endsWith('/notifystart') || url.endsWith('/notifystop')) return Promise.resolve(jsonResponse({ ret: 0 }))
+      if (url.endsWith('/notifystart')) return Promise.resolve(jsonResponse({ ret: 0 }))
+      if (url.endsWith('/notifystop')) return new Promise(() => {})
       if (url.endsWith('/getupdates')) {
         return new Promise((_, reject) => {
           options?.signal?.addEventListener('abort', () =>
@@ -113,7 +135,7 @@ describe('WeixinBot media protocol', () => {
     const run = bot.run()
     await vi.waitFor(() => expect(netFetchMock.mock.calls[0][0]).toBe(`${BASE_URL}/ilink/bot/msg/notifystart`))
 
-    await bot.stop()
+    expect(bot.stop()).toBeUndefined()
     await run
 
     expect(netFetchMock.mock.calls.map(([url]) => url)).toContain(`${BASE_URL}/ilink/bot/msg/notifystop`)

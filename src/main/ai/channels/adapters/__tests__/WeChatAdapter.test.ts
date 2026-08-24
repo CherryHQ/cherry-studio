@@ -38,7 +38,6 @@ const mockBot = {
   reply: vi.fn().mockResolvedValue(undefined),
   sendTyping: vi.fn().mockResolvedValue(undefined),
   stopTyping: vi.fn().mockResolvedValue(undefined),
-  sendImage: vi.fn().mockResolvedValue(undefined),
   sendFile: vi.fn().mockResolvedValue(undefined)
 }
 
@@ -72,7 +71,6 @@ describe('WeChatAdapter', () => {
     mockBot.reply.mockClear().mockResolvedValue(undefined)
     mockBot.sendTyping.mockClear().mockResolvedValue(undefined)
     mockBot.stopTyping.mockClear().mockResolvedValue(undefined)
-    mockBot.sendImage.mockClear().mockResolvedValue(undefined)
     mockBot.sendFile.mockClear().mockResolvedValue(undefined)
     vi.mocked(application.get('IpcApiService').broadcastToType).mockClear()
   })
@@ -176,17 +174,18 @@ describe('WeChatAdapter', () => {
     expect(mockBot.send.mock.calls[1][1]).toHaveLength(1000)
   })
 
-  it('sendFile() forwards an image via bot.sendImage()', async () => {
+  it('sendFile() delegates image routing to the protocol', async () => {
     const adapter = createAdapter()
     await adapter.connect()
 
-    const data = Buffer.from('png-bytes').toString('base64')
-    await adapter.sendFile('user-123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
+    await adapter.sendFile('user-123', {
+      filename: 'chart.png',
+      data: Buffer.from('png-bytes').toString('base64'),
+      media_type: 'image/png',
+      size: 9
+    })
 
-    expect(mockBot.sendImage).toHaveBeenCalledTimes(1)
-    const [chatId, buffer] = mockBot.sendImage.mock.calls[0]
-    expect(chatId).toBe('user-123')
-    expect(buffer.toString()).toBe('png-bytes')
+    expect(mockBot.sendFile).toHaveBeenCalledWith('user-123', 'chart.png', Buffer.from('png-bytes'), 'image/png')
   })
 
   it('sendFile() forwards documents and videos with their filename and media type', async () => {

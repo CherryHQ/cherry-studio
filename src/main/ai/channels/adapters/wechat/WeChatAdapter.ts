@@ -78,7 +78,7 @@ class WeChatAdapter extends ChannelAdapter {
 
   protected override async performDisconnect(): Promise<void> {
     if (this.bot) {
-      await this.bot.stop()
+      this.bot.stop()
       this.bot = null
       this.sendQrToRenderer('', 'disconnected')
       this.log.info('WeChat bot stopped')
@@ -111,12 +111,7 @@ class WeChatAdapter extends ChannelAdapter {
       throw new Error('Bot is not connected')
     }
 
-    const data = Buffer.from(file.data, 'base64')
-    if (file.media_type.startsWith('image/')) {
-      await this.bot.sendImage(chatId, data)
-    } else {
-      await this.bot.sendFile(chatId, file.filename, data, file.media_type)
-    }
+    await this.bot.sendFile(chatId, file.filename, Buffer.from(file.data, 'base64'), file.media_type)
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
   }
 
