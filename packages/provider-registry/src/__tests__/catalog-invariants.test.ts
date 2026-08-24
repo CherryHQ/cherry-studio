@@ -35,6 +35,11 @@ const models = modelsRaw.models as Array<{
   inputModalities?: string[]
   outputModalities?: string[]
   ownedBy?: string
+  pricing?: {
+    cacheRead?: { currency: string; perMillionTokens: number }
+    input?: { currency: string; perMillionTokens: number }
+    output?: { currency: string; perMillionTokens: number }
+  }
   imageGeneration?: {
     modes?: {
       generate?: {
@@ -44,6 +49,9 @@ const models = modelsRaw.models as Array<{
         }
       }
     }
+  }
+  reasoning?: {
+    controls?: Array<{ kind: string; values?: string[] }>
   }
 }>
 const overrides = providerModelsRaw.overrides as Array<{
@@ -315,6 +323,32 @@ describe('catalog invariants (data/*.json)', () => {
       contextWindow: 1048576,
       maxOutputTokens: 393216
     })
+  })
+
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
+    'advertises only the official DeepSeek V4 reasoning efforts for %s',
+    (id) => {
+      expect(models.find((model) => model.id === id)?.reasoning?.controls).toEqual([
+        { kind: 'effort', values: ['none', 'low', 'high', 'max'] }
+      ])
+    }
+  )
+
+  it('keeps DeepSeek V4 base pricing at the documented static peak ceiling', () => {
+    const pricing = (id: string) => models.find((model) => model.id === id)?.pricing
+
+    expect(pricing('deepseek-v4-flash')).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
+      input: { currency: 'USD', perMillionTokens: 0.44 },
+      output: { currency: 'USD', perMillionTokens: 1.32 }
+    })
+    expect(pricing('deepseek-v4-flash-vision-exp')).toEqual(pricing('deepseek-v4-flash'))
+    expect(pricing('deepseek-v4-pro')).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
+      input: { currency: 'USD', perMillionTokens: 1.32 },
+      output: { currency: 'USD', perMillionTokens: 3.96 }
+    })
+    expect(pricing('deepseek-v4-flash-latest')).toBeUndefined()
   })
 
   it('models.json conforms to ModelListSchema', () => {

@@ -1,6 +1,20 @@
 import { openaiCompatible } from './_api'
 import { defineCreator } from './types'
 
+// The catalog can represent one static price only. Use DeepSeek's documented
+// peak ceiling so cost estimates never understate first-party billing.
+const v4FlashPeakPricing = {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.014 },
+  input: { currency: 'USD' as const, perMillionTokens: 0.44 },
+  output: { currency: 'USD' as const, perMillionTokens: 1.32 }
+}
+
+const v4ProPeakPricing = {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.044 },
+  input: { currency: 'USD' as const, perMillionTokens: 1.32 },
+  output: { currency: 'USD' as const, perMillionTokens: 3.96 }
+}
+
 export default defineCreator({
   id: 'deepseek',
   name: 'DeepSeek',
@@ -17,8 +31,14 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text'],
       outputModalities: ['text'],
+      pricing: v4FlashPeakPricing,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     },
+    // This alias currently comes only from OpenRouter. Keep its provider price
+    // on the OpenRouter override instead of leaking that aggregator rate into
+    // the provider-neutral base catalog.
+    { id: 'deepseek-v4-flash-latest', pricing: undefined },
     {
       id: 'deepseek-v4-flash-vision-exp',
       name: 'DeepSeek V4 Flash Vision Exp',
@@ -28,6 +48,8 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
+      pricing: v4FlashPeakPricing,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     },
     {
@@ -39,6 +61,8 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text'],
       outputModalities: ['text'],
+      pricing: v4ProPeakPricing,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     }
   ],
