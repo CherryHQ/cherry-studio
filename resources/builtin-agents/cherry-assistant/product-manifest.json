@@ -72,6 +72,7 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
@@ -460,7 +461,7 @@
     }
   ],
   "providers": {
-    "version": "d4aebe86a12ca8f8",
+    "version": "b3b73ceeb452801e",
     "count": 61,
     "entries": [
       {

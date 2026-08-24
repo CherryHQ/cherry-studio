@@ -940,6 +940,11 @@ remnant (cancels the cleanup timer and drops the entry from
 `activeStreams`), then the new stream is created — the old never blocks
 the new.
 
+**Terminal freshness invariant.** After awaiting terminal listener
+dispatch, the manager must re-check `activeStreams.get(topicId) === stream`
+before any topic-level side effect. Listener delivery for the old stream
+still completes, but a stale callback cannot mutate its replacement.
+
 ## Edge case cheat sheet
 
 | Case | Handling |

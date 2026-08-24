@@ -790,8 +790,8 @@ describe('scheduled task frequency conversion', () => {
 
 describe('task session reuse copy', () => {
   it('requires two saved updates to reset a reused session', () => {
-    expect(enUS.agent.tasks.reuseSession.warning).toContain('disable and save, then enable and save')
-    expect(zhCN.agent.tasks.reuseSession.warning).toContain('先关闭并保存，再开启并保存')
+    expect(enUS['agent.tasks.reuseSession.warning']).toContain('disable and save, then enable and save')
+    expect(zhCN['agent.tasks.reuseSession.warning']).toContain('先关闭并保存，再开启并保存')
   })
 })
 
