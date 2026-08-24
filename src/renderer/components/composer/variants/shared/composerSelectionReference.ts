@@ -30,11 +30,16 @@ export function useComposerSelectionReferenceInsertion<T extends SelectionRefere
   const { t } = useTranslation()
 
   const insertReference = useEffectEvent((reference: SelectionReference) => {
-    const token = createSelectionReferenceToken(reference)
+    const token = createSelectionReferenceToken(reference, t)
     // Token insertion bypasses the composer's input-length guards, which sit on the typing and
     // paste paths. A reference block carries the whole excerpt, so one near the limit — or a few
     // in a row — would otherwise push the draft past COMPOSER_INPUT_MAX_LENGTH. insertToken also
     // appends a separator space, so the insertion costs one character more than its promptText.
+    //
+    // Deliberately conservative: insertContent replaces the editor's selection, so with text selected
+    // the draft grows by less than this. Budgeting the whole draft can refuse an insertion that would
+    // have fit, but never admits one that overflows, and the selection length is not on the actions
+    // surface — exposing it there for this corner is not worth the shared-API change.
     const insertionLength = (token.promptText?.length ?? 0) + TOKEN_SEPARATOR_LENGTH
     if (insertionLength > COMPOSER_INPUT_MAX_LENGTH - actionsRef.current.getDraft().text.length) {
       toast.error(t('chat.input.reference_panel.no_room_selection'))

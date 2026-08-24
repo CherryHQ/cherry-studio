@@ -1092,6 +1092,10 @@
         "title": "リソース"
       },
       "restore": "復元",
+      "selection_reference": {
+        "page": "{{page}} ページ",
+        "slide": "スライド {{slide}}"
+      },
       "send": "送信",
       "send_failed": "メッセージの送信に失敗しました",
       "slash_commands": {

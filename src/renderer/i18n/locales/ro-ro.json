@@ -1092,6 +1092,10 @@
         "title": "Fișiere și sesiuni"
       },
       "restore": "Restaurare",
+      "selection_reference": {
+        "page": "p. {{page}}",
+        "slide": "diapozitivul {{slide}}"
+      },
       "send": "Trimite",
       "send_failed": "Nu s-a putut trimite mesajul",
       "slash_commands": {

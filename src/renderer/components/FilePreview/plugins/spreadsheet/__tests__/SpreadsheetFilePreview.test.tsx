@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   useXlsxWorkbookCalls: [] as Array<{ filePath: string; refreshKey: number; sourceSize?: number }>,
   translationCalls: [] as Array<{ key: string; options?: Record<string, unknown> }>,
   gridProps: [] as unknown[],
+  /** Status-bar text captured at every committed frame, to catch a stale frame an effect later clears. */
+  commitFrames: [] as Array<{ sheet: string; statusBar: string | null }>,
   rangeSelection: { range: 'A2:D4', rect: { top: 2, left: 1, bottom: 4, right: 4 } },
   chartRendererRender: vi.fn(() => () => {}),
   chartRendererModuleLoadCount: 0,
@@ -45,14 +47,23 @@ const SELECTABLE_CELLS = {
 /** What the mocked grid's range button reports by default: the header block plus its first two data rows. */
 const SELECTABLE_RANGE = { range: 'A2:D4', rect: { top: 2, left: 1, bottom: 4, right: 4 } }
 
-vi.mock('../XlsxGrid', () => ({
-  default: (props: {
+vi.mock('../XlsxGrid', async () => {
+  const React = await import('react')
+  // Named (and capitalized) so the useLayoutEffect below reads as a component to rules-of-hooks.
+  const MockXlsxGrid = (props: {
     sheet: { name: string; cells: Record<string, unknown> }
     zoom: number
     onSelectCell?: (info: unknown) => void
     renderChart?: (chart: unknown, container: HTMLElement) => () => void
   }) => {
     mocks.gridProps.push(props)
+    // Runs during commit, before passive effects — so a value that only an effect clears is still visible.
+    React.useLayoutEffect(() => {
+      mocks.commitFrames.push({
+        sheet: props.sheet.name,
+        statusBar: document.querySelector('[data-testid="xlsx-preview-status-bar"]')?.textContent ?? null
+      })
+    })
     const selectCell = (range: keyof typeof SELECTABLE_CELLS) =>
       props.onSelectCell?.({
         range,
@@ -86,7 +97,8 @@ vi.mock('../XlsxGrid', () => ({
       </div>
     )
   }
-}))
+  return { default: MockXlsxGrid }
+})
 
 vi.mock('../charts/EchartsChartRenderer', () => {
   mocks.chartRendererModuleLoadCount += 1
@@ -203,6 +215,7 @@ describe('SpreadsheetFilePreview', () => {
     mocks.useXlsxWorkbookCalls.length = 0
     mocks.translationCalls.length = 0
     mocks.gridProps.length = 0
+    mocks.commitFrames.length = 0
     mocks.rangeSelection = SELECTABLE_RANGE
     mocks.chartRendererRender.mockImplementation(() => () => {})
     mocks.chartRendererModuleShouldReject = false
@@ -469,6 +482,23 @@ describe('SpreadsheetFilePreview', () => {
       ([reference]) => (reference as SelectionReference | null)?.anchor
     )
     expect(anchors).not.toContainEqual({ format: 'xlsx', sheet: 'Notes', range: 'A3' })
+  })
+
+  it('never renders the previous sheet selection beside the new sheet tabs', () => {
+    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
+
+    renderPanel()
+    fireEvent.click(screen.getByTestId('grid-select-b6'))
+    expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('B6')
+    mocks.commitFrames.length = 0
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Notes' }))
+
+    // selectedCell is cleared by an effect, one commit after the switch. Every committed frame that
+    // already shows the new sheet must therefore be free of the old sheet's range, not just the last.
+    const framesOnNewSheet = mocks.commitFrames.filter((frame) => frame.sheet === 'Notes')
+    expect(framesOnNewSheet.length).toBeGreaterThan(0)
+    expect(framesOnNewSheet.map((frame) => frame.statusBar)).toEqual(framesOnNewSheet.map(() => null))
   })
 
   it('keeps the text of a range whose leading cells are blank', () => {

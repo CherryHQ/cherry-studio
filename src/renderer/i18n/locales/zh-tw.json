@@ -1092,6 +1092,10 @@
         "title": "檔案與工作階段"
       },
       "restore": "還原",
+      "selection_reference": {
+        "page": "第 {{page}} 頁",
+        "slide": "第 {{slide}} 張投影片"
+      },
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "slash_commands": {

@@ -655,9 +655,12 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       if (!drag || drag.pointerId !== e.pointerId) return
       const target = cellAtPointer(e.clientX, e.clientY)
       if (!target) return
+      // Dragging back over the sticky headers puts the pointer at a negative content offset, which
+      // resolves to the first track. Clamp to at least 1 so the drag stops at the edge instead of
+      // pulling the selection onto a hidden leading row or column.
       const active: CellRef = {
-        row: Math.min(target.row, sheet.rowCount),
-        col: Math.min(target.col, sheet.colCount)
+        row: Math.min(Math.max(target.row, 1), sheet.rowCount),
+        col: Math.min(Math.max(target.col, 1), sheet.colCount)
       }
       if (active.row === drag.selection.active.row && active.col === drag.selection.active.col) return
       const next: GridSelection = { anchor: drag.selection.anchor, active }

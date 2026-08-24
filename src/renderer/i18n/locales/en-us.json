@@ -1092,6 +1092,10 @@
         "title": "Resources & Sessions"
       },
       "restore": "Restore",
+      "selection_reference": {
+        "page": "p.{{page}}",
+        "slide": "slide {{slide}}"
+      },
       "send": "Send",
       "send_failed": "Failed to send message",
       "slash_commands": {
