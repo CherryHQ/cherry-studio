@@ -241,7 +241,7 @@ describe('useLaunchDialogController', () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
         selectedCliTool: CodeCli.MCODE,
-        toolName: 'MCode',
+        toolName: 'MiniMax Code',
         directory: '/tmp/project',
         isOwnLoginSelected: false,
         selectedTerminal: undefined,

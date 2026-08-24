@@ -48,7 +48,7 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
   })
 })
 
-describe('MCode provider support', () => {
+describe('MiniMax Code provider support', () => {
   it('launches through its own login without exposing Cherry providers', () => {
     expect(PROVIDERLESS_CLI_TOOLS.has(CodeCli.MCODE)).toBe(true)
     expect(

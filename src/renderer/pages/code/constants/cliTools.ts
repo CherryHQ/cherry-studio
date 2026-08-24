@@ -72,7 +72,7 @@ const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_
  * - Gemini CLI: inject reads the Gemini-format endpoint (`google-generate-content`).
  * - Qwen Code / Kimi CLI: inject reads an OpenAI-compatible endpoint.
  * - Pi: injects any endpoint supported by Pi's custom-provider schema.
- * - MCode / Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
+ * - MiniMax Code / Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),

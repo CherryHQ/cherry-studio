@@ -936,7 +936,7 @@
   "code.cli_tools.gemini_cli": "CLI de Gemini",
   "code.cli_tools.github_copilot_cli": "CLI de GitHub Copilot",
   "code.cli_tools.kimi_code": "Código Kimi",
-  "code.cli_tools.mcode": "MCode",
+  "code.cli_tools.mcode": "MiniMax Code",
   "code.cli_tools.openai_codex": "OpenAI Codex",
   "code.cli_tools.openclaw": "OpenClaw",
   "code.cli_tools.opencode": "OpenCode",
