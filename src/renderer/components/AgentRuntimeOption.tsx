@@ -9,12 +9,13 @@ import {
   RadioGroup,
   RadioGroupItem
 } from '@cherrystudio/ui'
+import { PiCli } from '@cherrystudio/ui/icons'
 import { Deepseek } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { TFunction } from 'i18next'
-import { Check, Sparkles, Zap } from 'lucide-react'
+import { Check, Sparkles } from 'lucide-react'
 import { type ElementType, useId } from 'react'
 
 /**
@@ -27,7 +28,7 @@ import { type ElementType, useId } from 'react'
 
 const RUNTIME_ICONS = {
   'claude-code': Sparkles,
-  pi: Zap,
+  pi: PiCli,
   dsh: Deepseek
 } satisfies Record<AgentType, ElementType>
 
