@@ -722,6 +722,38 @@ describe('CodeCliPage', () => {
     })
   })
 
+  it('keeps a Hermes cross-window push authoritative over a status poll that answers later', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.HERMES,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
+    )
+    let answerStatusPoll: ((status: { status: string; url?: string }) => void) | undefined
+    ipcRequestMock.mockImplementation((route: string) => {
+      if (route === 'hermes_dashboard.get_status')
+        return new Promise((resolve) => {
+          answerStatusPoll = resolve
+        })
+      return Promise.resolve({ success: true })
+    })
+    render(<CodeCliPage />)
+
+    const statusChanged = ipcEventHandlers.get('hermes_dashboard.status_changed')
+    if (!statusChanged) throw new Error('Expected Hermes Dashboard status listener')
+    await act(async () => {
+      statusChanged({ status: 'running', url: 'http://127.0.0.1:49152' })
+    })
+    if (!answerStatusPoll) throw new Error('Expected an in-flight Hermes Dashboard status poll')
+    await act(async () => {
+      answerStatusPoll?.({ status: 'stopped' })
+    })
+
+    expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
+  })
+
   it('enables the provider after saving detailed config from the pending dialog', async () => {
     render(<CodeCliPage />)
 

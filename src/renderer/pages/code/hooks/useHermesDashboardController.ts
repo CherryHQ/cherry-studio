@@ -2,12 +2,27 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import type { HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
+import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useHermesDashboardController')
+
+const ERROR_DETAIL_LIMIT = 200
+
+const START_ERROR_KEYS: Record<HermesDashboardStartFailureReason, string> = {
+  cancelled: 'code.hermes_dashboard.error.cancelled',
+  dashboard_dependencies_missing: 'code.hermes_dashboard.error.dependencies_missing',
+  not_installed: 'code.hermes_dashboard.error.not_installed',
+  startup_failed: 'code.hermes_dashboard.error.startup_failed'
+}
+
+/** Keeps the localized reason while still surfacing the main-process diagnostic, which is redacted at its source. */
+function withDetail(title: string, detail: string | undefined): string {
+  const trimmed = detail?.trim()
+  return trimmed ? `${title}: ${trimmed.slice(0, ERROR_DETAIL_LIMIT)}` : title
+}
 
 interface HermesDashboardControllerOptions {
   onConfigMayHaveChanged?: () => void
@@ -33,12 +48,14 @@ export function useHermesDashboardController(
   const [pendingOperation, setPendingOperation] = useState<{ epoch: number; type: 'launch' | 'stop' } | null>(null)
   const statusRef = useRef(status)
   const statusEpochRef = useRef(0)
+  const statusRevisionRef = useRef(0)
   const operationInFlightRef = useRef(false)
   const isHermes = selectedCliTool === CodeCli.HERMES
 
   const applyStatus = useCallback(
     (nextStatus: HermesDashboardStatus, reloadConfig = false) => {
       statusRef.current = nextStatus
+      statusRevisionRef.current += 1
       setStatus(nextStatus)
       if (reloadConfig) onConfigMayHaveChanged?.()
     },
@@ -70,7 +87,7 @@ export function useHermesDashboardController(
       if (!result.success) {
         applyStatus('error', true)
         logger.error('Failed to launch Hermes Dashboard', new Error(result.message), { reason: result.reason })
-        toast.error(t('code.launch.error'))
+        toast.error(withDetail(t(START_ERROR_KEYS[result.reason]), result.message))
         return
       }
       applyStatus('running')
@@ -79,7 +96,7 @@ export function useHermesDashboardController(
       if (operationEpoch !== statusEpochRef.current) return
       applyStatus('error', true)
       logger.error('Failed to launch Hermes Dashboard', error as Error)
-      toast.error(t('code.launch.error'))
+      toast.error(t(START_ERROR_KEYS.startup_failed))
     } finally {
       if (operationEpoch === statusEpochRef.current) {
         operationInFlightRef.current = false
@@ -97,7 +114,7 @@ export function useHermesDashboardController(
       if (operationEpoch !== statusEpochRef.current) return false
       if (!result.success) {
         logger.error('Failed to stop Hermes Dashboard', new Error(result.message))
-        toast.error(t('code.launch.error'))
+        toast.error(withDetail(t('code.hermes_dashboard.error.stop_failed'), result.message))
         return false
       }
       applyStatus('stopped', true)
@@ -105,7 +122,7 @@ export function useHermesDashboardController(
     } catch (error) {
       if (operationEpoch !== statusEpochRef.current) return false
       logger.error('Failed to stop Hermes Dashboard', error as Error)
-      toast.error(t('code.launch.error'))
+      toast.error(t('code.hermes_dashboard.error.stop_failed'))
       return false
     } finally {
       if (operationEpoch === statusEpochRef.current) {
@@ -133,9 +150,13 @@ export function useHermesDashboardController(
     const refreshStatus = async () => {
       if (operationInFlightRef.current) return
       const requestEpoch = statusEpochRef.current
+      const requestRevision = statusRevisionRef.current
       try {
         const current = await ipcApi.request('hermes_dashboard.get_status')
-        if (cancelled || requestEpoch !== statusEpochRef.current || operationInFlightRef.current) return
+        // A cross-window push applied while this poll was in flight already carries
+        // a newer truth than the answer being handled here.
+        if (cancelled || requestRevision !== statusRevisionRef.current) return
+        if (requestEpoch !== statusEpochRef.current || operationInFlightRef.current) return
         const previousStatus = statusRef.current
         const shouldReload =
           (previousStatus === 'running' && (current.status === 'stopped' || current.status === 'error')) ||

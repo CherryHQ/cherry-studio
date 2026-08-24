@@ -31,6 +31,15 @@ describe('hermesDashboardHandlers', () => {
     })
   })
 
+  it('reports a thrown stop failure as an operation result without leaking the secret in its message', async () => {
+    dashboard.stop.mockRejectedValue(new Error('taskkill failed: CHERRY_HERMES_API_KEY=sk-real-secret'))
+
+    const result = await hermesDashboardHandlers['hermes_dashboard.stop'](undefined, ctx)
+
+    expect(result).toEqual({ success: false, message: expect.stringContaining('taskkill failed') })
+    expect(result).not.toMatchObject({ message: expect.stringContaining('sk-real-secret') })
+  })
+
   it('returns an operation failure when Dashboard startup throws', async () => {
     dashboard.start.mockRejectedValue(new Error('Dashboard dependencies are missing'))
 

@@ -1,6 +1,7 @@
 import { application } from '@application'
 import type { hermesDashboardRequestSchemas } from '@shared/ipc/schemas/hermesDashboard'
 import type { IpcHandlersFor } from '@shared/ipc/types'
+import { redactSecretText } from '@shared/utils/redaction'
 
 export const hermesDashboardHandlers: IpcHandlersFor<typeof hermesDashboardRequestSchemas> = {
   'hermes_dashboard.start': async () => {
@@ -10,7 +11,7 @@ export const hermesDashboardHandlers: IpcHandlersFor<typeof hermesDashboardReque
       return {
         success: false,
         reason: 'startup_failed',
-        message: error instanceof Error ? error.message : 'Failed to start Hermes Dashboard'
+        message: redactSecretText(error instanceof Error ? error.message : 'Failed to start Hermes Dashboard')
       }
     }
   },
@@ -19,7 +20,10 @@ export const hermesDashboardHandlers: IpcHandlersFor<typeof hermesDashboardReque
       await application.get('HermesDashboardService').stop()
       return { success: true }
     } catch (error) {
-      return { success: false, message: error instanceof Error ? error.message : 'Failed to stop Hermes Dashboard' }
+      return {
+        success: false,
+        message: redactSecretText(error instanceof Error ? error.message : 'Failed to stop Hermes Dashboard')
+      }
     }
   },
   'hermes_dashboard.get_status': async () => application.get('HermesDashboardService').getStatus()

@@ -47,6 +47,23 @@ export async function readAndParseDraftFile<T>(
   }
 }
 
+/** Parse a draft file already in hand, wrapping a parse failure with the file's label and path. */
+export function parseDraftFileOrThrow<T>(
+  target: CliConfigTarget,
+  files: CliConfigFileDraft[] | undefined,
+  parseFn: (content: string) => T
+): T {
+  const draft = getDraftFile(files, target)
+  const spec = CLI_CONFIG_FILE_SPECS[target]
+  try {
+    return parseFn(draft?.content ?? '')
+  } catch (err) {
+    // parseFn already redacts its own message at the source, as in readAndParseDraftFile.
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(`Failed to parse ${spec.label} at ${draft?.path ?? spec.path}: ${rawMessage}`)
+  }
+}
+
 function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<string, string> {
   switch (file.language) {
     case 'json':

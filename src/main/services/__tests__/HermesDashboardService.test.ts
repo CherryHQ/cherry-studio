@@ -66,6 +66,7 @@ describe('HermesDashboardService', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -221,5 +222,48 @@ describe('HermesDashboardService', () => {
 
     expect(process.kill).toHaveBeenCalledWith(-child.pid, 'SIGTERM')
     expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
+  it('signals nothing once its child has already exited on its own', async () => {
+    const service = new HermesDashboardService()
+    await service.start()
+    child.close()
+    await vi.waitFor(() => expect(service.getStatus()).toEqual({ status: 'error' }))
+    vi.mocked(process.kill).mockClear()
+
+    await service.stop()
+
+    expect(process.kill).not.toHaveBeenCalled()
+    expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
+  // A pid-less child would make the process-group signal `process.kill(-0)`, which
+  // targets Cherry's own group instead of the Dashboard's.
+  it('signals nothing when its child carries no pid', async () => {
+    const service = new HermesDashboardService()
+    await service.start()
+    child.pid = 0
+    vi.mocked(process.kill).mockClear()
+
+    await service.stop()
+
+    expect(process.kill).not.toHaveBeenCalled()
+    expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
+  it('escalates to a forced kill and reports an error when its child ignores termination', async () => {
+    const service = new HermesDashboardService()
+    await service.start()
+    vi.mocked(process.kill).mockImplementation((() => true) as typeof process.kill)
+    vi.useFakeTimers()
+
+    const stopping = service.stop()
+    const rejection = expect(stopping).rejects.toThrow('did not exit after forced termination')
+    await vi.advanceTimersByTimeAsync(10_000)
+    await rejection
+
+    expect(process.kill).toHaveBeenNthCalledWith(1, -child.pid, 'SIGTERM')
+    expect(process.kill).toHaveBeenNthCalledWith(2, -child.pid, 'SIGKILL')
+    expect(service.getStatus()).toEqual({ status: 'error' })
   })
 })

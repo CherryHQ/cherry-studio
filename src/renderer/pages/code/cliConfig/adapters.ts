@@ -20,7 +20,7 @@ import {
   QWEN_CONFIG_PATH
 } from '@shared/utils/cliConfig'
 import { stringify as stringifyToml } from 'smol-toml'
-import { isMap } from 'yaml'
+import { type Document, isMap, isScalar } from 'yaml'
 
 import {
   buildClaudeConfig,
@@ -38,7 +38,13 @@ import {
 } from './builders'
 import { CHERRY_PROVIDER_PREFIX, HERMES_ENDPOINTS, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
 import { parseDotenv, renderDotenvFile } from './dotenv'
-import { getDraftFile, makeDraftFile, readAndParseDraftFile, readDraftFileText } from './draftFiles'
+import {
+  getDraftFile,
+  makeDraftFile,
+  parseDraftFileOrThrow,
+  readAndParseDraftFile,
+  readDraftFileText
+} from './draftFiles'
 import {
   parseJsonOrThrow,
   parseTomlOrThrow,
@@ -197,13 +203,17 @@ function isHermesApiMode(value: unknown): value is HermesApiMode {
 const HERMES_MANAGED_MODEL_KEYS = ['provider', 'default', 'base_url', 'api_key', 'api_mode'] as const
 
 function writeHermesConfig(
-  content: string,
+  document: Document,
   resolved: { apiKeyEnv: string; apiMode: HermesApiMode; baseUrl: string; model: string }
 ): string {
-  const document = parseYamlDocumentOrThrow(content)
   const existingModel = document.get('model', true)
-  if (existingModel === undefined || existingModel === null) document.set('model', document.createNode({}))
-  else if (!isMap(existingModel)) throw new Error('invalid Hermes model config: expected an object')
+  // A bare `model:` parses to a null scalar node, not a missing key — an empty
+  // section is a valid starting point, not a malformed mapping.
+  if (existingModel == null || (isScalar(existingModel) && existingModel.value == null)) {
+    document.set('model', document.createNode({}))
+  } else if (!isMap(existingModel)) {
+    throw new Error('invalid Hermes model config: expected an object')
+  }
   document.setIn(['model', 'provider'], 'custom')
   document.setIn(['model', 'default'], resolved.model)
   document.setIn(['model', 'base_url'], normalizeUrl(resolved.baseUrl))
@@ -839,12 +849,12 @@ const hermesAdapter: CliConfigAdapter = {
   async buildDraft(args, context) {
     const { apiKey, model, modelRecord, provider } = context
     const providerInfo = resolveHermesProviderInfo(provider, modelRecord?.endpointTypes)
-    const configText = await readDraftFileText('hermes-config', args.files)
+    const document = await readAndParseDraftFile('hermes-config', parseYamlDocumentOrThrow, args.files)
     const envText = await readDraftFileText('hermes-env', args.files)
     return [
       await makeDraftFile(
         'hermes-config',
-        writeHermesConfig(configText, {
+        writeHermesConfig(document, {
           apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
           apiMode: providerInfo.apiMode,
           baseUrl: providerInfo.baseUrl,
@@ -859,16 +869,15 @@ const hermesAdapter: CliConfigAdapter = {
     if (!context.apiKey || !baseUrl) throw new Error('Hermes config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection) {
-    const configText = getDraftFile(files, 'hermes-config')?.content ?? ''
-    const config = parseYamlOrThrow(configText)
+    const document = parseDraftFileOrThrow('hermes-config', files, parseYamlDocumentOrThrow)
     const envText = getDraftFile(files, 'hermes-env')?.content ?? ''
-    const existingApiMode = asRecord(config.model).api_mode
+    const existingApiMode = document.getIn(['model', 'api_mode'])
     const apiMode = isHermesApiMode(existingApiMode) ? existingApiMode : 'chat_completions'
     return replaceDraftContent(
       replaceDraftContent(
         files,
         'hermes-config',
-        writeHermesConfig(configText, {
+        writeHermesConfig(document, {
           apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
           apiMode,
           baseUrl: requireDraftValue(connection.baseUrl, 'Hermes base URL'),

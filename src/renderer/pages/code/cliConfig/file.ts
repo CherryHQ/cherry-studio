@@ -62,12 +62,6 @@ export async function readValidatedTomlOrNull(absPath: string, label: string): P
   return content === null ? null : parseOrThrow(content, label, absPath, parseTomlOrThrow)
 }
 
-/** Like readValidatedYaml, but returns null (instead of {}) when the file doesn't exist. */
-export async function readValidatedYamlOrNull(absPath: string, label: string): Promise<Record<string, any> | null> {
-  const content = await readExternalOrNull(absPath)
-  return content === null ? null : parseOrThrow(content, label, absPath, parseYamlOrThrow)
-}
-
 export function parseTomlOrThrow(content: string): Record<string, any> {
   if (!content) return {}
   try {
