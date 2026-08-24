@@ -12,6 +12,8 @@ import { type ReactElement, useCallback, useMemo } from 'react'
 import remarkAlert from 'remark-github-blockquote-alert'
 import {
   type AnimateOptions,
+  Block,
+  type BlockProps,
   type Components,
   defaultRehypePlugins,
   defaultRemarkPlugins,
@@ -37,6 +39,16 @@ import {
 } from './utils'
 
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.values(defaultRemarkPlugins)
+
+function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
+  const markdownCtx = useMemo(() => ({ content }), [content])
+
+  return (
+    <MarkdownBlockContext value={markdownCtx}>
+      <Block content={content} {...props} />
+    </MarkdownBlockContext>
+  )
+}
 
 interface ResolvedDefaultRehypePlugins {
   raw: Pluggable
@@ -166,6 +178,7 @@ export function MarkdownCore({
     <MarkdownBlockContext value={markdownCtx}>
       <div className={['markdown', className].filter(Boolean).join(' ')}>
         <Streamdown
+          BlockComponent={MarkdownBlock}
           mode={mode}
           plugins={plugins}
           rehypePlugins={rehypePlugins}

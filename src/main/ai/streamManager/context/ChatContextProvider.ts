@@ -7,7 +7,7 @@
 
 import type { Span } from '@opentelemetry/api'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamRequest } from '../../types'
@@ -46,6 +46,8 @@ export interface PreparedDispatch {
   pendingSteerUserMessageId?: string
   /** Canonical selection captured alongside the pending steer. */
   pendingSteerReasoningEffort?: ReasoningEffortOption
+  /** Provider request tier captured alongside the pending steer. */
+  pendingSteerServiceTier?: ServiceTierSelection
   /** Fast selection captured alongside the pending steer. */
   pendingSteerFastMode?: boolean
   /** Persisted user/assistant skeletons created for this dispatch. */
