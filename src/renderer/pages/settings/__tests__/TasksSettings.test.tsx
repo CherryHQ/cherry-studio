@@ -802,8 +802,8 @@ describe('task session reuse copy', () => {
 
 describe('task run summary copy', () => {
   it('describes queued jobs as waiting instead of running', () => {
-    expect(enUS.agent.tasks.runSummary.queued).toBe('Waiting to run')
-    expect(zhCN.agent.tasks.runSummary.queued).toBe('等待执行')
+    expect(enUS['agent.tasks.runSummary.queued']).toBe('Waiting to run')
+    expect(zhCN['agent.tasks.runSummary.queued']).toBe('等待执行')
   })
 })
 
