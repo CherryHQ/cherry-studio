@@ -1683,6 +1683,8 @@ describe('TranslatePage', () => {
   })
 
   it('restores the side-by-side preview when reusing a PDF history entry', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.source_language', 'zh-cn')
+
     render(<TranslatePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
@@ -1691,6 +1693,9 @@ describe('TranslatePage', () => {
     const view = await screen.findByTestId('pdf-translation-view')
     expect(view).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
     expect(view).toHaveAttribute('data-restored-output', '/tmp/files/entry-target.pdf')
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('auto')
+    })
     // A PDF row's texts are file names — they must not land in the text panes.
     expect(MockUseCacheUtils.getCacheValue('translate.input')).not.toBe('paper.pdf')
   })

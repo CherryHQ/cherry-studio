@@ -613,8 +613,8 @@ const TranslatePage: FC = () => {
         setTranslateOutput(history.targetText)
       }
 
-      if (history.sourceLanguage) {
-        void safePersist(setSourceLanguage(history.sourceLanguage), 'translate source language')
+      if (history.kind === 'file' || history.sourceLanguage) {
+        void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
       }
       void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
