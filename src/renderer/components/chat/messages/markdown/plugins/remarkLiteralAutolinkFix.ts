@@ -118,7 +118,7 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string): Phrasing
       const opener = toTextNode(prev)
       const openerSource =
         opener?.position && tailSource.slice(opener.position.start.offset, opener.position.end.offset)
-      if (opener && openerSource && opener.value.endsWith(CLOSER) && !markerRunIsEscaped(openerSource)) {
+      if (opener && openerSource && opener.value.endsWith(CLOSER) && openerHasLiteralMarkers(opener, openerSource)) {
         const cut = computeCut(node)
         if (cut) {
           const text = node.children[0]
@@ -155,17 +155,25 @@ function toTextNode(node: unknown): Text | undefined {
   return undefined
 }
 
-// True when an odd number of backslashes sits right before the trailing marker run (`\**`);
-// an even count (`\\**`) is a literal backslash plus real emphasis and must still be repaired.
-function markerRunIsEscaped(span: string): boolean {
-  let stars = 0
-  while (stars < span.length && span[span.length - 1 - stars] === '*') stars++
+// True when the opener's trailing markers are literal, unescaped `*` characters in the raw
+// source span — present as stars (a character reference like `&ast;` leaves the span short of
+// stars) and not preceded by an odd backslash run (`\**`). Anything else fails closed.
+function openerHasLiteralMarkers(opener: Text, spanSource: string): boolean {
+  let spanStars = 0
+  while (spanStars < spanSource.length && spanSource[spanSource.length - 1 - spanStars] === '*') {
+    spanStars++
+  }
+  let valueStars = 0
+  while (valueStars < opener.value.length && opener.value[opener.value.length - 1 - valueStars] === '*') {
+    valueStars++
+  }
+  if (spanStars < valueStars) return false
   // Count the backslash run immediately before the stars; an odd run escapes them.
   let slashes = 0
-  while (slashes < span.length - stars && span[span.length - stars - slashes - 1] === '\\') {
+  while (slashes < spanSource.length - spanStars && spanSource[spanSource.length - spanStars - slashes - 1] === '\\') {
     slashes++
   }
-  return slashes % 2 === 1
+  return slashes % 2 === 0
 }
 
 function buildFix(node: Link, index: number, parent: Parent, source: string): FixPlan | undefined {
@@ -178,7 +186,7 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
   // Reject a run whose marker is escaped (`\**`, `\*\*`); a backslash or character reference
   // earlier in the span (`\\**`, `\q**`, `&amp;**`) must not disqualify real emphasis.
   const openerSource = opener.position && source.slice(opener.position.start.offset, opener.position.end.offset)
-  if (!openerSource || markerRunIsEscaped(openerSource)) return undefined
+  if (!openerSource || !openerHasLiteralMarkers(opener, openerSource)) return undefined
 
   const cut = computeCut(node)
   if (!cut) return undefined
