@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PaintingFieldRenderer } from '../PaintingFieldRenderer'
@@ -52,5 +53,28 @@ describe('PaintingFieldRenderer range contract', () => {
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '50.5' } })
 
     expect(onChange).toHaveBeenCalledWith({ imageWeight: 50.5 })
+  })
+})
+
+describe('PaintingFieldRenderer seed reset control', () => {
+  it('pairs the seed field with a same-height labeled reset button', async () => {
+    const onGenerateRandomSeed = vi.fn()
+    render(
+      <PaintingFieldRenderer
+        item={{ type: 'input', key: 'seed', title: 'paintings.seed' }}
+        painting={{ seed: '' }}
+        onChange={vi.fn()}
+        onGenerateRandomSeed={onGenerateRandomSeed}
+      />
+    )
+
+    const input = screen.getByRole('textbox')
+    const reset = screen.getByRole('button', { name: 'common.regenerate' })
+    // Explicit h-8 on both controls so the reset square matches the compact field.
+    expect(input).toHaveClass('h-8')
+    expect(reset).toHaveClass('h-8', 'w-8')
+
+    await userEvent.click(reset)
+    expect(onGenerateRandomSeed).toHaveBeenCalledWith('seed')
   })
 })
