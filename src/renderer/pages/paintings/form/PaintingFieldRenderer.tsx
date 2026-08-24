@@ -1,3 +1,4 @@
+import { alignRangeValue } from '@cherrystudio/provider-registry'
 import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -76,6 +77,12 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
       if (min === max) {
         return <Input className="w-20" type="number" value={String(numericValue)} readOnly disabled />
       }
+      const snapStep = typeof item.step === 'number' && item.step > 0 ? item.step : undefined
+      const commitRange = (raw: number) => {
+        const next =
+          snapStep === undefined ? Math.min(max, Math.max(min, raw)) : alignRangeValue(raw, min, max, snapStep)
+        onChange({ [fieldKey]: next })
+      }
       return (
         <div className="flex items-center gap-3">
           <Slider
@@ -84,7 +91,11 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             max={max}
             step={item.step ?? 1}
             value={[numericValue]}
-            onValueChange={(values) => onChange({ [fieldKey]: values[0] })}
+            onValueChange={(values) => {
+              const next = values[0]
+              if (next === undefined) return
+              commitRange(next)
+            }}
           />
           <Input
             className="w-20"
@@ -95,13 +106,12 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             value={String(numericValue)}
             onChange={(event) => {
               const raw = event.target.value
-              // Ignore the transient empty state (clearing to retype) — committing
-              // `Number('')` → 0 would drop below `min`. Otherwise clamp to [min,max]
-              // so the controlled value never escapes the field's range.
+              // Ignore the transient empty state (clearing to retype). Snap only
+              // when the spec declared a step; otherwise clamp and keep decimals.
               if (raw === '') return
               const parsed = Number(raw)
               if (Number.isNaN(parsed)) return
-              onChange({ [fieldKey]: Math.min(max, Math.max(min, parsed)) })
+              commitRange(parsed)
             }}
           />
         </div>

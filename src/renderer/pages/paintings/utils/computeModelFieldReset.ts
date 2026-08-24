@@ -1,3 +1,4 @@
+import { alignRangeValue } from '@cherrystudio/provider-registry'
 import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
@@ -119,7 +120,16 @@ export async function computeModelFieldReset(input: {
         Number.isNaN(numeric) ||
         (typeof item.min === 'number' && numeric < item.min) ||
         (typeof item.max === 'number' && numeric > item.max)
-      if (outOfRange) patch[item.key] = item.initialValue
+      if (outOfRange) {
+        patch[item.key] = item.initialValue
+        continue
+      }
+      const min = item.min ?? numeric
+      const max = item.max ?? numeric
+      if (typeof item.step === 'number' && item.step > 0) {
+        const aligned = alignRangeValue(numeric, min, max, item.step)
+        if (aligned !== numeric) patch[item.key] = aligned
+      }
     }
   }
 
