@@ -161,6 +161,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
        - [ ] Verify stable release notes are preserved in `resources/cherry-studio/release-history.json`
        - [ ] Verify version bump in `package.json`
        - [ ] Verify generated product manifest uses the release version
+       - [ ] Verify each `pinnedVersion` in `src/shared/data/presets/codeCliTools.ts` installs from a clean state and launches with the config Cherry writes for it; bump the pin to the newest version that passes
        - [ ] CI passes
        - [ ] Merge to trigger release build
 3. Report the PR URL and next steps.
