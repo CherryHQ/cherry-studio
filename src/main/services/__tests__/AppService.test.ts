@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   isDev: false,
@@ -9,9 +9,6 @@ const mocks = vi.hoisted(() => ({
   setLoginItemSettings: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: { getPath: vi.fn() }
-}))
 vi.mock('@main/core/platform', () => ({
   get isDev() {
     return mocks.isDev
@@ -36,6 +33,10 @@ vi.mock('electron', () => ({
 import { AppService } from '../AppService'
 
 describe('AppService.setAppLaunchOnBoot', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubEnv('PORTABLE_EXECUTABLE_FILE', 'D:\\Apps\\Cherry Studio Portable.exe')
