@@ -49,6 +49,24 @@ describe('DSH runtime packaging', () => {
     expect(config.asarUnpack.filter((pattern) => pattern.includes('node_modules/@deepseek-ai/dsh-'))).toEqual([])
   })
 
+  it('keeps filesystem-backed sandbox packages external', () => {
+    const sandboxBundle = readFileSync(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-sandbox-local'), 'utf8')
+
+    expect(sandboxBundle).toMatch(/from["']@deepseek-ai\/dsh-sandbox-windows-acl["']/)
+    expect(sandboxBundle).toMatch(/from["']@deepseek-ai\/node-addon-landlock-run["']/)
+  })
+
+  it('installs Landlock platform executables as direct optional dependencies', () => {
+    const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')) as {
+      optionalDependencies: Record<string, string>
+    }
+
+    expect(manifest.optionalDependencies).toMatchObject({
+      '@deepseek-ai/node-addon-landlock-run-linux-arm64': '0.1.1',
+      '@deepseek-ai/node-addon-landlock-run-linux-x64': '0.1.1'
+    })
+  })
+
   it('classifies platform and architecture native paths without unpacking foreign files', () => {
     expect(isForeignNativePath('prebuilds/darwin-x64/pty.node', 'darwin', 'arm64', 'node-pty')).toBe(true)
     expect(isForeignNativePath('prebuilds/linuxmusl-x64/pty.node', 'linux', 'x64', 'node-pty')).toBe(true)
