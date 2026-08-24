@@ -65,6 +65,16 @@ export class HermesDashboardService extends BaseService {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
   }
 
+  /** Serializes native Hermes config mutations with the Dashboard lifecycle. */
+  async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
+    return this.operationMutex.runExclusive(async () => {
+      if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
+        throw new Error('Hermes Agent web UI is running, so its configuration cannot be changed')
+      }
+      return write()
+    })
+  }
+
   async start(): Promise<
     { success: true; url: string } | { success: false; reason: HermesDashboardStartFailureReason; message: string }
   > {
@@ -88,8 +98,7 @@ export class HermesDashboardService extends BaseService {
         if (this.child) await this.stopOwnedProcessLocked()
 
         try {
-          this.status = 'starting'
-          this.url = undefined
+          this.updateStatus('starting')
           const runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
             throw new HermesDashboardStartError('cancelled', 'Hermes Dashboard startup was cancelled')
@@ -106,15 +115,13 @@ export class HermesDashboardService extends BaseService {
               'Hermes Dashboard exited immediately after becoming ready'
             )
           }
-          this.status = 'running'
-          this.url = url
+          this.updateStatus('running', url)
           return { success: true, url }
         } catch (error) {
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop Hermes Dashboard after launch failure', stopError as Error)
           })
-          this.status = 'error'
-          this.url = undefined
+          this.updateStatus('error')
           const message = sanitizeDiagnostic(
             error instanceof Error ? error.message : 'Failed to start Hermes Dashboard'
           )
@@ -135,12 +142,10 @@ export class HermesDashboardService extends BaseService {
     await this.operationMutex.runExclusive(async () => {
       try {
         await this.stopOwnedProcessLocked()
-        this.status = 'stopped'
+        this.updateStatus('stopped')
       } catch (error) {
-        this.status = 'error'
+        this.updateStatus('error')
         throw error
-      } finally {
-        this.url = undefined
       }
     })
   }
@@ -176,7 +181,7 @@ export class HermesDashboardService extends BaseService {
     child.once('exit', handleTermination)
     child.once('close', handleTermination)
     child.on('error', (error) => {
-      if (this.child === child && this.status === 'running') this.status = 'error'
+      if (this.child === child && this.status === 'running') this.updateStatus('error')
       logger.warn('Managed Hermes Dashboard process error', { message: sanitizeDiagnostic(error.message) })
     })
 
@@ -186,21 +191,35 @@ export class HermesDashboardService extends BaseService {
   private handleChildTermination(child: ChildProcess, code: number | null, signal: NodeJS.Signals | null): void {
     if (this.child !== child) return
     this.child = null
-    this.url = undefined
     if (this.stoppingChild === child) {
       this.stoppingChild = null
-      this.status = 'stopped'
+      this.updateStatus('stopped')
       return
     }
     if (this.status === 'starting' || this.status === 'running') {
-      this.status = 'error'
+      this.updateStatus('error')
       logger.warn('Managed Hermes Dashboard process exited unexpectedly', { code, signal })
+    }
+  }
+
+  private updateStatus(status: HermesDashboardStatus, url?: string): void {
+    this.status = status
+    this.url = url
+    try {
+      application.get('IpcApiService').broadcast('hermes_dashboard.status_changed', this.getStatus())
+    } catch (error) {
+      logger.warn('Failed to broadcast Hermes Dashboard status', error as Error)
     }
   }
 
   private async stopOwnedProcessLocked(): Promise<void> {
     const child = this.child
     if (!child) return
+    if (!child.pid) {
+      this.child = null
+      if (this.stoppingChild === child) this.stoppingChild = null
+      return
+    }
     this.stoppingChild = child
     try {
       await terminateOwnedProcess(child, false)

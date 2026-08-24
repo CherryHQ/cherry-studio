@@ -1,5 +1,5 @@
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
@@ -30,7 +30,6 @@ export function useHermesDashboardController(
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const [status, setStatus] = useState<HermesDashboardStatus>('stopped')
-  const [url, setUrl] = useState<string>()
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
   const statusRef = useRef(status)
@@ -39,10 +38,9 @@ export function useHermesDashboardController(
   const isHermes = selectedCliTool === CodeCli.HERMES
 
   const applyStatus = useCallback(
-    (nextStatus: HermesDashboardStatus, nextUrl?: string, reloadConfig = false) => {
+    (nextStatus: HermesDashboardStatus, reloadConfig = false) => {
       statusRef.current = nextStatus
       setStatus(nextStatus)
-      setUrl(nextUrl)
       if (reloadConfig) onConfigMayHaveChanged?.()
     },
     [onConfigMayHaveChanged]
@@ -54,12 +52,12 @@ export function useHermesDashboardController(
       target.searchParams.set('cherry_navigation_revision', String(Date.now()))
       openSmartMiniApp({
         appId: 'hermes-dashboard',
-        name: 'Hermes',
+        name: t('code.cli_tools.hermes'),
         url: target.toString(),
         logo: 'nousresearch'
       })
     },
-    [openSmartMiniApp]
+    [openSmartMiniApp, t]
   )
 
   const onLaunch = useCallback(async () => {
@@ -71,20 +69,23 @@ export function useHermesDashboardController(
       const result = await ipcApi.request('hermes_dashboard.start')
       if (operationEpoch !== statusEpochRef.current) return
       if (!result.success) {
-        applyStatus('error', undefined, true)
-        toast.error(result.message)
+        applyStatus('error', true)
+        logger.error('Failed to launch Hermes Dashboard', new Error(result.message), { reason: result.reason })
+        toast.error(t('code.launch.error'))
         return
       }
-      applyStatus('running', result.url)
+      applyStatus('running')
       openDashboard(result.url)
     } catch (error) {
       if (operationEpoch !== statusEpochRef.current) return
-      applyStatus('error', undefined, true)
+      applyStatus('error', true)
       logger.error('Failed to launch Hermes Dashboard', error as Error)
       toast.error(t('code.launch.error'))
     } finally {
-      if (operationEpoch === statusEpochRef.current) operationInFlightRef.current = false
-      setLaunching(false)
+      if (operationEpoch === statusEpochRef.current) {
+        operationInFlightRef.current = false
+        setLaunching(false)
+      }
     }
   }, [applyStatus, openDashboard, t])
 
@@ -96,10 +97,11 @@ export function useHermesDashboardController(
       const result = await ipcApi.request('hermes_dashboard.stop')
       if (operationEpoch !== statusEpochRef.current) return false
       if (!result.success) {
-        toast.error(result.message)
+        logger.error('Failed to stop Hermes Dashboard', new Error(result.message))
+        toast.error(t('code.launch.error'))
         return false
       }
-      applyStatus('stopped', undefined, true)
+      applyStatus('stopped', true)
       return true
     } catch (error) {
       if (operationEpoch !== statusEpochRef.current) return false
@@ -107,26 +109,24 @@ export function useHermesDashboardController(
       toast.error(t('code.launch.error'))
       return false
     } finally {
-      if (operationEpoch === statusEpochRef.current) operationInFlightRef.current = false
-      setStopping(false)
+      if (operationEpoch === statusEpochRef.current) {
+        operationInFlightRef.current = false
+        setStopping(false)
+      }
     }
   }, [applyStatus, t])
 
   const onOpenDashboard = useCallback(async () => {
     try {
-      if (url) {
-        openDashboard(url)
-        return
-      }
       const current = await ipcApi.request('hermes_dashboard.get_status')
       if (current.status !== 'running' || !current.url) throw new Error('Hermes Dashboard is not running')
-      applyStatus('running', current.url)
+      applyStatus('running')
       openDashboard(current.url)
     } catch (error) {
       logger.error('Failed to open Hermes Dashboard', error as Error)
       toast.error(t('code.launch.error'))
     }
-  }, [applyStatus, openDashboard, t, url])
+  }, [applyStatus, openDashboard, t])
 
   useEffect(() => {
     if (!isHermes) return
@@ -141,7 +141,7 @@ export function useHermesDashboardController(
         const shouldReload =
           (previousStatus === 'running' && (current.status === 'stopped' || current.status === 'error')) ||
           (previousStatus === 'starting' && current.status === 'error')
-        applyStatus(current.status, current.url, shouldReload)
+        applyStatus(current.status, shouldReload)
       } catch (error) {
         if (!cancelled) logger.error('Failed to read Hermes Dashboard status', error as Error)
       }
@@ -154,6 +154,15 @@ export function useHermesDashboardController(
       window.clearInterval(interval)
     }
   }, [applyStatus, isHermes])
+
+  useIpcOn('hermes_dashboard.status_changed', (current) => {
+    if (!isHermes) return
+    const previousStatus = statusRef.current
+    const shouldReload =
+      (previousStatus === 'running' && (current.status === 'stopped' || current.status === 'error')) ||
+      (previousStatus === 'starting' && current.status === 'error')
+    applyStatus(current.status, shouldReload)
+  })
 
   return {
     launching: isHermes && launching,

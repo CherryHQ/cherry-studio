@@ -32,6 +32,16 @@ describe('readAndParseDraftFile (secret redaction on parse failure)', () => {
   })
 })
 
+describe('parseYamlOrThrow', () => {
+  it.each(['', '# user comment\n', 'null\n', '~\n'])('treats %j as an empty mapping', (content) => {
+    expect(parseYamlOrThrow(content)).toEqual({})
+  })
+
+  it.each(['- a\n', 'plain scalar\n'])('rejects non-mapping YAML roots: %j', (content) => {
+    expect(() => parseYamlOrThrow(content)).toThrow('invalid YAML root: expected an object')
+  })
+})
+
 describe('validateCliConfigDraftForWrite (secret redaction when editing config text directly)', () => {
   it('does not leak the raw secret from a malformed in-editor TOML draft into the thrown error', () => {
     const files: CliConfigFileDraft[] = [

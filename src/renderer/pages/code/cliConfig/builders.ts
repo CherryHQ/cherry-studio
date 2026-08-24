@@ -17,7 +17,7 @@ import {
   isCodexReasoningEffort,
   isOpenCodePermissionMode
 } from './permissionModes'
-import type { HermesApiMode, OpenCodeNpmInfo, PiApi } from './resolvers'
+import type { OpenCodeNpmInfo, PiApi } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import {
   asRecord,
@@ -325,23 +325,6 @@ export function buildKimiConfig(
   const merged = { ...existing, default_model: resolved.modelKey, providers: providerTable, models: modelsTable }
   applyWritableTomlSettings(merged, sanitizedConfigBlob)
   return merged
-}
-
-export function buildHermesConfig(
-  existing: Record<string, any>,
-  resolved: { apiKeyEnv: string; apiMode: HermesApiMode; baseUrl: string; model: string }
-): Record<string, any> {
-  return {
-    ...existing,
-    model: {
-      ...asRecord(existing.model),
-      provider: 'custom',
-      default: resolved.model,
-      base_url: normalizeUrl(resolved.baseUrl),
-      api_key: resolved.apiKeyEnv,
-      api_mode: resolved.apiMode
-    }
-  }
 }
 
 export function buildHermesEnvConfig(envMap: Map<string, string>, apiKey: string): Map<string, string> {

@@ -935,7 +935,7 @@
   "code.cli_tools.deepseek_harness": "DeepSeek Harness",
   "code.cli_tools.gemini_cli": "Gemini CLI",
   "code.cli_tools.github_copilot_cli": "GitHub Copilot CLI",
-  "code.cli_tools.hermes": "Hermes",
+  "code.cli_tools.hermes": "Hermes Agent",
   "code.cli_tools.kimi_code": "Kimi Code",
   "code.cli_tools.openai_codex": "OpenAI Codex",
   "code.cli_tools.openclaw": "OpenClaw",

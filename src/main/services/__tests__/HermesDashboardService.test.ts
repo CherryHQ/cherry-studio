@@ -92,6 +92,15 @@ describe('HermesDashboardService', () => {
     expect(mocks.spawn).toHaveBeenCalledOnce()
   })
 
+  it('rejects Hermes config writes while the Dashboard is running', async () => {
+    const service = new HermesDashboardService()
+    await service.start()
+    const write = vi.fn(async () => undefined)
+
+    await expect(service.writeConfigFiles(write)).rejects.toThrow('Hermes Agent web UI is running')
+    expect(write).not.toHaveBeenCalled()
+  })
+
   it('reports a missing Hermes binary without spawning a process', async () => {
     mocks.appGet.mockReturnValue({
       getToolSnapshots: vi.fn(async () => ({ hermes: { availability: { source: 'none' } } }))

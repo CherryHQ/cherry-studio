@@ -20,7 +20,7 @@ import {
   QWEN_CONFIG_PATH
 } from '@shared/utils/cliConfig'
 import { stringify as stringifyToml } from 'smol-toml'
-import { stringify as stringifyYaml } from 'yaml'
+import { isMap } from 'yaml'
 
 import {
   buildClaudeConfig,
@@ -28,7 +28,6 @@ import {
   buildCodexConfig,
   buildGeminiEnvConfig,
   buildGeminiSettingsConfig,
-  buildHermesConfig,
   buildHermesEnvConfig,
   buildKimiConfig,
   buildOpenCodeConfig,
@@ -43,11 +42,11 @@ import { getDraftFile, makeDraftFile, readAndParseDraftFile, readDraftFileText }
 import {
   parseJsonOrThrow,
   parseTomlOrThrow,
+  parseYamlDocumentOrThrow,
   parseYamlOrThrow,
   readExternalOrNull,
   readValidatedJsonOrNull,
   readValidatedTomlOrNull,
-  readValidatedYamlOrNull,
   renderJsonFile,
   resolveAbs
 } from './file'
@@ -193,6 +192,33 @@ function cherryProviderKeyFrom(providers: Record<string, any>): string {
 
 function isHermesApiMode(value: unknown): value is HermesApiMode {
   return HERMES_API_MODES.some((apiMode) => apiMode === value)
+}
+
+const HERMES_MANAGED_MODEL_KEYS = ['provider', 'default', 'base_url', 'api_key', 'api_mode'] as const
+
+function writeHermesConfig(
+  content: string,
+  resolved: { apiKeyEnv: string; apiMode: HermesApiMode; baseUrl: string; model: string }
+): string {
+  const document = parseYamlDocumentOrThrow(content)
+  const existingModel = document.get('model', true)
+  if (existingModel === undefined || existingModel === null) document.set('model', document.createNode({}))
+  else if (!isMap(existingModel)) throw new Error('invalid Hermes model config: expected an object')
+  document.setIn(['model', 'provider'], 'custom')
+  document.setIn(['model', 'default'], resolved.model)
+  document.setIn(['model', 'base_url'], normalizeUrl(resolved.baseUrl))
+  document.setIn(['model', 'api_key'], resolved.apiKeyEnv)
+  document.setIn(['model', 'api_mode'], resolved.apiMode)
+  return document.toString()
+}
+
+function clearHermesConfig(content: string): string | null {
+  const document = parseYamlDocumentOrThrow(content)
+  if (document.getIn(['model', 'api_key']) !== HERMES_API_KEY_ENV_REFERENCE) return null
+  for (const key of HERMES_MANAGED_MODEL_KEYS) document.deleteIn(['model', key])
+  const model = document.get('model', true)
+  if (isMap(model) && model.items.length === 0) document.delete('model')
+  return document.toString()
 }
 
 const claudeAdapter: CliConfigAdapter = {
@@ -813,19 +839,17 @@ const hermesAdapter: CliConfigAdapter = {
   async buildDraft(args, context) {
     const { apiKey, model, modelRecord, provider } = context
     const providerInfo = resolveHermesProviderInfo(provider, modelRecord?.endpointTypes)
-    const config = await readAndParseDraftFile('hermes-config', parseYamlOrThrow, args.files)
+    const configText = await readDraftFileText('hermes-config', args.files)
     const envText = await readDraftFileText('hermes-env', args.files)
     return [
       await makeDraftFile(
         'hermes-config',
-        stringifyYaml(
-          buildHermesConfig(config, {
-            apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
-            apiMode: providerInfo.apiMode,
-            baseUrl: providerInfo.baseUrl,
-            model
-          })
-        )
+        writeHermesConfig(configText, {
+          apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
+          apiMode: providerInfo.apiMode,
+          baseUrl: providerInfo.baseUrl,
+          model
+        })
       ),
       await makeDraftFile('hermes-env', renderDotenvFile(buildHermesEnvConfig(parseDotenv(envText), apiKey), envText))
     ]
@@ -835,7 +859,8 @@ const hermesAdapter: CliConfigAdapter = {
     if (!context.apiKey || !baseUrl) throw new Error('Hermes config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection) {
-    const config = parseYamlOrThrow(getDraftFile(files, 'hermes-config')?.content ?? '')
+    const configText = getDraftFile(files, 'hermes-config')?.content ?? ''
+    const config = parseYamlOrThrow(configText)
     const envText = getDraftFile(files, 'hermes-env')?.content ?? ''
     const existingApiMode = asRecord(config.model).api_mode
     const apiMode = isHermesApiMode(existingApiMode) ? existingApiMode : 'chat_completions'
@@ -843,14 +868,12 @@ const hermesAdapter: CliConfigAdapter = {
       replaceDraftContent(
         files,
         'hermes-config',
-        stringifyYaml(
-          buildHermesConfig(config, {
-            apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
-            apiMode,
-            baseUrl: requireDraftValue(connection.baseUrl, 'Hermes base URL'),
-            model: requireDraftValue(connection.model, 'Hermes model')
-          })
-        )
+        writeHermesConfig(configText, {
+          apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
+          apiMode,
+          baseUrl: requireDraftValue(connection.baseUrl, 'Hermes base URL'),
+          model: requireDraftValue(connection.model, 'Hermes model')
+        })
       ),
       'hermes-env',
       connection.apiKey
@@ -860,19 +883,15 @@ const hermesAdapter: CliConfigAdapter = {
   },
   async buildClearFiles() {
     const files: CliConfigWriteFile[] = []
-    const config = await readValidatedYamlOrNull(await resolveAbs(HERMES_CONFIG_PATH), 'Hermes config')
-    if (config) {
-      const next = { ...config }
-      const model = { ...asRecord(next.model) }
-      if (model.api_key === HERMES_API_KEY_ENV_REFERENCE) {
-        delete model.provider
-        delete model.default
-        delete model.base_url
-        delete model.api_key
-        delete model.api_mode
-        if (Object.keys(model).length > 0) next.model = model
-        else delete next.model
-        files.push({ target: 'hermes-config', content: stringifyYaml(next) })
+    const configPath = await resolveAbs(HERMES_CONFIG_PATH)
+    const configText = await readExternalOrNull(configPath)
+    if (configText !== null) {
+      try {
+        const content = clearHermesConfig(configText)
+        if (content !== null) files.push({ target: 'hermes-config', content })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`Failed to parse Hermes config at ${configPath}: ${message}`)
       }
     }
 

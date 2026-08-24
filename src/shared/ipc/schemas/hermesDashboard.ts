@@ -6,6 +6,10 @@ import { operationResultSchema } from './common'
 export const HERMES_DASHBOARD_STATUSES = ['stopped', 'starting', 'running', 'error'] as const
 export type HermesDashboardStatus = (typeof HERMES_DASHBOARD_STATUSES)[number]
 
+export type HermesDashboardEventSchemas = {
+  'hermes_dashboard.status_changed': { status: HermesDashboardStatus; url?: string }
+}
+
 export const HERMES_DASHBOARD_START_FAILURE_REASONS = [
   'not_installed',
   'dashboard_dependencies_missing',

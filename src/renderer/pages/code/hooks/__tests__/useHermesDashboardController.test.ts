@@ -4,13 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   openSmartMiniApp: vi.fn(),
-  request: vi.fn()
+  request: vi.fn(),
+  handlers: new Map<string, (payload: unknown) => void>()
 }))
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
 }))
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request },
+  useIpcOn: (event: string, handler: (payload: unknown) => void) => mocks.handlers.set(event, handler)
+}))
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ error: vi.fn() }) }
 }))
@@ -22,6 +26,7 @@ const { useHermesDashboardController } = await import('../useHermesDashboardCont
 describe('useHermesDashboardController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.handlers.clear()
     mocks.request.mockImplementation((route: string) => {
       if (route === 'hermes_dashboard.start') return Promise.resolve({ success: true, url: 'http://127.0.0.1:49152' })
       if (route === 'hermes_dashboard.get_status') return Promise.resolve({ status: 'stopped' })
@@ -46,10 +51,33 @@ describe('useHermesDashboardController', () => {
     expect(mocks.request).toHaveBeenCalledWith('hermes_dashboard.start')
     expect(mocks.openSmartMiniApp).toHaveBeenCalledWith({
       appId: 'hermes-dashboard',
-      name: 'Hermes',
+      name: 'code.cli_tools.hermes',
       url: 'http://127.0.0.1:49152/?cherry_navigation_revision=1774560000000',
       logo: 'nousresearch'
     })
+  })
+
+  it('uses the authoritative Dashboard URL when reopening after another window restarts it', async () => {
+    const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+    mocks.openSmartMiniApp.mockClear()
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'hermes_dashboard.get_status')
+        return Promise.resolve({ status: 'running', url: 'http://127.0.0.1:49153' })
+      throw new Error(`Unexpected IPC route: ${route}`)
+    })
+
+    await act(async () => {
+      await result.current.onOpenDashboard()
+    })
+
+    expect(mocks.request).toHaveBeenCalledWith('hermes_dashboard.get_status')
+    expect(mocks.openSmartMiniApp).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'http://127.0.0.1:49153/?cherry_navigation_revision=1774560000000' })
+    )
   })
 
   it('ignores a stale status response after a newer launch succeeds', async () => {

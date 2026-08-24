@@ -171,6 +171,41 @@ describe('writeCliConfigDraft', () => {
     expect(env.content).toContain('CHERRY_HERMES_API_KEY=sk-secret')
   })
 
+  it('preserves user-owned YAML presentation while updating the Hermes model', async () => {
+    existing['/resolved~/.hermes/config.yaml'] = [
+      '# user-owned comment',
+      'model:',
+      '  context_length: 200000 # keep inline comment',
+      '  label: "keep quoted"',
+      '  tags: [one, two]',
+      'shared: &shared { enabled: true }',
+      'reuse: *shared',
+      ''
+    ].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(config.content).toContain('# user-owned comment')
+    expect(config.content).toContain('context_length: 200000 # keep inline comment')
+    expect(config.content).toContain('label: "keep quoted"')
+    expect(config.content).toContain('tags: [ one, two ]')
+    expect(config.content).toContain('shared: &shared { enabled: true }')
+    expect(config.content).toContain('reuse: *shared')
+    expect(parseYaml(config.content).model).toMatchObject({
+      provider: 'custom',
+      default: 'hermes-3',
+      api_key: '${CHERRY_HERMES_API_KEY}'
+    })
+  })
+
   describe('claude-code (~/.claude/settings.json)', () => {
     it('injects ANTHROPIC_AUTH_TOKEN/BASE_URL/MODEL into the env block', async () => {
       mockGet({
