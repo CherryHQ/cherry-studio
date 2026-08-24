@@ -39,9 +39,10 @@ persists the result. Stopping generation is a separate path — the request's
 
 ## User Stop
 
-`useChatWithHistory.stop()` first calls AI SDK's `stop()` so local stream
-consumption ends immediately, then explicitly sends and awaits
-`ai.stream.abort`. The transport's request `abortSignal` covers a stream opened
+`useChatWithHistory.stop()` starts `ai.stream.abort` before calling AI SDK's
+`stop()`, then awaits both. This establishes Main's topic admission barrier
+before local stream consumption ends and the UI can retry. The transport's
+request `abortSignal` covers a stream opened
 by `sendMessages`, but its abort callback sends IPC without exposing Main's
 completion to the hook; a stream returned by `reconnectToStream()` has no
 original request signal at all. The explicit idempotent IPC therefore covers

@@ -1602,6 +1602,46 @@ describe('AiStreamManager', () => {
       await expect(nextTurn).resolves.toBeUndefined()
       expect(nextTurnAdmitted).toBe(true)
     })
+
+    it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let releaseContinuationPersistence!: () => void
+      continuationListener.onPausedImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseContinuationPersistence = resolve
+        })
+      const runtimeListener = new FakeListener('agent-runtime:session-1')
+      runtimeListener.onPausedImpl = () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      }
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      let nextTurnAdmitted = false
+      const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
+        nextTurnAdmitted = true
+      })
+
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => continuationListener.pausedResults.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releaseContinuationPersistence()
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(nextTurn).resolves.toBeUndefined()
+      expect(nextTurnAdmitted).toBe(true)
+    })
   })
 
   // ── listener management ─────────────────────────────────────────

@@ -1183,12 +1183,34 @@ export class AiStreamManager extends BaseService {
     await this.withDispatchLock(topicId, async () => {
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
+      const drainedLoops = new Set(loopPromises)
 
       this.abort(topicId, reason)
       await Promise.allSettled(loopPromises)
 
       if (isAgentSessionTopic(topicId)) {
-        await application.get('AgentSessionRuntimeService').closeSession(extractAgentSessionId(topicId))
+        const runtimeClosing = application
+          .get('AgentSessionRuntimeService')
+          .closeSession(extractAgentSessionId(topicId))
+        const drainReplacementLoops = async (): Promise<void> => {
+          for (;;) {
+            const replacement = this.activeStreams.get(topicId)
+            const replacementLoops = replacement
+              ? [...replacement.executions.values()]
+                  .map((execution) => execution.loopPromise)
+                  .filter((loopPromise) => !drainedLoops.has(loopPromise))
+              : []
+            if (replacementLoops.length === 0) return
+
+            replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
+            this.abort(topicId, reason)
+            await Promise.allSettled(replacementLoops)
+          }
+        }
+
+        await drainReplacementLoops()
+        await runtimeClosing
+        await drainReplacementLoops()
       }
     })
   }
