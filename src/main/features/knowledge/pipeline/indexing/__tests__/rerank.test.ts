@@ -99,6 +99,14 @@ function createSearchResults(): KnowledgeSearchResult[] {
   ]
 }
 
+function createSearchResultBatch(count: number): KnowledgeSearchResult[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...createSearchResults()[0],
+    pageContent: `document-${index}`,
+    chunkId: `chunk-${index}`
+  }))
+}
+
 describe('knowledge rerank runtime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -185,6 +193,73 @@ describe('knowledge rerank runtime', () => {
     )
 
     expect(mocks.aiRerankMock).toHaveBeenCalledWith(expect.objectContaining({ topN: DEFAULT_DOCUMENT_COUNT }))
+  })
+
+  it('batches Gitee AI rerank requests at 25 documents and restores global indexes', async () => {
+    const searchResults = createSearchResultBatch(27)
+    mocks.aiRerankMock
+      .mockResolvedValueOnce({
+        ranking: [
+          { originalIndex: 0, score: 0.4, document: 'document-0' },
+          { originalIndex: 24, score: 0.8, document: 'document-24' }
+        ]
+      })
+      .mockResolvedValueOnce({
+        ranking: [
+          { originalIndex: 0, score: 0.9, document: 'document-25' },
+          { originalIndex: 1, score: 0.2, document: 'document-26' }
+        ]
+      })
+
+    const result = await rerankKnowledgeSearchResults(
+      createKnowledgeBase({ rerankModelId: 'gitee-ai::bge-reranker-v2-m3', documentCount: 3 }),
+      'hello',
+      searchResults
+    )
+
+    expect(mocks.aiRerankMock).toHaveBeenNthCalledWith(1, {
+      uniqueModelId: 'gitee-ai::bge-reranker-v2-m3',
+      query: 'hello',
+      documents: searchResults.slice(0, 25).map((item) => item.pageContent),
+      topN: 3
+    })
+    expect(mocks.aiRerankMock).toHaveBeenNthCalledWith(2, {
+      uniqueModelId: 'gitee-ai::bge-reranker-v2-m3',
+      query: 'hello',
+      documents: ['document-25', 'document-26'],
+      topN: 2
+    })
+    expect(result.map((item) => item.chunkId)).toEqual(['chunk-25', 'chunk-24', 'chunk-0'])
+  })
+
+  it('caps Gitee AI topN to the size of each request batch', async () => {
+    const searchResults = createSearchResultBatch(26)
+    mocks.aiRerankMock.mockResolvedValue({ ranking: [] })
+
+    await rerankKnowledgeSearchResults(
+      createKnowledgeBase({ rerankModelId: 'gitee-ai::bge-reranker-v2-m3', documentCount: 30 }),
+      'hello',
+      searchResults
+    )
+
+    expect(mocks.aiRerankMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ topN: 25 }))
+    expect(mocks.aiRerankMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ topN: 1 }))
+  })
+
+  it('keeps non-Gitee rerank providers on a single request', async () => {
+    const searchResults = createSearchResultBatch(27)
+    mocks.aiRerankMock.mockResolvedValueOnce({ ranking: [] })
+
+    await rerankKnowledgeSearchResults(createKnowledgeBase({ documentCount: 30 }), 'hello', searchResults)
+
+    expect(mocks.aiRerankMock).toHaveBeenCalledOnce()
+    expect(mocks.aiRerankMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: 'jina::jina-reranker-v2-base-multilingual',
+        documents: searchResults.map((item) => item.pageContent),
+        topN: 30
+      })
+    )
   })
 
   it('skips rerank when the rerank model id is invalid', async () => {

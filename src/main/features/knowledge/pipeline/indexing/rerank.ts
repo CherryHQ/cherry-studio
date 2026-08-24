@@ -10,6 +10,7 @@ const logger = loggerService.withContext('KnowledgeRerank')
 // HTTP statuses that signal a persistent rerank misconfiguration (bad key / no access /
 // wrong model) rather than a transient blip — these will keep failing every search.
 const PERSISTENT_RERANK_STATUS_CODES = new Set([401, 403, 404])
+const GITEE_AI_RERANK_BATCH_SIZE = 25
 
 function isPersistentRerankMisconfig(error: unknown): boolean {
   return APICallError.isInstance(error) && PERSISTENT_RERANK_STATUS_CODES.has(error.statusCode ?? 0)
@@ -55,14 +56,29 @@ async function rerankWithAiService(
   }
 
   try {
-    const result = await application.get('AiService').rerank({
-      uniqueModelId: parsed.data,
-      query,
-      documents: searchResults.map((result) => result.pageContent),
-      topN
-    })
+    const isGiteeAi = parsed.data.startsWith('gitee-ai::')
+    const batchSize = isGiteeAi ? GITEE_AI_RERANK_BATCH_SIZE : searchResults.length
+    const ranking: Array<{ originalIndex: number; score: number }> = []
 
-    return mergeRerankResults(searchResults, result.ranking)
+    for (let offset = 0; offset < searchResults.length; offset += batchSize) {
+      const batch = searchResults.slice(offset, offset + batchSize)
+      const result = await application.get('AiService').rerank({
+        uniqueModelId: parsed.data,
+        query,
+        documents: batch.map((result) => result.pageContent),
+        topN: isGiteeAi ? Math.min(topN, batch.length) : topN
+      })
+
+      ranking.push(
+        ...result.ranking.map((result) => ({
+          originalIndex: offset + result.originalIndex,
+          score: result.score
+        }))
+      )
+    }
+
+    const mergedResults = mergeRerankResults(searchResults, ranking)
+    return isGiteeAi ? mergedResults.slice(0, topN) : mergedResults
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
     const context = {
