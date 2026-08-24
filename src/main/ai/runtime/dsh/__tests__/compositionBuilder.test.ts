@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import type { DshRuntimeEntrySpecifier } from '@cherrystudio/dsh-bridge'
+import { type DshRuntimeEntrySpecifier, runtimeEntryFileName } from '@cherrystudio/dsh-bridge'
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -160,12 +160,12 @@ describe('buildDshCompositionYaml', () => {
     const entries = parseEntries(yml)
     const names = entries.map((entry) => entry.name).join('\n')
 
-    expect(names).toContain('pwsh-sandbox.mjs')
-    expect(names).toContain('tool-pwsh.mjs')
-    expect(names).toContain('shell-env.mjs')
-    expect(names).not.toContain('bash-sandbox.mjs')
-    expect(names).toContain('sandbox-local.mjs')
-    expect(names).toContain('sandbox-policy.mjs')
+    expect(names).toContain(runtimeEntryFileName('@deepseek-ai/dsh-pwsh-sandbox'))
+    expect(names).toContain(runtimeEntryFileName('@deepseek-ai/dsh-tool-pwsh'))
+    expect(names).toContain(runtimeEntryFileName('@deepseek-ai/dsh-shell-env'))
+    expect(names).not.toContain(runtimeEntryFileName('@deepseek-ai/dsh-bash-sandbox'))
+    expect(names).toContain(runtimeEntryFileName('@deepseek-ai/dsh-sandbox-local'))
+    expect(names).toContain(runtimeEntryFileName('@deepseek-ai/dsh-sandbox-policy'))
     expect(entryById(yml, 'agent-spine').config?.toolBash).toBe(false)
     expect(entryById(yml, 'sandbox-policy').config?.workspaceRoot).toBe('C:\\Users\\Cherry\\workspace')
     expect(entryById(yml, 'shell-executor').config?.cwd).toBe('C:\\Users\\Cherry\\workspace')

@@ -5,6 +5,7 @@ const path = require('path')
 const { parse } = require('yaml')
 
 const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+const { discoverDshRuntimePackaging } = require('../packages/dsh-bridge/scripts/runtimeEntries.cjs')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -139,8 +140,42 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
   const projectRoot = path.join(__dirname, '..')
+  const nativePlatform = platform === 'linuxmusl' ? 'linux' : platform
 
   assertPrebuiltPackages(platform, arch)
+
+  const dshRuntime = discoverDshRuntimePackaging({
+    packageRoot: path.join(projectRoot, 'packages/dsh-bridge'),
+    platform: nativePlatform,
+    arch
+  })
+  const runtimeManifestPath = path.join(projectRoot, 'packages/dsh-bridge', 'dist/runtime/runtime-manifest.json')
+  if (!fs.existsSync(runtimeManifestPath)) {
+    throw new Error(
+      `Missing DSH runtime manifest: ${runtimeManifestPath}. Run 'pnpm --filter @cherrystudio/dsh-bridge build'.`
+    )
+  }
+  const runtimeManifest = JSON.parse(fs.readFileSync(runtimeManifestPath, 'utf8'))
+  const expectedRuntimeEntries = dshRuntime.entries
+  if (
+    runtimeManifest.schemaVersion !== 1 ||
+    JSON.stringify(Object.keys(runtimeManifest.entries ?? {}).sort()) !==
+      JSON.stringify(Object.keys(expectedRuntimeEntries).sort())
+  ) {
+    throw new Error(`DSH runtime manifest is out of date. Run 'pnpm --filter @cherrystudio/dsh-bridge build'.`)
+  }
+  for (const [specifier, fileName] of Object.entries(runtimeManifest.entries ?? {})) {
+    if (
+      fileName !== expectedRuntimeEntries[specifier] ||
+      !fs.existsSync(path.join(path.dirname(runtimeManifestPath), fileName))
+    ) {
+      throw new Error(`Missing generated DSH runtime entry ${specifier}: ${fileName}`)
+    }
+  }
+  process.stdout.write(
+    `DSH runtime discovered ${Object.keys(dshRuntime.entries).length} entries and ` +
+      `${dshRuntime.externalPackageNames.length} native/sidecar packages for ${platform}-${arch}\n`
+  )
 
   if (platform === 'linux') {
     const linuxArch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
@@ -172,6 +207,14 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
+  const dshPackageExclusions = dshRuntime.dshPackageNames
+    .filter((packageName) => !dshRuntime.externalPackageNames.includes(packageName))
+    .flatMap((packageName) => [`!node_modules/${packageName}/**`, `!node_modules/**/node_modules/${packageName}/**`])
+  const foreignNativeExclusions = dshRuntime.foreignNativePaths.flatMap(({ packageName, relative }) => [
+    `!node_modules/${packageName}/${relative}`,
+    `!node_modules/**/node_modules/${packageName}/${relative}`
+  ])
+
   const arm64KeepPackages = keepPackages(platform, 'arm64')
   const arm64ExcludePackages = packages
     .filter((p) => !arm64KeepPackages.includes(p))
@@ -192,8 +235,35 @@ exports.default = async function (context) {
     .map((p) => '!resources/binaries/' + p + '/**')
 
   if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
+    await excludePackages([
+      ...arm64ExcludePackages,
+      ...dshPackageExclusions,
+      ...foreignNativeExclusions,
+      ...excludeBundledBinaryFilters
+    ])
   } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
+    await excludePackages([
+      ...x64ExcludePackages,
+      ...dshPackageExclusions,
+      ...foreignNativeExclusions,
+      ...excludeBundledBinaryFilters
+    ])
   }
+
+  const configuredAsarUnpack = context.packager.config.asarUnpack
+  const dshAsarUnpack = [
+    'node_modules/@cherrystudio/dsh-bridge/dist/runtime/**',
+    ...dshRuntime.externalPackageNames.flatMap((packageName) => [
+      `node_modules/${packageName}/**`,
+      `node_modules/**/node_modules/${packageName}/**`
+    ])
+  ]
+  context.packager.config.asarUnpack = [
+    ...(Array.isArray(configuredAsarUnpack)
+      ? configuredAsarUnpack
+      : configuredAsarUnpack
+        ? [configuredAsarUnpack]
+        : []),
+    ...dshAsarUnpack
+  ]
 }
