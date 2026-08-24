@@ -985,18 +985,21 @@ describe('CodeCliService', () => {
       expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
     })
 
-    it('exempts providerless CLIs (MCode) from the provider/model requirement', async () => {
-      const { codeCliService } = await loadModules()
+    it.each([CodeCli.MCODE, CodeCli.QODER_CLI, CodeCli.GITHUB_COPILOT_CLI])(
+      'exempts providerless CLI %s from the provider/model requirement',
+      async (cliTool) => {
+        const { codeCliService } = await loadModules()
 
-      const result = await codeCliService.run({
-        mode: 'own-login',
-        cliTool: CodeCli.MCODE,
-        directory: '/tmp/project'
-      })
+        const result = await codeCliService.run({
+          mode: 'own-login',
+          cliTool,
+          directory: '/tmp/project'
+        })
 
-      // Providerless CLIs skip the provider/model guards, so control reaches the directory guard.
-      expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
-    })
+        // Providerless CLIs skip the provider/model guards, so control reaches the directory guard.
+        expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
+      }
+    )
 
     it('exempts an own-login run of a login-capable tool from the provider/model requirement', async () => {
       const { codeCliService } = await loadModules()
