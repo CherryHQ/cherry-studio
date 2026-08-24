@@ -371,14 +371,20 @@ export default function ConversationIsland() {
     exiting: snapshot.exiting,
     reducedMotion: snapshot.reducedMotion
   })
-  const contentTransition = snapshot.reducedMotion
-    ? { duration: 0 }
-    : { type: 'spring' as const, stiffness: 224, damping: 25, mass: 1 }
+  const contentAnimate = snapshot.reducedMotion
+    ? { opacity: 1, transition: { duration: 0 } }
+    : {
+        opacity: 1,
+        transition: { duration: 0.15, delay: 0.08, ease: [0.16, 1, 0.3, 1] as const }
+      }
+  const contentExit = snapshot.reducedMotion
+    ? undefined
+    : { opacity: 0, transition: { duration: 0.08, ease: 'easeOut' as const } }
 
   return (
     <motion.div
       data-testid="conversation-island-motion"
-      className="h-full w-full"
+      className={`h-full w-full ${usesNotchLayout ? 'overflow-hidden rounded-t-none rounded-b-[12px] bg-black' : ''}`}
       style={{ transformOrigin: '50% 0%' }}
       initial={motionPlan.initial}
       animate={motionPlan.animate}
@@ -387,11 +393,9 @@ export default function ConversationIsland() {
         <motion.div
           key={surfaceModel.kind}
           className="h-full w-full"
-          layout={!snapshot.reducedMotion}
-          initial={snapshot.reducedMotion ? false : { opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={snapshot.reducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
-          transition={contentTransition}>
+          initial={snapshot.reducedMotion ? false : { opacity: 0 }}
+          animate={contentAnimate}
+          exit={contentExit}>
           {surface}
         </motion.div>
       </AnimatePresence>

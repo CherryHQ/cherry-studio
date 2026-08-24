@@ -18,7 +18,7 @@ vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => children,
   motion: {
     div: ({ children, ...motionProps }: MotionDivProps) => {
-      const { animate, initial, transition } = motionProps
+      const { animate, exit, initial, transition } = motionProps
       const domProps = { ...motionProps }
       delete domProps.animate
       delete domProps.exit
@@ -30,6 +30,7 @@ vi.mock('motion/react', () => ({
         <div
           {...domProps}
           data-animate={JSON.stringify(animate)}
+          data-exit={JSON.stringify(exit)}
           data-initial={JSON.stringify(initial)}
           data-transition={JSON.stringify(transition)}>
           {children}
@@ -200,6 +201,32 @@ describe('ConversationIsland', () => {
     expect(within(multiTrailing).queryByText('New Chat')).toBeNull()
     expect(within(multiTrailing).queryByText('Responding')).toBeNull()
     expect(screen.queryByText('New Chat')).toBeNull()
+  })
+
+  it('keeps one black notch shell while compact and expanded content crossfade without scaling', () => {
+    mocks.initData = snapshot({ presentation: 'notch', notchWidth: 120 })
+    const view = render(<ConversationIsland />)
+
+    const shell = screen.getByTestId('conversation-island-motion')
+    const compactContent = shell.firstElementChild as HTMLElement
+    expect(shell).toHaveClass('overflow-hidden', 'rounded-t-none', 'rounded-b-[12px]', 'bg-black')
+    expect(compactContent).toHaveAttribute('data-initial', JSON.stringify({ opacity: 0 }))
+    expect(compactContent).toHaveAttribute(
+      'data-animate',
+      JSON.stringify({
+        opacity: 1,
+        transition: { duration: 0.15, delay: 0.08, ease: [0.16, 1, 0.3, 1] }
+      })
+    )
+    expect(compactContent).toHaveAttribute(
+      'data-exit',
+      JSON.stringify({ opacity: 0, transition: { duration: 0.08, ease: 'easeOut' } })
+    )
+
+    mocks.initData = expandedSnapshot({ presentation: 'notch', notchWidth: 120 })
+    view.rerender(<ConversationIsland />)
+
+    expect(screen.getByTestId('conversation-island-motion')).toBe(shell)
   })
 
   it('keeps capsule styling for capsule snapshots', () => {
