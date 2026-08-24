@@ -48,7 +48,7 @@ describe('useOcr', () => {
   })
 
   it('recognizes the selection in physical pixels once the debounce elapses', async () => {
-    ipc.request.mockResolvedValue({ status: 'ok', lines: [[word('hello', 0, 0)]] })
+    ipc.request.mockResolvedValue({ status: 'ok', geometry: 'paddle-padded', lines: [[word('hello', 0, 0)]] })
     const { result } = renderOcr()
 
     // The debounce is what keeps a drag from firing a recognition per pointer move.
@@ -67,6 +67,7 @@ describe('useOcr', () => {
   it('merges the words of one line into a single span covering their glyphs', async () => {
     ipc.request.mockResolvedValue({
       status: 'ok',
+      geometry: 'paddle-padded',
       // As the detector reports them: each glyph run grown by 0.4 of its own height per
       // vertical side and 0.6 per horizontal side, so 'good' is really 28×10 at (106, 54).
       lines: [[word('good', 100, 50, 40, 18), word('morning', 150, 48, 60, 27)]]
@@ -81,6 +82,21 @@ describe('useOcr', () => {
     ])
   })
 
+  it('keeps synthetic provider boxes unchanged instead of applying Paddle unpadding', async () => {
+    ipc.request.mockResolvedValue({
+      status: 'ok',
+      geometry: 'synthetic',
+      lines: [[word('remote text', 0, 0, 200, 80)]]
+    })
+    const { result } = renderOcr()
+
+    await settleRecognition()
+
+    expect(result.current.lines).toEqual<OcrTextLine[]>([
+      { text: 'remote text', box: { x: 0, y: 0, width: 200, height: 80 } }
+    ])
+  })
+
   it('does not recognize a selection smaller than the minimum drag size', async () => {
     renderOcr({ bounds: { x: 0, y: 0, width: 20, height: 20 } })
     await settleRecognition()
@@ -90,7 +106,7 @@ describe('useOcr', () => {
   })
 
   it('waits for an explicit request when auto OCR is off, then recognizes on demand', async () => {
-    ipc.request.mockResolvedValue({ status: 'ok', lines: [[word('later', 0, 0)]] })
+    ipc.request.mockResolvedValue({ status: 'ok', geometry: 'paddle-padded', lines: [[word('later', 0, 0)]] })
     const { result } = renderOcr({ autoStart: false })
     await settleRecognition()
 
@@ -153,12 +169,16 @@ describe('useOcr', () => {
     const { result, rerender } = renderOcr()
     await settleRecognition()
 
-    ipc.request.mockResolvedValueOnce({ status: 'ok', lines: [[word('current', 0, 0)]] })
+    ipc.request.mockResolvedValueOnce({
+      status: 'ok',
+      geometry: 'paddle-padded',
+      lines: [[word('current', 0, 0)]]
+    })
     rerender({ selection: { ...SELECTION, width: 160 } })
     await settleRecognition()
 
     await act(async () => {
-      resolveFirst({ status: 'ok', lines: [[word('stale', 0, 0)]] })
+      resolveFirst({ status: 'ok', geometry: 'paddle-padded', lines: [[word('stale', 0, 0)]] })
     })
 
     expect(result.current.lines.map((line) => line.text)).toEqual(['current'])
@@ -167,6 +187,7 @@ describe('useOcr', () => {
   it('copies every recognized line, newline-joined', async () => {
     ipc.request.mockResolvedValue({
       status: 'ok',
+      geometry: 'paddle-padded',
       lines: [[word('first', 0, 0)], [word('second', 0, 20)]]
     })
     const { result } = renderOcr()
@@ -186,7 +207,11 @@ describe('useOcr', () => {
 
     act(() => result.current.resetOcr())
     await act(async () => {
-      resolvePrevious({ status: 'ok', lines: [[word('previous capture', 0, 0)]] })
+      resolvePrevious({
+        status: 'ok',
+        geometry: 'paddle-padded',
+        lines: [[word('previous capture', 0, 0)]]
+      })
     })
 
     // A pooled overlay never unmounts, so a late result would land on the new capture.

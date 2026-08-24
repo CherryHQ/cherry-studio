@@ -36,7 +36,7 @@ vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 const fileProcessing = vi.hoisted(() => ({
   processorId: 'local-paddleocr',
-  ocrImageBytes: vi.fn<() => Promise<string>>()
+  ocrImageBytes: vi.fn<(_imageBytes: Uint8Array, _signal?: AbortSignal) => Promise<string>>()
 }))
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
@@ -1248,11 +1248,52 @@ describe('ScreenshotOverlayService', () => {
       expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
       expect(result).toEqual({
         status: 'ok',
+        geometry: 'synthetic',
         lines: [
           [{ text: 'First line', box: { x: 0, y: 0, width: 200, height: 40 }, confidence: 1 }],
           [{ text: 'Second line', box: { x: 0, y: 40, width: 200, height: 40 }, confidence: 1 }]
         ]
       })
+    })
+
+    it('aborts and serializes superseded non-Paddle OCR requests', async () => {
+      fileProcessing.processorId = 'mistral'
+      let firstSignal: AbortSignal | undefined
+      let resolveFirst!: (value: string) => void
+      let announceFirst!: () => void
+      const firstStarted = new Promise<void>((resolve) => {
+        announceFirst = resolve
+      })
+      fileProcessing.ocrImageBytes
+        .mockImplementationOnce((_imageBytes, signal) => {
+          firstSignal = signal
+          announceFirst()
+          return new Promise<string>((resolve) => {
+            resolveFirst = resolve
+          })
+        })
+        .mockResolvedValueOnce('new result')
+      singleDisplaySetup()
+      await service.startCapture()
+      const mediaId = initDataOf('overlay-0-0').mediaId
+
+      const first = service.recognizeText('overlay-0-0', mediaId, ocrRegion(1))
+      await firstStarted
+      const second = service.recognizeText('overlay-0-0', mediaId, ocrRegion(2))
+      await Promise.resolve()
+
+      expect(firstSignal?.aborted).toBe(true)
+      expect(fileProcessing.ocrImageBytes).toHaveBeenCalledTimes(1)
+
+      resolveFirst('old result')
+      expect(await first).toEqual({ status: 'rejected' })
+      expect(await second).toEqual({
+        status: 'ok',
+        geometry: 'synthetic',
+        lines: [[{ text: 'new result', box: { x: 0, y: 0, width: 100, height: 100 }, confidence: 1 }]]
+      })
+      expect(fileProcessing.ocrImageBytes).toHaveBeenCalledTimes(2)
+      expect(fileProcessing.ocrImageBytes.mock.calls[1][1]).toBeInstanceOf(AbortSignal)
     })
 
     it('trims a region whose extent overshoots the capture', async () => {
@@ -1308,7 +1349,7 @@ describe('ScreenshotOverlayService', () => {
       expect(await second).toEqual({ status: 'rejected' })
       expect(await third).toEqual({ status: 'rejected' })
       expect(await fourth).toEqual({ status: 'rejected' })
-      expect(await fifth).toEqual({ status: 'ok', lines: [] })
+      expect(await fifth).toEqual({ status: 'ok', lines: [], geometry: 'paddle-padded' })
       // The first is superseded by the time it returns, but it was already running —
       // it is the queued middle that is dropped without touching the worker.
       expect(await first).toEqual({ status: 'rejected' })
@@ -1334,7 +1375,7 @@ describe('ScreenshotOverlayService', () => {
       // A per-window token would leave both live and let display A's late result paint
       // over the overlay the user actually moved to.
       expect(await onFirstDisplay).toEqual({ status: 'rejected' })
-      expect(await onSecondDisplay).toEqual({ status: 'ok', lines: [] })
+      expect(await onSecondDisplay).toEqual({ status: 'ok', lines: [], geometry: 'paddle-padded' })
     })
 
     it('rejects a recognition that finishes after the pooled window entered a new session', async () => {
@@ -1372,7 +1413,7 @@ describe('ScreenshotOverlayService', () => {
       // The stale one must not resolve `ok`, or a pooled overlay would paint the
       // previous capture's text over the new one.
       expect(await stale).toEqual({ status: 'rejected' })
-      expect(await fresh).toEqual({ status: 'ok', lines: [] })
+      expect(await fresh).toEqual({ status: 'ok', lines: [], geometry: 'paddle-padded' })
     })
   })
 

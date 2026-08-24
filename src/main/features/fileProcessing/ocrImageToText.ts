@@ -69,8 +69,8 @@ export async function ocrImageToText(file: FileHandle, signal?: AbortSignal): Pr
 export async function ocrImageBytes(imageBytes: Uint8Array, signal?: AbortSignal): Promise<string> {
   const tempPath = AbsoluteFilePathSchema.parse(application.getPath('app.temp', `cherry-ocr-${randomUUID()}.png`))
 
-  await writeFile(tempPath, imageBytes, { signal })
   try {
+    await writeFile(tempPath, imageBytes, { signal, mode: 0o600 })
     return await ocrImageToText(createFilePathHandle(tempPath), signal)
   } finally {
     await rm(tempPath, { force: true }).catch((error) => {

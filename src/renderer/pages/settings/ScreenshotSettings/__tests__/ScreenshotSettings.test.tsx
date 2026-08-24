@@ -81,6 +81,7 @@ describe('ScreenshotSettings', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.screenshot.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('feature.screenshot.auto_ocr', true)
+    MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', 'local-paddleocr')
     MockUsePreferenceUtils.setPreferenceValue('shortcut.screenshot.capture', {
       binding: ['CommandOrControl', 'Shift', 'A'],
       enabled: true
@@ -116,6 +117,20 @@ describe('ScreenshotSettings', () => {
     await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
     expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
   })
+
+  it.each(['system', 'tesseract', 'mistral'] as const)(
+    'allows auto OCR with the configured %s processor when Paddle weights are absent',
+    async (processorId) => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', processorId)
+      stubIpc({ ocrStatus: 'not_downloaded' })
+
+      render(<ScreenshotSettings />)
+
+      await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
+      expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+      expect(screen.queryByText('settings.screenshot.ocr.model.unavailable')).not.toBeInTheDocument()
+    }
+  )
 
   it('offers System Settings rather than an authorize button once the permission is denied', async () => {
     stubIpc({ permission: 'denied' })

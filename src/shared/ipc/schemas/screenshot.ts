@@ -51,13 +51,18 @@ const ocrWord = z.object({
  */
 export type OcrWord = z.infer<typeof ocrWord>
 
+const ocrGeometry = z.enum(['paddle-padded', 'synthetic'])
+export type OcrGeometry = z.infer<typeof ocrGeometry>
+
 // Discriminated on purpose: a bare `lines: []` cannot tell "this region has no text"
 // apart from "the model was deleted" or "this request no longer applies".
 const ocrRecognitionResult = z.discriminatedUnion('status', [
   z.object({
     status: z.literal('ok'),
     /** Grouped by line, in reading order; the inner array is words on that line. */
-    lines: z.array(z.array(ocrWord))
+    lines: z.array(z.array(ocrWord)),
+    /** Whether boxes still contain Paddle detector padding or are final synthetic line boxes. */
+    geometry: ocrGeometry
   }),
   /** Local OCR model not ready — never downloaded, or removed just now. */
   z.object({ status: z.literal('unavailable') }),

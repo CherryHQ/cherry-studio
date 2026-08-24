@@ -146,6 +146,12 @@ export class ScreenshotOverlayService extends BaseService {
    *  the newest" is global — bucketing by window would let two chains run at once. */
   private latestOcrToken: symbol | null = null
 
+  /** Cancels paid/local non-Paddle work when a newer selection takes ownership. */
+  private nonPaddleOcrAbortController: AbortController | null = null
+
+  /** Providers are serialized even when an implementation ignores AbortSignal. */
+  private nonPaddleOcrTail: Promise<void> = Promise.resolve()
+
   protected onInit(): void {
     const windowManager = application.get('WindowManager')
     this.registerDisposable(
@@ -437,14 +443,16 @@ export class ScreenshotOverlayService extends BaseService {
   /**
    * Recognize text inside one region of an overlay's frozen capture.
    *
-   * Serialization is `OcrInferenceService`'s own `PQueue({ concurrency: 1 })`; this only
-   * has to make sure a superseded request produces nothing. The token is re-checked right
-   * before the recognition and again after it, so a request overtaken while it waited for
-   * its queue slot is dropped rather than painted over the newer result.
+   * Paddle serialization is owned by `OcrInferenceService`. Other configured processors
+   * use the abortable serial chain below, so a superseded remote request is cancelled when
+   * supported and can never run concurrently when cancellation is ignored. The token is
+   * re-checked before and after recognition so only the newest result can be painted.
    */
   public async recognizeText(windowId: WindowId, mediaId: string, region: OcrRegion): Promise<OcrRecognitionResult> {
     const token = Symbol('ocr-request')
     this.latestOcrToken = token
+    this.nonPaddleOcrAbortController?.abort(new Error('Screenshot OCR request superseded'))
+    this.nonPaddleOcrAbortController = null
 
     // Ownership, not just session membership: two overlays of one session would
     // otherwise let display A ask for OCR of display B's capture.
@@ -478,23 +486,55 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const lines =
-        processorId === 'local-paddleocr'
-          ? (await application.get('OcrInferenceService').recognize(ocrModelPaths(), { kind: 'bytes', imageBytes }))
-              .lines
-          : this.createPlainTextLines(await application.get('FileProcessingService').ocrImageBytes(imageBytes), clamped)
+      const isPaddleGeometry = processorId === 'local-paddleocr'
+      const lines = isPaddleGeometry
+        ? (await application.get('OcrInferenceService').recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })).lines
+        : await this.runConfiguredOcr(imageBytes, clamped, token)
+
+      if (lines === null) return { status: 'rejected' }
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-      return { status: 'ok', lines }
+      return { status: 'ok', lines, geometry: isPaddleGeometry ? 'paddle-padded' : 'synthetic' }
     } catch (error) {
+      if (this.latestOcrToken !== token) return { status: 'rejected' }
       // Rethrown so the overlay shows its error state; logged here because the IPC
       // transport only serializes the error to the renderer, it never records it.
       logger.error('Region OCR failed', error as Error)
       throw error
+    }
+  }
+
+  private async runConfiguredOcr(
+    imageBytes: Uint8Array,
+    region: OcrRegion,
+    token: symbol
+  ): Promise<OcrWord[][] | null> {
+    const controller = new AbortController()
+    this.nonPaddleOcrAbortController = controller
+
+    const run = this.nonPaddleOcrTail.then(async () => {
+      if (controller.signal.aborted || this.latestOcrToken !== token) return null
+      try {
+        const text = await application.get('FileProcessingService').ocrImageBytes(imageBytes, controller.signal)
+        return this.createPlainTextLines(text, region)
+      } catch (error) {
+        if (controller.signal.aborted) return null
+        throw error
+      }
+    })
+    this.nonPaddleOcrTail = run.then(
+      () => undefined,
+      () => undefined
+    )
+
+    try {
+      return await run
+    } finally {
+      if (this.nonPaddleOcrAbortController === controller) this.nonPaddleOcrAbortController = null
     }
   }
 
@@ -797,8 +837,10 @@ export class ScreenshotOverlayService extends BaseService {
     }
     this.trace = null
 
-    // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
+    // Invalidates every in-flight OCR result and cancels configured processors that honor signals.
     this.latestOcrToken = null
+    this.nonPaddleOcrAbortController?.abort(new Error('Screenshot session ended'))
+    this.nonPaddleOcrAbortController = null
   }
 
   /** The overlay holding the live selection, used as the save dialog's parent. */
