@@ -606,6 +606,7 @@ describe('utils/image', () => {
 
     beforeEach(() => {
       fetchMock.mockReset().mockResolvedValue({
+        ok: true,
         blob: async () => new Blob(['remote'], { type: 'image/webp' })
       })
       ipcMocks.request.mockResolvedValue({
@@ -653,6 +654,12 @@ describe('utils/image', () => {
 
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.webp')
       expect(blob.type).toBe('image/webp')
+    })
+
+    it('throws on a non-ok remote response instead of returning the error page', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 404, blob: async () => new Blob(['gone']) })
+
+      await expect(getImageBlobFromSource('https://example.com/gone.webp')).rejects.toThrow('404')
     })
 
     it('throws on a data URL with no media type', async () => {

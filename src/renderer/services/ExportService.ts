@@ -498,7 +498,12 @@ const buildMarkdownWithImages = async (
     }
     return { markdown: await build(), pendingWrites: [] }
   }
-  const mode = (await chooseImageMode?.(refs.length)) ?? null
+  // undefined = no chooser injected (service called without UI context); null = user cancelled.
+  const mode = chooseImageMode ? await chooseImageMode(refs.length) : undefined
+  if (mode === undefined) {
+    logger.warn('No image-mode chooser provided; aborting an image-bearing markdown export')
+    return null
+  }
   if (mode === null || mode === 'none') {
     return mode === null ? null : { markdown: await build(), pendingWrites: [] }
   }

@@ -867,6 +867,10 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
   }
 
   const response = await fetch(src)
+  // An error page (404/500 HTML) is not an image — fail so callers can skip/report it.
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status} ${src}`)
+  }
   return response.blob()
 }
 

@@ -329,6 +329,22 @@ describe('serializeMessagesWithImages', () => {
     expect(content).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
   })
 
+  it('skips an HTTPS image whose response is not ok instead of exporting the error page', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('<html>Not Found</html>', { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const message = view([imageFilePart('https://example.com/gone.png', 'entry-http')])
+      const { refs } = await collectExportableImages([message])
+
+      const { overrides, skippedCount } = await serializeMessagesWithImages([message], 'embed', refs)
+
+      expect(skippedCount).toBe(1)
+      expect(overrides.has(message.id)).toBe(false)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('emits assets/ relative links and defers bytes (folder)', async () => {
     const message = view([{ type: 'text', text: 'see below' }, imageFilePart(PNG_1PX, 'entry-a')])
     const { refs } = await collectExportableImages([message])
@@ -589,6 +605,14 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
     await exportMessageAsMarkdown(view([{ type: 'text', text: 'text only' }]), false, undefined, chooseImageMode)
     expect(fileApi.save).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts an image-bearing export when no chooser is injected (service called without UI context)', async () => {
+    await exportMessageAsMarkdown(imageMessage())
+
+    expect(fileApi.save).not.toHaveBeenCalled()
+    expect(fileApi.write).not.toHaveBeenCalled()
+    expect(chooseImageMode).not.toHaveBeenCalled()
   })
 
   it('exports plain text when the user picks "no images"', async () => {
