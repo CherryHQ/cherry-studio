@@ -41,7 +41,11 @@ const rate = (input: number, output: number, cacheRead?: number, cacheWrite?: nu
  *
  * Two deliberate absences: models the console bills as "Dynamic pricing" (they follow the vendor's
  * official rate, which the base model already carries), and models with no catalog entry to attach to.
- * `agent/*` twins are absent too — they price identically to the vendor-namespaced row they normalize to.
+ *
+ * An `agent/*` twin normalizes onto its vendor-namespaced row and prices identically, so it needs no
+ * row of its own — except where normalization would land it on the WRONG row (`(free)` is stripped, so
+ * `agent/deepseek-v3.2(free)` would inherit the paid rate) or where the vendor-namespaced twin has no
+ * published rate to normalize onto (`agent/kimi-k2.7-code`). Both appear below.
  */
 const cherryInRates: Array<[string, string, number, number, number?, number?]> = [
   ['BAAI/bge-reranker-v2-m3', 'bge-reranker-v2-m3', 0, 0],

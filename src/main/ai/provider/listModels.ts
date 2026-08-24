@@ -157,31 +157,39 @@ function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>)
   }
 }
 
-/** OpenRouter quotes decimal strings per SINGLE token; everything downstream is per 1M. */
-function perMillion(perToken: string | undefined): number | undefined {
-  if (perToken === undefined) return undefined
+/**
+ * OpenRouter quotes decimal strings per SINGLE token; everything downstream is per 1M.
+ *
+ * Three outcomes, because two different "no number" cases must not collapse into one: an empty or
+ * unparseable field is an ABSENT rate (`undefined` — let the registry answer), while a negative
+ * sentinel is OpenRouter saying the rate exists but varies (`null` — an explicit unknown that must
+ * survive registry enrichment). `''` in particular would coerce to a free `0` via `Number('')`.
+ */
+function perMillion(perToken: string | undefined): number | null | undefined {
+  if (perToken === undefined || perToken.trim() === '') return undefined
   const parsed = Number(perToken)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed * 1_000_000 : undefined
+  if (!Number.isFinite(parsed)) return undefined
+  return parsed < 0 ? null : parsed * 1_000_000
 }
 
 /**
  * A gateway's own price list is authoritative for its rates — the registry only carries the vendor's
  * list price, which resellers routinely diverge from. Rates are USD per 1M tokens; a listing that omits
  * either side of the pair carries no usable price at all, so the whole block is dropped rather than
- * half-filled (`0` would read as free).
+ * half-filled (`0` would read as free). A `null` rate is a published-but-unknown one and is kept.
  */
 function usdPricing(price: {
-  input?: number
-  output?: number
-  cacheRead?: number
-  cacheWrite?: number
+  input?: number | null
+  output?: number | null
+  cacheRead?: number | null
+  cacheWrite?: number | null
 }): Model['pricing'] | undefined {
   if (price.input === undefined || price.output === undefined) return undefined
   // Rates are derived by multiplication (ratios, per-token strings), so drop the binary-float residue
   // that would otherwise be stored and shown verbatim: 0.142857 * 2 * 1.5 = 0.42857100000000004.
-  const usd = (perMillionTokens: number) => ({
+  const usd = (perMillionTokens: number | null) => ({
     currency: CURRENCY.USD,
-    perMillionTokens: Number(perMillionTokens.toPrecision(10))
+    perMillionTokens: perMillionTokens === null ? null : Number(perMillionTokens.toPrecision(10))
   })
   return {
     input: usd(price.input),
@@ -191,16 +199,26 @@ function usdPricing(price: {
   }
 }
 
-type NewApiPricingItem = z.infer<typeof NewApiPricingResponseSchema>['data'][number]
+type NewApiPricingResponse = z.infer<typeof NewApiPricingResponseSchema>
+type NewApiPricingItem = NewApiPricingResponse['data'][number]
 
 /** One NewAPI ratio unit is $2 per 1M tokens; output and cache rates are multiples of the input rate. */
 const NEW_API_USD_PER_RATIO_UNIT = 2
 
 /**
- * Rates from a NewAPI gateway's `/api/pricing`. Assumes the `default` group, whose multiplier is 1 on
- * every deployment seen so far — a user placed in another group pays that group's multiple of this.
+ * The billing-group multiplier that applies to the caller. NewAPI scales every model ratio by the
+ * group the token belongs to, so reading the ratios alone quotes the wrong price to anyone outside
+ * the default group. `usable_group` names the groups the caller may bill against: exactly one is an
+ * unambiguous answer, while several (or none, on an unauthenticated read) leave only `default`.
  */
-function newApiPricing(entry: NewApiPricingItem): Model['pricing'] | undefined {
+function newApiGroupMultiplier(response: NewApiPricingResponse): number {
+  const groups = Object.keys(response.usable_group ?? {})
+  const group = groups.length === 1 ? groups[0] : 'default'
+  return response.group_ratio?.[group] ?? 1
+}
+
+/** Rates from a NewAPI gateway's `/api/pricing`, scaled by the caller's billing group. */
+function newApiPricing(entry: NewApiPricingItem, groupMultiplier: number): Model['pricing'] | undefined {
   // Anything the flat ratios can't express (CherryIN prices DeepSeek V4 by time of day) has no single
   // rate to state. Say so rather than quoting one of the tiers as if it always applied.
   if (entry.billing_mode) {
@@ -209,7 +227,8 @@ function newApiPricing(entry: NewApiPricingItem): Model['pricing'] | undefined {
   }
   // quota_type 1 prices per request, which the per-token model can't hold.
   if (entry.quota_type === 1 || entry.model_ratio === undefined) return undefined
-  const input = entry.model_ratio * NEW_API_USD_PER_RATIO_UNIT
+  // Output and cache derive from input, so scaling input once carries the group through all three.
+  const input = entry.model_ratio * NEW_API_USD_PER_RATIO_UNIT * groupMultiplier
   return usdPricing({
     input,
     output: input * (entry.completion_ratio ?? 1),
@@ -572,11 +591,12 @@ const newApiFetcher: ModelFetcher = {
         responseSchema: NewApiModelsResponseSchema,
         abortSignal: signal
       }),
-      // Public on the gateway itself, and the only place its resale rates are published — a deployment
-      // that doesn't serve it simply yields no rates.
+      // The only place a NewAPI gateway publishes its resale rates — a deployment that doesn't serve it
+      // simply yields no rates. Authenticated so the response carries THIS token's billing group;
+      // unauthenticated it would answer for the default group and misprice everyone else.
       getFromApi({
         url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/pricing`,
-        headers: defaultAppHeaders(),
+        headers: defaultHeaders(provider),
         responseSchema: NewApiPricingResponseSchema,
         abortSignal: signal
       }).catch((error) =>
@@ -586,7 +606,10 @@ const newApiFetcher: ModelFetcher = {
         })
       )
     ])
-    const pricingByModel = new Map(pricingResponse.data.map((entry) => [entry.model_name, newApiPricing(entry)]))
+    const groupMultiplier = newApiGroupMultiplier(pricingResponse)
+    const pricingByModel = new Map(
+      pricingResponse.data.map((entry) => [entry.model_name, newApiPricing(entry, groupMultiplier)])
+    )
     return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
       const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
       const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])

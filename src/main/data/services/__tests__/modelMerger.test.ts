@@ -120,6 +120,78 @@ describe('mergePresetModel', () => {
     expect(model.capabilities).toEqual([CAPABILITY.IMAGE_RECOGNITION, CAPABILITY.FUNCTION_CALL, CAPABILITY.REASONING])
   })
 
+  // A reseller's rate card is priced against its OWN input rate, so inheriting the vendor's absolute
+  // cache rate mixes two scales — and on a free tier it bills cache reads the vendor charges for.
+  it('does not let a vendor cache rate leak into a provider that published its own rates', () => {
+    const vendorPriced = {
+      ...presetModel,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2.5 },
+        output: { currency: 'USD', perMillionTokens: 10 },
+        cacheRead: { currency: 'USD', perMillionTokens: 1.25 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 3.125 }
+      }
+    }
+    const freeTier = {
+      providerId: 'cherryin',
+      modelId: 'gpt-4o',
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0 },
+        output: { currency: 'USD', perMillionTokens: 0 }
+      }
+    } as any
+
+    const model = mergePresetModel(vendorPriced, freeTier, 'cherryin')
+
+    expect(model.pricing?.input.perMillionTokens).toBe(0)
+    expect(model.pricing?.cacheRead).toBeUndefined()
+    expect(model.pricing?.cacheWrite).toBeUndefined()
+  })
+
+  it('keeps a rate the provider declared unknown from being refilled by the vendor', () => {
+    const vendorPriced = {
+      ...presetModel,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2.5 },
+        output: { currency: 'USD', perMillionTokens: 10 },
+        cacheRead: { currency: 'USD', perMillionTokens: 1.25 }
+      }
+    }
+    const timeTiered = {
+      providerId: 'cherryin',
+      modelId: 'gpt-4o',
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: null },
+        output: { currency: 'USD', perMillionTokens: null }
+      }
+    } as any
+
+    const model = mergePresetModel(vendorPriced, timeTiered, 'cherryin')
+
+    expect(model.pricing?.input.perMillionTokens).toBeNull()
+    expect(model.pricing?.cacheRead).toBeUndefined()
+  })
+
+  it('still patches the vendor rate card when the override omits a full token pair', () => {
+    const vendorPriced = {
+      ...presetModel,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2.5 },
+        output: { currency: 'USD', perMillionTokens: 10 }
+      }
+    }
+    const cacheOnly = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      pricing: { cacheRead: { currency: 'USD', perMillionTokens: 0.25 } }
+    } as any
+
+    const model = mergePresetModel(vendorPriced, cacheOnly, 'openai')
+
+    expect(model.pricing?.input.perMillionTokens).toBe(2.5)
+    expect(model.pricing?.cacheRead?.perMillionTokens).toBe(0.25)
+  })
+
   it('catalogOverride disabled=true sets isEnabled=false', () => {
     const override = { providerId: 'openai', modelId: 'gpt-4o', disabled: true } as any
     const model = mergePresetModel(presetModel, override, 'openai')

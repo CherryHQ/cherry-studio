@@ -536,9 +536,18 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
-  const mergedPricing = presetModel.pricing
-    ? { ...presetModel.pricing, ...catalogOverride?.pricing }
-    : catalogOverride?.pricing
+  // A provider that publishes both sides of the token pair has published its whole rate card, so it
+  // REPLACES the vendor's rather than inheriting the fields it left out: the vendor's absolute cache
+  // rate means nothing next to a reseller's own input price, and it would even re-fill a rate the
+  // provider deliberately declared unknown. An unpaired block is still a patch over the vendor's.
+  // Cache reads/writes left unstated fall back to the provider's own input rate when cost is computed.
+  const overridePricing = catalogOverride?.pricing
+  const mergedPricing =
+    overridePricing?.input && overridePricing.output
+      ? overridePricing
+      : presetModel.pricing
+        ? { ...presetModel.pricing, ...overridePricing }
+        : overridePricing
   let pricing: RuntimeModelPricing | undefined
   const parameterSupport = presetModel.parameterSupport
     ? { ...presetModel.parameterSupport, ...catalogOverride?.parameterSupport }

@@ -268,8 +268,10 @@ export class RegistryLoader {
       if (canonicalRank(pm) > canonicalRank(this.overrideByKey.get(key))) {
         this.overrideByKey.set(key, pm)
       }
+      // Same rank rule as the exact key: without it this map alone stays first-wins, so a free twin
+      // authored before its paid row would quietly own the normalized canonical slot.
       const normKey = `${pm.providerId}::${normalizeModelId(pm.modelId)}`
-      if (!this.overrideByNormKey.has(normKey)) {
+      if (canonicalRank(pm) > canonicalRank(this.overrideByNormKey.get(normKey))) {
         this.overrideByNormKey.set(normKey, pm)
       }
       // Size-preserving normalized key (mirror of `modelBySizedNorm`). Size siblings collapse to one

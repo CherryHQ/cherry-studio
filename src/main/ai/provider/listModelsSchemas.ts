@@ -256,6 +256,8 @@ export const NewApiPricingResponseSchema = z.object({
   ),
   /** Per-group multiplier applied on top of every ratio. */
   group_ratio: z.record(z.string(), z.number()).optional(),
+  /** Groups the caller may bill against — a single entry identifies which `group_ratio` applies. */
+  usable_group: z.record(z.string(), z.string()).optional(),
   success: z.boolean().optional()
 })
 

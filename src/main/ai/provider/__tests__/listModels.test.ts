@@ -583,6 +583,33 @@ describe('listModels — openRouterFetcher image models', () => {
     expect(priceOf('openai/quote-only')).toBeUndefined()
   })
 
+  it('separates a blank rate from a free one and keeps a variable-rate sentinel unknown', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models') || url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [
+            // `Number('')` is 0, so a blank quote must be rejected before it reads as free.
+            { id: 'vendor/blank-quote', pricing: { prompt: '', completion: '  ' } },
+            // OpenRouter's "varies" sentinel: the rate exists but has no fixed value.
+            { id: 'vendor/variable-rate', pricing: { prompt: '-1', completion: '-1' } }
+          ]
+        }
+      })
+    })
+
+    const models = await listModels(makeOpenRouterProvider())
+    const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
+
+    expect(priceOf('vendor/blank-quote')).toBeUndefined()
+    expect(priceOf('vendor/variable-rate')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+  })
+
   it('keeps the primary and embedding catalogs when the image catalog fails in strict sync mode', async () => {
     const provider = makeOpenRouterProvider()
     aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
@@ -849,9 +876,13 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       })
     })
 
-    const models = await listModels(makeProvider({ id: 'cherryin' }))
+    const models = await listModels(makeNewApiProvider())
     const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
 
+    // The rate card hangs off the host root, not under the OpenAI-compatible /v1 namespace.
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual(
+      expect.arrayContaining(['https://new-api.example.com/api/pricing'])
+    )
     expect(priceOf('deepseek/deepseek-v3.2')).toEqual({
       input: { currency: 'USD', perMillionTokens: 0.285714 },
       output: { currency: 'USD', perMillionTokens: 0.428571 },
@@ -863,6 +894,47 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
     })
     expect(priceOf('openai/dall-e-3')).toBeUndefined()
     expect(priceOf('no-price-published')).toBeUndefined()
+  })
+
+  it('bills the caller at their own group rate, not the default group', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({
+            value: {
+              // The token belongs to `vip`, which bills at half the base ratio.
+              group_ratio: { default: 1, vip: 0.5 },
+              usable_group: { vip: 'VIP 分组' },
+              data: [{ model_name: 'gpt-4o', model_ratio: 1.25, completion_ratio: 4, cache_ratio: 0.1 }]
+            }
+          })
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+
+    const [model] = await listModels(makeNewApiProvider())
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1.25 },
+      output: { currency: 'USD', perMillionTokens: 5 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.125 }
+    })
+  })
+
+  it('falls back to the default group when the response names several usable groups', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({
+            value: {
+              group_ratio: { default: 1, vip: 0.5 },
+              usable_group: { default: '默认分组', vip: 'VIP 分组' },
+              data: [{ model_name: 'gpt-4o', model_ratio: 1.25, completion_ratio: 4 }]
+            }
+          })
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+
+    const [model] = await listModels(makeNewApiProvider())
+
+    expect(model.pricing?.input.perMillionTokens).toBe(2.5)
   })
 
   it('still lists models when the gateway publishes no pricing endpoint', async () => {
