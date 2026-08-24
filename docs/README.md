@@ -193,6 +193,13 @@
 |----------|-------------|
 | [How to use the LoggerService](./references/logging/README.md) | How to log through the unified LoggerService in main and renderer, with levels, contexts, and env filtering |
 
+### Memory
+
+| Document | Description |
+|----------|-------------|
+| [Memory Reference](./references/memory/README.md) | Entry point for the memory mechanisms — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature |
+| [Memory Feature Overview](./references/memory/overview.md) | Comparison of the three memory mechanisms in Cherry Studio — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature |
+
 ### Provider Model
 
 | Document | Description |

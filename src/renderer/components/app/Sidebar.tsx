@@ -207,7 +207,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
   }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
-    openSettingsTab('/settings/general')
+    openSettingsTab()
   }, [])
   const handleOpenFeedback = useCallback(() => {
     setFeedbackDialogMounted(true)
