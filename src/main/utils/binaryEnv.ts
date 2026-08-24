@@ -2,6 +2,10 @@ import { application } from '@application'
 import { isWin } from '@main/core/platform'
 import path from 'path'
 
+export function getBinaryName(name: string): string {
+  return isWin ? `${name}.exe` : name
+}
+
 /**
  * Layout and environment primitives for Cherry-managed binaries — where the
  * binaries live and what Cherry injects into a child process's env, independent
@@ -64,9 +68,8 @@ export function isPathWithin(root: string, candidate: string): boolean {
  * Directories that hold Cherry-managed binaries, in resolution order:
  * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
  *
- * Single source of truth for the binary path layout — `getBinaryPath()`
- * (binaryResolver.ts) and the PATH-appending logic in `shellEnv.ts` consume this. Do not hand-join
- * `cherry.bin` / `feature.binary.data` elsewhere.
+ * Single source of truth for the binary path layout — BinaryManager resolution
+ * and the PATH-appending logic in `shellEnv.ts` consume this.
  */
 export function getBinarySearchDirs(): string[] {
   return [getBinaryShimsDir(), application.getPath('cherry.bin')]

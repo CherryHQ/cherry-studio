@@ -50,6 +50,7 @@ export function buildPathRegistry() {
   const appUserDataProviderRegistryOverride = path.join(appUserDataRuntime, 'provider-registry-override')
   const appUserDataToolchain = path.join(appUserData, 'Toolchain')
   const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
+  const appUserDataToolchainDsh = path.join(appUserDataToolchain, 'dsh-runtime')
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
@@ -119,6 +120,7 @@ export function buildPathRegistry() {
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
+    'feature.binary.mingit': path.join(appUserDataToolchain, 'mingit'),
     // Cherry-provisioned CPython for pipx tools. mise is never told about it —
     // naming a Python runtime there is what makes mise fetch its own from
     // GitHub releases (see binaryManager/pythonRuntime.ts).
@@ -163,6 +165,7 @@ export function buildPathRegistry() {
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
     'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
+    'feature.agents.claude.binary': path.join(appUserDataToolchain, 'claude-agent-sdk'),
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
@@ -173,6 +176,7 @@ export function buildPathRegistry() {
     // dsh resume tokens persist the session id, never a filesystem path.
     'feature.agents.dsh.root': path.join(appUserDataData, 'Agents', '.dsh'), // Cherry-owned dsh home (DSH_HOME) + per-connection compositions
     'feature.agents.dsh.sessions': path.join(appUserDataData, 'Agents', '.dsh', 'sessions'), // JSONL session-persistence root
+    'feature.agents.dsh.runtime': appUserDataToolchainDsh,
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)

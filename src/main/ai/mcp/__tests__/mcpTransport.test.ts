@@ -6,6 +6,7 @@ const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValu
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
 const getBuiltinHttpHeaders = vi.hoisted(() => vi.fn<() => Record<string, string>>(() => ({})))
 const hasInMemoryImplementation = vi.hoisted(() => vi.fn<(name: string) => boolean>(() => true))
+const binaryManagerMock = vi.hoisted(() => ({ resolveBinaryPath: vi.fn().mockResolvedValue(null) }))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer,
   getBuiltinRegistryEnv: () => ({}),
@@ -15,7 +16,7 @@ vi.mock('@main/ai/mcp/servers/factory', () => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({} as Record<string, unknown>)
+  return mockApplicationFactory({ BinaryManager: binaryManagerMock } as Record<string, unknown>)
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
@@ -23,11 +24,6 @@ vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',
   findCommandInShellEnv: async () => null
 }))
-vi.mock('@main/utils/binaryResolver', () => ({
-  isBinaryExists: async () => false,
-  getBinaryPath: async (name?: string) => `/bundled/${name}`
-}))
-
 const { createTransport } = await import('../mcpTransport')
 
 class FakeTransport {

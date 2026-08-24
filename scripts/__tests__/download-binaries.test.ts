@@ -1,31 +1,37 @@
 /**
- * Build-script coverage for download-binaries.js: the `zip-tree` extraction mode
- * (real extraction against a committed fixture, no fs mocking — the platform
- * unzip/Expand-Archive branch actually runs), the shippability rules in
- * verifyBundledBinaries, and the shared-cache linking and reclaim logic.
+ * Build-script coverage for the MinGit additions to download-binaries.js:
+ * the `zip-tree` extraction mode (real extraction against a committed fixture,
+ * no fs mocking — the platform unzip/Expand-Archive branch actually runs) and
+ * the `isWindowsOnly` skip rule in verifyBundledArtifacts.
  */
 import * as fs from 'node:fs'
-import { createRequire } from 'node:module'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { zstdDecompressSync } from 'node:zlib'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
 import {
-  cachedVersionDir,
+  artifactArchiveEntries,
+  bundleFilesArtifact,
+  bundleTreeArtifact,
   extract,
-  materialize,
-  sweepUnreferencedVersions,
+  singleFileCompression,
   TOOLS,
-  verifyBundledBinaries
+  verifyBundledArtifacts,
+  writeManifest
 } from '../download-binaries'
 
 const FIXTURE_ZIP = path.join(__dirname, 'fixtures', 'mingit-tree.zip')
-
-// The script is CJS and calls require('fs'); that module object is mutable,
-// unlike the ESM namespace this file imports, so it is what a spy must target.
-const cjsFs = createRequire(import.meta.url)('fs') as typeof fs
+type FilesArtifact = Awaited<ReturnType<typeof bundleFilesArtifact>>
+type TreeArtifact = Awaited<ReturnType<typeof bundleTreeArtifact>>
+type TestManifest = {
+  schemaVersion: number
+  platform: string
+  arch: string
+  artifacts: Record<string, FilesArtifact | TreeArtifact>
+}
 
 let tmpDirs: string[] = []
 function makeTmpDir(prefix: string): string {
@@ -65,290 +71,261 @@ describe('extract – zip-tree mode', () => {
   })
 })
 
-describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
+describe('compressed artifact contract', () => {
   const mise = TOOLS.find((tool) => tool.name === 'mise')!
+  const supportedPlatformKeys = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64']
 
-  /** A resources dir with the given files pre-created under <platformKey>/. */
-  function makeResourcesDir(platformKey: string, files: string[]): string {
+  function makeResourcesDir(platformKey: string): { outputDir: string; resourcesDir: string } {
     const resourcesDir = makeTmpDir('dl-verify-')
-    for (const file of files) {
-      const abs = path.join(resourcesDir, platformKey, file)
-      fs.mkdirSync(path.dirname(abs), { recursive: true })
-      fs.writeFileSync(abs, '', 'utf8')
-    }
-    return resourcesDir
+    const outputDir = path.join(resourcesDir, platformKey)
+    fs.mkdirSync(outputDir, { recursive: true })
+    return { outputDir, resourcesDir }
   }
 
-  /** A shippable bundle for `tool`: every binary plus a matching marker. */
-  function makeCompleteBundle(
-    platformKey: string,
-    tool: { version: string; versionFile: string; packages: Record<string, { binaries: string[] }> }
-  ) {
-    const resourcesDir = makeResourcesDir(platformKey, tool.packages[platformKey].binaries)
-    fs.writeFileSync(path.join(resourcesDir, platformKey, tool.versionFile), tool.version, 'utf8')
-    return resourcesDir
+  async function addFilesArtifact(
+    outputDir: string,
+    manifest: TestManifest,
+    name: string,
+    version: string,
+    outputs: string[],
+    compression: 'none' | 'zstd' = 'none'
+  ): Promise<FilesArtifact> {
+    const sourceDir = makeTmpDir(`dl-source-${name}-`)
+    const files = outputs.map((output) => {
+      const source = path.join(sourceDir, output)
+      fs.mkdirSync(path.dirname(source), { recursive: true })
+      fs.writeFileSync(source, `${name}:${output}\n`, 'utf8')
+      return { source, output, archive: compression === 'none' ? output : `${output}.zst`, compression }
+    })
+    const artifact = await bundleFilesArtifact({ version, files, outputDir })
+    manifest.artifacts[name] = artifact
+    return artifact
   }
 
   const regularTool = {
     name: 'mise',
     version: '1.0.0',
-    versionFile: '.mise-version',
-    packages: { 'linux-x64': { binaries: ['mise'] }, 'win32-x64': { binaries: ['mise.exe'] } }
+    packages: {
+      'darwin-x64': { binaries: ['mise'] },
+      'linux-x64': { binaries: ['mise'] },
+      'win32-x64': { binaries: ['mise.exe'] }
+    }
   }
   const windowsOnlyTool = {
     name: 'mingit',
-    version: '2.54.0',
-    versionFile: '.mingit-version',
+    version: '1.0.0',
     isWindowsOnly: true,
-    packages: { 'win32-x64': { binaries: ['git/cmd/git.exe'] } }
+    packages: { 'win32-x64': { archive: 'zip-tree', dir: 'git', binaries: ['git/cmd/git.exe'] } }
   }
 
-  it('does not flag an isWindowsOnly tool that has no package on a non-Windows platform', () => {
-    const resourcesDir = makeCompleteBundle('linux-x64', regularTool)
-
-    expect(() =>
-      verifyBundledBinaries('linux', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
-    ).not.toThrow()
+  it('maps file and tree archives to their declared compressed hashes', () => {
+    expect(
+      artifactArchiveEntries({
+        kind: 'files',
+        version: '1.0.0',
+        files: [
+          { archive: 'tool.zst', archiveSha256: 'a'.repeat(64), compression: 'zstd' },
+          { archive: 'helper.zst', archiveSha256: 'b'.repeat(64), compression: 'zstd' }
+        ]
+      })
+    ).toEqual([
+      { archive: 'tool.zst', sha256: 'a'.repeat(64) },
+      { archive: 'helper.zst', sha256: 'b'.repeat(64) }
+    ])
+    expect(
+      artifactArchiveEntries({
+        kind: 'tree',
+        version: '1.0.0',
+        compression: 'zstd',
+        archive: 'tree.tar.zst',
+        archiveSha256: 'c'.repeat(64)
+      })
+    ).toEqual([{ archive: 'tree.tar.zst', sha256: 'c'.repeat(64) }])
   })
 
-  it('still flags a regular tool that has no package for the platform', () => {
-    const resourcesDir = makeResourcesDir('linux-arm64', [])
+  it('uses outer package compression for all single-file payloads', () => {
+    expect(singleFileCompression('darwin')).toBe('none')
+    expect(singleFileCompression('linux')).toBe('none')
+    expect(singleFileCompression('win32')).toBe('none')
+  })
 
-    expect(() => verifyBundledBinaries('linux', 'arm64', { tools: [regularTool], resourcesDir })).toThrow(
+  it('round-trips explicitly compressed file payloads', async () => {
+    const { outputDir } = makeResourcesDir('darwin-x64')
+    const sourceDir = makeTmpDir('dl-large-source-')
+    const source = path.join(sourceDir, 'mise')
+    const payload = Buffer.alloc(1024 * 1024, 0x5a)
+    fs.writeFileSync(source, payload)
+    const artifact = await bundleFilesArtifact({
+      version: '1.0.0',
+      files: [{ source, output: 'mise', archive: 'mise.zst', compression: 'zstd' }],
+      outputDir
+    })
+
+    const archive = path.join(outputDir, artifact.files[0].archive)
+    expect(zstdDecompressSync(fs.readFileSync(archive))).toEqual(payload)
+  })
+
+  it('keeps Windows single-file native payloads raw while verifying both hashes', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('win32-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'win32', arch: 'x64', artifacts: {} }
+    const sourceDir = makeTmpDir('dl-raw-source-')
+    const source = path.join(sourceDir, 'mise.exe')
+    const payload = Buffer.from('windows-native-payload')
+    fs.writeFileSync(source, payload)
+    const artifact = await bundleFilesArtifact({
+      version: '1.0.0',
+      files: [{ source, output: 'mise.exe', archive: 'mise.exe', compression: 'none' }],
+      outputDir
+    })
+    manifest.artifacts.mise = artifact
+    writeManifest(outputDir, manifest)
+
+    expect(fs.readFileSync(path.join(outputDir, 'mise.exe'))).toEqual(payload)
+    expect(artifact.files[0].archiveSha256).toBe(artifact.files[0].sha256)
+    await expect(
+      verifyBundledArtifacts('win32', 'x64', { tools: [regularTool], resourcesDir })
+    ).resolves.toBeUndefined()
+  })
+
+  it('rejects a raw payload changed after manifest generation', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
+    const artifact = await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
+    writeManifest(outputDir, manifest)
+    fs.appendFileSync(path.join(outputDir, artifact.files[0].archive), 'corrupt')
+
+    await expect(verifyBundledArtifacts('darwin', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
+      /checksum mismatch/
+    )
+  })
+
+  it('rejects an artifact whose manifest version is stale', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '0.9.0', ['mise'])
+    writeManifest(outputDir, manifest)
+
+    await expect(verifyBundledArtifacts('darwin', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
+      /missing or stale compressed payload/
+    )
+  })
+
+  it('rejects a stale compressed duplicate beside a raw payload', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
+    writeManifest(outputDir, manifest)
+    fs.writeFileSync(path.join(outputDir, 'mise.zst'), 'stale compressed copy', 'utf8')
+
+    await expect(verifyBundledArtifacts('darwin', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
+      /compressed single-file payload still present/
+    )
+  })
+
+  it('creates a tar.zst tree whose manifest names the required entrypoint', async () => {
+    const { outputDir } = makeResourcesDir('win32-x64')
+    const rootDir = path.join(outputDir, 'git')
+    fs.mkdirSync(path.join(rootDir, 'cmd'), { recursive: true })
+    fs.mkdirSync(path.join(rootDir, 'mingw64', 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(rootDir, 'cmd', 'git.exe'), 'git', 'utf8')
+    fs.writeFileSync(path.join(rootDir, 'mingw64', 'bin', 'runtime.dll'), 'runtime', 'utf8')
+
+    const artifact = await bundleTreeArtifact({
+      version: '1.0.0',
+      rootDir,
+      archive: 'mingit.tar.zst',
+      entrypoints: ['git/cmd/git.exe'],
+      outputDir
+    })
+
+    expect(artifact).toMatchObject({ kind: 'tree', version: '1.0.0', entrypoints: ['git/cmd/git.exe'] })
+    expect(artifact.files.map((file) => file.path)).toEqual(['git/cmd/git.exe', 'git/mingw64/bin/runtime.dll'])
+    expect(artifact.files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'git/cmd/git.exe', size: 3, sha256: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+        expect.objectContaining({
+          path: 'git/mingw64/bin/runtime.dll',
+          size: 7,
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+        })
+      ])
+    )
+    expect(zstdDecompressSync(fs.readFileSync(path.join(outputDir, artifact.archive))).length).toBe(artifact.size)
+  })
+
+  it('does not require a Windows-only artifact on Linux', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'linux', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'], 'none')
+    writeManifest(outputDir, manifest)
+
+    await expect(
+      verifyBundledArtifacts('linux', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
+    ).resolves.toBeUndefined()
+  })
+
+  it('still rejects a regular tool with no package for the platform', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('linux-arm64')
+    writeManifest(outputDir, { schemaVersion: 2, platform: 'linux', arch: 'arm64', artifacts: {} })
+
+    await expect(verifyBundledArtifacts('linux', 'arm64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
       /mise \(no package for linux-arm64\)/
     )
   })
 
-  it('still verifies the isWindowsOnly tool binaries on Windows targets', () => {
-    // Package declared for win32-x64 but git.exe missing on disk → must fail.
-    const resourcesDir = makeCompleteBundle('win32-x64', regularTool)
+  it('still requires the MinGit tree on Windows targets', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('win32-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'win32', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise.exe'], 'none')
+    writeManifest(outputDir, manifest)
 
-    expect(() =>
-      verifyBundledBinaries('win32', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
-    ).toThrow(/git[\\/]cmd[\\/]git\.exe/)
+    await expect(
+      verifyBundledArtifacts('win32', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
+    ).rejects.toThrow(/mingit \(missing or stale compressed payload/)
   })
 
-  it('rejects a bundle whose version marker is missing, which the app would skip silently', () => {
-    const resourcesDir = makeResourcesDir('linux-x64', ['mise'])
-
-    expect(() => verifyBundledBinaries('linux', 'x64', { tools: [regularTool], resourcesDir })).toThrow(
-      /\.mise-version.*never extract mise/s
-    )
+  it.each([
+    ['darwin-arm64', 'mise-v2026.7.14-macos-arm64', '082262daa1cd73e22f71272c574afda560c4fcf39852bc18884eae9e13cd5f2c'],
+    ['darwin-x64', 'mise-v2026.7.14-macos-x64', '3a3cf40fd034f83bd5cdffd4d673d40b04a79d06affbd30e5fcc4f00ae0ac460'],
+    ['linux-x64', 'mise-v2026.7.14-linux-x64', 'fc96308f4fa085d7359892ac6351ededb35ecfabf1ddc34f5757bc755a2af8a6'],
+    ['linux-arm64', 'mise-v2026.7.14-linux-arm64', '94a01dd78c22819aa38f9ef6c0780f48d5160b7f1f557407d6d486667296be6d'],
+    [
+      'win32-x64',
+      'mise-v2026.7.14-windows-x64.zip',
+      'fdf01891877650bd0f30ff99e493d88f72423b280867ca44062ee2cecd75c78c'
+    ],
+    [
+      'win32-arm64',
+      'mise-v2026.7.14-windows-arm64.zip',
+      '10627ebedc1e0a53fe669b9e93b1701975f0cba1165759bc270796a0de37b691'
+    ]
+  ])('pins mise v2026.7.14 %s asset and checksum', (platformKey, asset, sha256) => {
+    expect(mise.version).toBe('2026.7.14')
+    expect(mise.packages[platformKey]).toMatchObject({
+      url: expect.stringContaining(asset),
+      sha256
+    })
   })
 
-  it('rejects a bundle whose marker disagrees with the version being shipped', () => {
-    const resourcesDir = makeCompleteBundle('linux-x64', regularTool)
-    fs.writeFileSync(path.join(resourcesDir, 'linux-x64', '.mise-version'), '0.9.0', 'utf8')
-
-    expect(() => verifyBundledBinaries('linux', 'x64', { tools: [regularTool], resourcesDir })).toThrow(
-      /says 0\.9\.0, expected 1\.0\.0/
-    )
-  })
-
-  it('rejects download debris that electron-builder would pack into the app', () => {
-    const resourcesDir = makeCompleteBundle('linux-x64', regularTool)
-    fs.mkdirSync(path.join(resourcesDir, 'linux-x64', '.staging-deadbeef'), { recursive: true })
-
-    expect(() => verifyBundledBinaries('linux', 'x64', { tools: [regularTool], resourcesDir })).toThrow(
-      /\.staging-deadbeef.*would be packaged/s
-    )
-  })
-
-  it.each(['x64', 'arm64'])('requires mise-shim.exe in the Windows %s release resources', (arch) => {
+  it.each(['x64', 'arm64'])('requires mise-shim.exe in the Windows %s release definition', (arch) => {
     const platformKey = `win32-${arch}`
-    const resourcesDir = makeResourcesDir(platformKey, ['mise.exe'])
 
-    expect(() => verifyBundledBinaries('win32', arch, { tools: [mise], resourcesDir })).toThrow(/mise-shim\.exe/)
-  })
-})
-
-const PLATFORM = 'test-arch'
-
-function fakeTool(name: string, version: string, extra: Record<string, unknown> = {}) {
-  return {
-    name,
-    version,
-    versionFile: `.${name}-version`,
-    packages: { [PLATFORM]: { binaries: [name], ...extra } }
-  }
-}
-
-/** Populate <cache>/<platform>/<tool>/<version>/ the way downloadTool would. */
-function seedCache(cacheRoot: string, tool: ReturnType<typeof fakeTool>, files: Record<string, string>) {
-  const dir = cachedVersionDir(cacheRoot, PLATFORM, tool)
-  for (const [rel, content] of Object.entries(files)) {
-    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true })
-    fs.writeFileSync(path.join(dir, rel), content)
-  }
-  return dir
-}
-
-describe('materialize – assembling the bundle from the shared cache', () => {
-  it('hard-links the cached version so the bundle costs no disk', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const bundle = makeTmpDir('dl-bundle-')
-    const rg = fakeTool('rg', '14.1.1')
-    const cached = seedCache(cache, rg, { rg: 'binary payload' })
-
-    materialize([rg], PLATFORM, cache, bundle)
-
-    const src = fs.statSync(path.join(cached, 'rg'))
-    const dest = fs.statSync(path.join(bundle, 'rg'))
-    expect(dest.ino).toBe(src.ino)
-    expect(dest.nlink).toBe(2)
-    expect(fs.readFileSync(path.join(bundle, '.rg-version'), 'utf8')).toBe('14.1.1')
-  })
-
-  it('keeps versions apart, so two worktrees on different versions never collide', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const oldBundle = makeTmpDir('dl-bundle-')
-    const newBundle = makeTmpDir('dl-bundle-')
-    const v1 = fakeTool('uv', '0.11.15')
-    const v2 = fakeTool('uv', '0.11.16')
-    seedCache(cache, v1, { uv: 'old build' })
-    seedCache(cache, v2, { uv: 'new build' })
-
-    materialize([v1], PLATFORM, cache, oldBundle)
-    materialize([v2], PLATFORM, cache, newBundle)
-
-    // Both survive: the bundles disagree because the cache holds both versions,
-    // rather than one worktree overwriting the other's download.
-    expect(fs.readFileSync(path.join(oldBundle, 'uv'), 'utf8')).toBe('old build')
-    expect(fs.readFileSync(path.join(oldBundle, '.uv-version'), 'utf8')).toBe('0.11.15')
-    expect(fs.readFileSync(path.join(newBundle, 'uv'), 'utf8')).toBe('new build')
-    expect(fs.readFileSync(path.join(newBundle, '.uv-version'), 'utf8')).toBe('0.11.16')
-  })
-
-  it("leaves a failed tool's existing bundle files alone instead of deleting them", () => {
-    const cache = makeTmpDir('dl-cache-')
-    const bundle = makeTmpDir('dl-bundle-')
-    const rg = fakeTool('rg', '14.1.1')
-    const bun = fakeTool('bun', '1.3.14')
-    seedCache(cache, rg, { rg: 'fresh' })
-    // bun is absent from the cache — its download failed this run.
-    fs.writeFileSync(path.join(bundle, 'bun'), 'working binary from an earlier run')
-    fs.writeFileSync(path.join(bundle, '.bun-version'), '1.3.14')
-
-    materialize([rg, bun], PLATFORM, cache, bundle)
-
-    expect(fs.readFileSync(path.join(bundle, 'bun'), 'utf8')).toBe('working binary from an earlier run')
-    expect(fs.existsSync(path.join(bundle, '.bun-version'))).toBe(true)
-  })
-
-  it('mirrors a whole tree and drops files a shrinking release removed', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const bundle = makeTmpDir('dl-bundle-')
-    const mingit = fakeTool('mingit', '2.54.0', { dir: 'git', binaries: ['git/cmd/git.exe'] })
-    seedCache(cache, mingit, { 'git/cmd/git.exe': 'launcher', 'git/mingw64/bin/tool.exe': 'payload' })
-    fs.mkdirSync(path.join(bundle, 'git', 'cmd'), { recursive: true })
-    fs.writeFileSync(path.join(bundle, 'git', 'cmd', 'dropped.exe'), 'from an older version')
-
-    materialize([mingit], PLATFORM, cache, bundle)
-
-    expect(fs.readFileSync(path.join(bundle, 'git', 'mingw64', 'bin', 'tool.exe'), 'utf8')).toBe('payload')
-    expect(fs.existsSync(path.join(bundle, 'git', 'cmd', 'dropped.exe'))).toBe(false)
-  })
-
-  it('falls back to a real copy when hard-linking is unavailable, and settles down after', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const bundle = makeTmpDir('dl-bundle-')
-    const rg = fakeTool('rg', '14.1.1')
-    seedCache(cache, rg, { rg: 'payload' })
-    const linkSync = vi.spyOn(cjsFs, 'linkSync').mockImplementation(() => {
-      throw Object.assign(new Error('cross-device link'), { code: 'EXDEV' })
+    expect(mise.packages[platformKey]).toMatchObject({
+      archive: 'zip',
+      binaries: ['mise.exe', 'mise-shim.exe'],
+      strip: 'mise/bin'
     })
+  })
 
-    try {
-      materialize([rg], PLATFORM, cache, bundle)
-      const firstIno = fs.statSync(path.join(bundle, 'rg')).ino
-      // A copied bundle can never match inodes, so without a second check every
-      // run would re-copy the whole bundle.
-      const second = materialize([rg], PLATFORM, cache, bundle)
-
-      expect(fs.readFileSync(path.join(bundle, 'rg'), 'utf8')).toBe('payload')
-      expect(fs.statSync(path.join(bundle, 'rg')).ino).toBe(firstIno)
-      expect(second.copied).toBe(0)
-    } finally {
-      linkSync.mockRestore()
+  it.each(supportedPlatformKeys)('defines every required tool for %s', (platformKey) => {
+    for (const tool of TOOLS) {
+      if (tool.isWindowsOnly && !platformKey.startsWith('win32-')) continue
+      expect(tool.packages[platformKey], `${tool.name} missing ${platformKey}`).toMatchObject({
+        archive: expect.any(String),
+        binaries: expect.arrayContaining([expect.any(String)]),
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        url: expect.stringMatching(/^https:\/\//)
+      })
     }
-  })
-})
-
-describe('sweepUnreferencedVersions – reclaiming the shared cache', () => {
-  const AGE = 24 * 60 * 60 * 1000
-
-  function age(dir: string, ms: number) {
-    const when = new Date(Date.now() - ms)
-    fs.utimesSync(dir, when, when)
-  }
-
-  it('reclaims a version no worktree links to any more', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const stale = fakeTool('uv', '0.11.15')
-    const dir = seedCache(cache, stale, { uv: 'abandoned build' })
-    age(dir, 2 * AGE)
-
-    expect(sweepUnreferencedVersions(cache, AGE)).toBe(1)
-    expect(fs.existsSync(dir)).toBe(false)
-  })
-
-  it('never reclaims a version a worktree still links to', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const bundle = makeTmpDir('dl-bundle-')
-    const inUse = fakeTool('uv', '0.11.16')
-    const dir = seedCache(cache, inUse, { uv: 'live build' })
-    materialize([inUse], PLATFORM, cache, bundle)
-    age(dir, 2 * AGE)
-
-    // The hard link from the bundle is the reference count.
-    expect(sweepUnreferencedVersions(cache, AGE)).toBe(0)
-    expect(fs.readFileSync(path.join(dir, 'uv'), 'utf8')).toBe('live build')
-  })
-
-  it('reclaims a platform this machine never builds', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const foreign = path.join(cache, 'darwin-arm64', 'mise', '2026.7.14')
-    fs.mkdirSync(foreign, { recursive: true })
-    fs.writeFileSync(path.join(foreign, 'mise'), 'a build for another platform')
-    const local = seedCache(cache, fakeTool('mise', '2026.7.14'), { mise: 'this machine' })
-    ;[foreign, local].forEach((dir) => {
-      const when = new Date(Date.now() - 2 * AGE)
-      fs.utimesSync(dir, when, when)
-    })
-
-    expect(sweepUnreferencedVersions(cache, AGE)).toBe(2)
-    // The whole platform tree goes, not just the versions inside it.
-    expect(fs.existsSync(path.join(cache, 'darwin-arm64'))).toBe(false)
-  })
-
-  it('finishes the walk when a concurrent sweep deletes a version under it', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const stale = seedCache(cache, fakeTool('uv', '0.11.15'), { uv: 'abandoned' })
-    const racing = seedCache(cache, fakeTool('uv', '0.11.16'), { uv: 'also abandoned' })
-    ;[stale, racing].forEach((dir) => age(dir, 2 * AGE))
-    // The other worktree wins the race for 0.11.16 between listing and stat'ing it.
-    const realReaddir = cjsFs.readdirSync
-    const readdirSync = vi.spyOn(cjsFs, 'readdirSync').mockImplementation(((dir: string, options: never) => {
-      const entries = realReaddir(dir, options)
-      if (path.basename(dir) === 'uv') cjsFs.rmSync(racing, { recursive: true, force: true })
-      return entries
-    }) as never)
-
-    try {
-      // Throwing here would fail a run whose bundle is already complete.
-      expect(sweepUnreferencedVersions(cache, AGE)).toBe(1)
-    } finally {
-      readdirSync.mockRestore()
-    }
-    expect(fs.existsSync(stale)).toBe(false)
-  })
-
-  it('keeps a recently used version even with no links, for copy-based bundles', () => {
-    const cache = makeTmpDir('dl-cache-')
-    const recent = fakeTool('uv', '0.11.16')
-    const dir = seedCache(cache, recent, { uv: 'just downloaded' })
-
-    expect(sweepUnreferencedVersions(cache, AGE)).toBe(0)
-    expect(fs.existsSync(dir)).toBe(true)
   })
 })

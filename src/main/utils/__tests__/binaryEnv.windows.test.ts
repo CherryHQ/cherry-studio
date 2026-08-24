@@ -27,7 +27,7 @@ vi.mock('@application', () => ({
 
 vi.mock('path')
 
-import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '../binaryEnv'
+import { getBinaryIsolatedHomeEnv, getBinaryName, mergeBinaryExecutionEnv } from '../binaryEnv'
 
 describe('mergeBinaryExecutionEnv (Windows)', () => {
   beforeEach(async () => {
@@ -55,6 +55,10 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     expect(segments[0]).toBe(shims) // prepended copy wins, later cased duplicate dropped
     expect(segments.filter((s) => s.toLowerCase() === shims.toLowerCase())).toHaveLength(1)
     expect(segments.filter((s) => s.toLowerCase() === 'c:\\windows')).toHaveLength(1)
+  })
+
+  it('adds the executable suffix to managed binary names', () => {
+    expect(getBinaryName('bun')).toBe('bun.exe')
   })
 
   it('collapses duplicate PATH casings into one key, merging segments from all of them', () => {

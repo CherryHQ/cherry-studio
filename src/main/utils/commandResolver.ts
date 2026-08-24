@@ -11,8 +11,8 @@ import { getShellEnv } from './shellEnv'
 /**
  * Resolution for arbitrary executables in the user's environment — locating
  * commands (npx, uvx, git, …) in the captured shell env, with Windows-specific
- * fallbacks (PATH/PATHEXT lookup, mise) and Git Bash discovery. Distinct from
- * `binaryResolver.ts`, which resolves Cherry's own managed binaries.
+ * fallbacks (PATH/PATHEXT lookup, mise) and Git Bash discovery. BinaryManager
+ * separately resolves Cherry's own verified managed binaries.
  */
 
 const logger = loggerService.withContext('Utils:CommandResolver')
@@ -219,7 +219,7 @@ export interface FindExecutableOptions {
   /** File extensions to search for (default: ['.exe', '.cmd']) */
   extensions?: string[]
   /** Environment variables to use for Windows PATH lookup (default: process.env) */
-  env?: Record<string, string>
+  env?: Record<string, string | undefined>
 }
 
 /**
@@ -334,7 +334,7 @@ export async function findMiseExecutable(
  * refreshShellEnv() explicitly before calling this function.
  *
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
- * then mise, and finally (for `git` only) the bundled MinGit as the last resort.
+ * then mise, and finally (for `git` only) an already-installed bundled MinGit.
  */
 export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
@@ -365,9 +365,9 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
       return viaMise
     }
 
-    // Last resort: the bundled MinGit shipped with the app, so git works even
-    // when the user has no system git installed. System/mise git always win above.
-    return bundledGit
+    // The resolver is intentionally read-only. Callers that own a Git operation
+    // must materialize MinGit through BinaryManager before querying again.
+    return name === 'git' ? getBundledGitPath() : null
   }
 
   return null
@@ -390,7 +390,11 @@ function getCommonGitRoots(): string[] {
  * @param customPath - Optional custom path from config
  * @returns Full path to bash.exe or null if not found
  */
-export function findGitBash(customPath?: string | null): string | null {
+export function findGitBash(
+  customPath?: string | null,
+  env: Record<string, string | undefined> = process.env,
+  includeBundled = true
+): string | null {
   // Git Bash is Windows-only
   if (!isWin) {
     return null
@@ -407,7 +411,7 @@ export function findGitBash(customPath?: string | null): string | null {
   }
 
   // 2. Check environment variable override
-  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  const envOverride = env.CLAUDE_CODE_GIT_BASH_PATH
   if (envOverride) {
     const validated = validateGitBashPath(envOverride)
     if (validated) {
@@ -418,7 +422,15 @@ export function findGitBash(customPath?: string | null): string | null {
   }
 
   // 3. Find git.exe via findExecutable (checks PATH + common Git install paths)
-  const gitPath = findExecutable('git')
+  const bundledGitPath = getBundledGitPath()
+  const discoveredGitPath = findExecutable('git', { env })
+  const gitPath =
+    discoveredGitPath &&
+    (includeBundled || !bundledGitPath || discoveredGitPath.toLowerCase() !== bundledGitPath.toLowerCase())
+      ? discoveredGitPath
+      : includeBundled
+        ? bundledGitPath
+        : null
   if (gitPath) {
     // Derive bash.exe from git.exe location
     // Different Git installations have different directory structures
@@ -486,13 +498,16 @@ export function validateGitBashPath(customPath?: string | null): string | null {
  * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (runtime override)
  * 2. Auto-discovery via findGitBash
  */
-export function autoDiscoverGitBash(): string | null {
+export function autoDiscoverGitBash(
+  env: Record<string, string | undefined> = process.env,
+  includeBundled = true
+): string | null {
   if (!isWin) {
     return null
   }
 
   // 1. Check environment variable override first (highest priority)
-  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  const envOverride = env.CLAUDE_CODE_GIT_BASH_PATH
   if (envOverride) {
     const validated = validateGitBashPath(envOverride)
     if (validated) {
@@ -503,7 +518,7 @@ export function autoDiscoverGitBash(): string | null {
   }
 
   // 2. Auto-discovery
-  const discoveredPath = findGitBash()
+  const discoveredPath = findGitBash(null, env, includeBundled)
   if (discoveredPath) {
     logger.debug('Auto-discovered Git Bash path', { path: discoveredPath })
   }

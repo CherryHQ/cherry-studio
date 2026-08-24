@@ -106,7 +106,7 @@ describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
     await expect(findExecutableInEnv('git')).resolves.toBe(MISE_SHIM)
   })
 
-  it('falls back to the bundled git only when every other lookup misses', async () => {
+  it('returns an already-installed bundled git only when every other lookup misses', async () => {
     mockWhichCandidates([BUNDLED_GIT])
 
     await expect(findExecutableInEnv('git')).resolves.toBe(BUNDLED_GIT)

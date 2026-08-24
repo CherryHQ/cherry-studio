@@ -1,5 +1,4 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
-import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -52,14 +51,16 @@ const mocks = vi.hoisted(() => ({
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
   refreshShellEnv: vi.fn(),
-  getBinaryPath: vi.fn(),
+  resolveBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
   ensureAgentStorageDirectory: vi.fn(),
   buildPrompt: vi.fn(),
   getAppLanguage: vi.fn(),
-  resolveRequire: vi.fn(),
+  ensureClaudeExecutable: vi.fn(),
+  ensureBundledGit: vi.fn(),
+  autoDiscoverGitBash: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
@@ -70,16 +71,6 @@ const mocks = vi.hoisted(() => ({
   platform: { isMac: false },
   isWin: false
 }))
-
-vi.mock('node:module', async (importOriginal) => {
-  const actual = await importOriginal<typeof NodeModule>()
-  return {
-    ...actual,
-    createRequire: vi.fn(() => ({
-      resolve: mocks.resolveRequire
-    }))
-  }
-})
 
 vi.mock('electron', () => ({
   app: { getVersion: vi.fn(() => '1.0.0-test') }
@@ -162,7 +153,11 @@ vi.mock('@application', () => ({
     // Session-keyed live state always resolves to the one real service instance (created below),
     // so the many per-test `applicationGet` overrides don't each have to register it.
     get: (name: string) =>
-      name === 'ClaudeCodeSessionStateService' ? sessionStateService : mocks.applicationGet(name),
+      name === 'ClaudeCodeSessionStateService'
+        ? sessionStateService
+        : name === 'BinaryManager'
+          ? { ensureBundledGit: mocks.ensureBundledGit, resolveBinaryPath: mocks.resolveBinaryPath }
+          : mocks.applicationGet(name),
     getPath: mocks.applicationGetPath
   }
 }))
@@ -183,8 +178,8 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
   getProxyEnvironment: mocks.getProxyEnvironment
 }))
 
-vi.mock('@main/utils/asar', () => ({
-  toAsarUnpackedPath: (input: string) => input
+vi.mock('../ClaudeCodeBinaryService', () => ({
+  claudeCodeBinaryService: { ensureExecutable: mocks.ensureClaudeExecutable }
 }))
 
 vi.mock('@main/utils/file', () => ({
@@ -208,12 +203,8 @@ vi.mock('@main/i18n', () => ({
   }
 }))
 
-vi.mock('@main/utils/binaryResolver', () => ({
-  getBinaryPath: mocks.getBinaryPath
-}))
-
 vi.mock('@main/utils/commandResolver', () => ({
-  autoDiscoverGitBash: vi.fn(() => null)
+  autoDiscoverGitBash: mocks.autoDiscoverGitBash
 }))
 
 vi.mock('@main/utils/rtk', () => ({
@@ -264,10 +255,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
-    mocks.resolveRequire.mockImplementation((specifier: string) => {
-      if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
-      return `/native/${specifier}/claude`
-    })
+    mocks.ensureClaudeExecutable.mockResolvedValue('/toolchain/claude')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -327,10 +315,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
     mocks.refreshShellEnv.mockResolvedValue({})
-    mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
+    mocks.resolveBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
+    mocks.ensureBundledGit.mockResolvedValue(null)
+    mocks.autoDiscoverGitBash.mockReturnValue(null)
     mocks.buildPrompt.mockResolvedValue({ base: { kind: 'native' }, context: 'soul prompt' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
@@ -341,6 +331,59 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
+  })
+
+  it('uses the locally materialized Claude executable', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.ensureClaudeExecutable).toHaveBeenCalledOnce()
+    expect(settings.pathToClaudeCodeExecutable).toBe('/toolchain/claude')
+  })
+
+  it('fails clearly when no verified bun binary is available', async () => {
+    mocks.resolveBinaryPath.mockResolvedValue(null)
+
+    await expect(
+      buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+    ).rejects.toThrow('Verified bun binary is not available')
+  })
+
+  it('retries MinGit materialization before building a Windows Agent environment', async () => {
+    mocks.isWin = true
+    mocks.ensureBundledGit.mockResolvedValue('C:\\Toolchain\\MinGit\\2.54.0\\win32-x64\\git\\cmd\\git.exe')
+    mocks.autoDiscoverGitBash
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce('C:\\Toolchain\\MinGit\\2.54.0\\win32-x64\\git\\bin\\bash.exe')
+    mocks.getShellEnv
+      .mockResolvedValueOnce({ Path: 'C:\\Windows\\System32' })
+      .mockResolvedValueOnce({ Path: 'C:\\Windows\\System32;C:\\Toolchain\\MinGit\\git\\cmd' })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: 'C:\\workspace\\project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.ensureBundledGit).toHaveBeenCalledOnce()
+    expect(mocks.autoDiscoverGitBash).toHaveBeenCalledTimes(2)
+    expect(settings.env?.CLAUDE_CODE_GIT_BASH_PATH).toBe('C:\\Toolchain\\MinGit\\2.54.0\\win32-x64\\git\\bin\\bash.exe')
   })
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(

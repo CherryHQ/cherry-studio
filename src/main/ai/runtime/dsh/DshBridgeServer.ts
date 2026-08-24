@@ -45,6 +45,8 @@ export interface DshBridgeServerOptions {
   onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
   /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
   readyTimeoutMs?: number
+  /** Packaged DSH runtime cache root; omitted in development. */
+  runtimeRoot?: string
 }
 
 /** macOS `sun_path` caps at ~104 chars, so the socket lives in tmpdir — NEVER under userData. */
@@ -73,7 +75,7 @@ export class DshBridgeServer {
 
   async listen(): Promise<void> {
     // ESM-only class, loaded before the first connection so accepting stays synchronous.
-    const { JsonRpcLineTransport } = await loadDshSdkProtocol()
+    const { JsonRpcLineTransport } = await loadDshSdkProtocol(this.options.runtimeRoot)
     const server = net.createServer((socket) => this.handleConnection(socket, JsonRpcLineTransport))
     this.server = server
     await new Promise<void>((resolve, reject) => {

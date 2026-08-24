@@ -11,10 +11,14 @@ const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
 }))
+const binaryManagerMock = vi.hoisted(() => ({ resolveBinaryPath: vi.fn() }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ McpCatalogService: mcpCatalogMock } as Record<string, unknown>)
+  return mockApplicationFactory({
+    BinaryManager: binaryManagerMock,
+    McpCatalogService: mcpCatalogMock
+  } as Record<string, unknown>)
 })
 
 const getByIdMock = vi.fn<(id: string) => McpServer>()
@@ -205,6 +209,12 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   return { promise, resolve }
 }
 
+beforeEach(() => {
+  commandResolverMock.findCommandInShellEnv.mockReset().mockResolvedValue('C:\\Tools\\npx.exe')
+  commandResolverMock.findExecutableInEnv.mockReset().mockResolvedValue('C:\\Tools\\npx.exe')
+  binaryManagerMock.resolveBinaryPath.mockReset().mockResolvedValue(null)
+})
+
 describe('McpRuntimeService stdio environment', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -253,6 +263,42 @@ describe('McpRuntimeService stdio environment', () => {
     expect(transportEnv?.PATH).toBe('/shell/bin')
     expect(transportEnv?.Path).toBe('server-metadata')
     platformSpy.mockRestore()
+  })
+
+  it('fails clearly when neither npx nor a verified bun binary is available', async () => {
+    commandResolverMock.findExecutableInEnv.mockResolvedValue(null)
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow(
+      'npx not found in PATH and a verified bun binary is not available'
+    )
+    expect(binaryManagerMock.resolveBinaryPath).toHaveBeenCalledWith('bun')
+  })
+
+  it('fails clearly when neither system nor verified uvx is available', async () => {
+    commandResolverMock.findExecutableInEnv.mockResolvedValue(null)
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'uvx',
+      args: ['example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow(
+      'uvx not found in PATH and a verified managed binary is not available'
+    )
+    expect(binaryManagerMock.resolveBinaryPath).toHaveBeenCalledWith('uvx')
   })
 })
 
