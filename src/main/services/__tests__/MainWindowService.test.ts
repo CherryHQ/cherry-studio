@@ -151,6 +151,10 @@ interface MockBrowserWindow extends EventEmitter {
     setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
+    session: {
+      setSpellCheckerEnabled: ReturnType<typeof vi.fn>
+      setSpellCheckerLanguages: ReturnType<typeof vi.fn>
+    }
   }
 }
 
@@ -174,7 +178,11 @@ function createMockWindow(): MockBrowserWindow {
     setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
-    setWindowOpenHandler: vi.fn()
+    setWindowOpenHandler: vi.fn(),
+    session: {
+      setSpellCheckerEnabled: vi.fn(),
+      setSpellCheckerLanguages: vi.fn()
+    }
   }
   return win
 }
