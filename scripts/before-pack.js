@@ -205,6 +205,18 @@ exports.default = async function (context) {
     filters.push(...packagesToExclude)
 
     context.packager.config.files[0].filter = filters
+    const dshBridgeFrom = path.join(projectRoot, 'packages/dsh-bridge')
+    const dshBridgeTo = 'node_modules/@cherrystudio/dsh-bridge'
+    const hasDshBridgeFileSet = context.packager.config.files.some(
+      (fileSet) => typeof fileSet === 'object' && fileSet.from === dshBridgeFrom && fileSet.to === dshBridgeTo
+    )
+    if (!hasDshBridgeFileSet) {
+      context.packager.config.files.push({
+        from: dshBridgeFrom,
+        to: dshBridgeTo,
+        filter: ['package.json', 'dist/index.cjs', 'dist/index.mjs', 'dist/runtime/runtime-manifest.json']
+      })
+    }
   }
 
   const dshPackageExclusions = dshRuntime.dshPackageNames
@@ -258,7 +270,7 @@ exports.default = async function (context) {
       `node_modules/**/node_modules/${packageName}/**`
     ])
   ]
-  context.packager.config.asarUnpack = [
+  const unpackPatterns = [
     ...(Array.isArray(configuredAsarUnpack)
       ? configuredAsarUnpack
       : configuredAsarUnpack
@@ -266,4 +278,6 @@ exports.default = async function (context) {
         : []),
     ...dshAsarUnpack
   ]
+  context.packager.config.asarUnpack = unpackPatterns
+  context.packager.platformSpecificBuildOptions.asarUnpack = unpackPatterns
 }

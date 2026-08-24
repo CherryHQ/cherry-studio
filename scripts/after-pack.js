@@ -35,7 +35,8 @@ function assertDshAsarBoundary(context) {
     platform,
     arch
   })
-  const unpackedRoot = path.join(context.appOutDir, 'resources', 'app.asar.unpacked')
+  const resourcesRoot = context.packager.getResourcesDir(context.appOutDir)
+  const unpackedRoot = path.join(resourcesRoot, 'app.asar.unpacked')
   const runtimeRoot = path.join(unpackedRoot, 'node_modules', '@cherrystudio', 'dsh-bridge', 'dist', 'runtime')
   const manifestPath = path.join(runtimeRoot, 'runtime-manifest.json')
   if (!fs.existsSync(manifestPath)) throw new Error(`Missing unpacked DSH runtime manifest: ${manifestPath}`)
@@ -52,6 +53,7 @@ function assertDshAsarBoundary(context) {
   const nodeModulesRoot = path.join(unpackedRoot, 'node_modules')
   const walk = (directory) => {
     if (!fs.existsSync(directory)) return
+    if (directory === runtimeRoot) return
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const absolute = path.join(directory, entry.name)
       if (entry.isDirectory()) walk(absolute)
