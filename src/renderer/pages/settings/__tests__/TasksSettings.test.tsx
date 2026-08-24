@@ -106,7 +106,7 @@ const channelDataMock = vi.hoisted(() => ({
 
 const translationMock = vi.hoisted(() => ({
   i18n: { language: 'en-US' },
-  t: (key: string, _values?: Record<string, unknown>) => key
+  t: (key: string) => key
 }))
 
 const promptPolishActionsMock = vi.hoisted(() => vi.fn())
