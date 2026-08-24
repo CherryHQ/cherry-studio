@@ -379,8 +379,6 @@ async function deriveConnectionConfigFromSnapshot(
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
-  const cherryCloudSessionGeneration =
-    routeFacts.branch === 'cherry-cloud' ? await application.get('CherryCloudService').getSessionGeneration() : null
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
@@ -388,7 +386,6 @@ async function deriveConnectionConfigFromSnapshot(
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
-    cherryCloudSessionGeneration,
     cwd,
     language: getAppLanguage(),
     instructions: agent.instructions ?? null,

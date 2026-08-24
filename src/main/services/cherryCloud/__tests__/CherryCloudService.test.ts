@@ -15,8 +15,6 @@ const mocks = vi.hoisted(() => ({
   netFetch: vi.fn(),
   notifyDataChange: vi.fn(),
   openExternal: vi.fn(),
-  acquireGatewayLease: vi.fn(),
-  releaseGatewayLease: vi.fn(),
   savedSession: null as Record<string, unknown> | null,
   sessionClear: vi.fn(),
   sessionReplace: vi.fn()
@@ -50,9 +48,6 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
-      if (name === 'ApiGatewayService') {
-        return { acquireLease: mocks.acquireGatewayLease, releaseLease: mocks.releaseGatewayLease }
-      }
       throw new Error(`Unexpected service: ${name}`)
     }
   }
@@ -202,7 +197,6 @@ describe('CherryCloudService', () => {
     mocks.modelCreate.mockReturnValue([])
     mocks.modelBulkUpdate.mockReturnValue([])
     mocks.openExternal.mockResolvedValue(undefined)
-    mocks.acquireGatewayLease.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
   })
 
@@ -670,7 +664,6 @@ describe('CherryCloudService', () => {
 
     try {
       const service = await createSignedInService()
-      await service.ensureAgentGateway()
       mocks.sessionReplace.mockImplementationOnce(() => {
         throw new Error('database is read-only')
       })
@@ -681,7 +674,6 @@ describe('CherryCloudService', () => {
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
       expect(mocks.savedSession).toBeNull()
-      expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
     } finally {
       clock.mockRestore()
     }
@@ -697,8 +689,6 @@ describe('CherryCloudService', () => {
         .mockReturnValueOnce(pendingOldRequest.promise)
         .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
         .mockResolvedValueOnce(jsonResponse({ data: [] }))
-      await service.ensureAgentGateway()
-      const sessionGeneration = await service.getSessionGeneration()
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
@@ -708,9 +698,7 @@ describe('CherryCloudService', () => {
       await expect(oldRequest).resolves.toHaveProperty('status', 401)
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-      expect(await service.getSessionGeneration()).toBe(sessionGeneration)
       expect(mocks.savedSession).toMatchObject({ accessToken: token('H'), refreshToken: token('I') })
-      expect(mocks.releaseGatewayLease).not.toHaveBeenCalled()
       expect(new Headers(mocks.netFetch.mock.calls[2][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
     } finally {
       clock.mockRestore()
@@ -725,8 +713,6 @@ describe('CherryCloudService', () => {
       const pendingOldRequest = deferred<Response>()
       const pendingRefresh = deferred<Response>()
       mocks.netFetch.mockReturnValueOnce(pendingOldRequest.promise).mockReturnValueOnce(pendingRefresh.promise)
-      await service.ensureAgentGateway()
-      const sessionGeneration = await service.getSessionGeneration()
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
@@ -743,9 +729,7 @@ describe('CherryCloudService', () => {
       await refreshFailure
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-      expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
       expect(mocks.savedSession).toBeNull()
-      expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {
       clock.mockRestore()
@@ -876,18 +860,15 @@ describe('CherryCloudService', () => {
   it('clears the Product Session when Cloud API rejects authentication', async () => {
     const service = await createSignedInService()
     mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
-    const sessionGeneration = await service.getSessionGeneration()
 
     await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-    expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
     expect(mocks.savedSession).toBeNull()
   })
 
   it('finishes runtime cleanup when persisted Session removal fails', async () => {
     const service = await createSignedInService()
-    await service.ensureAgentGateway()
     mocks.sessionClear.mockImplementationOnce(() => {
       throw new Error('database is read-only')
     })
@@ -898,7 +879,6 @@ describe('CherryCloudService', () => {
     )
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-    expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
     expect(mocks.broadcast).toHaveBeenLastCalledWith('cherry_cloud.status_changed', {
       phase: 'signed-out',
       displayName: null
@@ -933,44 +913,7 @@ describe('CherryCloudService', () => {
     })
   })
 
-  it('does not install a new Session until the previous gateway cleanup finishes', async () => {
-    const service = await createSignedInService()
-    const pendingLease = deferred<void>()
-    mocks.acquireGatewayLease.mockReturnValueOnce(pendingLease.promise)
-    const oldGateway = service.ensureAgentGateway()
-    await vi.waitFor(() => expect(mocks.acquireGatewayLease).toHaveBeenCalledOnce())
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse({}, 401))
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ ...freeAccountSnapshot, entitlements: [] }))
-      .mockResolvedValueOnce(jsonResponse({ data: [] }))
-
-    const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
-    await vi.waitFor(() => expect(mocks.sessionClear).toHaveBeenCalledOnce())
-    await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[1][1].body as string)
-    const newLogin = service.handleCallback(
-      new URL(
-        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
-      )
-    )
-    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(3))
-    await new Promise<void>((resolve) => setImmediate(resolve))
-
-    const statusBeforeCleanup = await service.getStatus()
-    expect(mocks.sessionReplace).toHaveBeenCalledOnce()
-    pendingLease.resolve()
-    await Promise.all([oldGateway, oldRequest, newLogin])
-
-    expect(statusBeforeCleanup).toEqual({ phase: 'authorizing', displayName: null })
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-    expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
-    await service.ensureAgentGateway()
-    expect(mocks.acquireGatewayLease).toHaveBeenCalledTimes(2)
-  })
-
-  it('expires the Product Session before a warm agent connection can be reused', async () => {
+  it('expires the Product Session and disables its managed models', async () => {
     vi.useFakeTimers()
     try {
       vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
@@ -1001,8 +944,6 @@ describe('CherryCloudService', () => {
         }
       ])
       mocks.modelBulkUpdate.mockClear()
-      await service.ensureAgentGateway()
-      const sessionGeneration = await service.getSessionGeneration()
 
       await vi.advanceTimersByTimeAsync(5_000)
       await Promise.resolve()
@@ -1013,9 +954,7 @@ describe('CherryCloudService', () => {
         phase: 'signed-out',
         displayName: null
       })
-      expect(await service.getSessionGeneration()).toBe(sessionGeneration + 1)
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-      expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
       expect(mocks.savedSession).toBeNull()
       expect(mocks.modelBulkUpdate).toHaveBeenCalledWith([
         expect.objectContaining({
@@ -1027,30 +966,5 @@ describe('CherryCloudService', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('holds one temporary API gateway lease while Cloud Work can use the signed session', async () => {
-    const service = await createSignedInService()
-
-    await Promise.all([service.ensureAgentGateway(), service.ensureAgentGateway()])
-    expect(mocks.acquireGatewayLease).toHaveBeenCalledOnce()
-
-    await service._doStop()
-    expect(mocks.releaseGatewayLease).toHaveBeenCalledOnce()
-  })
-
-  it('does not acquire a gateway lease after the Session is cleared', async () => {
-    const service = await createSignedInService()
-    const pendingRequest = deferred<Response>()
-    mocks.netFetch.mockReturnValueOnce(pendingRequest.promise)
-    const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
-    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
-
-    pendingRequest.resolve(jsonResponse({}, 401))
-    const gateway = service.ensureAgentGateway()
-
-    await oldRequest
-    await expect(gateway).rejects.toThrow('Cherry Cloud account is not signed in')
-    expect(mocks.acquireGatewayLease).not.toHaveBeenCalled()
   })
 })

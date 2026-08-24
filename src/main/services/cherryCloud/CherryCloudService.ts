@@ -3,7 +3,7 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { cherryCloudSessionService } from '@data/services/CherryCloudSessionService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -80,7 +80,6 @@ export class CherryCloudLoginUnavailableError extends Error {
 
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ApiGatewayService'])
 export class CherryCloudService extends BaseService {
   private cloudState = emptyState()
   private lifecycleGeneration = 0
@@ -90,10 +89,7 @@ export class CherryCloudService extends BaseService {
     generation: number
     promise: Promise<{ modelCount: number }>
   } | null = null
-  private agentGatewayLeasePromise: Promise<void> | null = null
-  private hasAgentGatewayLease = false
   private sessionGeneration = 0
-  private sessionCleanupPromise: Promise<void> | null = null
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private pendingExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null
@@ -114,7 +110,7 @@ export class CherryCloudService extends BaseService {
     await this.restoreSession()
   }
 
-  protected async onStop(): Promise<void> {
+  protected onStop(): void {
     this.lifecycleGeneration += 1
     this.loginPromise = null
     this.exchangePromise = null
@@ -125,8 +121,6 @@ export class CherryCloudService extends BaseService {
     this.clearSessionExpiryTimer()
     if (this.cloudState.session) this.sessionGeneration += 1
     this.cloudState = emptyState()
-    await this.sessionCleanupPromise?.catch(() => undefined)
-    await this.releaseAgentGatewayLease()
   }
 
   public async getStatus(): Promise<CherryCloudStatus> {
@@ -268,7 +262,6 @@ export class CherryCloudService extends BaseService {
         },
         exchangeDesktopAuthorizationResponseSchema
       )
-      await this.sessionCleanupPromise?.catch(() => undefined)
       if (this.cloudState.pending !== pending || Date.parse(pending.expiresAt) <= Date.now()) {
         throw new Error('Cherry Cloud authorization is no longer active')
       }
@@ -529,30 +522,6 @@ export class CherryCloudService extends BaseService {
     return this.currentStatus()
   }
 
-  public async ensureAgentGateway(): Promise<void> {
-    const session = await this.activeSession()
-    if (this.cloudState.session !== session) throw new Error('Cherry Cloud account is not signed in')
-    if (this.hasAgentGatewayLease) return
-    if (this.agentGatewayLeasePromise) return this.agentGatewayLeasePromise
-
-    const acquire = application
-      .get('ApiGatewayService')
-      .acquireLease()
-      .then(() => {
-        this.hasAgentGatewayLease = true
-      })
-      .finally(() => {
-        if (this.agentGatewayLeasePromise === acquire) this.agentGatewayLeasePromise = null
-      })
-    this.agentGatewayLeasePromise = acquire
-    return acquire
-  }
-
-  public async getSessionGeneration(): Promise<number> {
-    await this.pruneExpiredState()
-    return this.sessionGeneration
-  }
-
   private async getAuthenticatedJson<T>(path: string, schema: ZodType<T>, headers?: HeadersInit): Promise<T> {
     const response = await this.authenticatedFetch(path, { method: 'GET', headers })
     if (!response.ok) throw new Error(`Cherry Cloud request failed (${response.status})`)
@@ -639,21 +608,10 @@ export class CherryCloudService extends BaseService {
     } catch (error) {
       cleanupError = error
     }
-    const cleanup = this.finishSessionCleanup(cleanupError)
-    this.sessionCleanupPromise = cleanup
-    try {
-      await cleanup
-    } finally {
-      if (this.sessionCleanupPromise === cleanup) this.sessionCleanupPromise = null
-    }
+    this.finishSessionCleanup(cleanupError)
   }
 
-  private async finishSessionCleanup(cleanupError: unknown): Promise<void> {
-    try {
-      await this.releaseAgentGatewayLease()
-    } catch (error) {
-      cleanupError ??= error
-    }
+  private finishSessionCleanup(cleanupError: unknown): void {
     try {
       this.reconcileFreeModels([])
     } catch (error) {
@@ -665,13 +623,6 @@ export class CherryCloudService extends BaseService {
       cleanupError ??= error
     }
     if (cleanupError) throw cleanupError
-  }
-
-  private async releaseAgentGatewayLease(): Promise<void> {
-    await this.agentGatewayLeasePromise?.catch(() => undefined)
-    if (!this.hasAgentGatewayLease) return
-    this.hasAgentGatewayLease = false
-    application.get('ApiGatewayService').releaseLease()
   }
 
   private resolveRequestUrl(path: string): URL {

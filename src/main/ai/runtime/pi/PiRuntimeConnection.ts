@@ -46,6 +46,7 @@ import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBu
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -57,7 +58,11 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
-import { materializePiProviderStream, resolvePiProviderInjectionForSession } from './modelInjection'
+import {
+  materializePiProviderStream,
+  type PiProviderInjection,
+  resolvePiProviderInjectionForSession
+} from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
 import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
 import {
@@ -199,12 +204,20 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    const injection = await resolvePiProviderInjectionForSession(
-      this.input.sessionId,
-      initialSnapshot.provider,
-      initialSnapshot.model,
-      initialSnapshot.enabledApiKeys
-    )
+    let injection: PiProviderInjection
+    try {
+      injection = await resolvePiProviderInjectionForSession(
+        this.input.sessionId,
+        initialSnapshot.provider,
+        initialSnapshot.model,
+        initialSnapshot.enabledApiKeys
+      )
+    } catch (error) {
+      if (error instanceof ApiGatewayNotRunningError) {
+        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+      }
+      throw error
+    }
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
 
