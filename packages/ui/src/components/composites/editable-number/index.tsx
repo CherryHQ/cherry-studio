@@ -175,6 +175,9 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
     }
   }
 
+  // Placeholder text is not a value: decorating it produced "Follow global (80%)%".
+  // A formatter is handed the null itself, so it keeps owning its own output.
+  const isPlaceholder = !formatter && value === null
   const displayValue = formatter ? formatter(value ?? null) : (value ?? placeholder)
   const shouldRenderDisplayValue = Boolean(formatter || prefix || suffix)
   const inputAlignClass = align === 'start' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right'
@@ -229,9 +232,9 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
           aria-hidden="true"
           style={style}>
           <span className="truncate">
-            {prefix}
+            {!isPlaceholder && prefix}
             {displayValue}
-            {suffix}
+            {!isPlaceholder && suffix}
           </span>
         </div>
       )}

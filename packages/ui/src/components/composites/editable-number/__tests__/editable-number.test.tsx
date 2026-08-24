@@ -100,4 +100,20 @@ describe('EditableNumber', () => {
     fireEvent.focus(screen.getByRole('spinbutton'))
     expect(screen.queryByText(/rounds/)).not.toBeInTheDocument()
   })
+
+  // The placeholder is prose, not a value: decorating it rendered
+  // "Follow global (80%)%" on an empty three-state field.
+  it('does not decorate the placeholder with prefix/suffix', () => {
+    render(<EditableNumber value={null} prefix="$ " suffix="%" placeholder="Follow global (80%)" aria-label="P" />)
+
+    expect(screen.getByText('Follow global (80%)')).toBeInTheDocument()
+    expect(screen.queryByText(/%$/)).toBeNull()
+    expect(screen.queryByText(/^\$/)).toBeNull()
+  })
+
+  it('still decorates a real value of zero', () => {
+    render(<EditableNumber value={0} suffix="%" placeholder="Follow global" aria-label="P" />)
+
+    expect(screen.getByText(/0%/)).toBeInTheDocument()
+  })
 })
