@@ -10,6 +10,18 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('PaintingFieldRenderer range contract', () => {
+  it('keeps range numeric inputs compact at w-12 and h-8', () => {
+    render(
+      <PaintingFieldRenderer
+        item={{ type: 'slider', key: 'guidanceScale', min: 1, max: 20, step: 0.1, initialValue: 16.5 }}
+        painting={{ guidanceScale: 16.5 }}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('spinbutton')).toHaveClass('w-12', 'h-8')
+  })
+
   it('rejects a typed numImages of 2.5 by snapping onto step 1', () => {
     const onChange = vi.fn()
     render(

@@ -7,9 +7,9 @@ import type { BaseConfigItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'
 import { resolveOptions } from './resolveOptions'
 
-/** Compact enough for the 300px params popover; wide enough for values like `20.0`. */
+/** Compact enough for the 300px params popover; wide enough for values like `16.5`. */
 const RANGE_VALUE_INPUT_CLASS =
-  'h-8 min-h-8 w-14 shrink-0 px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+  'h-8 min-h-8 w-12 shrink-0 px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
 export type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 
