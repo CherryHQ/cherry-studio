@@ -34,6 +34,14 @@ const localModel = vi.hoisted(() => ({ isLocalModelReady: vi.fn(() => true) }))
 vi.mock('@main/services/localModel', () => localModel)
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
+const fileProcessing = vi.hoisted(() => ({
+  processorId: 'local-paddleocr',
+  ocrImageBytes: vi.fn<() => Promise<string>>()
+}))
+vi.mock('@main/features/fileProcessing/config/resolveProcessorConfig', () => ({
+  resolveProcessorConfigByFeature: vi.fn(() => ({ id: fileProcessing.processorId }))
+}))
+
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
 
 vi.mock('@main/ai/inference/ocrModelPaths', () => ({
@@ -191,7 +199,8 @@ const container = vi.hoisted(() => {
       MediaProtocolService: mediaProtocolService,
       WindowManager: windowManager,
       IpcApiService: ipcApiService,
-      OcrInferenceService: ocrInferenceService
+      OcrInferenceService: ocrInferenceService,
+      FileProcessingService: { ocrImageBytes: fileProcessing.ocrImageBytes }
     },
     preferenceService,
     mediaProtocolService,
@@ -205,6 +214,8 @@ const container = vi.hoisted(() => {
       createdListeners.length = 0
       openCalls.length = 0
       mediaSeq = 0
+      fileProcessing.processorId = 'local-paddleocr'
+      fileProcessing.ocrImageBytes.mockReset()
     }
   }
 })
@@ -1215,6 +1226,33 @@ describe('ScreenshotOverlayService', () => {
 
       expect(result).toEqual({ status: 'unavailable' })
       expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
+    })
+
+    it('uses the configured non-Paddle OCR processor without requiring local model weights', async () => {
+      fileProcessing.processorId = 'system'
+      fileProcessing.ocrImageBytes.mockResolvedValue('First line\nSecond line')
+      localModel.isLocalModelReady.mockReturnValue(false)
+      singleDisplaySetup()
+
+      await service.startCapture()
+      const initData = initDataOf('overlay-0-0')
+      const result = await service.recognizeText('overlay-0-0', initData.mediaId, {
+        x: 10,
+        y: 20,
+        width: 200,
+        height: 80
+      })
+
+      expect(initData.ocrAvailable).toBe(true)
+      expect(fileProcessing.ocrImageBytes).toHaveBeenCalledOnce()
+      expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        status: 'ok',
+        lines: [
+          [{ text: 'First line', box: { x: 0, y: 0, width: 200, height: 40 }, confidence: 1 }],
+          [{ text: 'Second line', box: { x: 0, y: 40, width: 200, height: 40 }, confidence: 1 }]
+        ]
+      })
     })
 
     it('trims a region whose extent overshoots the capture', async () => {

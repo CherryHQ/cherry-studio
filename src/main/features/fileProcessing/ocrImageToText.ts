@@ -10,9 +10,14 @@
  * `image_to_text` processor (local Tesseract/System, or a remote OCR).
  */
 
+import { randomUUID } from 'node:crypto'
+import { rm, writeFile } from 'node:fs/promises'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileHandle } from '@shared/data/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
@@ -58,6 +63,20 @@ export async function ocrImageToText(file: FileHandle, signal?: AbortSignal): Pr
   const text = await runOcr(file, signal)
   if (cacheKey) cache.set(cacheKey, text, CACHE_TTL_MS)
   return text
+}
+
+/** OCR transient image bytes through the same configured processor as file-backed callers. */
+export async function ocrImageBytes(imageBytes: Uint8Array, signal?: AbortSignal): Promise<string> {
+  const tempPath = AbsoluteFilePathSchema.parse(application.getPath('app.temp', `cherry-ocr-${randomUUID()}.png`))
+
+  await writeFile(tempPath, imageBytes, { signal })
+  try {
+    return await ocrImageToText(createFilePathHandle(tempPath), signal)
+  } finally {
+    await rm(tempPath, { force: true }).catch((error) => {
+      logger.warn('Failed to remove transient OCR image', { error: String(error) })
+    })
+  }
 }
 
 async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {

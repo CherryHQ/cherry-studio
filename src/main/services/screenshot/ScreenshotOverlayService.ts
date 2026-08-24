@@ -7,6 +7,7 @@ import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
+import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing'
 import { t } from '@main/i18n'
 import { isLocalModelReady } from '@main/services/localModel'
 import { MediaKind } from '@main/services/mediaProtocol'
@@ -17,7 +18,7 @@ import {
   requestScreenCapturePermission,
   type ScreenCapturePermissionStatus
 } from '@main/utils/screenCapturePermission'
-import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
+import type { OcrRecognitionResult, OcrWord } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 import dayjs from 'dayjs'
@@ -96,7 +97,7 @@ interface OcrRegion {
  */
 @Injectable('ScreenshotOverlayService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'MediaProtocolService', 'OcrInferenceService'])
+@DependsOn(['WindowManager', 'MediaProtocolService', 'OcrInferenceService', 'FileProcessingService'])
 export class ScreenshotOverlayService extends BaseService {
   /** Overlay window ids of the live session — one per display that matched a capture. */
   private overlayWindowIds: WindowId[] = []
@@ -260,7 +261,7 @@ export class ScreenshotOverlayService extends BaseService {
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
-        const ocrAvailable = isLocalModelReady('ocr')
+        const ocrAvailable = this.isConfiguredOcrAvailable()
 
         // Which overlay covers which display, for the snap-target push below.
         const snapOverlays: { windowId: WindowId; display: Display }[] = []
@@ -450,9 +451,10 @@ export class ScreenshotOverlayService extends BaseService {
     // otherwise let display A ask for OCR of display B's capture.
     if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-    // Re-checked per request, never cached from initData: the user can delete the
-    // model in settings while the overlay is open.
-    if (!isLocalModelReady('ocr')) return { status: 'unavailable' }
+    // Re-checked per request, never cached from initData: the user can change the
+    // processor or remove its local model while the overlay is open.
+    const processorId = this.resolveConfiguredOcrProcessorId()
+    if (!processorId) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }
@@ -477,22 +479,57 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const result = await application
-        .get('OcrInferenceService')
-        .recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })
+      const lines =
+        processorId === 'local-paddleocr'
+          ? (await application.get('OcrInferenceService').recognize(ocrModelPaths(), { kind: 'bytes', imageBytes }))
+              .lines
+          : this.createPlainTextLines(await application.get('FileProcessingService').ocrImageBytes(imageBytes), clamped)
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-      return { status: 'ok', lines: result.lines }
+      return { status: 'ok', lines }
     } catch (error) {
       // Rethrown so the overlay shows its error state; logged here because the IPC
       // transport only serializes the error to the renderer, it never records it.
       logger.error('Region OCR failed', error as Error)
       throw error
     }
+  }
+
+  private resolveConfiguredOcrProcessorId(): string | null {
+    try {
+      const processorId = resolveProcessorConfigByFeature('image_to_text').id
+      if (processorId === 'local-paddleocr' && !isLocalModelReady('ocr')) return null
+      return processorId
+    } catch (error) {
+      logger.debug('Configured screenshot OCR processor is unavailable', { error: String(error) })
+      return null
+    }
+  }
+
+  private isConfiguredOcrAvailable(): boolean {
+    return this.resolveConfiguredOcrProcessorId() !== null
+  }
+
+  /** Providers without word geometry still yield a selectable, copyable line overlay. */
+  private createPlainTextLines(text: string, region: OcrRegion): OcrWord[][] {
+    const textLines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (textLines.length === 0) return []
+
+    const lineHeight = region.height / textLines.length
+    return textLines.map((line, index) => [
+      {
+        text: line,
+        box: { x: 0, y: index * lineHeight, width: region.width, height: lineHeight },
+        confidence: 1
+      }
+    ])
   }
 
   /**
