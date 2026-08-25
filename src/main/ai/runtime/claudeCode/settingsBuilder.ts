@@ -300,6 +300,17 @@ export async function buildClaudeCodeSessionSettings(
     // Support loads only Cherry-owned plugin configuration. AGENTS.md context is injected above
     // by AgentsMdLoader, so disabling filesystem settings does not remove workspace instructions.
     settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
+    sandbox: {
+      enabled: true,
+      failIfUnavailable: true,
+      autoAllowBashIfSandboxed: false,
+      allowUnsandboxedCommands: false,
+      filesystem: {
+        disabled: false,
+        // Bash owns only the workspace. Agent identity and memory stay on structured file tools.
+        denyWrite: [agentDataPath]
+      }
+    },
     settings: {
       autoCompactEnabled: true,
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
