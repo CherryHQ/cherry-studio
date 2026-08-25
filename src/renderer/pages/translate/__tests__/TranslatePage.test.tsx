@@ -188,13 +188,17 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 const smoothStreamOptions = vi.hoisted(() => ({
   current: null as {
     onUpdate: (text: string) => void
-    onSettled?: () => void
+    onSettled?: (text: string) => void
     streamDone?: boolean
   } | null
 }))
 
 vi.mock('@renderer/hooks/useSmoothStream', () => ({
-  useSmoothStream: (options: { onUpdate: (text: string) => void; onSettled?: () => void; streamDone?: boolean }) => {
+  useSmoothStream: (options: {
+    onUpdate: (text: string) => void
+    onSettled?: (text: string) => void
+    streamDone?: boolean
+  }) => {
     smoothStreamOptions.current = options
     return {
       reset: (text = '') => options.onUpdate(text),
@@ -1726,9 +1730,10 @@ describe('TranslatePage', () => {
       })
     }
 
-    const settle = () => {
+    const settle = (text: string) => {
       act(() => {
-        smoothStreamOptions.current?.onSettled?.()
+        MockUseCacheUtils.setCacheValue('translate.output', text)
+        smoothStreamOptions.current?.onSettled?.(text)
       })
     }
 
@@ -1757,9 +1762,7 @@ describe('TranslatePage', () => {
 
       setOutput('ab')
       rerender(<TranslatePage />)
-      setOutput('abc')
-      rerender(<TranslatePage />)
-      settle()
+      settle('abc')
 
       await act(async () => {})
       expect(mockShikiMarkdownIt).toHaveBeenCalledTimes(1)
@@ -1781,9 +1784,7 @@ describe('TranslatePage', () => {
       )
 
       const { rerender } = render(<TranslatePage />)
-      setOutput('old output')
-      rerender(<TranslatePage />)
-      settle()
+      settle('old output')
       expect(mockShikiMarkdownIt).toHaveBeenCalledTimes(1)
 
       // a new translation starts before the old parse resolves
@@ -1825,9 +1826,7 @@ describe('TranslatePage', () => {
       mockShikiMarkdownIt.mockResolvedValue('<p>rendered A</p>')
 
       const { rerender } = render(<TranslatePage />)
-      setOutput('output A')
-      rerender(<TranslatePage />)
-      settle()
+      settle('output A')
 
       await screen.findByText('<p>rendered A</p>', undefined, { timeout: 3000 })
 

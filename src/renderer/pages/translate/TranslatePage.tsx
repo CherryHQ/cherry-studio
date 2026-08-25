@@ -241,17 +241,13 @@ const TranslatePage: FC = () => {
   const [renderedFor, setRenderedFor] = useState<string>('')
   const markdownRenderSeq = useRef(0)
   const settledTextRef = useRef('')
-  const translateOutputRef = useRef(translateOutput)
-  useEffect(() => {
-    translateOutputRef.current = translateOutput
-  })
   const [settledTick, setSettledTick] = useState(0)
   const { reset: smoothResetBase, update: smoothUpdate } = useSmoothStream({
     onUpdate: setTranslateOutput,
     streamDone: !isTranslating,
     initialText: translateOutput,
-    onSettled: () => {
-      settledTextRef.current = translateOutputRef.current
+    onSettled: (text) => {
+      settledTextRef.current = text
       setSettledTick((tick) => tick + 1)
     }
   })
@@ -658,15 +654,13 @@ const TranslatePage: FC = () => {
       setRenderedFor('')
       return
     }
-    const text = translateOutputRef.current
+    const text = settledTextRef.current
     // Only the settle may start a parse. Toggling Markdown or the Shiki
     // theme mid-stream would otherwise freeze a partial snapshot into HTML
     // while the stream is still playing out.
-    if (!text || text !== settledTextRef.current) {
-      if (!text) {
-        setRenderedMarkdown('')
-        setRenderedFor('')
-      }
+    if (!text) {
+      setRenderedMarkdown('')
+      setRenderedFor('')
       return
     }
     const seq = ++markdownRenderSeq.current
