@@ -47,7 +47,7 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
     await modelId.fill(model)
     await page.getByRole('button', { name: 'More Settings', exact: true }).click()
     await page.getByRole('button', { name: 'Embedding', exact: true }).click()
-    await modelId.press('Enter')
+    await page.getByRole('dialog', { name: 'Add Model' }).getByRole('button', { name: 'Add Model' }).click()
   }
   await expect(page.getByText(model, { exact: true })).toBeVisible()
 }

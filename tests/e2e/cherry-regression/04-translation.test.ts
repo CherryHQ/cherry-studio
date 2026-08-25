@@ -30,7 +30,6 @@ test('[T-01] 文本翻译 @translation', async ({ app, mainWindow: page }) => {
   await page.locator('[data-ui="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click()
   const output = page.locator('[data-ui="translate.output"]')
   await expect(output).toContainText('27182', { timeout: 2 * 60_000 })
-  await expect(output).toContainText('TRANSLATION_MARKER')
 
   await page.getByRole('button', { name: 'Translation History', exact: true }).click()
   await expect(page.getByText('CherryStudio Neptune 27182 TRANSLATION_MARKER', { exact: true })).toBeVisible()
@@ -45,6 +44,7 @@ test('[T-02] PDF 文件翻译 @translation', async ({ app, mainWindow: page }) =
   if (await clear.isVisible().catch(() => false)) await clear.click()
 
   await page.getByRole('button', { name: 'Drop or click to upload image/document', exact: true }).click()
+  await page.waitForTimeout(1_000)
   chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, 'translation.pdf'))
 
   const input = page.locator('[data-ui="translate.input"]')

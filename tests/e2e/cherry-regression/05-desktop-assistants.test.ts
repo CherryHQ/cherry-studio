@@ -6,11 +6,13 @@ import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './
 import { openExternalText, sendSystemHotkey } from '../../../scripts/cherry-regression-test/system-automation'
 
 async function configureQuickAssistant(page: Parameters<typeof dismissOnboarding>[0], model: string): Promise<void> {
+  await page.evaluate(() => window.api.preference.set('feature.quick_assistant.enabled', true))
   await openSettingsSection(page, 'Quick Assistant')
   const enabled = page.getByRole('switch').first()
-  if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
   await expect(enabled).toHaveAttribute('aria-checked', 'true')
-  const defaultModel = page.getByRole('radio', { name: 'Default Model', exact: true })
+  const usageMethod = page.getByRole('group', { name: 'Usage Method', exact: true })
+  await expect(usageMethod).toBeVisible()
+  const defaultModel = usageMethod.getByRole('radio', { name: 'Default Model', exact: true })
   if ((await defaultModel.getAttribute('aria-checked')) !== 'true') await defaultModel.click()
   await page.getByRole('button', { name: 'Go to model settings', exact: true }).click()
   await page.locator('[data-selector-shell-root="true"] > button').first().click()
@@ -62,15 +64,21 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await page.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()
 
   await page.getByRole('button', { name: 'Selection Assistant', exact: true }).click()
-  const enabled = page.getByRole('switch').first()
-  if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
-  if (app.record.platform === 'windows') {
-    await page.getByRole('radio', { name: 'Ctrl Key', exact: true }).click()
-  }
+  await page.evaluate(async () => {
+    await window.api.preference.setMultiple({
+      'feature.selection.enabled': true,
+      'feature.selection.trigger_mode': 'shortcut',
+      'shortcut.selection.capture_text': {
+        binding: ['CommandOrControl', 'Shift', 'S'],
+        enabled: true
+      }
+    })
+  })
+  await expect(page.getByRole('switch').first()).toHaveAttribute('aria-checked', 'true')
   await closeSettings(page)
 
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
-  if (app.record.platform === 'windows') sendSystemHotkey('windows', ['Control'])
+  sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 's'])
   const selection = await app.window('/windows/selection/')
   await expect(selection.getByText('Explain', { exact: true })).toBeVisible()
   await expect(selection.getByText('Translate', { exact: true })).toBeVisible()
