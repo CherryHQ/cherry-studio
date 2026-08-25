@@ -1015,7 +1015,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('auto-saves token limit presets selected from the edit drawer', async () => {
+  it('auto-saves preset and manually entered token limits from the edit drawer', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
@@ -1058,6 +1058,38 @@ describe('Model drawers', () => {
         'openai',
         'preset-model',
         expect.objectContaining({ maxOutputTokens: 65536 })
+      )
+    })
+
+    const contextInput = screen.getByLabelText('Context window')
+    const maxInput = screen.getByLabelText('Max input tokens')
+    const maxOutput = screen.getByLabelText('Max output tokens')
+
+    await user.clear(contextInput)
+    await user.type(contextInput, '777777')
+    await user.click(maxInput)
+    await user.clear(maxInput)
+    await user.type(maxInput, '666666')
+    await user.click(maxOutput)
+    await user.clear(maxOutput)
+    await user.type(maxOutput, '555555')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ contextWindow: 777777 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxInputTokens: 666666 })
+      )
+      expect(updateModelMock).toHaveBeenCalledWith(
+        'openai',
+        'preset-model',
+        expect.objectContaining({ maxOutputTokens: 555555 })
       )
     })
   })
