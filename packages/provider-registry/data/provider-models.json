@@ -17648,6 +17648,16 @@
       "providerId": "modelscope"
     },
     {
+      "apiModelId": "kimi-k2.5",
+      "modelId": "kimi-k2-5",
+      "parameterSupport": {
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot"
+    },
+    {
       "apiModelId": "kimi-k2.6",
       "modelId": "kimi-k2-6",
       "providerId": "moonshot",
@@ -17694,6 +17704,11 @@
     },
     {
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "topP": {
+          "supported": false
+        }
+      },
       "providerId": "moonshot",
       "reasoningContracts": {
         "openai-chat-completions": {
