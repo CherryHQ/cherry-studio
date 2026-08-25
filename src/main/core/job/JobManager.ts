@@ -15,7 +15,7 @@ import {
 } from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { isTerminalStatus, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
@@ -1913,6 +1913,19 @@ export class JobManager extends BaseService {
     }
 
     const persisted = jobService.getById(jobId)
+
+    // `setTerminalTx` only writes a non-terminal row, so a mismatch here means an
+    // earlier finalize (a forced cancel) already won — it published and resolved the
+    // waiters, and repeating that would emit a second contradictory state.
+    if (!txFailed && persisted && persisted.status !== status && isTerminalStatus(persisted.status)) {
+      logger.warn('finalizeJob: already finalized — dropping the late terminal state', {
+        jobId,
+        attempted: status,
+        kept: persisted.status
+      })
+      return
+    }
+
     const snapshot: JobSnapshot | null = persisted ?? (txFailed ? this.synthesizeFailedSnapshot(jobId, txFailed) : null)
 
     if (!snapshot) {

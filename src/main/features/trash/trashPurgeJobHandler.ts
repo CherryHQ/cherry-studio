@@ -158,6 +158,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
         logger.warn('File orphan sweep did not reclaim everything', { outcome: report.outcome })
       }
     } catch (error) {
+      if (ctx.signal.aborted) throw error
       reclaimed = false
       logger.warn('File orphan sweep failed — residue retried next purge run', { error })
     }
@@ -165,12 +166,14 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
 
     ctx.signal.throwIfAborted()
     try {
-      const { failedDrivers } = await sweepAgentOrphans()
+      const { failedDrivers } = await sweepAgentOrphans(ctx.signal)
       if (failedDrivers.length > 0) {
         reclaimed = false
         logger.warn('Agent orphan sweep left runtime residue', { failedDrivers })
       }
     } catch (error) {
+      // A cancel is not residue — let it surface so the job settles as cancelled.
+      if (ctx.signal.aborted) throw error
       reclaimed = false
       logger.warn('Agent orphan sweep failed — residue retried next purge run', { error })
     }

@@ -47,7 +47,7 @@ export interface AgentSweepReport {
  * Every pass is freshness-gated: the keep-sets are one snapshot, so a dir created
  * before its claiming row commits would otherwise read as an orphan and be lost.
  */
-export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
+export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSweepReport> {
   // Same stand-aside as the file sweeps: a staged restore puts agent dirs on disk
   // that the live DB does not claim yet — exactly what this sweep would delete.
   if (hasPendingRestore()) {
@@ -80,6 +80,9 @@ export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
   let workspaceDirs = 0
 
   for (const entry of await listEntries(agentsRoot)) {
+    // Per entry: the roots can hold thousands of dirs, and a recursive rm is slow
+    // enough that a cancel arriving mid-walk must not wait for the whole tree.
+    signal?.throwIfAborted()
     if (!entry.isDirectory() || !AGENT_DIR_NAME.test(entry.name) || agentIds.has(entry.name)) continue
     if (await reclaim(path.resolve(agentsRoot, entry.name), removed, options)) agentDirs++
   }
@@ -88,6 +91,7 @@ export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
     if (!dateEntry.isDirectory()) continue
     const dateDir = path.resolve(workspacesRoot, dateEntry.name)
     for (const sessionEntry of await listEntries(dateDir)) {
+      signal?.throwIfAborted()
       if (!sessionEntry.isDirectory()) continue
       const sessionDir = path.resolve(dateDir, sessionEntry.name)
       if (claimedWorkspaces.has(sessionDir)) continue
@@ -96,7 +100,8 @@ export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
     await removeIfEmpty(dateDir, removed)
   }
 
-  const { runtimeSessions, failedDrivers } = await reclaimRuntimeSessions(removed, options)
+  signal?.throwIfAborted()
+  const { runtimeSessions, failedDrivers } = await reclaimRuntimeSessions(removed, options, signal)
 
   logger.info('agent-orphan-sweep', { event: 'agent-orphan-sweep', agentDirs, workspaceDirs, runtimeSessions })
   return { removed, failedDrivers }
@@ -109,7 +114,8 @@ export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
  */
 async function reclaimRuntimeSessions(
   removed: string[],
-  options: OrphanSessionReclaimOptions
+  options: OrphanSessionReclaimOptions,
+  signal?: AbortSignal
 ): Promise<{ runtimeSessions: Record<string, number>; failedDrivers: string[] }> {
   const drivers = runtimeDriverRegistry.getAgentSessionDrivers().filter((driver) => driver.reclaimOrphanSessions)
   if (drivers.length === 0) return { runtimeSessions: {}, failedDrivers: [] }
@@ -119,6 +125,7 @@ async function reclaimRuntimeSessions(
   const failedDrivers: string[] = []
 
   for (const driver of drivers) {
+    signal?.throwIfAborted()
     try {
       const result = await driver.reclaimOrphanSessions!(keptResumeTokens, options)
       removed.push(...result.removed)
