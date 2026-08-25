@@ -201,7 +201,7 @@ vi.mock('../MessageListProvider', () => ({
     }
   },
   useMessageListSelection: () => mocks.messageListSelection(),
-  useMessageListEditingId: () => mocks.messageListEditingId(),
+  useIsMessageEditing: (messageId: string) => mocks.messageListEditingId() === messageId,
   useMessageListMeta: () => ({
     userProfile: { avatar: '' }
   }),

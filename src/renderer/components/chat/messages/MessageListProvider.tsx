@@ -1,5 +1,5 @@
 import type { Context, ReactNode } from 'react'
-import { createContext, use, useMemo } from 'react'
+import { createContext, use, useCallback, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
 import type {
@@ -82,10 +82,55 @@ const MessageListRenderConfigContext = createContext<MessageRenderConfig | null>
 const MessageListSelectionContext = createContext<MessageListSelectionState | undefined | null>(null)
 const MessageListUiStaticContext = createContext<MessageListUiStaticValue | null>(null)
 const MessageListUiSelectorsContext = createContext<MessageListUiSelectorsValue | null>(null)
-const MessageListEditingContext = createContext<string | null>(null)
+
+interface MessageListEditingStore {
+  isEditing: (messageId: string) => boolean
+  setEditingMessageId: (messageId: string | null) => void
+  subscribe: (messageId: string, listener: () => void) => () => void
+}
+
+const createMessageListEditingStore = (initialMessageId: string | null): MessageListEditingStore => {
+  let editingMessageId = initialMessageId
+  const listenersByMessageId = new Map<string, Set<() => void>>()
+
+  return {
+    isEditing: (messageId) => editingMessageId === messageId,
+    setEditingMessageId: (messageId) => {
+      if (messageId === editingMessageId) return
+
+      const previousMessageId = editingMessageId
+      editingMessageId = messageId
+
+      if (previousMessageId) {
+        listenersByMessageId.get(previousMessageId)?.forEach((listener) => listener())
+      }
+      if (messageId) {
+        listenersByMessageId.get(messageId)?.forEach((listener) => listener())
+      }
+    },
+    subscribe: (messageId, listener) => {
+      const listeners = listenersByMessageId.get(messageId) ?? new Set<() => void>()
+      listeners.add(listener)
+      listenersByMessageId.set(messageId, listeners)
+
+      return () => {
+        listeners.delete(listener)
+        if (listeners.size === 0) listenersByMessageId.delete(messageId)
+      }
+    }
+  }
+}
+
+const MessageListEditingStoreContext = createContext<MessageListEditingStore | null>(null)
 
 export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
   const { state, actions, meta } = value
+  const editingMessageId = state.editingMessageId ?? null
+  const [editingStore] = useState(() => createMessageListEditingStore(editingMessageId))
+
+  useLayoutEffect(() => {
+    editingStore.setEditingMessageId(editingMessageId)
+  }, [editingMessageId, editingStore])
 
   const data = useMemo<MessageListDataValue>(
     () => ({
@@ -162,9 +207,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
                 <MessageListSelectionContext value={state.selection}>
                   <MessageListUiStaticContext value={uiStatic}>
                     <MessageListUiSelectorsContext value={uiSelectors}>
-                      <MessageListEditingContext value={state.editingMessageId ?? null}>
-                        {children}
-                      </MessageListEditingContext>
+                      <MessageListEditingStoreContext value={editingStore}>{children}</MessageListEditingStoreContext>
                     </MessageListUiSelectorsContext>
                   </MessageListUiStaticContext>
                 </MessageListSelectionContext>
@@ -263,9 +306,17 @@ export const useMessageListSelection = (): MessageListSelectionState | undefined
   return value
 }
 
-/** Id of the message currently being edited (null when none). Non-throwing: "not editing"
- * is a valid state, so embeds that never set it simply get null. */
-export const useMessageListEditingId = (): string | null => use(MessageListEditingContext)
+/** Whether this message is currently being edited. Embeds without editing state return false. */
+export const useIsMessageEditing = (messageId: string): boolean => {
+  const store = use(MessageListEditingStoreContext)
+  const subscribe = useCallback(
+    (listener: () => void) => store?.subscribe(messageId, listener) ?? (() => {}),
+    [messageId, store]
+  )
+  const getSnapshot = useCallback(() => store?.isEditing(messageId) ?? false, [messageId, store])
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
 
 /**
  * Back-compat hook: merged static + selectors UI value. Required variant

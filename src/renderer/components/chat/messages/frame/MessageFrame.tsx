@@ -15,8 +15,8 @@ import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePar
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
+  useIsMessageEditing,
   useMessageListActions,
-  useMessageListEditingId,
   useMessageListMeta,
   useMessageListSelection,
   useMessageListUiSelectors,
@@ -84,14 +84,13 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const messageParts = useMessageParts(message.id)
   const [isMessageMenuOpen, setIsMessageMenuOpen] = useState(false)
-  const editingMessageId = useMessageListEditingId()
+  const isEditing = useIsMessageEditing(message.id)
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
   const isAssistantMessage = message.role === 'assistant'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =
     canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
-  const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
       if (canStartEditing && messageId === message.id) {
