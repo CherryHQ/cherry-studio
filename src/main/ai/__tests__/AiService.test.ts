@@ -1,7 +1,7 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ListModelsModule from '../provider/listModels'
 import { makeProvider } from './fixtures/provider'
@@ -2173,6 +2173,10 @@ describe('AiService.listModels', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('returns the shipped registry catalog for a registry-sourced provider without calling the API', async () => {
     const service = createService()
     const registryModels = [{ id: 'claude-code::haiku' }, { id: 'claude-code::sonnet' }]
@@ -2200,11 +2204,36 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'openai' })
 
     expect(result).toBe(apiModels)
-    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, expect.any(AbortSignal), {
+      throwOnError: undefined
+    })
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'openai',
       presetProviderId: null
     })
+  })
+
+  it('aborts and rejects a model list request that exceeds the timeout', async () => {
+    vi.useFakeTimers()
+    const service = createService()
+    const provider = { id: 'openai', modelListSource: 'api' }
+    let requestSignal: AbortSignal | undefined
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockImplementation((_provider: unknown, signal: AbortSignal) => {
+      requestSignal = signal
+      return new Promise<never>((_, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+
+    const request = service.listModels({ providerId: 'openai', throwOnError: true })
+    const rejection = expect(request).rejects.toThrow('Model list request timeout')
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    await rejection
+
+    expect(requestSignal?.aborted).toBe(true)
+    expect(mockListProviderRegistryModels).not.toHaveBeenCalled()
   })
 
   it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {

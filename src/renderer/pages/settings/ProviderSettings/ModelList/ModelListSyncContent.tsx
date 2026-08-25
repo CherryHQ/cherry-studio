@@ -17,6 +17,8 @@ interface ModelListSyncContentCommonProps {
   isApplying: boolean
   disabled?: boolean
   toolbarAction?: ReactNode
+  hideEmptyFilters?: boolean
+  flattenSingleGroup?: boolean
 }
 
 interface ModelListSyncManageContentProps extends ModelListSyncContentCommonProps {
@@ -39,7 +41,16 @@ type ModelListSyncContentProps = ModelListSyncManageContentProps | ModelListSync
 
 export default function ModelListSyncContent(props: ModelListSyncContentProps) {
   const { t } = useTranslation()
-  const { provider, view, isLoading, isApplying, disabled = false, toolbarAction } = props
+  const {
+    provider,
+    view,
+    isLoading,
+    isApplying,
+    disabled = false,
+    toolbarAction,
+    hideEmptyFilters = false,
+    flattenSingleGroup = false
+  } = props
   const interactionDisabled = disabled || isLoading || isApplying
   const searchDisabled = disabled || isLoading || (props.mode === 'select' && isApplying)
 
@@ -76,6 +87,7 @@ export default function ModelListSyncContent(props: ModelListSyncContentProps) {
           value={view.actualFilter}
           onValueChange={(next) => view.setActualFilter(next as typeof view.actualFilter)}
           counts={view.typeCounts}
+          hideEmptyFilters={hideEmptyFilters}
           extraTabs={
             props.mode === 'manage' && view.staleModelIdSet.size > 0
               ? [
@@ -103,6 +115,7 @@ export default function ModelListSyncContent(props: ModelListSyncContentProps) {
           isLoading={isLoading}
           isApplying={interactionDisabled}
           searchActive={Boolean(view.searchText.trim())}
+          flattenSingleGroup={flattenSingleGroup}
           onAddModels={props.onAddModels}
           onRemoveModels={props.onRemoveModels}
         />
@@ -116,6 +129,7 @@ export default function ModelListSyncContent(props: ModelListSyncContentProps) {
           isLoading={isLoading}
           isApplying={interactionDisabled}
           searchActive={Boolean(view.searchText.trim())}
+          flattenSingleGroup={flattenSingleGroup}
           onSelectModels={props.onSelectModels}
         />
       )}

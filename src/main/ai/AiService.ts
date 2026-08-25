@@ -84,6 +84,7 @@ const logger = loggerService.withContext('AiService')
  * throughput for far fewer 429s.
  */
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
+const MODEL_LIST_TIMEOUT_MS = 30_000
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
@@ -1108,7 +1109,25 @@ export class AiService extends BaseService {
     // Union the live API list with the registry catalog so vendor-exclusive models
     // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
     // still surface for the user to enable.
-    const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const controller = new AbortController()
+    const timeoutError = new Error('Model list request timeout')
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        controller.abort(timeoutError)
+        reject(timeoutError)
+      }, MODEL_LIST_TIMEOUT_MS)
+    })
+
+    let remoteModels: Partial<Model>[]
+    try {
+      remoteModels = await Promise.race([
+        listModelsFromProvider(provider, controller.signal, { throwOnError: request.throwOnError }),
+        timeoutPromise
+      ])
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
       presetProviderId: provider.presetProviderId ?? null

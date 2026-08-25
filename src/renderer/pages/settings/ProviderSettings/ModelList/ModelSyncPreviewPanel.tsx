@@ -22,6 +22,7 @@ interface ModelSyncPreviewPanelCommonProps {
   isLoading: boolean
   isApplying: boolean
   searchActive?: boolean
+  flattenSingleGroup?: boolean
 }
 
 interface ModelSyncPreviewPanelManageProps extends ModelSyncPreviewPanelCommonProps {
@@ -220,10 +221,28 @@ const SelectModelRow = memo(function SelectModelRow({
 
 export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps) {
   const { t } = useTranslation()
-  const { provider, modelGroups, localModelIds, isLoading, isApplying, searchActive = false } = props
+  const {
+    provider,
+    modelGroups,
+    localModelIds,
+    isLoading,
+    isApplying,
+    searchActive = false,
+    flattenSingleGroup = false
+  } = props
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const entries = useMemo(() => Object.entries(modelGroups).filter(([, models]) => models.length > 0), [modelGroups])
   const virtualRows = useMemo<ManageVirtualRow[]>(() => {
+    if (flattenSingleGroup && entries.length === 1) {
+      return entries[0][1].map(
+        (model): ManageVirtualRow => ({
+          key: `model:${model.id}`,
+          type: 'model',
+          model
+        })
+      )
+    }
+
     return entries.flatMap(([groupName, models]) => {
       const collapsed = !searchActive && collapsedGroups.has(groupName)
       const groupLabel = getModelGroupLabel(groupName, t)
@@ -251,7 +270,7 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
         )
       ]
     })
-  }, [collapsedGroups, entries, searchActive, t])
+  }, [collapsedGroups, entries, flattenSingleGroup, searchActive, t])
 
   const toggleGroup = useCallback((groupName: string) => {
     setCollapsedGroups((current) => {

@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useState } from 'react'
@@ -10,6 +11,33 @@ import { AddModelDrawer } from './ModelDrawer'
 interface ProviderModelAddProps {
   providerId: string
   disabled: boolean
+}
+
+interface ProviderModelAddDialogProps {
+  providerId: string
+  open: boolean
+  onClose: () => void
+  onSuccess?: (modelIds: UniqueModelId[]) => void
+  showPurposeSelection?: boolean
+}
+
+export function ProviderModelAddDialog({
+  providerId,
+  open,
+  onClose,
+  onSuccess,
+  showPurposeSelection
+}: ProviderModelAddDialogProps) {
+  return (
+    <AddModelDrawer
+      providerId={providerId}
+      open={open}
+      prefill={null}
+      onClose={onClose}
+      onSuccess={onSuccess}
+      showPurposeSelection={showPurposeSelection}
+    />
+  )
 }
 
 const ProviderModelAdd: React.FC<ProviderModelAddProps> = ({ providerId, disabled }) => {
@@ -36,7 +64,7 @@ const ProviderModelAdd: React.FC<ProviderModelAddProps> = ({ providerId, disable
         onClick={openDrawer}>
         <Plus className={modelListClasses.toolbarDesignIcon} />
       </Button>
-      <AddModelDrawer providerId={providerId} open={drawerOpen} prefill={null} onClose={closeDrawer} />
+      <ProviderModelAddDialog providerId={providerId} open={drawerOpen} onClose={closeDrawer} />
     </>
   )
 }
