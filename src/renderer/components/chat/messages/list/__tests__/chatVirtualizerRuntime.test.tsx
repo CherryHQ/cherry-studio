@@ -3691,7 +3691,7 @@ describe('useChatVirtualizerRuntime', () => {
       expect(scrollTop).toBe(560)
 
       // Stillness beyond the idle window hands control back to the freeze.
-      act(() => vi.advanceTimersByTime(300))
+      void act(() => vi.advanceTimersByTime(300))
       scrollTop = 570
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(scrollTop).toBe(500)
@@ -3716,7 +3716,7 @@ describe('useChatVirtualizerRuntime', () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
       let runtime: ChatVirtualizerRuntime<string> | undefined
       let scrollTop = 500
-      let scrollHeight = 2000
+      const scrollHeight = 2000
       render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
       const scroller = runtime!.scrollerRef.current!
       Object.defineProperty(scroller, 'scrollTop', {
@@ -3736,7 +3736,7 @@ describe('useChatVirtualizerRuntime', () => {
 
       // Candidate expires without ever confirming — e.g. macOS middle-click
       // where Chromium never entered autoscroll.
-      act(() => vi.advanceTimersByTime(500))
+      void act(() => vi.advanceTimersByTime(500))
 
       // A later programmatic nudge (virtua compensation, streaming layout)
       // must NOT be mistaken for autoscroll and must NOT suppress the freeze,

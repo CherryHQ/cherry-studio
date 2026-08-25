@@ -514,6 +514,7 @@ export function useChatVirtualizerRuntime<T>({
     if (!autoscrollActiveRef.current) return
     autoscrollActiveRef.current = false
     clearAutoscrollIdleTimer()
+    lastUserInputAtRef.current = 0
     settleUserScrollGesture()
   }, [clearAutoscrollIdleTimer, settleUserScrollGesture])
 
