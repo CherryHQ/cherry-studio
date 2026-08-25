@@ -8,11 +8,26 @@ const {
   sessionSetProxyMock,
   webviewSetProxyMock,
   appSetProxyMock,
+  createConnectionMock,
   getSystemProxyMock,
+  loggerInfoMock,
+  loggerWarnMock,
+  proxySocket,
+  proxySocketOutcome,
   intervalRegistrations
 } = vi.hoisted(() => {
   const nodeProxyConfigureMock = vi.fn()
   const nodeProxyRoutingSnapshotMock = vi.fn()
+  const proxySocketListeners = new Map<string, () => void>()
+  const proxySocket = {
+    destroy: vi.fn(),
+    setTimeout: vi.fn(),
+    once: vi.fn((event: string, listener: () => void) => {
+      proxySocketListeners.set(event, listener)
+      return proxySocket
+    })
+  }
+  const proxySocketOutcome = { event: 'connect' }
 
   return {
     nodeProxyConfigureMock,
@@ -24,14 +39,26 @@ const {
     sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
     webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
     appSetProxyMock: vi.fn().mockResolvedValue(undefined),
+    createConnectionMock: vi.fn(() => {
+      queueMicrotask(() => proxySocketListeners.get(proxySocketOutcome.event)?.())
+      return proxySocket
+    }),
     getSystemProxyMock: vi.fn(),
+    loggerInfoMock: vi.fn(),
+    loggerWarnMock: vi.fn(),
+    proxySocket,
+    proxySocketOutcome,
     intervalRegistrations: [] as Array<{ handler: () => void; dispose: ReturnType<typeof vi.fn> }>
   }
 })
 
+vi.mock('node:net', () => ({
+  createConnection: createConnectionMock
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
+    withContext: () => ({ info: loggerInfoMock, warn: loggerWarnMock, error: vi.fn(), debug: vi.fn() })
   }
 }))
 
@@ -77,10 +104,41 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { ProxyService, resolveProxyConfig } = await import('../ProxyService')
+const { ProxyService, isProxyReachable, resolveProxyConfig } = await import('../ProxyService')
 
 const reconcilerOf = (manager: unknown) =>
   (manager as { proxyReconciler: { flush: () => Promise<void> } }).proxyReconciler
+
+describe('isProxyReachable', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    proxySocketOutcome.event = 'connect'
+  })
+
+  it('connects to the parsed endpoint without proxy credentials', async () => {
+    await expect(isProxyReachable('http://User:Secret@[::1]:4312/ProxyPath', 125)).resolves.toBe(true)
+
+    expect(createConnectionMock).toHaveBeenCalledWith({ host: '::1', port: 4312 })
+    expect(proxySocket.setTimeout).toHaveBeenCalledWith(125)
+    expect(proxySocket.destroy).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns false on a deterministic socket timeout', async () => {
+    proxySocketOutcome.event = 'timeout'
+
+    await expect(isProxyReachable('https://proxy.example', 50)).resolves.toBe(false)
+
+    expect(createConnectionMock).toHaveBeenCalledWith({ host: 'proxy.example', port: 443 })
+    expect(proxySocket.setTimeout).toHaveBeenCalledWith(50)
+    expect(proxySocket.destroy).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns false without opening a socket for an invalid URL', async () => {
+    await expect(isProxyReachable('not-a-url')).resolves.toBe(false)
+
+    expect(createConnectionMock).not.toHaveBeenCalled()
+  })
+})
 
 describe('resolveProxyConfig', () => {
   it('maps none → direct', () => {
@@ -119,6 +177,7 @@ describe('ProxyService — preference wiring', () => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
     intervalRegistrations.length = 0
+    proxySocketOutcome.event = 'connect'
     getSystemProxyMock.mockResolvedValue({ proxyUrl: 'http://system:1080', noProxy: ['localhost'] })
     nodeProxyRoutingSnapshotMock.mockReturnValue({ version: 1, mode: 'direct' })
   })
@@ -154,19 +213,21 @@ describe('ProxyService — preference wiring', () => {
   })
 
   it('applies the resolved system proxy on ready to every stack', async () => {
-    // Default mode is 'system'; getSystemProxy returns a known proxy (set in beforeEach).
+    const proxyUrl = 'http://User:Secret@SYSTEM:1080/ProxyPath'
+    getSystemProxyMock.mockResolvedValue({ proxyUrl, noProxy: ['localhost'] })
     const manager = new ProxyService()
     await (manager as any).onReady()
     await reconcilerOf(manager).flush()
 
-    const expected = { mode: 'system', proxyRules: 'http://system:1080', proxyBypassRules: 'localhost' }
+    const expected = { mode: 'system', proxyRules: proxyUrl, proxyBypassRules: 'localhost' }
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
-      proxyRules: 'http://system:1080',
+      proxyRules: proxyUrl,
       proxyBypassRules: 'localhost'
     })
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(webviewSetProxyMock).toHaveBeenCalledWith(expected)
     expect(appSetProxyMock).toHaveBeenCalledWith(expected)
+    expect(JSON.stringify([...loggerInfoMock.mock.calls, ...loggerWarnMock.mock.calls])).not.toContain('Secret')
   })
 
   it('exposes the applied Node routing policy as a snapshot for isolated consumers', async () => {
@@ -187,6 +248,18 @@ describe('ProxyService — preference wiring', () => {
     expect(sessionSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
     expect(appSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({ proxyRules: undefined, proxyBypassRules: undefined })
+  })
+
+  it('keeps Electron in system mode but clears the Node proxy when the endpoint is unreachable', async () => {
+    proxySocketOutcome.event = 'error'
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+
+    expect(nodeProxyConfigureMock).toHaveBeenCalledWith({ proxyRules: undefined, proxyBypassRules: undefined })
+    expect(sessionSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
+    expect(appSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
+    expect(loggerWarnMock).toHaveBeenCalledWith('Configured system proxy is unreachable; applying bare system mode')
   })
 
   it('re-applies when a proxy preference changes after ready', async () => {

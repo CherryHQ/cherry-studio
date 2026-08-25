@@ -1,3 +1,5 @@
+import { createConnection } from 'node:net'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
@@ -12,6 +14,7 @@ import { NodeProxyController } from './NodeProxyController'
 import type { ProxyRoutingSnapshot } from './proxyRouting'
 
 const logger = loggerService.withContext('ProxyService')
+const SYSTEM_PROXY_PROBE_TIMEOUT_MS = 3000
 
 /** Proxy preferences that drive the global proxy. Changing any of them re-applies it. */
 const PROXY_PREFERENCE_KEYS = [
@@ -23,6 +26,36 @@ const PROXY_PREFERENCE_KEYS = [
 /** Identity of an applied proxy config, for latest-wins settle detection. */
 const proxyConfigKey = (c: Pick<ProxyConfig, 'mode' | 'proxyRules' | 'proxyBypassRules'>): string =>
   `${c.mode}|${c.proxyRules ?? ''}|${c.proxyBypassRules ?? ''}`
+
+/** Return whether a system proxy endpoint accepts a TCP connection before the timeout. */
+export function isProxyReachable(proxyUrl: string, timeoutMs = SYSTEM_PROXY_PROBE_TIMEOUT_MS): Promise<boolean> {
+  let url: URL
+  try {
+    url = new URL(proxyUrl)
+  } catch {
+    return Promise.resolve(false)
+  }
+
+  const port = Number(url.port || (url.protocol === 'http:' ? 80 : url.protocol === 'https:' ? 443 : 0))
+  if (!port) return Promise.resolve(false)
+
+  const host = url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname
+  return new Promise((resolve) => {
+    const socket = createConnection({ host, port })
+    let settled = false
+    const finish = (reachable: boolean) => {
+      if (settled) return
+      settled = true
+      socket.destroy()
+      resolve(reachable)
+    }
+
+    socket.setTimeout(timeoutMs)
+    socket.once('connect', () => finish(true))
+    socket.once('timeout', () => finish(false))
+    socket.once('error', () => finish(false))
+  })
+}
 
 /**
  * Map the user-facing proxy mode to an Electron {@link ProxyConfig}. `system` returns the bare
@@ -119,9 +152,11 @@ export class ProxyService extends BaseService {
       // still applies something instead of leaving the proxy unconfigured.
       try {
         const currentProxy = await getSystemProxy()
-        if (currentProxy) {
-          config.proxyRules = currentProxy.proxyUrl.toLowerCase()
+        if (currentProxy && (await isProxyReachable(currentProxy.proxyUrl))) {
+          config.proxyRules = currentProxy.proxyUrl
           config.proxyBypassRules = currentProxy.noProxy.join(',')
+        } else if (currentProxy) {
+          logger.warn('Configured system proxy is unreachable; applying bare system mode')
         }
       } catch (error) {
         logger.warn('Failed to read OS system proxy; applying bare system mode', error as Error)
@@ -131,7 +166,7 @@ export class ProxyService extends BaseService {
   }
 
   private async applyProxyConfig(config: ProxyConfig): Promise<void> {
-    logger.info(`apply proxy: ${config.mode} ${config.proxyRules ?? ''} ${config.proxyBypassRules ?? ''}`)
+    logger.info(`apply proxy: ${config.mode}`)
     // In system mode, poll the OS proxy so external changes re-converge through the reconciler.
     if (config.mode === 'system') this.ensureSystemProxyMonitor()
     else this.clearSystemProxyMonitor()
