@@ -1,4 +1,5 @@
 import type * as NodeFs from 'node:fs'
+import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
@@ -13,6 +14,7 @@ const WORKSPACE = '/work/space'
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 const PI_BUILTIN_TOOL_NAMES = ['read', 'bash', 'edit', 'write']
+const MANAGED_BASH_TOOL = { name: 'bash' }
 const CODE_MODE_TOOL_NAMES = ['tool_search', 'tool_describe', 'tool_call', 'tool_exec']
 const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry-tools__cron',
@@ -72,6 +74,7 @@ const mocks = vi.hoisted(() => ({
   sessionOpen: vi.fn(),
   reload: vi.fn(),
   createAgentSession: vi.fn(),
+  createBashToolDefinition: vi.fn(),
   prompt: vi.fn(),
   compact: vi.fn(),
   steer: vi.fn(),
@@ -80,6 +83,7 @@ const mocks = vi.hoisted(() => ({
   dispose: vi.fn(),
   getContextUsage: vi.fn(),
   createOpts: undefined as Record<string, unknown> | undefined,
+  bashToolOptions: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
   isStreaming: false,
@@ -207,7 +211,8 @@ const fakePi = {
       mocks.loaderOpts = opts
     }
   },
-  createAgentSession: mocks.createAgentSession
+  createAgentSession: mocks.createAgentSession,
+  createBashToolDefinition: mocks.createBashToolDefinition
 }
 
 const input: AgentRuntimeConnectInput = {
@@ -272,6 +277,7 @@ beforeEach(() => {
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
+  mocks.bashToolOptions = undefined
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
   mocks.isStreaming = false
@@ -351,7 +357,15 @@ beforeEach(() => {
       ]
     }
   })
-  mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))
+  mocks.getPath.mockImplementation((key: string) => {
+    if (key === 'feature.agents.pi.root') return PI_ROOT
+    if (key === 'feature.agents.pi.sessions') return PI_SESSIONS
+    if (key === 'feature.binary.data') return '/cherry/Toolchain/mise'
+    if (key === 'feature.binary.data.isolated.rustup') return '/cherry/Toolchain/rustup'
+    if (key === 'feature.binary.data.isolated.cargo') return '/cherry/Toolchain/cargo'
+    if (key === 'cherry.bin') return '/cherry/bin'
+    return PI_SESSIONS
+  })
   mocks.loadPiSdk.mockResolvedValue(fakePi)
   mocks.loadPiAiCompat.mockResolvedValue({ unregisterApiProviders: mocks.unregisterApiProviders })
   mocks.loadPiApiStreamSimple.mockResolvedValue(mocks.providerStreamSimple)
@@ -390,6 +404,10 @@ beforeEach(() => {
   mocks.createAgentSession.mockImplementation(async (opts: Record<string, unknown>) => {
     mocks.createOpts = opts
     return { session: fakeSession }
+  })
+  mocks.createBashToolDefinition.mockImplementation((_cwd: string, options: Record<string, unknown>) => {
+    mocks.bashToolOptions = options
+    return MANAGED_BASH_TOOL
   })
 })
 
@@ -446,6 +464,38 @@ describe('PiRuntimeConnection', () => {
       HTTPS_PROXY: 'http://127.0.0.1:7890',
       NO_PROXY: 'localhost,127.0.0.1',
       AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
+    })
+  })
+
+  it('layers Cherry-managed tools onto Pi bash without dropping Pi PATH entries', async () => {
+    await new PiRuntimeConnection(input).start()
+
+    expect(mocks.createBashToolDefinition).toHaveBeenCalledWith(WORKSPACE, expect.any(Object))
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'gh --version',
+      cwd: WORKSPACE,
+      env: { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter), PI_ONLY: 'preserved' }
+    })
+
+    expect(result.env.PATH?.split(path.delimiter)).toEqual([
+      path.join('/cherry/Toolchain/mise', 'shims'),
+      '/cherry/bin',
+      '/pi/agent/bin',
+      '/system/bin'
+    ])
+    expect(result.env).toMatchObject({
+      PI_ONLY: 'preserved',
+      MISE_DATA_DIR: '/cherry/Toolchain/mise',
+      MISE_SHIMS_DIR: '/cherry/Toolchain/mise/shims'
     })
   })
 
@@ -1373,6 +1423,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.warmMcpToolCatalogs).toHaveBeenCalledWith(['srv-1', 'srv-2'])
       expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(mocks.buildAgentMcpServers.mock.results[0].value)
       expect(mocks.createOpts?.customTools).toEqual([
+        MANAGED_BASH_TOOL,
         { name: 'tool_search' },
         { name: 'tool_describe' },
         { name: 'tool_call' },
@@ -1496,6 +1547,7 @@ describe('PiRuntimeConnection', () => {
         undefined
       )
       expect(mocks.createOpts?.customTools).toEqual([
+        MANAGED_BASH_TOOL,
         { name: 'tool_search' },
         { name: 'tool_describe' },
         { name: 'tool_call' },
@@ -1599,7 +1651,7 @@ describe('PiRuntimeConnection', () => {
     it('uses the always-on persona and code-mode tools for a standard agent', async () => {
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.customTools).toHaveLength(4)
+      expect(mocks.createOpts?.customTools).toHaveLength(5)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
