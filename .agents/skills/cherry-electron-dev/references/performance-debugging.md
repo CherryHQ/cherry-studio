@@ -243,7 +243,7 @@ owns the CPU or memory.
 ### Prefer the built-in main-process diagnostics
 
 For startup, lifecycle, database, DataApi, or IPC latency, first read
-[Performance Diagnostics](../../../../docs/guides/diagnostics.md). Restart the
+[Performance Diagnostics](../../../../docs/references/diagnostics/README.md). Restart the
 tracked instance with `CS_DIAGNOSTICS=1` prepended to its existing launch
 command only when the restart is justified by the question. The opt-in path
 provides:
