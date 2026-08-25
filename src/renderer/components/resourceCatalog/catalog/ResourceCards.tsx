@@ -2,7 +2,7 @@ import { Badge, Button, Switch } from '@cherrystudio/ui'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
+import { canDeleteResource, RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
 import { Trash2 } from 'lucide-react'
@@ -75,6 +75,7 @@ export function ResourceCard({
   const showTypeIcon = r.type === 'skill'
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
+  const canDelete = canDeleteResource(r)
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
   const skillVersion = r.type === 'skill' ? r.raw.version?.trim() : undefined
 
@@ -151,7 +152,7 @@ export function ResourceCard({
                 allGroups={allGroups}
                 triggerClassName="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
               />
-            ) : (
+            ) : canDelete ? (
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -160,7 +161,7 @@ export function ResourceCard({
                 className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
                 <Trash2 size={12} className="lucide-custom" />
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
