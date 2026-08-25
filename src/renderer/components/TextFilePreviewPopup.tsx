@@ -30,7 +30,6 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve
               readOnly={true}
               expanded={false}
               height="100%"
-              style={{ height: '100%' }}
               value={text}
               language={extension}
               options={{

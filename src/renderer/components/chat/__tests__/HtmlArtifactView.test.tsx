@@ -542,6 +542,55 @@ describe('HtmlArtifactView', () => {
     }
   })
 
+  it('stabilizes at the natural height when bare text extends below the last element', () => {
+    render(<HtmlArtifactView html="<task-notification>Task done.</task-notification>  trailing text" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '8px'
+    const notice = frameDocument.createElement('task-notification')
+    notice.textContent = 'Task a6034e1f3607dfc0b completed.\nTask output file: /private/tmp/long-task-output.path'
+    body.replaceChildren(notice)
+    body.append('  在 macOS 的系统演进中……')
+
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 0
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 135 })
+    Object.defineProperty(documentElement, 'scrollHeight', { configurable: true, get: () => 135 })
+    // Element measurement stops at the <task-notification> box (91px); the bare text node after it
+    // reaches 127px. Without the whole-body range the surface flips 99↔135 under the observer.
+    vi.spyOn(notice, 'getBoundingClientRect').mockReturnValue({ bottom: 91, height: 40, width: 300 } as DOMRect)
+    // jsdom keeps each iframe in its own realm, so the frame's Range constructor differs from the
+    // host global; mock the one getIframeContentHeight actually calls createRange() on.
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: vi.fn(() => ({ bottom: 127, height: 30, width: 300 }) as DOMRect)
+    })
+
+    try {
+      fireEvent.load(iframe)
+      expect(surface).toHaveStyle({ height: '135px' })
+
+      for (const callback of mocks.resizeObserverCallbacks) {
+        act(() => callback([], {} as ResizeObserver))
+        expect(surface).toHaveStyle({ height: '135px' })
+      }
+    } finally {
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      }
+    }
+  })
+
   it('renders a streaming fragment as a restricted DOM preview without controls', () => {
     const html = '<div><script>document.body.textContent = "interactive"</script></div>'
     render(<HtmlArtifactView html={html} title="Preview" kind="fragment" isStreaming />)

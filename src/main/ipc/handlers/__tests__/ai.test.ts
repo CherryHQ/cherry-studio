@@ -43,6 +43,7 @@ const aiStreamManager = {
   attach: vi.fn(),
   detach: vi.fn(),
   abort: vi.fn(),
+  abortAndDrain: vi.fn(),
   getDeferredToolOutput: vi.fn()
 }
 
@@ -337,10 +338,27 @@ describe('aiHandlers — streaming', () => {
     expect(aiStreamManager.detach).not.toHaveBeenCalled()
   })
 
-  it('stream_abort aborts the topic without resolving a WebContents', async () => {
-    await aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
-    expect(aiStreamManager.abort).toHaveBeenCalledWith('t', 'user-requested')
+  it('stream_abort resolves only after the topic has drained without resolving a WebContents', async () => {
+    let finishDrain!: () => void
+    aiStreamManager.abortAndDrain.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishDrain = resolve
+      })
+    )
+
+    const aborting = aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
+    let settled = false
+    void aborting.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+
+    expect(settled).toBe(false)
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+
+    finishDrain()
+    await expect(aborting).resolves.toBeUndefined()
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {

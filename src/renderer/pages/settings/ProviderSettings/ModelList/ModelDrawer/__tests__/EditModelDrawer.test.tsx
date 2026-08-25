@@ -229,6 +229,28 @@ describe('EditModelDrawer pricing', () => {
     )
   })
 
+  it('rejects non-numeric characters and a second decimal point in price inputs', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+
+    const cacheReadPrice = screen.getByLabelText('models.price.cache_read')
+    await user.clear(cacheReadPrice)
+    await user.type(cacheReadPrice, '1a.2.5')
+
+    expect(cacheReadPrice).toHaveValue('1.25')
+  })
+
+  it('rejects non-digits in a tier boundary input', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+
+    const minInputTokens = screen.getByLabelText(/models\.price\.min_input_tokens/)
+    await user.clear(minInputTokens)
+    await user.type(minInputTokens, '12a.8')
+
+    expect(minInputTokens).toHaveValue('128')
+  })
+
   it('preserves explicit zero cache rates and unedited pricing fields when a price is saved', async () => {
     const user = userEvent.setup()
     const model = makeTieredPricingModel()

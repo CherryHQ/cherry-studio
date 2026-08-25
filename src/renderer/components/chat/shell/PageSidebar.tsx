@@ -36,7 +36,7 @@ export function PageSidebar({
   const { t } = useTranslation()
   const [hasOpened, setHasOpened] = useState(Boolean(open))
   const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useResourceListPaneResize({ onPaneCollapse })
-  const resolvedWidth = width ?? paneWidth
+  const resolvedWidth = width ?? CHAT_SHELL_PANE_WIDTH
 
   useEffect(() => {
     if (open) setHasOpened(true)
@@ -58,7 +58,7 @@ export function PageSidebar({
           ref={paneRef}
           key="page-sidebar"
           initial={{ width: 0, opacity: 0 }}
-          animate={open ? { width: resolvedWidth || CHAT_SHELL_PANE_WIDTH, opacity: 1 } : { width: 0, opacity: 0 }}
+          animate={open ? { width: resolvedWidth, opacity: 1 } : { width: 0, opacity: 0 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
           aria-hidden={!open}
@@ -66,10 +66,7 @@ export function PageSidebar({
           data-ui="part:conversation-navigation"
           data-resource-list-pane
           data-resizing={isResizing || undefined}
-          className={cn(
-            'group/resource-list-pane relative shrink-0 overflow-visible data-[resizing=true]:[&_.conversation-navigation-pane-content]:transition-none data-[resizing=true]:[&_.conversation-navigation-pane]:transition-none',
-            className
-          )}
+          className={cn('group/resource-list-pane relative shrink-0 overflow-visible', className)}
           style={style}>
           {/* Keep the list clipped without covering its scrollbar with the resize hit area. */}
           <div data-resource-list-pane-content className="h-full min-h-0 overflow-hidden">

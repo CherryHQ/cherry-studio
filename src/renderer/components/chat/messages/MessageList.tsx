@@ -10,11 +10,10 @@ import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/i
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
-import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -37,7 +36,11 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { defaultMessageRenderConfig } from './types'
-import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
+import {
+  getLatestAssistantGroupKey,
+  getMessageGroupKey,
+  getOwningUserMessageIdByAssistantId
+} from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
@@ -45,6 +48,7 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+const MessageOutline = lazy(() => import('./frame/MessageOutline'))
 /** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
  * override is invisible until the rail gutter adds onto it. */
 const CHAT_SIDE_PADDING_PX = 24
@@ -304,10 +308,26 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
-    const groupKey =
-      target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
-    messageListRef.current?.scrollToKey(groupKey, 'start')
+    messageListRef.current?.scrollToKey(getMessageGroupKey(target), 'start')
   }, [])
+
+  const getNavigationBaseMessageId = useCallback(() => {
+    const key = messageListRef.current?.getNavigationBaseKey()
+    if (!key) return null
+
+    const groupMessages = groupedMessages.find(([groupKey]) => groupKey === key)?.[1]
+    if (!groupMessages) return null
+
+    const userMessage = groupMessages.find((message) => message.role === 'user')
+    if (userMessage) return userMessage.id
+
+    const owningUserMessageIdByAssistantId = getOwningUserMessageIdByAssistantId(messages)
+    for (const message of groupMessages) {
+      const ownerId = owningUserMessageIdByAssistantId.get(message.id)
+      if (ownerId) return ownerId
+    }
+    return null
+  }, [groupedMessages, messages])
 
   const scrollToOutlineElement = useCallback((element: HTMLElement) => {
     messageListRef.current?.scrollToElement(element)
@@ -844,16 +864,20 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline
-          message={activeOutlineMessage}
-          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
-          onNavigateToElement={scrollToOutlineElement}
-        />
+        <Suspense fallback={null}>
+          <MessageOutline
+            getMessageElement={getMessageElement}
+            message={activeOutlineMessage}
+            multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+            onNavigateToElement={scrollToOutlineElement}
+          />
+        </Suspense>
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation
           scrollContainerRef={scrollContainerRef}
           getMessageElement={getMessageElement}
+          getNavigationBaseMessageId={getNavigationBaseMessageId}
           messages={messages}
           scrollToMessageId={scrollToMessageById}
           scrollToTop={navigateToTop}

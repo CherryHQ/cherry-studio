@@ -317,6 +317,31 @@ function PinnedOverflowSeeder() {
   )
 }
 
+function TransientMiniAppPinner() {
+  const { openTab, pinTab, tabs } = useTabsContext()
+  const didOpenRef = useRef(false)
+  const didPinRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/mini-app/deepseek-harness', {
+      id: 'transient-mini-app',
+      title: 'DeepSeek Harness',
+      metadata: { transientMiniApp: true },
+      forceNew: true
+    })
+  }, [openTab])
+
+  useEffect(() => {
+    if (didPinRef.current || !tabs.some((tab) => tab.id === 'transient-mini-app')) return
+    didPinRef.current = true
+    pinTab('transient-mini-app')
+  }, [pinTab, tabs])
+
+  return <div data-testid="transient-tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
 beforeEach(() => {
   currentLanguage = 'en'
   pinnedTabsValue = [PINNED_FILES_TAB]
@@ -390,6 +415,17 @@ describe('TabsProvider', () => {
     )
 
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
+  })
+
+  it('keeps a transient mini-app tab visible when pinning is requested programmatically', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <TransientMiniAppPinner />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('transient-tab-ids')).toHaveTextContent('transient-mini-app'))
+    expect(setPinnedTabsMock.mock.calls.some(([arg]) => typeof arg === 'function')).toBe(false)
   })
 
   it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
