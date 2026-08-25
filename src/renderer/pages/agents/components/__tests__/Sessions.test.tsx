@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as DndKitUtilities from '@dnd-kit/utilities'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -223,7 +224,7 @@ vi.mock('@dnd-kit/sortable', () => {
 })
 
 vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@dnd-kit/utilities')>()),
+  ...(await importOriginal<typeof DndKitUtilities>()),
   CSS: {
     Transform: {
       toString: () => undefined

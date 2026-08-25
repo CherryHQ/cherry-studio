@@ -1,3 +1,4 @@
+import type * as DndKitUtilities from '@dnd-kit/utilities'
 import { act, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -113,7 +114,7 @@ vi.mock('@dnd-kit/sortable', () => {
 })
 
 vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@dnd-kit/utilities')>()),
+  ...(await importOriginal<typeof DndKitUtilities>()),
   CSS: {
     Transform: {
       toString: (transform: unknown) => (transform ? 'translate3d(0px, 12px, 0px)' : undefined)
