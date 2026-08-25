@@ -1,7 +1,16 @@
 diff --git a/dist/index.js b/dist/index.js
-index c180815..d39bc34 100644
+index c180815..5dd52b3 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -108,7 +108,7 @@ var anthropicMessagesResponseSchema = (0, import_provider_utils2.lazySchema)(
+           import_v42.z.object({
+             type: import_v42.z.literal("thinking"),
+             thinking: import_v42.z.string(),
+-            signature: import_v42.z.string()
++            signature: import_v42.z.string().optional()
+           }),
+           import_v42.z.object({
+             type: import_v42.z.literal("redacted_thinking"),
 @@ -3474,7 +3474,7 @@ var AnthropicMessagesLanguageModel = class {
        warnings.push({
          type: "compatibility",
@@ -38,9 +47,18 @@ index c180815..d39bc34 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index fe20f4d..e58418f 100644
+index fe20f4d..22561d5 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
+@@ -107,7 +107,7 @@ var anthropicMessagesResponseSchema = lazySchema2(
+           z2.object({
+             type: z2.literal("thinking"),
+             thinking: z2.string(),
+-            signature: z2.string()
++            signature: z2.string().optional()
+           }),
+           z2.object({
+             type: z2.literal("redacted_thinking"),
 @@ -3525,7 +3525,7 @@ var AnthropicMessagesLanguageModel = class {
        warnings.push({
          type: "compatibility",
@@ -77,9 +95,18 @@ index fe20f4d..e58418f 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index b408db2..7cbffe6 100644
+index b408db2..b778ae1 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
+@@ -102,7 +102,7 @@ var anthropicMessagesResponseSchema = (0, import_provider_utils2.lazySchema)(
+           import_v42.z.object({
+             type: import_v42.z.literal("thinking"),
+             thinking: import_v42.z.string(),
+-            signature: import_v42.z.string()
++            signature: import_v42.z.string().optional()
+           }),
+           import_v42.z.object({
+             type: import_v42.z.literal("redacted_thinking"),
 @@ -1521,7 +1521,7 @@ async function prepareTools({
          anthropicTools2.push({
            name: tool.name,
@@ -134,9 +161,18 @@ index b408db2..7cbffe6 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 168f139..7365bc0 100644
+index 168f139..10d8eef 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
+@@ -91,7 +91,7 @@ var anthropicMessagesResponseSchema = lazySchema2(
+           z2.object({
+             type: z2.literal("thinking"),
+             thinking: z2.string(),
+-            signature: z2.string()
++            signature: z2.string().optional()
+           }),
+           z2.object({
+             type: z2.literal("redacted_thinking"),
 @@ -1536,7 +1536,7 @@ async function prepareTools({
          anthropicTools2.push({
            name: tool.name,

@@ -26,7 +26,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
-import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
@@ -61,10 +61,11 @@ import {
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
+  applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
-  buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
-  mergeCustomProviderParameters
+  mergeCustomProviderParameters,
+  resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
 import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
@@ -213,6 +214,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const reasoningEndpointType =
     runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
+  const serviceTierControl = providerRegistryService.resolveServiceTierControl(provider, model, endpointType)
   const invocationModel = reasoningProfile.support
     ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
     : model
@@ -230,7 +232,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model: invocationModel,
     profile: reasoningProfile.wire,
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
-    assistantSummary: provider.settings.summaryText
+    assistantSummary: assistant?.settings.reasoning_summary
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, {
     endpointType,
@@ -268,6 +270,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     reasoningProfile,
     reasoning,
+    serviceTierControl,
     requestContext,
     mcpToolIds,
     mcpResourceServerIds,
@@ -547,38 +550,29 @@ function buildAgentOptions(
     request,
     aiSdkProviderId,
     endpointType,
-    reasoning
+    reasoning,
+    serviceTierControl
   } = scope
 
-  let providerOptions =
-    assistant && capabilities
-      ? buildCapabilityProviderOptions(
-          model,
-          provider,
-          {
-            enableReasoning: capabilities.enableReasoning,
-            enableGenerateImage: capabilities.enableGenerateImage,
-            enableWebSearch: scope.webToolRoutes?.webSearch === 'server'
-          },
-          {
-            aiSdkProviderId,
-            runtimeProviderId: sdkConfig.providerId,
-            providerOptionsKey: sdkConfig.providerOptionsKey,
-            endpointType,
-            reasoning
-          }
-        )
-      : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
-        // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
-        // gateway/topic-naming requests are unchanged.
-        request.reasoningEffort !== undefined
-        ? (buildResolvedReasoningProviderOptions({
-            aiSdkProviderId: sdkConfig.providerId,
-            providerOptionsKey: sdkConfig.providerOptionsKey,
-            endpointType,
-            reasoning
-          }) as Record<string, Record<string, JSONValue>>)
-        : {}
+  // One path for both callers, so protocol/model defaults (store, safetySettings, num_ctx…)
+  // can't diverge. Assistant-less callers (translate, prompt streams) carry no capabilities;
+  // they opt into reasoning by setting `request.reasoningEffort` explicitly.
+  let providerOptions = buildCapabilityProviderOptions(
+    model,
+    provider,
+    {
+      enableReasoning: capabilities ? capabilities.enableReasoning : request.reasoningEffort !== undefined,
+      enableGenerateImage: capabilities?.enableGenerateImage ?? false,
+      enableWebSearch: capabilities ? scope.webToolRoutes?.webSearch === 'server' : false
+    },
+    {
+      aiSdkProviderId,
+      runtimeProviderId: sdkConfig.providerId,
+      providerOptionsKey: sdkConfig.providerOptionsKey,
+      endpointType,
+      reasoning
+    }
+  )
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const temperature = getTemperature(assistant, model, reasoning)
@@ -606,6 +600,23 @@ function buildAgentOptions(
     }
   }
 
+  if (serviceTierControl) {
+    providerOptions = applyServiceTierToProviderOptions(
+      providerOptions,
+      sdkConfig.providerOptionsKey,
+      serviceTierControl,
+      request.serviceTier ?? assistant?.settings.service_tier
+    )
+    if (serviceTierControl.wire.delivery.type === 'request-body') {
+      sdkConfig.providerSettings.fetch = createCustomParamsFetch(sdkConfig.providerSettings.fetch ?? globalThis.fetch, {
+        [serviceTierControl.wire.delivery.key]: resolveServiceTierWireValue(
+          serviceTierControl,
+          request.serviceTier ?? assistant?.settings.service_tier
+        )
+      })
+    }
+  }
+
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
@@ -616,6 +627,9 @@ function buildAgentOptions(
     overridden.providerOptions,
     request.fastMode === true
   )
+  // A namespace that ended up empty carries nothing; emitting it would ship a bare
+  // `providerOptions` for callers that opted into nothing.
+  const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
@@ -642,7 +656,7 @@ function buildAgentOptions(
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
-    ...(Object.keys(effectiveProviderOptions).length > 0 && { providerOptions: effectiveProviderOptions }),
+    ...(hasProviderOptions && { providerOptions: effectiveProviderOptions }),
     ...(telemetry && { telemetry }),
     ...standardParams,
     context: requestContext,

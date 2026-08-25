@@ -1253,7 +1253,14 @@ async function publishStagedWorkspaceEntry(stagingPath: string, destinationPath:
   if (stagingStat.isFile()) {
     // A hard-link publish is atomic and fails if the target appears concurrently.
     // The staging entry is on the same managed volume and is unlinked in `finally`.
-    await link(stagingPath, destinationPath)
+    try {
+      await link(stagingPath, destinationPath)
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'EISDIR')) throw error
+      // Some Windows volumes report unsupported hard links as EISDIR.
+      // COPYFILE_EXCL preserves the no-overwrite publication contract.
+      await copyFile(stagingPath, destinationPath, constants.COPYFILE_EXCL)
+    }
     return
   }
   if (stagingStat.isDirectory()) {
@@ -1585,6 +1592,14 @@ function findCleanupTargetSourceOverlaps(
   return Array.from(overlaps.values())
 }
 
+async function targetHasIdentityFiles(targetPath: string): Promise<boolean> {
+  for (const name of ['SOUL.md', 'USER.md']) {
+    const stat = await lstatIfExists(path.join(targetPath, name))
+    if (stat && stat.size > 0) return true
+  }
+  return false
+}
+
 async function clearLegacyAgentMigrationTargets(input: {
   agentsDataRoot: string
   agents: Array<{ sourceAgentId: string; finalAgentId: string }>
@@ -1717,6 +1732,36 @@ async function clearLegacyAgentMigrationTargets(input: {
   }
 
   for (const targetKey of targetSourceOverlaps.keys()) skippedTargetKeys.add(targetKey)
+
+  // Preserve existing Agent data directories whose v1 source workspace no
+  // longer exists and that already contain identity files.
+  // After an app update the v1 workspace may have been cleaned up, but the
+  // user's identity files (SOUL.md, USER.md, memory) inside the v2 target
+  // must survive.
+  for (const target of targets) {
+    if (!target.exists || skippedTargetKeys.has(cleanupPathIndexKey(target.path))) continue
+    if (!(await targetHasIdentityFiles(target.path))) continue
+    const targetKey = cleanupPathIndexKey(target.path)
+    const sourceKeys = Array.from(targetKeysBySourcePath.entries())
+      .filter(([, tKeys]) => tKeys.has(targetKey))
+      .map(([sourceKey]) => sourceKey)
+    if (sourceKeys.length === 0) continue
+    let sourceExists = false
+    for (const sourceKey of sourceKeys) {
+      const sourcePath = Array.from(sourcePaths).find((p) => cleanupPathIndexKey(p) === sourceKey)
+      if (sourcePath !== undefined && (await lstatIfExists(sourcePath))) {
+        sourceExists = true
+        break
+      }
+    }
+    if (!sourceExists) {
+      skippedTargetKeys.add(targetKey)
+      logger.info('Preserving Agent data directory because its v1 source workspace no longer exists', {
+        targetPath: target.path
+      })
+    }
+  }
+
   const cleanupTargets = targets.filter(
     (target) => !target.preserveExactSource && !skippedTargetKeys.has(cleanupPathIndexKey(target.path))
   )

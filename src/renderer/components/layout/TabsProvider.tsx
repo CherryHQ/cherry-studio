@@ -522,7 +522,7 @@ export function TabsProvider({
   const pinTab = useCallback(
     (id: string) => {
       const tab = tabs.find((t) => t.id === id)
-      if (!tab || tab.isPinned) return
+      if (!tab || tab.isPinned || isTransientMiniAppTab(tab)) return
 
       // Remove from normalTabs
       setNormalTabs((prev) => prev.filter((t) => t.id !== id))
