@@ -339,8 +339,9 @@ export default function ProviderApiSetupDialog({
     <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         closeOnOverlayClick={!isBusy}
+        size="lg"
         className={cn(
-          'gap-5 sm:max-w-[640px]',
+          'gap-5',
           step === 'models' && 'h-[min(720px,calc(100vh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto]'
         )}>
         <DialogHeader>
