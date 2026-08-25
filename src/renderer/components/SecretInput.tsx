@@ -9,9 +9,9 @@ export function SecretInput({ showLabel, hideLabel, ...props }: LocalizedSecretI
 
   return (
     <UiSecretInput
+      {...props}
       showLabel={showLabel ?? t('common.show_credential')}
       hideLabel={hideLabel ?? t('common.hide_credential')}
-      {...props}
     />
   )
 }
