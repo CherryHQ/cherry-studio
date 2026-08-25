@@ -51,7 +51,7 @@ When contributing to Cherry Studio, please follow these guidelines:
    - Create from `main` branch
    - Naming format: `hotfix/issue-number-brief-description`
    - Use a `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR title
-   - Put exactly one user-facing release-note line in English and Chinese inside the PR template's `release-note` fence; CI synchronizes the required `hotfix` label only when both the title grammar and this note contract pass
+   - CI synchronizes the required `hotfix` label from the exact title grammar; for a user-facing fix, put exactly one release-note line in English and Chinese inside the PR template's `release-note` fence, otherwise use `NONE`
    - Submit PR back to `main`
 
 5. **Release Branches:**
@@ -60,7 +60,7 @@ When contributing to Cherry Studio, please follow these guidelines:
    - Used for final preparation work before version release
    - Only accepts reviewed hotfix backports and release metadata updates; documentation changes continue through `main`
    - Build and tag releases from this branch, never from `main`
-   - Open PRs that satisfy the exact hotfix title and release-note contract are automatically labeled `hotfix`; after merge, they get a backport PR only when exactly one draft semantic-version release has a matching active release branch
+   - Open PRs that satisfy the exact hotfix title are automatically labeled `hotfix`; after merge, they get a backport PR only when exactly one draft semantic-version release has a matching active release branch, and any provided bilingual note is validated and applied
    - Merge the backport PR only after its PR CI passes, wait for push CI on the resulting release-branch head, then rebuild the draft release
    - Resolve any automatically reported backport failure without merging all of `main` into the release branch
    - Publishing the GitHub Release applies the release metadata delta to the latest `main` and opens a metadata-only sync PR

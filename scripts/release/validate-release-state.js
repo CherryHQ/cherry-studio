@@ -1,4 +1,11 @@
-function validateBuildStart({ platform, release, remoteTagSha, tag, workflowSha }) {
+function validateReleaseBranchHead({ branchSha, workflowSha }) {
+  if (branchSha !== workflowSha) {
+    throw new Error(`Release branch moved away from selected workflow commit ${workflowSha}`)
+  }
+}
+
+function validateBuildStart({ branchSha, platform, release, remoteTagSha, tag, workflowSha }) {
+  validateReleaseBranchHead({ branchSha, workflowSha })
   if (release && release.draft !== true) {
     throw new Error(`Release ${tag} is already published; create a new version instead`)
   }
@@ -10,7 +17,8 @@ function validateBuildStart({ platform, release, remoteTagSha, tag, workflowSha 
   }
 }
 
-function validateBuildCompletion({ release, tag }) {
+function validateBuildCompletion({ branchSha, release, tag, workflowSha }) {
+  validateReleaseBranchHead({ branchSha, workflowSha })
   if (release && release.draft !== true) {
     throw new Error(
       `Release ${tag} was published while its tag was being prepared; refusing any post-publication tag mutation`
@@ -78,6 +86,7 @@ function main() {
 
   if (phase === 'build-start') {
     validateBuildStart({
+      branchSha: requiredEnvironment('BRANCH_SHA'),
       release,
       platform: requiredEnvironment('PLATFORM'),
       remoteTagSha: process.env.REMOTE_TAG_SHA || '',
@@ -87,7 +96,12 @@ function main() {
     return
   }
   if (phase === 'build-completion') {
-    validateBuildCompletion({ release, tag })
+    validateBuildCompletion({
+      branchSha: requiredEnvironment('BRANCH_SHA'),
+      release,
+      tag,
+      workflowSha: requiredEnvironment('WORKFLOW_SHA')
+    })
     return
   }
   if (phase === 'publish') {

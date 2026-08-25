@@ -20,8 +20,8 @@ description: Create or update GitHub pull requests using the repository-required
    - A `backport/v<version>/pr-<number>` head must target the matching `release/v<version>` base and its body must contain `<!-- release-backport-source-pr: <number> -->` on its own line for the exact source hotfix PR. A `release-sync/v<version>` head must target `main`, use the exact title `chore(release): sync v<version> metadata`, retain the `release-metadata-boundary: v<version>` body marker, and be squash-merged.
    - For official repo(CherryHQ/cherry-studio) as `origin`: default base is `main` from `origin`, but allow the user to explicitly indicate a base branch.
    - `main` is the active development line, including hotfix PRs. Do not target an old maintenance branch unless the user explicitly requests it.
-   - Only classify a PR as a release hotfix when the user explicitly says it must be included in the active draft release. Use the title `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` with a lowercase alphanumeric kebab-case scope, exactly one space after the colon, and a non-empty description. The `hotfix` label is synchronized automatically only when this title grammar and the bilingual release-note contract both pass. Merging opens a separate backport PR only when exactly one draft semantic-version release has a matching active `release/v<version>` branch; otherwise automation stops without guessing a target.
-   - A release hotfix must provide one user-facing release-note line in each language so automation can update the active draft and stable release history. Put this exact structure inside the template's existing `release-note` fence; do not include bullet prefixes:
+   - Only classify a PR as a release hotfix when the user explicitly says it must be included in the active draft release. Use the title `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` with a lowercase alphanumeric kebab-case scope, exactly one space after the colon, and a non-empty description. The title grammar synchronizes the `hotfix` label automatically. Merging opens a separate backport PR only when exactly one draft semantic-version release has a matching active `release/v<version>` branch; otherwise automation stops without guessing a target.
+   - If the hotfix is user-facing, provide one release-note line in each language so automation can update the active draft and stable release history. Put this exact structure inside the template's existing `release-note` fence; do not include bullet prefixes:
      ```text
      <!--LANG:en-->
      [Component] English description.
@@ -29,6 +29,7 @@ description: Create or update GitHub pull requests using the repository-required
      [组件] 中文说明。
      <!--LANG:END-->
      ```
+   - If the hotfix has no user-facing release note, keep `NONE` in the template's `release-note` fence. The code is still backported, but release metadata is unchanged. A provided bilingual block must satisfy the exact structure above.
    - For fork repo as `origin`: check available remotes with `git remote -v`, default base may be `upstream/main` or another remote. Always assume that user wants to merge head to CherryHQ/cherry-studio/main, unless the user explicitly indicates a base branch.
    - Ask the user to confirm the base branch if it's not the default.
 5. Create a temp file and write the PR body using a single Bash heredoc
@@ -49,11 +50,11 @@ description: Create or update GitHub pull requests using the repository-required
    ```bash
    gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
    ```
-   For a release hotfix, use an exact classifier-compatible title and let the workflow validate the bilingual note before synchronizing the label:
+   For a release hotfix, use an exact classifier-compatible title so the workflow synchronizes the label and separately validates any provided bilingual note:
    ```bash
    gh pr create --base main --head <head> --title "hotfix: <description>" --body-file "$pr_body_file"
    ```
-   After creation, verify that the classifier added `hotfix`; if it did not, fix the title or bilingual note instead of adding the label manually.
+   After creation, verify that the classifier added `hotfix`; if it did not, fix the title instead of adding the label manually. Also fix any malformed optional release-note block reported by the workflow.
 8. Clean up the temp file: `rm -f "$pr_body_file"`
 9. Report the created PR URL and summarize title/base/head and any required follow-up.
 
@@ -64,7 +65,7 @@ description: Create or update GitHub pull requests using the repository-required
 - Keep content concise and specific to the current change set.
 - PR title and body must be written in English.
 - Never use a `hotfix` title or label for an ordinary bug fix. It opts the PR into an automatic backport PR after merge when one matching draft release is active.
-- Never create a release hotfix with `NONE` or a single-language release note. The hotfix-label check rejects it, and the backport workflow fails closed instead of publishing a fix without release notes.
+- A release hotfix may use `NONE` when it has no user-facing release note. Never provide a partial, single-language, or otherwise malformed bilingual note; the backport workflow fails closed on malformed content.
 - Never default a `release/v<version>` head to `main`; a release branch is not a pull request source branch.
 - Never create the PR before showing the full final body to the user, unless they explicitly waive the preview or confirmation.
 - Never rely on command permission prompts as PR body preview.

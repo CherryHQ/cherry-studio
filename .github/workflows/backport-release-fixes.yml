@@ -54,16 +54,11 @@ jobs:
           export PR_BODY
 
           if [[ "$PR_TITLE" =~ $HOTFIX_TITLE_PATTERN ]]; then
-            if ! node scripts/release/hotfix-release-notes.js --check; then
-              if [ "$HAS_LABEL" = "true" ]; then
-                gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "hotfix"
-              fi
-              exit 1
-            fi
             gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active draft release" --force
             if [ "$HAS_LABEL" != "true" ]; then
               gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
             fi
+            node scripts/release/hotfix-release-notes.js --check
           elif [ "$HAS_LABEL" = "true" ]; then
             gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "hotfix"
           fi
@@ -80,7 +75,6 @@ jobs:
     concurrency:
       group: release-state
       cancel-in-progress: false
-      queue: max
     steps:
       - name: Check out trusted workflow scripts
         uses: actions/checkout@v6
@@ -100,17 +94,18 @@ jobs:
         run: |
           export LC_ALL=C
           HAS_LABEL="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq 'any(.labels[]; .name == "hotfix")')"
-          if [[ ! "$PR_TITLE" =~ $HOTFIX_TITLE_PATTERN ]] || ! node scripts/release/hotfix-release-notes.js --check; then
-            if [ "$HAS_LABEL" = "true" ]; then
-              gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "hotfix"
-            fi
-            echo "Automatic backport stopped because the merged pull request does not satisfy the exact hotfix title and bilingual release-note contract." > "$RUNNER_TEMP/backport-failure-message"
+          if [[ ! "$PR_TITLE" =~ $HOTFIX_TITLE_PATTERN ]]; then
+            echo "Automatic backport stopped because the merged pull request does not satisfy the exact hotfix title contract." > "$RUNNER_TEMP/backport-failure-message"
             exit 1
           fi
 
           gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active draft release" --force
           if [ "$HAS_LABEL" != "true" ]; then
             gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
+          fi
+          if ! node scripts/release/hotfix-release-notes.js --check; then
+            echo "Automatic backport stopped because the optional release-note block is malformed." > "$RUNNER_TEMP/backport-failure-message"
+            exit 1
           fi
 
       - name: Resolve active release branch
@@ -493,7 +488,7 @@ jobs:
 
           TITLE="fix(release): backport #$SOURCE_PR to $TAG"
           MAIN_GAP="$(printf 'The fix from %s exists on `main` but not on `%s`.' "$SOURCE_URL" "$RELEASE_BRANCH")"
-          APPLIED_FIX="$(printf 'The source pull request change set and its bilingual hotfix note are applied to `%s` for %s.' "$RELEASE_BRANCH" "$TAG")"
+          APPLIED_FIX="$(printf 'The source pull request change set and any provided bilingual hotfix note are applied to `%s` for %s.' "$RELEASE_BRANCH" "$TAG")"
           BODY="$(printf '%s\n' \
             '> ### Branch strategy' \
             '>' \
@@ -697,7 +692,6 @@ jobs:
     concurrency:
       group: backport-state-${{ github.event.pull_request.number }}
       cancel-in-progress: false
-      queue: max
     steps:
       - name: Synchronize source pull request status
         shell: bash

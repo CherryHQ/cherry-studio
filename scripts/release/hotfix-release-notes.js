@@ -4,11 +4,12 @@ const LANGUAGE_MARKERS = ['<!--LANG:en-->', '<!--LANG:zh-CN-->', '<!--LANG:END--
 
 function extractHotfixReleaseNote(prBody) {
   const blocks = [...prBody.matchAll(/```release-note[ \t]*\r?\n([\s\S]*?)\r?\n```/g)]
-  if (blocks.length !== 1) {
-    throw new Error('A hotfix PR must contain exactly one release-note block')
-  }
+  if (blocks.length > 1) throw new Error('A hotfix PR may contain at most one release-note block')
+  if (blocks.length === 0) return null
 
   const content = blocks[0][1].replace(/\r\n/g, '\n').trim()
+  if (content === 'NONE') return null
+
   const markerIndexes = LANGUAGE_MARKERS.map((marker) => content.indexOf(marker))
   if (
     markerIndexes.some((index) => index < 0) ||
@@ -26,6 +27,9 @@ function extractHotfixReleaseNote(prBody) {
   const linePattern = /^\[[^\]\r\n]+\] \S[^\r\n]*$/u
   if (!linePattern.test(english) || !linePattern.test(chinese)) {
     throw new Error('Each hotfix language section must contain one [Component] release-note line')
+  }
+  if (!/\p{Script=Han}/u.test(chinese.slice(chinese.indexOf('] ') + 2))) {
+    throw new Error('The Chinese hotfix release-note description must contain Chinese content')
   }
 
   return { english, chinese }
@@ -82,6 +86,8 @@ function readBuilderReleaseNotes(content) {
 
 function updateHotfixReleaseMetadata({ builderPath, historyPath, prBody, version }) {
   const note = extractHotfixReleaseNote(prBody)
+  if (!note) return null
+
   const builderContent = fs.readFileSync(builderPath, 'utf8')
   const block = readBuilderReleaseNotes(builderContent)
   let releaseNotes = appendBugFix(

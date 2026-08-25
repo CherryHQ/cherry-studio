@@ -11,7 +11,6 @@ permissions:
 concurrency:
   group: release-state
   cancel-in-progress: false
-  queue: max
 
 env:
   RELEASE_METADATA_FILES: '["package.json","electron-builder.yml","resources/cherry-studio/release-history.json","resources/builtin-agents/cherry-assistant/product-manifest.json"]'

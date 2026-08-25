@@ -101,7 +101,7 @@ Do not start a release build while CI is queued, running, cancelled, or failing.
 The first release-branch CI run happens before a draft GitHub Release exists, so automatic backporting cannot safely select that branch yet. If code must change for this initial CI run to pass:
 
 1. Fix the root cause through a pull request to `main` titled `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>`. The workflow adds the `hotfix` label, but it does not backport yet because there is no matching draft.
-2. After the hotfix merges, create `backport/v<version>/pr-<source-number>` from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch. Run `PR_BODY="$(gh pr view <source-number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` on that branch to add its bilingual note to the prepared release metadata.
+2. After the hotfix merges, create `backport/v<version>/pr-<source-number>` from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch. Run `PR_BODY="$(gh pr view <source-number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` on that branch to apply any provided bilingual note; the command leaves release metadata unchanged for `NONE` or a missing block.
 3. Push a signed, DCO-signed commit and open a pull request from that topic branch to `release/v<version>`. Put `<!-- release-backport-source-pr: <source-number> -->` on its own line in the pull request body so the lifecycle tracker automatically maintains the source hotfix's `backport/v<version>` and `backported/v<version>` labels.
 4. Review the release-specific diff, merge it after CI passes, and wait for CI on the new release branch head.
 5. Start the initial **Release** build. Once its draft exists, later merged hotfix pull requests use the automatic backport flow.
@@ -143,7 +143,7 @@ All hotfix development still starts from `main`:
 3. Use one of these exact title forms; a scope, when present, must be lowercase alphanumeric kebab-case, the colon must be followed by one space, and the description must not be empty:
    - `hotfix: <description>`
    - `hotfix(<kebab-case-scope>): <description>`
-4. In the pull request's `release-note` fence, provide exactly one component-tagged English line and one Chinese line with these markers. Do not add bullet prefixes:
+4. If the fix is user-facing, provide exactly one component-tagged English line and one Chinese line in the pull request's `release-note` fence. Do not add bullet prefixes:
 
    ```text
    <!--LANG:en-->
@@ -153,9 +153,11 @@ All hotfix development still starts from `main`:
    <!--LANG:END-->
    ```
 
+   Otherwise, keep `NONE` in the fence. Omitting the block is also accepted by automation, but preserving the PR template section is preferred. If a bilingual block is present, it must use the exact markers and contain Chinese content in the Chinese description.
+
 5. Wait for review and CI, then merge the pull request into `main`.
 
-The **Backport Release Hotfixes** workflow validates the bilingual note before synchronizing the `hotfix` label. After merge, it locks release state, finds the single draft semantic-version release with a matching release branch, and applies the source PR result with trusted workflow scripts. If a backport PR is already open for that release, the new fix and source marker are appended to its topic branch; otherwise the workflow creates `backport/v<version>/pr-<source-number>`. This keeps consecutive hotfixes in one reviewed queue instead of creating conflicting PRs from the same release head. Every generated commit is GitHub-verified and DCO-signed off. The workflow revalidates the draft, release head, and aggregate backport head before writing, and never commits directly to the release branch.
+The **Backport Release Hotfixes** workflow synchronizes the `hotfix` label from the title and separately validates any provided bilingual note. After merge, it locks release state, finds the single draft semantic-version release with a matching release branch, and applies the source PR result with trusted workflow scripts. If a backport PR is already open for that release, the new fix and source marker are appended to its topic branch; otherwise the workflow creates `backport/v<version>/pr-<source-number>`. This keeps consecutive hotfixes in one reviewed backport pull request instead of creating conflicting PRs from the same release head. Every generated commit is GitHub-verified and DCO-signed off. The workflow revalidates the draft, release head, and aggregate backport head before writing, and never commits directly to the release branch.
 
 Track the source pull request by its labels:
 
@@ -176,6 +178,8 @@ After the backport pull request is created:
 
 Closing an automatic backport pull request without merging changes the source hotfix PR to `backport-failed/v<version>`. Reopening it restores the open `backport/v<version>` state. The workflow does not add `backport/v<version>` until an actual backport pull request exists. A preparation failure before a pull request exists sets `backport-failed/v<version>`; if a backport pull request is already open, a rerun reconciles the source PR back to the open `backport/v<version>` state.
 
+GitHub Actions keeps at most one pending run in a concurrency group. If a burst of release-state events supersedes an older pending backport run, that source hotfix remains without `backported/v<version>`, so publication stays blocked. Rerun the cancelled backport workflow; do not bypass the publication gate.
+
 ### Resolving a Backport Failure
 
 When the source pull request receives `backport-failed/v<version>` before a backport pull request exists:
@@ -183,7 +187,7 @@ When the source pull request receives `backport-failed/v<version>` before a back
 1. Create a temporary conflict-resolution branch from the current `release/v<version>` head.
 2. Apply only the hotfix pull request's intended changes. Do not merge `main` into the release branch.
 3. Resolve conflicts in favor of the release branch plus the required fix; do not bring unrelated later `main` changes into the release.
-4. Run `PR_BODY="$(gh pr view <source-number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` to add the source PR's bilingual note to `electron-builder.yml` and, for a stable release, release history.
+4. Run `PR_BODY="$(gh pr view <source-number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` to apply any provided bilingual note to `electron-builder.yml` and, for a stable release, release history. The command is a no-op when the note is `NONE` or absent.
 5. Run validation appropriate to all changed code and metadata files.
 6. Create a signed, DCO-signed commit and open a pull request targeting `release/v<version>` for review.
 7. After it is merged, wait for release branch CI and rebuild the draft release.

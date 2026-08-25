@@ -193,8 +193,9 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
    NODE
    )"
    test -z "$UNFINISHED_RELEASES"
-   CURRENT_VERSION="$(node -p "require('./package.json').version")"
-   BASELINE_TAG="v$CURRENT_VERSION"
+   test "$(node -p "require('./package.json').version")" = "{version}"
+   BASELINE_VERSION="$(git show HEAD:package.json | jq -r .version)"
+   BASELINE_TAG="v$BASELINE_VERSION"
    git rev-parse --verify "refs/tags/$BASELINE_TAG"
    LATEST_PUBLISHED="$(gh release list --limit 1000 --json isDraft,publishedAt,tagName --jq '[.[] | select(.isDraft == false and (.tagName | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")))] | sort_by(.publishedAt) | last | .tagName // empty')"
    test "$LATEST_PUBLISHED" = "$BASELINE_TAG"
@@ -215,7 +216,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 ## CI Trigger Chain
 
 - Wait for the **CI** push run on the new `release/v{version}` commit to succeed, then run **`release.yml`** manually with that release branch selected. It validates the branch name against `package.json`, builds the exact branch commit on macOS, Windows, and Linux, and creates or updates a draft GitHub Release.
-- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for the first merged `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR from `main`, then appends consecutive hotfixes and source markers to that same open topic branch. It manages every source PR's `hotfix` and backport-status labels and reports failures on the source PR; never merge `main` into the release branch.
+- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for the first merged `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR from `main`, applies any optional bilingual release note, then appends consecutive hotfixes and source markers to that same open topic branch. It manages every source PR's `hotfix` and backport-status labels and reports failures on the source PR; never merge `main` into the release branch.
 - Review the backport PR, wait for its CI, and merge it. After the resulting release-branch push passes CI, run **`release.yml`** again from the release branch to rebuild the draft release.
 - Publish only through the **`release.yml`** `publish` operation on the release branch. It shares the release-state lock with preparation, builds, and backports; verifies the exact successful all-platform build; then publishes the still-current draft. Publication triggers **`post-release.yml`**, which verifies that the tag still matches the release branch, applies only the release metadata delta to the latest `main`, and creates a `release-sync/v{version}` metadata-only PR.
 - The metadata PR synchronizes only `package.json`, `electron-builder.yml`, release history, and the generated product manifest. It triggers **`ci.yml`**; merge it only after CI passes.

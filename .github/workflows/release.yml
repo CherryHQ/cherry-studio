@@ -26,7 +26,6 @@ on:
 concurrency:
   group: release-state
   cancel-in-progress: false
-  queue: max
 
 permissions:
   actions: read
@@ -192,8 +191,10 @@ jobs:
             exit 0
           fi
 
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
           REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
           echo "remote-tag-sha=$REMOTE_TAG_SHA" >> "$GITHUB_OUTPUT"
+          BRANCH_SHA="$BRANCH_SHA" \
           PLATFORM="${{ github.event.inputs.platform }}" \
           RELEASE_JSON="$RELEASE" \
           REMOTE_TAG_SHA="$REMOTE_TAG_SHA" \
@@ -582,6 +583,18 @@ jobs:
           fi
           cp -R selected-release-artifacts/. release-artifacts/
 
+      - name: Revalidate current release head
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          BRANCH_SHA="$BRANCH_SHA" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-completion
+
       - name: Create or update draft release
         uses: ncipollo/release-action@v1
         with:
@@ -601,26 +614,21 @@ jobs:
         id: uploaded-draft
         shell: bash
         env:
+          BRANCH: ${{ github.ref_name }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           RELEASE="$(gh api "repos/$REPO/releases/tags/$TAG")"
-          echo "id=$(jq -r '.id' <<< "$RELEASE")" >> "$GITHUB_OUTPUT"
-          echo "draft=$(jq -r '.draft' <<< "$RELEASE")" >> "$GITHUB_OUTPUT"
-
-      - name: Reject post-publication mutation
-        shell: bash
-        env:
-          RELEASE_DRAFT: ${{ steps.uploaded-draft.outputs.draft }}
-          TAG: ${{ needs.prepare.outputs.tag }}
-        run: |
-          RELEASE_JSON="$(jq -cn --argjson draft "$RELEASE_DRAFT" '{draft: $draft}')" \
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
             node scripts/release/validate-release-state.js build-completion
+          echo "id=$(jq -r '.id' <<< "$RELEASE")" >> "$GITHUB_OUTPUT"
 
       - name: Move draft tag with lease after artifact upload
         shell: bash
         env:
+          BRANCH: ${{ github.ref_name }}
           EXPECTED_TAG_SHA: ${{ needs.prepare.outputs.remote-tag-sha }}
           GH_TOKEN: ${{ github.token }}
           PLATFORM: ${{ github.event.inputs.platform }}
@@ -629,7 +637,9 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
-          RELEASE_JSON="$RELEASE" TAG="$TAG" node scripts/release/validate-release-state.js build-completion
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-completion
 
           REMOTE_TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
           if [ "$PLATFORM" = "all" ]; then

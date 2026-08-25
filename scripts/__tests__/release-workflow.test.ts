@@ -153,6 +153,7 @@ describe('backport patch preparation', () => {
       hasChanges: true,
       patchBase: base
     })
+    expect(fs.readFileSync(path.join(fixture.repo, 'app.txt'), 'utf8')).toBe('first\n')
     expect(fs.readFileSync(path.join(fixture.repo, 'second.txt'), 'utf8')).toBe('second\n')
   })
 
@@ -297,13 +298,20 @@ function builderYaml(notes: string, extra = ''): string {
 }
 
 describe('hotfix release notes', () => {
-  it('requires one bilingual line for an automatically backported hotfix', () => {
+  it('accepts an optional bilingual note for an automatically backported hotfix', () => {
     expect(extractHotfixReleaseNote(HOTFIX_BODY)).toEqual({
       english: '[Chat] Fix messages disappearing after restart.',
       chinese: '[聊天] 修复重启后消息消失的问题。'
     })
-    expect(() => extractHotfixReleaseNote('```release-note\nNONE\n```')).toThrow('language markers')
-    expect(() => extractHotfixReleaseNote(`${HOTFIX_BODY}\n\n${HOTFIX_BODY}`)).toThrow('exactly one release-note block')
+    expect(extractHotfixReleaseNote('```release-note\nNONE\n```')).toBeNull()
+    expect(extractHotfixReleaseNote('No release note for this internal fix.')).toBeNull()
+    expect(() => extractHotfixReleaseNote(`${HOTFIX_BODY}\n\n${HOTFIX_BODY}`)).toThrow('at most one release-note block')
+  })
+
+  it('requires Chinese content in a provided Chinese description', () => {
+    expect(() => extractHotfixReleaseNote(hotfixBody('[Chat] Fix the issue.', '[Chat] Fix the issue.'))).toThrow(
+      'must contain Chinese content'
+    )
   })
 
   it.each([
@@ -354,6 +362,24 @@ describe('hotfix release notes', () => {
     expect(updatedNotes.match(/修复重启后消息消失/g)).toHaveLength(1)
     expect(JSON.parse(fs.readFileSync(historyPath, 'utf8'))[0].releaseNotes).toBe(updatedNotes)
   })
+
+  it.each(['```release-note\nNONE\n```', 'No release note block.'])(
+    'leaves release metadata unchanged when no hotfix note is provided',
+    (prBody) => {
+      const fixture = createGitFixture()
+      const notes = releaseNotes('1.0.0', 'Existing fix.')
+      const builderPath = path.join(fixture.repo, 'electron-builder.yml')
+      const historyPath = path.join(fixture.repo, 'release-history.json')
+      const builder = builderYaml(notes)
+      const history = `${JSON.stringify([{ version: '1.0.0', releaseNotes: notes }], null, 2)}\n`
+      write(fixture.repo, 'electron-builder.yml', builder)
+      write(fixture.repo, 'release-history.json', history)
+
+      expect(updateHotfixReleaseMetadata({ builderPath, historyPath, prBody, version: '1.0.0' })).toBeNull()
+      expect(fs.readFileSync(builderPath, 'utf8')).toBe(builder)
+      expect(fs.readFileSync(historyPath, 'utf8')).toBe(history)
+    }
+  )
 
   it('inserts a missing bug-fix category before later release-note categories', () => {
     const fixture = createGitFixture()
@@ -734,6 +760,7 @@ describe('release publication state', () => {
   it('allows all-platform draft movement but restricts single-platform retries to the existing tag', () => {
     expect(() =>
       validateBuildStart({
+        branchSha: workflowSha,
         platform: 'all',
         release: null,
         remoteTagSha: '',
@@ -743,6 +770,7 @@ describe('release publication state', () => {
     ).not.toThrow()
     expect(() =>
       validateBuildStart({
+        branchSha: workflowSha,
         platform: 'all',
         release: draftRelease,
         remoteTagSha: 'b'.repeat(40),
@@ -752,6 +780,7 @@ describe('release publication state', () => {
     ).not.toThrow()
     expect(() =>
       validateBuildStart({
+        branchSha: workflowSha,
         platform: 'mac',
         release: draftRelease,
         remoteTagSha: workflowSha,
@@ -761,6 +790,7 @@ describe('release publication state', () => {
     ).not.toThrow()
     expect(() =>
       validateBuildStart({
+        branchSha: workflowSha,
         platform: 'all',
         release: null,
         remoteTagSha: 'b'.repeat(40),
@@ -770,6 +800,7 @@ describe('release publication state', () => {
     ).toThrow('exists without a draft release')
     expect(() =>
       validateBuildStart({
+        branchSha: workflowSha,
         platform: 'all',
         release: { ...draftRelease, draft: false },
         remoteTagSha: workflowSha,
@@ -779,6 +810,7 @@ describe('release publication state', () => {
     ).toThrow('already published')
     expect(() =>
       validateBuildStart({
+        branchSha: workflowSha,
         platform: 'linux',
         release: draftRelease,
         remoteTagSha: 'b'.repeat(40),
@@ -788,6 +820,7 @@ describe('release publication state', () => {
     ).toThrow('requires an existing draft whose tag already points')
     expect(() =>
       validateBuildStart({
+        branchSha: workflowSha,
         platform: 'windows',
         release: null,
         remoteTagSha: workflowSha,
@@ -795,14 +828,56 @@ describe('release publication state', () => {
         workflowSha
       })
     ).toThrow('requires an existing draft whose tag already points')
-    expect(() => validateBuildCompletion({ release: { draft: false }, tag: 'v1.2.0' })).toThrow(
-      'refusing any post-publication tag mutation'
-    )
+    expect(() =>
+      validateBuildStart({
+        branchSha: 'b'.repeat(40),
+        platform: 'all',
+        release: draftRelease,
+        remoteTagSha: workflowSha,
+        tag: 'v1.2.0',
+        workflowSha
+      })
+    ).toThrow('Release branch moved away from selected workflow commit')
+    expect(() =>
+      validateBuildCompletion({
+        branchSha: workflowSha,
+        release: { draft: false },
+        tag: 'v1.2.0',
+        workflowSha
+      })
+    ).toThrow('refusing any post-publication tag mutation')
+    expect(() =>
+      validateBuildCompletion({
+        branchSha: 'b'.repeat(40),
+        release: draftRelease,
+        tag: 'v1.2.0',
+        workflowSha
+      })
+    ).toThrow('Release branch moved away from selected workflow commit')
   })
 })
 
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
+
+  it('revalidates the selected release branch head before draft mutation and tag movement', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const finalizeSteps = workflow.jobs['finalize-build'].steps
+    const headStep = finalizeSteps.find((step: { name?: string }) => step.name === 'Revalidate current release head')
+    const releaseIndex = finalizeSteps.findIndex(
+      (step: { name?: string }) => step.name === 'Create or update draft release'
+    )
+    const uploadedStep = finalizeSteps.find((step: { name?: string }) => step.name === 'Validate uploaded draft')
+    const tagStep = finalizeSteps.find(
+      (step: { name?: string }) => step.name === 'Move draft tag with lease after artifact upload'
+    )
+
+    expect(finalizeSteps.indexOf(headStep)).toBeLessThan(releaseIndex)
+    expect(headStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
+    expect(uploadedStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
+    expect(tagStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
+    expect(tagStep.run).toContain('node scripts/release/validate-release-state.js build-completion')
+  })
 
   it('runs the shared publish validator with pending hotfixes immediately before publication', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
@@ -837,6 +912,18 @@ describe('release workflow gates', () => {
     expect(failureStep.env.CONTRACT_OUTCOME).toBe('${{ steps.hotfix-contract.outcome }}')
     expect(failureStep.run).toContain('if [ "$CONTRACT_OUTCOME" = "failure" ]; then')
     expect(failureStep.run).toContain('gh pr comment')
+  })
+
+  it('classifies hotfix labels from the title before validating an optional release note', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'backport-release-fixes.yml'), 'utf8'))
+    const classifyStep = workflow.jobs.classify.steps.find(
+      (step: { name?: string }) => step.name === 'Synchronize hotfix label'
+    )
+    const addLabelIndex = classifyStep.run.indexOf('--add-label "hotfix"')
+    const noteCheckIndex = classifyStep.run.indexOf('hotfix-release-notes.js --check')
+
+    expect(addLabelIndex).toBeGreaterThan(-1)
+    expect(addLabelIndex).toBeLessThan(noteCheckIndex)
   })
 
   it('builds preview source commits without repository or service credentials', () => {
