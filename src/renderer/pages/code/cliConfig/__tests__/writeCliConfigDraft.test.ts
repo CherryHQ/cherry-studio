@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
+import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -88,25 +88,22 @@ describe('writeCliConfigDraft', () => {
     written = null
     writes = []
     existing = {}
-    // Draft building still reads config files renderer-side; the mock keeps
-    // resolving `~/…` spec paths to `/resolved~/…` for the `existing` fixture.
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-        file: {
-          readExternal: vi.fn(async (absPath: string) => {
-            if (absPath in existing) return existing[absPath]
-            throw new Error(`File does not exist: ${absPath}`)
+    // Draft building still reads on-disk config files renderer-side
+    // (`code_cli.read_config`); the mock keeps resolving `~/…` spec paths to
+    // `/resolved~/…` for the `existing` fixture.
+    mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+      if (route === 'code_cli.read_config') {
+        return {
+          files: (input.targets as CliConfigTarget[]).map((target) => {
+            const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+            return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
           })
         }
       }
-    })
-    // The disk mutation is main-process now (`code_cli.write_config` carries
-    // a target, never a path). Translate each write target back to the
-    // same `/resolved~/…` path so the content fixtures stay unchanged.
-    mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
-      for (const file of input.files) {
+      // The disk mutation is main-process now (`code_cli.write_config` carries
+      // a target, never a path). Translate each write target back to the
+      // same `/resolved~/…` path so the content fixtures stay unchanged.
+      for (const file of input.files as CliConfigWriteFile[]) {
         if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
         const nextWrite = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
         written = nextWrite
@@ -1293,6 +1290,44 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env.ANTHROPIC_BASE_URL).toBe(GATEWAY_BASE_URL)
       expect(parsed.env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-chat')
     })
+
+    it('rebuilds purely from a complete draft when every on-disk read fails', async () => {
+      // A complete in-memory draft must not depend on the disk: a transient read
+      // failure (EACCES/EBUSY) must not block a rebuild the draft already covers.
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({ theme: 'dark', env: { KEEP: '1' } })
+      }
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+      mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        for (const file of input.files as CliConfigWriteFile[]) {
+          // This path asserts writes only; delete entries never reach it (the suite pins that).
+          const nextWrite = {
+            path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`,
+            content: (file as { content: string }).content
+          }
+          written = nextWrite
+          writes.push(nextWrite)
+        }
+        return { success: true }
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        files: [editedDraft],
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
+    })
   })
 
   describe('clear on disable deletes Cherry-managed keys', () => {
@@ -1483,8 +1518,9 @@ describe('writeCliConfigDraft', () => {
       // Before the fix this was swallowed and treated as "file doesn't exist
       // yet", which would silently wipe every unmanaged key from the real file.
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({ hooks: { foo: 'bar' } })
-      vi.mocked(window.api.file.readExternal).mockImplementationOnce(async () => {
-        throw new Error('EACCES: permission denied')
+      mocks.request.mockImplementation(async (route: string) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        return { success: true }
       })
       mockGet({
         '/providers/anthropic': () => anthropicProvider,
@@ -1498,7 +1534,7 @@ describe('writeCliConfigDraft', () => {
       // Nothing was sent to the main-process writer — the real file (and its
       // unmanaged keys) is untouched. (Snapshot/rollback safety around the
       // write itself is a main-side property, pinned in configWriter tests.)
-      expect(mocks.request).not.toHaveBeenCalled()
+      expect(mocks.request.mock.calls.some(([route]) => route === 'code_cli.write_config')).toBe(false)
     })
   })
 })

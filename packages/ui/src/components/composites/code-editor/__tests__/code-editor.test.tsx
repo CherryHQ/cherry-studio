@@ -7,6 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CodeEditor from '../code-editor'
 import type { CodeEditorHandles } from '../types'
 
+type CapturedCodeMirrorProps = {
+  autoFocus?: boolean
+  height?: string
+  onCreateEditor?: (view: unknown) => void
+  style?: React.CSSProperties
+}
+
 const mocks = vi.hoisted(() => {
   const replacement = { changes: 'inserted-text' }
   const scrollEffect = { type: 'scroll-to-bottom' }
@@ -19,7 +26,7 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
-    codeMirrorProps: undefined as { autoFocus?: boolean; onCreateEditor?: (view: unknown) => void } | undefined,
+    codeMirrorProps: undefined as CapturedCodeMirrorProps | undefined,
     dispatch: vi.fn(),
     focus: vi.fn(),
     replacement,
@@ -35,7 +42,7 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('@uiw/react-codemirror', () => ({
-  default: (props: { autoFocus?: boolean; onCreateEditor?: (view: unknown) => void }) => {
+  default: (props: CapturedCodeMirrorProps) => {
     mocks.codeMirrorProps = props
     mocks.scrollDOM.addEventListener.mockImplementation((event: string, listener: () => void) => {
       if (event === 'scroll') mocks.scrollListener = listener
@@ -187,5 +194,26 @@ describe('CodeEditor', () => {
         effects: mocks.scrollEffect
       })
     )
+  })
+
+  it('sizes the host element itself so a percentage height does not collapse', () => {
+    render(<CodeEditor value="" language="markdown" expanded={false} height="100%" />)
+
+    // ReactCodeMirror applies `height` to the inner `.cm-editor` only. Without the
+    // same height on the host it resolves against an auto-height parent, so the
+    // editor grows with its content and never scrolls.
+    expect(mocks.codeMirrorProps?.style).toMatchObject({ height: '100%' })
+  })
+
+  it('leaves the host unsized when expanded, where height is documented as ignored', () => {
+    render(<CodeEditor value="" language="markdown" height="100%" />)
+
+    expect(mocks.codeMirrorProps?.style?.height).toBeUndefined()
+  })
+
+  it('lets a caller-supplied style override the host height', () => {
+    render(<CodeEditor value="" language="markdown" expanded={false} height="100%" style={{ height: '300px' }} />)
+
+    expect(mocks.codeMirrorProps?.style).toMatchObject({ height: '300px' })
   })
 })

@@ -7,6 +7,7 @@ import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifact
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
+import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
@@ -26,6 +27,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
+  backgroundTasksState,
   buildAgentToolFlowProjectionMock,
   getToolResultMock,
   fileSessionDiscardMock,
@@ -43,6 +45,7 @@ const {
   toastErrorMock,
   uiMockState
 } = vi.hoisted(() => ({
+  backgroundTasksState: { value: [] as AgentSessionBackgroundTask[] },
   buildAgentToolFlowProjectionMock: vi.fn(),
   getToolResultMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
@@ -201,7 +204,19 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
-  MessageListProvider: ({ children }: PropsWithChildren) => <>{children}</>
+  MessageListProvider: ({
+    children,
+    value
+  }: PropsWithChildren<{
+    value: { state: { renderConfig: { collapseCompletedToolHistory: boolean; messageStyle: string } } }
+  }>) => (
+    <div
+      data-testid="message-list-provider"
+      data-collapse-completed-tool-history={String(value.state.renderConfig.collapseCompletedToolHistory)}
+      data-message-style={value.state.renderConfig.messageStyle}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/hooks/useToolResult', () => ({
@@ -363,6 +378,10 @@ vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
   useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentSessionBackgroundTasks', () => ({
+  useAgentSessionBackgroundTasks: () => backgroundTasksState.value
 }))
 
 // A live turn: run-task rows render the status their events report. Staleness is covered where the
@@ -572,6 +591,7 @@ describe('AgentRightPane', () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue(null)
     systemFileTreeState.root = new TreeDirRoot('/system-workspace')
     systemFileTreeState.version = 0
+    backgroundTasksState.value = []
     useDirectoryTreeMock.mockImplementation(() => systemFileTreeState)
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
@@ -990,6 +1010,34 @@ describe('AgentRightPane', () => {
     )
   })
 
+  it('presents flow prompts as bubbles and keeps completed process history collapsed', () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { prompt: 'Inspect the workspace' },
+      output: 'Inspection complete'
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-collapse-completed-tool-history', 'true')
+    expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
+  })
+
   it('marks direct artifact opening as user initiated', async () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
@@ -1188,6 +1236,35 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
+  })
+
+  it('keeps a detached subagent spinning while it remains in the background task snapshot', () => {
+    const taskEvent = {
+      event: 'started' as const,
+      taskId: 'subagent-1',
+      toolUseId: 'tool-use-1',
+      status: 'in_progress' as const,
+      title: 'Run a detached subagent',
+      taskType: 'subagent'
+    }
+    const taskPart = { type: 'data-agent-task-event', data: taskEvent } as unknown as CherryMessagePart
+    const messages = [
+      { id: 'm1', role: 'assistant', parts: [taskPart], metadata: { status: 'success' } }
+    ] as CherryUIMessage[]
+    backgroundTasksState.value = [
+      { id: 'subagent-1', type: 'subagent', description: 'Run a detached subagent', toolCallId: 'tool-use-1' }
+    ]
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [taskPart] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
+    expect(taskButton.querySelector('.animate-spin')).not.toBeNull()
   })
 
   it('returns from a subagent flow to the status panel', async () => {
