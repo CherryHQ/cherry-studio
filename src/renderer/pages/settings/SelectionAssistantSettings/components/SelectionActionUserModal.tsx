@@ -110,7 +110,10 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent aria-describedby={undefined} closeOnOverlayClick={false} className="sm:max-w-130">
+      <DialogContent
+        aria-describedby={undefined}
+        closeOnOverlayClick={false}
+        className="max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-130">
         <DialogHeader>
           <DialogTitle>
             {editingAction
@@ -118,7 +121,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               : t('selection.settings.user_modal.title.add')}
           </DialogTitle>
         </DialogHeader>
-        <div className="flex w-full min-w-0 flex-col gap-4">
+        <div className="flex min-h-0 w-full min-w-0 flex-col gap-4 overflow-y-auto pr-1">
           <ModalSection>
             <div className="flex flex-row">
               <div className="w-[70%] flex-auto pr-4">
@@ -265,7 +268,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               value={formData.prompt || ''}
               onChange={(e) => handleInputChange('prompt', e.target.value)}
               rows={4}
-              className="resize-none"
+              className="max-h-40 resize-none overflow-y-auto"
             />
           </ModalSection>
         </div>
