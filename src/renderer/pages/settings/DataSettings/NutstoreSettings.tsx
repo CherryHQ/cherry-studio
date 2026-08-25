@@ -64,7 +64,9 @@ const NutstoreSettings: FC = () => {
     window.open(ssoUrl, '_blank')
     const nutstoreToken = await nutstoreSsoHandler()
 
-    void setNutstoreToken(nutstoreToken)
+    if (nutstoreToken) {
+      void setNutstoreToken(nutstoreToken)
+    }
   }, [nutstoreSsoHandler, setNutstoreToken])
 
   useEffect(() => {
