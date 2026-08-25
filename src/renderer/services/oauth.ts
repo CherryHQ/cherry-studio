@@ -10,61 +10,168 @@ const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
 const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
 
-export const oauthWithSiliconFlow = async (setKey) => {
-  const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
+const OAUTH_POPUP_TIMEOUT_MS = 10 * 60 * 1000
+const OAUTH_POPUP_CLOSE_POLL_MS = 500
+const OAUTH_POPUP_FEATURES =
+  'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
 
-  const popup = window.open(
-    authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+type SecretKeyOAuthPayload = [{ secretKey: string }, ...unknown[]]
+
+interface AihubmixOAuthPayload {
+  key: 'cherry_studio_oauth_callback'
+  data?: unknown
+}
+
+interface NestedApiKeyOAuthPayload {
+  data: { apikey: string }
+}
+
+interface PopupMessageOAuthOptions<T> {
+  authUrl: string
+  popupName: string
+  matches: (data: unknown) => data is T
+  getKey: (data: T) => string | Promise<string>
+  setKey: (key: string) => void | Promise<void>
+  onError?: (error: unknown) => void
+}
+
+const activePopupFlowCleanups = new Map<string, () => void>()
+
+function isSecretKeyOAuthPayload(data: unknown): data is SecretKeyOAuthPayload {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    typeof data[0] === 'object' &&
+    data[0] !== null &&
+    typeof (data[0] as { secretKey?: unknown }).secretKey === 'string'
   )
+}
 
-  const messageHandler = (event) => {
-    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
+function isAihubmixOAuthPayload(data: unknown): data is AihubmixOAuthPayload {
+  return typeof data === 'object' && data !== null && (data as { key?: unknown }).key === 'cherry_studio_oauth_callback'
+}
+
+function isNestedApiKeyOAuthPayload(data: unknown): data is NestedApiKeyOAuthPayload {
+  if (typeof data !== 'object' || data === null) return false
+  const nestedData = (data as { data?: unknown }).data
+  return (
+    typeof nestedData === 'object' &&
+    nestedData !== null &&
+    typeof (nestedData as { apikey?: unknown }).apikey === 'string'
+  )
+}
+
+function startPopupMessageOAuth<T>({
+  authUrl,
+  popupName,
+  matches,
+  getKey,
+  setKey,
+  onError
+}: PopupMessageOAuthOptions<T>): void {
+  const popup = window.open(authUrl, popupName, OAUTH_POPUP_FEATURES)
+  if (!popup) return
+  const openedPopup = popup
+
+  activePopupFlowCleanups.get(popupName)?.()
+
+  const expectedOrigin = new URL(authUrl.trim()).origin
+  let active = true
+  let listening = true
+
+  const stopListening = () => {
+    if (!listening) return
+    listening = false
+    window.removeEventListener('message', messageHandler)
+  }
+
+  const finish = () => {
+    if (!active) return
+    active = false
+    stopListening()
+    window.clearInterval(closePollId)
+    window.clearTimeout(timeoutId)
+    if (activePopupFlowCleanups.get(popupName) === finish) {
+      activePopupFlowCleanups.delete(popupName)
     }
   }
 
-  window.removeEventListener('message', messageHandler)
+  function messageHandler(event: MessageEvent): void {
+    const data: unknown = event.data
+    if (!active || event.source !== openedPopup || event.origin !== expectedOrigin || !matches(data)) return
+
+    // A recognized callback is terminal. Stop accepting duplicate messages,
+    // but keep the close/timeout guards alive while async payload work runs.
+    stopListening()
+
+    void Promise.resolve()
+      .then(() => getKey(data))
+      .then(async (key) => {
+        if (!active) return
+        await setKey(key)
+        if (!active) return
+        openedPopup.close()
+        finish()
+      })
+      .catch((error) => {
+        if (!active) return
+        openedPopup.close()
+        onError?.(error)
+        finish()
+      })
+  }
+
+  const closePollId = window.setInterval(() => {
+    if (openedPopup.closed) finish()
+  }, OAUTH_POPUP_CLOSE_POLL_MS)
+  const timeoutId = window.setTimeout(finish, OAUTH_POPUP_TIMEOUT_MS)
+
+  activePopupFlowCleanups.set(popupName, finish)
   window.addEventListener('message', messageHandler)
 }
 
-export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = ` https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
+export const oauthWithSiliconFlow = async (setKey) => {
+  const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
 
-  const popup = window.open(
+  startPopupMessageOAuth({
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+    popupName: 'oauth',
+    matches: isSecretKeyOAuthPayload,
+    getKey: (data) => data[0].secretKey,
+    setKey,
+    onError: (error) => logger.error('[oauthWithSiliconFlow] error', error as Error)
+  })
+}
 
-  const messageHandler = async (event) => {
-    const data = event.data
+export const oauthWithAihubmix = async (setKey) => {
+  const authUrl = `https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
 
-    if (data && data.key === 'cherry_studio_oauth_callback') {
-      const { iv, encryptedData } = data.data
-
-      try {
-        const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || ''
-        const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
-        const { api_keys } = JSON.parse(decryptedData)
-        if (api_keys && api_keys.length > 0) {
-          setKey(api_keys[0].value)
-          popup?.close()
-          window.removeEventListener('message', messageHandler)
-        }
-      } catch (error) {
-        logger.error('[oauthWithAihubmix] error', error as Error)
-        popup?.close()
-        toast.error(i18n.t('settings.provider.oauth.error'))
+  startPopupMessageOAuth({
+    authUrl,
+    popupName: 'oauth',
+    matches: isAihubmixOAuthPayload,
+    getKey: async (data) => {
+      const callbackData = typeof data.data === 'object' && data.data !== null ? data.data : {}
+      const { iv, encryptedData } = callbackData as { iv?: unknown; encryptedData?: unknown }
+      if (typeof iv !== 'string' || typeof encryptedData !== 'string') {
+        throw new Error('Invalid OAuth callback payload')
       }
-    }
-  }
 
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+      const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || ''
+      const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
+      const { api_keys } = JSON.parse(decryptedData)
+      const key = api_keys?.[0]?.value
+      if (typeof key !== 'string' || key.length === 0) {
+        throw new Error('No API key received')
+      }
+      return key
+    },
+    setKey,
+    onError: (error) => {
+      logger.error('[oauthWithAihubmix] error', error as Error)
+      toast.error(i18n.t('settings.provider.oauth.error'))
+    }
+  })
 }
 
 export const oauthWithPPIO = async (setKey) => {
@@ -145,43 +252,27 @@ export const oauthWithPPIO = async (setKey) => {
 export const oauthWith302AI = async (setKey) => {
   const authUrl = 'https://dash.302.ai/sso/login?app=cherry-ai.com&name=Cherry%20Studio'
 
-  const popup = window.open(
+  startPopupMessageOAuth({
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
-
-  const messageHandler = (event) => {
-    if (event.data && event.data.data.apikey !== undefined) {
-      setKey(event.data.data.apikey)
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
-    }
-  }
-
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+    popupName: 'oauth',
+    matches: isNestedApiKeyOAuthPayload,
+    getKey: (data) => data.data.apikey,
+    setKey,
+    onError: (error) => logger.error('[oauthWith302AI] error', error as Error)
+  })
 }
 
 export const oauthWithAiOnly = async (setKey) => {
   const authUrl = `https://maas.aiionly.com/login?inviteCode=1755481173663DrZBBOC0&cherryCode=01`
 
-  const popup = window.open(
+  startPopupMessageOAuth({
     authUrl,
-    'login',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
-
-  const messageHandler = (event) => {
-    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
-    }
-  }
-
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+    popupName: 'login',
+    matches: isSecretKeyOAuthPayload,
+    getKey: (data) => data[0].secretKey,
+    setKey,
+    onError: (error) => logger.error('[oauthWithAiOnly] error', error as Error)
+  })
 }
 
 export interface NewApiOAuthConfig {
