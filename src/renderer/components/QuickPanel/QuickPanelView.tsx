@@ -943,7 +943,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             disabled: item.disabled
           })}
           active={(!ctx.readOnly || !!item.fixedToBottom) && itemIndex === activeIndex}
-          contentClassName="max-w-[60%]"
           dataId={item.id}
           hoverEnabled={isMouseOver}
           item={item}
@@ -970,6 +969,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         ctx.isVisible && 'visible',
         ctx.isVisible ? 'pointer-events-auto' : 'pointer-events-none'
       )}
+      inert={!ctx.isVisible}
       data-testid="quick-panel">
       <div
         ref={bodyRef}
@@ -1005,7 +1005,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
                 estimateSize={estimateSize}
                 overscan={5}
                 scrollerStyle={{
-                  pointerEvents: isMouseOver ? 'auto' : 'none'
+                  pointerEvents: ctx.isVisible && isMouseOver ? 'auto' : 'none'
                 }}>
                 {rowRenderer}
               </DynamicVirtualList>

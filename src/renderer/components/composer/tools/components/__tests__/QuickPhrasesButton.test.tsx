@@ -12,6 +12,9 @@ import { useQuickPanel } from '../../../../QuickPanel/useQuickPanel'
 import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
 
 const mocks = vi.hoisted(() => ({
+  createPrompt: vi.fn(),
+  openResourceEditDialog: vi.fn(),
+  openSettingsTab: vi.fn(),
   quickPanelClose: vi.fn(),
   quickPanelOpen: vi.fn(),
   quickPanelUpdateList: vi.fn(),
@@ -21,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
+  useDataChange: vi.fn(),
   useMutation: (...args: unknown[]) => mocks.useMutation(...args),
   useQuery: (...args: unknown[]) => mocks.useQuery(...args)
 }))
@@ -34,24 +38,37 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
-  PromptEditDialog: ({ open, onCancel }: { open: boolean; onCancel: () => void }) =>
+  PromptEditDialog: ({
+    defaultVisibility,
+    open,
+    onCancel,
+    onSave
+  }: {
+    defaultVisibility?: 'global' | 'restricted'
+    open: boolean
+    onCancel: () => void
+    onSave: (data: { title: string; content: string; visibility: 'global' | 'restricted' }) => Promise<void>
+  }) =>
     open ? (
       <div data-testid="prompt-edit-dialog">
+        <button
+          type="button"
+          onClick={() =>
+            void onSave({ title: 'New prompt', content: 'New content', visibility: defaultVisibility ?? 'global' })
+          }>
+          save prompt
+        </button>
         <button type="button" onClick={onCancel}>
           close prompt edit
         </button>
       </div>
     ) : null
 }))
-vi.mock('@renderer/components/resourceCatalog/dialogs/manage', () => ({
-  PromptManagementDialog: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
-    open ? (
-      <div data-testid="prompt-management-dialog">
-        <button type="button" onClick={() => onOpenChange(false)}>
-          close prompt management
-        </button>
-      </div>
-    ) : null
+vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
+  openResourceEditDialog: (...args: unknown[]) => mocks.openResourceEditDialog(...args)
+}))
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: (...args: unknown[]) => mocks.openSettingsTab(...args)
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -91,6 +108,8 @@ const createLauncherApi = (): ToolLauncherApi => ({
   registerLaunchers: vi.fn(() => vi.fn())
 })
 
+const ASSISTANT_ID = '550e8400-e29b-41d4-a716-446655440001'
+
 function FilteredPromptPanel({
   items,
   inputAdapter
@@ -120,14 +139,12 @@ describe('QuickPhrasesToolRuntime', () => {
     vi.clearAllMocks()
 
     mocks.useQuery.mockReturnValue({
-      data: [{ id: 'prompt-1', title: 'Prompt 1', content: 'Prompt content' }],
+      data: [{ id: 'prompt-1', title: 'Prompt 1', content: 'Prompt content', visibility: 'global' }],
       error: undefined,
       isLoading: false
     })
-    mocks.useMutation.mockReturnValue({
-      trigger: vi.fn(),
-      isLoading: false
-    })
+    mocks.createPrompt.mockResolvedValue(undefined)
+    mocks.useMutation.mockReturnValue({ trigger: mocks.createPrompt, isLoading: false })
     mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void) => callback())
     restoreRequestAnimationFrame = installSyncRafMock()
   })
@@ -137,7 +154,7 @@ describe('QuickPhrasesToolRuntime', () => {
     restoreRequestAnimationFrame = undefined
   })
 
-  it('opens the quick phrases panel directly from the slash root without closing first', async () => {
+  it('opens the quick phrases panel with the global fallback when no binding context exists', async () => {
     const launcher = createLauncherApi()
     const parentPanel = {
       list: [],
@@ -159,7 +176,11 @@ describe('QuickPhrasesToolRuntime', () => {
     render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
-    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', { enabled: false })
+    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+      enabled: false,
+      swrOptions: { keepPreviousData: false },
+      query: { visibility: 'global' }
+    })
 
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     act(() => {
@@ -173,7 +194,13 @@ describe('QuickPhrasesToolRuntime', () => {
       })
     })
 
-    await waitFor(() => expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', { enabled: true }))
+    await waitFor(() =>
+      expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+        enabled: true,
+        swrOptions: { keepPreviousData: false },
+        query: { visibility: 'global' }
+      })
+    )
     expect(mocks.quickPanelClose).not.toHaveBeenCalled()
     expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
     expect(inputAdapter.focus).toHaveBeenCalled()
@@ -244,10 +271,11 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(text).toBe('hello world')
   })
 
-  it('adds a prompt management action without replacing the add prompt action', async () => {
+  it('opens the current Assistant prompt tab from the management action without replacing the add action', async () => {
     const launcher = createLauncherApi()
+    const assistantId = ASSISTANT_ID
 
-    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} assistantId={assistantId} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
 
@@ -266,7 +294,7 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
       'Prompt 1',
       'settings.prompts.manage',
-      'settings.prompts.add...'
+      'settings.prompts.add'
     ])
 
     const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
@@ -274,8 +302,114 @@ describe('QuickPhrasesToolRuntime', () => {
       manageItem.action({} as never)
     })
 
-    expect(await screen.findByTestId('prompt-management-dialog')).toBeInTheDocument()
+    expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
+      kind: 'assistant',
+      id: assistantId,
+      initialTab: 'prompts'
+    })
+    expect(mocks.openSettingsTab).not.toHaveBeenCalled()
     expect(screen.queryByTestId('prompt-edit-dialog')).not.toBeInTheDocument()
+  })
+
+  it('lists global and linked Assistant prompts and defaults new prompts to restricted', async () => {
+    const launcher = createLauncherApi()
+    const assistantId = ASSISTANT_ID
+
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} assistantId={assistantId} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+      enabled: false,
+      swrOptions: { keepPreviousData: false },
+      query: { targetType: 'assistant', targetId: assistantId, includeGlobal: true }
+    })
+
+    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'button' }
+      })
+    })
+
+    await waitFor(() =>
+      expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+        enabled: true,
+        swrOptions: { keepPreviousData: false },
+        query: { targetType: 'assistant', targetId: assistantId, includeGlobal: true }
+      })
+    )
+    const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
+      'Prompt 1',
+      'settings.prompts.manage',
+      'settings.prompts.add'
+    ])
+
+    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
+    act(() => {
+      addItem.action({} as never)
+    })
+    screen.getByRole('button', { name: 'save prompt' }).click()
+
+    await waitFor(() =>
+      expect(mocks.createPrompt).toHaveBeenCalledWith({
+        body: {
+          title: 'New prompt',
+          content: 'New content',
+          visibility: 'restricted',
+          bindingTarget: { type: 'assistant', id: assistantId }
+        }
+      })
+    )
+  })
+
+  it('lists global and linked Agent prompts', async () => {
+    const launcher = createLauncherApi()
+    const agentId = 'agent-1'
+
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} agentId={agentId} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+      enabled: false,
+      swrOptions: { keepPreviousData: false },
+      query: { targetType: 'agent', targetId: agentId, includeGlobal: true }
+    })
+
+    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'button' }
+      })
+    })
+
+    await waitFor(() =>
+      expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+        enabled: true,
+        swrOptions: { keepPreviousData: false },
+        query: { targetType: 'agent', targetId: agentId, includeGlobal: true }
+      })
+    )
+
+    const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
+    act(() => {
+      manageItem.action({} as never)
+    })
+
+    expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
+      kind: 'agent',
+      id: agentId,
+      initialTab: 'prompts'
+    })
   })
 
   it('restores composer focus after closing the add prompt dialog opened from quick panel', async () => {
@@ -298,7 +432,7 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add...')
+    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
 
     act(() => {
       addItem.action({ inputAdapter } as never)
@@ -310,9 +444,8 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
   })
 
-  it('restores composer focus after closing the prompt management dialog opened from quick panel', async () => {
+  it('creates a global prompt without a binding when no target context exists', async () => {
     const launcher = createLauncherApi()
-    const inputAdapter = { focus: vi.fn() }
 
     render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
 
@@ -330,16 +463,18 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
+    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
 
     act(() => {
-      manageItem.action({ inputAdapter } as never)
+      addItem.action({} as never)
     })
-    act(() => {
-      screen.getByText('close prompt management').click()
-    })
+    screen.getByRole('button', { name: 'save prompt' }).click()
 
-    expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
+    await waitFor(() =>
+      expect(mocks.createPrompt).toHaveBeenCalledWith({
+        body: { title: 'New prompt', content: 'New content', visibility: 'global' }
+      })
+    )
   })
 
   it('keeps manage and add actions visible as fixed bottom rows when no prompt matches the composer query', async () => {
@@ -381,12 +516,13 @@ describe('QuickPhrasesToolRuntime', () => {
       .map((row) => row.textContent)
 
     expect(screen.queryByText('Prompt 1')).not.toBeInTheDocument()
-    expect(visibleActions).toEqual(['settings.prompts.manage', 'settings.prompts.add...'])
+    expect(visibleActions).toEqual(['settings.prompts.manage', 'settings.prompts.add'])
 
     act(() => {
       fireEvent.click(within(fixedBottom).getByText('settings.prompts.manage'))
     })
 
-    expect(await screen.findByTestId('prompt-management-dialog')).toBeInTheDocument()
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/prompts')
+    expect(mocks.openResourceEditDialog).not.toHaveBeenCalled()
   })
 })

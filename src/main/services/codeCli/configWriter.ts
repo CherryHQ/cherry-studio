@@ -33,6 +33,28 @@ async function readOrNull(absPath: AbsoluteFilePath): Promise<string | null> {
   }
 }
 
+/** One config file's read result for `code_cli.read_config`: `content === null` ⇔ the file does not exist. */
+export interface CliConfigReadFile {
+  target: CliConfigTarget
+  path: AbsoluteFilePath
+  content: string | null
+}
+
+/**
+ * Batch read of CLI config files — the read counterpart of `writeCliConfigFiles`
+ * (same `resolveTargetPath` resolution, so reads and writes address identical paths).
+ * ENOENT maps to `content: null`; any other read error aborts and rethrows.
+ * Duplicate targets are deduplicated by the route schema, not here.
+ */
+export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
+  return Promise.all(
+    targets.map(async (target) => {
+      const path = resolveTargetPath(target)
+      return { target, path, content: await readOrNull(path) }
+    })
+  )
+}
+
 /**
  * Transactional batch write of a file-configured CLI's config files — the only
  * disk-write path for `code_cli.write_config`. The target enum is the write

@@ -1,4 +1,6 @@
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import { webSearchOutputSchema } from '@shared/ai/builtinTools'
+import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import { readUIMessageStream } from 'ai'
 import { describe, expect, it } from 'vitest'
@@ -249,24 +251,74 @@ describe('PiStreamAdapter', () => {
     })
   })
 
-  it('keeps full result for third-party MCP tools instead of projecting details', async () => {
-    const details = [{ id: 'a-1', title: 'First', url: 'https://a.com', content: 'x' }]
-    const result = { content: [{ type: 'text', text: 'results' }], details }
+  /**
+   * pi's code mode is unconditional, so cherry-tools is never a tool name of its own — every call
+   * arrives as `tool_call`, returning the target's MCP result verbatim. The renderer resolves
+   * `[cite:id]` markers by validating that output against `webSearchOutputSchema`, which a content
+   * block array never matches, so without the unwrap the markers stay literal.
+   */
+  it('unwraps a tool_call search result into the shape the citation resolver validates', async () => {
+    const results = [{ id: '19ff9dcd-1', title: 'First', url: 'https://a.com', content: 'x' }]
     const message = await accumulate(
       collect([
-        { type: 'tool_execution_start', toolCallId: 'm2', toolName: 'mcp__exa__search', args: {} },
+        {
+          type: 'tool_execution_start',
+          toolCallId: 'm2',
+          toolName: PI_TOOL_CALL_TOOL_NAME,
+          args: { name: 'mcp__cherry-tools__web_search', params: { query: 'x' } }
+        },
         {
           type: 'tool_execution_end',
           toolCallId: 'm2',
-          toolName: 'mcp__exa__search',
-          result,
+          toolName: PI_TOOL_CALL_TOOL_NAME,
+          result: { content: [{ type: 'text', text: JSON.stringify(results) }], details: null },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    const output = (message.parts.find((part) => part.type === 'dynamic-tool') as { output?: unknown }).output
+    expect(webSearchOutputSchema.safeParse(output).success).toBe(true)
+  })
+
+  it('falls back to joined text when a tool_call result is not JSON', async () => {
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'm3', toolName: PI_TOOL_CALL_TOOL_NAME, args: {} },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'm3',
+          toolName: PI_TOOL_CALL_TOOL_NAME,
+          result: { content: [{ type: 'text', text: 'plain results' }], details: null },
           isError: false
         }
       ] as AgentSessionEvent[])
     )
     expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
-      toolName: 'mcp__exa__search',
-      output: result
+      toolName: PI_TOOL_CALL_TOOL_NAME,
+      output: 'plain results'
+    })
+  })
+
+  it('keeps non-text tool_call content blocks as blocks', async () => {
+    const content = [
+      { type: 'text', text: 'shot' },
+      { type: 'image', data: 'aGk=', mimeType: 'image/png' }
+    ]
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'm4', toolName: PI_TOOL_CALL_TOOL_NAME, args: {} },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'm4',
+          toolName: PI_TOOL_CALL_TOOL_NAME,
+          result: { content, details: null },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
+      toolName: PI_TOOL_CALL_TOOL_NAME,
+      output: content
     })
   })
 })

@@ -80,8 +80,6 @@ describe('keepsSystemMessagesInPlace', () => {
   it('allows the chat endpoints whose converters were verified to pass a non-leading system through', () => {
     expect(ENDPOINT_CHAT_TARGETS.filter(keepsSystemMessagesInPlace)).toEqual([
       ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      ENDPOINT_TYPE.OLLAMA_CHAT,
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       ENDPOINT_TYPE.OPENAI_RESPONSES
     ])
   })
@@ -102,15 +100,51 @@ describe('positionInlineSystemMessages', () => {
   const inline = [msg('system', 'Base.', 's0'), msg('user', 'go'), msg('system', 'MCP connecting.', 's1')]
 
   it('leaves them in place for a target that accepts them', () => {
-    expect(
+    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_RESPONSES, betaHeaders(AGENT_SDK_BETAS))).toBe(
+      inline
+    )
+  })
+
+  // An OpenAI-compatible backend whose chat template requires `system` at messages[0]
+  // answers a non-leading one with a 400 the Agent SDK does not recognize, so the session
+  // fails every turn instead of downgrading. Never send it the shape.
+  it('lets the Agent SDK downgrade before sending them to an OpenAI-compatible backend', () => {
+    let thrown: unknown
+    try {
       positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, betaHeaders(AGENT_SDK_BETAS))
-    ).toBe(inline)
+    } catch (error) {
+      thrown = error
+    }
+
+    const { status, message } = thrown as Error & { status: number }
+    expect(status).toBe(400)
+    expect(sdkAcceptsAsDowngradeSignal(status, message)).toBe(true)
+  })
+
+  it('folds OpenAI-compatible inline system messages when the client cannot downgrade', () => {
+    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined)).toEqual([
+      { ...inline[0], parts: [{ type: 'text', text: 'Base.\n\nMCP connecting.' }] },
+      inline[1]
+    ])
   })
 
   it('rejects with a 400 the Agent SDK downgrades from when the client negotiated the beta', () => {
     let thrown: unknown
     try {
       positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders(AGENT_SDK_BETAS))
+    } catch (error) {
+      thrown = error
+    }
+
+    const { status, message } = thrown as Error & { status: number }
+    expect(status).toBe(400)
+    expect(sdkAcceptsAsDowngradeSignal(status, message)).toBe(true)
+  })
+
+  it('lets the Agent SDK downgrade inline system messages before sending them to Ollama', () => {
+    let thrown: unknown
+    try {
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.OLLAMA_CHAT, betaHeaders(AGENT_SDK_BETAS))
     } catch (error) {
       thrown = error
     }
@@ -128,6 +162,13 @@ describe('positionInlineSystemMessages', () => {
 
   it('folds when there is no anthropic-beta header at all', () => {
     expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, undefined)).toHaveLength(2)
+  })
+
+  it('folds Ollama inline system messages when the client cannot downgrade', () => {
+    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OLLAMA_CHAT, undefined)).toEqual([
+      { ...inline[0], parts: [{ type: 'text', text: 'Base.\n\nMCP connecting.' }] },
+      inline[1]
+    ])
   })
 
   it('never rejects a request that carries no inline system message', () => {
