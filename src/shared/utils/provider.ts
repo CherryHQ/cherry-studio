@@ -252,14 +252,18 @@ export function getModelPreferredEndpoint(
   if (isAvailable(model.preferredEndpointType)) return model.preferredEndpointType
   if (isAvailable(suggestedEndpointType)) return suggestedEndpointType
 
-  // Every declared endpoint is screened, not just a stale preference: a declaration the provider no
-  // longer serves would pair its dialect with some other endpoint's host once `getBaseUrl` cascades.
+  // Prefer a declared endpoint the provider still serves over an earlier one it does not, so a
+  // removed route stops dragging its dialect onto whatever host `getBaseUrl` cascades to.
   const declaredEndpoint = model.endpointTypes?.find(isAvailable)
-  return (
-    declaredEndpoint ??
-    resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType ??
-    provider.defaultChatEndpoint
-  )
+  if (declaredEndpoint) return declaredEndpoint
+
+  // A model that declares its protocols but has none served keeps the declaration rather than
+  // falling through to the provider default: the default belongs to a different protocol, and
+  // silently answering with it borrows that endpoint's host. Callers fail closed on the missing
+  // route instead, naming the protocol the model actually wants.
+  if (model.endpointTypes?.length) return model.endpointTypes[0]
+
+  return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType ?? provider.defaultChatEndpoint
 }
 
 function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
