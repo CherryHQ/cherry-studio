@@ -1,7 +1,6 @@
 import './Sidebar.css'
 
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -171,7 +170,9 @@ export function Sidebar({
           className={cn(
             'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
             windowDragClassName,
-            isMac && 'pt-[env(titlebar-area-height)]'
+            // Always clear the shell's chrome row: the sidebar toggle is pinned there and
+            // paints over this panel, and only macOS windowed mode moves it out of the way.
+            'pt-11'
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
