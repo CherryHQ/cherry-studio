@@ -14,6 +14,9 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+const { restoreJournalMock } = vi.hoisted(() => ({ restoreJournalMock: { hasPendingRestore: vi.fn(() => false) } }))
+vi.mock('@data/db/restore/restoreJournal', () => restoreJournalMock)
+
 const { sweepAgentOrphans } = await import('../agentOrphanSweep')
 
 /** Older than the sweep's 5-minute freshness gate. */
@@ -37,6 +40,7 @@ describe('sweepAgentOrphans', () => {
   let workspacesRoot: string
 
   beforeEach(() => {
+    restoreJournalMock.hasPendingRestore.mockReturnValue(false)
     // Mirrors pathRegistry: system workspaces live *inside* the agents data root.
     root = mkdtempSync(path.join(tmpdir(), 'cs-agent-sweep-'))
     workspacesRoot = path.join(root, 'system')
@@ -159,6 +163,19 @@ describe('sweepAgentOrphans', () => {
     const second = await sweepAgentOrphans()
     expect(second.removed).toEqual([claimed, dateDir])
     expect(existsSync(dateDir)).toBe(false)
+  })
+
+  it('stands aside while a restore is staged — its dirs are on disk before the DB claims them', async () => {
+    restoreJournalMock.hasPendingRestore.mockReturnValue(true)
+    const orphan = path.join(root, AGENT_GONE)
+    mkdirSync(orphan)
+    writeFileSync(path.join(orphan, 'residue.txt'), 'x')
+    makeStale(orphan)
+
+    const { removed } = await sweepAgentOrphans()
+
+    expect(removed).toEqual([])
+    expect(existsSync(orphan)).toBe(true)
   })
 
   it('leaves plain files untouched at either root', async () => {

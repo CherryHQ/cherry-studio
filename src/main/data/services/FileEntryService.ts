@@ -843,7 +843,16 @@ class FileEntryServiceImpl implements FileEntryService {
     const rows = tx
       .select({ id: fileEntryTable.id })
       .from(fileEntryTable)
-      .where(and(isNotNull(fileEntryTable.deletedAt), lt(fileEntryTable.deletedAt, cutoffMs)))
+      .where(
+        and(
+          isNotNull(fileEntryTable.deletedAt),
+          lt(fileEntryTable.deletedAt, cutoffMs),
+          // A trashed file can still back a live painting or message — the ref rows
+          // FK-cascade, so purging here would strip the image out from under it.
+          // It stays in the trash until the last holder is gone.
+          ...persistentRefAbsenceConditions()
+        )
+      )
       .limit(limit)
       .all()
     const ids = rows.map((row) => row.id)

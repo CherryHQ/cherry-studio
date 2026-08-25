@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -47,6 +48,13 @@ export interface AgentSweepReport {
  * before its claiming row commits would otherwise read as an orphan and be lost.
  */
 export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
+  // Same stand-aside as the file sweeps: a staged restore puts agent dirs on disk
+  // that the live DB does not claim yet — exactly what this sweep would delete.
+  if (hasPendingRestore()) {
+    logger.info('agent-orphan-sweep skipped — restore pending')
+    return { removed: [], failedDrivers: [] }
+  }
+
   const db = application.get('DbService').getDb()
   const options: OrphanSessionReclaimOptions = { freshnessGateMs: FRESHNESS_GATE_MS, now: Date.now() }
   const agentsRoot = application.getPath('feature.agents.data')
