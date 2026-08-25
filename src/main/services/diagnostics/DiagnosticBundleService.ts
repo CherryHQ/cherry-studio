@@ -24,20 +24,34 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import { Mutex } from 'async-mutex'
 import { dialog } from 'electron'
 
+import {
+  type ChatRecordCandidate,
+  type ChatRecordCollection,
+  chatRecordStats,
+  collectChatRecords,
+  stageChatRecords
+} from './chatRecordCollector'
 import { feishuAnonymousFormClient } from './FeishuAnonymousFormClient'
 import {
   collectCrashDumpInventory,
   collectDiagnosticSources,
-  selectSourceCandidates,
   SourceChangedError,
   sourceStats,
   stageSourceCandidate
 } from './sourceCollector'
+import {
+  type DiagnosticBudgetCandidate,
+  selectBudgetCandidates,
+  toChatBudgetCandidate,
+  toFileBudgetCandidate
+} from './sourceSelection'
 import { collectDiagnosticSystemInfo } from './systemInfo'
 import type {
+  ChatRecordStats,
   DiagnosticTimeRange,
   DiagnosticWarning,
   SourceCandidate,
+  SourceCollection,
   SourceIdentity,
   SourceStats,
   StagedSource
@@ -101,6 +115,54 @@ function stagedStats(sources: readonly StagedSource[], kind: 'logs' | 'traces'):
 
 function candidateStats(candidates: readonly SourceCandidate[], kind: 'logs' | 'traces'): SourceStats {
   return sourceStats(candidates.filter((candidate) => candidate.kind === kind))
+}
+
+function emptyChatRecordCollection(): ChatRecordCollection {
+  return { candidates: [], records: new Map(), warnings: new Set() }
+}
+
+function mergeWarnings(target: Set<DiagnosticWarning>, source: ReadonlySet<DiagnosticWarning>): void {
+  for (const warning of source) target.add(warning)
+}
+
+type BundleSourceCandidate = ChatRecordCandidate | SourceCandidate
+
+function isChatRecordCandidate(candidate: BundleSourceCandidate): candidate is ChatRecordCandidate {
+  return candidate.kind === 'chatRecords'
+}
+
+function selectBundleSources(
+  fileCandidates: readonly SourceCandidate[],
+  chatCandidates: readonly ChatRecordCandidate[]
+): {
+  omittedChats: ChatRecordCandidate[]
+  omittedFiles: SourceCandidate[]
+  selectedChats: ChatRecordCandidate[]
+  selectedFiles: SourceCandidate[]
+} {
+  const budgetCandidates: DiagnosticBudgetCandidate<BundleSourceCandidate>[] = [
+    ...fileCandidates.map(toFileBudgetCandidate),
+    ...chatCandidates.map(toChatBudgetCandidate)
+  ]
+  const selection = selectBudgetCandidates(budgetCandidates, DIAGNOSTIC_SOURCE_LIMIT_BYTES)
+  return {
+    omittedChats: selection.omitted.filter(isChatRecordCandidate),
+    omittedFiles: selection.omitted.filter(
+      (candidate): candidate is SourceCandidate => !isChatRecordCandidate(candidate)
+    ),
+    selectedChats: selection.selected.filter(isChatRecordCandidate),
+    selectedFiles: selection.selected.filter(
+      (candidate): candidate is SourceCandidate => !isChatRecordCandidate(candidate)
+    )
+  }
+}
+
+function subtractChatStats(all: ChatRecordStats, included: ChatRecordStats): ChatRecordStats {
+  return {
+    bytes: all.bytes - included.bytes,
+    messageCount: all.messageCount - included.messageCount,
+    recordCount: all.recordCount - included.recordCount
+  }
 }
 
 function assertSafeArchiveName(name: string): void {
@@ -234,12 +296,20 @@ export class DiagnosticBundleService {
   private async performInspection(rangeName: DiagnosticRange): Promise<InspectResult> {
     const range = toTimeRange(rangeName, Date.now())
     const collection = await collectDiagnosticSources(range, { includeLogs: true, includeTraces: true })
+    const chatCollection = await collectChatRecords(range)
+    mergeWarnings(collection.warnings, chatCollection.warnings)
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
+    const chats = chatRecordStats(chatCollection.candidates)
 
     return {
       hasWarnings: collection.warnings.size > 0,
       sourceLimitBytes: DIAGNOSTIC_SOURCE_LIMIT_BYTES,
       sources: {
+        chatRecords: {
+          available: chats.messageCount > 0,
+          estimatedBytes: chats.bytes,
+          messageCount: chats.messageCount
+        },
         crashDumps: { fileCount: crashDumps.files.length },
         logs: {
           available: collection.logs.length > 0,
@@ -296,29 +366,35 @@ export class DiagnosticBundleService {
     await assertDestinationOutsideSources(destination)
     const range = toTimeRange(input.range, Date.now())
     const collection = await collectDiagnosticSources(range, input)
-    const enabledCandidates = [...collection.logs, ...collection.traces]
+    const chatCollection = input.includeChatRecords ? await collectChatRecords(range) : emptyChatRecordCollection()
+    mergeWarnings(collection.warnings, chatCollection.warnings)
+    const enabledFileCandidates = [...collection.logs, ...collection.traces]
     const destinationIdentity = await probeDestination(destination)
-    if (enabledCandidates.some((candidate) => isSamePhysicalFile(destinationIdentity, candidate))) {
+    if (enabledFileCandidates.some((candidate) => isSamePhysicalFile(destinationIdentity, candidate))) {
       throw new IpcError(
         diagnosticsErrorCodes.DESTINATION_IS_SOURCE,
         'Diagnostic bundle destination matches a source file'
       )
     }
 
-    const selection = selectSourceCandidates(enabledCandidates, DIAGNOSTIC_SOURCE_LIMIT_BYTES)
-    if (selection.omitted.length > 0) collection.warnings.add('size_limit_reached')
+    const selection = selectBundleSources(enabledFileCandidates, chatCollection.candidates)
+    if (selection.omittedFiles.length > 0 || selection.omittedChats.length > 0) {
+      collection.warnings.add('size_limit_reached')
+    }
 
     const tempRoot = AbsoluteFilePathSchema.parse(await mkdtemp(application.getPath('app.temp', 'diagnostic-bundle-')))
     try {
       return await this.buildBundle({
         bundleId: randomUUID(),
+        chatCollection,
         collection,
         destination,
         destinationIdentity,
         input,
         range,
-        selected: selection.selected,
-        sizeOmitted: selection.omitted,
+        selectedChats: selection.selectedChats,
+        selectedFiles: selection.selectedFiles,
+        sizeOmittedFiles: selection.omittedFiles,
         tempRoot,
         uploadedAutomatically: false
       })
@@ -348,18 +424,23 @@ export class DiagnosticBundleService {
       try {
         const range = toTimeRange(input.range, Date.now())
         const collection = await collectDiagnosticSources(range, input)
-        const enabledCandidates = [...collection.logs, ...collection.traces]
-        const selection = selectSourceCandidates(enabledCandidates, DIAGNOSTIC_SOURCE_LIMIT_BYTES)
-        if (selection.omitted.length > 0) collection.warnings.add('size_limit_reached')
+        const chatCollection = input.includeChatRecords ? await collectChatRecords(range) : emptyChatRecordCollection()
+        mergeWarnings(collection.warnings, chatCollection.warnings)
+        const selection = selectBundleSources([...collection.logs, ...collection.traces], chatCollection.candidates)
+        if (selection.omittedFiles.length > 0 || selection.omittedChats.length > 0) {
+          collection.warnings.add('size_limit_reached')
+        }
         bundle = await this.buildBundle({
           bundleId,
+          chatCollection,
           collection,
           destination,
           destinationIdentity: { status: 'missing' },
           input,
           range,
-          selected: selection.selected,
-          sizeOmitted: selection.omitted,
+          selectedChats: selection.selectedChats,
+          selectedFiles: selection.selectedFiles,
+          sizeOmittedFiles: selection.omittedFiles,
           tempRoot,
           uploadedAutomatically: true
         })
@@ -441,31 +522,35 @@ export class DiagnosticBundleService {
 
   private async buildBundle({
     bundleId,
+    chatCollection,
     collection,
     destination,
     destinationIdentity,
     input,
     range,
-    selected,
-    sizeOmitted,
+    selectedChats,
+    selectedFiles,
+    sizeOmittedFiles,
     tempRoot,
     uploadedAutomatically
   }: {
     bundleId: string
-    collection: Awaited<ReturnType<typeof collectDiagnosticSources>>
+    chatCollection: ChatRecordCollection
+    collection: SourceCollection
     destination: AbsoluteFilePath
     destinationIdentity: DestinationIdentity
     input: ExportInput
     range: DiagnosticTimeRange
-    selected: SourceCandidate[]
-    sizeOmitted: SourceCandidate[]
+    selectedChats: ChatRecordCandidate[]
+    selectedFiles: SourceCandidate[]
+    sizeOmittedFiles: SourceCandidate[]
     tempRoot: AbsoluteFilePath
     uploadedAutomatically: boolean
   }): Promise<SavedBundle> {
     const staged: StagedSource[] = []
     const failedCandidates: SourceCandidate[] = []
 
-    for (const [index, candidate] of selected.entries()) {
+    for (const [index, candidate] of selectedFiles.entries()) {
       const stagedPath = AbsoluteFilePathSchema.parse(path.join(tempRoot, `source-${index}.jsonl`))
       try {
         staged.push(await stageSourceCandidate(candidate, range, stagedPath))
@@ -478,30 +563,47 @@ export class DiagnosticBundleService {
       }
     }
 
+    let includedChatCandidates: ChatRecordCandidate[] = []
+    if (selectedChats.length > 0) {
+      try {
+        staged.push(...(await stageChatRecords(selectedChats, tempRoot)))
+        includedChatCandidates = selectedChats
+      } catch (error) {
+        collection.warnings.add('source_unreadable')
+        logger.warn('Skipped diagnostic chat records that could not be staged', {
+          code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+        })
+      }
+    }
+
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
     const system = await collectDiagnosticSystemInfo(collection.warnings)
     const included = {
+      chatRecords: chatRecordStats(includedChatCandidates),
       logs: stagedStats(staged, 'logs'),
       traces: stagedStats(staged, 'traces')
     }
-    const omittedCandidates = [...sizeOmitted, ...failedCandidates]
+    const omittedCandidates = [...sizeOmittedFiles, ...failedCandidates]
+    const allChats = chatRecordStats(chatCollection.candidates)
     const omitted = {
+      chatRecords: subtractChatStats(allChats, included.chatRecords),
       logs: candidateStats(omittedCandidates, 'logs'),
       traces: candidateStats(omittedCandidates, 'traces')
     }
     const serializedRange = serializeTimeRange(range)
     const warnings = warningsArray(collection.warnings)
     const manifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       bundleId,
       createdAt: new Date(range.toMs).toISOString(),
       range: serializedRange,
       privacy: {
-        containsUnredactedData: input.includeLogs || input.includeTraces,
+        containsUnredactedData: input.includeChatRecords || input.includeLogs || input.includeTraces,
         publiclyShareable: false,
         uploadedAutomatically
       },
       selection: {
+        includeChatRecords: input.includeChatRecords,
         includeLogs: input.includeLogs,
         includeSystemInformation: true,
         includeTraces: input.includeTraces,
@@ -515,6 +617,7 @@ export class DiagnosticBundleService {
         totalBytes: crashDumps.totalBytes
       },
       sources: {
+        chatRecords: { included: included.chatRecords, omitted: omitted.chatRecords },
         logs: { included: included.logs, omitted: omitted.logs },
         traces: { included: included.traces, omitted: omitted.traces }
       },
@@ -530,7 +633,7 @@ export class DiagnosticBundleService {
       filePath: destination,
       fileName: path.basename(destination),
       hasWarnings: warnings.length > 0,
-      includedFileCount: included.logs.fileCount + included.traces.fileCount,
+      includedFileCount: staged.length,
       omittedFileCount: omitted.logs.fileCount + omitted.traces.fileCount,
       status: 'saved'
     }

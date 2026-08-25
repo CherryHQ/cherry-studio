@@ -8,6 +8,9 @@ import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ChatRecordCandidate, ChatRecordCollection, SerializedChatRecord } from '../chatRecordCollector'
+import * as chatRecordCollector from '../chatRecordCollector'
+
 const electronMocks = vi.hoisted(() => ({
   getLocale: vi.fn(),
   getVersion: vi.fn(),
@@ -33,6 +36,31 @@ vi.mock('../FeishuAnonymousFormClient', () => ({
 }))
 
 import { DiagnosticBundleService } from '../DiagnosticBundleService'
+
+function serializedChatRecord(
+  archiveName: SerializedChatRecord['archiveName'],
+  key: string,
+  entity: unknown,
+  bytes?: number
+): SerializedChatRecord {
+  const data = Buffer.from(`${JSON.stringify(entity)}\n`, 'utf8')
+  return { archiveName, bytes: bytes ?? data.length, data, key }
+}
+
+function chatCandidate(id: string, latestAt: number, parts: SerializedChatRecord[]): ChatRecordCandidate {
+  return { id, kind: 'chatRecords', latestAt, parts }
+}
+
+function chatCollection(
+  candidates: ChatRecordCandidate[],
+  warnings: ChatRecordCollection['warnings'] = new Set()
+): ChatRecordCollection {
+  const records = new Map<string, SerializedChatRecord>()
+  for (const candidate of candidates) {
+    for (const part of candidate.parts) records.set(part.key, part)
+  }
+  return { candidates, records, warnings }
+}
 
 function formatLogDate(timestamp: number): string {
   const date = new Date(timestamp)
@@ -131,7 +159,10 @@ describe('DiagnosticBundleService', () => {
     await utimes(crashDumpPath, new Date(now - 1_000), new Date(now - 1_000))
 
     const service = new DiagnosticBundleService()
-    const result = await service.exportBundle({ includeLogs: true, includeTraces: true, range: '24h' }, 'main-window')
+    const result = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: true, includeTraces: true, range: '24h' },
+      'main-window'
+    )
 
     expect(result.status).toBe('saved')
     if (result.status !== 'saved') throw new Error('Expected saved result')
@@ -151,7 +182,7 @@ describe('DiagnosticBundleService', () => {
 
     const manifestText = zip.contents['diagnostics.json'].toString()
     const manifest = JSON.parse(manifestText)
-    expect(manifest.schemaVersion).toBe(1)
+    expect(manifest.schemaVersion).toBe(2)
     expect(manifest.privacy).toEqual({
       containsUnredactedData: true,
       publiclyShareable: false,
@@ -164,8 +195,164 @@ describe('DiagnosticBundleService', () => {
       version: '2.0.0-test'
     })
     expect(manifest.system.operatingSystem).toMatchObject({ locale: 'en-US' })
+    expect(manifest.sources.chatRecords).toEqual({
+      included: { bytes: 0, messageCount: 0, recordCount: 0 },
+      omitted: { bytes: 0, messageCount: 0, recordCount: 0 }
+    })
     expect(manifestText).not.toContain('private-crash-name')
     expect(manifestText).not.toContain(userDataDir)
+  })
+
+  it('exports canonical normal-chat and agent-session records with manifest v2 statistics', async () => {
+    const topic = { id: 'topic-1', name: 'Topic' }
+    const message = {
+      id: 'message-1',
+      topicId: topic.id,
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hello' }] },
+      createdAt: '2026-08-25T00:02:00.000Z'
+    }
+    const session = { id: 'session-1', agentId: 'agent-1', name: 'Agent session' }
+    const agentMessage = {
+      id: 'agent-message-1',
+      sessionId: session.id,
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'agent reply' }] },
+      createdAt: '2026-08-25T00:01:00.000Z'
+    }
+    const candidates = [
+      chatCandidate('message:message-1', Date.parse(message.createdAt), [
+        serializedChatRecord('chats/messages.jsonl', 'message:message-1', message),
+        serializedChatRecord('chats/topics.jsonl', 'topic:topic-1', topic)
+      ]),
+      chatCandidate('agent-session-message:agent-message-1', Date.parse(agentMessage.createdAt), [
+        serializedChatRecord(
+          'chats/agent-session-messages.jsonl',
+          'agent-session-message:agent-message-1',
+          agentMessage
+        ),
+        serializedChatRecord('chats/agent-sessions.jsonl', 'agent-session:session-1', session)
+      ])
+    ]
+    const collection = chatCollection(candidates)
+    const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(collection)
+    const service = new DiagnosticBundleService()
+
+    try {
+      const result = await service.exportBundle(
+        { includeChatRecords: true, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
+
+      expect(result).toMatchObject({ status: 'saved', includedFileCount: 4, omittedFileCount: 0 })
+      const zip = await readZip(destination)
+      expect(zip.entries).toEqual([
+        'chats/agent-session-messages.jsonl',
+        'chats/agent-sessions.jsonl',
+        'chats/messages.jsonl',
+        'chats/topics.jsonl',
+        'diagnostics.json'
+      ])
+      expect(JSON.parse(zip.contents['chats/topics.jsonl'].toString('utf8'))).toEqual(topic)
+      expect(JSON.parse(zip.contents['chats/messages.jsonl'].toString('utf8'))).toEqual(message)
+      expect(JSON.parse(zip.contents['chats/agent-sessions.jsonl'].toString('utf8'))).toEqual(session)
+      expect(JSON.parse(zip.contents['chats/agent-session-messages.jsonl'].toString('utf8'))).toEqual(agentMessage)
+
+      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      const expectedBytes = [...collection.records.values()].reduce((bytes, record) => bytes + record.bytes, 0)
+      expect(manifest).toMatchObject({
+        schemaVersion: 2,
+        privacy: { containsUnredactedData: true },
+        selection: { includeChatRecords: true },
+        sources: {
+          chatRecords: {
+            included: { bytes: expectedBytes, messageCount: 2, recordCount: 4 },
+            omitted: { bytes: 0, messageCount: 0, recordCount: 0 }
+          }
+        }
+      })
+    } finally {
+      collectSpy.mockRestore()
+    }
+  })
+
+  it('omits older whole chat messages when chat records exceed the shared source budget', async () => {
+    const mib = 1024 * 1024
+    const topic = serializedChatRecord('chats/topics.jsonl', 'topic:1', { id: 'topic-1' }, mib)
+    const newer = chatCandidate('message:newer', 2, [
+      serializedChatRecord('chats/messages.jsonl', 'message:newer', { id: 'newer' }, 40 * mib),
+      topic
+    ])
+    const older = chatCandidate('message:older', 1, [
+      serializedChatRecord('chats/messages.jsonl', 'message:older', { id: 'older' }, 20 * mib),
+      topic
+    ])
+    const collectSpy = vi
+      .spyOn(chatRecordCollector, 'collectChatRecords')
+      .mockReturnValue(chatCollection([newer, older]))
+    const service = new DiagnosticBundleService()
+
+    try {
+      const result = await service.exportBundle(
+        { includeChatRecords: true, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
+
+      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 2, omittedFileCount: 0 })
+      const zip = await readZip(destination)
+      const messageLines = zip.contents['chats/messages.jsonl'].toString('utf8').trim().split('\n')
+      expect(messageLines.map((line) => JSON.parse(line))).toEqual([{ id: 'newer' }])
+      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      expect(manifest.sources.chatRecords).toEqual({
+        included: { bytes: 41 * mib, messageCount: 1, recordCount: 2 },
+        omitted: { bytes: 20 * mib, messageCount: 1, recordCount: 1 }
+      })
+      expect(manifest.warnings).toContain('size_limit_reached')
+    } finally {
+      collectSpy.mockRestore()
+    }
+  })
+
+  it('keeps readable file sources when selected chat records cannot be staged', async () => {
+    const now = Date.now()
+    const logFileName = `app.${formatLogDate(now)}.log`
+    await writeFile(
+      path.join(logsDir, logFileName),
+      `${JSON.stringify({ message: 'recent', timestamp: new Date(now - 1_000).toISOString() })}\n`
+    )
+    const candidate = chatCandidate('message:1', now - 2_000, [
+      serializedChatRecord('chats/messages.jsonl', 'message:1', { id: 'message-1' }),
+      serializedChatRecord('chats/topics.jsonl', 'topic:1', { id: 'topic-1' })
+    ])
+    const collection = chatCollection([candidate])
+    const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(collection)
+    const stageSpy = vi.spyOn(chatRecordCollector, 'stageChatRecords').mockRejectedValueOnce(new Error('disk failed'))
+    const service = new DiagnosticBundleService()
+
+    try {
+      const result = await service.exportBundle(
+        { includeChatRecords: true, includeLogs: true, includeTraces: false, range: '24h' },
+        'main-window'
+      )
+
+      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 1, omittedFileCount: 0 })
+      const zip = await readZip(destination)
+      expect(zip.entries).toContain(`logs/${logFileName}`)
+      expect(zip.entries.some((entry) => entry.startsWith('chats/'))).toBe(false)
+      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      expect(manifest.sources.chatRecords).toEqual({
+        included: { bytes: 0, messageCount: 0, recordCount: 0 },
+        omitted: {
+          bytes: [...collection.records.values()].reduce((bytes, record) => bytes + record.bytes, 0),
+          messageCount: 1,
+          recordCount: 2
+        }
+      })
+      expect(manifest.warnings).toContain('source_unreadable')
+    } finally {
+      collectSpy.mockRestore()
+      stageSpy.mockRestore()
+    }
   })
 
   it('returns canceled without scanning or writing when the save dialog is canceled', async () => {
@@ -173,29 +360,43 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     await expect(
-      service.exportBundle({ includeLogs: true, includeTraces: true, range: '24h' }, 'main-window')
+      service.exportBundle(
+        { includeChatRecords: false, includeLogs: true, includeTraces: true, range: '24h' },
+        'main-window'
+      )
     ).resolves.toEqual({ status: 'canceled' })
   })
 
   it('exports only the manifest when logs and traces are disabled', async () => {
     await Promise.all([rm(logsDir, { recursive: true }), rm(tracesDir, { recursive: true })])
     await Promise.all([writeFile(logsDir, 'not a directory'), writeFile(tracesDir, 'not a directory')])
+    const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords')
     const service = new DiagnosticBundleService()
 
-    const result = await service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+    try {
+      const result = await service.exportBundle(
+        { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
 
-    expect(result.status).toBe('saved')
-    if (result.status !== 'saved') throw new Error('Expected saved result')
-    expect(result.hasWarnings).toBe(false)
-    const zip = await readZip(destination)
-    expect(zip.entries).toEqual(['diagnostics.json'])
-    const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
-    expect(manifest.selection).toMatchObject({
-      includeLogs: false,
-      includeSystemInformation: true,
-      includeTraces: false
-    })
-    expect(manifest.privacy.containsUnredactedData).toBe(false)
+      expect(result.status).toBe('saved')
+      if (result.status !== 'saved') throw new Error('Expected saved result')
+      expect(result.hasWarnings).toBe(false)
+      const zip = await readZip(destination)
+      expect(zip.entries).toEqual(['diagnostics.json'])
+      expect(zip.entries.some((entry) => entry.startsWith('chats/'))).toBe(false)
+      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+      expect(manifest.selection).toMatchObject({
+        includeChatRecords: false,
+        includeLogs: false,
+        includeSystemInformation: true,
+        includeTraces: false
+      })
+      expect(manifest.privacy.containsUnredactedData).toBe(false)
+      expect(collectSpy).not.toHaveBeenCalled()
+    } finally {
+      collectSpy.mockRestore()
+    }
   })
 
   it('uses the main-process clock after the save dialog closes', async () => {
@@ -204,7 +405,10 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     try {
-      await service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+      await service.exportBundle(
+        { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
     } finally {
       clock.mockRestore()
     }
@@ -221,7 +425,10 @@ describe('DiagnosticBundleService', () => {
     })
     const service = new DiagnosticBundleService()
 
-    const result = await service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+    const result = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+      'main-window'
+    )
 
     expect(result.status).toBe('saved')
     if (result.status !== 'saved') throw new Error('Expected saved result')
@@ -241,10 +448,16 @@ describe('DiagnosticBundleService', () => {
         })
     )
     const service = new DiagnosticBundleService()
-    const first = service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+    const first = service.exportBundle(
+      { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+      'main-window'
+    )
 
     await expect(
-      service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+      service.exportBundle(
+        { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
     ).resolves.toEqual({ status: 'busy' })
     resolveDialog({ canceled: true, filePath: '' })
     await expect(first).resolves.toEqual({ status: 'canceled' })
@@ -259,7 +472,12 @@ describe('DiagnosticBundleService', () => {
     })
     const service = new DiagnosticBundleService()
 
-    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    const result = await service.uploadBundle({
+      includeChatRecords: false,
+      includeLogs: false,
+      includeTraces: false,
+      range: '24h'
+    })
 
     expect(result).toMatchObject({ status: 'uploaded', includedFileCount: 0, omittedFileCount: 0 })
     expect(uploadedManifest?.privacy).toMatchObject({ uploadedAutomatically: true })
@@ -274,7 +492,12 @@ describe('DiagnosticBundleService', () => {
     })
     const service = new DiagnosticBundleService()
 
-    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    const result = await service.uploadBundle({
+      includeChatRecords: false,
+      includeLogs: false,
+      includeTraces: false,
+      range: '24h'
+    })
 
     expect(result).toMatchObject({ reason: 'form_changed', status: 'manual_upload_required' })
     if (result.status !== 'manual_upload_required') throw new Error('Expected manual upload fallback')
@@ -292,7 +515,12 @@ describe('DiagnosticBundleService', () => {
     uploadMocks.upload.mockResolvedValueOnce({ status: 'submission_unknown' })
     const service = new DiagnosticBundleService()
 
-    const result = await service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    const result = await service.uploadBundle({
+      includeChatRecords: false,
+      includeLogs: false,
+      includeTraces: false,
+      range: '24h'
+    })
 
     expect(result).toMatchObject({ status: 'submission_unknown', includedFileCount: 0 })
     if (result.status !== 'submission_unknown') throw new Error('Expected unknown submission status')
@@ -309,11 +537,19 @@ describe('DiagnosticBundleService', () => {
         })
     )
     const service = new DiagnosticBundleService()
-    const first = service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+    const first = service.uploadBundle({
+      includeChatRecords: false,
+      includeLogs: false,
+      includeTraces: false,
+      range: '24h'
+    })
 
     await vi.waitFor(() => expect(uploadMocks.upload).toHaveBeenCalledOnce())
     await expect(
-      service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+      service.exportBundle(
+        { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
     ).resolves.toEqual({ status: 'busy' })
     resolveUpload({ status: 'uploaded' })
     await expect(first).resolves.toMatchObject({ status: 'uploaded' })
@@ -325,7 +561,7 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     await expect(
-      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+      service.uploadBundle({ includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' })
     ).rejects.toMatchObject({ code: diagnosticsErrorCodes.BUNDLE_BUILD_FAILED })
     expect(uploadMocks.upload).not.toHaveBeenCalled()
   })
@@ -339,7 +575,7 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     await expect(
-      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+      service.uploadBundle({ includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' })
     ).rejects.toMatchObject({ code: diagnosticsErrorCodes.FALLBACK_SAVE_FAILED })
     expect(await readdir(appTempDir)).toEqual([])
   })
@@ -350,7 +586,7 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     await expect(
-      service.uploadBundle({ includeLogs: false, includeTraces: false, range: '24h' })
+      service.uploadBundle({ includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' })
     ).rejects.toMatchObject({ code: diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED })
     expect(uploadMocks.upload).toHaveBeenCalledOnce()
     expect(await readdir(appTempDir)).toEqual([])
@@ -364,7 +600,10 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     await expect(
-      service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+      service.exportBundle(
+        { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
     ).rejects.toMatchObject({ code: diagnosticsErrorCodes.DESTINATION_INSIDE_SOURCE })
   })
 
@@ -378,7 +617,10 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     await expect(
-      service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+      service.exportBundle(
+        { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
     ).rejects.toMatchObject({ code: diagnosticsErrorCodes.DESTINATION_INSIDE_SOURCE })
     await expect(access(path.join(crashDumpsDir, 'diagnostics.zip'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
@@ -391,7 +633,10 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     await expect(
-      service.exportBundle({ includeLogs: true, includeTraces: false, range: '24h' }, 'main-window')
+      service.exportBundle(
+        { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
+        'main-window'
+      )
     ).rejects.toMatchObject({ code: diagnosticsErrorCodes.DESTINATION_IS_SOURCE })
   })
 
@@ -401,7 +646,10 @@ describe('DiagnosticBundleService', () => {
     const service = new DiagnosticBundleService()
 
     await expect(
-      service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+      service.exportBundle(
+        { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+        'main-window'
+      )
     ).rejects.toThrow()
 
     expect(await readdir(appTempDir)).toEqual([])
@@ -421,7 +669,10 @@ describe('DiagnosticBundleService', () => {
 
     try {
       await expect(
-        service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+        service.exportBundle(
+          { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+          'main-window'
+        )
       ).rejects.toThrow('destination changed')
     } finally {
       finalizeSpy.mockRestore()
