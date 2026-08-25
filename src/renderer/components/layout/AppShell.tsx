@@ -12,7 +12,7 @@ import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { AppSidebarToggleButton } from '../app/AppSidebarToggleButton'
+import { APP_SIDEBAR_TOGGLE_GLYPH_INSET, AppSidebarToggleButton } from '../app/AppSidebarToggleButton'
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
@@ -244,7 +244,12 @@ export const AppShell = () => {
       className="absolute top-0 z-50 flex h-11 items-center [-webkit-app-region:no-drag]"
       // Without traffic lights to sit beside, the toggle anchors to the sidebar column so
       // its leading edge lines up with the content below it.
-      style={{ left: isMac && !isFullscreen ? 'env(titlebar-area-x)' : 'var(--sidebar-width, 0px)' }}>
+      style={{
+        left:
+          isMac && !isFullscreen
+            ? 'env(titlebar-area-x)'
+            : `calc(var(--sidebar-width, 0px) - ${APP_SIDEBAR_TOGGLE_GLYPH_INSET}px)`
+      }}>
       <AppSidebarToggleButton peekOpen={sidebarPeekOpen} />
     </div>
   )

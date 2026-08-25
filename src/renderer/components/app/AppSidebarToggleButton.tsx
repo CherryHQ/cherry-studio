@@ -9,6 +9,10 @@ import { useTranslation } from 'react-i18next'
 export const APP_SIDEBAR_TOGGLE_SIZE = 30
 /** Gap between the toggle and whatever the shell lays out after it. */
 export const APP_SIDEBAR_TOGGLE_GAP = 10
+/** Space between the button box and the glyph drawn inside it: NavbarIcon centres an
+ *  18px icon in 30px, and the icon's own artwork insets a further 3.5/24. Layout aligns
+ *  to the glyph, since that is the edge the eye reads. */
+export const APP_SIDEBAR_TOGGLE_GLYPH_INSET = 8
 
 export function AppSidebarToggleButton({ peekOpen = false }: { peekOpen?: boolean }) {
   const { t } = useTranslation()

@@ -1,5 +1,9 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { APP_SIDEBAR_TOGGLE_GAP, APP_SIDEBAR_TOGGLE_SIZE } from '@renderer/components/app/AppSidebarToggleButton'
+import {
+  APP_SIDEBAR_TOGGLE_GAP,
+  APP_SIDEBAR_TOGGLE_GLYPH_INSET,
+  APP_SIDEBAR_TOGGLE_SIZE
+} from '@renderer/components/app/AppSidebarToggleButton'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
@@ -133,8 +137,10 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 // The sidebar toggle is absolutely positioned over this row (see AppShell), so the tab
 // strip keeps its footprint clear wherever the sidebar is too narrow to hold it. Derived
 // from the toggle's own geometry so the two cannot drift into overlapping or a wide gap.
+// Beside the traffic lights the toggle sits where it is anchored; anchored to the sidebar
+// column it is pulled left by the glyph inset, so it needs that much less room after it.
 const SIDEBAR_TOGGLE_FOOTPRINT = APP_SIDEBAR_TOGGLE_SIZE + APP_SIDEBAR_TOGGLE_GAP
-const SIDEBAR_TOGGLE_RESERVE = `${SIDEBAR_TOGGLE_FOOTPRINT}px`
+const SIDEBAR_TOGGLE_RESERVE = `${SIDEBAR_TOGGLE_FOOTPRINT - APP_SIDEBAR_TOGGLE_GLYPH_INSET}px`
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = `max(0px, calc(env(titlebar-area-x, 0px) + ${SIDEBAR_TOGGLE_FOOTPRINT}px - var(--sidebar-width, 0px)))`
 
 type FocusedTabButtonProps = {
