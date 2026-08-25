@@ -107,13 +107,34 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     expect(after.name).toBe(snapshot.name)
     expect(after.type).toBe(snapshot.type)
     expect(after.agentId).toBe(snapshot.agentId)
-    expect(after.sessionId).toBe(snapshot.sessionId)
     expect(after.workspace).toEqual(snapshot.workspace)
     expect(after.config).toEqual(snapshot.config)
     expect(after.isActive).toBe(snapshot.isActive)
     expect(after.activeChatIds).toEqual(snapshot.activeChatIds)
     expect(after.permissionMode).toBe(snapshot.permissionMode)
     expect(after.createdAt).toBe(snapshot.createdAt)
+  })
+
+  // The permission-mode enum is no longer duplicated as a SQL CHECK constraint, so this
+  // pins the replacement contract: any mode the shared schema accepts round-trips through
+  // SQLite untouched. `auto` is the case that used to fail the INSERT.
+  it('persists the auto permission mode', async () => {
+    await insertAgent('agent-auto-1')
+    syncChannelMock.mockResolvedValue(undefined)
+
+    const created = await agentChannelWorkflowService.createChannel({
+      type: 'telegram',
+      name: 'Auto Mode Channel',
+      agentId: 'agent-auto-1',
+      workspace: { type: 'system' },
+      config: TELEGRAM_CONFIG,
+      isActive: true,
+      activeChatIds: [],
+      permissionMode: 'auto'
+    })
+
+    const [row] = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.id, created.id))
+    expect(row.permissionMode).toBe('auto')
   })
 
   it('clears task subscriptions when agentId is rebound', async () => {
@@ -184,7 +205,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     const created = await agentChannelWorkflowService.createChannel({
       type: 'telegram',
       name: 'Null-Field Channel',
-      // agentId / sessionId / activeChatIds / permissionMode left NULL
+      // agentId / activeChatIds / permissionMode left NULL
       workspace: { type: 'system' },
       config: TELEGRAM_CONFIG,
       isActive: true

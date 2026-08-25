@@ -1,10 +1,17 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft, CliConfigTarget } from '../index'
 import { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft, readCliConfigDraft } from '../index'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
 
 /** Per-path DataApi.get mock (longest-prefix wins so `/api-keys` is not shadowed). */
 function mockGet(handlers: Record<string, () => unknown>) {
@@ -47,13 +54,14 @@ const openaiNamedProvider = {
 } as unknown as Provider
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-      file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
-    }
-  })
+  // On-disk configs read as empty through code_cli.read_config (old readExternal → '').
+  mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => ({
+    files: input.targets.map((target) => ({
+      target,
+      path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+      content: ''
+    }))
+  }))
 })
 
 /** Build a managed draft via readCliConfigDraft (same builders the write path uses). */
@@ -139,6 +147,34 @@ describe('extractConnectionFromCliConfigDraft', () => {
   it.each(emptyFileCases)('returns null for an existing-but-empty %s config', (_name, cliTool, files) => {
     expect(extractConnectionFromCliConfigDraft(cliTool, files)).toBeNull()
   })
+
+  // The opencode models map key is the addressing id; `name` is only the display label
+  // (gateway mode writes a human-readable one there). Extraction must return the key, or
+  // gateway connection-matching would compare the display name against the addressing id.
+  it('opencode: extracts the model addressing key, not the display name', () => {
+    const files: CliConfigFileDraft[] = [
+      {
+        target: 'opencode-config' as CliConfigTarget,
+        label: '',
+        path: '',
+        language: 'json',
+        content: JSON.stringify({
+          provider: {
+            'cherry-gateway': {
+              npm: '@ai-sdk/anthropic',
+              options: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
+              models: { 'deepseek:deepseek-chat': { name: 'DeepSeek Chat' } }
+            }
+          }
+        })
+      }
+    ]
+    expect(extractConnectionFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual({
+      baseUrl: 'http://127.0.0.1:23333/v1',
+      apiKey: 'cs-sk',
+      model: 'deepseek:deepseek-chat'
+    })
+  })
 })
 
 describe('extractConfigFromCliConfigDraft', () => {
@@ -186,12 +222,20 @@ describe('extractConfigFromCliConfigDraft', () => {
     expect(extractConfigFromCliConfigDraft(CodeCli.GEMINI_CLI, files)).toEqual(blob)
   })
 
-  // OpenCode's extractConfig is bespoke (re-derives autoCompact/permissionMode from the nested
-  // provider/model shape) rather than delegating to a sanitize* helper — pin its round-trip.
+  // OpenCode's extractConfig is bespoke (re-derives managed settings from the generated config)
+  // rather than delegating to a sanitize* helper — pin its round-trip.
   it('round-trips opencode managed settings from the config blob', async () => {
     const blob = { autoCompact: true, permissionMode: 'ask' }
     const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', blob)
     expect(extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual(blob)
+  })
+
+  it('writes opencode auto compact to the schema-supported compaction section', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', { autoCompact: true })
+    const config = JSON.parse(files[0].content)
+
+    expect(config.compaction).toEqual({ auto: true })
+    expect(config).not.toHaveProperty('autoCompact')
   })
 
   it('round-trips qwen managed settings from the config blob', async () => {

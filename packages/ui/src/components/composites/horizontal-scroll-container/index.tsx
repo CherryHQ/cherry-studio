@@ -1,14 +1,18 @@
 // Original: src/renderer/components/horizontal-scroll-container/index.tsx
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import * as React from 'react'
 
+import { Button } from '../../primitives/button'
 import Scrollbar from '../scrollbar'
+
+const SCROLL_POSITION_TOLERANCE = 1
 
 export interface HorizontalScrollContainerProps {
   children: React.ReactNode
-  dependencies?: readonly unknown[]
   scrollDistance?: number
+  scrollLeftLabel: string
+  scrollRightLabel: string
   className?: string
   gap?: string
   expandable?: boolean
@@ -16,16 +20,22 @@ export interface HorizontalScrollContainerProps {
 
 const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   children,
-  dependencies = [],
   scrollDistance = 200,
+  scrollLeftLabel,
+  scrollRightLabel,
   className,
   gap = '8px',
   expandable = false
 }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  const [canScroll, setCanScroll] = React.useState(false)
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false)
+  const [canScrollRight, setCanScrollRight] = React.useState(false)
   const [isExpanded, setIsExpanded] = React.useState(false)
-  const [isScrolledToEnd, setIsScrolledToEnd] = React.useState(false)
+
+  const handleScrollLeft = (event: React.MouseEvent) => {
+    scrollRef.current?.scrollBy({ left: -scrollDistance, behavior: 'smooth' })
+    event.stopPropagation()
+  }
 
   const handleScrollRight = (event: React.MouseEvent) => {
     scrollRef.current?.scrollBy({ left: scrollDistance, behavior: 'smooth' })
@@ -52,14 +62,11 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
     const parentElement = scrollElement.parentElement
     const availableWidth = parentElement ? parentElement.clientWidth : scrollElement.clientWidth
     const canScrollValue = scrollElement.scrollWidth > Math.min(availableWidth, scrollElement.clientWidth)
-    setCanScroll(canScrollValue)
-
-    if (canScrollValue) {
-      const isAtEnd = Math.abs(scrollElement.scrollLeft + scrollElement.clientWidth - scrollElement.scrollWidth) <= 1
-      setIsScrolledToEnd(isAtEnd)
-    } else {
-      setIsScrolledToEnd(false)
-    }
+    setCanScrollLeft(canScrollValue && scrollElement.scrollLeft > SCROLL_POSITION_TOLERANCE)
+    setCanScrollRight(
+      canScrollValue &&
+        scrollElement.scrollLeft + scrollElement.clientWidth < scrollElement.scrollWidth - SCROLL_POSITION_TOLERANCE
+    )
   }, [])
 
   React.useEffect(() => {
@@ -68,24 +75,33 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       return
     }
 
-    checkScrollability()
-
-    const handleScroll = () => {
-      checkScrollability()
-    }
-
     const resizeObserver = new ResizeObserver(checkScrollability)
-    resizeObserver.observe(scrollElement)
+    const observeResizeTargets = () => {
+      resizeObserver.disconnect()
+      resizeObserver.observe(scrollElement)
+      if (scrollElement.parentElement) {
+        resizeObserver.observe(scrollElement.parentElement)
+      }
+      for (const child of scrollElement.children) {
+        resizeObserver.observe(child)
+      }
+    }
+    const mutationObserver = new MutationObserver(() => {
+      observeResizeTargets()
+      checkScrollability()
+    })
 
-    scrollElement.addEventListener('scroll', handleScroll)
-    window.addEventListener('resize', checkScrollability)
+    observeResizeTargets()
+    mutationObserver.observe(scrollElement, { childList: true, subtree: true, characterData: true })
+    scrollElement.addEventListener('scroll', checkScrollability, { passive: true })
+    checkScrollability()
 
     return () => {
       resizeObserver.disconnect()
-      scrollElement.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', checkScrollability)
+      mutationObserver.disconnect()
+      scrollElement.removeEventListener('scroll', checkScrollability)
     }
-  }, [checkScrollability, dependencies])
+  }, [checkScrollability])
 
   return (
     <div
@@ -107,15 +123,37 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
         }}>
         {children}
       </Scrollbar>
-      {canScroll && !isExpanded && !isScrolledToEnd && (
-        <div
+      {canScrollLeft && !isExpanded && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={scrollLeftLabel}
+          data-no-expand
           className={cn(
-            'scroll-right-button absolute top-1/2 right-2 z-[1] flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[var(--color-background)] opacity-0 shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] transition-opacity',
-            !isScrolledToEnd && 'group-hover/container:opacity-100'
+            'scroll-left-button absolute top-1/2 left-2 z-[1] -translate-y-1/2 rounded-full bg-background opacity-0 shadow-md transition-opacity hover:bg-background focus-visible:bg-background',
+            'text-muted-foreground hover:text-foreground focus-visible:text-foreground',
+            'group-hover/container:opacity-100 focus-visible:opacity-100'
+          )}
+          onClick={handleScrollLeft}>
+          <ChevronLeft className="size-3.5" />
+        </Button>
+      )}
+      {canScrollRight && !isExpanded && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={scrollRightLabel}
+          data-no-expand
+          className={cn(
+            'scroll-right-button absolute top-1/2 right-2 z-[1] -translate-y-1/2 rounded-full bg-background opacity-0 shadow-md transition-opacity hover:bg-background focus-visible:bg-background',
+            'text-muted-foreground hover:text-foreground focus-visible:text-foreground',
+            'group-hover/container:opacity-100 focus-visible:opacity-100'
           )}
           onClick={handleScrollRight}>
-          <ChevronRight size={14} className="text-[var(--color-text-2)] hover:text-[var(--color-text)]" />
-        </div>
+          <ChevronRight className="size-3.5" />
+        </Button>
       )}
     </div>
   )

@@ -19,11 +19,8 @@
  */
 
 import { loggerService } from '@logger'
-import {
-  SIDEBAR_FAVORITES,
-  type SidebarFavorite,
-  type SidebarFavoriteItem
-} from '@shared/data/preference/preferenceTypes'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { markV1CustomCss } from '@shared/utils/customCssMigration'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -31,6 +28,7 @@ import {
   migrateWebSearchProviders,
   normalizeWebSearchDefaultProvider
 } from '../transformers/PreferenceTransformers'
+import { contextCountToMaxMessages } from './AssistantMappings'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
 import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
@@ -41,12 +39,6 @@ import {
 } from './TranslateTransforms'
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
-
-const SUPPORTED_SIDEBAR_FAVORITES = new Set<SidebarFavorite>(SIDEBAR_FAVORITES)
-
-function isSupportedSidebarFavorite(value: unknown): value is SidebarFavorite {
-  return typeof value === 'string' && SUPPORTED_SIDEBAR_FAVORITES.has(value as SidebarFavorite)
-}
 
 // ============================================================================
 // Type Definitions
@@ -92,6 +84,21 @@ export interface ComplexMapping {
   transform: TransformFunction
 }
 
+function transformSidebarFavorites(): TransformResult {
+  return {
+    'ui.sidebar.favorites': DefaultPreferences.default['ui.sidebar.favorites']
+  }
+}
+
+function transformV1CustomCss(sources: Record<string, unknown>): TransformResult {
+  const customCss = sources.customCss
+  if (typeof customCss !== 'string') return {}
+
+  return {
+    'ui.custom_css': markV1CustomCss(customCss)
+  }
+}
+
 // ============================================================================
 // Complex Mappings Configuration
 // ============================================================================
@@ -107,7 +114,31 @@ export interface ComplexMapping {
  *
  * Remember to also define the target keys in target-key-definitions.json!
  */
+/**
+ * v1's default assistant carried the context policy every NEW assistant was
+ * cloned from. Migrating it only onto the migrated assistant rows would lose it
+ * for assistants created afterwards, which would silently start unlimited.
+ * Uses the same conversion as the per-assistant migration so both agree.
+ */
+function transformDefaultAssistantContextCount(sources: Record<string, unknown>): TransformResult {
+  const maxMessages = contextCountToMaxMessages(sources.contextCount)
+  // The global layer has no "inherit": unusable input and v1's unlimited both
+  // leave the generated default, which is already `null`.
+  return maxMessages == null ? {} : { 'chat.context_settings.max_messages': maxMessages }
+}
+
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // v1 default-assistant context policy → global context-message limit
+  {
+    id: 'default_assistant_context_count_migrate',
+    description: "Carry v1's default-assistant contextCount into the global recent-messages limit",
+    sources: {
+      contextCount: { source: 'redux', category: 'assistants', key: 'defaultAssistant.settings.contextCount' }
+    },
+    targetKeys: ['chat.context_settings.max_messages'],
+    transform: transformDefaultAssistantContextCount
+  },
+
   // WebSearch default provider normalization
   {
     id: 'websearch_default_provider_migrate',
@@ -141,6 +172,22 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: flattenCompressionConfig
   },
 
+  {
+    id: 'onboarding_completed_migrate',
+    description: 'Convert legacy localStorage onboarding-completed into the v2 provider setup status',
+    sources: {
+      completed: { source: 'localStorage', key: 'onboarding-completed' }
+    },
+    targetKeys: ['app.onboarding.provider_setup.status'],
+    transform: (sources) => {
+      if (sources.completed === undefined || sources.completed === null) return {}
+      return {
+        'app.onboarding.provider_setup.status':
+          sources.completed === true || sources.completed === 'true' ? 'completed' : 'pending'
+      }
+    }
+  },
+
   // CodeCLI: no migration — feature.code_cli.configs is a fresh v2 key (v1 codeTools is throwaway).
 
   // Shortcut preferences (legacy array → per-key PreferenceShortcutType)
@@ -154,49 +201,26 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar favorites: migrate legacy v1 sidebarIcons.visible, rewrite 'minapp' → 'mini_app',
-  // preserve the user's visible order, and restore the v2 agents favorite unless explicitly hidden.
+  // Sidebar favorites: reset every migrated user to the canonical v2 tabs.
   {
     id: 'sidebar_favorites_migrate',
-    description:
-      "Migrate legacy v1 sidebarIcons.visible to v2 favorites, rewrite 'minapp' to 'mini_app', preserve visible items, and restore agents",
+    description: 'Reset legacy sidebar favorites to the canonical v2 tabs',
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
     },
     targetKeys: ['ui.sidebar.favorites'],
-    transform: (sources) => {
-      const rewrite = (arr: unknown): SidebarFavorite[] | undefined =>
-        Array.isArray(arr)
-          ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)).filter(isSupportedSidebarFavorite)
-          : undefined
-      const toSidebarFavorites = (arr: SidebarFavorite[] | undefined): SidebarFavoriteItem[] | undefined =>
-        arr?.map((id) => ({ type: 'app', id }))
-      const addAgents = (
-        visible: SidebarFavorite[] | undefined,
-        invisible: SidebarFavorite[] | undefined
-      ): SidebarFavorite[] | undefined => {
-        if (!visible || visible.includes('agents')) {
-          return visible
-        }
-        if (invisible?.includes('agents')) {
-          return visible
-        }
+    transform: transformSidebarFavorites
+  },
 
-        const nextVisible = [...visible]
-        const assistantsIndex = nextVisible.indexOf('assistants')
-        nextVisible.splice(assistantsIndex === -1 ? nextVisible.length : assistantsIndex + 1, 0, 'agents')
-        return nextVisible
-      }
-      const dedup = (arr: SidebarFavorite[] | undefined): SidebarFavorite[] | undefined =>
-        arr ? [...new Set(arr)] : undefined
-      const visible = rewrite(sources.visible)
-      const invisible = rewrite(sources.disabled)
-      const visibleWithAgents = dedup(addAgents(visible, invisible))
-      return {
-        'ui.sidebar.favorites': toSidebarFavorites(visibleWithAgents)
-      }
-    }
+  {
+    id: 'custom_css_v1_marker',
+    description: 'Preserve legacy custom CSS behind a versioned marker until the user reviews it for v2',
+    sources: {
+      customCss: { source: 'redux', category: 'settings', key: 'customCss' }
+    },
+    targetKeys: ['ui.custom_css'],
+    transform: transformV1CustomCss
   },
 
   // File processing overrides merging
@@ -217,16 +241,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     description: 'Convert legacy LLM Model objects (provider + id) into UniqueModelId format (provider::modelId)',
     sources: {
       defaultModel: { source: 'redux', category: 'llm', key: 'defaultModel' },
-      topicNamingModel: { source: 'redux', category: 'llm', key: 'topicNamingModel' },
       quickModel: { source: 'redux', category: 'llm', key: 'quickModel' },
       translateModel: { source: 'redux', category: 'llm', key: 'translateModel' }
     },
-    targetKeys: [
-      'chat.default_model_id',
-      'topic.naming.model_id',
-      'feature.quick_assistant.model_id',
-      'feature.translate.model_id'
-    ],
+    targetKeys: ['chat.default_model_id', 'feature.quick_assistant.model_id', 'feature.translate.model_id'],
     transform: transformLlmModelIds
   },
 

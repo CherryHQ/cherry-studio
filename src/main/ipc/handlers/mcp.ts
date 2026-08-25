@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { readMcpResourcePreview } from '@main/ai/mcp/resourcePreview'
 import type { mcpRequestSchemas } from '@shared/ipc/schemas/mcp'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -26,12 +27,25 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   },
   'mcp.server.list_prompts': async ({ serverId }) => application.get('McpRuntimeService').listPrompts(serverId),
   'mcp.server.list_resources': async ({ serverId }) => application.get('McpRuntimeService').listResources(serverId),
+  'mcp.server.get_prompt': async ({ serverId, name, args }) =>
+    application.get('McpRuntimeService').getPrompt({ serverId, name, args }),
+  'mcp.server.read_resource_preview': async ({ serverId, uri, maxChars }) =>
+    readMcpResourcePreview({ serverId, uri, maxChars }),
   'mcp.server.check_connectivity': async ({ serverId }) =>
     application.get('McpRuntimeService').checkMcpConnectivity(serverId),
   'mcp.server.get_version': async ({ serverId }) => application.get('McpRuntimeService').getServerVersion(serverId),
   'mcp.server.get_logs': async ({ serverId }) => application.get('McpRuntimeService').getServerLogs(serverId),
+  'mcp.protocol_install.list_pending': async (_input, { senderId }) =>
+    senderId ? application.get('ProtocolService').listPendingMcpInstallRequests(senderId) : [],
+  'mcp.protocol_install.install': async ({ requestId }, { senderId }) => {
+    if (!senderId) throw new Error('MCP protocol install request not found')
+    return application.get('ProtocolService').installPendingMcpInstallRequest(senderId, requestId)
+  },
+  'mcp.protocol_install.cancel': async ({ requestId }, { senderId }) => {
+    if (senderId) application.get('ProtocolService').cancelPendingMcpInstallRequest(senderId, requestId)
+  },
   // In-flight tool-call control.
-  'mcp.tool.abort_call': async ({ callId }) => application.get('McpRuntimeService').abortTool(callId),
+  'mcp.tool.abort_call': async ({ callId, scope }) => application.get('McpRuntimeService').abortTool(callId, scope),
   // Package upload.
   'mcp.package.upload_dxt': async ({ buffer, fileName }) =>
     application.get('McpPackageService').uploadDxt(buffer, fileName),

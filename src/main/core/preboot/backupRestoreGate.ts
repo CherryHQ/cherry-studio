@@ -1,4 +1,9 @@
-import { isLiveDbStranded, markRestoreFailedAfterCrash, runRestorePromotion } from '@data/db/restore/restorePromotion'
+import {
+  cleanupTerminalRestoreArtifacts,
+  isLiveDbStranded,
+  markRestoreFailedAfterCrash,
+  runRestorePromotion
+} from '@data/db/restore/restorePromotion'
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('BackupRestoreGate')
@@ -45,4 +50,5 @@ export async function runBackupRestoreGate(): Promise<void> {
       )
     }
   }
+  cleanupTerminalRestoreArtifacts()
 }

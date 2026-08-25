@@ -13,19 +13,21 @@ const isValidToken = (token: string, apiKey: string): boolean => {
 export type AuthFailure = { status: 401 | 403; error: string }
 
 /**
- * Validate the credentials presented to the protected `/v1` routes. Two dialects
- * are accepted: the Anthropic `x-api-key` header (takes priority) and the OpenAI
+ * Validate the credentials presented to the protected API routes. Three dialects
+ * are accepted: the Anthropic `x-api-key` header (takes priority), the OpenAI
  * `Authorization: Bearer <token>` (extracted by the `@elysia/bearer` plugin in
- * `app.ts` and passed here as `bearerToken`). Both are compared against
- * `feature.api_gateway.api_key` with a timing-safe comparison.
+ * `app.ts` and passed here as `bearerToken`), and the Gemini `x-goog-api-key`
+ * header / `?key=` query param (passed here as `googleApiKey`). All are compared
+ * against `feature.api_gateway.api_key` with a timing-safe comparison.
  *
  * Returns an `AuthFailure` to short-circuit the request, or `undefined` to allow it.
  */
 export const authorizeApiRequest = (
   xApiKey: string | undefined,
-  bearerToken: string | undefined
+  bearerToken: string | undefined,
+  googleApiKey?: string
 ): AuthFailure | undefined => {
-  const token = xApiKey?.trim() || bearerToken?.trim()
+  const token = xApiKey?.trim() || bearerToken?.trim() || googleApiKey?.trim()
 
   if (!token) {
     return { status: 401, error: 'Unauthorized: missing credentials' }

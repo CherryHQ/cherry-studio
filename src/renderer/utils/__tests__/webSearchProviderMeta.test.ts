@@ -7,7 +7,7 @@ import {
   getWebSearchFeatureSections,
   getWebSearchProviderApiKeyWebsite,
   getWebSearchProviderDescriptionKey,
-  getWebSearchProviderLogo,
+  getWebSearchProviderIconRef,
   getWebSearchProviderOfficialWebsite
 } from '../webSearchProviderMeta'
 
@@ -50,14 +50,14 @@ const providers: WebSearchProvider[] = [
 describe('webSearchProviderMeta', () => {
   it('returns provider display metadata', () => {
     expect(getWebSearchProviderDescriptionKey('exa-mcp')).toBe('settings.tool.websearch.provider_description.exa_mcp')
-    expect(getWebSearchProviderLogo('fetch')).toBeTruthy()
+    expect(getWebSearchProviderIconRef('fetch')).toMatchObject({ kind: 'provider', key: 'cherryin' })
     expect(getWebSearchProviderOfficialWebsite('jina')).toBe('https://jina.ai/reader')
     expect(getWebSearchProviderApiKeyWebsite('jina')).toBe('https://jina.ai')
     expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
   })
 
   it('returns capability title keys', () => {
-    expect(getWebSearchCapabilityTitleKey('searchKeywords')).toBe('settings.tool.websearch.default_provider')
+    expect(getWebSearchCapabilityTitleKey('searchKeywords')).toBe('settings.tool.websearch.search_provider')
     expect(getWebSearchCapabilityTitleKey('fetchUrls')).toBe('settings.tool.websearch.fetch_urls_provider')
   })
 

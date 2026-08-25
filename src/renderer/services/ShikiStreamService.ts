@@ -1,11 +1,5 @@
 import { loggerService } from '@logger'
-import {
-  DEFAULT_LANGUAGES,
-  DEFAULT_THEMES,
-  getHighlighter,
-  loadLanguageIfNeeded,
-  loadThemeIfNeeded
-} from '@renderer/utils/shiki'
+import { DEFAULT_LANGUAGES, DEFAULT_THEMES, getHighlighter, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
 import { LRUCache } from 'lru-cache'
 import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
 
@@ -217,6 +211,7 @@ class ShikiStreamService {
           case 'init':
             return SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.INIT
           case 'highlight':
+          case 'highlight-html':
             return SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.HIGHLIGHT
           case 'cleanup':
           case 'dispose':
@@ -264,10 +259,7 @@ class ShikiStreamService {
       this.highlighter = await getHighlighter()
     }
 
-    const loadedLanguage = await loadLanguageIfNeeded(this.highlighter, language)
-    const loadedTheme = await loadThemeIfNeeded(this.highlighter, theme)
-
-    return { loadedLanguage, loadedTheme }
+    return loadLanguageAndThemeIfNeeded(this.highlighter, language, theme)
   }
 
   /**
@@ -359,6 +351,49 @@ class ShikiStreamService {
       logger.error('Failed to highlight streaming code:', error as Error)
       throw error
     }
+  }
+
+  /**
+   * 一次性静态高亮，返回 shiki codeToHtml 的 HTML 字符串（非 ThemedToken 行）。
+   *
+   * 优先使用 Worker 处理（静态高亮曾长期占用主线程，这是迁移动机）；
+   * 失败时逐次回退主线程，不做永久降级（无 tokenizer 状态可丢）。
+   * @param code 代码内容
+   * @param language 语言
+   * @param theme 主题
+   * @returns 高亮后的 HTML 字符串
+   */
+  async highlightCodeToHtml(code: string, language: string, theme: string): Promise<string> {
+    // The worker rejects an empty language; 'text' (shiki's plain language)
+    // is the natural degradation instead of a doomed round-trip.
+    const lang = language || 'text'
+    if (!this.hasWorkerHighlighter()) {
+      try {
+        await this.initWorker()
+      } catch (error) {
+        logger.warn('Failed to initialize worker, falling back to main thread:', error as Error)
+      }
+    }
+
+    if (this.hasWorkerHighlighter()) {
+      try {
+        const html = await this.sendWorkerMessage({
+          type: 'highlight-html',
+          chunk: code,
+          language: lang,
+          theme
+        })
+        return html as string
+      } catch (error) {
+        logger.error('Worker highlight-html failed, falling back to main thread:', error as Error)
+      }
+    }
+
+    const { loadedLanguage, loadedTheme } = await this.ensureHighlighterConfigured(lang, theme)
+    if (!this.highlighter) {
+      throw new Error('Highlighter not initialized')
+    }
+    return this.highlighter.codeToHtml(code, { lang: loadedLanguage, theme: loadedTheme })
   }
 
   /**

@@ -15,7 +15,7 @@ exports.default = async function notarizing(context) {
 
   await notarize({
     appPath,
-    appBundleId: 'com.cherryai.cherrystudio',
+    appBundleId: 'com.kangfenmao.CherryStudio',
     appleId: process.env.APPLE_ID,
     appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
     teamId: process.env.APPLE_TEAM_ID

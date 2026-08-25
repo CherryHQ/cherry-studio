@@ -6,8 +6,8 @@ import type {
   CodeCliId,
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 
@@ -30,7 +30,7 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   return { ...state, providers }
 }
 
-export const useCodeCli = () => {
+export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (tool: CodeCli) => void) => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
   // Mirror configs in a ref so sequential writes read the freshest value.
@@ -40,11 +40,17 @@ export const useCodeCli = () => {
   configsRef.current = configs
   const writeQueueRef = useRef<Promise<void>>(Promise.resolve())
 
-  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(DEFAULT_TOOL)
+  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(initialTool)
 
-  const selectTool = useCallback((tool: CodeCli) => {
-    setSelectedCliTool(tool)
-  }, [])
+  useEffect(() => setSelectedCliTool(initialTool), [initialTool])
+
+  const selectTool = useCallback(
+    (tool: CodeCli) => {
+      setSelectedCliTool(tool)
+      onToolChange?.(tool)
+    },
+    [onToolChange]
+  )
 
   const currentToolState = useMemo(() => getToolState(selectedCliTool, configs), [selectedCliTool, configs])
 
@@ -79,9 +85,10 @@ export const useCodeCli = () => {
     ): Promise<string> => {
       const toolId = selectedCliTool as CodeCliId
       const existing = getToolState(toolId, configsRef.current).providers[providerId]
+      const nextConfig = 'config' in partial ? partial.config : existing?.config
       const next: CliProviderConfig = {
         modelId: partial.modelId,
-        ...(partial.config || existing?.config ? { config: partial.config ?? existing?.config } : {}),
+        ...(nextConfig !== undefined ? { config: nextConfig } : {}),
         ...(partial.sortIndex !== undefined || existing?.sortIndex !== undefined
           ? { sortIndex: partial.sortIndex ?? existing?.sortIndex }
           : {})
@@ -129,9 +136,10 @@ export const useCodeCli = () => {
           const id = orderedIds[i]
           const existing = nextProviders[id]
           if (!existing) {
-            // The virtual own-login entry has no real config; persist a placeholder so its drag
-            // position sticks. Real unconfigured providers are still skipped (no empty configs).
-            if (id === CLI_OWN_LOGIN_PROVIDER_ID) {
+            // The virtual own-login / Cherry-gateway entries have no real config; persist a
+            // placeholder so their drag position sticks. Real unconfigured providers are still
+            // skipped (no empty configs).
+            if (id === CLI_OWN_LOGIN_PROVIDER_ID || isApiGatewayProviderId(id)) {
               nextProviders[id] = { modelId: null, sortIndex: i }
             }
             continue

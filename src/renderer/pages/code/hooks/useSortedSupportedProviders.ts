@@ -10,8 +10,12 @@ interface UseSortedSupportedProvidersOptions {
   filterProviders: (providers: Provider[]) => Provider[]
   reorderProviders: (providerIds: string[]) => Promise<void>
   onReorderError: (error: unknown) => void
-  /** Synthetic "own login" entry to include in the list (login-capable tools only). */
-  ownLoginProvider?: Provider | null
+  /**
+   * Synthetic, page-local entries (own login, Cherry gateway) prepended ahead of
+   * the real providers. They sort/reorder alongside real providers but bypass
+   * `filterProviders`.
+   */
+  prependedProviders?: Provider[]
 }
 
 export function useSortedSupportedProviders({
@@ -21,7 +25,7 @@ export function useSortedSupportedProviders({
   filterProviders,
   reorderProviders,
   onReorderError,
-  ownLoginProvider
+  prependedProviders
 }: UseSortedSupportedProvidersOptions): {
   supportedProviders: Provider[]
   onReorder: (nextProviders: Provider[]) => Promise<void>
@@ -31,8 +35,10 @@ export function useSortedSupportedProviders({
   )
 
   const supportedProviders = useMemo(() => {
-    // The synthetic own-login entry is prepended so it sorts/reorders alongside real providers.
-    const filtered = ownLoginProvider ? [ownLoginProvider, ...filterProviders(providers)] : filterProviders(providers)
+    // The synthetic entries are prepended so they sort/reorder alongside real providers.
+    const filtered = prependedProviders?.length
+      ? [...prependedProviders, ...filterProviders(providers)]
+      : filterProviders(providers)
     const entries = new Map(Object.entries(currentToolState.providers))
     const baseSorted = [...filtered]
       .map((provider, index) => ({
@@ -63,7 +69,7 @@ export function useSortedSupportedProviders({
       if (bi !== undefined) return 1
       return (stableIndex.get(a.id) ?? 0) - (stableIndex.get(b.id) ?? 0)
     })
-  }, [filterProviders, providers, currentToolState, optimisticProviderOrder, selectedCliTool, ownLoginProvider])
+  }, [filterProviders, providers, currentToolState, optimisticProviderOrder, selectedCliTool, prependedProviders])
 
   const handleReorder = useCallback(
     async (nextProviders: Provider[]) => {

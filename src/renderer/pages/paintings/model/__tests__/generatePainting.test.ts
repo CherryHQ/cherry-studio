@@ -10,7 +10,7 @@ vi.mock('../runPainting', () => ({
   runPainting: (generate: () => Promise<unknown>) => runPaintingMock(generate)
 }))
 
-// Image generation goes through ipcApi.request('ai.generate_image', { requestId, payload }).
+// Image generation goes through ipcApi.request('ai.image.generate', { requestId, payload }).
 const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
 
@@ -18,7 +18,7 @@ import type { GeneratePaintingOptions } from '../generatePainting'
 import { generatePainting } from '../generatePainting'
 
 function makeOptions(
-  aiSdkParams: GeneratePaintingOptions['aiSdkParams'],
+  paramValues: Record<string, unknown> = {},
   signal: AbortSignal = new AbortController().signal
 ): GeneratePaintingOptions {
   return {
@@ -32,7 +32,7 @@ function makeOptions(
     signal,
     modelId: 'gpt-image-1',
     prompt: 'a fox',
-    aiSdkParams
+    paramValues
   }
 }
 
@@ -41,33 +41,40 @@ describe('generatePainting', () => {
     runPaintingMock.mockClear()
     ipcRequestMock.mockReset()
     ipcRequestMock.mockImplementation(async (route: string) =>
-      route === 'ai.generate_image' ? { files: [] } : undefined
+      route === 'ai.image.generate' ? { files: [] } : undefined
     )
   })
 
   // The image payload now rides in the second arg as `{ requestId, payload }`.
   const imagePayload = (): Record<string, unknown> => {
-    const call = ipcRequestMock.mock.calls.find(([route]) => route === 'ai.generate_image')
-    if (!call) throw new Error('ai.generate_image was not requested')
+    const call = ipcRequestMock.mock.calls.find(([route]) => route === 'ai.image.generate')
+    if (!call) throw new Error('ai.image.generate was not requested')
     return (call[1] as { payload: Record<string, unknown> }).payload
   }
 
-  it("forwards the 'auto' size sentinel as-is for main to omit", async () => {
-    await generatePainting(makeOptions({ imageSize: 'auto' }))
+  it('sends the canonical paramValues bag in the IPC payload (main owns the wire mapping)', async () => {
+    await generatePainting(makeOptions({ size: 'auto', numImages: 2 }))
 
     expect(imagePayload()).toMatchObject({
       uniqueModelId: 'aihubmix::gpt-image-1',
       prompt: 'a fox',
-      size: 'auto'
+      paramValues: { size: 'auto', numImages: 2 }
     })
   })
 
-  it('keeps concrete imageSize as the IPC size', async () => {
-    await generatePainting(makeOptions({ imageSize: '1024x1024' }))
+  it("stamps painting outputs as 'delete_when_unreferenced' (reaped once no painting references them)", async () => {
+    // Value-locks the policy: TS already blocks omitting cleanupPolicy, but not
+    // flipping it to 'manual', which would leak painting images forever.
+    await generatePainting(makeOptions({ size: '1024x1024' }))
+    expect(imagePayload()).toMatchObject({ cleanupPolicy: 'delete_when_unreferenced' })
+  })
 
-    expect(imagePayload()).toMatchObject({
-      size: '1024x1024'
-    })
+  it('passes paramValues verbatim — no top-level wire fields', async () => {
+    await generatePainting(makeOptions({ size: '1024x1024' }))
+
+    const payload = imagePayload()
+    expect((payload as { paramValues: Record<string, unknown> }).paramValues).toEqual({ size: '1024x1024' })
+    expect(payload).not.toHaveProperty('size')
   })
 
   // A provider failure now crosses IpcApi as an IpcError (name 'IpcError'), which no longer
@@ -77,7 +84,7 @@ describe('generatePainting', () => {
     const controller = new AbortController()
     controller.abort()
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'ai.generate_image') throw new Error('cancelled by main')
+      if (route === 'ai.image.generate') throw new Error('cancelled by main')
       return undefined
     })
 
@@ -87,7 +94,7 @@ describe('generatePainting', () => {
   it('re-throws the original error when the request rejects without a user abort', async () => {
     const failure = new Error('provider exploded')
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'ai.generate_image') throw failure
+      if (route === 'ai.image.generate') throw failure
       return undefined
     })
 

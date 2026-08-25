@@ -1,32 +1,24 @@
-import { Badge, Button, Input, Tabs, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Input, Tooltip } from '@cherrystudio/ui'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { ListMinus, ListPlus, RefreshCw, Search, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelListCapabilityFilter } from './modelListDerivedState'
-import { applyModelFilters, groupModels, MODEL_LIST_CAPABILITY_FILTERS } from './modelListDerivedState'
+import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
+import { applyModelFilters, getCapabilityModelCounts, groupModels } from './modelListDerivedState'
 import ModelSyncPreviewPanel from './ModelSyncPreviewPanel'
+import { ModelTypeFilterTabs } from './ModelTypeFilterTabs'
 
 type ModelManageFilter = ModelListCapabilityFilter | 'stale'
-const CAPABILITY_FILTER_LABEL_KEYS: Record<Exclude<ModelListCapabilityFilter, 'all'>, string> = {
-  reasoning: 'models.type.reasoning',
-  vision: 'models.type.vision',
-  websearch: 'models.type.websearch',
-  free: 'models.type.free',
-  embedding: 'models.type.embedding',
-  rerank: 'models.type.rerank',
-  function_calling: 'models.type.function_calling'
-}
 
 interface ModelListSyncDrawerProps {
   open: boolean
   provider?: Provider
   allModels: Model[]
-  localModels: Model[]
+  localModels: readonly Model[]
   removableModelIds: UniqueModelId[]
   defaultModelIds?: UniqueModelId[]
   isLoading: boolean
@@ -62,36 +54,37 @@ export default function ModelListSyncDrawer({
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
   const [actualFilter, setActualFilter] = useState<ModelManageFilter>('all')
-  const [optimisticFilter, setOptimisticFilter] = useState<ModelManageFilter>('all')
-  const [, startFilterTransition] = useTransition()
 
   useEffect(() => {
     setSearchText('')
     setActualFilter('all')
-    setOptimisticFilter('all')
   }, [open])
 
   const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
   const removableModelIdSet = useMemo(() => new Set(removableModelIds), [removableModelIds])
   const defaultModelIdSet = useMemo(() => new Set(defaultModelIds), [defaultModelIds])
   const staleModelIdSet = useMemo(() => new Set(staleModelIds), [staleModelIds])
-  const filterOptions = useMemo<ModelManageFilter[]>(
-    () => (staleModelCount > 0 ? [...MODEL_LIST_CAPABILITY_FILTERS, 'stale'] : [...MODEL_LIST_CAPABILITY_FILTERS]),
-    [staleModelCount]
-  )
+  const searchedModels = useMemo(() => applyModelFilters(allModels, searchText, 'all'), [allModels, searchText])
   const filteredModels = useMemo(() => {
     if (actualFilter === 'stale') {
-      return applyModelFilters(allModels, searchText, 'all').filter((model) => staleModelIdSet.has(model.id))
+      return searchedModels.filter((model) => staleModelIdSet.has(model.id))
     }
 
-    return applyModelFilters(allModels, searchText, actualFilter)
-  }, [actualFilter, allModels, searchText, staleModelIdSet])
+    return applyModelFilters(searchedModels, '', actualFilter)
+  }, [actualFilter, searchedModels, staleModelIdSet])
   const filteredGroups = useMemo(
     () => groupModels(filteredModels, Boolean(searchText.trim())),
     [filteredModels, searchText]
   )
-  const isAllFilteredInProvider =
-    filteredModels.length > 0 && filteredModels.every((model) => localModelIds.has(model.id))
+  // Per-type counts over the search-filtered set (so the tabs track the search).
+  const typeCounts = useMemo<ModelListCapabilityCounts>(
+    () => getCapabilityModelCounts(searchedModels),
+    [searchedModels]
+  )
+  const isAllFilteredInProvider = useMemo(
+    () => filteredModels.length > 0 && filteredModels.every((model) => localModelIds.has(model.id)),
+    [filteredModels, localModelIds]
+  )
   const removableFilteredModelIds = useMemo(
     () =>
       filteredModels
@@ -112,7 +105,6 @@ export default function ModelListSyncDrawer({
   useEffect(() => {
     if (staleModelCount === 0 && actualFilter === 'stale') {
       setActualFilter('all')
-      setOptimisticFilter('all')
     }
   }, [actualFilter, staleModelCount])
 
@@ -215,29 +207,27 @@ export default function ModelListSyncDrawer({
           </div>
         </div>
 
-        <Tabs
-          value={optimisticFilter}
-          onValueChange={(value) => {
-            const next = value as ModelManageFilter
-            setOptimisticFilter(next)
-            startFilterTransition(() => setActualFilter(next))
-          }}
-          className={modelSyncClasses.manageTabs}>
-          <TabsList className={modelSyncClasses.manageTabsList}>
-            {filterOptions.map((filter) => (
-              <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
-                {filter === 'all'
-                  ? t('models.all')
-                  : filter === 'stale'
-                    ? t('settings.models.manage.stale_filter')
-                    : t(CAPABILITY_FILTER_LABEL_KEYS[filter])}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <ModelTypeFilterTabs
+          value={actualFilter}
+          onValueChange={(next) => setActualFilter(next as ModelManageFilter)}
+          counts={typeCounts}
+          extraTabs={
+            staleModelCount > 0
+              ? [
+                  {
+                    value: 'stale',
+                    label: t('settings.models.manage.stale_filter'),
+                    count: staleModelCount,
+                    destructive: true
+                  }
+                ]
+              : []
+          }
+        />
       </div>
 
       <ModelSyncPreviewPanel
+        provider={provider}
         modelGroups={filteredGroups}
         localModelIds={localModelIds}
         removableModelIds={removableModelIdSet}

@@ -7,7 +7,8 @@
  *   - generateMeta       — per-icon meta.ts
  *   - generateBarrelIndex — barrel index.ts (re-exports)
  *   - generateMetaCatalog — meta-catalog.ts (sync key → IconMeta lookup, zero component deps)
- *   - generateCatalog    — catalog.ts (key → CompoundIcon lookup, loaded via dynamic import only)
+ *   - generateIconLoaders — loaders.ts (key → per-icon dynamic import)
+ *   - generateCatalog    — catalog.ts (bulk key → CompoundIcon lookup)
  */
 
 import * as fs from 'fs'
@@ -65,8 +66,7 @@ export function generateIconIndex(opts: {
   const cnImport = hasDark || usesCurrentColor ? `import { cn } from '../../../../lib/utils'\n` : ''
 
   const content = `${cnImport}import type { CompoundIcon, CompoundIconProps } from '../../types'
-${avatarImport}${darkImport}
-import { ${lightName} } from './light'
+${avatarImport}${darkImport}import { ${lightName} } from './light'
 
 const ${colorName} = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <${lightName} {...props} className={${lightClassName}} />
@@ -89,7 +89,7 @@ export default ${colorName}Icon
 export function generateAvatar(opts: {
   outPath: string
   colorName: string
-  variant: 'full-bleed' | 'padded'
+  variant: 'full-bleed' | 'neutral-background'
   hasDark: boolean
 }): void {
   const { outPath, colorName, variant, hasDark } = opts
@@ -98,16 +98,17 @@ export function generateAvatar(opts: {
   const sf = project.createSourceFile('avatar.tsx', '', { overwrite: true })
 
   sf.addImportDeclaration({
-    moduleSpecifier: '@cherrystudio/ui/lib/utils',
-    namedImports: ['cn']
-  })
-
-  sf.addImportDeclaration({
     moduleSpecifier: '@cherrystudio/ui/components/primitives/avatar',
     namedImports: ['Avatar', 'AvatarFallback']
   })
 
   sf.addImportDeclaration({
+    moduleSpecifier: '@cherrystudio/ui/lib/utils',
+    namedImports: ['cn']
+  })
+
+  sf.addImportDeclaration({
+    leadingTrivia: '\n',
     moduleSpecifier: '../../types',
     namedImports: [{ name: 'IconAvatarProps', isTypeOnly: true }]
   })
@@ -124,18 +125,19 @@ export function generateAvatar(opts: {
     namedImports: [`${colorName}Light`]
   })
 
-  const iconSize = variant === 'full-bleed' ? 'size * 0.82' : 'size * 0.7'
-  const fallbackClasses = ['text-foreground', variant === 'padded' ? 'bg-background' : ''].filter(Boolean).join(' ')
+  const fallbackClasses = ['text-foreground', variant === 'neutral-background' ? 'bg-background' : '']
+    .filter(Boolean)
+    .join(' ')
   const iconRender = hasDark
     ? `<${colorName}Light
           className="dark:hidden"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
+          style={{ width: size, height: size }}
         />
         <${colorName}Dark
           className="hidden dark:block"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
+          style={{ width: size, height: size }}
         />`
-    : `<${colorName}Light style={{ width: ${iconSize}, height: ${iconSize} }} />`
+    : `<${colorName}Light style={{ width: size, height: size }} />`
 
   sf.addFunction({
     isExported: true,
@@ -243,8 +245,8 @@ export function generateBarrelIndex(opts: {
 /**
  * Generate a meta-catalog.ts that maps catalog keys to IconMeta values.
  * Zero component dependencies — safe to import from first-paint code.
- * The catalog key type is derived here so catalog.ts can be forced (via
- * `satisfies Record<Key, CompoundIcon>`) to stay key-identical.
+ * The catalog key type is derived here so loaders.ts and an optional bulk
+ * catalog can be forced (via `satisfies Record<Key, ...>`) to stay key-identical.
  *
  * Output:
  *   import { type IconMeta } from '../types'
@@ -305,14 +307,77 @@ export function generateMetaCatalog(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// generateIconLoaders
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate loaders.ts with one dynamic import per icon implementation.
+ * Importing this lightweight map does not evaluate any icon component; invoking
+ * one entry loads only that icon directory.
+ *
+ * Output:
+ *   import type { CompoundIcon } from '../types'
+ *   import type { ProviderIconKey } from './meta-catalog'
+ *   export const PROVIDER_ICON_LOADERS = {
+ *     foo: () => import('./foo').then(({ FooIcon }) => FooIcon),
+ *   } as const satisfies Record<ProviderIconKey, () => Promise<CompoundIcon>>
+ */
+export function generateIconLoaders(opts: {
+  outPath: string
+  entries: Array<{ dirName: string; colorName: string }>
+  loadersName: string
+  keyTypeName: string
+}): void {
+  const { outPath, entries, loadersName, keyTypeName } = opts
+
+  const sf = project.createSourceFile('loaders.ts', '', { overwrite: true })
+
+  sf.addStatements((writer) => {
+    writer.writeLine(`/**`)
+    writer.writeLine(` * Auto-generated per-icon dynamic loaders`)
+    writer.writeLine(` * Do not edit manually — regenerated by the icon pipeline`)
+    writer.writeLine(` *`)
+    writer.writeLine(` * Generated at: ${new Date().toISOString()}`)
+    writer.writeLine(` * Total icons: ${entries.length}`)
+    writer.writeLine(` */`)
+  })
+
+  sf.addImportDeclaration({
+    moduleSpecifier: '../types',
+    namedImports: [{ name: 'CompoundIcon', isTypeOnly: true }]
+  })
+
+  sf.addImportDeclaration({
+    moduleSpecifier: './meta-catalog',
+    namedImports: [{ name: keyTypeName, isTypeOnly: true }]
+  })
+
+  const objectBody = entries
+    .map(({ dirName, colorName }) => {
+      const key = /^\d/.test(dirName) || dirName.includes('-') ? `'${dirName}'` : dirName
+      return `  ${key}: () => import('./${dirName}').then(({ ${colorName}Icon }) => ${colorName}Icon)`
+    })
+    .join(',\n')
+
+  sf.addStatements((writer) => {
+    writer.blankLine()
+    writer.writeLine(
+      `export const ${loadersName} = {\n${objectBody}\n} as const satisfies Record<${keyTypeName}, () => Promise<CompoundIcon>>`
+    )
+  })
+
+  fs.writeFileSync(outPath, sf.getFullText())
+}
+
+// ---------------------------------------------------------------------------
 // generateCatalog
 // ---------------------------------------------------------------------------
 
 /**
- * Generate a catalog.ts that maps camelCase keys to CompoundIcon values.
- * Statically imports every icon component, so it must only ever be reached
- * through a dynamic `import()` (see icons/loader.ts) — a static import would
- * drag the full icon set into the importer's first-paint chunk.
+ * Generate a bulk catalog.ts that maps camelCase keys to CompoundIcon values.
+ * Statically imports every icon component, so only consumers that render the
+ * complete set should load it. Ordinary key-based rendering goes through the
+ * per-icon dynamic imports in loaders.ts.
  *
  * The key type comes from meta-catalog.ts; `satisfies Record<Key, CompoundIcon>`
  * guarantees both generated catalogs stay key-identical at compile time.
@@ -339,7 +404,7 @@ export function generateCatalog(opts: {
     writer.writeLine(` * Auto-generated icon catalog for runtime lookup`)
     writer.writeLine(` * Do not edit manually — regenerated by the icon pipeline`)
     writer.writeLine(` *`)
-    writer.writeLine(` * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically`)
+    writer.writeLine(` * Bulk component lookup — ordinary icon rendering uses loaders.ts instead`)
     writer.writeLine(` *`)
     writer.writeLine(` * Generated at: ${new Date().toISOString()}`)
     writer.writeLine(` * Total icons: ${entries.length}`)

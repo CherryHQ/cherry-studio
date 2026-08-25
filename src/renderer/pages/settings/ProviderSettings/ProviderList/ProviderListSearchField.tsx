@@ -43,7 +43,7 @@ export default function ProviderListSearchField({
             disabled={disabled}
             onClick={() => onValueChange('')}
             className={providerListClasses.searchClearButton}>
-            <X size={10} />
+            <X size={9} />
           </button>
         ) : null}
         {trailing}

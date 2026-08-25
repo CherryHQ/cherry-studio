@@ -43,14 +43,14 @@ function startCrashReporter(): void {
 }
 
 /**
- * In production, install last-resort handlers for `uncaughtException` and
- * `unhandledRejection`. In dev, leave both unset so errors propagate to the
- * terminal with their full, unswallowed stack traces.
+ * In production, observe uncaught exceptions without suppressing Node's
+ * default exit, and log unhandled rejections. In dev, leave both unset so
+ * errors propagate to the terminal with their full, unswallowed stack traces.
  */
 function installProcessErrorHandlers(): void {
   if (isDev) return
 
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtExceptionMonitor', (error) => {
     logger.error('Uncaught Exception:', error)
   })
 
@@ -63,23 +63,32 @@ function installProcessErrorHandlers(): void {
  * Register the `web-contents-created` handler that hardens every new
  * webContents with:
  *
- *   1. A `Document-Policy: include-js-call-stacks-in-crash-reports`
+ *   1. Response header filtering for values that Electron's `net.fetch`
+ *      cannot convert to Web `Headers` without throwing.
+ *
+ *   2. A `Document-Policy: include-js-call-stacks-in-crash-reports`
  *      response header. This opts the document into the Chromium feature
  *      `DocumentPolicyIncludeJSCallStacksInCrashReports` that is enabled
  *      unconditionally in `preboot/chromiumFlags.ts`. Both halves
  *      (the feature flag and this header) are required — without the
  *      header, the feature flag alone has no effect.
  *
- *   2. An `unresponsive` listener that collects a JavaScript call stack
- *      from the stuck renderer (enabled by #1) and logs it. This is the
+ *   3. An `unresponsive` listener that collects a JavaScript call stack
+ *      from the stuck renderer (enabled by #2) and logs it. This is the
  *      primary diagnostic signal for "the UI froze" bug reports.
  */
 function hardenWebContents(): void {
   app.on('web-contents-created', (_, webContents) => {
+    // Owns every session's single `onHeadersReceived` slot: Electron keeps ONE
+    // listener per session, so a later registration elsewhere would silently
+    // replace this one — and with it the call-stack collection below. Nothing
+    // else may call `webRequest.onHeadersReceived`; if a second consumer ever
+    // appears, introduce a per-session coordinator instead (same doctrine as
+    // `ai/utils/customFetch.ts` for the `onBeforeSendHeaders` slot).
     webContents.session.webRequest.onHeadersReceived((details, callback) => {
       callback({
         responseHeaders: {
-          ...details.responseHeaders,
+          ...filterByteStringResponseHeaders(details.responseHeaders),
           'Document-Policy': ['include-js-call-stacks-in-crash-reports']
         }
       })
@@ -91,4 +100,23 @@ function hardenWebContents(): void {
       logger.error(`Renderer unresponsive js call stack\n ${callStack}`)
     })
   })
+}
+
+function filterByteStringResponseHeaders(headers: Record<string, string[]> | undefined): Record<string, string[]> {
+  const filteredHeaders: Record<string, string[]> = {}
+
+  for (const [name, values] of Object.entries(headers ?? {})) {
+    const compatibleValues = values.filter((value) => {
+      for (let index = 0; index < value.length; index++) {
+        if (value.charCodeAt(index) > 0xff) return false
+      }
+      return true
+    })
+
+    if (compatibleValues.length > 0) {
+      filteredHeaders[name] = compatibleValues
+    }
+  }
+
+  return filteredHeaders
 }

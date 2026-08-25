@@ -1,45 +1,40 @@
-import { render, screen } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListInitialLoading } from '../MessageListLoading'
-
-vi.mock('@renderer/components/icons/LoadingIcon', () => ({
-  default: () => <span data-testid="loading-icon" />
-}))
 
 describe('MessageListInitialLoading', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  it('waits before showing the loading indicator', () => {
+  it('waits briefly before showing the message skeleton', () => {
     vi.useFakeTimers()
 
     render(<MessageListInitialLoading delayMs={300} />)
 
-    expect(screen.queryByTestId('loading-icon')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-message-list-loading-skeleton]')).not.toBeInTheDocument()
 
     act(() => {
       vi.advanceTimersByTime(299)
     })
-    expect(screen.queryByTestId('loading-icon')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-message-list-loading-skeleton]')).not.toBeInTheDocument()
 
     act(() => {
       vi.advanceTimersByTime(1)
     })
-    expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
+    expect(document.querySelector('[data-message-list-loading-skeleton]')).toBeInTheDocument()
   })
 
-  it('does not show the indicator after unmounting before the delay', () => {
+  it('clears the pending skeleton timer on unmount', () => {
     vi.useFakeTimers()
 
     const { unmount } = render(<MessageListInitialLoading delayMs={300} />)
+    expect(vi.getTimerCount()).toBe(1)
+
     unmount()
 
-    act(() => {
-      vi.advanceTimersByTime(300)
-    })
-    expect(screen.queryByTestId('loading-icon')).not.toBeInTheDocument()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

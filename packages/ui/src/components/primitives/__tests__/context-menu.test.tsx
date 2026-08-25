@@ -4,7 +4,16 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../context-menu'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger
+} from '../context-menu'
 import { PortalContainerProvider } from '../portal-container'
 
 beforeAll(() => {
@@ -186,6 +195,36 @@ describe('ContextMenu primitive', () => {
     })
   })
 
+  describe('Electron drag-region opt-out', () => {
+    it('marks content and sub-content as no-drag so they stay clickable over titlebar drag regions', () => {
+      render(
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button type="button">Trigger</button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem>Delete</ContextMenuItem>
+            <ContextMenuSub open>
+              <ContextMenuSubTrigger>More</ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                <ContextMenuItem>Sub item</ContextMenuItem>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </ContextMenuContent>
+        </ContextMenu>
+      )
+
+      openMenu(screen.getByText('Trigger'))
+
+      expect(screen.getByText('Delete').closest('[data-slot="context-menu-content"]')).toHaveClass(
+        '[-webkit-app-region:no-drag]'
+      )
+      expect(screen.getByText('Sub item').closest('[data-slot="context-menu-sub-content"]')).toHaveClass(
+        '[-webkit-app-region:no-drag]'
+      )
+    })
+  })
+
   describe('portal container', () => {
     it('renders content inside the provider portal container', () => {
       const portalContainer = document.createElement('div')
@@ -211,6 +250,33 @@ describe('ContextMenu primitive', () => {
       } finally {
         portalContainer.remove()
       }
+    })
+  })
+
+  describe('destructive variant icon color', () => {
+    // ContextMenuItemContent nests the icon two spans deep, so the destructive icon override
+    // must be a descendant selector (`[&_svg…]`). A direct-child selector (`*:[svg]`) never
+    // reaches the nested icon, letting the base `text-muted-foreground` rule win and rendering
+    // the icon gray. Pin the descendant form and guard against the broken direct-child form.
+    it('applies the destructive color to icons nested inside ContextMenuItemContent', () => {
+      render(
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button type="button">Trigger</button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem variant="destructive">
+              <ContextMenuItemContent icon={<svg aria-label="trash" />}>Delete</ContextMenuItemContent>
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )
+
+      openMenu(screen.getByText('Trigger'))
+
+      const item = screen.getByText('Delete').closest('[data-slot="context-menu-item"]')
+      expect(item).toHaveClass("data-[variant=destructive]:[&_svg:not([class*='text-'])]:text-destructive!")
+      expect(item).not.toHaveClass('data-[variant=destructive]:*:[svg]:text-destructive!')
     })
   })
 })

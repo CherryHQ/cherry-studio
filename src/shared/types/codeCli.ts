@@ -3,11 +3,51 @@ export enum CodeCli {
   OPENAI_CODEX = 'openai-codex',
   OPEN_CODE = 'opencode',
   OPENCLAW = 'openclaw',
+  DEEPSEEK_HARNESS = 'deepseek-harness',
   GEMINI_CLI = 'gemini-cli',
   QWEN_CODE = 'qwen-code',
   KIMI_CODE = 'kimi-code',
   QODER_CLI = 'qoder-cli',
-  GITHUB_COPILOT_CLI = 'github-copilot-cli'
+  GITHUB_COPILOT_CLI = 'github-copilot-cli',
+  PI = 'pi'
+}
+
+export const DEEPSEEK_HARNESS_AGENT_PRESETS = ['inherit', 'standard', 'code', 'minimal'] as const
+export type DeepSeekHarnessAgentPreset = (typeof DEEPSEEK_HARNESS_AGENT_PRESETS)[number]
+
+export const DEEPSEEK_HARNESS_PERMISSION_MODES = ['read-only', 'workspace-write', 'danger-full-access'] as const
+export type DeepSeekHarnessPermissionMode = (typeof DEEPSEEK_HARNESS_PERMISSION_MODES)[number]
+
+export interface DeepSeekHarnessSettings {
+  /** Keep the existing DSH setting, or select one of the shipped coding presets. */
+  agentPreset: DeepSeekHarnessAgentPreset
+  /** Default permission applied to sessions created by the managed process. */
+  permissionMode: DeepSeekHarnessPermissionMode
+}
+
+export const DEFAULT_DEEPSEEK_HARNESS_SETTINGS: Readonly<DeepSeekHarnessSettings> = Object.freeze({
+  agentPreset: 'inherit',
+  permissionMode: 'workspace-write'
+})
+
+export function isDeepSeekHarnessAgentPreset(value: unknown): value is DeepSeekHarnessAgentPreset {
+  return DEEPSEEK_HARNESS_AGENT_PRESETS.includes(value as DeepSeekHarnessAgentPreset)
+}
+
+export function isDeepSeekHarnessPermissionMode(value: unknown): value is DeepSeekHarnessPermissionMode {
+  return DEEPSEEK_HARNESS_PERMISSION_MODES.includes(value as DeepSeekHarnessPermissionMode)
+}
+
+export function normalizeDeepSeekHarnessSettings(value: unknown): DeepSeekHarnessSettings {
+  const settings = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+  return {
+    agentPreset: isDeepSeekHarnessAgentPreset(settings.agentPreset)
+      ? settings.agentPreset
+      : DEFAULT_DEEPSEEK_HARNESS_SETTINGS.agentPreset,
+    permissionMode: isDeepSeekHarnessPermissionMode(settings.permissionMode)
+      ? settings.permissionMode
+      : DEFAULT_DEEPSEEK_HARNESS_SETTINGS.permissionMode
+  }
 }
 
 /**
@@ -31,7 +71,47 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.OPENAI_CODEX,
   CodeCli.GEMINI_CLI,
   CodeCli.QWEN_CODE,
-  CodeCli.KIMI_CODE
+  CodeCli.KIMI_CODE,
+  CodeCli.PI
+])
+
+/**
+ * Reserved virtual provider id for the code-CLI "Cherry Gateway" option. Like the
+ * own-login entry it is a page-local synthetic provider (never persisted to the
+ * providers store), but instead of running credential-less it injects the local
+ * API gateway's URL + key into the CLI config so the real provider key never
+ * lands on disk and any model is reachable through the gateway's dialect
+ * conversion. Namespaced so it never collides with a real provider id.
+ */
+export const CLI_API_GATEWAY_PROVIDER_ID = 'cherry:api-gateway'
+
+/**
+ * Fixed ASCII provider-name segment for the gateway in CLI config keys (`cherry-gateway`).
+ * The synthetic provider's card title is the localized "统一网关" (Unified Gateway), which would
+ * sanitize to an empty/garbled segment; this stable name keeps the on-disk key clean and
+ * locale-independent.
+ */
+export const CLI_API_GATEWAY_PROVIDER_NAME = 'gateway'
+
+export function isApiGatewayProviderId(id: string): boolean {
+  return id === CLI_API_GATEWAY_PROVIDER_ID
+}
+
+/**
+ * CLI tools that can be backed by the Cherry API gateway. The gateway exposes
+ * Anthropic (`/v1/messages`), OpenAI (`/v1/chat/completions`, `/v1/responses`),
+ * and Gemini (`/v1beta/models/*`) dialects, so Gemini CLI routes through the
+ * gateway too. OpenClaw is excluded because it has its own gateway sync path.
+ */
+export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
+  CodeCli.CLAUDE_CODE,
+  CodeCli.OPENAI_CODEX,
+  CodeCli.GEMINI_CLI,
+  CodeCli.OPEN_CODE,
+  CodeCli.QWEN_CODE,
+  CodeCli.KIMI_CODE,
+  CodeCli.PI,
+  CodeCli.DEEPSEEK_HARNESS
 ])
 
 export enum TerminalApp {

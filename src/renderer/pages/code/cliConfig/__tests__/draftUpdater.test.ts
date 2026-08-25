@@ -1,6 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import { GEMINI_GATEWAY_MODEL_SUFFIX } from '@shared/utils/apiGateway'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft, CliConfigTarget } from '../index'
@@ -11,6 +13,12 @@ import {
   readCliConfigDraft,
   updateCliConfigDraftConfig
 } from '../index'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
 
 function mockGet(handlers: Record<string, () => unknown>) {
   const prefixes = Object.keys(handlers).sort((a, b) => b.length - a.length)
@@ -60,13 +68,14 @@ async function buildDraft(
 }
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-      file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
-    }
-  })
+  // On-disk configs read as empty through code_cli.read_config (old readExternal → '').
+  mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => ({
+    files: input.targets.map((target) => ({
+      target,
+      path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+      content: ''
+    }))
+  }))
 })
 
 async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promise<CliConfigFileDraft[]> {
@@ -135,6 +144,56 @@ describe('updateCliConfigDraftConfig', () => {
     expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual({})
   })
 
+  it('preserves OpenCode provider headers during a config-only update', async () => {
+    const provider = {
+      ...chatProvider,
+      settings: {
+        extraHeaders: { 'HTTP-Referer': 'https://cherry-ai.com' }
+      }
+    } as Provider
+    const files = await buildDraft(CodeCli.OPEN_CODE, provider, 'deepseek-chat')
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+
+    const config = JSON.parse(updated[0].content)
+    expect(config.provider['cherry-DeepSeek'].options).toEqual({
+      apiKey: 'sk-secret',
+      baseURL: 'https://api.deepseek.com/v1',
+      headers: { 'HTTP-Referer': 'https://cherry-ai.com' }
+    })
+  })
+
+  it('preserves OpenCode model limits during a config-only update', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
+    const config = JSON.parse(files[0].content)
+    config.provider['cherry-DeepSeek'].models['deepseek-chat'].limit = { context: 65536, output: 8192 }
+    files[0].content = JSON.stringify(config)
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+
+    expect(JSON.parse(updated[0].content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+      context: 65536,
+      output: 8192
+    })
+  })
+
+  it('preserves OpenCode compaction settings during a config-only update', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
+    const config = JSON.parse(files[0].content)
+    config.autoCompact = true
+    config.compaction = { auto: false, prune: false, reserved: 10000 }
+    files[0].content = JSON.stringify(config)
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+    const parsed = JSON.parse(updated[0].content)
+
+    expect(parsed.compaction).toEqual({ auto: true, prune: false, reserved: 10000 })
+    expect(parsed).not.toHaveProperty('autoCompact')
+
+    const disabled = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, updated, {})
+    expect(JSON.parse(disabled[0].content).compaction).toEqual({ prune: false, reserved: 10000 })
+  })
+
   it('returns the files unchanged when there is no managed connection', () => {
     const files: CliConfigFileDraft[] = [
       { target: 'codex-config' as CliConfigTarget, label: '', path: '', language: 'toml', content: '' }
@@ -176,4 +235,82 @@ describe('updateCliConfigDraftConfig', () => {
       )
     }
   )
+
+  // A config-only edit rebuilds opencode.json without a model record, so the display name
+  // written for the model key (gateway mode writes a human-readable one) must be carried
+  // over from the existing draft, not degraded back to the addressing id.
+  it('opencode: keeps the model display name across a config-only update', () => {
+    const files: CliConfigFileDraft[] = [
+      {
+        target: 'opencode-config' as CliConfigTarget,
+        label: '',
+        path: '',
+        language: 'json',
+        content: JSON.stringify({
+          provider: {
+            'cherry-gateway': {
+              npm: '@ai-sdk/anthropic',
+              options: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
+              models: { 'deepseek:deepseek-chat': { name: 'DeepSeek Chat' } }
+            }
+          }
+        })
+      }
+    ]
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+
+    const parsed = JSON.parse(updated.find((f) => f.target === 'opencode-config')!.content)
+    expect(parsed.compaction.auto).toBe(true)
+    expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
+    expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
+  })
+
+  // A gateway gemini draft stores the sentinel-suffixed address in settings.model.name, but
+  // extractConnection strips the suffix for connection matching. A config-only edit must therefore
+  // re-append it (and re-force the gateway-only API version) rather than write the bare `flash`-ending
+  // name back — gemini-cli reads settings.model.name and would re-normalize a bare flash name.
+  it('preserves the gateway sentinel + API version through a config-only edit for gemini', () => {
+    const model = `deepseek:deepseek-v4-flash${GEMINI_GATEWAY_MODEL_SUFFIX}`
+    const gatewayFiles: CliConfigFileDraft[] = [
+      {
+        target: 'gemini-env' as CliConfigTarget,
+        label: '',
+        path: '/resolved~/.gemini/.env',
+        language: 'dotenv',
+        content:
+          'GEMINI_API_KEY=cs-sk-gateway\nGOOGLE_GEMINI_BASE_URL=http://127.0.0.1:23333\nGOOGLE_GENAI_API_VERSION=v1beta\n'
+      },
+      {
+        target: 'gemini-settings' as CliConfigTarget,
+        label: '',
+        path: '/resolved~/.gemini/settings.json',
+        language: 'json',
+        content: JSON.stringify({ model: { name: model }, security: { auth: { selectedType: 'gemini-api-key' } } })
+      }
+    ]
+
+    const updated = updateCliConfigDraftConfig(CodeCli.GEMINI_CLI, gatewayFiles, {
+      general: { defaultApprovalMode: 'plan' }
+    })
+
+    const settings = JSON.parse(updated.find((f) => f.target === 'gemini-settings')!.content)
+    expect(settings.model.name).toBe(model)
+    expect(updated.find((f) => f.target === 'gemini-env')!.content).toContain('GOOGLE_GENAI_API_VERSION=v1beta')
+  })
+
+  // Symmetric guard for the non-gateway branch: extractConnection strips the sentinel, so the parity
+  // case above cannot catch an erroneous append. A direct-provider edit must leave settings.model.name
+  // bare (no @cherry — else a direct terminal launch would re-normalize a `flash`-ending name) and must
+  // NOT force the gateway-only API version onto the user's own .env.
+  it('leaves a non-gateway gemini draft bare (no sentinel, no forced API version) through a config-only edit', async () => {
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-flash')
+    const updated = updateCliConfigDraftConfig(CodeCli.GEMINI_CLI, files, {
+      general: { defaultApprovalMode: 'plan' }
+    })
+
+    const settings = JSON.parse(updated.find((f) => f.target === 'gemini-settings')!.content)
+    expect(settings.model.name).toBe('gemini-2.5-flash')
+    expect(updated.find((f) => f.target === 'gemini-env')!.content).not.toContain('GOOGLE_GENAI_API_VERSION')
+  })
 })

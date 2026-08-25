@@ -1,9 +1,10 @@
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 import type { ReactNode } from 'react'
 
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
+import { DeepSeekHarnessConfigFields } from './tools/DeepSeekHarnessConfigFields'
 import { GeminiConfigFields } from './tools/GeminiConfigFields'
 import { KimiConfigFields } from './tools/KimiConfigFields'
 import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
@@ -48,6 +49,9 @@ export function renderToolFields({
       return <QwenConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.KIMI_CODE:
       return <KimiConfigFields config={config} onChange={onChange} section={section} />
+    case CodeCli.DEEPSEEK_HARNESS:
+      if (section === 'advanced') return null
+      return <DeepSeekHarnessConfigFields config={config} onChange={onChange} section={section} />
     default:
       return null
   }
@@ -58,8 +62,14 @@ export function renderClaudeDetailedModelSlot({
   config,
   onChange,
   providerId,
-  modelFilter
-}: Omit<ToolFieldRenderOptions, 'cliTool' | 'section'> & { hint: ReactNode }): ReactNode {
+  modelFilter,
+  onSettingsNavigate,
+  gatewayModels
+}: Omit<ToolFieldRenderOptions, 'cliTool' | 'section'> & {
+  hint: ReactNode
+  onSettingsNavigate?: (navigate: () => void) => void
+  gatewayModels?: Map<UniqueModelId, Model>
+}): ReactNode {
   return (
     <>
       {hint}
@@ -70,6 +80,8 @@ export function renderClaudeDetailedModelSlot({
         section="advanced"
         providerId={providerId}
         modelFilter={modelFilter}
+        onSettingsNavigate={onSettingsNavigate}
+        gatewayModels={gatewayModels}
       />
     </>
   )

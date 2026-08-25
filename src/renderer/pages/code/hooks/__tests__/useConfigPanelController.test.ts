@@ -1,6 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -52,10 +52,10 @@ function baseOptions() {
   return {
     selectedCliTool: CodeCli.CLAUDE_CODE,
     toolName: 'Claude Code',
-    isToolInstalled: true,
     currentProviderId: 'p1',
     providerConfigs: {},
     upsertProviderConfig: vi.fn().mockResolvedValue('p1'),
+    deleteProviderConfig: vi.fn().mockResolvedValue(undefined),
     setCurrentProvider: vi.fn().mockResolvedValue(undefined),
     setCurrentCliConfigConnection: vi.fn(),
     makeModelFilter: vi.fn(() => () => true)
@@ -141,15 +141,18 @@ describe('useConfigPanelController', () => {
     })
   })
 
-  describe('install gate', () => {
+  describe('enable without installation state', () => {
     beforeEach(() => {
       // clearAllMocks() keeps the never-resolving clearCliConfig impl from the in-flight guard tests.
       mocks.clearCliConfig.mockReset()
       mocks.clearCliConfig.mockResolvedValue(undefined)
+      mocks.writeCliConfigDraft.mockReset()
+      mocks.writeCliConfigDraft.mockResolvedValue(undefined)
     })
 
-    it('blocks enabling a provider and nudges to install when the CLI is not installed', async () => {
-      const options = { ...baseOptions(), isToolInstalled: false, currentProviderId: null }
+    it('enables a configured provider without requiring the CLI to be installed first', async () => {
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      const options = { ...baseOptions(), currentProviderId: null }
       const { result } = renderHook(() => useConfigPanelController(options))
       const provider = { id: 'p2' } as Provider // not current → enabling
 
@@ -158,13 +161,19 @@ describe('useConfigPanelController', () => {
         await flushMicrotasks()
       })
 
-      expect(toast.error).toHaveBeenCalledWith('code.install_tool_first')
-      expect(options.setCurrentProvider).not.toHaveBeenCalled()
-      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'm1',
+        configBlob: undefined,
+        writePrimaryModel: true,
+        gateway: undefined
+      })
+      expect(options.setCurrentProvider).toHaveBeenCalledWith('p2')
+      expect(toast.error).not.toHaveBeenCalled()
     })
 
-    it('still allows disabling the current provider when the CLI is not installed', async () => {
-      const options = { ...baseOptions(), isToolInstalled: false, currentProviderId: 'p1' }
+    it('still allows disabling the current provider', async () => {
+      const options = { ...baseOptions(), currentProviderId: 'p1' }
       const { result } = renderHook(() => useConfigPanelController(options))
       const provider = { id: 'p1' } as Provider // current → disabling
 
@@ -269,6 +278,29 @@ describe('useConfigPanelController', () => {
       })
     })
 
+    // Same single-owner failure contract as the provider panel: a failed own-login injection must
+    // reject so OwnLoginConfigPanel keeps the dialog (and the user's edits) open instead of closing.
+    // Reviewer A3: the preference must NOT be persisted when the disk write fails — otherwise the
+    // panel recomputes its baseline from the new prop, `isConfigDirty` collapses to false, and Save
+    // is disabled, so the user can't retry the write directly.
+    it('propagates an own-login injection failure and leaves the preference unpersisted (retryable)', async () => {
+      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
+      mocks.writeOwnLoginCliConfigDraft.mockReset()
+      mocks.writeOwnLoginCliConfigDraft.mockRejectedValue(new Error('settings write failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel(ownLoginProvider)
+      })
+
+      await expect(
+        result.current.ownLoginConfigPanelProps!.onSubmit({ config: { effortLevel: 'high' } })
+      ).rejects.toThrow('settings write failed')
+      // Write is attempted before the preference is persisted, so a failure aborts before upsert.
+      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+    })
+
     it('writes hand-edited raw files verbatim when own-login config is saved with raw edits', async () => {
       const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
       const { result } = renderHook(() => useConfigPanelController(options))
@@ -292,6 +324,39 @@ describe('useConfigPanelController', () => {
         configBlob: { effortLevel: 'high' },
         files: rawFiles
       })
+    })
+  })
+
+  describe('DeepSeek Harness selection', () => {
+    it('defers gateway startup and shared config writes until the managed launch action', async () => {
+      const ensureReady = vi.fn().mockResolvedValue('gateway-key')
+      const options = {
+        ...baseOptions(),
+        selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
+        currentProviderId: null,
+        providerConfigs: {
+          [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: 'deepseek::deepseek-chat' }
+        } as any,
+        apiGatewayProvider: {
+          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+          apiKey: 'gateway-key',
+          ensureReady
+        }
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({
+        modelId: 'deepseek::deepseek-chat',
+        writePrimaryModel: true
+      })
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+        await flushMicrotasks()
+      })
+
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
+      expect(ensureReady).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
     })
   })
 
@@ -355,6 +420,297 @@ describe('useConfigPanelController', () => {
       expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+    })
+
+    // Reviewer: a failed config injection on panel save must reject (not be swallowed) so the
+    // submitting dialog treats the save as failed, keeps the user's draft, and stays open.
+    it('propagates a config-write failure and restores the previous provider preference', async () => {
+      const previousConfig = { modelId: 'anthropic::claude-old', config: { permissionMode: 'default' } } as any
+      const options = {
+        ...baseOptions(),
+        currentProviderId: 'p1',
+        providerConfigs: { p1: previousConfig }
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      mocks.writeCliConfigDraft.mockReset()
+      mocks.writeCliConfigDraft.mockRejectedValue(new Error('config write failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: 'p1' } as Provider)
+      })
+      const submit = result.current.configPanelProps?.onSubmit
+      expect(submit).toBeTypeOf('function')
+
+      await expect(submit!({ modelId: 'anthropic::claude-sonnet-4-5' as any, config: {} })).rejects.toThrow(
+        'config write failed'
+      )
+      expect(options.upsertProviderConfig).toHaveBeenNthCalledWith(1, 'p1', {
+        modelId: 'anthropic::claude-sonnet-4-5',
+        config: {}
+      })
+      expect(options.upsertProviderConfig).toHaveBeenNthCalledWith(2, 'p1', previousConfig)
+      expect(options.upsertProviderConfig.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.writeCliConfigDraft.mock.invocationCallOrder[0]
+      )
+      expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
+        options.upsertProviderConfig.mock.invocationCallOrder[1]
+      )
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+    })
+
+    it('removes a newly-created provider preference when its first CLI write fails', async () => {
+      const options = { ...baseOptions(), currentProviderId: null, providerConfigs: {} }
+      mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+      mocks.writeCliConfigDraft.mockReset()
+      mocks.writeCliConfigDraft.mockRejectedValue(new Error('config write failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+      const provider = { id: 'p1' } as Provider
+
+      await act(async () => {
+        result.current.onToggleCurrent(provider)
+        await flushMicrotasks()
+      })
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+
+      await expect(
+        result.current.configPanelProps!.onSubmit({ modelId: 'anthropic::claude-sonnet-4-5' as any, config: {} })
+      ).rejects.toThrow('config write failed')
+      expect(options.deleteProviderConfig).toHaveBeenCalledWith('p1')
+      expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
+        options.deleteProviderConfig.mock.invocationCallOrder[0]
+      )
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+    })
+
+    it('restores an absent config field when the CLI write fails', async () => {
+      const options = {
+        ...baseOptions(),
+        currentProviderId: 'p1',
+        providerConfigs: { p1: { modelId: 'anthropic::claude-old' } } as any
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      mocks.writeCliConfigDraft.mockReset()
+      mocks.writeCliConfigDraft.mockRejectedValue(new Error('config write failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: 'p1' } as Provider)
+      })
+      await expect(
+        result.current.configPanelProps!.onSubmit({
+          modelId: 'anthropic::claude-sonnet-4-5' as any,
+          config: { permissionMode: 'plan' }
+        })
+      ).rejects.toThrow('config write failed')
+
+      expect(options.upsertProviderConfig).toHaveBeenLastCalledWith('p1', {
+        modelId: 'anthropic::claude-old',
+        config: undefined
+      })
+    })
+
+    it('persists an active managed preference before applying its CLI config', async () => {
+      const options = { ...baseOptions(), currentProviderId: 'p1' }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      mocks.writeCliConfigDraft.mockReset()
+      mocks.writeCliConfigDraft.mockResolvedValue(undefined)
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: 'p1' } as Provider)
+      })
+      await result.current.configPanelProps!.onSubmit({
+        modelId: 'anthropic::claude-sonnet-4-5' as any,
+        config: { permissionMode: 'plan' }
+      })
+
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalled()
+      expect(options.upsertProviderConfig).toHaveBeenCalledWith('p1', {
+        modelId: 'anthropic::claude-sonnet-4-5',
+        config: { permissionMode: 'plan' }
+      })
+      expect(options.upsertProviderConfig.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.writeCliConfigDraft.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('rejects an unresolved detailed gateway model before persisting the preference', async () => {
+      const options = {
+        ...baseOptions(),
+        currentProviderId: CLI_API_GATEWAY_PROVIDER_ID,
+        providerConfigs: {
+          [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: null, config: { permissionMode: 'default' } }
+        } as any
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+      })
+
+      await expect(
+        result.current.configPanelProps!.onSubmit({
+          modelId: undefined,
+          cliConfigModelId: undefined,
+          config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'removed:model' } },
+          writePrimaryModel: false
+        })
+      ).rejects.toThrow('Cannot resolve the detailed gateway model')
+      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+    })
+
+    // Reviewer A1: flipping Claude's detailed mode back to common leaves no model to address the CLI
+    // file with, so the write below is skipped. Persisting the preference anyway would clear the
+    // stored model while the applied file keeps its old detailed config — preference and disk diverge
+    // while the dialog closes as if the save succeeded.
+    it('rejects an applied save that resolves no model, before persisting the preference', async () => {
+      const options = {
+        ...baseOptions(),
+        currentProviderId: 'p1',
+        providerConfigs: {
+          p1: { modelId: null, config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1' } } }
+        } as any
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: 'p1' } as Provider)
+      })
+
+      await expect(
+        result.current.configPanelProps!.onSubmit({
+          modelId: undefined,
+          cliConfigModelId: undefined,
+          config: { permissionMode: 'default' },
+          writePrimaryModel: true
+        })
+      ).rejects.toThrow('Cannot apply a CLI config without a model')
+      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+    })
+
+    // The same model-less save stays legal for a provider that is not applied: it owns no CLI file,
+    // so there is nothing to diverge from and tool params can be saved before a model is picked.
+    it('persists a model-less save for a provider that is not applied', async () => {
+      const options = { ...baseOptions(), currentProviderId: null }
+      mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: 'p1' } as Provider)
+      })
+
+      await result.current.configPanelProps!.onSubmit({
+        modelId: undefined,
+        cliConfigModelId: undefined,
+        config: { permissionMode: 'default' },
+        writePrimaryModel: true
+      })
+
+      expect(options.upsertProviderConfig).toHaveBeenCalledWith('p1', {
+        modelId: null,
+        config: { permissionMode: 'default' }
+      })
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+    })
+
+    // `onToggleCurrent` on a model-less provider opens the panel with an enable pending, which also
+    // sets shouldApplyCliConfig. That provider still owns no CLI file, so saving tool params without
+    // picking a model must keep working (it simply stays disabled) rather than throwing them away.
+    it('persists a model-less save when an enable is pending but the provider owns no config yet', async () => {
+      const options = { ...baseOptions(), currentProviderId: null }
+      mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+      mocks.parseConfiguredModelId.mockReturnValue(null)
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      // Enabling a provider with no resolvable model opens the panel with the enable still pending.
+      act(() => {
+        result.current.onToggleCurrent({ id: 'p1' } as Provider)
+      })
+      await act(async () => {
+        await flushMicrotasks()
+      })
+      expect(result.current.configPanelProps).toBeDefined()
+
+      await result.current.configPanelProps!.onSubmit({
+        modelId: undefined,
+        cliConfigModelId: undefined,
+        config: { permissionMode: 'default' },
+        writePrimaryModel: true
+      })
+
+      expect(options.upsertProviderConfig).toHaveBeenCalledWith('p1', {
+        modelId: null,
+        config: { permissionMode: 'default' }
+      })
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+    })
+
+    it('propagates a gateway ensureReady failure on panel save to the submitting dialog', async () => {
+      const ensureReady = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+      const options = {
+        ...baseOptions(),
+        currentProviderId: CLI_API_GATEWAY_PROVIDER_ID, // editing the active gateway provider
+        providerConfigs: {
+          [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: 'deepseek::deepseek-old', config: { permissionMode: 'default' } }
+        } as any,
+        apiGatewayProvider: {
+          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+          apiKey: 'cs-sk-old',
+          ensureReady
+        }
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+      })
+
+      await expect(
+        result.current.configPanelProps!.onSubmit({ modelId: 'deepseek::deepseek-chat' as any, config: {} })
+      ).rejects.toThrow('API gateway failed to start')
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.upsertProviderConfig).toHaveBeenLastCalledWith(CLI_API_GATEWAY_PROVIDER_ID, {
+        modelId: 'deepseek::deepseek-old',
+        config: { permissionMode: 'default' }
+      })
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+    })
+
+    // Reviewer A3-1: enabling the gateway must not write the CLI config or mark it current when the
+    // gateway fails to start — otherwise the UI shows the gateway active with nothing listening on the
+    // port. `ensureReady` throws on a failed start; the write and selection flip must both be skipped.
+    it('does not enable the gateway when ensureReady (start) fails', async () => {
+      const ensureReady = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+      const options = {
+        ...baseOptions(),
+        currentProviderId: null, // gateway not current → toggling enables it
+        apiGatewayProvider: {
+          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+          apiKey: 'cs-sk-old',
+          ensureReady
+        }
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      const { result } = renderHook(() => useConfigPanelController(options))
+      const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider
+
+      await act(async () => {
+        result.current.onToggleCurrent(gatewayProvider)
+        await flushMicrotasks()
+      })
+
+      expect(ensureReady).toHaveBeenCalled()
+      // Never wrote a config against a dead port, never flipped the active selection.
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
     })
   })

@@ -2,8 +2,8 @@
  * Shell-quoting helpers for assembling the terminal-launch command.
  *
  * The launch command is built as a POSIX shell string (and, on macOS, wrapped again by AppleScript
- * `do script`), so any provider-derived fragment interpolated into it — the model id, the working
- * directory — is a command-injection surface unless it is quoted for the shell it lands in.
+ * `do script`), so any fragment interpolated into it — e.g. the working directory — is a
+ * command-injection surface unless it is quoted for the shell it lands in.
  */
 
 /**

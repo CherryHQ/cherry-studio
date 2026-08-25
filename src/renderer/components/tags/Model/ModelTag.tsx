@@ -1,31 +1,56 @@
-import { type Model, MODEL_CAPABILITY, type ModelCapability, type ModelTag } from '@shared/data/types/model'
+import {
+  MODALITY,
+  type Modality,
+  type Model,
+  MODEL_CAPABILITY,
+  type ModelCapability,
+  type ModelTag,
+  SERVER_TOOL
+} from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { isFreeModel } from '@shared/utils/model'
+import { isBuiltinWebSearchAvailable } from '@shared/utils/provider'
 import type { ComponentType } from 'react'
 
 import type { CustomTagProps } from '../CustomTag'
+import { AudioTag } from './AudioTag'
 import { EmbeddingTag } from './EmbeddingTag'
 import { FreeTag } from './FreeTag'
 import { ReasoningTag } from './ReasoningTag'
 import { RerankerTag } from './RerankerTag'
 import { ToolsCallingTag } from './ToolsCallingTag'
+import { VideoTag } from './VideoTag'
 import { VisionTag } from './VisionTag'
 import { WebSearchTag } from './WebSearchTag'
 
-export type ModelDisplayTagSource = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities'>
+export type ModelDisplayTagSource = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities' | 'inputModalities'>
 
 export const MODEL_DISPLAY_CAPABILITY_TAGS = [
+  // Input modalities
   MODEL_CAPABILITY.IMAGE_RECOGNITION,
-  MODEL_CAPABILITY.WEB_SEARCH,
+  MODEL_CAPABILITY.AUDIO_RECOGNITION,
+  MODEL_CAPABILITY.VIDEO_RECOGNITION,
+  // Capabilities
   MODEL_CAPABILITY.REASONING,
   MODEL_CAPABILITY.FUNCTION_CALL,
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.RERANK
 ] as const satisfies readonly ModelCapability[]
 
-export const MODEL_DISPLAY_TAGS = [...MODEL_DISPLAY_CAPABILITY_TAGS, 'free'] as const satisfies readonly ModelTag[]
+export const MODEL_DISPLAY_TAGS = [
+  ...MODEL_DISPLAY_CAPABILITY_TAGS,
+  SERVER_TOOL.WEB_SEARCH,
+  'free'
+] as const satisfies readonly ModelTag[]
 
 export type ModelDisplayCapabilityTag = (typeof MODEL_DISPLAY_CAPABILITY_TAGS)[number]
 export type ModelDisplayTag = (typeof MODEL_DISPLAY_TAGS)[number]
+
+const INPUT_MODALITY_BY_DISPLAY_TAG: Partial<Record<ModelDisplayCapabilityTag, Modality>> = {
+  [MODEL_CAPABILITY.IMAGE_RECOGNITION]: MODALITY.IMAGE,
+  [MODEL_CAPABILITY.AUDIO_RECOGNITION]: MODALITY.AUDIO,
+  [MODEL_CAPABILITY.VIDEO_RECOGNITION]: MODALITY.VIDEO
+}
 
 export interface ModelTagVisibilityOptions {
   showFree?: boolean
@@ -52,16 +77,31 @@ export function isModelTagVisible(
   return true
 }
 
-export function modelMatchesDisplayTag(model: ModelDisplayTagSource, tag: ModelDisplayTag) {
+export function modelMatchesDisplayTag(
+  model: ModelDisplayTagSource,
+  tag: ModelDisplayTag,
+  provider?: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>
+) {
   if (tag === 'free') {
     return isFreeModel(model)
   }
 
-  return model.capabilities.includes(tag)
+  if (tag === SERVER_TOOL.WEB_SEARCH) {
+    return provider ? isBuiltinWebSearchAvailable(model as Model, provider) : false
+  }
+
+  const inputModality = INPUT_MODALITY_BY_DISPLAY_TAG[tag]
+  return model.capabilities.includes(tag) || Boolean(inputModality && model.inputModalities?.includes(inputModality))
 }
 
-export function getModelDisplayTags(model: ModelDisplayTagSource, options?: ModelTagVisibilityOptions) {
-  return MODEL_DISPLAY_TAGS.filter((tag) => isModelTagVisible(tag, options) && modelMatchesDisplayTag(model, tag))
+export function getModelDisplayTags(
+  model: ModelDisplayTagSource,
+  options?: ModelTagVisibilityOptions,
+  provider?: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>
+) {
+  return MODEL_DISPLAY_TAGS.filter(
+    (tag) => isModelTagVisible(tag, options) && modelMatchesDisplayTag(model, tag, provider)
+  )
 }
 
 export type ModelTagProps = {
@@ -75,6 +115,8 @@ type ModelTagComponentProps = Omit<ModelTagProps, 'tag'>
 
 const MODEL_TAG_COMPONENTS = {
   'image-recognition': VisionTag,
+  'audio-recognition': AudioTag,
+  'video-recognition': VideoTag,
   'web-search': WebSearchTag,
   reasoning: ReasoningTag,
   'function-call': ToolsCallingTag,

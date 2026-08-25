@@ -24,14 +24,14 @@
  */
 
 import type { FileEntry } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FileManagerDeps } from './deps'
 
 export async function observeExternalAccess<T>(
   deps: FileManagerDeps,
   entry: FileEntry,
-  physicalPath: FilePath,
+  physicalPath: AbsoluteFilePath,
   op: () => Promise<T>
 ): Promise<T> {
   try {

@@ -194,5 +194,5 @@ function createFile(): FileInfo {
     type: 'document',
     createdAt: 1,
     modifiedAt: 1
-  }) as FileInfo
+  })
 }

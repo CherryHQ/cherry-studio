@@ -1,43 +1,46 @@
-import {
-  Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
+import { type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { isNewApiProvider } from '@shared/utils/provider'
-import { isEqual } from 'es-toolkit/compat'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
-import ProviderField from '../../primitives/ProviderField'
 import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
-  getInitialSelectedCapabilities,
-  getModelApiId,
-  MODEL_DRAWER_CURRENCY_SYMBOLS,
-  readCurrency,
-  toggleSetToCaps
+  areModelClassificationsEqual,
+  buildModelCapabilities,
+  buildModelInputModalities,
+  getInitialModelClassification,
+  getModelApiId
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
-import { ModelCapabilityToggles } from './ModelCapabilityToggles'
+import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
-import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
+import { ModelPricingFields } from './ModelPricingFields'
+import {
+  applyModelPurpose,
+  getInitialChatEndpointType,
+  getModelDrawerMode,
+  getProviderChatEndpointTypes,
+  inferModelPurpose,
+  type ModelPurposeFields
+} from './modelPurpose'
+import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
+import type {
+  ModelCapabilityToggle,
+  ModelClassificationState,
+  ModelDrawerMode,
+  ModelInputModality,
+  ModelPrimaryType
+} from './types'
 
 interface EditModelDrawerProps {
   providerId: string
@@ -50,11 +53,10 @@ interface BuildPatchOverrides {
   name?: string
   group?: string
   endpointTypes?: EndpointType[]
-  caps?: Set<ModelCapabilityToggle>
+  purposeFields?: ModelPurposeFields
+  classification?: ModelClassificationState
   supportsStreaming?: boolean
-  currencySymbol?: ModelDrawerCurrencySymbol
-  inputPrice?: string
-  outputPrice?: string
+  pricing?: Model['pricing']
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
@@ -64,63 +66,6 @@ interface AutoSaveQueueItem {
   providerId: string
   modelId: string
   patch: Partial<Model>
-}
-
-type ModelDrawerCurrencySymbol = (typeof MODEL_DRAWER_CURRENCY_SYMBOLS)[number]
-type ModelDrawerCurrency = Currency
-const isModelDrawerCurrencySymbol = (value: string): value is ModelDrawerCurrencySymbol =>
-  MODEL_DRAWER_CURRENCY_SYMBOLS.includes(value as ModelDrawerCurrencySymbol)
-// Pricing persists the shared Currency enum, so this drawer intentionally offers
-// only the symbols that round-trip through that enum today.
-const CURRENCY_SYMBOL_TO_CODE = {
-  $: CURRENCY.USD,
-  '¥': CURRENCY.CNY
-} as const satisfies Record<string, ModelDrawerCurrency>
-const CURRENCY_CODE_TO_SYMBOL = {
-  [CURRENCY.USD]: '$',
-  [CURRENCY.CNY]: '¥'
-} as const satisfies Record<ModelDrawerCurrency, ModelDrawerCurrencySymbol>
-
-const symbolToCurrency = (symbol: string): ModelDrawerCurrency | undefined => CURRENCY_SYMBOL_TO_CODE[symbol]
-const currencyToSymbol = (currency: string): ModelDrawerCurrencySymbol | undefined =>
-  CURRENCY_CODE_TO_SYMBOL[currency as ModelDrawerCurrency]
-
-/** Order-insensitive equality for the model's string-set fields (capabilities, endpoint types). */
-const sameUnorderedStrings = (a?: readonly string[], b?: readonly string[]): boolean => {
-  const left = a ?? []
-  const right = b ?? []
-  if (left.length !== right.length) return false
-  const set = new Set(right)
-  return left.every((item) => set.has(item))
-}
-
-/**
- * Reduce a synthesized full patch to only the fields that differ from the model,
- * so autosave doesn't record untouched fields as user overrides (which would
- * freeze them against registry sync). Pricing is normalized the way `buildPatch`
- * synthesizes it (missing prices → 0, default currency) so an untouched price
- * field diffs as unchanged against a null `model.pricing`.
- */
-function diffModelPatch(patch: Partial<Model>, model: Model): Partial<Model> {
-  const baselineCurrency: Currency = symbolToCurrency(currencyToSymbol(readCurrency(model)) ?? '$') ?? CURRENCY.USD
-  const baselinePricing = {
-    input: { perMillionTokens: model.pricing?.input?.perMillionTokens ?? 0, currency: baselineCurrency },
-    output: { perMillionTokens: model.pricing?.output?.perMillionTokens ?? 0, currency: baselineCurrency }
-  }
-
-  const changes: Partial<Model> = {}
-  if (patch.name !== model.name) changes.name = patch.name
-  if (patch.group !== model.group) changes.group = patch.group
-  if (!sameUnorderedStrings(patch.capabilities, model.capabilities)) changes.capabilities = patch.capabilities
-  if (patch.supportsStreaming !== model.supportsStreaming) changes.supportsStreaming = patch.supportsStreaming
-  if (patch.endpointTypes !== undefined && !sameUnorderedStrings(patch.endpointTypes, model.endpointTypes)) {
-    changes.endpointTypes = patch.endpointTypes
-  }
-  if (patch.contextWindow !== model.contextWindow) changes.contextWindow = patch.contextWindow
-  if (patch.maxInputTokens !== model.maxInputTokens) changes.maxInputTokens = patch.maxInputTokens
-  if (patch.maxOutputTokens !== model.maxOutputTokens) changes.maxOutputTokens = patch.maxOutputTokens
-  if (!isEqual(patch.pricing, baselinePricing)) changes.pricing = patch.pricing
-  return changes
 }
 
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
@@ -137,47 +82,47 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
+  const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
   const [showMoreSettings, setShowMoreSettings] = useState(true)
-  const [selectedCaps, setSelectedCaps] = useState<Set<ModelCapabilityToggle>>(new Set())
-  const [hasUserModified, setHasUserModified] = useState(false)
+  const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
-  const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
-  const [inputPrice, setInputPrice] = useState('0')
-  const [outputPrice, setOutputPrice] = useState('0')
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
+  const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
-  const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
+  const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
+  const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
+  const defaultChatEndpoint = providerChatEndpointTypes[0]
+  const modelPurpose = inferModelPurpose(purposeFields)
+  const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
-  const savedCaps = useMemo(
-    () => (model ? getInitialSelectedCapabilities(model) : new Set<ModelCapabilityToggle>()),
-    [model]
-  )
+  const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
+  const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !model) {
       return
     }
 
-    const nextCurrency = readCurrency(model)
-    const nextCurrencySymbol = currencyToSymbol(nextCurrency)
-
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
+    setPurposeFields({
+      endpointTypes: model.endpointTypes,
+      capabilities: model.capabilities,
+      inputModalities: model.inputModalities,
+      outputModalities: model.outputModalities
+    })
     setShowMoreSettings(true)
-    setSelectedCaps(getInitialSelectedCapabilities(model))
-    setHasUserModified(false)
+    setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
-    setCurrencySymbol(nextCurrencySymbol ?? '$')
-    setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
-    setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
+    setInitializedModel(model)
   }, [model, open])
 
   const handleUpdateModel = useCallback(
@@ -186,12 +131,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         name: patch.name,
         group: patch.group,
         capabilities: patch.capabilities,
+        inputModalities: patch.inputModalities,
+        outputModalities: patch.outputModalities,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
         contextWindow: patch.contextWindow,
         maxInputTokens: patch.maxInputTokens,
         maxOutputTokens: patch.maxOutputTokens,
-        pricing: patch.pricing
+        ...(Object.hasOwn(patch, 'pricing') ? { pricing: patch.pricing } : {})
       })
     },
     [updateModel]
@@ -203,50 +150,81 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         return {}
       }
 
-      const nextCurrencySymbol = overrides?.currencySymbol ?? currencySymbol
-      const finalCurrency: ModelDrawerCurrency =
-        symbolToCurrency(nextCurrencySymbol) ?? symbolToCurrency(readCurrency(model)) ?? CURRENCY.USD
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
-      const nextEndpointTypes = overrides?.endpointTypes ?? endpointTypes
+      const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
+      const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
+      const hasPricingOverride = overrides != null && Object.hasOwn(overrides, 'pricing')
+      const nextPurposeFields = overrides?.purposeFields ?? purposeFields
+      const nextClassification = overrides?.classification
+      const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
+      const effectiveClassification = nextClassification ?? classification
+      const classifiedCapabilities =
+        shouldApplyPurpose || nextClassification
+          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
+          : undefined
+      const classifiedInputModalities =
+        shouldApplyPurpose || nextClassification
+          ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
+          : undefined
+      const resolvedPurposeFields =
+        shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
+          ? applyModelPurpose(
+              {
+                ...nextPurposeFields,
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              },
+              inferModelPurpose(nextPurposeFields),
+              {
+                previousPurpose: inferModelPurpose(nextPurposeFields),
+                chatEndpointType: getInitialChatEndpointType(nextPurposeFields, defaultChatEndpoint)
+              }
+            )
+          : null
 
       return {
         name: nextName || model.name,
         group: nextGroup || model.group,
-        endpointTypes: mode === 'new-api' && nextEndpointTypes.length ? [...nextEndpointTypes] : undefined,
-        capabilities: toggleSetToCaps(
-          model.capabilities ?? [],
-          overrides?.caps ?? selectedCaps
-        ) as Model['capabilities'],
+        ...(hasPurposeFieldsOverride && resolvedPurposeFields
+          ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
+          : hasEndpointTypesOverride
+            ? {
+                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
+              }
+            : {}),
+        ...(resolvedPurposeFields
+          ? {
+              capabilities: resolvedPurposeFields.capabilities,
+              inputModalities: resolvedPurposeFields.inputModalities
+            }
+          : nextClassification && classifiedCapabilities && classifiedInputModalities
+            ? {
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              }
+            : {}),
+        ...(hasPurposeFieldsOverride && resolvedPurposeFields
+          ? { outputModalities: resolvedPurposeFields.outputModalities }
+          : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
         maxOutputTokens: Number(overrides?.maxOutputTokens ?? maxOutputTokens) || undefined,
-        pricing: {
-          input: {
-            perMillionTokens: Number(overrides?.inputPrice ?? inputPrice) || 0,
-            currency: finalCurrency
-          },
-          output: {
-            perMillionTokens: Number(overrides?.outputPrice ?? outputPrice) || 0,
-            currency: finalCurrency
-          }
-        }
+        ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
       }
     },
     [
-      currencySymbol,
-      endpointTypes,
       group,
       contextWindow,
-      inputPrice,
       maxInputTokens,
       maxOutputTokens,
       mode,
       model,
       name,
-      outputPrice,
-      selectedCaps,
+      purposeFields,
+      classification,
+      defaultChatEndpoint,
       supportsStreaming
     ]
   )
@@ -279,53 +257,88 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         return
       }
 
-      // Send only the fields the user actually changed so autosave doesn't record
-      // untouched fields as user overrides (freezing them against registry sync).
-      const patch = diffModelPatch(buildPatch(overrides), model)
-      if (Object.keys(patch).length === 0) {
-        return
-      }
-
       const { modelId } = parseUniqueModelId(model.id)
-      const item = {
+      const item: AutoSaveQueueItem = {
         providerId: model.providerId ?? providerId,
         modelId,
-        patch
+        patch: buildPatch(overrides)
       }
-      autoSavePendingItemsRef.current.set(`${item.providerId}/${item.modelId}`, item)
+      const queueKey = `${item.providerId}/${item.modelId}`
+      const pendingItem = autoSavePendingItemsRef.current.get(queueKey)
+      autoSavePendingItemsRef.current.set(
+        queueKey,
+        pendingItem ? { ...item, patch: { ...pendingItem.patch, ...item.patch } } : item
+      )
       void processAutoSaveQueue()
     },
     [buildPatch, model, processAutoSaveQueue, providerId]
   )
 
-  const handleToggleCapability = useCallback(
-    (type: ModelCapabilityToggle) => {
-      setHasUserModified(true)
-      const next = new Set(selectedCaps)
-
-      if (next.has(type)) {
-        next.delete(type)
-      } else {
-        next.add(type)
-      }
-
-      setSelectedCaps(next)
-      autoSave({ caps: next })
+  const handlePricingCommit = useCallback(
+    (pricing: NonNullable<Model['pricing']>) => {
+      autoSave({ pricing })
     },
-    [autoSave, selectedCaps]
+    [autoSave]
   )
 
-  const handleResetCapabilities = useCallback(() => {
-    setSelectedCaps(new Set(savedCaps))
-    setHasUserModified(false)
-    autoSave({ caps: new Set(savedCaps) })
-  }, [autoSave, savedCaps])
+  const commitClassification = useCallback(
+    (next: ModelClassificationState) => {
+      setClassification(next)
+      autoSave({ classification: next })
+    },
+    [autoSave]
+  )
+
+  const handlePrimaryTypeChange = useCallback(
+    (primaryType: ModelPrimaryType) => {
+      commitClassification({ ...classification, primaryType })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleCapability = useCallback(
+    (capability: ModelCapabilityToggle) => {
+      const capabilities = new Set(classification.capabilities)
+      if (capabilities.has(capability)) {
+        capabilities.delete(capability)
+      } else {
+        capabilities.add(capability)
+      }
+      commitClassification({ ...classification, capabilities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleInputModality = useCallback(
+    (modality: ModelInputModality) => {
+      const inputModalities = new Set(classification.inputModalities)
+      if (inputModalities.has(modality)) {
+        inputModalities.delete(modality)
+      } else {
+        inputModalities.add(modality)
+      }
+      commitClassification({ ...classification, inputModalities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleResetClassification = useCallback(() => {
+    const nextClassification = {
+      ...savedClassification,
+      capabilities: new Set(savedClassification.capabilities),
+      inputModalities: new Set(savedClassification.inputModalities)
+    }
+    setClassification(nextClassification)
+    autoSave({ classification: nextClassification })
+  }, [autoSave, savedClassification])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
 
-  const currentCurrency = currencySymbol || '$'
+  if (initializedModel !== model) {
+    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
+  }
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')}>
@@ -346,7 +359,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 maxOutputTokens,
                 endpointTypes
               }}
-              showEndpointType={mode === 'new-api'}
+              showEndpointType={mode === 'endpoint-types'}
               endpointTypeControl="chips"
               modelIdDisabled
               modelIdAction={
@@ -375,6 +388,41 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 autoSave({ endpointTypes: nextEndpointTypes })
               }}
             />
+            {mode === 'purpose' && (
+              <ModelPurposeFieldsControl
+                purpose={modelPurpose}
+                chatEndpointType={chatEndpointType}
+                chatEndpointTypes={providerChatEndpointTypes}
+                onPurposeChange={(nextPurpose) => {
+                  const nextPurposeFields = applyModelPurpose(purposeFields, nextPurpose, {
+                    previousPurpose: modelPurpose,
+                    chatEndpointType
+                  })
+                  const nextClassification = {
+                    ...classification,
+                    primaryType:
+                      nextPurpose === 'chat'
+                        ? classification.primaryType === 'image'
+                          ? ('text' as const)
+                          : classification.primaryType
+                        : ('image' as const)
+                  }
+                  setPurposeFields(nextPurposeFields)
+                  setEndpointTypes(nextPurposeFields.endpointTypes)
+                  setClassification(nextClassification)
+                  autoSave({ purposeFields: nextPurposeFields, classification: nextClassification })
+                }}
+                onChatEndpointTypeChange={(nextEndpointType) => {
+                  const nextPurposeFields = applyModelPurpose(purposeFields, 'chat', {
+                    previousPurpose: modelPurpose,
+                    chatEndpointType: nextEndpointType
+                  })
+                  setPurposeFields(nextPurposeFields)
+                  setEndpointTypes(nextPurposeFields.endpointTypes)
+                  autoSave({ purposeFields: nextPurposeFields })
+                }}
+              />
+            )}
           </div>
         </ProviderSection>
 
@@ -393,11 +441,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
               <div className={drawerClasses.sectionCard}>
-                <ModelCapabilityToggles
-                  selectedCaps={selectedCaps}
-                  hasUserModified={hasUserModified}
-                  onToggle={handleToggleCapability}
-                  onReset={handleResetCapabilities}
+                <ModelClassificationControls
+                  value={classification}
+                  hasChanges={hasClassificationChanges}
+                  onPrimaryTypeChange={handlePrimaryTypeChange}
+                  onCapabilityToggle={handleToggleCapability}
+                  onInputModalityToggle={handleToggleInputModality}
+                  onReset={handleResetClassification}
                 />
               </div>
 
@@ -418,11 +468,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.switchCard}>
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-normal text-[13px] text-foreground-secondary leading-5">
+                    <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
                       {t('settings.models.add.supported_text_delta.label')}
                     </span>
                     <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>
-                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-icon">
+                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
                         <CircleHelp aria-hidden className="size-3" />
                       </span>
                     </Tooltip>
@@ -440,73 +490,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               </div>
 
               <div className={drawerClasses.sectionCard}>
-                <ProviderField title={t('models.price.currency')} titleClassName={drawerClasses.fieldTitle}>
-                  <div className={drawerClasses.inlineRow}>
-                    <Select
-                      value={currencySymbol}
-                      onValueChange={(nextValue) => {
-                        if (!isModelDrawerCurrencySymbol(nextValue)) {
-                          return
-                        }
-
-                        setCurrencySymbol(nextValue)
-                        autoSave({ currencySymbol: nextValue })
-                      }}>
-                      <SelectTrigger aria-label={t('models.price.currency')} className={drawerClasses.selectTrigger}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className={drawerClasses.selectContent}>
-                        {MODEL_DRAWER_CURRENCY_SYMBOLS.map((symbol) => (
-                          <SelectItem key={symbol} value={symbol}>
-                            {symbol}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </ProviderField>
-
-                <ProviderField title={t('models.price.input')} titleClassName={drawerClasses.fieldTitle}>
-                  <div className={drawerClasses.responsiveValueRow}>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      aria-label={t('models.price.input')}
-                      value={inputPrice}
-                      placeholder="0.00"
-                      className={drawerClasses.input}
-                      onChange={(event) => {
-                        setInputPrice(event.target.value)
-                      }}
-                      onBlur={() => autoSave({ inputPrice })}
-                    />
-                    <span className={drawerClasses.valueSuffix}>
-                      {currentCurrency} / {t('models.price.million_tokens')}
-                    </span>
-                  </div>
-                </ProviderField>
-
-                <ProviderField title={t('models.price.output')} titleClassName={drawerClasses.fieldTitle}>
-                  <div className={drawerClasses.responsiveValueRow}>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      aria-label={t('models.price.output')}
-                      value={outputPrice}
-                      placeholder="0.00"
-                      className={drawerClasses.input}
-                      onChange={(event) => {
-                        setOutputPrice(event.target.value)
-                      }}
-                      onBlur={() => autoSave({ outputPrice })}
-                    />
-                    <span className={drawerClasses.valueSuffix}>
-                      {currentCurrency} / {t('models.price.million_tokens')}
-                    </span>
-                  </div>
-                </ProviderField>
+                <ModelPricingFields
+                  key={`${providerId}:${model.id}`}
+                  pricing={model.pricing}
+                  onCommit={handlePricingCommit}
+                />
               </div>
             </div>
           </ProviderSection>

@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { sanitizeRemoteUrl } from '../remoteUrlSafety'
+const lookupMock = vi.hoisted(() => vi.fn())
+
+vi.mock('node:dns/promises', () => ({
+  lookup: lookupMock
+}))
+
+import { resolveRemoteFetchUrl, sanitizeRemoteUrl } from '../remoteUrlSafety'
 
 function expectPrivateHostRejected(rawUrl: string, hostname: string): void {
   expect(() => sanitizeRemoteUrl(rawUrl)).toThrowError(
@@ -9,13 +15,22 @@ function expectPrivateHostRejected(rawUrl: string, hostname: string): void {
 }
 
 describe('sanitizeRemoteUrl', () => {
+  beforeEach(() => {
+    lookupMock.mockReset()
+    lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+  })
+
   it.each([
     'https://example.com/path?q=1',
     'http://example.com/path',
     'http://8.8.8.8/file',
     'https://[2001:4860:4860::8888]/file',
     'https://doc2x-pdf.oss-cn-beijing.aliyuncs.com/tmp/task-1.pdf?X-Amz-Signature=abc',
-    'https://cdn-mineru.openxlab.org.cn/pdf/task-1.zip'
+    'https://cdn-mineru.openxlab.org.cn/pdf/task-1.zip',
+    // Clash/Surge fake-IP handles and NAT64 of a public IPv4 are reachable targets.
+    'http://198.18.0.1/file',
+    'http://198.19.255.255/file',
+    'https://[64:ff9b::808:808]/file'
   ])('accepts public http and https urls: %s', (rawUrl) => {
     expect(sanitizeRemoteUrl(rawUrl)).toBe(rawUrl)
   })
@@ -24,6 +39,12 @@ describe('sanitizeRemoteUrl', () => {
     expect(sanitizeRemoteUrl('https://[2001:4860:4860::8888]/a b?x=y z')).toBe(
       'https://[2001:4860:4860::8888]/a%20b?x=y%20z'
     )
+  })
+
+  it('does not perform DNS lookup for literal URL normalization', () => {
+    expect(sanitizeRemoteUrl('https://example.com/file')).toBe('https://example.com/file')
+
+    expect(lookupMock).not.toHaveBeenCalled()
   })
 
   it.each(['file:///etc/passwd', 'ftp://example.com/file', 'gopher://example.com/file'])(
@@ -45,9 +66,10 @@ describe('sanitizeRemoteUrl', () => {
     ['http://100.64.0.1/file', '100.64.0.1'],
     ['http://169.254.1.10/file', '169.254.1.10'],
     ['http://172.16.0.1/file', '172.16.0.1'],
+    ['http://192.0.0.8/file', '192.0.0.8'],
     ['http://192.168.1.10/file', '192.168.1.10'],
-    ['http://198.18.0.1/file', '198.18.0.1'],
     ['http://224.0.0.1/file', '224.0.0.1'],
+    ['http://240.0.0.1/file', '240.0.0.1'],
     ['http://0.0.0.0/file', '0.0.0.0'],
     ['http://255.255.255.255/file', '255.255.255.255'],
     ['http://[::]/file', '[::]'],
@@ -56,6 +78,19 @@ describe('sanitizeRemoteUrl', () => {
     ['http://[fc00::1]/file', '[fc00::1]'],
     ['http://[fd00::1]/file', '[fd00::1]'],
     ['http://[fe80::1]/file', '[fe80::1]'],
+    ['http://[100::1]/file', '[100::1]'],
+    ['http://[64:ff9b::7f00:1]/file', '[64:ff9b::7f00:1]'],
+    ['http://[64:ff9b::c0a8:10a]/file', '[64:ff9b::c0a8:10a]'],
+    ['http://[64:ff9b::6440:105]/file', '[64:ff9b::6440:105]'],
+    ['http://[64:ff9b:1::1]/file', '[64:ff9b:1::1]'],
+    ['http://[2001::1]/file', '[2001::1]'],
+    ['http://[2001:2::1]/file', '[2001:2::1]'],
+    ['http://[2001:db8::1]/file', '[2001:db8::1]'],
+    ['http://[2002:7f00:1::]/file', '[2002:7f00:1::]'],
+    ['http://[3fff::1]/file', '[3fff::1]'],
+    ['http://[5f00::1]/file', '[5f00::1]'],
+    ['http://[400::1]/file', '[400::1]'],
+    ['http://[fec0::1]/file', '[fec0::1]'],
     ['http://[::ffff:127.0.0.1]/file', '[::ffff:7f00:1]'],
     ['http://[::ffff:192.168.1.10]/file', '[::ffff:c0a8:10a]']
   ])('rejects localhost and private ip targets: %s', (rawUrl, hostname) => {
@@ -94,4 +129,92 @@ describe('sanitizeRemoteUrl', () => {
       )
     }
   )
+})
+
+describe('resolveRemoteFetchUrl', () => {
+  beforeEach(() => {
+    lookupMock.mockReset()
+    lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+  })
+
+  it('returns the normalized URL and a prevalidated public address for hostnames', async () => {
+    await expect(resolveRemoteFetchUrl('https://example.com/a b')).resolves.toEqual({
+      url: 'https://example.com/a%20b',
+      address: {
+        address: '93.184.216.34',
+        family: 4
+      }
+    })
+
+    expect(lookupMock).toHaveBeenCalledWith('example.com', { all: true })
+  })
+
+  it('returns public literal addresses without DNS lookup', async () => {
+    await expect(resolveRemoteFetchUrl('http://8.8.8.8/file')).resolves.toEqual({
+      url: 'http://8.8.8.8/file',
+      address: {
+        address: '8.8.8.8',
+        family: 4
+      }
+    })
+
+    expect(lookupMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['10.0.0.5', '100.64.1.5', '240.0.0.1'])(
+    'rejects hostnames that resolve to private addresses: %s',
+    async (address) => {
+      lookupMock.mockResolvedValue([{ address, family: 4 }])
+
+      await expect(resolveRemoteFetchUrl('https://example.com/file')).rejects.toThrow(/DNS resolved/)
+    }
+  )
+
+  it('pins the first public answer when a hostname also resolves to a private address', async () => {
+    lookupMock.mockResolvedValue([
+      { address: 'fd00::1', family: 6 },
+      { address: '93.184.216.34', family: 4 }
+    ])
+
+    await expect(resolveRemoteFetchUrl('https://example.com/file')).resolves.toEqual({
+      url: 'https://example.com/file',
+      address: { address: '93.184.216.34', family: 4 }
+    })
+  })
+
+  it.each([
+    ['198.18.67.213', 4],
+    ['64:ff9b::808:808', 6]
+  ] as const)('resolves hostnames that a proxy or NAT64 maps to %s', async (address, family) => {
+    lookupMock.mockResolvedValue([{ address, family }])
+
+    await expect(resolveRemoteFetchUrl('https://example.com/file')).resolves.toEqual({
+      url: 'https://example.com/file',
+      address: { address, family }
+    })
+  })
+
+  it.each([
+    '100::1',
+    '64:ff9b::7f00:1',
+    '64:ff9b:1::1',
+    '2001::1',
+    '2001:2::1',
+    '2001:db8::1',
+    '2002:7f00:1::',
+    '3fff::1',
+    '5f00::1',
+    '400::1',
+    'fec0::1'
+  ])('rejects hostnames that resolve to non-public IPv6 special-purpose addresses: %s', async (address) => {
+    lookupMock.mockResolvedValue([{ address, family: 6 }])
+
+    await expect(resolveRemoteFetchUrl('https://example.com/file')).rejects.toThrow(/DNS resolved/)
+  })
+
+  it('rejects hostnames with no DNS addresses', async () => {
+    lookupMock.mockResolvedValue([])
+
+    await expect(resolveRemoteFetchUrl('https://example.com/file')).rejects.toThrow(/DNS returned no addresses/)
+  })
 })

@@ -50,9 +50,23 @@ export const MessagesBodySchema = z.looseObject({
   stream: z.boolean().optional()
 })
 
-/** `POST /v1/messages/count_tokens` body — token estimation, no upstream call. */
+/**
+ * `POST /v1/messages/count_tokens` body. Estimation is local, EXCEPT for anthropic-dialect
+ * endpoints: to return the provider's authoritative count the request (system + messages +
+ * tools) is forwarded to the provider's own `/v1/messages/count_tokens` through the same
+ * proxy/auth transport as a real call. Other dialects never leave the app.
+ */
 export const CountTokensBodySchema = z.looseObject({
   messages: z.array(CountTokensEntry).min(1, 'messages parameter is required'),
   model: z.string().optional(),
   system: z.unknown().optional()
+})
+
+/**
+ * `POST /v1beta/models/{model}:{generateContent|streamGenerateContent|countTokens}`
+ * body (Gemini). The model + method live in the URL, not the body. Loose by
+ * design — `GeminiMessageConverter` parses the full `contents` payload.
+ */
+export const GeminiGenerateContentBodySchema = z.looseObject({
+  contents: z.array(z.looseObject({})).min(1, 'contents are required')
 })

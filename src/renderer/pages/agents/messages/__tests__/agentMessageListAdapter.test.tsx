@@ -1,8 +1,7 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
-import type { CherryUIMessage } from '@shared/data/types/message'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,11 +28,17 @@ const errorActionsMock = vi.hoisted(() => ({
   openErrorDetail: vi.fn(),
   navigateErrorTarget: vi.fn()
 }))
+const useMessageErrorActionsMock = vi.hoisted(() =>
+  vi.fn<(options?: unknown) => typeof errorActionsMock>(() => errorActionsMock)
+)
+const dataApiMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  patch: vi.fn()
+}))
 const leafCapabilitiesMock = vi.hoisted(() => ({
   previewFile: vi.fn(),
   subscribeToolProgress: vi.fn(),
   openExternalUrl: vi.fn(),
-  openInExternalApp: vi.fn(),
   copyText: vi.fn(),
   copyRichContent: vi.fn(),
   copyImage: vi.fn(),
@@ -43,18 +48,23 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   notifyWarning: vi.fn(),
   notifyError: vi.fn(),
   getFileView: vi.fn(),
-  isToolAutoApproved: vi.fn(() => false),
-  externalCodeEditors: []
+  isToolAutoApproved: vi.fn(() => false)
 }))
 const headerCapabilitiesMock = vi.hoisted(() => ({
   userProfile: { avatar: '🙂' },
   openUserProfile: vi.fn()
 }))
-const navigateMock = vi.hoisted(() => vi.fn())
+const openRouteMock = vi.hoisted(() => vi.fn())
+const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
-  on: vi.fn(() => vi.fn())
+  on: vi.fn(() => vi.fn()),
+  // The locate dispatcher polls for a mounted subscriber before emitting; the
+  // mock reports one so delivery happens on the first animation frame.
+  listenerCount: vi.fn(() => 1)
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -69,6 +79,10 @@ vi.mock('@data/CacheService', () => ({
     get: vi.fn(() => undefined),
     set: vi.fn()
   }
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: dataApiMocks
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -123,7 +137,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () =
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
-  useMessageErrorActions: () => errorActionsMock
+  useMessageErrorActions: useMessageErrorActionsMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageLeafCapabilities', () => ({
@@ -134,8 +148,8 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities',
   useMessageHeaderCapabilities: () => headerCapabilitiesMock
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: openRouteMock
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -161,8 +175,15 @@ describe('useAgentMessageListProviderValue', () => {
     vi.clearAllMocks()
     clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
-    window.api.file.showInFolder = vi.fn()
-    window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
+    ipcApiRequest.mockReset()
+    ipcApiRequest.mockResolvedValue({
+      kind: 'file',
+      type: 'other',
+      size: 0,
+      createdAt: 0,
+      modifiedAt: 0,
+      mime: 'application/octet-stream'
+    })
   })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
@@ -170,6 +191,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -188,7 +210,12 @@ describe('useAgentMessageListProviderValue', () => {
         metadata: {
           parentId: 'user-1',
           createdAt: '2026-01-01T00:00:01.000Z',
-          status: 'pending'
+          status: 'pending',
+          messageSnapshot: {
+            id: 'agent-1',
+            name: 'My Agent',
+            model: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' }
+          }
         }
       }
     ] as CherryUIMessage[]
@@ -204,11 +231,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId,
         assistantId: 'agent-1',
-        modelFallback: {
-          id: 'claude-4',
-          name: 'Claude 4',
-          provider: 'anthropic'
-        },
         isLoading: false,
         openArtifactFile,
         deleteMessage,
@@ -221,14 +243,13 @@ describe('useAgentMessageListProviderValue', () => {
 
     render(<Probe />)
 
-    expect(value?.state.readonly).toBe(true)
     expect(value?.state.partsByMessageId).toBe(partsByMessageId)
     expect(value?.state.messages.map((message) => message.id)).toEqual(['user-1', 'assistant-1'])
     expect(value?.state.messages[1]).toMatchObject({
       role: 'assistant',
       parentId: 'user-1',
       status: 'pending',
-      modelSnapshot: {
+      model: {
         id: 'claude-4',
         name: 'Claude 4',
         provider: 'anthropic'
@@ -269,7 +290,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.previewFile).toBe(leafCapabilitiesMock.previewFile)
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
-    expect(value?.actions.openInExternalApp).toEqual(expect.any(Function))
     expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
     expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
@@ -281,13 +301,12 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.notifyWarning).toBe(leafCapabilitiesMock.notifyWarning)
     expect(value?.actions.notifyError).toBe(leafCapabilitiesMock.notifyError)
     expect(value?.state.isToolAutoApproved).toBe(leafCapabilitiesMock.isToolAutoApproved)
-    expect(value?.state.externalCodeEditors).toBe(leafCapabilitiesMock.externalCodeEditors)
     expect(value?.state.getFileView).toBe(leafCapabilitiesMock.getFileView)
     expect(value?.meta.userProfile).toBe(headerCapabilitiesMock.userProfile)
+    expect(value?.meta.aiUsageMessageKind).toBe('agent-session')
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
+    expect(value?.actions.resolvePath?.('dist/report.md')).toBe('/tmp/workspace/dist/report.md')
     expect(value?.actions.openPath).toEqual(expect.any(Function))
-    expect(value?.actions.showInFolder).toEqual(expect.any(Function))
-    expect(value?.actions.isDirectory).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
     expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
     expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
@@ -297,30 +316,8 @@ describe('useAgentMessageListProviderValue', () => {
     void value?.actions.openPath?.('dist/report.md')
     expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
 
-    const editor: ExternalAppInfo = {
-      id: 'vscode',
-      name: 'VS Code',
-      protocol: 'vscode://',
-      tags: ['code-editor'],
-      path: '/Applications/Visual Studio Code.app'
-    }
-    void value?.actions.openInExternalApp?.(editor, 'dist/report.md')
-    expect(leafCapabilitiesMock.openInExternalApp).toHaveBeenCalledWith(editor, '/tmp/workspace/dist/report.md')
-
-    void value?.actions.openInExternalApp?.(editor, '/Users/me/report.md')
-    expect(leafCapabilitiesMock.openInExternalApp).toHaveBeenCalledWith(editor, '/Users/me/report.md')
-
-    void value?.actions.showInFolder?.('/Users/me/report.md')
-    expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
-
-    void value?.actions.isDirectory?.('dist/assets')
-    expect(window.api.file.isDirectory).toHaveBeenCalledWith('/tmp/workspace/dist/assets')
-
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/settings/provider',
-      search: { id: 'provider-1' }
-    })
+    expect(openRouteMock).toHaveBeenCalledWith('/settings/provider', { id: 'provider-1' })
 
     const locateMessage = vi.fn()
     const startEditing = vi.fn()
@@ -334,12 +331,13 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', expect.any(Function))
 
     const listLocateMessage = vi.fn()
-    const unbindRuntime = value?.actions.bindRuntime?.({
+    const listRuntime = {
       scrollToBottom: vi.fn(),
       locateMessage: listLocateMessage,
       copyTopicImage: vi.fn(),
       exportTopicImage: vi.fn()
-    })
+    } as MessageListRuntime
+    const unbindRuntime = value?.actions.bindRuntime?.(listRuntime)
 
     vi.useFakeTimers()
     try {
@@ -360,11 +358,233 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
+  it('rejects unresolved relative paths when no workspace root is available', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+
+    let value: MessageListProviderValue | undefined
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        assistantId: 'agent-1',
+        isLoading: false,
+        messageNavigation: 'anchor'
+        // no workspacePath — a session whose workspace has not resolved yet
+      })
+      return null
+    }
+    render(<Probe />)
+
+    expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
+    expect(window.api.file.openPath).not.toHaveBeenCalled()
+  })
+
+  it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    dataApiMocks.get.mockResolvedValue({
+      data: { parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'failed' } }] }
+    })
+
+    const Probe = () => {
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+    }
+    await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
+
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1', {
+      body: {
+        data: {
+          parts: [
+            expect.objectContaining({
+              providerMetadata: expect.objectContaining({
+                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Runtime failed' }) })
+              })
+            })
+          ]
+        }
+      }
+    })
+  })
+
+  it('renders terminal fallbacks in both current and sealed history layers', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'assistant-error',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+      },
+      {
+        id: 'assistant-empty-success',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-pending',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:02.000Z', status: 'pending' }
+      },
+      {
+        id: 'assistant-hidden-success',
+        role: 'assistant',
+        parts: [{ type: 'data-agent-task-event', data: {} }],
+        metadata: { createdAt: '2026-01-01T00:00:03.000Z', status: 'success' }
+      }
+    ] as CherryUIMessage[]
+    const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    const streamingLayers = { historyPartsByMessageId: partsByMessageId, liveMessageIds: [] }
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId,
+        streamingLayers,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
+    expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
+      expect.objectContaining({ type: 'data-agent-task-event' }),
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
+      expect.objectContaining({ type: 'data-agent-task-event' }),
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.liveMessageIds).toEqual([])
+  })
+
+  it('preserves sealed MessageListItem identities when only the active agent message changes', () => {
+    const topic = {
+      id: 'agent-session-topic',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const historyMessage = {
+      id: 'assistant-history',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'history' }],
+      metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'success' }
+    } as CherryUIMessage
+    const activeMessage = {
+      id: 'assistant-active',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'a' }],
+      metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'pending' }
+    } as CherryUIMessage
+    const historyPartsByMessageId = {
+      [historyMessage.id]: (historyMessage.parts ?? []) as CherryMessagePart[],
+      [activeMessage.id]: (activeMessage.parts ?? []) as CherryMessagePart[]
+    }
+    const streamingLayers = { historyPartsByMessageId, liveMessageIds: [activeMessage.id] }
+    let value: MessageListProviderValue | undefined
+
+    const Probe = ({
+      messages,
+      partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    }: {
+      messages: CherryUIMessage[]
+      partsByMessageId?: Record<string, CherryMessagePart[]>
+    }) => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId,
+        streamingLayers,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    const view = render(<Probe messages={[historyMessage, activeMessage]} />)
+    const firstHistoryItem = value?.state.messages[0]
+    const firstActiveItem = value?.state.messages[1]
+    const nextActiveMessage = {
+      ...activeMessage,
+      parts: [{ type: 'text', text: 'ab' }]
+    } as CherryUIMessage
+
+    view.rerender(
+      <Probe
+        messages={[historyMessage, nextActiveMessage]}
+        partsByMessageId={{
+          ...historyPartsByMessageId,
+          [nextActiveMessage.id]: nextActiveMessage.parts ?? []
+        }}
+      />
+    )
+
+    expect(value?.state.messages[0]).toBe(firstHistoryItem)
+    expect(value?.state.messages[1]).not.toBe(firstActiveItem)
+  })
+
   it('does not expose selected delete action without delete capability', () => {
     const topic = {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -385,7 +605,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         messageNavigation: 'anchor'
       })
@@ -405,6 +624,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -427,7 +647,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         messageNavigation: 'anchor'
       })
@@ -452,6 +671,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-a',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -473,7 +693,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         messageNavigation: 'anchor'
       })
@@ -486,7 +705,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         imageActionConsumer: 'capture',
         messageNavigation: 'anchor'

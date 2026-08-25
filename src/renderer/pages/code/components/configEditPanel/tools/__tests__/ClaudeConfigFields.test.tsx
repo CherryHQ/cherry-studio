@@ -1,10 +1,12 @@
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ClaudeConfigFields } from '../ClaudeConfigFields'
+
+const settingsNavigateMock = vi.fn()
 
 type ReactTestRuntime = {
   Children: {
@@ -97,16 +99,21 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     value,
     onSelect,
+    onSettingsNavigate,
     trigger
   }: {
     value?: UniqueModelId
     onSelect: (modelId: UniqueModelId | undefined) => void
+    onSettingsNavigate?: (navigate: () => void) => void
     trigger: ReactNode
   }) => (
     <div data-testid="role-model-selector" data-value={value ?? ''}>
       {trigger}
       <button type="button" onClick={() => onSelect('anthropic::claude-opus-4-1' as UniqueModelId)}>
         select role model
+      </button>
+      <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
+        open role model settings
       </button>
     </div>
   )
@@ -125,6 +132,9 @@ function renderFields(
     config?: Record<string, unknown>
     onChange?: (next: Record<string, unknown>) => void
     section?: 'all' | 'basic' | 'advanced'
+    onSettingsNavigate?: (navigate: () => void) => void
+    providerId?: string
+    gatewayModels?: Map<UniqueModelId, Model>
   } = {}
 ) {
   const onChange = options.onChange ?? vi.fn()
@@ -133,8 +143,10 @@ function renderFields(
       config={options.config ?? {}}
       onChange={onChange}
       section={options.section ?? 'advanced'}
-      providerId="anthropic"
+      providerId={options.providerId ?? 'anthropic'}
       modelFilter={() => true}
+      onSettingsNavigate={options.onSettingsNavigate}
+      gatewayModels={options.gatewayModels}
     />
   )
 
@@ -204,17 +216,19 @@ describe('ClaudeConfigFields', () => {
     expect(onChange).toHaveBeenCalledWith({ effortLevel: 'high' })
   })
 
-  it('orders role model selectors as Fable, Opus, Sonnet, Haiku', () => {
+  it('orders role model selectors as Fable, Opus, Sonnet, Haiku, Subagent', () => {
     renderFields()
 
     const fable = screen.getByText('code.adv.claude.fable_model')
     const opus = screen.getByText('code.adv.claude.opus_model')
     const sonnet = screen.getByText('code.adv.claude.sonnet_model')
     const haiku = screen.getByText('code.adv.claude.haiku_model')
+    const subagent = screen.getByText('code.adv.claude.subagent_model')
 
     expectBefore(fable, opus)
     expectBefore(opus, sonnet)
     expectBefore(sonnet, haiku)
+    expectBefore(haiku, subagent)
   })
 
   it('renders role model selectors directly without hint text or table headers', () => {
@@ -235,14 +249,28 @@ describe('ClaudeConfigFields', () => {
       '',
       '',
       '',
+      '',
       ''
     ])
     expect(screen.getAllByTestId('model-selector-trigger').map((trigger) => trigger.textContent)).toEqual([
       'settings.models.empty',
       'settings.models.empty',
       'settings.models.empty',
+      'settings.models.empty',
       'settings.models.empty'
     ])
+  })
+
+  it('forwards settings navigation through every detailed role selector', () => {
+    const onSettingsNavigate = vi.fn()
+    renderFields({ onSettingsNavigate })
+
+    const settingsButtons = screen.getAllByRole('button', { name: 'open role model settings' })
+    expect(settingsButtons).toHaveLength(5)
+
+    fireEvent.click(settingsButtons[0])
+
+    expect(onSettingsNavigate).toHaveBeenCalledWith(settingsNavigateMock)
   })
 
   it('hides 1M controls until a role has its own selected model', () => {
@@ -306,7 +334,7 @@ describe('ClaudeConfigFields', () => {
         .getAllByTestId('role-model-selector')
         .slice(1)
         .map((selector) => selector.dataset.value)
-    ).toEqual(['', '', ''])
+    ).toEqual(['', '', '', ''])
   })
 
   it('writes a raw model id override when the user selects a different role model', () => {
@@ -322,6 +350,48 @@ describe('ClaudeConfigFields', () => {
         ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-opus-4-1'
       }
+    })
+  })
+
+  it('round-trips detailed role models through gateway addresses', () => {
+    const gatewayModels = new Map<UniqueModelId, Model>([
+      [
+        'anthropic::claude-fable-1',
+        { id: 'anthropic::claude-fable-1', providerId: 'anthropic', apiModelId: 'claude-fable-api' } as unknown as Model
+      ],
+      [
+        'anthropic::claude-opus-4-1',
+        { id: 'anthropic::claude-opus-4-1', providerId: 'anthropic', apiModelId: 'claude-opus-api' } as unknown as Model
+      ]
+    ])
+    const { onChange } = renderFields({
+      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'anthropic:claude-fable-api' } },
+      providerId: 'cherry-api-gateway',
+      gatewayModels
+    })
+
+    expect(screen.getAllByTestId('role-model-selector')[0]).toHaveAttribute('data-value', 'anthropic::claude-fable-1')
+
+    const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
+    fireEvent.click(within(fableRow as HTMLElement).getByText('select role model'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      env: {
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'anthropic:claude-opus-api',
+        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'anthropic:claude-opus-api'
+      }
+    })
+  })
+
+  it('writes a Subagent model without a display-name companion key', () => {
+    const { onChange } = renderFields()
+
+    const subagentRow = screen.getByText('code.adv.claude.subagent_model').closest('div')
+    expect(subagentRow).not.toBeNull()
+    fireEvent.click(within(subagentRow as HTMLElement).getByText('select role model'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-opus-4-1' }
     })
   })
 })

@@ -12,6 +12,7 @@ import {
   ExternalLink,
   FileText,
   Image,
+  MoveRight,
   NotebookPen,
   PanelLeft,
   PinIcon,
@@ -20,6 +21,7 @@ import {
   Trash2,
   UploadIcon
 } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 export type TopicExportMenuOptions = Record<
   | 'docx'
@@ -27,7 +29,6 @@ export type TopicExportMenuOptions = Record<
   | 'joplin'
   | 'markdown'
   | 'markdown_reason'
-  | 'notes'
   | 'notion'
   | 'obsidian'
   | 'plain_text'
@@ -37,6 +38,13 @@ export type TopicExportMenuOptions = Record<
 >
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
+type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
+
+export interface TopicMoveAssistantTarget {
+  id: string
+  name: string
+  icon?: ReactNode
+}
 
 export interface TopicActionContext {
   exportMenuOptions: TopicExportMenuOptions
@@ -57,6 +65,8 @@ export interface TopicActionContext {
   onExportSiyuan: TopicMenuHandler
   onExportWord: TopicMenuHandler
   onExportYuque: TopicMenuHandler
+  assistantMoveTargets: readonly TopicMoveAssistantTarget[]
+  onMoveToAssistant?: TopicMoveToAssistantHandler
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
@@ -71,6 +81,29 @@ export interface TopicActionContext {
 }
 
 const topicActionRegistry = createActionRegistry<TopicActionContext>()
+const MOVE_TO_ASSISTANT_ACTION_PREFIX = 'topic.move-to-assistant.'
+
+function buildMoveToAssistantActionId(assistantId: string) {
+  return `${MOVE_TO_ASSISTANT_ACTION_PREFIX}${encodeURIComponent(assistantId)}`
+}
+
+function getMoveToAssistantTargetId(actionId: string) {
+  if (!actionId.startsWith(MOVE_TO_ASSISTANT_ACTION_PREFIX)) return undefined
+
+  try {
+    return decodeURIComponent(actionId.slice(MOVE_TO_ASSISTANT_ACTION_PREFIX.length))
+  } catch {
+    return undefined
+  }
+}
+
+function renderMoveAssistantTargetIcon(icon: ReactNode) {
+  if (!icon) return undefined
+
+  return (
+    <span className="flex size-4 items-center justify-center [&>*]:m-0 [&>*]:max-h-full [&>*]:max-w-full">{icon}</span>
+  )
+}
 
 const hasExportOption = ({ exportMenuOptions }: TopicActionContext) =>
   exportMenuOptions.image ||
@@ -141,10 +174,6 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.save-notes',
-  availability: ({ exportMenuOptions }) => ({
-    visible: exportMenuOptions.notes,
-    enabled: exportMenuOptions.notes
-  }),
   run: ({ onSaveToNotes, topic }) => onSaveToNotes(topic)
 })
 
@@ -256,6 +285,26 @@ topicActionRegistry.registerAction({
 })
 
 topicActionRegistry.registerAction({
+  id: 'topic.move-to-assistant',
+  label: ({ t }) => t('chat.topics.move_to'),
+  icon: () => <MoveRight size={14} />,
+  order: 34,
+  surface: 'menu',
+  availability: ({ assistantMoveTargets, onMoveToAssistant }) => ({
+    visible: !!onMoveToAssistant && assistantMoveTargets.length > 0,
+    enabled: !!onMoveToAssistant && assistantMoveTargets.length > 0
+  }),
+  children: ({ assistantMoveTargets }) =>
+    assistantMoveTargets.map((target, index) => ({
+      id: buildMoveToAssistantActionId(target.id),
+      label: target.name,
+      icon: renderMoveAssistantTargetIcon(target.icon),
+      order: index,
+      surface: 'menu'
+    }))
+})
+
+topicActionRegistry.registerAction({
   id: 'topic.open-in-new-tab',
   commandId: 'topic.open-in-new-tab',
   label: ({ t }) => t('common.open_in_new_tab'),
@@ -304,7 +353,12 @@ topicActionRegistry.registerAction({
   label: ({ t }) => t('chat.topics.clear.title'),
   icon: () => <BrushCleaning size={14} />,
   order: 40,
-  surface: 'menu'
+  surface: 'menu',
+  confirm: ({ t }) => ({
+    title: t('chat.input.clear.title'),
+    confirmText: t('common.confirm'),
+    cancelText: t('common.cancel')
+  })
 })
 
 topicActionRegistry.registerAction({
@@ -475,5 +529,14 @@ export async function executeTopicMenuAction(
   action: ResolvedAction<TopicActionContext>,
   context: TopicActionContext
 ): Promise<boolean> {
+  const targetAssistantId = getMoveToAssistantTargetId(action.id)
+  if (targetAssistantId) {
+    if (!context.onMoveToAssistant) return false
+    if (context.topic.assistantId === targetAssistantId) return false
+    if (!context.assistantMoveTargets.some((target) => target.id === targetAssistantId)) return false
+    await context.onMoveToAssistant(context.topic, targetAssistantId)
+    return true
+  }
+
   return topicActionRegistry.execute(action.id, context)
 }

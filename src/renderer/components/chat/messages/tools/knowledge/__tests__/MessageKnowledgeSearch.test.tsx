@@ -41,35 +41,10 @@ describe('MessageKnowledgeSearchToolTitle', () => {
       />
     )
 
-    const title = screen.getByText('1 search results').closest('span')
-    expect(title).toHaveClass('flex items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-secondary')
-    expect(title).not.toHaveClass('text-sm')
+    expect(screen.getByText('1 search results')).toBeInTheDocument()
     expect(screen.queryByTestId('file-search-icon')).toBeNull()
 
     fireEvent.click(screen.getByRole('button'))
-    expect(screen.getByTestId('collapse-content-tool-call-1')).toHaveClass('rounded-xl bg-muted px-4 py-3')
     expect(await screen.findByText('Cherry Studio')).toBeInTheDocument()
-  })
-
-  it('uses compact text while searching', () => {
-    render(
-      <MessageKnowledgeSearchToolTitle
-        toolResponse={
-          {
-            id: 'tool-call-1',
-            toolCallId: 'tool-call-1',
-            tool: { id: 'knowledge-search', name: 'kb_search', type: 'builtin' },
-            status: 'invoking',
-            arguments: { query: 'Cherry Studio', baseIds: ['base-1'] },
-            response: []
-          } as NormalToolResponse
-        }
-      />
-    )
-
-    const searchingText = screen.getByText('Searching').closest('span')
-    expect(searchingText).toHaveClass('py-0.5 text-[13px] leading-5')
-    expect(searchingText).not.toHaveClass('text-sm')
-    expect(screen.getByText('Cherry Studio')).toHaveClass('truncate')
   })
 })

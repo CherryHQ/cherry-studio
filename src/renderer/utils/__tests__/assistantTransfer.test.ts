@@ -1,18 +1,8 @@
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Tag } from '@shared/data/types/tag'
+import type { Prompt } from '@shared/data/types/prompt'
 import { describe, expect, it } from 'vitest'
 
 import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../assistantTransfer'
-
-function createTag(id: string, name: string, color: string | null = '#3b82f6'): Tag {
-  return {
-    id,
-    name,
-    color,
-    createdAt: '2026-04-20T00:00:00.000Z',
-    updatedAt: '2026-04-20T00:00:00.000Z'
-  }
-}
 
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
@@ -34,27 +24,37 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
       maxToolCalls: 20,
       enableMaxToolCalls: true,
       enableWebSearch: false,
+      enableGenerateImage: false,
       customParameters: []
     },
     modelId: 'openai::gpt-4o',
+    groupId: '11111111-1111-4111-8111-111111111111',
     orderKey: 'a0',
     mcpServerIds: ['mcp-1'],
     knowledgeBaseIds: ['kb-1'],
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
-    tags: [createTag('tag-1', '写作')],
     modelName: 'GPT-4o',
+    ...overrides
+  }
+}
+
+function createPrompt(overrides: Partial<Prompt> = {}): Prompt {
+  return {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    title: 'Greeting',
+    content: 'Hello ${name}',
+    visibility: 'restricted',
+    orderKey: 'a0',
+    createdAt: '2026-04-20T00:00:00.000Z',
+    updatedAt: '2026-04-21T00:00:00.000Z',
     ...overrides
   }
 }
 
 describe('assistantTransfer', () => {
   it('serializes assistants using the legacy preset export shape', () => {
-    const content = serializeAssistantForExport(
-      createAssistant({
-        tags: [createTag('tag-1', '写作', '#10b981'), createTag('tag-2', '生产力', null)]
-      })
-    )
+    const content = serializeAssistantForExport(createAssistant(), [createPrompt()], '写作')
 
     expect(JSON.parse(content)).toEqual([
       {
@@ -63,9 +63,32 @@ describe('assistantTransfer', () => {
         group: ['写作'],
         prompt: 'You are helpful',
         description: '擅长写作润色',
-        regularPhrases: [],
+        regularPhrases: [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440000',
+            title: 'Greeting',
+            content: 'Hello ${name}',
+            createdAt: 1776643200000,
+            updatedAt: 1776729600000,
+            order: 0
+          }
+        ],
         type: 'agent'
       }
+    ])
+  })
+
+  it('round-trips contextual prompts in binding order', () => {
+    const prompts = [
+      createPrompt({ title: 'Second in catalog, first for target', orderKey: 'z9' }),
+      createPrompt({ id: '550e8400-e29b-41d4-a716-446655440001', title: 'Next for target', orderKey: 'a0' })
+    ]
+
+    const [draft] = parseAssistantImportContent(serializeAssistantForExport(createAssistant(), prompts))
+
+    expect(draft.dto.regularPhrases).toEqual([
+      { title: 'Second in catalog, first for target', content: 'Hello ${name}' },
+      { title: 'Next for target', content: 'Hello ${name}' }
     ])
   })
 
@@ -88,8 +111,20 @@ describe('assistantTransfer', () => {
     })
     // modelId is intentionally not part of the DTO — the backend fills it from
     // the `chat.default_model_id` preference during create.
-    expect(draft.dto.modelId).toBeUndefined()
-    expect(draft.tags).toEqual([{ name: '写作', color: null }])
+    expect(draft.dto).not.toHaveProperty('modelId')
+    expect(draft.groupName).toBe('写作')
+  })
+
+  it('uses the default emoji when a legacy import contains an empty emoji', () => {
+    const [draft] = parseAssistantImportContent(
+      JSON.stringify({
+        name: '无图标助手',
+        emoji: '',
+        prompt: 'legacy prompt'
+      })
+    )
+
+    expect(draft.dto.emoji).toBe('🤖')
   })
 
   it('ignores v2-only fields from imported content and still uses legacy defaults', () => {
@@ -110,14 +145,14 @@ describe('assistantTransfer', () => {
       prompt: 'still required'
     })
     // Fields we don't carry across the import boundary.
-    expect(draft.dto.modelId).toBeUndefined()
-    expect(draft.dto.mcpServerIds).toBeUndefined()
-    expect(draft.dto.knowledgeBaseIds).toBeUndefined()
+    expect(draft.dto).not.toHaveProperty('modelId')
+    expect(draft.dto).not.toHaveProperty('mcpServerIds')
+    expect(draft.dto).not.toHaveProperty('knowledgeBaseIds')
     expect(draft.dto.settings).toMatchObject({
       temperature: 1,
       enableTemperature: false
     })
-    expect(draft.tags).toEqual([{ name: '编程', color: null }])
+    expect(draft.groupName).toBe('编程')
   })
 
   it('throws invalid_format when required legacy fields are missing', () => {

@@ -1,16 +1,14 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
-/** Nearest actually-scrollable ancestor (overflow-y auto/scroll + scrollable content). */
-function findScrollParent(el: HTMLElement | null): HTMLElement | null {
-  let node = el?.parentElement ?? null
-  while (node) {
-    const overflowY = getComputedStyle(node).overflowY
-    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
-      return node
-    }
-    node = node.parentElement
-  }
-  return null
+import {
+  findScrollParent,
+  useIsScrollRuntimeManaged,
+  useRequestScrollReadingControl
+} from '../list/ScrollOwnershipContext'
+
+interface ScrollAnchorOptions {
+  enterReadingMode?: boolean
+  settleAfterMs?: number
 }
 
 /**
@@ -21,6 +19,11 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
  * message list scrolls its own inner div, not the `overflow:hidden` `#messages`
  * wrapper, so a hardcoded `#messages` lookup would write `scrollTop` to a non-scroller (no-op).
  *
+ * When that nearest scroller is the virtual list, the runtime owns stability
+ * entirely (see {@link ScrollOwnershipContext}), so this hook writes nothing.
+ * Nested scrollers and portal content keep the standalone rect-diff behavior
+ * even though React context still reaches them.
+ *
  * Usage:
  *   const { anchorRef, withScrollAnchor } = useScrollAnchor()
  *   <div ref={anchorRef}>...</div>
@@ -28,35 +31,81 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
  */
 export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
   const anchorRef = useRef<T>(null)
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isMountedRef = useRef(true)
+  const isRuntimeManaged = useIsScrollRuntimeManaged()
+  const requestReadingControl = useRequestScrollReadingControl(anchorRef)
 
-  const withScrollAnchor = useCallback((update: () => void) => {
-    const anchor = anchorRef.current
-    if (!anchor) {
-      update()
-      return
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (settleTimerRef.current !== null) clearTimeout(settleTimerRef.current)
     }
-
-    const scrollContainer = findScrollParent(anchor)
-    if (!scrollContainer) {
-      update()
-      return
-    }
-
-    // Record position of the anchor relative to viewport before DOM change
-    const rectBefore = anchor.getBoundingClientRect()
-    const scrollBefore = scrollContainer.scrollTop
-
-    // Apply the state change
-    update()
-
-    // After React commits the state change, restore scroll position
-    // Use requestAnimationFrame to run after the paint
-    requestAnimationFrame(() => {
-      const rectAfter = anchor.getBoundingClientRect()
-      const drift = rectAfter.top - rectBefore.top
-      scrollContainer.scrollTop = scrollBefore + drift
-    })
   }, [])
+
+  const withScrollAnchor = useCallback(
+    (update: () => void, options?: ScrollAnchorOptions) => {
+      if (settleTimerRef.current !== null) {
+        clearTimeout(settleTimerRef.current)
+        settleTimerRef.current = null
+      }
+
+      const anchor = anchorRef.current
+      if (!anchor) {
+        update()
+        return
+      }
+
+      const scrollContainer = findScrollParent(anchor)
+      if (!scrollContainer) {
+        // Nothing scrollable yet — this update may create the first overflow
+        // (short conversation, disclosure expand). Reading ownership must not
+        // depend on pre-existing overflow, so still hand the anchor to the
+        // runtime before bottom-follow can push the new overflow past it.
+        if (options?.enterReadingMode) requestReadingControl()
+        update()
+        return
+      }
+
+      // The list runtime keeps its own viewport stable against every layout
+      // change. Yield only for that exact scroller; context may cross a portal
+      // or include an independently scrollable descendant.
+      if (isRuntimeManaged(scrollContainer)) {
+        if (options?.enterReadingMode) requestReadingControl()
+        update()
+        return
+      }
+
+      // Record position of the anchor relative to viewport before DOM change
+      const rectBefore = anchor.getBoundingClientRect()
+      const scrollBefore = scrollContainer.scrollTop
+
+      // Apply the state change
+      update()
+
+      // After React commits the state change, restore scroll position
+      // Use requestAnimationFrame to run after the paint
+      requestAnimationFrame(() => {
+        if (!isMountedRef.current) return
+
+        const rectAfter = anchor.getBoundingClientRect()
+        const drift = rectAfter.top - rectBefore.top
+        const restoredScrollTop = scrollBefore + drift
+        scrollContainer.scrollTop = restoredScrollTop
+
+        if (!options?.settleAfterMs) return
+        settleTimerRef.current = setTimeout(() => {
+          settleTimerRef.current = null
+          if (!isMountedRef.current || scrollContainer.scrollTop !== restoredScrollTop) return
+
+          const finalDrift = anchor.getBoundingClientRect().top - rectBefore.top
+          if (finalDrift !== 0) scrollContainer.scrollTop += finalDrift
+        }, options.settleAfterMs)
+      })
+    },
+    [isRuntimeManaged, requestReadingControl]
+  )
 
   return { anchorRef, withScrollAnchor }
 }

@@ -17,6 +17,8 @@ export interface WindowInfo {
   windowKey: string
   privateMode: boolean
   window: BrowserWindow
+  /** WindowManager id for this window — close via wm.close(windowId) */
+  windowId: string
   tabs: Map<string, TabInfo>
   activeTabId: string | null
   lastActive: number

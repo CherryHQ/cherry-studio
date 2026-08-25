@@ -21,6 +21,12 @@ vi.mock('@cherrystudio/ui', () => ({
     <button type={type} {...props}>
       {children}
     </button>
+  ),
+  PageHeader: ({ title, action, className }: { title: ReactNode; action?: ReactNode; className?: string }) => (
+    <div className={className}>
+      <h2>{title}</h2>
+      {action}
+    </div>
   )
 }))
 
@@ -65,7 +71,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 })
 
 describe('DetailHeader', () => {
-  it('renders the base name and completed status', () => {
+  it('renders the base name without a status badge when completed', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
@@ -75,9 +81,8 @@ describe('DetailHeader', () => {
       />
     )
 
-    expect(screen.getByText('就绪')).toBeInTheDocument()
-    expect(screen.getByText('就绪')).toHaveClass('bg-success/10', 'text-success')
-    expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
+    expect(screen.getByText('Base 1')).toBeInTheDocument()
+    expect(screen.queryByText('就绪')).not.toBeInTheDocument()
   })
 
   it('renders the failed status as a clickable rebuild trigger', () => {
@@ -93,7 +98,6 @@ describe('DetailHeader', () => {
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByText('失败')).toHaveClass('bg-destructive/10', 'text-destructive')
 
     const rebuildTrigger = screen.getByRole('button', { name: '失败, 重建知识库' })
     fireEvent.click(rebuildTrigger)
@@ -121,7 +125,7 @@ describe('DetailHeader', () => {
       />
     )
 
-    expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
+    expect(screen.queryByText('就绪')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /重建知识库/ })).not.toBeInTheDocument()
   })
 

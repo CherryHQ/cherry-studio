@@ -3,10 +3,11 @@ import type { Transform } from '@dnd-kit/utilities'
 import { CSS } from '@dnd-kit/utilities'
 import React, { useEffect } from 'react'
 
-import type { RenderItemType } from './types'
+import type { RenderItemType, SortableDragHandleProps } from './types'
 
 interface ItemRendererProps<T> {
   ref?: React.Ref<HTMLDivElement>
+  activatorRef?: React.Ref<HTMLDivElement>
   index?: number
   item: T
   renderItem: RenderItemType<T>
@@ -16,11 +17,13 @@ interface ItemRendererProps<T> {
   transform?: Transform | null
   transition?: string | null
   listeners?: DraggableSyntheticListeners
+  dragHandleProps?: SortableDragHandleProps
   itemStyle?: React.CSSProperties
 }
 
 export function ItemRenderer<T>({
   ref,
+  activatorRef,
   index,
   item,
   renderItem,
@@ -30,6 +33,7 @@ export function ItemRenderer<T>({
   transform,
   transition,
   listeners,
+  dragHandleProps,
   itemStyle,
   ...props
 }: ItemRendererProps<T>) {
@@ -61,6 +65,7 @@ export function ItemRenderer<T>({
         ...(dragOverlay ? ({ '--scale': 1.02, zIndex: 999, position: 'relative' } as React.CSSProperties) : {})
       }}>
       <div
+        ref={activatorRef}
         style={
           {
             position: 'relative',
@@ -76,7 +81,7 @@ export function ItemRenderer<T>({
         }
         {...listeners}
         {...props}>
-        {renderItem(item, { dragging: !!dragging, overlay: !!dragOverlay })}
+        {renderItem(item, { dragging: !!dragging, overlay: !!dragOverlay, dragHandleProps })}
       </div>
     </div>
   )

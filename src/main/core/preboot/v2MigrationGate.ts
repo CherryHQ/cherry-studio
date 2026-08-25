@@ -1,3 +1,16 @@
+/**
+ * TEMPORARY convenience gate — deleted wholesale once all users have
+ * migrated off v1 (see data/migration/v2/).
+ *
+ * Do NOT use this file as a sample for preboot work. Its shape — a fat
+ * orchestrating gate holding a whole domain's flow inside core/preboot/ —
+ * is tolerated only because it is throwaway. Permanent capabilities invert
+ * this: the domain entry point owns the orchestration, and core/preboot/
+ * keeps no domain files (see core/preboot/README.md, Membership criteria).
+ */
+
+import { promises as fs } from 'node:fs'
+
 import { application } from '@application'
 import {
   evaluateCandidateVersion,
@@ -35,6 +48,25 @@ const logger = loggerService.withContext('V2MigrationGate')
 export type V2MigrationGateResult = 'handled' | 'skipped'
 
 /**
+ * Surface a fatal "cannot persist userData location" error and quit.
+ *
+ * Reached when the strict `pinUserDataPath()` persist fails: the next launch
+ * depends on that write, so continuing would relaunch into the old directory
+ * and loop (or make migrated data appear lost). Stop loudly instead.
+ */
+async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGateResult> {
+  logger.error('Failed to persist userData location; cannot continue', cause as Error)
+  await app.whenReady()
+  dialog.showErrorBox(
+    'Data Location Error - Application Cannot Start',
+    `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
+      `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`
+  )
+  application.quit()
+  return 'handled'
+}
+
+/**
  * Decide whether the v1→v2 data migration must run before
  * `application.bootstrap()` is allowed to start.
  *
@@ -59,7 +91,17 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   // userData detection. This MUST run before migrationEngine.initialize()
   // so that all subsequent path-dependent operations use the correct
   // directory. See MigrationPaths.ts for the full resolution logic.
-  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolveMigrationPaths()
+  let resolved: ReturnType<typeof resolveMigrationPaths>
+  try {
+    resolved = resolveMigrationPaths()
+  } catch (error) {
+    // resolveMigrationPaths()'s only throwing operation is the strict
+    // pinUserDataPath() persist on the redirect branch. Failing there means we
+    // cannot durably record which userData directory to use next launch — a
+    // silent continue would relaunch into the OLD location and loop.
+    return quitWithDataLocationError(error)
+  }
+  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolved
 
   // Legacy custom path found but inaccessible (e.g. external drive not
   // mounted, or a stale abandoned entry). Silently falling back to the default
@@ -94,7 +136,11 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     // so this prompt never fires again, then FALL THROUGH to the normal flow —
     // userData already IS the default and the path registry is frozen there, so
     // no relaunch is needed.
-    pinUserDataPath(paths.userData)
+    try {
+      pinUserDataPath(paths.userData)
+    } catch (error) {
+      return quitWithDataLocationError(error)
+    }
     logger.info('User chose to continue with the default data directory', { defaultPath: paths.userData })
   }
 
@@ -187,7 +233,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       // to write the completed status. Set the initial stage so the
       // renderer picks it up via GetProgress on mount.
       setVersionIncompatible(versionCheck.reason, versionCheck.details)
-      registerMigrationIpcHandlers(paths.userData)
+      registerMigrationIpcHandlers(paths)
 
       try {
         await app.whenReady()
@@ -212,7 +258,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     if (dataLocation) setDataLocationNotice(dataLocation)
 
     logger.info('Data Migration v2 needed, starting migration process')
-    registerMigrationIpcHandlers(paths.userData)
+    registerMigrationIpcHandlers(paths)
 
     try {
       await app.whenReady()
@@ -236,6 +282,16 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   // Normal path: no migration needed. Release the bare DB handle so the
   // lifecycle DbService can open its own connection when bootstrap runs.
   migrationEngine.close()
+
+  // Migration is no longer pending: sweep the renderer-export staging tree
+  // (plaintext v1 dumps) that the engine's own cleanup paths can miss.
+  try {
+    await fs.rm(paths.migrationTempDir, { recursive: true, force: true })
+  } catch (error) {
+    logger.warn('Failed to sweep legacy migration export staging', error as Error, {
+      path: paths.migrationTempDir
+    })
+  }
 
   // Edge case: userData was redirected from legacy config but migration is
   // not needed (e.g. boot-config.json was manually deleted after a

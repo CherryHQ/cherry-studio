@@ -1,11 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { installMock, uninstallMock, installFromZipMock, installFromDirectoryMock, listLocalMock } = vi.hoisted(() => ({
+const {
+  installMock,
+  uninstallMock,
+  installFromZipMock,
+  installFromDirectoryMock,
+  listLocalMock,
+  discoverSystemMock,
+  getByIdMock,
+  getInstalledSkillDirectoryMock,
+  importSystemMock,
+  openPathMock,
+  reconcileMock
+} = vi.hoisted(() => ({
   installMock: vi.fn(),
   uninstallMock: vi.fn(),
   installFromZipMock: vi.fn(),
   installFromDirectoryMock: vi.fn(),
-  listLocalMock: vi.fn()
+  listLocalMock: vi.fn(),
+  discoverSystemMock: vi.fn(),
+  getByIdMock: vi.fn(),
+  getInstalledSkillDirectoryMock: vi.fn(),
+  importSystemMock: vi.fn(),
+  openPathMock: vi.fn(),
+  reconcileMock: vi.fn()
+}))
+
+vi.mock('electron', () => ({
+  shell: { openPath: openPathMock }
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -14,7 +36,12 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     uninstall: uninstallMock,
     installFromZip: installFromZipMock,
     installFromDirectory: installFromDirectoryMock,
-    listLocal: listLocalMock
+    listLocal: listLocalMock,
+    discoverSystem: discoverSystemMock,
+    getById: getByIdMock,
+    getInstalledSkillDirectory: getInstalledSkillDirectoryMock,
+    importSystem: importSystemMock,
+    reconcileSkills: reconcileMock
   }
 }))
 
@@ -66,5 +93,79 @@ describe('skillHandlers', () => {
       data: [{ name: 'a', filename: 'a.md' }]
     })
     expect(listLocalMock).toHaveBeenCalledWith('/w')
+  })
+
+  it('discover_system returns native IpcApi data without a nested SkillResult envelope', async () => {
+    discoverSystemMock.mockResolvedValue([{ id: 'candidate-1' }])
+
+    await expect(skillHandlers['skill.discover_system']({}, ctx)).resolves.toEqual([{ id: 'candidate-1' }])
+    expect(discoverSystemMock).toHaveBeenCalledWith()
+  })
+
+  it('system skill routes keep discovery and import separate from agent association', async () => {
+    discoverSystemMock.mockResolvedValue([])
+    importSystemMock.mockResolvedValue({ id: 'system-skill' })
+
+    await skillHandlers['skill.discover_system']({}, ctx)
+    await skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)
+
+    expect(discoverSystemMock).toHaveBeenCalledWith()
+    expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
+  })
+
+  it('reconcile delegates to SkillService.reconcileSkills with the native IpcApi contract', async () => {
+    reconcileMock.mockResolvedValue(undefined)
+
+    await expect(skillHandlers['skill.reconcile']({}, ctx)).resolves.toBeUndefined()
+    expect(reconcileMock).toHaveBeenCalledWith()
+  })
+
+  it('opens the registered skill directory without accepting a renderer-supplied path', async () => {
+    const skill = { id: 's1', folderName: 'safe-skill' }
+    getByIdMock.mockResolvedValue(skill)
+    getInstalledSkillDirectoryMock.mockReturnValue('/managed/skills/safe-skill')
+    openPathMock.mockResolvedValue('')
+
+    await expect(skillHandlers['skill.folder.open']({ skillId: 's1' }, ctx)).resolves.toBeUndefined()
+
+    expect(getByIdMock).toHaveBeenCalledWith('s1')
+    expect(getInstalledSkillDirectoryMock).toHaveBeenCalledWith(skill)
+    expect(openPathMock).toHaveBeenCalledWith('/managed/skills/safe-skill')
+  })
+
+  it('does not open a path when the skill is no longer installed', async () => {
+    getByIdMock.mockResolvedValue(null)
+
+    await expect(skillHandlers['skill.folder.open']({ skillId: 'missing' }, ctx)).rejects.toThrow(
+      'Skill not found: missing'
+    )
+    expect(openPathMock).not.toHaveBeenCalled()
+  })
+
+  it('does not open a skill folder for a trusted but unmanaged renderer', async () => {
+    await expect(skillHandlers['skill.folder.open']({ skillId: 's1' }, { senderId: null })).rejects.toThrow(
+      'Skill folders can only be opened from a managed window'
+    )
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(openPathMock).not.toHaveBeenCalled()
+  })
+
+  it('reports the OS error when the managed skill directory cannot be opened', async () => {
+    const skill = { id: 's1', folderName: 'missing-directory' }
+    getByIdMock.mockResolvedValue(skill)
+    getInstalledSkillDirectoryMock.mockReturnValue('/managed/skills/missing-directory')
+    openPathMock.mockResolvedValue('The file does not exist')
+
+    await expect(skillHandlers['skill.folder.open']({ skillId: 's1' }, ctx)).rejects.toThrow(
+      'Failed to open skill folder: The file does not exist'
+    )
+  })
+
+  it('import_system lets errors propagate to IpcApi', async () => {
+    importSystemMock.mockRejectedValue(new Error('import failed'))
+
+    await expect(skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)).rejects.toThrow(
+      'import failed'
+    )
   })
 })

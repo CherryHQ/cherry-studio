@@ -2,12 +2,36 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
+import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { parse } from 'yaml'
 
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
+import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
+import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
+
+type ElectronBuilderConfig = {
+  releaseInfo?: {
+    releaseNotes?: unknown
+  }
+}
+
+const electronBuilderConfig = parse(
+  readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8')
+) as ElectronBuilderConfig
+const bundledReleaseNotes = electronBuilderConfig.releaseInfo?.releaseNotes
+const bundledReleaseHistory = parseReleaseHistory(
+  readFileSync(resolve(__dirname, 'resources/cherry-studio/release-history.json'), 'utf8')
+)
+
+if (typeof bundledReleaseNotes !== 'string' || !bundledReleaseNotes.trim()) {
+  throw new Error('electron-builder.yml must define non-empty releaseInfo.releaseNotes')
+}
+validateCurrentReleaseHistory({ releaseNotes: bundledReleaseNotes, version: pkg.version }, bundledReleaseHistory)
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -24,7 +48,12 @@ const isProd = process.env.NODE_ENV === 'production'
 // move it to `dependencies`: that would externalize it, and since devDependencies are
 // pruned from production packages, the packaged app would fail at runtime with
 // MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
-const mainExternalDependencies = Object.keys(pkg.dependencies)
+const mainExternalDependencies = [
+  ...Object.keys(pkg.dependencies),
+  // optionalDependencies too: platform-gated natives (e.g. node-mac-permissions) are real import
+  // targets, not napi sub-packages, so rollup would fail on the .node; production keeps them installed.
+  ...Object.keys(pkg.optionalDependencies ?? {})
+]
 const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
 
 export const isMainExternalModule = (id: string) => {
@@ -33,7 +62,7 @@ export const isMainExternalModule = (id: string) => {
 
 export default defineConfig({
   main: {
-    plugins: [...visualizerPlugin('main')],
+    plugins: [chunkExportGuardPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -41,8 +70,6 @@ export default defineConfig({
         '@data': resolve('src/main/data'),
         '@shared': resolve('src/shared'),
         '@logger': resolve('src/main/core/logger/LoggerService'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
@@ -58,8 +85,14 @@ export default defineConfig({
       rollupOptions: {
         external: isMainExternalModule,
         output: {
-          manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+          manualChunks: (id) => {
+            // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
+            if (id.includes('/node_modules/conf/')) return 'electron-store-conf'
+            // rolldown drops this chunk's named exports when it merges with a re-export-only
+            // facade chunk, leaving createOpenAI undefined at runtime. Keep it alone.
+            if (id.includes('/node_modules/@ai-sdk/openai/')) return 'ai-sdk-openai'
+            return undefined
+          }
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
@@ -81,8 +114,7 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@shared': resolve('src/shared'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core')
+        '@shared': resolve('src/shared')
       }
     },
     build: {
@@ -92,7 +124,8 @@ export default defineConfig({
         // preload requires explicit entry point configuration for multiple scripts
         input: {
           preload: resolve(__dirname, 'src/preload/preload.ts'),
-          simplest: resolve(__dirname, 'src/preload/simplest.ts') // Minimal preload
+          simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
+          miniApp: resolve(__dirname, 'src/preload/miniApp.ts') // MiniApp `<webview>` guests
         },
         external: ['electron'],
         output: {
@@ -103,7 +136,13 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: {
+      __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
+      __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
+      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
+    },
     plugins: [
+      uiContractPlugin(),
       tanstackRouter({
         target: 'react',
         autoCodeSplitting: true,
@@ -123,7 +162,6 @@ export default defineConfig({
         '@shared': resolve('src/shared'),
         '@logger': resolve('src/renderer/services/LoggerService'),
         '@data': resolve('src/renderer/data'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
@@ -131,6 +169,7 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
         '@test-mocks': resolve('tests/__mocks__')
@@ -154,11 +193,36 @@ export default defineConfig({
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
-          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
+          userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
+          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
+          screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
           warn(warning)
+        },
+        output: {
+          advancedChunks: {
+            // Without this, groups recursively capture dependencies — React
+            // itself ends up inside an icon bucket and every window preloads it.
+            includeDependenciesRecursively: false,
+            groups: [
+              // Bucket per-icon lazy modules into mid-size chunks instead of one
+              // tiny chunk per icon. Model icons only: they are reached solely
+              // through the dynamic loaders, so the buckets stay off every
+              // window's eager graph. Provider icons must NOT be grouped — a few
+              // files statically import specific providers from
+              // @cherrystudio/ui/icons/providers, and bucketing would chain
+              // whole buckets of unrelated SVGs into those windows' first load.
+              // Only the SVG component files (*.tsx) may match: each icon dir's
+              // meta.ts is eagerly imported by the meta-catalogs.
+              {
+                name: 'icons-models',
+                test: /packages\/ui\/src\/components\/icons\/models\/[^/]+\/(?:index|light|dark|avatar)\.tsx$/,
+                maxSize: 150_000
+              }
+            ]
+          }
         }
       }
     },

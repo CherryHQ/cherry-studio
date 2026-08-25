@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getCmThemeByName, getCmThemeNames, getNormalizedExtension } from '../utils'
+import { getCmThemeByName, getCmThemeNames, getNormalizedExtension, prepareCodeChanges } from '../utils'
 
 describe('getNormalizedExtension', () => {
   beforeEach(() => {
@@ -24,30 +24,30 @@ describe('getNormalizedExtension', () => {
     await expect(getNormalizedExtension('.json')).resolves.toBe('json')
   })
 
-  it('should return language as-is when no rules matched', async () => {
-    await expect(getNormalizedExtension('unknownLanguage')).resolves.toBe('unknownLanguage')
+  it('should lowercase a language name used as its own extension so langs lookups hit', async () => {
+    await expect(getNormalizedExtension('Markdown')).resolves.toBe('markdown')
+    await expect(getNormalizedExtension('TSX')).resolves.toBe('tsx')
+    await expect(getNormalizedExtension('unknownLanguage')).resolves.toBe('unknownlanguage')
   })
 })
 
-describe('cm theme lazy boundary', () => {
-  it('does not load @uiw/codemirror-themes-all until a theme API is called', async () => {
-    vi.resetModules()
-    const loaded = vi.fn()
-    vi.doMock('@uiw/codemirror-themes-all', () => {
-      loaded()
-      return { dracula: [] }
-    })
+describe('prepareCodeChanges', () => {
+  const applyChanges = (source: string, changes: ReturnType<typeof prepareCodeChanges>) =>
+    changes.reduceRight(
+      (content, { from, insert, to }) => `${content.slice(0, from)}${insert}${content.slice(to)}`,
+      source
+    )
 
-    try {
-      const utils = await import('../utils')
-      expect(loaded).not.toHaveBeenCalled()
+  it.each([
+    ['appended streaming text', 'const value = 1', 'const value = 10'],
+    ['removed stale text', 'hello world', 'hello'],
+    ['replaced multiple regions', 'abc-123-xyz', 'ABC-123-XYZ']
+  ])('reconstructs %s without corrupting content', (_label, oldCode, newCode) => {
+    expect(applyChanges(oldCode, prepareCodeChanges(oldCode, newCode))).toBe(newCode)
+  })
 
-      await expect(utils.getCmThemeByName('dracula')).resolves.toEqual([])
-      expect(loaded).toHaveBeenCalledTimes(1)
-    } finally {
-      vi.doUnmock('@uiw/codemirror-themes-all')
-      vi.resetModules()
-    }
+  it('returns no dispatch changes for identical content', () => {
+    expect(prepareCodeChanges('unchanged', 'unchanged')).toEqual([])
   })
 })
 

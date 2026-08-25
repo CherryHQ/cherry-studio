@@ -1,7 +1,8 @@
-import type * as NotesQueryModule from '@renderer/hooks/useNotesQuery'
 import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { NotesEditorLoading } from '../NotesEditor'
 
 const mocks = vi.hoisted(() => {
   const noteNode = {
@@ -16,16 +17,26 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
+    sessionStatus: 'ready' as string,
+    sessionIsDirty: false,
+    sessionIsSaving: false,
+    sessionSaveError: undefined as Error | undefined,
+    sessionDraft: 'saved content',
     currentContent: 'saved content',
     richEditorContent: 'edited rich content',
     sourceEditorContent: 'edited source content',
     mountedEditor: 'source',
     editorReady: vi.fn(),
     getNode: vi.fn(),
-    invalidateFileContent: vi.fn(),
+    setDraft: vi.fn(),
+    discardSession: vi.fn(),
+    flushSession: vi.fn().mockResolvedValue(undefined),
+    reloadSession: vi.fn().mockResolvedValue(undefined),
+    notifyExternalChange: vi.fn(),
     ipcRequest: vi.fn(),
     commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
     isActiveTab: true,
+    showWorkspace: false,
     printShortcutLabel: 'Ctrl+P',
     noteByPath: new Map(),
     patchNode: vi.fn(),
@@ -45,6 +56,9 @@ const mocks = vi.hoisted(() => {
     t: (key: string) => key,
     toggleShowWorkspace: vi.fn(),
     treeRoot: {},
+    treeVersion: 0,
+    treeIsLoading: false,
+    projectedNodes: [noteNode],
     updateNotesPath: vi.fn(),
     updateSettings: vi.fn(),
     updateSortType: vi.fn(),
@@ -100,7 +114,32 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverContent: passthrough('div'),
     PopoverTrigger: ({ children }: any) => React.createElement('div', { 'data-testid': 'popover-trigger' }, children),
     RowFlex: passthrough('div'),
-    Tooltip: ({ children }: any) => children
+    Skeleton: (props: any) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }),
+    Tooltip: ({ children }: any) => children,
+    ConfirmDialog: ({
+      open,
+      title,
+      description,
+      confirmText,
+      confirmLoading,
+      cancelText,
+      onConfirm,
+      onOpenChange
+    }: any) =>
+      open
+        ? React.createElement(
+            'div',
+            { role: 'dialog' },
+            React.createElement('div', null, title),
+            React.createElement('div', null, description),
+            React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
+            React.createElement(
+              'button',
+              { type: 'button', disabled: confirmLoading, onClick: () => onConfirm?.() },
+              confirmText
+            )
+          )
+        : null
   }
 })
 
@@ -113,7 +152,7 @@ vi.mock('@renderer/components/popups/ContentPopup', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: mocks.ipcRequest,
-    on: vi.fn()
+    on: vi.fn(() => vi.fn())
   }
 }))
 
@@ -123,7 +162,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
   useShowWorkspace: () => ({
-    showWorkspace: false,
+    showWorkspace: mocks.showWorkspace,
     toggleShowWorkspace: mocks.toggleShowWorkspace
   })
 }))
@@ -162,10 +201,10 @@ vi.mock('@renderer/hooks/command', () => ({
 vi.mock('@renderer/hooks/useDirectoryTree', () => ({
   useDirectoryTree: () => ({
     root: mocks.treeRoot,
-    isLoading: false,
+    isLoading: mocks.treeIsLoading,
     error: null,
-    version: 0,
-    treeId: null,
+    version: mocks.treeVersion,
+    treeId: 'notes-tree',
     getNode: mocks.getNode
   })
 }))
@@ -179,18 +218,27 @@ vi.mock('@renderer/hooks/useNote', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useNotesQuery', async (importOriginal) => {
-  const actual = await importOriginal<typeof NotesQueryModule>()
-
-  return {
-    ...actual,
-    useFileContent: () => ({ data: mocks.currentContent, error: undefined }),
-    useFileContentSync: () => ({ invalidateFileContent: mocks.invalidateFileContent })
-  }
-})
+vi.mock('@renderer/hooks/useFileEditSession', () => ({
+  useFileEditSession: () => ({
+    status: mocks.sessionStatus,
+    savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
+    draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
+    isDirty: mocks.sessionIsDirty,
+    isSaving: mocks.sessionIsSaving,
+    conflict: false,
+    saveError: mocks.sessionSaveError,
+    metadataRecoveryPending: false,
+    unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
+    setDraft: mocks.setDraft,
+    discard: mocks.discardSession,
+    reload: mocks.reloadSession,
+    flush: mocks.flushSession,
+    notifyExternalChange: mocks.notifyExternalChange
+  })
+}))
 
 vi.mock('@renderer/services/NotesService', () => ({
-  projectNotesTree: vi.fn(() => [mocks.noteNode]),
+  projectNotesTree: vi.fn(() => mocks.projectedNodes),
   sortTree: mocks.sortTree,
   addDir: vi.fn(),
   addNote: vi.fn(),
@@ -200,10 +248,11 @@ vi.mock('@renderer/services/NotesService', () => ({
   uploadNotes: vi.fn()
 }))
 
-vi.mock('../NotesEditor', async () => {
+vi.mock('../NotesEditor', async (importOriginal) => {
+  const original = await importOriginal<{ NotesEditorLoading: typeof NotesEditorLoading }>()
   const React = await import('react')
 
-  function MockNotesEditor({ codeEditorRef, editorRef, onMarkdownChange }: any) {
+  function MockNotesEditor({ activeNodeId, codeEditorRef, currentContent, editorRef, onMarkdownChange }: any) {
     React.useEffect(() => {
       codeEditorRef.current =
         mocks.mountedEditor === 'rich'
@@ -236,12 +285,15 @@ vi.mock('../NotesEditor', async () => {
       }
     }, [codeEditorRef, editorRef, onMarkdownChange])
 
-    return React.createElement('div', { 'data-testid': 'notes-editor' })
+    return React.createElement('div', {
+      'data-active-node-id': activeNodeId,
+      'data-current-content': currentContent,
+      'data-testid': 'notes-editor'
+    })
   }
 
-  return {
-    default: MockNotesEditor
-  }
+  // Keep the real loading surface: the page's ready-gate contract is asserted against it.
+  return { ...original, default: MockNotesEditor }
 })
 
 vi.mock('../NotesSettings', () => ({
@@ -249,14 +301,45 @@ vi.mock('../NotesSettings', () => ({
 }))
 
 vi.mock('../NotesSidebar', () => ({
-  default: () => null
+  default: ({ onSelectNode }: { onSelectNode: (node: typeof mocks.noteNode) => void }) => (
+    <>
+      <button type="button" onClick={() => onSelectNode(mocks.noteNode)}>
+        select current note
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onSelectNode({
+            ...mocks.noteNode,
+            id: '/notes/other.md',
+            name: 'other',
+            treePath: '/other',
+            externalPath: '/notes/other.md'
+          })
+        }>
+        select other note
+      </button>
+    </>
+  )
 }))
 
 import NotesPage from '../NotesPage'
 
+async function renderReadyNotesPage() {
+  const view = render(<NotesPage />)
+  await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+  await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+  return view
+}
+
 describe('NotesPage print payloads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.sessionStatus = 'ready'
+    mocks.sessionIsDirty = false
+    mocks.sessionIsSaving = false
+    mocks.sessionSaveError = undefined
+    mocks.sessionDraft = 'saved content'
     mocks.currentContent = 'saved content'
     mocks.richEditorContent = 'edited rich content'
     mocks.sourceEditorContent = 'edited source content'
@@ -265,12 +348,15 @@ describe('NotesPage print payloads', () => {
     mocks.settings.defaultViewMode = 'edit'
     mocks.ipcRequest.mockImplementation((route: string) => {
       if (route === 'app.get_info') return Promise.resolve({ notesPath: '/notes' })
-      if (route === 'app.set_spell_check_enabled') return Promise.resolve(undefined)
       return Promise.resolve(true)
     })
     mocks.commandHandlers.clear()
     mocks.isActiveTab = true
+    mocks.showWorkspace = false
     mocks.printShortcutLabel = 'Ctrl+P'
+    mocks.treeVersion = 0
+    mocks.treeIsLoading = false
+    mocks.projectedNodes = [mocks.noteNode]
 
     Object.assign(window, {
       api: {
@@ -280,10 +366,6 @@ describe('NotesPage print payloads', () => {
         file: {
           write: vi.fn().mockResolvedValue(undefined),
           listDirectory: vi.fn().mockResolvedValue([])
-        },
-        tree: {
-          onMutation: vi.fn(() => vi.fn()),
-          dispose: vi.fn().mockResolvedValue(undefined)
         }
       }
     })
@@ -293,10 +375,7 @@ describe('NotesPage print payloads', () => {
     ['notes.exportToPDF', 'print.export_pdf'],
     ['notes.print', 'print.print']
   ])('uses current source editor content for %s', async (label, route) => {
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    await renderReadyNotesPage()
 
     fireEvent.click(screen.getByTestId('popover-trigger'))
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label}`) }))
@@ -326,10 +405,7 @@ describe('NotesPage print payloads', () => {
       mocks.mountedEditor = 'rich'
       const editedRichContent = 'edited rich content after switching view'
 
-      render(<NotesPage />)
-
-      await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-      await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+      await renderReadyNotesPage()
 
       mocks.richEditorContent = editedRichContent
       fireEvent.click(screen.getByTestId('popover-trigger'))
@@ -356,10 +432,7 @@ describe('NotesPage print payloads', () => {
     mocks.mountedEditor = 'rich'
     mocks.richEditorContent = mocks.currentContent
 
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    await renderReadyNotesPage()
 
     mocks.richEditorContent = ''
     fireEvent.click(screen.getByTestId('popover-trigger'))
@@ -371,11 +444,28 @@ describe('NotesPage print payloads', () => {
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
-  it('routes the app.print command through the current source editor content', async () => {
-    render(<NotesPage />)
+  it('does not retain stale rich editor content when the ready draft becomes empty', async () => {
+    mocks.settings.defaultEditMode = 'preview'
+    mocks.mountedEditor = 'rich'
+    mocks.sessionDraft = 'previous note content'
+    mocks.richEditorContent = mocks.sessionDraft
+    const { rerender } = await renderReadyNotesPage()
 
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    mocks.sessionDraft = ''
+    rerender(<NotesPage />)
+    await waitFor(() => expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', ''))
+
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+    fireEvent.click(screen.getByRole('button', { name: 'notes.exportToPDF' }))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
+    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('print.export_pdf', expect.anything())
+  })
+
+  it('routes the app.print command through the current source editor content', async () => {
+    await renderReadyNotesPage()
 
     let command: { handler: () => void | Promise<void>; enabled: boolean } | undefined
     await waitFor(() => {
@@ -415,5 +505,128 @@ describe('NotesPage print payloads', () => {
     fireEvent.click(screen.getByTestId('popover-trigger'))
 
     expect(screen.getByRole('button', { name: /notes\.print/ })).toHaveTextContent('⌘P')
+  })
+
+  it('blocks editing and surfaces a load failure for unsupported note files', async () => {
+    // Oversize / non-UTF-8 / mixed-line-ending notes must not render as an
+    // editable blank document (regression guard for the unsupported status).
+    mocks.sessionStatus = 'unsupported'
+
+    render(<NotesPage />)
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('notes.load_failed'))
+  })
+
+  it('does not mount the note editor until the file session is ready', async () => {
+    mocks.sessionStatus = 'loading'
+    const { rerender } = render(<NotesPage />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent('common.loading')
+    expect(screen.getAllByTestId('skeleton')).toHaveLength(3)
+    expect(screen.queryByTestId('notes-editor')).not.toBeInTheDocument()
+    expect(mocks.editorReady).not.toHaveBeenCalled()
+    expect(mocks.setDraft).not.toHaveBeenCalled()
+
+    mocks.sessionStatus = 'ready'
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByTestId('notes-editor')).toBeInTheDocument())
+  })
+
+  it('prompts before leaving a dirty note and keeps the draft when cancelled', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'unsaved draft'
+    mocks.showWorkspace = true
+
+    await renderReadyNotesPage()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'unsaved draft')
+    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
+
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.title')
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.description')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+    expect(mocks.flushSession).not.toHaveBeenCalled()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
+  })
+
+  it('does not prompt or discard when reselecting the current dirty note', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'unsaved draft'
+    mocks.showWorkspace = true
+
+    await renderReadyNotesPage()
+    fireEvent.click(screen.getByRole('button', { name: 'select current note' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+    expect(mocks.flushSession).not.toHaveBeenCalled()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/note.md')
+  })
+
+  it('waits for an in-flight note save before allowing discard and navigation', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionIsSaving = true
+    mocks.sessionDraft = 'unsaved draft'
+    mocks.showWorkspace = true
+    const { rerender } = await renderReadyNotesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
+
+    expect(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' })).toBeDisabled()
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+
+    mocks.sessionIsSaving = false
+    rerender(<NotesPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
+
+    expect(mocks.discardSession).toHaveBeenCalledOnce()
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+  })
+
+  it('discards a dirty note before continuing the pending navigation', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'unsaved draft'
+    mocks.showWorkspace = true
+
+    await renderReadyNotesPage()
+    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
+
+    expect(mocks.discardSession).toHaveBeenCalledOnce()
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+    expect(mocks.discardSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.setActiveFilePath.mock.invocationCallOrder[0]
+    )
+    expect(mocks.flushSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps a dirty draft accessible when the active file is removed and leaving is cancelled', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'recoverable draft'
+    const { rerender } = await renderReadyNotesPage()
+
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
+
+    mocks.projectedNodes = []
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.title'))
+    expect(screen.getByRole('alert')).toHaveTextContent('notes.file_removed_draft')
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', '/notes/note.md')
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
   })
 })

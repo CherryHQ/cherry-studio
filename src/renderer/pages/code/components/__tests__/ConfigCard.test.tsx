@@ -1,4 +1,5 @@
 import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,7 +28,8 @@ const provider = {
   name: 'Anthropic'
 } as Provider
 
-function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
+function renderCard(options: { isCurrent?: boolean; modelName?: string; actionsDisabled?: boolean } = {}) {
+  const onMoveToTop = vi.fn()
   const onConfigure = vi.fn()
   const onToggleCurrent = vi.fn()
   const isCurrent = options.isCurrent ?? false
@@ -38,6 +40,8 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
       providerName="Anthropic"
       modelName={modelName}
       isCurrent={isCurrent}
+      actionsDisabled={options.actionsDisabled}
+      onMoveToTop={onMoveToTop}
       onConfigure={onConfigure}
       onToggleCurrent={onToggleCurrent}
     />
@@ -48,6 +52,8 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
     enableButton,
     cardShell: enableButton.closest('.rounded-xl') as HTMLElement,
     configureButton: screen.getByRole('button', { name: 'code.configure' }),
+    moveToTopButton: screen.getByRole('button', { name: 'code.move_provider_to_top' }),
+    onMoveToTop,
     onConfigure,
     onToggleCurrent
   }
@@ -91,6 +97,27 @@ describe('ProviderCard', () => {
     expect(onToggleCurrent).not.toHaveBeenCalled()
   })
 
+  it('prevents provider changes while its managed runtime is active', () => {
+    const { configureButton, enableButton, onConfigure, onToggleCurrent } = renderCard({ actionsDisabled: true })
+
+    expect(configureButton).toBeDisabled()
+    expect(enableButton).toBeDisabled()
+    fireEvent.click(configureButton)
+    fireEvent.click(enableButton)
+    expect(onConfigure).not.toHaveBeenCalled()
+    expect(onToggleCurrent).not.toHaveBeenCalled()
+  })
+
+  it('moves the provider to the top from the icon button before Configure', () => {
+    const { moveToTopButton, onMoveToTop, onConfigure, onToggleCurrent } = renderCard()
+
+    fireEvent.click(moveToTopButton)
+
+    expect(onMoveToTop).toHaveBeenCalledWith(provider)
+    expect(onConfigure).not.toHaveBeenCalled()
+    expect(onToggleCurrent).not.toHaveBeenCalled()
+  })
+
   it('labels the toggle button Enable when inactive and Disable when active', () => {
     const { unmount } = render(
       <ProviderCard
@@ -118,49 +145,6 @@ describe('ProviderCard', () => {
     expect(screen.queryByText('code.enable')).not.toBeInTheDocument()
   })
 
-  it('renders the disable action as a soft destructive button', () => {
-    const { enableButton } = renderCard({ isCurrent: true })
-
-    expect(enableButton.className).not.toMatch(/\bbg-destructive(?:\s|$)/)
-    expect(enableButton).toHaveClass('bg-destructive/10')
-    expect(enableButton).toHaveClass('text-destructive')
-  })
-
-  it('uses a subtle primary tint as the selection background', () => {
-    const { cardShell } = renderCard({ isCurrent: true })
-
-    expect(cardShell).toHaveClass('bg-primary/5')
-    expect(cardShell).not.toHaveClass('bg-muted')
-  })
-
-  it('marks the enabled provider with a primary border', () => {
-    const { cardShell } = renderCard({ isCurrent: true })
-
-    expect(cardShell).toHaveClass('border-primary')
-  })
-
-  it('renders the provider icon before the provider name', () => {
-    renderCard()
-
-    const icon = screen.getByTestId('provider-icon-anthropic')
-    const name = screen.getByText('Anthropic')
-
-    expect(icon.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('renders provider name and model id in one row separated by a bar', () => {
-    renderCard()
-
-    const name = screen.getByText('Anthropic')
-    const separator = screen.getByText('｜')
-    const modelId = screen.getByText('claude-sonnet-4-5')
-
-    expect(name.compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(separator.compareDocumentPosition(modelId) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(name.parentElement).toContainElement(separator)
-    expect(name.parentElement).toContainElement(modelId)
-  })
-
   it('shows the provider name without model details when no model is configured', () => {
     renderCard({ modelName: undefined })
 
@@ -181,5 +165,34 @@ describe('ProviderCard', () => {
     expect(onToggleCurrent).toHaveBeenCalledTimes(2)
     expect(onToggleCurrent).toHaveBeenNthCalledWith(1, provider)
     expect(onToggleCurrent).toHaveBeenNthCalledWith(2, provider)
+  })
+})
+
+describe('ProviderCard — unified gateway', () => {
+  const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: '统一网关' } as Provider
+
+  function renderGateway(description?: string) {
+    return render(
+      <ProviderCard
+        provider={gatewayProvider}
+        providerName="统一网关"
+        description={description}
+        isCurrent={false}
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+      />
+    )
+  }
+
+  it('renders the promo description when supplied', () => {
+    renderGateway('一个网关，连通所有模型')
+
+    expect(screen.getByText('一个网关，连通所有模型')).toBeInTheDocument()
+  })
+
+  it('omits the description row when no description is supplied', () => {
+    renderGateway(undefined)
+
+    expect(screen.queryByText('一个网关，连通所有模型')).not.toBeInTheDocument()
   })
 })

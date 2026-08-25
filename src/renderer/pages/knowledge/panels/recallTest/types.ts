@@ -17,10 +17,13 @@ export interface RecallResultItem {
   plainText: string
 }
 
-export interface RecallTestState {
+export interface RecallQueryState {
   query: string
   historyItems: RecallHistoryItem[]
   isHistoryOpen: boolean
+}
+
+export interface RecallResultState {
   isSearching: boolean
   hasSearched: boolean
   results: RecallResultItem[]
@@ -29,7 +32,7 @@ export interface RecallTestState {
   scoreKind: KnowledgeSearchScoreKind | null
 }
 
-export interface RecallTestActions {
+export interface RecallQueryActions {
   setQuery: (query: string) => void
   setHistoryOpen: (open: boolean) => void
   runSearch: () => void
@@ -38,12 +41,16 @@ export interface RecallTestActions {
   clearHistory: () => void
 }
 
-export interface RecallTestMeta {
+export interface RecallQueryMeta {
   baseId: string
 }
 
-export interface RecallTestContextValue {
-  state: RecallTestState
-  actions: RecallTestActions
-  meta: RecallTestMeta
+export interface RecallQueryContextValue {
+  state: RecallQueryState
+  actions: RecallQueryActions
+  meta: RecallQueryMeta
+}
+
+export interface RecallResultContextValue {
+  state: RecallResultState
 }
