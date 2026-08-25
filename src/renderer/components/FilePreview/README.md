@@ -203,8 +203,8 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   travels into the conversation as message text, so the only thing that acts on it is the `office-transform`
   skill, and the staleness rule lives in that skill's prompt: it tells the model to `stat` the file, compare
   size and mtime against `fileStamp`, and ask the user to re-select on a mismatch rather than re-anchoring.
-  Neither the skill's Python scripts nor any renderer code performs that check — `isSelectionReferenceStale`
-  states the rule in TypeScript for a future in-app consumer, but has none today.
+  No code on either side performs that check, so the renderer's job is only to stamp references accurately —
+  if an in-app consumer ever needs the comparison, it belongs with that consumer.
 
 ## File I/O, States, and Errors
 

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  isSelectionReferenceStale,
-  parseSelectionReference,
-  SELECTION_EXCERPT_MAX_LENGTH,
-  type SelectionReference
-} from '../selectionReference'
+import { SELECTION_EXCERPT_MAX_LENGTH, SelectionReferenceSchema } from '../selectionReference'
+
+/** The schema is the contract; these assertions read like the old parse helper it replaced. */
+const parseSelectionReference = (value: unknown) => {
+  const parsed = SelectionReferenceSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
 
 const validReference = {
   path: '/workspace/report.xlsx',
@@ -97,15 +98,16 @@ describe('SelectionReferenceSchema', () => {
   })
 })
 
-describe('isSelectionReferenceStale', () => {
-  const reference = parseSelectionReference(validReference) as SelectionReference
-
-  it('flags a changed file so a stale anchor is never silently re-used', () => {
-    expect(isSelectionReferenceStale(reference, { size: 1024, mtimeMs: 1_700_000_000_001 })).toBe(true)
-    expect(isSelectionReferenceStale(reference, { size: 2048, mtimeMs: 1_700_000_000_000 })).toBe(true)
+describe('fileStamp', () => {
+  it('carries the size and mtime a consumer compares to detect a changed file', () => {
+    // The staleness rule lives in the office-transform skill's prompt, which stats the file and
+    // compares both fields. What this module owes it is a stamp that survives parsing intact.
+    expect(parseSelectionReference(validReference)?.fileStamp).toEqual({ size: 1024, mtimeMs: 1_700_000_000_000 })
   })
 
-  it('accepts an unchanged file', () => {
-    expect(isSelectionReferenceStale(reference, { size: 1024, mtimeMs: 1_700_000_000_000 })).toBe(false)
+  it('rejects a reference whose stamp is missing or malformed', () => {
+    expect(parseSelectionReference({ ...validReference, fileStamp: undefined })).toBeNull()
+    expect(parseSelectionReference({ ...validReference, fileStamp: { size: 1024 } })).toBeNull()
+    expect(parseSelectionReference({ ...validReference, fileStamp: { size: -1, mtimeMs: 1 } })).toBeNull()
   })
 })

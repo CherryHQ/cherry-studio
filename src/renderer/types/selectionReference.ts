@@ -67,7 +67,7 @@ const PptxAnchorSchema = z
     message: 'paragraph and tableCell are mutually exclusive'
   })
 
-export const DocumentAnchorSchema = z.discriminatedUnion('format', [
+const DocumentAnchorSchema = z.discriminatedUnion('format', [
   XlsxAnchorSchema,
   DocxAnchorSchema,
   PdfAnchorSchema,
@@ -82,8 +82,6 @@ const SelectionFileStampSchema = z.object({
   mtimeMs: z.number().nonnegative()
 })
 
-export type SelectionFileStamp = z.infer<typeof SelectionFileStampSchema>
-
 export const SELECTION_EXCERPT_MAX_LENGTH = 2000
 
 export const SelectionReferenceSchema = z.object({
@@ -95,16 +93,3 @@ export const SelectionReferenceSchema = z.object({
 })
 
 export type SelectionReference = z.infer<typeof SelectionReferenceSchema>
-
-export function parseSelectionReference(value: unknown): SelectionReference | null {
-  const parsed = SelectionReferenceSchema.safeParse(value)
-  return parsed.success ? parsed.data : null
-}
-
-/**
- * A reference is stale when the file changed after capture. Stale references
- * must be re-captured, never silently re-anchored — offsets may have moved.
- */
-export function isSelectionReferenceStale(reference: SelectionReference, current: SelectionFileStamp): boolean {
-  return reference.fileStamp.size !== current.size || reference.fileStamp.mtimeMs !== current.mtimeMs
-}
