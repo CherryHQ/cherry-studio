@@ -505,6 +505,11 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   )
 
   const clearSelection = useCallback(() => {
+    // Abandon any in-flight drag too: pointerup commits `drag.selection` unconditionally, so leaving
+    // the drag alive would let the release re-commit the range the user just cancelled — and a
+    // pointermove would put it back on screen as well.
+    dragRef.current = null
+    pendingKeyCommitRef.current = false
     applySelection(null)
     commitSelection(null)
   }, [applySelection, commitSelection])

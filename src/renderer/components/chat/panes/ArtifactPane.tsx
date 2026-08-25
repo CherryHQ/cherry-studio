@@ -223,6 +223,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setSelectionReference(null)
   }, [previewKey])
 
+  // Refreshing the same file remounts the preview plugin without changing previewKey, so the effect
+  // above returns early. The held reference then describes content that is no longer on screen and
+  // carries a fileStamp from before the refresh.
+  useEffect(() => {
+    setSelectionReference(null)
+  }, [contentRefreshToken])
+
   // The editor replaces the preview, taking the plugin that owns the selection
   // with it — anything captured before the switch is no longer on screen.
   useEffect(() => {

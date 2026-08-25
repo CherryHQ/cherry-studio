@@ -642,6 +642,27 @@ describe('XlsxGrid — range selection', () => {
     )
   })
 
+  it('keeps a selection cancelled with Escape cancelled, even after the pointer is released', () => {
+    // pointerup commits the drag it was holding, so Escape has to abandon the drag as well —
+    // otherwise releasing the button re-commits exactly the range the user just cancelled.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.keyDown(scroll, { key: 'Escape' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(null)
+
+    onSelectCell.mockClear()
+    fireEvent.pointerMove(scroll, pointerAt(IN_B8.x, IN_B8.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B8.x, IN_B8.y))
+
+    expect(onSelectCell).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('xlsx-grid-selection-range')).not.toBeInTheDocument()
+  })
+
   it('extends the existing selection from its anchor on Shift+Click', () => {
     showHeaderRange()
     const onSelectCell = vi.fn()
