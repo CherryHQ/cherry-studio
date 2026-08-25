@@ -8,9 +8,9 @@
  *
  * Pipeline per `tool_call`:
  *   1. disabledTools  → block (all modes, including bypassPermissions)
- *   2. global-install → block bash that installs into shared/global locations (except bypass)
+ *   2. global-install → block bash that installs into shared/global locations (all modes)
  *   3. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
- *   4. bypass         → allow unconditionally; the mode promises no further gate
+ *   4. bypass         → skip ordinary approvals; non-bypassable delegation still asks
  *   5. approval       → per permission mode: auto-allow, fail closed without a
  *      responder, or register + emit a runtime-neutral approval request, then
  *      block / allow / apply the edited input.
@@ -27,14 +27,14 @@ import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
+import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
+import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
-import { detectDestructiveCommand } from '../toolApproval/destructiveCommand'
-import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
 
@@ -128,13 +128,13 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     const approvalRequired = ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
 
-    // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. The rewrite
-    // makes commands runnable and applies in every mode; the install block is a permission guard,
-    // so an explicit bypass skips it.
+    // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
+    // in every mode: shared/global installs mutate the cross-agent environment, so this is an
+    // explicit safety block rather than an approval that Full Access can lift.
     if (toolName === 'bash') {
       const command = typeof input.command === 'string' ? input.command : ''
       if (command.trim()) {
-        const reason = bypass ? null : detectGlobalInstall(command)
+        const reason = detectGlobalInstall(command)
         if (reason) {
           logger.info('Blocked global install to prevent dependency pollution', { sessionId: ctx.sessionId, reason })
           return {

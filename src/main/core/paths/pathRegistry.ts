@@ -47,6 +47,7 @@ export function buildPathRegistry() {
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
+  const appUserDataProviderRegistryOverride = path.join(appUserDataRuntime, 'provider-registry-override')
   const appUserDataToolchain = path.join(appUserData, 'Toolchain')
   const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
   const appSession = app.getPath('sessionData')
@@ -102,6 +103,10 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // Remote-updated override copy of the registry JSON, preferred over the
+    // bundled data when present (see ProviderRegistryUpdaterService). Writable.
+    'feature.provider_registry.override': appUserDataProviderRegistryOverride,
+
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
@@ -114,11 +119,20 @@ export function buildPathRegistry() {
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
+    // Cherry-provisioned CPython for pipx tools. mise is never told about it —
+    // naming a Python runtime there is what makes mise fetch its own from
+    // GitHub releases (see binaryManager/pythonRuntime.ts).
+    'feature.binary.data.uv_python': path.join(appUserDataToolchainMise, 'uv-python'),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
     'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
     'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
+    // mise's rust recipe drives rustup, which keeps its toolchains outside the
+    // mise install dir. Pinning both homes keeps install and execution pointed at
+    // the same copy — the user's real ~/.rustup is never read or written.
+    'feature.binary.data.isolated.rustup': path.join(appUserDataToolchainMise, 'rustup'),
+    'feature.binary.data.isolated.cargo': path.join(appUserDataToolchainMise, 'cargo'),
 
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
@@ -129,6 +143,8 @@ export function buildPathRegistry() {
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
     'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
+    // Server catalog `@cherry/mcp-auto-install` reads when a custom registry is configured
+    'feature.mcp.registry_file': path.join(CHERRY_HOME, 'config', 'mcp-registry.json'),
 
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
