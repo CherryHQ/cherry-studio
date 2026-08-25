@@ -18,6 +18,7 @@ import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { getAppLanguage } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { ensureTranscriptAvailableForWorkspace } from '@main/utils/claudeProjectDirectory'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -511,6 +512,24 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  if (resumeSessionId && session.workspace?.path) {
+    try {
+      const availability = await ensureTranscriptAvailableForWorkspace(
+        application.getPath('feature.agents.claude.root'),
+        session.workspace.path,
+        resumeSessionId
+      )
+      if (availability === 'copied') {
+        logger.info('Relocated restored Claude transcript for the current workspace', {
+          sessionId: session.id
+        })
+      }
+    } catch (error) {
+      // Transcript recovery is best effort. Preserve the existing SDK fallback when the
+      // restored cache is unreadable instead of preventing the session from starting.
+      logger.warn('Failed to relocate restored Claude transcript', { sessionId: session.id, error })
+    }
+  }
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,

@@ -12,13 +12,13 @@ import {
   resolveRealOrNearestExistingPath
 } from '@main/ai/agents/agentDataDirectory'
 import { isMac, isWin } from '@main/core/platform'
+import { claudeProjectDirectoryName } from '@main/utils/claudeProjectDirectory'
 import { isPathInside, isSameOrInside } from '@main/utils/file'
 import PQueue from 'p-queue'
 import { validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('AgentsFilesystemMigration')
 const IDENTITY_ENTRY_NAMES = new Set(['soul.md', 'user.md', 'memory'])
-const CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH = 200
 const AGENT_MIGRATION_FILESYSTEM_CONCURRENCY = 16
 const CLAUDE_CONFIG_PROGRESS_INTERVAL_MS = 100
 const CLAUDE_CONFIG_PROGRESS_BYTE_STEP = 16 * 1024 * 1024
@@ -558,24 +558,7 @@ export async function copyLegacyClaudeConfig(
   }
 }
 
-function claudeProjectDirectoryNameHash(workspacePath: string): string {
-  let hash = 0
-  for (let index = 0; index < workspacePath.length; index++) {
-    hash = ((hash << 5) - hash + workspacePath.charCodeAt(index)) | 0
-  }
-  return Math.abs(hash).toString(36)
-}
-
-/**
- * Mirror Claude Agent SDK 0.3.218's private cwd-to-project-directory mapping.
- * Session lookup is scoped to this directory when the runtime passes `cwd`, so
- * a moved workspace needs its transcript copied under the new key.
- */
-export function claudeProjectDirectoryName(workspacePath: string): string {
-  const sanitized = workspacePath.replace(/[^a-zA-Z0-9]/g, '-')
-  if (sanitized.length <= CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH) return sanitized
-  return `${sanitized.slice(0, CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH)}-${claudeProjectDirectoryNameHash(workspacePath)}`
-}
+export { claudeProjectDirectoryName } from '@main/utils/claudeProjectDirectory'
 
 async function claudeProjectDirectoryPath(projectsDirectory: string, workspacePath: string): Promise<string> {
   let resolvedWorkspacePath: string
