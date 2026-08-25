@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   createAssistantFileToolsServer: vi.fn(() => ({ mcpServer: {} })),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
+  ensureWorkspaceSkillPlugin: vi.fn(),
+  resolveWorkspaceSkillPluginPath: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
   checkSkillRuntimeDependencies: vi.fn(),
   modelGetByKey: vi.fn(),
@@ -120,6 +122,8 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
     list: mocks.listSkills,
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
+    ensureWorkspaceSkillPlugin: mocks.ensureWorkspaceSkillPlugin,
+    resolveWorkspaceSkillPluginPath: mocks.resolveWorkspaceSkillPluginPath,
     getSkillPluginDirectory: mocks.getSkillPluginDirectory
   }
 }))
@@ -243,7 +247,8 @@ const {
   buildClaudeCodeSessionSettings,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
-  registerMcpSessionCatalogSync
+  registerMcpSessionCatalogSync,
+  resolveWorkspaceSkillPlugin
 } = await import('../settingsBuilder')
 const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStateService')
 // One real instance per test file — the facade resolves it via application.get, and the real Maps
@@ -337,6 +342,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
+    mocks.ensureWorkspaceSkillPlugin.mockResolvedValue(undefined)
+    mocks.resolveWorkspaceSkillPluginPath.mockResolvedValue(undefined)
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
@@ -755,6 +762,33 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.skills).not.toContain('pdf') // shared SKILL.md name never whitelisted
     expect(settings.skills).not.toContain('pdf-legacy') // disabled skill excluded
     expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
+  })
+
+  it('loads the workspace .agents skill bridge as a local plugin', async () => {
+    mocks.ensureWorkspaceSkillPlugin.mockResolvedValue('/app/workspace-skills/abc123')
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(mocks.ensureWorkspaceSkillPlugin).toHaveBeenCalledWith('/workspace/project')
+    expect(settings.plugins).toEqual([{ type: 'local', path: '/app/workspace-skills/abc123', skipMcpDiscovery: true }])
+    expect(settings.workspaceSkillPlugin).toBe('/app/workspace-skills/abc123')
+  })
+
+  it('resolves the bridge plugin a build would publish, and none for a sealed agent', async () => {
+    mocks.resolveWorkspaceSkillPluginPath.mockResolvedValue('/app/workspace-skills/abc123')
+
+    await expect(resolveWorkspaceSkillPlugin({ configuration: {} } as never, '/workspace/project')).resolves.toBe(
+      '/app/workspace-skills/abc123'
+    )
+    await expect(
+      resolveWorkspaceSkillPlugin({ configuration: { builtin_role: 'support' } } as never, '/workspace/project')
+    ).resolves.toBeNull()
+    expect(mocks.resolveWorkspaceSkillPluginPath).toHaveBeenCalledExactlyOnceWith('/workspace/project')
   })
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
@@ -2286,6 +2320,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settingSources).toEqual([])
     expect(mocks.listSkills).not.toHaveBeenCalled()
     expect(mocks.listLocalSkillFolderNames).not.toHaveBeenCalled()
+    expect(mocks.ensureWorkspaceSkillPlugin).not.toHaveBeenCalled()
     expect(settings.mcpServers?.skills).toBeUndefined()
     expect(settings.allowedTools).not.toContain('mcp__skills__search_skills')
     expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [

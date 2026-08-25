@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   resolveEffectiveEndpoint: vi.fn(),
   buildSessionSettings: vi.fn(),
   buildSkillWhitelist: vi.fn(),
+  resolveWorkspaceSkillPlugin: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
   preferenceGet: vi.fn(),
@@ -105,6 +106,7 @@ vi.mock('../../../provider/endpoint', () => ({
 vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings,
   buildSkillWhitelist: mocks.buildSkillWhitelist,
+  resolveWorkspaceSkillPlugin: mocks.resolveWorkspaceSkillPlugin,
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
@@ -154,6 +156,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
+    mocks.resolveWorkspaceSkillPlugin.mockResolvedValue(null)
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
@@ -227,6 +230,26 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('flags a rebuild when the workspace skill bridge the build published differs from the current one', async () => {
+    mocks.resolveWorkspaceSkillPlugin.mockResolvedValue('/tmp/claude-workspace-skills/abc')
+
+    // The build could not publish the bridge, so the CLI runs without it.
+    mocks.buildSessionSettings.mockResolvedValueOnce({ env: {} })
+    const withoutBridge = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    // A later build published exactly what the current workspace resolves to.
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: {},
+      workspaceSkillPlugin: '/tmp/claude-workspace-skills/abc'
+    })
+    const withBridge = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+    if (!withoutBridge || !withBridge || !current.ok)
+      throw new Error('expected materialized requests and current config')
+
+    expect(withoutBridge.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+    expect(withBridge.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
   })
 
   it('pins the rebuild baseline to the context window used to materialize settings', async () => {
@@ -1096,6 +1119,7 @@ describe('deriveConnectionConfig', () => {
     mocks.resolveEffectiveEndpoint.mockImplementation(resolveTestEffectiveEndpoint)
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
+    mocks.resolveWorkspaceSkillPlugin.mockResolvedValue(null)
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
@@ -1407,6 +1431,11 @@ describe('deriveConnectionConfig', () => {
     const skillsChanged = await deriveSignature()
     expect(skillsChanged.rebuildSignature).not.toBe(base.rebuildSignature)
     mocks.buildSkillWhitelist.mockResolvedValue([])
+
+    mocks.resolveWorkspaceSkillPlugin.mockResolvedValue('/tmp/claude-workspace-skills/abc')
+    const bridgeChanged = await deriveSignature()
+    expect(bridgeChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+    mocks.resolveWorkspaceSkillPlugin.mockResolvedValue(null)
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

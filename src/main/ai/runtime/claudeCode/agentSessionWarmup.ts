@@ -52,7 +52,8 @@ import {
   buildClaudeCodeSessionSettings,
   buildSkillWhitelist,
   getClaudeCodeLoginShellEnvironment,
-  type McpServerSnapshotMap
+  type McpServerSnapshotMap,
+  resolveWorkspaceSkillPlugin
 } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
 
@@ -120,6 +121,7 @@ interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
   mcp: unknown[]
   skills: string[]
+  workspaceSkillPlugin: string | null
   linkedChannelId: string | null
   contextWindow: number | null
   maxOutputTokens: number | null
@@ -367,6 +369,9 @@ async function deriveConnectionConfigFromSnapshot(
     )
   }
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
+  const workspaceSkillPlugin = materialized
+    ? materialized.workspaceSkillPlugin
+    : await resolveWorkspaceSkillPlugin(agent, cwd)
   const linkedChannelId = materialized
     ? materialized.linkedChannelId
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
@@ -389,6 +394,7 @@ async function deriveConnectionConfigFromSnapshot(
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
+    workspaceSkillPlugin,
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))
       .sort(([a], [b]) => a.localeCompare(b)),
@@ -541,6 +547,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
+      workspaceSkillPlugin: settings.workspaceSkillPlugin ?? null,
       linkedChannelId: linkedChannelSnapshot?.id ?? null,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,

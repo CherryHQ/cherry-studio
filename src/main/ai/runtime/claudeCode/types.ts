@@ -34,6 +34,11 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
   /** Skill names enabled for this session; SDK Options.skills is not a path list. */
   skills?: string[]
   /**
+   * Published `.agents/skills` bridge plugin directory. Internal to Cherry: it feeds the
+   * connection rebuild signature and is not passed to the Claude Agent SDK.
+   */
+  workspaceSkillPlugin?: string
+  /**
    * Per-stream holder for the controller's `enqueue` binding. `canUseTool`
    * calls `emit` to inject a `tool-approval-request` part into the live
    * stream; `dispose` is the session-scoped cleanup fired in `finally`.

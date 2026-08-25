@@ -130,8 +130,11 @@ async function resolveSkillDirectory(
   const byName = agentGlobalSkillService.listAll().filter((skill) => skill.name === skillName)
   if (byName.length === 1) return skillService.getInstalledSkillDirectory(byName[0])
 
-  const localDirectory = path.join(cwd, '.claude', 'skills', skillName)
-  return (await findSkillMdPath(localDirectory)) ? localDirectory : null
+  for (const root of ['.claude', '.agents']) {
+    const localDirectory = path.join(cwd, root, 'skills', skillName)
+    if (await findSkillMdPath(localDirectory)) return localDirectory
+  }
+  return null
 }
 
 /**

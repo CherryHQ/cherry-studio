@@ -163,26 +163,27 @@ export async function buildClaudeCodeSessionSettings(
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
-  const [agentDataPath, env, workspacePlugins] = await Promise.all([
+  const [agentDataPath, env, workspacePlugins, workspaceSkillPlugin] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
     buildEnvironment(provider, agent),
-    discoverPlugins(cwd, agent.id)
+    discoverPlugins(cwd, agent.id),
+    capabilities.environment === 'sealed' ? undefined : skillService.ensureWorkspaceSkillPlugin(cwd)
   ])
   const mcpWarm = await mcpWarmPromise
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
   const localPlugin = (pluginPath: string) => ({ type: 'local' as const, path: pluginPath, skipMcpDiscovery: true })
-  const plugins =
-    capabilities.environment === 'sealed'
-      ? builtinPluginDirectory
-        ? [localPlugin(builtinPluginDirectory)]
-        : undefined
-      : needsPrivateSkillPlugin || builtinPluginDirectory
-        ? [
-            ...(workspacePlugins ?? []),
-            ...(needsPrivateSkillPlugin ? [localPlugin(skillService.getSkillPluginDirectory())] : []),
-            ...(builtinPluginDirectory ? [localPlugin(builtinPluginDirectory)] : [])
-          ]
-        : workspacePlugins
+  let plugins: SdkPluginConfig[] | undefined
+  if (capabilities.environment === 'sealed') {
+    plugins = builtinPluginDirectory ? [localPlugin(builtinPluginDirectory)] : undefined
+  } else {
+    const openPlugins = [
+      ...(workspacePlugins ?? []),
+      ...(workspaceSkillPlugin ? [localPlugin(workspaceSkillPlugin)] : []),
+      ...(needsPrivateSkillPlugin ? [localPlugin(skillService.getSkillPluginDirectory())] : []),
+      ...(builtinPluginDirectory ? [localPlugin(builtinPluginDirectory)] : [])
+    ]
+    plugins = openPlugins.length > 0 ? openPlugins : undefined
+  }
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
@@ -260,9 +261,9 @@ export async function buildClaudeCodeSessionSettings(
   // 8. Auto-approve allowlist for injected built-in MCP servers
   const finalAllowedTools = adjustAllowedToolsForMcp(mountedServers, disallowedTools)
 
-  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
-  // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
-  // is maintained by SkillService (install/uninstall/startup), not here.
+  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this agent + the
+  // workspace's own .claude/skills and .agents/skills). The CLAUDE_CONFIG_DIR/skills mirror is
+  // maintained by SkillService (install/uninstall/startup), not here.
   const skills = await buildSkillWhitelist(agent, cwd)
 
   // 10. Build settings
@@ -317,6 +318,7 @@ export async function buildClaudeCodeSessionSettings(
     disallowedTools,
     plugins,
     skills,
+    ...(workspaceSkillPlugin ? { workspaceSkillPlugin } : {}),
     canUseTool,
     hooks,
     approvalEmitter,
@@ -351,15 +353,16 @@ export { buildMcpServers } from './mcpCatalog'
  * same unqualified name from satisfying the SDK filter. Other agents merge
  * the sources below.
  *
- * `Options.skills` is a *filter over everything the SDK discovers* — both the
- * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
- * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
+ * `Options.skills` is a *filter over everything the SDK discovers* — the
+ * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`),
+ * the workspace's own `cwd/.claude/skills`, and its `.agents/skills` bridged
+ * through the `cherry-workspace-skills` plugin. So the whitelist must list:
  *   - the agent's enabled managed skills, and
  *   - the workspace's project-local skills (omitting them would filter the
  *     user's own project skills out of their session).
  *
  * For other agents, we match by directory name (`folderName` for managed
- * skills and the `.claude/skills/<dir>` name for workspace skills), preserving
+ * skills and the `<root>/skills/<dir>` name for workspace skills), preserving
  * their existing discovery behavior.
  *
  * Read-only: the filesystem mirror is maintained at install / uninstall /
@@ -382,6 +385,19 @@ export async function buildSkillWhitelist(
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
 
   return Array.from(new Set([...enabledNames, ...workspaceNames, ...bundledNames]))
+}
+
+/**
+ * Pure counterpart of the `.agents/skills` bridge the session build publishes: the plugin
+ * directory a build would hand the SDK right now, or `null` when there is nothing to bridge. Part
+ * of the connection rebuild signature so a root move or a failed publish triggers a rebuild.
+ */
+export async function resolveWorkspaceSkillPlugin(
+  agent: Pick<AgentEntity, 'configuration'>,
+  cwd: string
+): Promise<string | null> {
+  if (resolveAgentCapabilities(agent).environment === 'sealed') return null
+  return (await skillService.resolveWorkspaceSkillPluginPath(cwd)) ?? null
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
