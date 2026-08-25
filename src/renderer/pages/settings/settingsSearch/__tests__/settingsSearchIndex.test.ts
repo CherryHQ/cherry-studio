@@ -9,8 +9,13 @@ import { settingsMenu } from '../../settingsMenu'
 import { settingsSearchSections } from '../aggregate'
 import { getSettingDomId } from '../types'
 
-/** Resolves a dotted i18n key inside the nested locale catalog */
+/** Resolves a dotted i18n key. Catalogs are flat (#19143): the dotted path is
+ *  the literal key. The nested walk stays as a fallback for pre-flattened
+ *  revisions so the guard keeps working across the transition window. */
 function lookup(locale: unknown, key: string): unknown {
+  if (locale != null && typeof locale === 'object' && key in (locale as Record<string, unknown>)) {
+    return (locale as Record<string, unknown>)[key]
+  }
   return key.split('.').reduce<unknown>((node, part) => {
     if (node != null && typeof node === 'object') return (node as Record<string, unknown>)[part]
     return undefined
