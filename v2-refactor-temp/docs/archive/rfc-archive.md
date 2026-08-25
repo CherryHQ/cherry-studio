@@ -1,8 +1,8 @@
 # RFC: 归档代替删除 —— 统一软删除 + 回收站 + 过期清理
 
-> 状态:设计稿(未实施)。
+> 状态:已实施(PR #16746 —— 归档/恢复/purge/「最近删除」均已落地)。
 > 范围决策(已定):除 knowledge 外,所有高价值业务 domain 的删除动作改为归档(可恢复);knowledge 维持硬删;note 暂缓(§4.5 留有设计草稿)。
-> API 形状遵循 [docs/references/data/api-design-guidelines.md](../../../docs/references/data/api-design-guidelines.md),尤其其 DataApi 副作用硬规则(§5);标识符命名已按 [naming-conventions.md](../../../docs/references/naming-conventions.md) 及仓库既有格式审计(Preference 叶子段 snake_case、job type 点分命名空间、IpcApi action 段 snake_case)。
+> API 形状遵循 [docs/references/data/api-design-guidelines.md](../../../docs/references/data/api-design-guidelines.md),尤其其 DataApi 副作用硬规则(§5);标识符命名已按 [naming-conventions.md](../../../docs/references/architecture/naming-conventions.md) 及仓库既有格式审计(Preference 叶子段 snake_case、job type 点分命名空间、IpcApi action 段 snake_case)。
 
 ## 1. 背景
 
@@ -112,10 +112,10 @@ note 是磁盘 markdown 为本体、DB 行仅作索引(`note.ts:6-21`,`deleteByP
 
 | 操作 | 端点 | 说明 |
 |---|---|---|
-| 归档(=删除) | `DELETE /{resource}/:id`、`DELETE /{resource}?ids=a,b` | 现有端点,行为从硬删改为软删,**渲染层调用方零改动** |
-| 彻底删除 | 同上 + `?permanent=true` | 跳过回收站,直接硬删 DB 行(仅 DB,见下方边界说明) |
+| 归档(=删除) | `DELETE /{resource}/:id`、`DELETE /{resource}?ids=a,b` | 现有端点,行为从硬删改为软删,**渲染层调用方零改动**。agent/agent_session 例外:其增删改走 IpcApi(`ai.agent.*`),DataApi 侧只有 `restore` 与 `inTrash` 读 |
+| 彻底删除 | `DELETE /{resource}/:id?permanent=true` | 跳过回收站,直接硬删 DB 行(仅 DB,见下方边界说明)。**集合端点不支持 `permanent`** —— 无调用方,按需求驱动未实现 |
 | 回收站列表 | `GET /{resource}?inTrash=true` | 沿用 files 的参数先例(`files.ts:86`);默认(省略)仍只返回 active |
-| 恢复 | `POST /{resource}/:id/restore`、`POST /{resource}/restore?ids=a,b` | 新增;即指南 Non-CRUD "Resource actions" 模式(文档示例即 `POST /topics/:id/archive`)。不暴露 deletedAt 为通用可写字段 |
+| 恢复 | `POST /{resource}/:id/restore` | 新增;即指南 Non-CRUD "Resource actions" 模式(文档示例即 `POST /topics/:id/archive`)。不暴露 deletedAt 为通用可写字段。回收站逐行恢复,**批量恢复无调用方,未实现** |
 
 **副作用边界(硬规则)**:DataApi handler 只允许 SQLite 读写(guidelines §"Hard Rule: No Non-Data Side Effects")。因此:
 
@@ -125,7 +125,7 @@ note 是磁盘 markdown 为本体、DB 行仅作索引(`note.ts:6-21`,`deleteByP
 
 ## 6. 过期清理(purge job)
 
-> **依赖 PR #16727(file-manager GC,`eurfelux/feat/file-manager-gc`)**。本 RFC 早先假设"孤儿扫描回收附件/生成图磁盘文件"是错的:现有 file orphan sweep(`orphanSweep.ts` `scanOrphanEntries`)是 **"preserve" 策略——只报告零引用条目、从不删除**(architecture §7.1),`runFileSweep` 又只 unlink 无 DB 行的 blob。所以 purge 删掉 topic/painting 后,虽然 `*_file_ref` 级联没了、内部 `file_entry` 变成零引用,磁盘 blob 仍回收不掉。#16727 引入 `file_entry.cleanup_policy`(`manual` | `delete_when_unreferenced`)+ `FileManager.runEntryCleanup`(`internal/entryCleanup.ts`,1h grace + 安全阈值)真正回收 auto-policy 的零引用条目,并把聊天附件/AI 图/绘画输出归类为 `delete_when_unreferenced`。**本功能的磁盘回收委托给 #16727,不在本 RFC 内自行实现。** 集成后:①purge 后改调 `runSweep({ confirmed })` / `runEntryCleanup`(而非当前 report-only 的 `runSweep()`),清空回收站这类大批量 drain 需 `confirmed` 绕过安全阈值;②两分支迁移号都占 0018,共享 `MessageService/PaintingService/TopicService/FileEntryService/orphanSweep.ts`,须按「regenerate, never rename」重生迁移并解冲突。**注意区分**:用户在文件回收站里主动删的内部文件走本 job 的 `fileEntryService.purgeExpiredTx`(删行→退出 `listAllIds()`→FS sweep unlink,今天就正确);#16727 处理的是**从未进回收站、因父数据被 purge 而变零引用**的附件/图,两者互补不重叠。
+> **依赖 PR #16727(file-manager GC,`eurfelux/feat/file-manager-gc`)**。本 RFC 早先假设"孤儿扫描回收附件/生成图磁盘文件"是错的:现有 file orphan sweep(`orphanSweep.ts` `scanOrphanEntries`)是 **"preserve" 策略——只报告零引用条目、从不删除**(architecture §7.1),`runFileSweep` 又只 unlink 无 DB 行的 blob。所以 purge 删掉 topic/painting 后,虽然 `*_file_ref` 级联没了、内部 `file_entry` 变成零引用,磁盘 blob 仍回收不掉。#16727 引入 `file_entry.cleanup_policy`(`manual` | `delete_when_unreferenced`)+ `FileManager.runEntryCleanup`(`internal/entryCleanup.ts`,1h grace + 安全阈值)真正回收 auto-policy 的零引用条目,并把聊天附件/AI 图/绘画输出归类为 `delete_when_unreferenced`。**本功能的磁盘回收委托给 #16727,不在本 RFC 内自行实现。** 集成后:①purge 后改调 `runSweep({ confirmed })` / `runEntryCleanup`(而非当前 report-only 的 `runSweep()`),清空回收站这类大批量 drain 需 `confirmed` 绕过安全阈值;②两分支曾同时占用同一迁移号,共享 `MessageService/PaintingService/TopicService/FileEntryService/orphanSweep.ts`,已按「regenerate, never rename」重生迁移解冲突(本分支最终追加为 `0017`)。**注意区分**:用户在文件回收站里主动删的内部文件走本 job 的 `fileEntryService.purgeExpiredTx`(删行→退出 `listAllIds()`→FS sweep unlink,今天就正确);#16727 处理的是**从未进回收站、因父数据被 purge 而变零引用**的附件/图,两者互补不重叠。
 
 - **基建**:复用 `JobManager`(`job_schedule` + handler 注册,`schemas/job.ts:23-43`)。job type 为 `'trash.purge'`(点分命名空间格式,同 `'agent.task'` 先例;经 `jobRegistry.ts` declaration merging 注册 payload 类型),cron 每日一次(如 03:00),`catchUpPolicy` 设为错过即启动时补跑。
 - **保留期**:新 Preference 键 `data.trash.retention_days`(叶子段 snake_case,同 `data.backup.local.max_backups` 先例),默认 `30`,`0` = 永不自动清理。⚠️ Preference schema 是生成物 —— 改 `v2-refactor-temp/tools/data-classify/data/` 的定义后 `npm run generate`,不得手改 `preferenceSchemas.ts`。
@@ -141,7 +141,7 @@ note 是磁盘 markdown 为本体、DB 行仅作索引(`note.ts:6-21`,`deleteByP
 
 ## 8. 迁移与兼容
 
-- schema 改动(painting/agent_session 加列)直接改 schemas + `pnpm db:migrations:generate` —— 当前阶段 schema 与 drizzle SQL 均为 throwaway,无需 patch migration。
+- schema 改动(painting/agent_session 加列)直接改 schemas + `pnpm db:migrations:generate`。migrations/ 已随 v2.0.0-rc.1 发布并跑在真实用户数据上:**只能向后追加,不得改写或重排已发布的迁移**(实际落地为 `0017_happy_jack_murdock`)。
 - v1→v2 迁移器不受影响(v1 无归档态可携带)。
 - 用户可感知变化(删除不再立即清除、置顶/标签恢复后不保留、默认 30 天自动清理)→ 在 `v2-refactor-temp/docs/breaking-changes/` 记一条。
 
