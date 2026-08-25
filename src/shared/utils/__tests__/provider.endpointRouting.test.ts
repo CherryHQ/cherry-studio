@@ -57,14 +57,25 @@ describe('getModelPreferredEndpoint', () => {
     expect(getModelPreferredEndpoint(model, provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
 
-  it('falls back to the provider default when no declared endpoint is still served', () => {
+  it('keeps the declared protocol rather than borrowing the provider default when none is served', () => {
+    // Answering with the provider default would hand a Google-only model the OpenAI host and call
+    // it a success; callers must fail closed naming the protocol the model actually declares.
     const provider = makeProvider({
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' } }
     })
     const model = makeModel([ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT])
 
-    expect(getModelPreferredEndpoint(model, provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(getModelPreferredEndpoint(model, provider)).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+  })
+
+  it('uses the provider default only when the model declares nothing', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' } }
+    })
+
+    expect(getModelPreferredEndpoint(makeModel(undefined), provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
 
   it('keeps a runtime suggestion below a valid pin', () => {
