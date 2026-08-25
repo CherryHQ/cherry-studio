@@ -348,7 +348,6 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     openedKeepAliveMiniApps: mocks.openedMiniApps,
     pinned: mocks.pinnedMiniApps,
     currentMiniAppId: '',
-    miniAppShow: false,
     setOpenedKeepAliveMiniApps: mocks.setOpenedKeepAliveMiniApps,
     updateAppStatus: mocks.updateMiniAppStatus,
     removeCustomMiniApp: mocks.removeCustomMiniApp

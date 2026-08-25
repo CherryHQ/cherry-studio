@@ -221,10 +221,29 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
-  const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
-  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
+
+  /**
+   * Exit a mini app: drop it from the keep-alive pool (unmounting its pooled
+   * webview) and clear its webview state. Idempotent — exiting an app that is
+   * not pooled is a no-op. `currentMiniAppId` is reset only when it points at
+   * the exiting app, so exiting a background app never blanks the visible one.
+   */
+  const exitMiniApp = useCallback(
+    (appId: string) => {
+      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
+      setCurrentMiniAppId((prev) => (prev === appId ? '' : prev))
+      // The split pane's app is gone; leaving the pane open would replace it
+      // with a picker the user never asked for.
+      if (splitMiniAppId === appId) {
+        setSplitMiniAppId('')
+        setSplitOpen(false)
+      }
+      clearWebviewState(appId)
+    },
+    [setCurrentMiniAppId, setOpenedKeepAliveMiniApps, setSplitMiniAppId, setSplitOpen, splitMiniAppId]
+  )
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -301,12 +320,16 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    */
   const setAppStatusBulk = useCallback(
     async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status'] }>) => {
-      if (updates.length === 0) return Promise.resolve([] as MiniApp[])
-      return Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status }))).then((results) =>
-        settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
-      )
+      if (updates.length === 0) return [] as MiniApp[]
+      const results = await Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status })))
+      // A hidden app keeps no tile to reopen it, so its pooled webview would
+      // linger unreachable.
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && updates[index].status === 'disabled') exitMiniApp(updates[index].appId)
+      })
+      return settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
     },
-    [patchApp, invalidate]
+    [patchApp, exitMiniApp, invalidate]
   )
 
   const createCustomMiniApp = useCallback(
@@ -327,21 +350,12 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       // so an app opened concurrently during the edit's await is seen here and
       // picks up the new url instead of being missed.
       const openedKeepAliveApp = openedKeepAliveRef.current.find((app) => app.appId === updated.appId)
-      const openedOneOffApp = openedOneOffMiniApp?.appId === updated.appId ? openedOneOffMiniApp : null
-      const urlChanged =
-        (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
-        (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
 
       if (openedKeepAliveApp) {
         setOpenedKeepAliveMiniApps((prev) => prev.map((app) => (app.appId === updated.appId ? updated : app)))
-      }
-
-      if (openedOneOffApp) {
-        setOpenedOneOffMiniApp(updated)
-      }
-
-      if (urlChanged) {
-        setWebviewLoaded(updated.appId, false)
+        if (openedKeepAliveApp.url !== updated.url) {
+          setWebviewLoaded(updated.appId, false)
+        }
       }
 
       const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
@@ -353,33 +367,12 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         }
       }
     },
-    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+    [setOpenedKeepAliveMiniApps, tabsContext]
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(
     (appId: string) => {
-      // Functional update resolves against the latest list, so the prior
-      // `.some(...)` presence guard is redundant: filtering an absent id is a
-      // no-op the cache short-circuits via isEqual.
-      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
-
-      if (openedOneOffMiniApp?.appId === appId) {
-        setOpenedOneOffMiniApp(null)
-      }
-
-      if (currentMiniAppId === appId) {
-        setCurrentMiniAppId('')
-        setMiniAppShow(false)
-      }
-
-      // The split pane's app is gone; leaving the pane open would replace it
-      // with a picker the user never asked for.
-      if (splitMiniAppId === appId) {
-        setSplitMiniAppId('')
-        setSplitOpen(false)
-      }
-
-      clearWebviewState(appId)
+      exitMiniApp(appId)
 
       for (const tab of tabsContext?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === appId) {
@@ -389,19 +382,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
 
       removeSidebarFavoriteMiniApp(appId)
     },
-    [
-      currentMiniAppId,
-      splitMiniAppId,
-      openedOneOffMiniApp,
-      setCurrentMiniAppId,
-      setSplitMiniAppId,
-      setSplitOpen,
-      setMiniAppShow,
-      setOpenedKeepAliveMiniApps,
-      setOpenedOneOffMiniApp,
-      removeSidebarFavoriteMiniApp,
-      tabsContext
-    ]
+    [exitMiniApp, removeSidebarFavoriteMiniApp, tabsContext]
   )
 
   const updateCustomMiniApp = useCallback(
@@ -515,14 +496,11 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     currentMiniAppId,
     splitOpen,
     splitMiniAppId,
-    miniAppShow,
-    openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId,
     setSplitOpen,
     setSplitMiniAppId,
-    setMiniAppShow,
-    setOpenedOneOffMiniApp,
+    exitMiniApp,
     isLoading,
     error,
     refetch,

@@ -45,10 +45,8 @@ const MiniAppTabsPool: React.FC = () => {
     currentMiniAppId,
     splitOpen,
     splitMiniAppId,
-    openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
-    setCurrentMiniAppId,
-    setMiniAppShow
+    setCurrentMiniAppId
   } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
@@ -150,26 +148,15 @@ const MiniAppTabsPool: React.FC = () => {
   // Realign a current id that resolves to no shown app. Always-on, not gated behind orphan
   // cleanup: a stale-snapshot decision then self-heals on the fresh-pool re-run.
   useEffect(() => {
-    // One-off apps live outside the keep-alive pool but legitimately own the current id.
-    if (currentMiniAppId === openedOneOffMiniApp?.appId) return
     if (openedKeepAliveMiniApps.some((app) => app.appId === currentMiniAppId)) return
 
     if (activeMiniAppId && openedKeepAliveMiniApps.some((app) => app.appId === activeMiniAppId)) {
       setCurrentMiniAppId(activeMiniAppId)
-      setMiniAppShow(true)
       return
     }
 
     setCurrentMiniAppId('')
-    setMiniAppShow(false)
-  }, [
-    activeMiniAppId,
-    currentMiniAppId,
-    openedKeepAliveMiniApps,
-    openedOneOffMiniApp,
-    setCurrentMiniAppId,
-    setMiniAppShow
-  ])
+  }, [activeMiniAppId, currentMiniAppId, openedKeepAliveMiniApps, setCurrentMiniAppId])
 
   /** 设置 ref 回调 */
   const handleSetRef = useCallback((appid: string, el: WebviewTag | null) => {
