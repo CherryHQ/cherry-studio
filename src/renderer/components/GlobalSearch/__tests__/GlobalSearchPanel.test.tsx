@@ -367,7 +367,14 @@ vi.mock('@renderer/utils/routeTitle', () => ({
       '/app/openclaw': 'OpenClaw',
       '/app/notes': 'Notes',
       '/app/library': 'Library'
-    })[path] ?? path
+    })[path] ?? path,
+  getSettingsRecentTitle: (url: string) => {
+    const pathname = new URL(url, 'https://www.cherry-ai.com').pathname
+    if (pathname === '/settings/api-gateway') return 'Settings / API Gateway'
+    if (pathname === '/settings/model') return 'Settings / Default Model'
+    if (pathname === '/settings' || pathname.startsWith('/settings/')) return 'Settings'
+    return undefined
+  }
 }))
 
 vi.mock('@data/CacheService', () => ({
@@ -702,6 +709,54 @@ describe('GlobalSearchPanel', () => {
       expect(searchInput).toHaveAttribute('aria-activedescendant', recentOption.id)
       expect(recentOption).toHaveAttribute('id', getGlobalSearchOptionDomId('topic:topic-1'))
     })
+  })
+
+  it('shows distinct recent labels for different settings subpages and opens the matching urls', async () => {
+    // Regression: two settings recents both stored with the coarse tab title "Settings"
+    // so the empty-query panel could not tell API Gateway from Default Model.
+    const user = userEvent.setup()
+    mocks.recentItems = [
+      {
+        kind: 'route',
+        url: '/settings/api-gateway',
+        title: 'Settings',
+        icon: 'settings',
+        lastAccessTime: 20
+      },
+      {
+        kind: 'route',
+        url: '/settings/model',
+        title: 'Settings',
+        icon: 'settings',
+        lastAccessTime: 10
+      }
+    ]
+
+    const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const apiGatewayOption = screen.getByRole('option', { name: /Settings \/ API Gateway/ })
+    const defaultModelOption = screen.getByRole('option', { name: /Settings \/ Default Model/ })
+    expect(apiGatewayOption).toBeInTheDocument()
+    expect(defaultModelOption).toBeInTheDocument()
+
+    await user.click(apiGatewayOption)
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/api-gateway', {
+      title: 'Settings / API Gateway',
+      icon: 'settings'
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+
+    unmount()
+    mocks.openTab.mockClear()
+    mocks.onClose.mockClear()
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('option', { name: /Settings \/ Default Model/ }))
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/model', {
+      title: 'Settings / Default Model',
+      icon: 'settings'
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
   it('renders recent results before search and search results after typing', async () => {

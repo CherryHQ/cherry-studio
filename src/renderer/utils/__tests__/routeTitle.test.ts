@@ -17,7 +17,11 @@ vi.mock('@renderer/i18n/resolver', () => ({
         'title.code': 'Code',
         'title.notes': '笔记',
         'settings.about.releases.title': '更新日志',
-        'title.settings': '设置'
+        'title.settings': '设置',
+        'apiGateway.title': 'API 网关',
+        'settings.model': '默认模型',
+        'settings.provider.title': '模型服务',
+        'agent.settings.toolsMcp.mcp.tab': 'MCP'
       }
       return translations[key] || key
     })
@@ -27,6 +31,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 import {
   getDefaultRouteTitle,
   getRouteTitleKey,
+  getSettingsRecentTitle,
   isPageTitledRoute,
   isTopLevelRoute,
   shouldAutoLocalizeRouteTitle
@@ -110,6 +115,26 @@ describe('routeTitle', () => {
         expect(getDefaultRouteTitle('app/chat')).toBe('对话')
         expect(getDefaultRouteTitle('./app/chat')).toBe('对话')
       })
+    })
+  })
+
+  describe('getSettingsRecentTitle', () => {
+    it('keeps the coarse Settings label on the root route and unmatched subpages', () => {
+      expect(getSettingsRecentTitle('/settings')).toBe('设置')
+      expect(getSettingsRecentTitle('/settings/')).toBe('设置')
+      expect(getSettingsRecentTitle('/settings/system')).toBe('设置')
+    })
+
+    it('joins Settings with the matching navigation label for known subpages', () => {
+      expect(getSettingsRecentTitle('/settings/api-gateway')).toBe('设置 / API 网关')
+      expect(getSettingsRecentTitle('/settings/model')).toBe('设置 / 默认模型')
+      expect(getSettingsRecentTitle('/settings/provider?id=openai')).toBe('设置 / 模型服务')
+      expect(getSettingsRecentTitle('/settings/mcp/servers')).toBe('设置 / MCP')
+    })
+
+    it('does not apply settings recents titles to non-settings routes', () => {
+      expect(getSettingsRecentTitle('/app/chat')).toBeUndefined()
+      expect(getSettingsRecentTitle('/app/settings')).toBeUndefined()
     })
   })
 
