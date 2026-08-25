@@ -1,7 +1,5 @@
 import { expect, test } from './fixture'
 
-test.use({ profile: 'clean' })
-
 test('[S-01] 应用启动冒烟测试 @startup-smoke', async ({ mainWindow: page }) => {
   await expect(page).toHaveTitle('Cherry Studio')
   await expect(page.locator('#root')).toBeVisible()

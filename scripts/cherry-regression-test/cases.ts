@@ -3,7 +3,7 @@ import type { RegressionCase } from './types'
 const modes = ['branch', 'tag'] as const
 
 export const REGRESSION_CASES: RegressionCase[] = [
-  { id: 'S-01', title: '应用启动冒烟测试', task: 'startup-smoke', profile: 'clean', modes: [...modes] },
+  { id: 'S-01', title: '应用启动冒烟测试', task: 'startup-smoke', profile: 'authenticated', modes: [...modes] },
   { id: 'APP-01', title: '打开小程序', task: 'mini-app', profile: 'authenticated', modes: [...modes] },
   { id: 'N-01', title: '创建和保存笔记', task: 'notes', profile: 'authenticated', modes: [...modes] },
   {

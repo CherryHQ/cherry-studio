@@ -76,11 +76,8 @@ describe('regression test manifest', () => {
     ])
   })
 
-  it('uses one clean startup case and one shared authenticated profile afterwards', () => {
-    expect(REGRESSION_CASES[0]).toMatchObject({ modes: ['branch', 'tag'], profile: 'clean' })
-    expect(
-      REGRESSION_CASES.slice(1).every(({ modes, profile }) => profile === 'authenticated' && modes.length === 2)
-    ).toBe(true)
+  it('uses one shared authenticated profile for every case', () => {
+    expect(REGRESSION_CASES.every(({ modes, profile }) => profile === 'authenticated' && modes.length === 2)).toBe(true)
   })
 
   it('maps every manifest case to one Playwright title', () => {
@@ -107,8 +104,8 @@ describe('regression test manifest', () => {
     const taskInput = workflow.slice(workflow.indexOf('      task:'), workflow.indexOf('\npermissions:'))
     const taskOptions = [...taskInput.matchAll(/^\s{10}- ([a-z0-9-]+)$/gm)].map((match) => match[1])
     const phases = workflow.slice(
-      workflow.indexOf('      - name: 阶段 01'),
-      workflow.indexOf('      - name: 生成平台报告')
+      workflow.indexOf('      - name: Phase 01'),
+      workflow.indexOf('      - name: Generate platform report')
     )
 
     expect([...selectedTasks].sort()).toEqual([...TASK_IDS].sort())

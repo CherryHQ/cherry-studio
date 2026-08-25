@@ -167,7 +167,7 @@ async function launchCommand(): Promise<void> {
   await launchApp(paths, {
     mode: run.metadata.mode,
     platform: run.metadata.platform,
-    profile: 'clean',
+    profile: 'authenticated',
     runKey,
     targetRoot
   })
