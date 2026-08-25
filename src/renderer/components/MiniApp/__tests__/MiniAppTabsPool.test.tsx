@@ -11,11 +11,13 @@ vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
     appid,
     url,
     onSetRefCallback,
+    onLoadedCallback,
     onFocusChange
   }: {
     appid: string
     url: string
     onSetRefCallback: (appid: string, el: HTMLElement | null) => void
+    onLoadedCallback?: (appid: string) => void
     onFocusChange?: (appid: string, focused: boolean) => void
   }) => (
     // Forward the ref like the real container does — the pool drives pane
@@ -23,6 +25,7 @@ vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
     <div
       ref={(el) => {
         onSetRefCallback(appid, el)
+        if (onLoadedCallback) mocks.loadHandlers.set(appid, onLoadedCallback)
         if (onFocusChange) mocks.focusHandlers.set(appid, onFocusChange)
       }}
       data-mini-app-id={appid}
@@ -54,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   activeTabId: '',
   clearWebviewState: vi.fn(),
   focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
+  loadHandlers: new Map<string, (appid: string) => void>(),
   contextKeys: [] as Array<{ key: string; value: unknown }>
 }))
 
@@ -92,7 +96,7 @@ vi.mock('@renderer/utils/webviewStateManager', () => ({
   setWebviewLoaded: vi.fn()
 }))
 
-import { clearWebviewState } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
 
@@ -136,6 +140,7 @@ describe('MiniAppTabsPool', () => {
     mocks.setMiniAppShow.mockImplementation(() => undefined)
     mocks.clearWebviewState.mockReset()
     mocks.focusHandlers.clear()
+    mocks.loadHandlers.clear()
     mocks.contextKeys = []
   })
 
@@ -314,6 +319,70 @@ describe('MiniAppTabsPool', () => {
 
     expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha'])
     expect(clearWebviewState).not.toHaveBeenCalled()
+  })
+
+  it('keeps a split-opened app pooled after the split closes', async () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+    mocks.splitOpen = true
+    mocks.splitMiniAppId = 'bravo'
+
+    const { rerender } = render(<MiniAppTabsPool />)
+    expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha', 'bravo'])
+
+    // closeSplit's contract: only the pane closes; the app stays pooled for the cap-LRU.
+    mocks.splitOpen = false
+    mocks.splitMiniAppId = ''
+    act(() => {
+      rerender(<MiniAppTabsPool />)
+    })
+
+    expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha', 'bravo'])
+    expect(clearWebviewState).not.toHaveBeenCalledWith('bravo')
+  })
+
+  it('realigns a current id that references an app missing from the pool', async () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'ghost'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha']))
+    expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('alpha')
+    expect(mocks.setMiniAppShow).toHaveBeenCalledWith(true)
+  })
+
+  it('ignores a load callback that lands after the app was evicted', async () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 't2', url: '/app/mini-app/bravo' }
+    ]
+    mocks.activeTabId = 't1'
+
+    const { rerender } = render(<MiniAppTabsPool />)
+    const staleLoad = mocks.loadHandlers.get('bravo')!
+
+    // Closing bravo's tab evicts it; a webview load event can still be in flight.
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    act(() => {
+      rerender(<MiniAppTabsPool />)
+    })
+    await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha']))
+    // The reactive cache update re-renders the pool, unmounting the evicted webview.
+    act(() => {
+      rerender(<MiniAppTabsPool />)
+    })
+
+    vi.mocked(setWebviewLoaded).mockClear()
+    staleLoad('bravo')
+
+    expect(setWebviewLoaded).not.toHaveBeenCalledWith('bravo', true)
   })
 
   it('trims the oldest unprotected webviews when the keep-alive cap decreases', () => {

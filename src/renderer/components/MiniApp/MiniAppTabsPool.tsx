@@ -129,18 +129,26 @@ const MiniAppTabsPool: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMetadataSignature])
 
+  // closeSplit's contract keeps split-opened apps pooled (the cap-LRU retires them), so remember
+  // every app the split pane ever showed: orphan cleanup only evicts entries no tab references
+  // and the split never owned.
+  const splitPooledIds = useRef(new Set<string>())
+
   useEffect(() => {
-    // The split pane's app owns no tab of its own, so it is exempt from orphan cleanup.
-    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || (splitOpen && appId === splitMiniAppId)
+    if (splitOpen && splitMiniAppId) splitPooledIds.current.add(splitMiniAppId)
+    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || splitPooledIds.current.has(appId)
     const orphanedApps = openedKeepAliveMiniApps.filter((app) => !isReferenced(app.appId))
     if (orphanedApps.length === 0) return
 
+    const kept = openedKeepAliveMiniApps.filter((app) => isReferenced(app.appId))
     setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => isReferenced(app.appId)))
     for (const app of orphanedApps) clearWebviewState(app.appId)
 
-    if (!orphanedApps.some((app) => app.appId === currentMiniAppId)) return
+    // Realign whenever the current id no longer resolves to a pooled app — the stale id may
+    // predate this cleanup rather than be part of it.
+    if (kept.some((app) => app.appId === currentMiniAppId)) return
 
-    if (activeMiniAppId && openedKeepAliveMiniApps.some((app) => app.appId === activeMiniAppId)) {
+    if (activeMiniAppId && kept.some((app) => app.appId === activeMiniAppId)) {
       setCurrentMiniAppId(activeMiniAppId)
       setMiniAppShow(true)
       return
@@ -171,6 +179,8 @@ const MiniAppTabsPool: React.FC = () => {
 
   /** WebView 加载完成回调 */
   const handleLoaded = useCallback((appid: string) => {
+    // A load event can land after the pool evicted the app; don't resurrect its cleared state.
+    if (!webviewRefs.current.has(appid)) return
     setWebviewLoaded(appid, true)
     logger.debug(`TabPool webview loaded: ${appid}`)
   }, [])
