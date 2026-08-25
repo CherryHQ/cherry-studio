@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { setPendingFocus, useSettingsSearchKeyboard } from './store'
 
 // Retry cadence for the target row to mount after navigation (80ms→200ms backoff,
-// ~1.6s total budget), then give up silently — conditional rows may legitimately
+// 1.76s total budget), then give up silently — conditional rows may legitimately
 // never render and we never flip upstream settings to reveal them.
 const RETRY_DELAYS = [80, 80, 200, 200, 200, 200, 200, 200, 200, 200]
 const HIGHLIGHT_MS = 1600

@@ -7,9 +7,14 @@ import { useTranslation } from 'react-i18next'
 
 import { settingsSearchSections } from './aggregate'
 import { rankEntries } from './searchEngine'
-import { publishResults, registerJumpHandler, setPendingFocus, useSettingsSearchKeyboard } from './store'
-
-const optionDomId = (index: number) => `settings-search-option-${index}`
+import {
+  publishResults,
+  registerJumpHandler,
+  setPendingFocus,
+  SETTINGS_SEARCH_LISTBOX_ID,
+  settingsSearchOptionDomId,
+  useSettingsSearchKeyboard
+} from './store'
 
 /**
  * Results page for the hidden /settings/search route. Flat list of ranked
@@ -45,7 +50,7 @@ const SearchResultsPage = () => {
 
   // Keep the keyboard-selected row in view
   useEffect(() => {
-    listRef.current?.querySelector(`#${optionDomId(activeIndex)}`)?.scrollIntoView({ block: 'nearest' })
+    listRef.current?.querySelector(`#${settingsSearchOptionDomId(activeIndex)}`)?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
 
   if (!results.length) {
@@ -61,13 +66,14 @@ const SearchResultsPage = () => {
       <div
         ref={listRef}
         role="listbox"
+        id={SETTINGS_SEARCH_LISTBOX_ID}
         aria-label={t('settings.search.results')}
         className="flex flex-col gap-0.5"
         data-ui="settings.search.results">
         {results.map((result, index) => (
           <button
             key={`${result.route}-${result.focusId ?? 'section'}-${index}`}
-            id={optionDomId(index)}
+            id={settingsSearchOptionDomId(index)}
             type="button"
             role="option"
             aria-selected={index === activeIndex}

@@ -29,6 +29,7 @@ import {
   settingsContentHeaderTitleClassName,
   settingsContentScrollClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { shortcutAnchorId } from '@renderer/pages/settings/shortcut.search'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -541,7 +542,7 @@ const ShortcutSettings: FC = () => {
       <div
         key={record.key}
         ref={record.command === focusedCommand ? focusedRowRef : undefined}
-        id={`setting-shortcut-${record.command.replace(/[._]/g, '-')}`}
+        id={`setting-shortcut-${shortcutAnchorId(record.command)}`}
         data-focused={record.command === focusedCommand || undefined}
         className={cn(
           'grid scroll-mt-6 grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',

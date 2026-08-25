@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { describe, expect, it } from 'vitest'
@@ -14,6 +17,36 @@ function lookup(locale: unknown, key: string): unknown {
   }, locale)
 }
 
+/** Every *.search.ts the aggregator would glob — drift must fail here, not silently */
+const globbedSearchModules = import.meta.glob('../../**/*.search.ts', { eager: true }) as Record<
+  string,
+  { route?: unknown }
+>
+
+const SCAN_ROOTS = [resolve('src/renderer/pages/settings'), resolve('src/renderer/components/chat/settings')]
+
+/** Collects literal `id="setting-…"` / `'setting-…'` strings plus `id={`setting-…-${` dynamic prefixes */
+function collectAnchorIds(root: string, literals: Set<string>, dynamicPrefixes: Set<string>) {
+  for (const name of readdirSync(root)) {
+    const full = resolve(root, name)
+    if (statSync(full).isDirectory()) {
+      if (name === '__tests__') continue
+      collectAnchorIds(full, literals, dynamicPrefixes)
+    } else if (/\.tsx?$/.test(name)) {
+      const src = readFileSync(full, 'utf8')
+      for (const m of src.matchAll(/['"](setting-[a-z0-9-]+)['"]/g)) literals.add(m[1])
+      for (const m of src.matchAll(/id=\{`(setting-[a-z0-9-]+)-\$\{/g)) dynamicPrefixes.add(m[1])
+    }
+  }
+}
+
+const literalAnchorIds = new Set<string>()
+const dynamicAnchorPrefixes = new Set<string>()
+for (const root of SCAN_ROOTS) collectAnchorIds(root, literalAnchorIds, dynamicAnchorPrefixes)
+
+const anchorExists = (domId: string) =>
+  literalAnchorIds.has(domId) || [...dynamicAnchorPrefixes].some((prefix) => domId.startsWith(`${prefix}-`))
+
 describe('settings search index', () => {
   it('exposes one searchable section per menu entry, in menu order', () => {
     expect(settingsSearchSections.map((s) => s.route)).toEqual(settingsMenu.map((m) => m.route))
@@ -27,10 +60,14 @@ describe('settings search index', () => {
     }
   })
 
-  it('indexes only sections registered in the menu (glob modules with unknown routes are dropped)', () => {
+  it('registers every globbed *.search.ts module under a menu route (a route typo must fail)', () => {
+    const files = Object.keys(globbedSearchModules)
+    // Guard the guard: a broken glob would otherwise pass vacuously
+    expect(files.length).toBeGreaterThanOrEqual(5)
     const menuRoutes = new Set(settingsMenu.map((m) => m.route))
-    for (const section of settingsSearchSections) {
-      expect(menuRoutes.has(section.route), `section ${section.route} not in menu`).toBe(true)
+    for (const [file, mod] of Object.entries(globbedSearchModules)) {
+      expect(mod.route, `${file} must export a route string`).toBeTypeOf('string')
+      expect(menuRoutes.has(mod.route as string), `${file} route "${mod.route}" is not in the menu`).toBe(true)
     }
   })
 
@@ -49,6 +86,17 @@ describe('settings search index', () => {
         const domId = getSettingDomId(entry.route ?? section.route, entry.anchorId)
         expect(domIds.has(domId), `duplicate dom id ${domId}`).toBe(false)
         domIds.add(domId)
+      }
+    }
+  })
+
+  it('every indexed focus id exists as an anchor in the settings TSX (dead anchors must fail)', () => {
+    // Guard the guard: the scan must have found the hand-written anchors
+    expect(literalAnchorIds.size).toBeGreaterThan(50)
+    for (const section of settingsSearchSections) {
+      for (const entry of section.entries) {
+        const domId = getSettingDomId(entry.route ?? section.route, entry.anchorId)
+        expect(anchorExists(domId), `no JSX anchor found for ${domId}`).toBe(true)
       }
     }
   })

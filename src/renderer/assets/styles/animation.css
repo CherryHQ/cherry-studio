@@ -325,3 +325,9 @@
   animation: search-hit-flash 1.6s ease-out;
   border-radius: 10px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .search-hit-highlight {
+    animation: none;
+  }
+}

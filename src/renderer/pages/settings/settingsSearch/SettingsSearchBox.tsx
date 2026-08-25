@@ -4,7 +4,13 @@ import { useLocation, useNavigate, useRouter, useSearch } from '@tanstack/react-
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { moveActiveIndex, requestJump } from './store'
+import {
+  moveActiveIndex,
+  requestJump,
+  SETTINGS_SEARCH_LISTBOX_ID,
+  settingsSearchOptionDomId,
+  useSettingsSearchKeyboard
+} from './store'
 
 const SEARCH_DEBOUNCE_MS = 150
 
@@ -23,6 +29,8 @@ const SettingsSearchBox = () => {
 
   const isSearchPage = location.pathname === '/settings/search'
   const urlQuery = isSearchPage && typeof search.q === 'string' ? search.q : ''
+  const { activeIndex, resultCount } = useSettingsSearchKeyboard()
+  const hasResults = isSearchPage && resultCount > 0
   const [value, setValue] = useState(urlQuery)
   // Tracks the previous input value across effect passes — distinguishes a
   // user-initiated clear from a deep-link seed still in flight
@@ -89,6 +97,11 @@ const SettingsSearchBox = () => {
         value={value}
         placeholder={t('settings.search.placeholder')}
         aria-label={t('settings.search.placeholder')}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={hasResults}
+        aria-controls={isSearchPage ? SETTINGS_SEARCH_LISTBOX_ID : undefined}
+        aria-activedescendant={hasResults ? settingsSearchOptionDomId(activeIndex) : undefined}
         className={cn(isSearchPage && 'border-primary')}
         onChange={(e) => setValue(e.target.value)}
         onClear={exitSearch}
