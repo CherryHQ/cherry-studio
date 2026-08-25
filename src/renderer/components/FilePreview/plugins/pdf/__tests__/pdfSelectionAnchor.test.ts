@@ -36,6 +36,19 @@ describe('selectionToPdfAnchor', () => {
     expect(result?.excerpt).toBe('first page text')
   })
 
+  it('returns null when the clip leaves nothing, instead of quoting an empty excerpt', () => {
+    // Starting at the very end of page 1 and running into page 2: the clip to the end of page 1
+    // covers no text at all, so there is nothing to quote.
+    const page1 = buildPage(1, 'first page text')
+    const page2 = buildPage(2, 'second page text')
+
+    const range = document.createRange()
+    range.setStart(page1.textNode, page1.textNode.length)
+    range.setEnd(page2.textNode, page2.textNode.length)
+
+    expect(selectionToPdfAnchor(fakeSelection(range))).toBeNull()
+  })
+
   it('returns null for a collapsed selection', () => {
     const { textNode } = buildPage(1, 'only page text')
     const range = document.createRange()
