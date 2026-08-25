@@ -477,6 +477,14 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
     })
 
+    it('preserves equals signs in literal Bash paths', async () => {
+      const knowledgeDatabase = path.join(userDataPath, 'Data', 'KnowledgeBase', 'name=value.sqlite')
+
+      await expect(
+        evaluate(makeCtx({ cwd: systemWorkspace, input: { command: `sqlite3 "${knowledgeDatabase}" "vacuum"` } }))
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+    })
+
     it('resolves Bash paths from the current directory and tracks cd', async () => {
       await mkdir(path.join(userDataPath, 'Data', 'KnowledgeBase'), { recursive: true })
       const relativeDatabase = path.join('..', '..', '..', '..', 'cherrystudio.sqlite')

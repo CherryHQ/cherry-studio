@@ -159,11 +159,15 @@ function expandShellHomePath(requestedPath: string, homePath: string): string {
   return expandHomePath(normalizeShellPathText(requestedPath), normalizeShellPathText(path.resolve(homePath)))
 }
 
-function pathFromShellWord(word: string): string | undefined {
+function pathsFromShellWord(word: string): string[] {
   const normalizedWord = normalizeShellPathText(word).replace(/[,)}\]]+$/, '')
-  const pathText = normalizedWord.slice(normalizedWord.lastIndexOf('=') + 1).replace(/^file:/i, '')
-  const pathWithoutQuery = pathText.replace(/[?#].*$/, '')
-  return pathWithoutQuery || undefined
+  const pathTexts = [normalizedWord]
+  const assignmentIndex = normalizedWord.lastIndexOf('=')
+  if (assignmentIndex >= 0) pathTexts.push(normalizedWord.slice(assignmentIndex + 1))
+
+  return [
+    ...new Set(pathTexts.map((pathText) => pathText.replace(/^file:/i, '').replace(/[?#].*$/, '')).filter(Boolean))
+  ]
 }
 
 function directoryFromCdWords(words: readonly string[], homePath: string): string | undefined {
@@ -254,9 +258,10 @@ export async function commandReferencesUserDataSqlite(
       continue
     }
     for (const word of words) {
-      const requestedPath = pathFromShellWord(word)
-      if (requestedPath && (await isUserDataSqlitePathWithinRoots(requestedPath, shellCwd, homePath, roots, signal))) {
-        return true
+      for (const requestedPath of pathsFromShellWord(word)) {
+        if (await isUserDataSqlitePathWithinRoots(requestedPath, shellCwd, homePath, roots, signal)) {
+          return true
+        }
       }
     }
 
