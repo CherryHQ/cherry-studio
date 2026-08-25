@@ -11,8 +11,8 @@ import {
   PROVIDER_WEB_SEARCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { lazy, Suspense } from 'react'
 
-import { AgentExecutionTimeline } from './agent'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
 import { isGenerateImageToolName } from './painting/generateImageTool'
@@ -23,6 +23,9 @@ import { MessageWebSearchToolTitle } from './webSearch/MessageWebSearch'
 const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'
 const agentTools = new Set<string>(Object.values(AgentToolsType))
+const AgentExecutionTimeline = lazy(() =>
+  import('./agent/AgentExecutionTimeline').then(({ AgentExecutionTimeline }) => ({ default: AgentExecutionTimeline }))
+)
 /** cherry-tools that carry short wire names rather than the `mcp__` prefix. */
 const CHERRY_AGENT_TOOL_NAMES = new Set([
   'web_fetch',
@@ -47,6 +50,14 @@ const isAgentTool = (toolName: string) => {
   return false
 }
 
+function renderAgentTool(toolResponse: NormalToolResponse) {
+  return (
+    <Suspense fallback={null}>
+      <AgentExecutionTimeline toolResponse={toolResponse} />
+    </Suspense>
+  )
+}
+
 export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | null {
   const toolName = toolResponse.tool.name
   if (isMetaToolName(toolName)) {
@@ -65,11 +76,11 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   }
   // Short-name tools without a bespoke card render through the standard agent tool-call card.
   if (CHERRY_AGENT_TOOL_NAMES.has(toolName)) {
-    return <AgentExecutionTimeline toolResponse={toolResponse} />
+    return renderAgentTool(toolResponse)
   }
 
   if (isAskUserQuestionToolName(toolName)) {
-    return <AgentExecutionTimeline toolResponse={toolResponse} />
+    return renderAgentTool(toolResponse)
   }
 
   // Historical `builtin_*` prefix kept for messages already stored in DB.
@@ -90,7 +101,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     isAgentTool(toolName) ||
     (toolResponse.tool.type === 'provider' && CHERRY_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName))
   ) {
-    return <AgentExecutionTimeline toolResponse={toolResponse} />
+    return renderAgentTool(toolResponse)
   }
   return null
 }

@@ -4,16 +4,13 @@ import type { McpTool } from '@renderer/types/tool'
 import { normalizeToolOutputResponse } from '@renderer/utils/message/toolOutput'
 import type { DeferredToolOutput } from '@shared/ai/transport'
 import { envelopeDisplayExcerpt, isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
-import { useMemo } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
 
 import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 import { useOptionalMessageListTopicId } from '../MessageListProvider'
-import {
-  CreateAgentToolInline,
-  getCreateAgentResult,
-  isReportArtifactsToolResponse,
-  MessageChannelConfigTool
-} from './agent'
+import { getCreateAgentResult } from './agent/createAgentResult'
+import { CreateAgentToolInline } from './agent/CreateAgentTool'
+import { isReportArtifactsToolResponse } from './agent/ReportArtifacts'
 import { isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
 import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
@@ -29,6 +26,11 @@ interface Props {
  * Other MCP servers keep the generic card.
  */
 const DEDICATED_AGENT_SERVERS = new Set(['cherry-tools', 'agent-memory'])
+const MessageChannelConfigTool = lazy(() =>
+  import('./agent/MessageChannelConfigTool').then(({ MessageChannelConfigTool }) => ({
+    default: MessageChannelConfigTool
+  }))
+)
 
 function rendersThroughChooseTool(toolResponse: McpToolResponse | NormalToolResponse): boolean {
   const tool = toolResponse.tool
@@ -96,7 +98,11 @@ export default function MessageTools({ toolResponse }: Props) {
   if (createAgentResult) return <CreateAgentToolInline result={createAgentResult} />
   if (isReportArtifactsToolResponse(resolvedToolResponse)) return null
   if (isChannelAuthQrToolResponse(resolvedToolResponse)) {
-    return <MessageChannelConfigTool toolResponse={resolvedToolResponse} />
+    return (
+      <Suspense fallback={null}>
+        <MessageChannelConfigTool toolResponse={resolvedToolResponse} />
+      </Suspense>
+    )
   }
   if (rendersThroughChooseTool(resolvedToolResponse)) {
     return <MessageTool toolResponse={resolvedToolResponse as NormalToolResponse} />

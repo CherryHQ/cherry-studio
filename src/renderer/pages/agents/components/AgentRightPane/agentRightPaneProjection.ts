@@ -4,7 +4,7 @@ import {
   getTaskTitle,
   isTaskRecord,
   normalizeTaskStatus
-} from '@renderer/components/chat/messages/tools/agent'
+} from '@renderer/components/chat/messages/tools/agent/taskData'
 import {
   type AgentToolOutput,
   AgentToolsType,

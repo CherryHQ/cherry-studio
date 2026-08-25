@@ -46,12 +46,9 @@ import React, { useMemo } from 'react'
 import MessageAttachments from '../frame/MessageAttachments'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
-import {
-  getSessionToolTarget,
-  isReportArtifactsToolResponse,
-  MessageReportArtifacts,
-  SessionResultCards
-} from '../tools/agent'
+import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent/ReportArtifacts'
+import { SessionResultCards } from '../tools/agent/SessionResultCards'
+import { getSessionToolTarget } from '../tools/agent/sessionToolResult'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'

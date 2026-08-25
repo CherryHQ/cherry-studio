@@ -1,5 +1,5 @@
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
-import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
+import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent/NavigateTool'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'

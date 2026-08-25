@@ -1,4 +1,4 @@
-import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
+import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent/NavigateTool'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import type { Citation } from '@renderer/types/message'
 import { findCitationInChildren } from '@renderer/utils/markdownLight'

@@ -6,8 +6,9 @@ import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
-import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
+import { AgentToolRenderer } from '../agent/AgentExecutionTimeline'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
+import { isValidAgentToolsType } from '../agent/toolRendererRegistry'
 import MessageTool from '../MessageTool'
 import MessageTools from '../MessageTools'
 
