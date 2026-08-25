@@ -26,7 +26,7 @@ test('[T-01] 文本翻译 @translation', async ({ app, mainWindow: page }) => {
 
   const input = page.locator('[data-ui="translate.input"] textarea')
   await input.fill('CherryStudio Neptune 27182 TRANSLATION_MARKER')
-  await page.getByRole('button', { name: 'Translate', exact: true }).click()
+  await page.locator('[data-ui="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click()
   const output = page.locator('[data-ui="translate.output"]')
   await expect(output).toContainText('Neptune', { timeout: 2 * 60_000 })
   await expect(output).toContainText('27182')
@@ -40,6 +40,9 @@ test('[T-02] PDF 文件翻译 @translation', async ({ app, mainWindow: page }) =
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   await selectTranslationModel(page, app.config.customProvider.chatModel)
+
+  const clear = page.getByText('Clear', { exact: true })
+  if (await clear.isVisible().catch(() => false)) await clear.click()
 
   const chooserPromise = page.waitForEvent('filechooser')
   await page.getByRole('button', { name: 'Drop or click to upload image/document', exact: true }).click()

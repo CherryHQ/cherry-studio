@@ -9,7 +9,7 @@ import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system
 
 async function openCodeTool(page: Page, name: string): Promise<void> {
   await openLaunchpadApp(page, 'Code Mate')
-  await page.getByText(name, { exact: true }).click()
+  await page.getByRole('button', { name, exact: true }).first().click()
 }
 
 async function configureTool(page: Page, model: string, provider?: string): Promise<void> {
@@ -90,7 +90,7 @@ test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) =>
   await expect(page.locator('body')).toContainText(/connected|dashboard/i, { timeout: 60_000 })
 
   await openLaunchpadApp(page, 'Code Mate')
-  await page.getByText('OpenClaw', { exact: true }).click()
+  await page.getByRole('button', { name: 'OpenClaw', exact: true }).first().click()
   await page.getByRole('button', { name: 'Stop', exact: true }).click()
   await expect.poll(() => observeOwnedProcess(app.record, 'openclaw', false).passed, { timeout: 60_000 }).toBe(true)
 })

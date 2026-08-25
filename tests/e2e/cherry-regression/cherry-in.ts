@@ -8,7 +8,7 @@ import { openSettingsSection } from './models'
 
 export async function ensureCherryInSignedIn(app: RegressionApp, page: Page): Promise<void> {
   await openSettingsSection(page, 'Model Provider')
-  await page.getByRole('button', { name: 'CherryIN', exact: true }).click()
+  await page.getByTestId('provider-list-item-cherryin').click()
   const authorize = page.getByRole('button', { name: 'Authorize with CherryIN', exact: true })
   if (await authorize.isVisible().catch(() => false)) {
     await page.evaluate(() => {

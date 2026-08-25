@@ -29,7 +29,11 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
     await page.getByRole('button', { name: 'Add', exact: true }).click()
   }
 
-  await page.getByText(EMBEDDING_PROVIDER, { exact: true }).first().click()
+  const providerHeading = page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })
+  if (!(await providerHeading.isVisible().catch(() => false))) {
+    await page.locator('[data-testid^="provider-list-item-"]').filter({ hasText: EMBEDDING_PROVIDER }).first().click()
+  }
+  await expect(providerHeading).toBeVisible()
   const enabled = page.getByRole('switch').last()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
   if (

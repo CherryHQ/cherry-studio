@@ -7,7 +7,7 @@ import { closeSettings } from './models'
 test('[K-01] 配置嵌入服务商并创建知识库 @knowledge-import', async ({ app, mainWindow }) => {
   let page = mainWindow
   await ensureEmbeddingProvider(app, page)
-  await expect(page.getByText(EMBEDDING_PROVIDER, { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })).toBeVisible()
   await expect(page.getByText(app.config.customEmbeddingProvider.model, { exact: true })).toBeVisible()
   await closeSettings(page)
   await ensureKnowledgeBase(app, page)

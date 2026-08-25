@@ -45,7 +45,10 @@ async function addModel(page: Page, model: string): Promise<void> {
 export async function ensureCustomChatProvider(app: RegressionApp, page: Page): Promise<void> {
   const { baseUrl, apiKey, chatModel } = app.config.customProvider
   await openSettingsSection(page, 'Model Provider')
-  const providerItem = page.locator('[data-testid^="provider-list-item-"]').filter({ hasText: CUSTOM_CHAT_PROVIDER })
+  const providerItem = page
+    .locator('[data-testid^="provider-list-item-"]')
+    .filter({ hasText: CUSTOM_CHAT_PROVIDER })
+    .first()
 
   if (!(await providerItem.isVisible().catch(() => false))) {
     await page.getByRole('button', { name: 'Add Provider', exact: true }).click()
