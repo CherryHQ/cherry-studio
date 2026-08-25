@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => ({
   currentMiniAppId: '',
   splitOpen: false,
   splitMiniAppId: '',
+  openedOneOffMiniApp: null as MiniApp | null,
   maxKeepAliveMiniApps: 10,
   setOpenedKeepAliveMiniApps: vi.fn(),
   setCurrentMiniAppId: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     currentMiniAppId: mocks.currentMiniAppId,
     splitOpen: mocks.splitOpen,
     splitMiniAppId: mocks.splitMiniAppId,
+    openedOneOffMiniApp: mocks.openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps: mocks.setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId: mocks.setCurrentMiniAppId,
     setMiniAppShow: mocks.setMiniAppShow
@@ -127,6 +129,7 @@ describe('MiniAppTabsPool', () => {
     mocks.currentMiniAppId = ''
     mocks.splitOpen = false
     mocks.splitMiniAppId = ''
+    mocks.openedOneOffMiniApp = null
     mocks.maxKeepAliveMiniApps = 10
     mocks.setOpenedKeepAliveMiniApps.mockReset()
     mocks.tabs = []
@@ -273,10 +276,14 @@ describe('MiniAppTabsPool', () => {
     ]
     mocks.activeTabId = 'home'
 
-    render(<MiniAppTabsPool />)
+    const { rerender } = render(<MiniAppTabsPool />)
 
     await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha']))
     expect(clearWebviewState).toHaveBeenCalledWith('bravo')
+    // The reactive cache re-renders the pool; realign observes the fresh pool there.
+    act(() => {
+      rerender(<MiniAppTabsPool />)
+    })
     expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('')
     expect(mocks.setMiniAppShow).toHaveBeenCalledWith(false)
   })
@@ -287,10 +294,13 @@ describe('MiniAppTabsPool', () => {
     mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
     mocks.activeTabId = 't1'
 
-    render(<MiniAppTabsPool />)
+    const { rerender } = render(<MiniAppTabsPool />)
 
     await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha']))
     expect(clearWebviewState).toHaveBeenCalledWith('bravo')
+    act(() => {
+      rerender(<MiniAppTabsPool />)
+    })
     expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('alpha')
     expect(mocks.setMiniAppShow).toHaveBeenCalledWith(true)
   })
@@ -301,10 +311,13 @@ describe('MiniAppTabsPool', () => {
     mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
     mocks.activeTabId = 't1'
 
-    render(<MiniAppTabsPool />)
+    const { rerender } = render(<MiniAppTabsPool />)
 
     await waitFor(() => expect(mocks.openedKeepAliveMiniApps).toEqual([]))
     expect(clearWebviewState).toHaveBeenCalledWith('bravo')
+    act(() => {
+      rerender(<MiniAppTabsPool />)
+    })
     expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('')
     expect(mocks.setMiniAppShow).toHaveBeenCalledWith(false)
   })
@@ -354,6 +367,70 @@ describe('MiniAppTabsPool', () => {
     await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha']))
     expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('alpha')
     expect(mocks.setMiniAppShow).toHaveBeenCalledWith(true)
+  })
+
+  it('keeps an app current when it joins the pool between render and orphan cleanup (in-place tab switch)', async () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/bravo' }]
+    mocks.activeTabId = 't1'
+
+    // MiniAppPage's passive effect commits bravo to the store before the pool's
+    // cleanup effect runs — the pool's closures still hold the pre-bravo snapshot.
+    const { rerender } = render(
+      <>
+        <PassiveEffectProbe
+          onEffect={() => {
+            mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+            mocks.currentMiniAppId = 'bravo'
+          }}
+        />
+        <MiniAppTabsPool />
+      </>
+    )
+    await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['bravo']))
+    expect(clearWebviewState).toHaveBeenCalledWith('alpha')
+
+    // The store update re-renders the pool; realign must not have hidden bravo meanwhile.
+    act(() => {
+      rerender(
+        <>
+          <PassiveEffectProbe onEffect={() => undefined} />
+          <MiniAppTabsPool />
+        </>
+      )
+    })
+
+    expect(mocks.currentMiniAppId).toBe('bravo')
+    expect(mocks.setMiniAppShow).not.toHaveBeenCalledWith(false)
+  })
+
+  it('realigns a dangling current id even when no orphan cleanup runs', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'ghost'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    expect(mocks.setOpenedKeepAliveMiniApps).not.toHaveBeenCalled()
+    expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('alpha')
+    expect(mocks.setMiniAppShow).toHaveBeenCalledWith(true)
+  })
+
+  it('leaves a one-off current app untouched while orphan cleanup evicts pooled apps', async () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.openedOneOffMiniApp = stubApp('solo')
+    mocks.currentMiniAppId = 'solo'
+    mocks.tabs = [{ id: 'home', url: '/app/translate' }]
+    mocks.activeTabId = 'home'
+
+    render(<MiniAppTabsPool />)
+
+    await waitFor(() => expect(mocks.openedKeepAliveMiniApps).toEqual([]))
+    expect(clearWebviewState).toHaveBeenCalledWith('alpha')
+    expect(mocks.setCurrentMiniAppId).not.toHaveBeenCalled()
+    expect(mocks.setMiniAppShow).not.toHaveBeenCalledWith(false)
   })
 
   it('ignores a load callback that lands after the app was evicted', async () => {
