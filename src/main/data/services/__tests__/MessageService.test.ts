@@ -482,7 +482,7 @@ describe('MessageService', () => {
     })
   })
 
-  describe('listLiveCreatedInRange', () => {
+  describe('listLiveCreatedInRangePage', () => {
     it('returns only live content messages within the closed range in stable newest-first order', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 'topic-range-a', activeNodeId: null, orderKey: 'ba0' },
@@ -576,10 +576,18 @@ describe('MessageService', () => {
         }
       ])
 
-      const messages = messageService.listLiveCreatedInRange({ fromMs: 100, toMs: 300 })
+      const firstPage = messageService.listLiveCreatedInRangePage({ fromMs: 100, toMs: 300, limit: 2 })
+      const secondPage = messageService.listLiveCreatedInRangePage({
+        fromMs: 100,
+        toMs: 300,
+        limit: 2,
+        cursor: firstPage.nextCursor
+      })
 
-      expect(messages.map((message) => message.id)).toEqual(['range-end', 'range-tie-z', 'range-tie-a', 'range-start'])
-      expect(messages.map((message) => message.createdAt)).toEqual([
+      expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
+      expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
+      expect(secondPage.nextCursor).toBeUndefined()
+      expect([...firstPage.items, ...secondPage.items].map((message) => message.createdAt)).toEqual([
         '1970-01-01T00:00:00.300Z',
         '1970-01-01T00:00:00.200Z',
         '1970-01-01T00:00:00.200Z',

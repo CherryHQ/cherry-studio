@@ -55,7 +55,12 @@ function chatCollection(
   candidates: ChatRecordCandidate[],
   warnings: ChatRecordCollection['warnings'] = new Set()
 ): ChatRecordCollection {
-  return { candidates, warnings }
+  return {
+    candidates: (async function* () {
+      yield* candidates
+    })(),
+    warnings
+  }
 }
 
 function formatLogDate(timestamp: number): string {
@@ -255,7 +260,7 @@ describe('DiagnosticBundleService', () => {
       expect(JSON.parse(zip.contents['chats/agent-session-messages.jsonl'].toString('utf8'))).toEqual(agentMessage)
 
       const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
-      const expectedBytes = chatRecordCollector.chatRecordStats(collection.candidates).bytes
+      const expectedBytes = chatRecordCollector.chatRecordStats(candidates).bytes
       expect(manifest).toMatchObject({
         schemaVersion: 2,
         privacy: { containsUnredactedData: true },
@@ -339,7 +344,7 @@ describe('DiagnosticBundleService', () => {
       expect(manifest.sources.chatRecords).toEqual({
         included: { bytes: 0, messageCount: 0, recordCount: 0 },
         omitted: {
-          bytes: chatRecordCollector.chatRecordStats(collection.candidates).bytes,
+          bytes: chatRecordCollector.chatRecordStats([candidate]).bytes,
           messageCount: 1,
           recordCount: 2
         }

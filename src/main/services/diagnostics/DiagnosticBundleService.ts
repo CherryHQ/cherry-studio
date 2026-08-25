@@ -29,6 +29,7 @@ import {
   type ChatRecordCollection,
   chatRecordStats,
   collectChatRecords,
+  scanChatRecordStats,
   stageChatRecords
 } from './chatRecordCollector'
 import { feishuAnonymousFormClient } from './FeishuAnonymousFormClient'
@@ -40,8 +41,9 @@ import {
   stageSourceCandidate
 } from './sourceCollector'
 import {
+  compareBudgetCandidates,
+  createDiagnosticBudgetSelector,
   type DiagnosticBudgetCandidate,
-  selectBudgetCandidates,
   toChatBudgetCandidate,
   toFileBudgetCandidate
 } from './sourceSelection'
@@ -118,7 +120,10 @@ function candidateStats(candidates: readonly SourceCandidate[], kind: 'logs' | '
 }
 
 function emptyChatRecordCollection(): ChatRecordCollection {
-  return { candidates: [], warnings: new Set() }
+  return {
+    candidates: (async function* () {})(),
+    warnings: new Set()
+  }
 }
 
 function mergeWarnings(target: Set<DiagnosticWarning>, source: ReadonlySet<DiagnosticWarning>): void {
@@ -127,33 +132,92 @@ function mergeWarnings(target: Set<DiagnosticWarning>, source: ReadonlySet<Diagn
 
 type BundleSourceCandidate = ChatRecordCandidate | SourceCandidate
 
-function isChatRecordCandidate(candidate: BundleSourceCandidate): candidate is ChatRecordCandidate {
-  return candidate.kind === 'chatRecords'
-}
-
-function selectBundleSources(
+async function selectBundleSources(
   fileCandidates: readonly SourceCandidate[],
-  chatCandidates: readonly ChatRecordCandidate[]
-): {
-  omittedChats: ChatRecordCandidate[]
+  chatCollection: ChatRecordCollection
+): Promise<{
+  allChatStats: ChatRecordStats
+  omittedChats: boolean
   omittedFiles: SourceCandidate[]
   selectedChats: ChatRecordCandidate[]
   selectedFiles: SourceCandidate[]
-} {
-  const budgetCandidates: DiagnosticBudgetCandidate<BundleSourceCandidate>[] = [
-    ...fileCandidates.map(toFileBudgetCandidate),
-    ...chatCandidates.map(toChatBudgetCandidate)
-  ]
-  const selection = selectBudgetCandidates(budgetCandidates, DIAGNOSTIC_SOURCE_LIMIT_BYTES)
+}> {
+  const sortedFiles = fileCandidates.map(toFileBudgetCandidate).sort(compareBudgetCandidates)
+  const chatIterator = chatCollection.candidates[Symbol.asyncIterator]()
+  const selectedChats: ChatRecordCandidate[] = []
+  const selectedFileCandidates = new Set<DiagnosticBudgetCandidate<SourceCandidate>>()
+  const selector = createDiagnosticBudgetSelector(DIAGNOSTIC_SOURCE_LIMIT_BYTES)
+  const chatRecordKeys = new Set<string>()
+  const allChatStats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
+
+  const observeChat = (candidate: ChatRecordCandidate): void => {
+    allChatStats.messageCount += 1
+    for (const part of candidate.parts) {
+      if (chatRecordKeys.has(part.key)) continue
+      chatRecordKeys.add(part.key)
+      allChatStats.bytes += part.bytes
+      allChatStats.recordCount += 1
+    }
+  }
+
+  const trySelect = (candidate: DiagnosticBudgetCandidate<BundleSourceCandidate>): void => {
+    const result = selector.trySelect(candidate)
+    if (!result.selected) return
+    if (candidate.item.kind === 'chatRecords') {
+      const selectedPartKeys = new Set(result.selectedPartKeys)
+      selectedChats.push({
+        ...candidate.item,
+        parts: candidate.item.parts.filter((part) => selectedPartKeys.has(part.key))
+      })
+    } else {
+      selectedFileCandidates.add(candidate as DiagnosticBudgetCandidate<SourceCandidate>)
+    }
+  }
+
+  const firstChatResult = await chatIterator.next()
+  const firstChat = firstChatResult.done ? undefined : toChatBudgetCandidate(firstChatResult.value)
+  if (firstChat) observeChat(firstChat.item)
+
+  const representatives: DiagnosticBudgetCandidate<BundleSourceCandidate>[] = []
+  for (const kind of ['logs', 'traces'] as const) {
+    const representative = sortedFiles.find((candidate) => candidate.kind === kind)
+    if (representative) representatives.push(representative)
+  }
+  if (firstChat) representatives.push(firstChat)
+  for (const representative of representatives.sort(compareBudgetCandidates)) trySelect(representative)
+
+  const representativeSet = new Set(representatives)
+  const remainingFiles = sortedFiles.filter((candidate) => !representativeSet.has(candidate))
+  let fileIndex = 0
+  let chatResult = await chatIterator.next()
+  let currentChat = chatResult.done ? undefined : toChatBudgetCandidate(chatResult.value)
+  if (currentChat) observeChat(currentChat.item)
+
+  while (fileIndex < remainingFiles.length || currentChat) {
+    const file = remainingFiles[fileIndex]
+    if (file && (!currentChat || compareBudgetCandidates(file, currentChat) <= 0)) {
+      trySelect(file)
+      fileIndex += 1
+      continue
+    }
+
+    if (!currentChat) break
+    trySelect(currentChat)
+    chatResult = await chatIterator.next()
+    currentChat = chatResult.done ? undefined : toChatBudgetCandidate(chatResult.value)
+    if (currentChat) observeChat(currentChat.item)
+  }
+
   return {
-    omittedChats: selection.omitted.filter(isChatRecordCandidate),
-    omittedFiles: selection.omitted.filter(
-      (candidate): candidate is SourceCandidate => !isChatRecordCandidate(candidate)
-    ),
-    selectedChats: selection.selected.filter(isChatRecordCandidate),
-    selectedFiles: selection.selected.filter(
-      (candidate): candidate is SourceCandidate => !isChatRecordCandidate(candidate)
-    )
+    allChatStats,
+    omittedChats: allChatStats.messageCount > selectedChats.length,
+    omittedFiles: sortedFiles
+      .filter((candidate) => !selectedFileCandidates.has(candidate))
+      .map((candidate) => candidate.item),
+    selectedChats,
+    selectedFiles: sortedFiles
+      .filter((candidate) => selectedFileCandidates.has(candidate))
+      .map((candidate) => candidate.item)
   }
 }
 
@@ -297,9 +361,9 @@ export class DiagnosticBundleService {
     const range = toTimeRange(rangeName, Date.now())
     const collection = await collectDiagnosticSources(range, { includeLogs: true, includeTraces: true })
     const chatCollection = collectChatRecords(range)
+    const chats = await scanChatRecordStats(chatCollection.candidates)
     mergeWarnings(collection.warnings, chatCollection.warnings)
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
-    const chats = chatRecordStats(chatCollection.candidates)
 
     return {
       hasWarnings: collection.warnings.size > 0,
@@ -367,7 +431,6 @@ export class DiagnosticBundleService {
     const range = toTimeRange(input.range, Date.now())
     const collection = await collectDiagnosticSources(range, input)
     const chatCollection = input.includeChatRecords ? collectChatRecords(range) : emptyChatRecordCollection()
-    mergeWarnings(collection.warnings, chatCollection.warnings)
     const enabledFileCandidates = [...collection.logs, ...collection.traces]
     const destinationIdentity = await probeDestination(destination)
     if (enabledFileCandidates.some((candidate) => isSamePhysicalFile(destinationIdentity, candidate))) {
@@ -377,8 +440,9 @@ export class DiagnosticBundleService {
       )
     }
 
-    const selection = selectBundleSources(enabledFileCandidates, chatCollection.candidates)
-    if (selection.omittedFiles.length > 0 || selection.omittedChats.length > 0) {
+    const selection = await selectBundleSources(enabledFileCandidates, chatCollection)
+    mergeWarnings(collection.warnings, chatCollection.warnings)
+    if (selection.omittedFiles.length > 0 || selection.omittedChats) {
       collection.warnings.add('size_limit_reached')
     }
 
@@ -386,7 +450,7 @@ export class DiagnosticBundleService {
     try {
       return await this.buildBundle({
         bundleId: randomUUID(),
-        chatCollection,
+        allChatStats: selection.allChatStats,
         collection,
         destination,
         destinationIdentity,
@@ -425,14 +489,14 @@ export class DiagnosticBundleService {
         const range = toTimeRange(input.range, Date.now())
         const collection = await collectDiagnosticSources(range, input)
         const chatCollection = input.includeChatRecords ? collectChatRecords(range) : emptyChatRecordCollection()
+        const selection = await selectBundleSources([...collection.logs, ...collection.traces], chatCollection)
         mergeWarnings(collection.warnings, chatCollection.warnings)
-        const selection = selectBundleSources([...collection.logs, ...collection.traces], chatCollection.candidates)
-        if (selection.omittedFiles.length > 0 || selection.omittedChats.length > 0) {
+        if (selection.omittedFiles.length > 0 || selection.omittedChats) {
           collection.warnings.add('size_limit_reached')
         }
         bundle = await this.buildBundle({
+          allChatStats: selection.allChatStats,
           bundleId,
-          chatCollection,
           collection,
           destination,
           destinationIdentity: { status: 'missing' },
@@ -521,8 +585,8 @@ export class DiagnosticBundleService {
   }
 
   private async buildBundle({
+    allChatStats,
     bundleId,
-    chatCollection,
     collection,
     destination,
     destinationIdentity,
@@ -534,8 +598,8 @@ export class DiagnosticBundleService {
     tempRoot,
     uploadedAutomatically
   }: {
+    allChatStats: ChatRecordStats
     bundleId: string
-    chatCollection: ChatRecordCollection
     collection: SourceCollection
     destination: AbsoluteFilePath
     destinationIdentity: DestinationIdentity
@@ -584,9 +648,8 @@ export class DiagnosticBundleService {
       traces: stagedStats(staged, 'traces')
     }
     const omittedCandidates = [...sizeOmittedFiles, ...failedCandidates]
-    const allChats = chatRecordStats(chatCollection.candidates)
     const omitted = {
-      chatRecords: subtractChatStats(allChats, included.chatRecords),
+      chatRecords: subtractChatStats(allChatStats, included.chatRecords),
       logs: candidateStats(omittedCandidates, 'logs'),
       traces: candidateStats(omittedCandidates, 'traces')
     }

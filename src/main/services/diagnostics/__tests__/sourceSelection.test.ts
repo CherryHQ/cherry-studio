@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import type { ChatRecordCandidate } from '../chatRecordCollector'
 import type { DiagnosticBudgetCandidate } from '../sourceSelection'
-import { selectBudgetCandidates, toChatBudgetCandidate, toFileBudgetCandidate } from '../sourceSelection'
+import {
+  createDiagnosticBudgetSelector,
+  selectBudgetCandidates,
+  toChatBudgetCandidate,
+  toFileBudgetCandidate
+} from '../sourceSelection'
 import type { SourceCandidate } from '../types'
 
 function fileCandidate(
@@ -75,6 +80,32 @@ describe('diagnostic source budget selection', () => {
 
     expect(result.selected).toEqual([newer, older])
     expect(result.omitted).toEqual([])
+  })
+
+  it('reports only newly budgeted parts for incremental chat retention', () => {
+    const topic = { archiveName: 'chats/topics.jsonl', bytes: 10, data: Buffer.alloc(10), key: 'topic:1' } as const
+    const newer: ChatRecordCandidate = {
+      id: 'message:newer',
+      kind: 'chatRecords',
+      latestAt: 20,
+      parts: [{ archiveName: 'chats/messages.jsonl', bytes: 5, data: Buffer.alloc(5), key: 'message:newer' }, topic]
+    }
+    const older: ChatRecordCandidate = {
+      id: 'message:older',
+      kind: 'chatRecords',
+      latestAt: 10,
+      parts: [{ archiveName: 'chats/messages.jsonl', bytes: 5, data: Buffer.alloc(5), key: 'message:older' }, topic]
+    }
+    const selector = createDiagnosticBudgetSelector(20)
+
+    expect(selector.trySelect(toChatBudgetCandidate(newer))).toEqual({
+      selected: true,
+      selectedPartKeys: ['message:newer', 'topic:1']
+    })
+    expect(selector.trySelect(toChatBudgetCandidate(older))).toEqual({
+      selected: true,
+      selectedPartKeys: ['message:older']
+    })
   })
 
   it('fills remaining budget in global newest-first order across sources', () => {

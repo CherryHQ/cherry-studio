@@ -430,16 +430,45 @@ export class AgentSessionMessageService {
     return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
   }
 
-  listCreatedInRange({ fromMs, toMs }: { fromMs: number; toMs: number }): AgentSessionMessageEntity[] {
-    return application
+  listCreatedInRangePage({
+    fromMs,
+    toMs,
+    cursor: rawCursor,
+    limit
+  }: {
+    fromMs: number
+    toMs: number
+    cursor?: string
+    limit: number
+  }): CursorPaginationResponse<AgentSessionMessageEntity> {
+    const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
+      major: 'desc',
+      tie: 'asc'
+    })
+    const cursor = decodeListCursor(rawCursor, asNumericKey, 'diagnostic-agent-session-message')
+    const rows = application
       .get('DbService')
       .getDb()
       .select()
       .from(sessionMessagesTable)
-      .where(and(gte(sessionMessagesTable.createdAt, fromMs), lte(sessionMessagesTable.createdAt, toMs)))
-      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .where(
+        and(
+          gte(sessionMessagesTable.createdAt, fromMs),
+          lte(sessionMessagesTable.createdAt, toMs),
+          cursor ? ordering.where(cursor) : undefined
+        )
+      )
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
       .all()
-      .map((row) => this.rowToEntity(row))
+
+    const hasNext = rows.length > limit
+    const pageRows = hasNext ? rows.slice(0, limit) : rows
+    const tail = pageRows[pageRows.length - 1]
+    return {
+      items: pageRows.map((row) => this.rowToEntity(row)),
+      nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
+    }
   }
 
   /**

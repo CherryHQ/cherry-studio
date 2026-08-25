@@ -14,37 +14,55 @@ export interface DiagnosticBudgetCandidate<T> {
   readonly parts: readonly DiagnosticBudgetPart[]
 }
 
-function newestFirst<T>(a: DiagnosticBudgetCandidate<T>, b: DiagnosticBudgetCandidate<T>): number {
+export function compareBudgetCandidates(
+  a: DiagnosticBudgetCandidate<unknown>,
+  b: DiagnosticBudgetCandidate<unknown>
+): number {
   return b.latestAt - a.latestAt || (a.key > b.key ? 1 : a.key < b.key ? -1 : 0)
 }
 
-function costToSelect<T>(candidate: DiagnosticBudgetCandidate<T>, selectedPartKeys: ReadonlySet<string>): number {
-  const partKeys = new Set(selectedPartKeys)
-  let bytes = 0
-  for (const part of candidate.parts) {
-    if (partKeys.has(part.key)) continue
-    partKeys.add(part.key)
-    bytes += part.bytes
+export interface DiagnosticBudgetSelectionResult {
+  readonly selected: boolean
+  readonly selectedPartKeys: string[]
+}
+
+export function createDiagnosticBudgetSelector(limitBytes: number): {
+  trySelect(candidate: DiagnosticBudgetCandidate<unknown>): DiagnosticBudgetSelectionResult
+} {
+  const selectedPartKeys = new Set<string>()
+  let remainingBytes = limitBytes
+
+  const trySelect = (candidate: DiagnosticBudgetCandidate<unknown>): DiagnosticBudgetSelectionResult => {
+    const candidatePartKeys = new Set<string>()
+    const newlySelectedPartKeys: string[] = []
+    let bytes = 0
+    for (const part of candidate.parts) {
+      if (selectedPartKeys.has(part.key) || candidatePartKeys.has(part.key)) continue
+      candidatePartKeys.add(part.key)
+      newlySelectedPartKeys.push(part.key)
+      bytes += part.bytes
+    }
+    if (bytes > remainingBytes) return { selected: false, selectedPartKeys: [] }
+    remainingBytes -= bytes
+    for (const key of newlySelectedPartKeys) selectedPartKeys.add(key)
+    return { selected: true, selectedPartKeys: newlySelectedPartKeys }
   }
-  return bytes
+
+  return { trySelect }
 }
 
 export function selectBudgetCandidates<T>(
   candidates: readonly DiagnosticBudgetCandidate<T>[],
   limitBytes: number
 ): { selected: T[]; omitted: T[] } {
-  const sortedCandidates = [...candidates].sort(newestFirst)
+  const sortedCandidates = [...candidates].sort(compareBudgetCandidates)
   const selected = new Set<DiagnosticBudgetCandidate<T>>()
-  const selectedPartKeys = new Set<string>()
-  let remainingBytes = limitBytes
+  const selector = createDiagnosticBudgetSelector(limitBytes)
 
   const trySelect = (candidate: DiagnosticBudgetCandidate<T> | undefined): void => {
     if (!candidate || selected.has(candidate)) return
-    const cost = costToSelect(candidate, selectedPartKeys)
-    if (cost > remainingBytes) return
+    if (!selector.trySelect(candidate).selected) return
     selected.add(candidate)
-    remainingBytes -= cost
-    for (const part of candidate.parts) selectedPartKeys.add(part.key)
   }
 
   const sourceRepresentatives: DiagnosticBudgetCandidate<T>[] = []
@@ -52,7 +70,7 @@ export function selectBudgetCandidates<T>(
     const representative = sortedCandidates.find((candidate) => candidate.kind === kind)
     if (representative) sourceRepresentatives.push(representative)
   }
-  for (const candidate of sourceRepresentatives.sort(newestFirst)) trySelect(candidate)
+  for (const candidate of sourceRepresentatives.sort(compareBudgetCandidates)) trySelect(candidate)
   for (const candidate of sortedCandidates) trySelect(candidate)
 
   return {

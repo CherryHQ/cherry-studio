@@ -26,6 +26,7 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { chatMessageRoles } from '@shared/data/types/file'
 import {
   type BranchMessage,
@@ -45,26 +46,13 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import {
-  and,
-  desc,
-  eq,
-  getTableColumns,
-  gte,
-  inArray,
-  isNotNull,
-  isNull,
-  lte,
-  ne,
-  or,
-  type SQL,
-  sql
-} from 'drizzle-orm'
+import { and, eq, getTableColumns, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -841,8 +829,20 @@ export class MessageService {
     return rows.map((row) => row.id)
   }
 
-  listLiveCreatedInRange({ fromMs, toMs }: { fromMs: number; toMs: number }): Message[] {
+  listLiveCreatedInRangePage({
+    fromMs,
+    toMs,
+    cursor: rawCursor,
+    limit
+  }: {
+    fromMs: number
+    toMs: number
+    cursor?: string
+    limit: number
+  }): CursorPaginationResponse<Message> {
     const db = application.get('DbService').getDb()
+    const ordering = keysetOrdering(messageTable.createdAt, messageTable.id, { major: 'desc', tie: 'asc' })
+    const cursor = decodeListCursor(rawCursor, asNumericKey, 'diagnostic-message')
     const rows = db
       .select(getTableColumns(messageTable))
       .from(messageTable)
@@ -853,13 +853,21 @@ export class MessageService {
           lte(messageTable.createdAt, toMs),
           isNull(messageTable.deletedAt),
           isNull(topicTable.deletedAt),
-          ne(messageTable.role, 'root')
+          ne(messageTable.role, 'root'),
+          cursor ? ordering.where(cursor) : undefined
         )
       )
-      .orderBy(desc(messageTable.createdAt), desc(messageTable.id))
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
       .all()
 
-    return rows.map(rowToMessage)
+    const hasNext = rows.length > limit
+    const pageRows = hasNext ? rows.slice(0, limit) : rows
+    const tail = pageRows[pageRows.length - 1]
+    return {
+      items: pageRows.map(rowToMessage),
+      nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
+    }
   }
 
   /**

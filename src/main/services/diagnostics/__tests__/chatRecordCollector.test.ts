@@ -9,16 +9,16 @@ import { topicService } from '@data/services/TopicService'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { chatRecordStats, collectChatRecords, stageChatRecords } from '../chatRecordCollector'
+import { type ChatRecordCandidate, chatRecordStats, collectChatRecords, stageChatRecords } from '../chatRecordCollector'
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: { listCreatedInRange: vi.fn() }
+  agentSessionMessageService: { listCreatedInRangePage: vi.fn() }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: vi.fn() }
 }))
 vi.mock('@data/services/MessageService', () => ({
-  messageService: { listLiveCreatedInRange: vi.fn() }
+  messageService: { listLiveCreatedInRangePage: vi.fn() }
 }))
 vi.mock('@data/services/TopicService', () => ({
   topicService: { getById: vi.fn() }
@@ -98,11 +98,23 @@ const agentMessage = {
 describe('chat record collection', () => {
   let tempRoot: AbsoluteFilePath
 
+  async function collectCandidates(collection: ReturnType<typeof collectChatRecords>) {
+    const candidates: ChatRecordCandidate[] = []
+    for await (const candidate of collection.candidates) candidates.push(candidate)
+    return candidates
+  }
+
   beforeEach(async () => {
     tempRoot = (await mkdtemp(path.join(tmpdir(), 'diagnostic-chat-records-'))) as AbsoluteFilePath
-    vi.mocked(messageService.listLiveCreatedInRange).mockReturnValue(normalMessages as never)
+    vi.mocked(messageService.listLiveCreatedInRangePage).mockReturnValue({
+      items: normalMessages,
+      nextCursor: undefined
+    } as never)
     vi.mocked(topicService.getById).mockReturnValue(normalTopic as never)
-    vi.mocked(agentSessionMessageService.listCreatedInRange).mockReturnValue([agentMessage] as never)
+    vi.mocked(agentSessionMessageService.listCreatedInRangePage).mockReturnValue({
+      items: [agentMessage],
+      nextCursor: undefined
+    } as never)
     vi.mocked(agentSessionService.getById).mockReturnValue(agentSession as never)
   })
 
@@ -113,13 +125,14 @@ describe('chat record collection', () => {
 
   it('collects and stages canonical normal-chat and agent-session entities as UTF-8 JSONL', async () => {
     const collection = collectChatRecords({ fromMs: 1_000, toMs: 2_000 })
+    const candidates = await collectCandidates(collection)
     const records = new Map(
-      collection.candidates.flatMap((candidate) => candidate.parts.map((record) => [record.key, record] as const))
+      candidates.flatMap((candidate) => candidate.parts.map((record) => [record.key, record] as const))
     )
 
-    expect(collection.candidates).toHaveLength(3)
+    expect(candidates).toHaveLength(3)
     expect(records).toHaveLength(5)
-    expect(chatRecordStats(collection.candidates)).toEqual({
+    expect(chatRecordStats(candidates)).toEqual({
       bytes: expect.any(Number),
       messageCount: 3,
       recordCount: 5
@@ -146,7 +159,7 @@ describe('chat record collection', () => {
       delivery: { status: 'accepted', turnRef: 'turn-1' }
     })
 
-    const staged = await stageChatRecords(collection.candidates, tempRoot)
+    const staged = await stageChatRecords(candidates, tempRoot)
 
     expect(staged).toEqual(
       expect.arrayContaining([
@@ -187,16 +200,40 @@ describe('chat record collection', () => {
     )
   })
 
-  it('keeps the readable chat family when the other family cannot be read', () => {
-    vi.mocked(messageService.listLiveCreatedInRange).mockImplementation(() => {
+  it('loads later pages on demand and keeps global newest-first order', async () => {
+    vi.mocked(messageService.listLiveCreatedInRangePage)
+      .mockReturnValueOnce({ items: [normalMessages[0]], nextCursor: 'normal-next' } as never)
+      .mockReturnValueOnce({ items: [normalMessages[1]], nextCursor: undefined } as never)
+    vi.mocked(agentSessionMessageService.listCreatedInRangePage).mockReturnValue({
+      items: [agentMessage],
+      nextCursor: undefined
+    } as never)
+
+    const iterator = collectChatRecords({ fromMs: 1_000, toMs: 2_000 }).candidates[Symbol.asyncIterator]()
+
+    await expect(iterator.next()).resolves.toMatchObject({ value: { id: 'message:message-new' } })
+    expect(messageService.listLiveCreatedInRangePage).toHaveBeenCalledTimes(1)
+    await expect(iterator.next()).resolves.toMatchObject({ value: { id: 'agent-session-message:agent-message-1' } })
+    await expect(iterator.next()).resolves.toMatchObject({ value: { id: 'message:message-old' } })
+    expect(messageService.listLiveCreatedInRangePage).toHaveBeenNthCalledWith(2, {
+      fromMs: 1_000,
+      toMs: 2_000,
+      cursor: 'normal-next',
+      limit: expect.any(Number)
+    })
+  })
+
+  it('keeps the readable chat family when the other family cannot be read', async () => {
+    vi.mocked(messageService.listLiveCreatedInRangePage).mockImplementation(() => {
       throw new Error('normal chat unavailable')
     })
 
     const collection = collectChatRecords({ fromMs: 1_000, toMs: 2_000 })
+    const candidates = await collectCandidates(collection)
 
     expect(collection.warnings).toEqual(new Set(['source_unreadable']))
-    expect(collection.candidates).toHaveLength(1)
-    const agentMessageRecord = collection.candidates[0]?.parts.find(
+    expect(candidates).toHaveLength(1)
+    const agentMessageRecord = candidates[0]?.parts.find(
       (record) => record.key === 'agent-session-message:agent-message-1'
     )
     expect(agentMessageRecord?.data.toString('utf8')).toBe(`${JSON.stringify(agentMessage)}\n`)

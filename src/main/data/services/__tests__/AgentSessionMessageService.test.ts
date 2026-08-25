@@ -1082,7 +1082,7 @@ describe('AgentSessionMessageService', () => {
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
-  it('lists messages in a closed range in stable newest-first order with standard entity fields', async () => {
+  it('pages messages in a closed range without skipping timestamp ties', async () => {
     await dbh.db.insert(agentSessionMessageTable).values([
       {
         id: 'range-start',
@@ -1154,10 +1154,18 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const messages = agentSessionMessageService.listCreatedInRange({ fromMs: 100, toMs: 300 })
+    const firstPage = agentSessionMessageService.listCreatedInRangePage({ fromMs: 100, toMs: 300, limit: 2 })
+    const secondPage = agentSessionMessageService.listCreatedInRangePage({
+      fromMs: 100,
+      toMs: 300,
+      limit: 2,
+      cursor: firstPage.nextCursor
+    })
 
-    expect(messages.map((message) => message.id)).toEqual(['range-end', 'range-tie-z', 'range-tie-a', 'range-start'])
-    expect(messages[0]).toMatchObject({
+    expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
+    expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
+    expect(secondPage.nextCursor).toBeUndefined()
+    expect(firstPage.items[0]).toMatchObject({
       id: 'range-end',
       sessionId: SESSION_ID,
       role: 'assistant',
