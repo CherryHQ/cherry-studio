@@ -13,7 +13,7 @@ import {
   type JobStatus,
   TERMINAL_JOB_STATUSES
 } from '@shared/data/api/schemas/jobs'
-import { and, asc, count, desc, eq, inArray, lte, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobService')
 
@@ -384,7 +384,10 @@ export class JobService {
         output: output !== undefined ? output : null,
         error
       })
-      .where(eq(jobTable.id, jobId))
+      // First terminal write wins: `cancel()` force-finalizes a job whose handler
+      // ignored the abort signal, and that handler's later resolve must not
+      // resurrect the row as 'completed'.
+      .where(and(eq(jobTable.id, jobId), notInArray(jobTable.status, [...TERMINAL_JOB_STATUSES])))
       .run()
   }
 

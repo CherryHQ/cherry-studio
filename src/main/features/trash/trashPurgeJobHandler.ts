@@ -1,10 +1,12 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { paintingService } from '@data/services/PaintingService'
+import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { JobHandlerFor } from '@main/core/job/types'
@@ -35,19 +37,65 @@ const DAY_MS = 86_400_000
 const PURGE_DOMAINS: ReadonlyArray<{
   name: string
   purgeExpiredTx: (tx: DbOrTx, cutoffMs: number, limit: number) => string[]
+  /**
+   * Post-commit read-model refresh. The `*Tx` variants stay silent so they compose
+   * inside a caller's transaction, which leaves the notification owing here — without
+   * it a scheduled 03:00 purge leaves every open list rendering deleted rows.
+   */
+  notifyPurged: (ids: string[]) => void
 }> = [
-  { name: 'topic', purgeExpiredTx: (tx, cutoffMs, limit) => topicService.purgeExpiredTx(tx, cutoffMs, limit) },
+  {
+    name: 'topic',
+    purgeExpiredTx: (tx, cutoffMs, limit) => topicService.purgeExpiredTx(tx, cutoffMs, limit),
+    notifyPurged: (ids) => topicService.notifyReadModelChange(ids, 'membership')
+  },
   {
     name: 'session',
-    purgeExpiredTx: (tx, cutoffMs, limit) => agentSessionService.purgeExpiredTx(tx, cutoffMs, limit)
+    purgeExpiredTx: (tx, cutoffMs, limit) => agentSessionService.purgeExpiredTx(tx, cutoffMs, limit),
+    notifyPurged: (ids) => agentSessionService.notifyReadModelChange(ids, 'membership')
   },
-  { name: 'agent', purgeExpiredTx: (tx, cutoffMs, limit) => agentService.purgeExpiredTx(tx, cutoffMs, limit) },
+  {
+    name: 'agent',
+    purgeExpiredTx: (tx, cutoffMs, limit) => agentService.purgeExpiredTx(tx, cutoffMs, limit),
+    // Retention is the first and only moment an archived agent's prompt bindings are
+    // dropped — they deliberately survive the archive — so this is the only chance to say so.
+    notifyPurged: (ids) => {
+      notifyDataApiDataChange([
+        { endpoint: '/agents', kind: 'membership', entityIds: ids },
+        { endpoint: '/agents/:agentId', entityIds: ids }
+      ])
+      promptService.notifyTargetBindingsChanged()
+    }
+  },
   {
     name: 'assistant',
-    purgeExpiredTx: (tx, cutoffMs, limit) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit)
+    purgeExpiredTx: (tx, cutoffMs, limit) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit),
+    notifyPurged: (ids) => {
+      notifyDataApiDataChange([
+        { endpoint: '/assistants', kind: 'membership', entityIds: ids },
+        { endpoint: '/assistants/:id', entityIds: ids }
+      ])
+      promptService.notifyTargetBindingsChanged()
+    }
   },
-  { name: 'painting', purgeExpiredTx: (tx, cutoffMs, limit) => paintingService.purgeExpiredTx(tx, cutoffMs, limit) },
-  { name: 'fileEntry', purgeExpiredTx: (tx, cutoffMs, limit) => fileEntryService.purgeExpiredTx(tx, cutoffMs, limit) }
+  {
+    name: 'painting',
+    purgeExpiredTx: (tx, cutoffMs, limit) => paintingService.purgeExpiredTx(tx, cutoffMs, limit),
+    notifyPurged: (ids) =>
+      notifyDataApiDataChange([
+        { endpoint: '/paintings', kind: 'membership', entityIds: ids },
+        { endpoint: '/paintings/:id', entityIds: ids }
+      ])
+  },
+  {
+    name: 'fileEntry',
+    purgeExpiredTx: (tx, cutoffMs, limit) => fileEntryService.purgeExpiredTx(tx, cutoffMs, limit),
+    notifyPurged: (ids) =>
+      notifyDataApiDataChange([
+        { endpoint: '/files/entries', kind: 'membership', entityIds: ids },
+        { endpoint: '/files/entries/:id', entityIds: ids }
+      ])
+  }
 ]
 
 /**
@@ -77,36 +125,58 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
 
     for (const [index, domain] of PURGE_DOMAINS.entries()) {
       ctx.signal.throwIfAborted()
-      let count = 0
+      const purgedIds: string[] = []
       let batch: string[]
       // Batched synchronous transactions: each withWriteTx callback runs inline
       // (better-sqlite3), keeping every write window short.
       do {
+        // Between batches, never inside: the callback is synchronous, so one batch is
+        // the finest granularity a cancel can land on.
+        ctx.signal.throwIfAborted()
         batch = dbService.withWriteTx((tx) => domain.purgeExpiredTx(tx, cutoffMs, PURGE_BATCH_SIZE))
-        count += batch.length
+        purgedIds.push(...batch)
       } while (batch.length === PURGE_BATCH_SIZE)
-      purged[domain.name] = count
+      purged[domain.name] = purgedIds.length
+      // After the commits, so a listener that re-reads sees the rows already gone.
+      if (purgedIds.length > 0) domain.notifyPurged(purgedIds)
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))
     }
 
     // Filesystem reclamation strictly AFTER all transactions committed.
     // Failures are logged, never thrown — the DB rows are already gone and any
     // disk residue is picked up by the next purge run's sweeps.
+    ctx.signal.throwIfAborted()
+    // The sweeps walk the whole agents/files tree, so a cancel arriving here would
+    // otherwise go unobserved until they finish.
+    let reclaimed = true
     try {
-      await application.get('FileManager').runSweep()
+      const report = await application.get('FileManager').runSweep()
+      // The sweep aborts itself when the residue looks like a restore, and caps entry
+      // cleanup per pass — reporting an unqualified success would hide leftover blobs.
+      if (report.outcome !== 'completed') {
+        reclaimed = false
+        logger.warn('File orphan sweep did not reclaim everything', { outcome: report.outcome })
+      }
     } catch (error) {
+      reclaimed = false
       logger.warn('File orphan sweep failed — residue retried next purge run', { error })
     }
     ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 1) / totalSteps) * 100))
 
+    ctx.signal.throwIfAborted()
     try {
-      await sweepAgentOrphans()
+      const { failedDrivers } = await sweepAgentOrphans()
+      if (failedDrivers.length > 0) {
+        reclaimed = false
+        logger.warn('Agent orphan sweep left runtime residue', { failedDrivers })
+      }
     } catch (error) {
+      reclaimed = false
       logger.warn('Agent orphan sweep failed — residue retried next purge run', { error })
     }
     ctx.reportProgress(100)
 
-    logger.info('Trash purge complete', { emptyAll, purged })
-    return { skipped: false, purged }
+    logger.info('Trash purge complete', { emptyAll, purged, reclaimed })
+    return { skipped: false, purged, reclaimed }
   }
 }

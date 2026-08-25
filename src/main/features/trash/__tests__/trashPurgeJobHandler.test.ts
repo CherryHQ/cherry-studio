@@ -20,8 +20,8 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fileManagerMock, sweepAgentOrphansMock } = vi.hoisted(() => ({
-  fileManagerMock: { runSweep: vi.fn(async () => undefined) },
-  sweepAgentOrphansMock: vi.fn(async () => undefined)
+  fileManagerMock: { runSweep: vi.fn(async () => ({ outcome: 'completed' })) },
+  sweepAgentOrphansMock: vi.fn(async () => ({ removed: [], failedDrivers: [] }))
 }))
 
 // Mock the agent-dir sweep so its post-commit failure path can be exercised
@@ -67,9 +67,9 @@ describe('trashPurgeJobHandler', () => {
 
   beforeEach(() => {
     fileManagerMock.runSweep.mockClear()
-    fileManagerMock.runSweep.mockImplementation(async () => undefined)
+    fileManagerMock.runSweep.mockImplementation(async () => ({ outcome: 'completed' }))
     sweepAgentOrphansMock.mockClear()
-    sweepAgentOrphansMock.mockImplementation(async () => undefined)
+    sweepAgentOrphansMock.mockImplementation(async () => ({ removed: [], failedDrivers: [] }))
     MockMainPreferenceServiceUtils.resetMocks()
   })
 
@@ -232,6 +232,7 @@ describe('trashPurgeJobHandler', () => {
         .from(topicTable)
         .where(eq(topicTable.id, 'topic-expired'))
         .all().length
+      return { outcome: 'completed' }
     })
 
     const ctx = makeCtx({})
@@ -239,6 +240,7 @@ describe('trashPurgeJobHandler', () => {
 
     expect(result).toEqual({
       skipped: false,
+      reclaimed: true,
       purged: {
         topic: 1,
         session: 1,
