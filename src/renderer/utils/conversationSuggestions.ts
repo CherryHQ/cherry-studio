@@ -5,7 +5,6 @@ const suggestionResponseSchema = z
   .strictObject({ suggestions: z.tuple([suggestionSchema, suggestionSchema, suggestionSchema]) })
   .refine(({ suggestions }) => new Set(suggestions).size === suggestions.length)
 
-export type ConversationSuggestionMode = 'chat' | 'agent'
 export type ConversationSuggestions = [string, string, string]
 
 export interface ConversationSuggestionPersona {
@@ -14,7 +13,7 @@ export interface ConversationSuggestionPersona {
 }
 
 export interface ConversationSuggestionRequestContext {
-  mode: ConversationSuggestionMode
+  focus: string
   outputLanguage: string
   systemLocale: string
   localDateTime: string

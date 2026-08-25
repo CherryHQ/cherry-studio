@@ -550,6 +550,8 @@ const AgentChat = ({
   )
 }
 
+const AGENT_SUGGESTION_FOCUS = 'concrete tasks involving inspection, implementation, review, and verification'
+
 interface AgentChatSessionCenterProps {
   session: AgentSessionEntity
   runtime: AgentChatRuntimeState
@@ -615,7 +617,7 @@ const AgentChatSessionCenter = ({
             footer={
               activeAgent && agentId && !isMultiSelectMode ? (
                 <ConversationSuggestions
-                  mode="agent"
+                  focus={AGENT_SUGGESTION_FOCUS}
                   conversationId={runtime.sessionId}
                   topicId={buildAgentSessionTopicId(runtime.sessionId)}
                   persona={{

@@ -1,16 +1,14 @@
 import { Button, Skeleton } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { useConversationSuggestions } from '@renderer/hooks/chat/useConversationSuggestions'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
-  type ConversationSuggestionMode,
   type ConversationSuggestionPersona,
   type ConversationSuggestions as SuggestionTuple
 } from '@renderer/utils/conversationSuggestions'
 import { useTranslation } from 'react-i18next'
 
 interface ConversationSuggestionsProps {
-  mode: ConversationSuggestionMode
+  focus: string
   conversationId: string
   topicId: string
   fallback: SuggestionTuple
@@ -19,7 +17,7 @@ interface ConversationSuggestionsProps {
 }
 
 export function ConversationSuggestions({
-  mode,
+  focus,
   conversationId,
   topicId,
   fallback,
@@ -27,14 +25,13 @@ export function ConversationSuggestions({
   enabled
 }: ConversationSuggestionsProps) {
   const { i18n } = useTranslation()
-  const [suggestionsEnabled] = usePreference('chat.suggestions.enabled')
-  const { suggestions, isLoading } = useConversationSuggestions({
-    mode,
+  const { suggestions, isLoading, suggestionsEnabled } = useConversationSuggestions({
+    focus,
     conversationId,
     outputLanguage: i18n?.resolvedLanguage ?? i18n?.language ?? navigator.language,
     fallback,
     persona,
-    enabled: suggestionsEnabled && enabled !== false
+    enabled
   })
 
   if (!suggestionsEnabled) return null
@@ -60,7 +57,7 @@ export function ConversationSuggestions({
           type="button"
           variant="ghost"
           size="sm"
-          className="whitespace-normal! h-auto min-h-7 max-w-full justify-start rounded-full border-[0.5px] border-transparent bg-background-subtle px-2.5 py-1 text-left font-normal text-[11px] text-foreground-disabled! leading-4 shadow-none hover:border-border-subtle hover:bg-muted/50 hover:text-foreground-tertiary! focus-visible:border-border-subtle focus-visible:bg-muted/50 focus-visible:text-foreground-tertiary!"
+          className="whitespace-normal! h-auto min-h-7 max-w-full justify-start rounded-full border-[0.5px] border-transparent bg-background-subtle px-2.5 py-1 text-left font-normal text-[11px] text-foreground-tertiary! leading-4 shadow-none hover:border-border-subtle hover:bg-muted/50 hover:text-foreground-tertiary! focus-visible:border-border-subtle focus-visible:bg-muted/50 focus-visible:text-foreground-tertiary!"
           onClick={() => void EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, { topicId, text: suggestion })}>
           <span>{suggestion}</span>
         </Button>

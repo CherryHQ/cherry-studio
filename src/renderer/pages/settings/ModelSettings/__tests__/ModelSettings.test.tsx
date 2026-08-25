@@ -333,6 +333,22 @@ describe('ModelSettings', () => {
     expect(harness.preferenceSetters['chat.suggestions.model_id']).toHaveBeenCalledWith(null)
   })
 
+  it('does not present a dedicated suggestions model that is no longer chat-capable', () => {
+    const embeddingModel = {
+      ...createModel('openai', 'text-embedding-3-small'),
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    }
+    harness.suggestionsModel = embeddingModel
+    harness.preferenceValues['chat.suggestions.model_id'] = embeddingModel.id
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(screen.queryByText(embeddingModel.name)).not.toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: 'settings.models.conversation_suggestions.default_model' }).length
+    ).toBeGreaterThan(0)
+  })
+
   it.each([
     ['default', 'settings.models.default_assistant_model'],
     ['translate', 'settings.models.translate_model']

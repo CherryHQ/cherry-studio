@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { preferenceService } from '@data/PreferenceService'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 
 /**
  * Async resolver for the user's chosen default model.
@@ -28,8 +29,12 @@ export async function readQuickModel(): Promise<Model | undefined> {
 export async function readConversationSuggestionsModel(): Promise<Model | undefined> {
   const dedicatedId = (await preferenceService.get('chat.suggestions.model_id')) as UniqueModelId | null | undefined
   if (dedicatedId) {
-    const dedicated = await dataApiService.get(`/models/${dedicatedId}`)
-    if (dedicated) return dedicated
+    try {
+      const dedicated = await dataApiService.get(`/models/${dedicatedId}`)
+      if (dedicated && !isNonChatModel(dedicated)) return dedicated
+    } catch {
+      // Deleted or unreadable dedicated ids must not fail generation.
+    }
   }
   return readDefaultModel()
 }

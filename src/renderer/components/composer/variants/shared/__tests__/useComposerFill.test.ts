@@ -2,7 +2,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useComposerFill } from '../composerFill'
+import { useComposerFill } from '../useComposerFill'
 
 describe('useComposerFill', () => {
   beforeEach(() => {

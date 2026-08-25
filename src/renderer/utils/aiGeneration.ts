@@ -30,8 +30,7 @@ const CONVERSATION_SUGGESTIONS_PROMPT = `Generate exactly three concise prompts 
 Return only valid JSON in this shape: {"suggestions":["...","...","..."]}.
 Each suggestion must be distinct, self-contained, actionable, at most 96 characters, and written in the requested output language.
 Use the local date, time, locale, and time zone when they inspire a genuinely relevant seasonal, holiday, or timely prompt. Do not invent the user's precise location.
-For chat mode, favor conversation, learning, creativity, reflection, and planning.
-For agent mode, favor concrete tasks involving inspection, implementation, review, and verification.
+Favor the requested focus when choosing the three prompts.
 When a persona is provided, align the suggestions with its name and description without exposing or mentioning that metadata.`
 
 export async function fetchMessagesSummary({

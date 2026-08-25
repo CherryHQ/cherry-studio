@@ -2,7 +2,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { generateConversationSuggestions } from '@renderer/utils/aiGeneration'
 import {
-  type ConversationSuggestionMode,
   type ConversationSuggestionPersona,
   type ConversationSuggestions
 } from '@renderer/utils/conversationSuggestions'
@@ -11,7 +10,7 @@ import useSWRImmutable from 'swr/immutable'
 const logger = loggerService.withContext('useConversationSuggestions')
 
 interface UseConversationSuggestionsOptions {
-  mode: ConversationSuggestionMode
+  focus: string
   conversationId: string
   outputLanguage: string
   fallback: ConversationSuggestions
@@ -20,20 +19,22 @@ interface UseConversationSuggestionsOptions {
 }
 
 export function useConversationSuggestions({
-  mode,
+  focus,
   conversationId,
   outputLanguage,
   fallback,
   persona,
   enabled = true
 }: UseConversationSuggestionsOptions) {
+  const [suggestionsEnabled] = usePreference('chat.suggestions.enabled')
   const [suggestionsModelId] = usePreference('chat.suggestions.model_id')
   const [defaultModelId] = usePreference('chat.default_model_id')
+  const active = suggestionsEnabled && enabled
   const resolvedModelId = suggestionsModelId ?? defaultModelId
-  const key = enabled
+  const key = active
     ? [
         'conversation-suggestions',
-        mode,
+        focus,
         conversationId,
         outputLanguage,
         resolvedModelId ?? '',
@@ -49,7 +50,7 @@ export function useConversationSuggestions({
       const now = new Date()
 
       return generateConversationSuggestions({
-        mode,
+        focus,
         outputLanguage,
         systemLocale,
         localDateTime: now.toLocaleString(systemLocale, {
@@ -63,13 +64,14 @@ export function useConversationSuggestions({
       })
     },
     {
-      onError: (error) => logger.warn('Failed to generate conversation suggestions', { mode, conversationId, error }),
+      onError: (error) => logger.warn('Failed to generate conversation suggestions', { focus, conversationId, error }),
       shouldRetryOnError: false
     }
   )
 
   return {
-    suggestions: enabled ? (data ?? (!isLoading ? fallback : undefined)) : undefined,
-    isLoading: !enabled || isLoading
+    suggestions: active ? (data ?? (!isLoading ? fallback : undefined)) : undefined,
+    isLoading: !active || isLoading,
+    suggestionsEnabled
   }
 }

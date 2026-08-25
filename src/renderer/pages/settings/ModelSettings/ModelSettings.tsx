@@ -159,6 +159,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
   const selectableTranslateModel = translateModel && chatModelFilter(translateModel) ? translateModel : undefined
+  const selectableSuggestionsModel =
+    suggestionsModel && chatModelFilter(suggestionsModel) ? suggestionsModel : undefined
   const shouldAutoFillEmptyModels =
     autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
@@ -267,7 +269,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             description={showDescription ? t('settings.models.conversation_suggestions.description') : undefined}>
             {suggestionsEnabled && (
               <DefaultModelSelector
-                model={suggestionsModel}
+                model={selectableSuggestionsModel}
                 providers={providers}
                 filter={chatModelFilter}
                 compact={compact}

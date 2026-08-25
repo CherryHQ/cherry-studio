@@ -113,7 +113,6 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
-import { useComposerFill } from './shared/composerFill'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
@@ -124,6 +123,7 @@ import {
 } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerFill } from './shared/useComposerFill'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'

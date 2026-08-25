@@ -44,6 +44,8 @@ interface Props {
   onConversationControlsChange?: ChatConversationControlsChangeHandler
 }
 
+const CHAT_SUGGESTION_FOCUS = 'conversation, learning, creativity, reflection, and planning'
+
 /**
  * Home chat content.
  *
@@ -215,7 +217,7 @@ const ChatContentInner: FC<InnerProps> = ({
             title={t('chat.home.welcome_title')}
             footer={
               <ConversationSuggestions
-                mode="chat"
+                focus={CHAT_SUGGESTION_FOCUS}
                 conversationId={topic.id}
                 topicId={topic.id}
                 enabled={!assistantContext?.isLoading}

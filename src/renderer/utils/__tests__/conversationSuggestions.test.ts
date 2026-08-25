@@ -26,7 +26,7 @@ const model: Model = {
   isHidden: false
 }
 const context: ConversationSuggestionRequestContext = {
-  mode: 'agent',
+  focus: 'concrete tasks involving inspection, implementation, review, and verification',
   outputLanguage: 'zh-CN',
   systemLocale: 'en-US',
   localDateTime: 'Tuesday, August 11, 2026 at 3:15 PM',
@@ -48,7 +48,7 @@ describe('conversation suggestion generation', () => {
     expect(ipcApi.request).toHaveBeenCalledWith('ai.text.generate', {
       uniqueModelId: model.id,
       reasoningEffort: 'none',
-      system: expect.stringContaining('For agent mode'),
+      system: expect.stringContaining('requested focus'),
       prompt: JSON.stringify(context)
     })
   })

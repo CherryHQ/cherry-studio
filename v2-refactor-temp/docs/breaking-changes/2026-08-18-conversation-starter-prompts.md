@@ -16,4 +16,4 @@ Opening an empty conversation does not make a background model request until the
 
 ## What the user should do
 
-Nothing — automatic. To show starter prompts, turn on Conversation Suggestions in Settings > Default Model and optionally pick a dedicated model.
+Conversation Suggestions stays off until you turn it on in Settings > Default Model. Optionally pick a dedicated model there; otherwise the default chat model is used.
