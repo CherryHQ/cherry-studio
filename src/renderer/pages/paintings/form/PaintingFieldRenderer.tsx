@@ -1,6 +1,7 @@
 import { alignRangeValue } from '@cherrystudio/provider-registry'
 import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea, Tooltip } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
@@ -12,6 +13,118 @@ const RANGE_VALUE_INPUT_CLASS =
   'h-8 min-h-8 w-12 shrink-0 px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
 export type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
+
+/** Optional sign, one dot, digits — anything else is rejected so letters never stick. */
+function isAllowedRangeDraft(raw: string): boolean {
+  return /^-?\d*\.?\d*$/.test(raw)
+}
+
+/** Empty, sign, or trailing decimal so the next digit can still be typed. */
+function isTransientRangeDraft(raw: string): boolean {
+  return raw === '' || raw === '-' || /^-?\d*\.$/.test(raw)
+}
+
+function parseRangeDraft(raw: string): number | null {
+  if (raw.trim() === '') return null
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function PaintingRangeField({
+  fieldKey,
+  min,
+  max,
+  step,
+  numericValue,
+  onChange
+}: {
+  fieldKey: string
+  min: number
+  max: number
+  step?: number
+  numericValue: number
+  onChange: (updates: Record<string, unknown>) => void
+}) {
+  const snapStep = typeof step === 'number' && step > 0 ? step : undefined
+  const [draft, setDraft] = useState<string | null>(null)
+  const lastPushedRef = useRef(numericValue)
+
+  const commitRange = (raw: number) => {
+    const next = snapStep === undefined ? Math.min(max, Math.max(min, raw)) : alignRangeValue(raw, min, max, snapStep)
+    lastPushedRef.current = next
+    onChange({ [fieldKey]: next })
+    return next
+  }
+
+  const nudge = (direction: 1 | -1) => {
+    const parsed = parseRangeDraft(draft ?? '')
+    const base = parsed ?? numericValue
+    const committed = commitRange(base + (snapStep ?? 1) * direction)
+    setDraft(String(committed))
+  }
+
+  useEffect(() => {
+    if (numericValue === lastPushedRef.current) return
+    lastPushedRef.current = numericValue
+    setDraft((current) => (current === null ? current : String(numericValue)))
+  }, [numericValue])
+
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <Slider
+        className="min-w-0 flex-1"
+        min={min}
+        max={max}
+        step={step ?? 1}
+        value={[numericValue]}
+        onValueChange={(values) => {
+          const next = values[0]
+          if (next === undefined) return
+          const committed = commitRange(next)
+          setDraft((current) => (current === null ? current : String(committed)))
+        }}
+      />
+      <Input
+        className={RANGE_VALUE_INPUT_CLASS}
+        type="text"
+        inputMode="decimal"
+        role="spinbutton"
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={numericValue}
+        value={draft ?? String(numericValue)}
+        onFocus={() => {
+          setDraft((current) => current ?? String(numericValue))
+        }}
+        onChange={(event) => {
+          const raw = event.target.value
+          if (!isAllowedRangeDraft(raw)) return
+          setDraft(raw)
+          if (isTransientRangeDraft(raw)) return
+          const parsed = parseRangeDraft(raw)
+          if (parsed === null) return
+          commitRange(parsed)
+        }}
+        onBlur={() => {
+          if (draft !== null) {
+            const parsed = parseRangeDraft(draft)
+            if (parsed !== null) commitRange(parsed)
+          }
+          setDraft(null)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            nudge(1)
+          } else if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            nudge(-1)
+          }
+        }}
+      />
+    </div>
+  )
+}
 
 export interface PaintingFieldRendererProps {
   item: BaseConfigItem
@@ -83,44 +196,15 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
           <Input className={RANGE_VALUE_INPUT_CLASS} type="number" value={String(numericValue)} readOnly disabled />
         )
       }
-      const snapStep = typeof item.step === 'number' && item.step > 0 ? item.step : undefined
-      const commitRange = (raw: number) => {
-        const next =
-          snapStep === undefined ? Math.min(max, Math.max(min, raw)) : alignRangeValue(raw, min, max, snapStep)
-        onChange({ [fieldKey]: next })
-      }
       return (
-        <div className="flex min-w-0 items-center gap-3">
-          <Slider
-            className="min-w-0 flex-1"
-            min={min}
-            max={max}
-            step={item.step ?? 1}
-            value={[numericValue]}
-            onValueChange={(values) => {
-              const next = values[0]
-              if (next === undefined) return
-              commitRange(next)
-            }}
-          />
-          <Input
-            className={RANGE_VALUE_INPUT_CLASS}
-            type="number"
-            min={min}
-            max={max}
-            step={item.step}
-            value={String(numericValue)}
-            onChange={(event) => {
-              const raw = event.target.value
-              // Ignore the transient empty state (clearing to retype). Snap only
-              // when the spec declared a step; otherwise clamp and keep decimals.
-              if (raw === '') return
-              const parsed = Number(raw)
-              if (Number.isNaN(parsed)) return
-              commitRange(parsed)
-            }}
-          />
-        </div>
+        <PaintingRangeField
+          fieldKey={fieldKey}
+          min={min}
+          max={max}
+          step={item.step}
+          numericValue={numericValue}
+          onChange={onChange}
+        />
       )
     }
 

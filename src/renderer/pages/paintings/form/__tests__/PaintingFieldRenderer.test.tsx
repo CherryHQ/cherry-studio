@@ -1,13 +1,47 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { BaseConfigItem } from '../baseConfigItem'
 import { PaintingFieldRenderer } from '../PaintingFieldRenderer'
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })
 }))
+
+const GUIDANCE_RANGE: BaseConfigItem = {
+  type: 'slider',
+  key: 'guidanceScale',
+  min: 1,
+  max: 20,
+  step: 0.1,
+  initialValue: 1
+}
+
+function ControlledRange({
+  item,
+  initial,
+  onChange
+}: {
+  item: BaseConfigItem
+  initial: number
+  onChange?: (updates: Record<string, unknown>) => void
+}) {
+  const fieldKey = item.key ?? 'value'
+  const [painting, setPainting] = useState<Record<string, unknown>>({ [fieldKey]: initial })
+  return (
+    <PaintingFieldRenderer
+      item={item}
+      painting={painting}
+      onChange={(updates) => {
+        onChange?.(updates)
+        setPainting((current) => ({ ...current, ...updates }))
+      }}
+    />
+  )
+}
 
 describe('PaintingFieldRenderer range contract', () => {
   it('keeps range numeric inputs compact at w-12 and h-8', () => {
@@ -65,6 +99,91 @@ describe('PaintingFieldRenderer range contract', () => {
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '50.5' } })
 
     expect(onChange).toHaveBeenCalledWith({ imageWeight: 50.5 })
+  })
+
+  it('lets the user type 2.5 through the intermediate 2. on a 0.1 step', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<ControlledRange item={GUIDANCE_RANGE} initial={1} onChange={onChange} />)
+
+    const input = screen.getByRole('spinbutton')
+    await user.click(input)
+    await user.clear(input)
+    await user.keyboard('2.')
+
+    expect(input).toHaveProperty('value', '2.')
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith({ guidanceScale: 2 })
+
+    await user.keyboard('5')
+
+    expect(input).toHaveProperty('value', '2.5')
+    expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 2.5 })
+    expect(screen.getByTestId('slider')).toHaveProperty('value', '2.5')
+  })
+
+  it('restores the committed value when a cleared field blurs', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<ControlledRange item={GUIDANCE_RANGE} initial={4.5} onChange={onChange} />)
+
+    const input = screen.getByRole('spinbutton')
+    await user.click(input)
+    await user.clear(input)
+
+    expect(input).toHaveProperty('value', '')
+    expect(onChange).not.toHaveBeenCalled()
+
+    await user.tab()
+
+    expect(input).toHaveProperty('value', '4.5')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('replaces a focused draft when the model value changes from outside', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <PaintingFieldRenderer item={GUIDANCE_RANGE} painting={{ guidanceScale: 1 }} onChange={onChange} />
+    )
+
+    const input = screen.getByRole('spinbutton')
+    await user.click(input)
+    await user.clear(input)
+    await user.keyboard('2.')
+
+    expect(input).toHaveProperty('value', '2.')
+
+    rerender(<PaintingFieldRenderer item={GUIDANCE_RANGE} painting={{ guidanceScale: 8 }} onChange={onChange} />)
+
+    expect(input).toHaveProperty('value', '8')
+  })
+
+  it('keeps the slider on the declared step when it moves', () => {
+    const onChange = vi.fn()
+    render(
+      <PaintingFieldRenderer
+        item={{ type: 'slider', key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }}
+        painting={{ numImages: 1 }}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.change(screen.getByTestId('slider'), { target: { value: '2.4' } })
+
+    expect(onChange).toHaveBeenCalledWith({ numImages: 2 })
+  })
+
+  it('nudges a focused range by its declared step with arrow keys', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<ControlledRange item={GUIDANCE_RANGE} initial={1} onChange={onChange} />)
+
+    await user.click(screen.getByRole('spinbutton'))
+    await user.keyboard('{ArrowUp}')
+
+    expect(onChange).toHaveBeenCalledWith({ guidanceScale: 1.1 })
+    expect(screen.getByRole('spinbutton')).toHaveProperty('value', '1.1')
   })
 })
 
