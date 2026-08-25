@@ -215,6 +215,7 @@ describe('QuickPhrasesToolRuntime', () => {
         queryAnchor: undefined,
         symbol: 'quick-phrases',
         trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         triggerInfo: { type: 'button' }
       })
     )
@@ -258,6 +259,7 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         queryAnchor: undefined,
+        consumeQueryOnDismiss: true,
         triggerInfo: { type: 'button' }
       })
     )

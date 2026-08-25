@@ -76,6 +76,7 @@ describe('prepareComposerQuickPanelSearch', () => {
     ).toEqual({
       queryAnchor: undefined,
       trackInputQuery: true,
+      consumeQueryOnDismiss: true,
       triggerInfo: { type: 'button' }
     })
     expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
@@ -107,8 +108,12 @@ describe('prepareComposerQuickPanelSearch', () => {
 
     expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: trigger.length })
     expect(text).toBe('hello world')
-    expect(result.queryAnchor).toBeUndefined()
-    expect(result.triggerInfo).toEqual({ type: 'button' })
+    expect(result).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
 
     // consumeInputQuery deletes [queryAnchor, cursor] when queryAnchor is defined. After the
     // trigger is gone, leftover text sits at the caret; a stale 0-anchor would wipe it.
@@ -132,6 +137,7 @@ describe('prepareComposerQuickPanelSearch', () => {
     expect(prepareComposerQuickPanelSearch({ inputAdapter })).toEqual({
       queryAnchor: 12,
       trackInputQuery: true,
+      consumeQueryOnDismiss: true,
       triggerInfo: { type: 'button', position: 12 }
     })
     expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
@@ -150,13 +156,19 @@ describe('prepareComposerQuickPanelSearch', () => {
       insertText: vi.fn()
     }
 
-    prepareComposerQuickPanelSearch({
+    const result = prepareComposerQuickPanelSearch({
       inputAdapter,
       triggerInfo: { type: 'input', position: 0, originalText: leftover }
     })
 
     expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
     expect(inputAdapter.focus).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
   })
 
   it('uses a live cursor offset as rangeEnd instead of the value captured at entry', () => {

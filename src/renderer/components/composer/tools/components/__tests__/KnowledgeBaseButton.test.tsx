@@ -138,6 +138,7 @@ describe('KnowledgeBaseToolRuntime', () => {
         symbol: ComposerPanelSymbol.KnowledgeBase,
         title: 'Knowledge Base',
         trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         triggerInfo: { type: 'button' }
       })
     )

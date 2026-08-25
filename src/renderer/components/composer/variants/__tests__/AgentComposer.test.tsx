@@ -3170,6 +3170,7 @@ describe('AgentComposer', () => {
         queryAnchor: undefined,
         symbol: 'agent-skills',
         trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         triggerInfo: { type: 'button' }
       })
     )

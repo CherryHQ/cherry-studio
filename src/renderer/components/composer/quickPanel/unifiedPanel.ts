@@ -66,9 +66,11 @@ export function prepareComposerQuickPanelSearch({
 }: Pick<ComposerUnifiedPanelResourceContext, 'inputAdapter' | 'queryAnchor' | 'triggerInfo'>) {
   const text = inputAdapter?.getText()
   const cursorOffset = inputAdapter ? (inputAdapter.getCursorOffset?.() ?? text?.length ?? 0) : undefined
-  let searchAnchor = queryAnchor ?? triggerInfo?.position ?? cursorOffset
+  // type:input deletion is queryAnchor-owned. Falling back to position here would return a
+  // button-tracked anchor at the leftover draft and let dismiss-time consume wipe it.
+  let searchAnchor =
+    triggerInfo?.type === 'input' ? queryAnchor : (queryAnchor ?? triggerInfo?.position ?? cursorOffset)
 
-  // type:input deletion is queryAnchor-owned. position is authoritative for type:button only.
   if (inputAdapter && triggerInfo?.type === 'input' && queryAnchor !== undefined) {
     const liveText = inputAdapter.getText()
     const rangeEnd = inputAdapter.getCursorOffset?.() ?? liveText.length
@@ -83,6 +85,7 @@ export function prepareComposerQuickPanelSearch({
   return {
     queryAnchor: searchAnchor,
     trackInputQuery: true,
+    consumeQueryOnDismiss: true,
     triggerInfo:
       searchAnchor === undefined ? { type: 'button' as const } : { type: 'button' as const, position: searchAnchor }
   }
