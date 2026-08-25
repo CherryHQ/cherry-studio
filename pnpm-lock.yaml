@@ -313,8 +313,8 @@ importers:
         specifier: workspace:*
         version: link:packages/aiCore
       '@cherrystudio/analytics-client':
-        specifier: ^1.3.0
-        version: 1.3.0(typescript@5.8.3)
+        specifier: ^1.3.1
+        version: 1.3.1(typescript@5.8.3)
       '@cherrystudio/extension-table-plus':
         specifier: workspace:^
         version: link:packages/extension-table-plus
@@ -2904,8 +2904,8 @@ packages:
   '@changesets/write@0.4.0':
     resolution: {integrity: sha512-CdTLvIOPiCNuH71pyDu3rA+Q0n65cmAbXnwWH84rKGiFumFzkmHNT8KHTMEchcxN+Kl8I54xGUhJ7l3E7X396Q==}
 
-  '@cherrystudio/analytics-client@1.3.0':
-    resolution: {integrity: sha512-/dzKNngoAsNOGd1BpTqH4AgqGWKMkUIL48bxo13MAfZjubAeRpomiCv3F9I5CcJlte/3pZggtThC4Zs3hSYZAg==}
+  '@cherrystudio/analytics-client@1.3.1':
+    resolution: {integrity: sha512-TS15TqnzHCZygJvyy+YLnPbJP6AhtizLZG/sJOOZXW0YvdJkUTb4V9T0IPMD1W9hC5xcsH36jTHmeK8ip5glEg==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       typescript: '>=4.7.0'
@@ -17315,7 +17315,7 @@ snapshots:
       human-id: 4.1.3
       prettier: 2.8.8
 
-  '@cherrystudio/analytics-client@1.3.0(typescript@5.8.3)':
+  '@cherrystudio/analytics-client@1.3.1(typescript@5.8.3)':
     optionalDependencies:
       typescript: 5.8.3
 
