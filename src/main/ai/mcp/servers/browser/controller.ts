@@ -470,6 +470,7 @@ export class CdpBrowserController {
         nodeIntegration: false,
         devTools: true,
         backgroundThrottling: false,
+        autoplayPolicy: 'user-gesture-required',
         partition
       }
     })
@@ -623,6 +624,10 @@ export class CdpBrowserController {
 
     logger.info('Loading URL', { url, windowKey, tabId: actualTabId, privateMode })
     const { webContents } = view
+    const windowInfo = this.windows.get(windowKey)
+    const isWindowVisible =
+      windowInfo !== undefined && !windowInfo.window.isDestroyed() && windowInfo.window.isVisible()
+    webContents.setAudioMuted(!isWindowVisible)
     this.touchTab(windowKey, actualTabId)
 
     let resolved = false
