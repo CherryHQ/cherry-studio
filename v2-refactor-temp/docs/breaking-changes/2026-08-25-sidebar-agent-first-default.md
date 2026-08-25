@@ -2,7 +2,7 @@
 title: New installs place Agent first in the sidebar
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#19388"
 date: 2026-08-25
 ---
 
