@@ -2,7 +2,7 @@
 title: Deleting items moves them to the trash instead of erasing them
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#16746'
 date: 2026-07-04
 ---
 
@@ -13,10 +13,10 @@ Deleting a topic, assistant, agent, agent session, painting, or internal file no
 ## Why this matters to the user
 
 - An accidentally deleted item is recoverable from the trash (Settings → Data → Recently Deleted) until the retention period expires.
-- Restoring an item does NOT bring back its pinned state or tags — those are removed at delete time and must be re-applied manually.
-- Data of deleted items stays on disk until it is purged, so "delete" no longer immediately frees space; use permanent delete / empty trash for that.
+- Restoring an item does NOT bring back its pinned state, its tags, or (for assistants) its group — those are removed at delete time and must be re-applied manually. Everything else comes back intact: archiving never touches messages, attachments, or assistant links.
+- Deleting no longer frees disk space, and purging does not free it immediately either. "Empty trash" reclaims files right after it runs; a single "Delete permanently" removes only the database records, and the attachments and generated images behind them are reclaimed by a background pass (on app start, then roughly every 30 minutes while idle, with about a one-hour grace window). Permanently deleting a file from the Files trash is the one case that frees its blob straight away.
 - Not everything goes to the trash: single messages stay permanent, external file entries are unaffected (deleting one only removes it from the app's list, the file on disk is never touched), notes are unaffected (trash support deferred), and knowledge bases are unaffected (deletion stays permanent).
-- Items deleted **before** this release (assistants, and anything already sitting in the old Files-page trash) carry their original deletion date, so they are already past the 30-day window and the first purge after upgrading removes them permanently.
+- Items deleted **before** this release (assistants, and anything already sitting in the old Files-page trash) keep their original deletion date and become subject to auto-purge for the first time. Any of them deleted longer ago than the retention period (default 30 days) are removed permanently by the next scheduled purge — it runs daily at 03:00, with a catch-up shortly after startup if a run was missed. More recently deleted ones keep the remainder of their window. Set the trash retention to 0 before upgrading to keep them all.
 
 ## What the user should do
 
