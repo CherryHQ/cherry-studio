@@ -300,7 +300,7 @@ const SelectionAssistantSettings: FC = () => {
           <SettingGroup theme={theme}>
             <SettingTitle>{t('selection.settings.advanced.title')}</SettingTitle>
             <SettingDivider />
-            <SettingRow id="setting-selection-assistant-filter-mode" className="scroll-mt-6">
+            <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>
                   {t('selection.settings.advanced.filter_mode.title')}
@@ -335,7 +335,7 @@ const SelectionAssistantSettings: FC = () => {
             {filterMode && filterMode !== 'default' && (
               <>
                 <SettingDivider />
-                <SettingRow id="setting-selection-assistant-filter-list" className="scroll-mt-6">
+                <SettingRow>
                   <SettingLabel>
                     <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
                     <SettingDescription>{t('selection.settings.advanced.filter_list.description')}</SettingDescription>

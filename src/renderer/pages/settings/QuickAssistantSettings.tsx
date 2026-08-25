@@ -133,7 +133,7 @@ const QuickAssistantSettings: FC = () => {
         {enableQuickAssistant && (
           <>
             <SettingDivider />
-            <SettingRow id="setting-quick-assistant-read-clipboard-at-startup" className="scroll-mt-6">
+            <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
               <Switch checked={readClipboardAtStartup} onCheckedChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
@@ -144,11 +144,7 @@ const QuickAssistantSettings: FC = () => {
         <SettingGroup theme={theme}>
           <SettingTitle>{t('settings.models.quick_assistant_response_settings')}</SettingTitle>
           <SettingDivider />
-          <SettingRow
-            id="setting-quick-assistant-usage-method"
-            role="group"
-            aria-labelledby={usageMethodTitleId}
-            className="min-h-8.5 scroll-mt-6 gap-3">
+          <SettingRow role="group" aria-labelledby={usageMethodTitleId} className="min-h-8.5 gap-3">
             <SettingRowTitle id={usageMethodTitleId}>
               {t('settings.models.quick_assistant_usage_method')}
             </SettingRowTitle>
