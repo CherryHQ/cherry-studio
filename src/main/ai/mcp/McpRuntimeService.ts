@@ -577,9 +577,9 @@ export class McpRuntimeService extends BaseService {
         throw new OAuthPendingAuthError()
       }
       // Listener is armed for the same config but status drifted (e.g. transient error/connecting).
-      // Do not cancel it — defer the new connect attempt instead.
-      throw new OAuthCancelledError(
-        `MCP server ${server.name} has an in-flight OAuth flow; deferring the new connect attempt`
+      // Do not cancel it — surface pending-auth instead of starting a fresh connect attempt.
+      throw new OAuthPendingAuthError(
+        `MCP server ${server.name} has an in-flight OAuth flow; complete authorization or retry from MCP settings`
       )
     }
 
