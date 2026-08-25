@@ -1038,7 +1038,7 @@ describe('Topics', () => {
     })
 
     const topicRow = getTopicRow('Alpha topic')
-    const deleteButton = within(topicRow).getByLabelText('Delete')
+    const deleteButton = within(topicRow).getByLabelText('Archive')
     act(() => {
       fireEvent.click(deleteButton)
     })
@@ -1090,7 +1090,7 @@ describe('Topics', () => {
     })
 
     const topicRow = getTopicRow('Default topic')
-    const deleteButton = within(topicRow).getByLabelText('Delete')
+    const deleteButton = within(topicRow).getByLabelText('Archive')
     act(() => {
       fireEvent.click(deleteButton)
     })
@@ -1134,7 +1134,7 @@ describe('Topics', () => {
     })
 
     const topicRow = getTopicRow('Default topic')
-    const deleteButton = within(topicRow).getByLabelText('Delete')
+    const deleteButton = within(topicRow).getByLabelText('Archive')
     act(() => {
       fireEvent.click(deleteButton)
     })
@@ -1741,7 +1741,7 @@ describe('Topics', () => {
     const { getByText } = renderTopicList()
 
     const topicRow = getByText('Gamma topic').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Archive')
 
     act(() => {
       fireEvent.click(deleteButton)
@@ -1806,7 +1806,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Archive')
     act(() => {
       fireEvent.click(deleteButton)
     })
@@ -1868,7 +1868,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Archive')
     act(() => {
       fireEvent.click(deleteButton)
     })
@@ -1912,7 +1912,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Archive')
     act(() => {
       fireEvent.click(deleteButton)
     })
@@ -1984,7 +1984,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Archive')
     act(() => {
       fireEvent.click(deleteButton)
     })
@@ -2040,7 +2040,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Archive')
     act(() => {
       fireEvent.click(deleteButton)
     })

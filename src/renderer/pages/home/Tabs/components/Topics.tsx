@@ -1759,7 +1759,7 @@ const TopicRow = memo(function TopicRow({
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
-  const canDeleteTopic = !topic.pinned
+  const canArchiveTopic = !topic.pinned
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1845,10 +1845,10 @@ const TopicRow = memo(function TopicRow({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        {canDeleteTopic && (
-          <Tooltip title={t('common.delete')} delay={500}>
+        {canArchiveTopic && (
+          <Tooltip title={t('common.archive')} delay={500}>
             <ResourceList.ItemAction
-              aria-label={t('common.delete')}
+              aria-label={t('common.archive')}
               data-deleting={isConfirmingDeletion}
               onClick={(event) => {
                 if (event.ctrlKey || event.metaKey || isConfirmingDeletion) {

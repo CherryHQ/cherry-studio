@@ -513,7 +513,9 @@ topicActionRegistry.registerAction({
   group: 'danger',
   order: 89,
   surface: 'menu',
-  availability: ({ topic, topicsLength }) => ({ visible: topicsLength > 1 && !topic.pinned })
+  // Matches `topic.delete` and the row affordance: if permanently deleting the last topic is
+  // safe (the handler opens a fresh one), archiving it — which is recoverable — is safer still.
+  availability: ({ topic }) => ({ visible: !topic.pinned })
 })
 
 topicActionRegistry.registerAction({
