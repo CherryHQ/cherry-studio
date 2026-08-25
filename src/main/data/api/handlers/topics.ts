@@ -19,7 +19,6 @@ import {
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
   MoveTopicSchema,
-  RestoreTopicsQuerySchema,
   ReuseOrCreateTopicSchema,
   SetActiveNodeSchema,
   type TopicSchemas,
@@ -41,14 +40,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ query }) => {
       const parsed = DeleteTopicsQuerySchema.parse(query)
-      return topicService.deleteByIds(parsed.ids, { permanent: parsed.permanent })
-    }
-  },
-
-  '/topics/restore': {
-    POST: async ({ query }) => {
-      const parsed = RestoreTopicsQuerySchema.parse(query)
-      return topicService.restoreByIds(parsed.ids)
+      return topicService.deleteByIds(parsed.ids)
     }
   },
 

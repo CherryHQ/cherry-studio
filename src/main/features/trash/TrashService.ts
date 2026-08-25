@@ -54,7 +54,7 @@ export class TrashService extends BaseService {
    * promises during shutdown, so a request pending at quit never resolves;
    * acceptable for this fire-from-UI path.
    */
-  async purgeNow(): Promise<{ jobId: string; status: TerminalJobStatus }> {
+  async purgeNow(): Promise<{ status: TerminalJobStatus }> {
     const handle = application.get('JobManager').enqueue('trash.purge', { emptyAll: true })
     const snapshot = await handle.finished
     // `finished` resolves only at a terminal state; the guard narrows the type
@@ -62,6 +62,6 @@ export class TrashService extends BaseService {
     if (!isTerminalStatus(snapshot.status)) {
       throw new Error(`Trash purge resolved with non-terminal status: ${snapshot.status}`)
     }
-    return { jobId: handle.id, status: snapshot.status }
+    return { status: snapshot.status }
   }
 }

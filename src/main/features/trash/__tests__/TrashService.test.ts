@@ -88,7 +88,7 @@ describe('TrashService', () => {
     const result = await new TrashService().purgeNow()
 
     expect(jobManager.enqueue).toHaveBeenCalledExactlyOnceWith('trash.purge', { emptyAll: true })
-    expect(result).toEqual({ jobId: 'job-1', status: 'completed' })
+    expect(result).toEqual({ status: 'completed' })
   })
 
   it('purgeNow passes a failed terminal status through instead of masking it', async () => {
@@ -98,6 +98,6 @@ describe('TrashService', () => {
       finished: Promise.resolve({ id: 'job-2', status: 'failed' })
     })
 
-    await expect(new TrashService().purgeNow()).resolves.toEqual({ jobId: 'job-2', status: 'failed' })
+    await expect(new TrashService().purgeNow()).resolves.toEqual({ status: 'failed' })
   })
 })

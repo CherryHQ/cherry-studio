@@ -150,9 +150,7 @@ const TopicIdsQueryValueSchema = z
   .pipe(z.array(z.string().min(1)).min(1))
 
 export const DeleteTopicsQuerySchema = z.strictObject({
-  ids: TopicIdsQueryValueSchema,
-  /** `true` permanently deletes instead of archiving to the trash. */
-  permanent: z.boolean().optional()
+  ids: TopicIdsQueryValueSchema
 })
 export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
 
@@ -161,15 +159,6 @@ export const DeleteTopicQuerySchema = z.strictObject({
   permanent: z.boolean().optional()
 })
 export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
-
-export const RestoreTopicsQuerySchema = z.strictObject({
-  ids: TopicIdsQueryValueSchema
-})
-export type RestoreTopicsQuery = z.input<typeof RestoreTopicsQuerySchema>
-
-export interface RestoreTopicsResult {
-  restoredIds: string[]
-}
 
 // ============================================================================
 // API Schema Definitions
@@ -220,14 +209,6 @@ export type TopicSchemas = {
     DELETE: {
       query: DeleteTopicsQuery
       response: DeleteTopicsResult
-    }
-  }
-
-  /** Bulk restore archived topics. Missing or active IDs are omitted. */
-  '/topics/restore': {
-    POST: {
-      query: RestoreTopicsQuery
-      response: RestoreTopicsResult
     }
   }
 

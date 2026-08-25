@@ -136,8 +136,8 @@ export class AgentSessionDeliveryService extends BaseService {
     return work
   }
 
-  deleteAgentSessions(agentId: string, permanent: boolean = false): Promise<{ deletedIds: string[] }> {
-    const work = this.deleteAgentSessionsInternal(agentId, permanent)
+  deleteAgentSessions(agentId: string): Promise<{ deletedIds: string[] }> {
+    const work = this.deleteAgentSessionsInternal(agentId)
     this.track(
       `delete-agent-sessions:${agentId}`,
       work.then(() => undefined)
@@ -291,9 +291,10 @@ export class AgentSessionDeliveryService extends BaseService {
     }
   }
 
-  private async deleteAgentSessionsInternal(agentId: string, permanent: boolean): Promise<{ deletedIds: string[] }> {
+  private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
     this.assertWritesAvailable()
-    const result = agentSessionService.deleteByAgentIdForDelivery(agentId, { permanent })
+    // Archives: the only caller is the "clear this agent's sessions" command, which is undoable.
+    const result = agentSessionService.deleteByAgentIdForDelivery(agentId, { permanent: false })
     await this.finishDeletion(result.deletedIds, result.deliveryResults)
     return { deletedIds: result.deletedIds }
   }

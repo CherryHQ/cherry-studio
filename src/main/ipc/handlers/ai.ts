@@ -208,8 +208,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.create': createAgent,
   'ai.agent.delete': ({ agentId, deleteSessions, permanent }) =>
     application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions, permanent),
-  'ai.agent.sessions.delete': ({ agentId, permanent }) =>
-    application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId, permanent),
+  'ai.agent.sessions.delete': ({ agentId }) =>
+    application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the

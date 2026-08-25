@@ -22,12 +22,12 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('trashHandlers', () => {
-  it('purge_now delegates to TrashService and returns { jobId, status }', async () => {
-    trashService.purgeNow.mockResolvedValue({ jobId: 'job-1', status: 'completed' })
+  it('purge_now delegates to TrashService and returns the terminal status', async () => {
+    trashService.purgeNow.mockResolvedValue({ status: 'completed' })
 
     const result = await trashHandlers['trash.purge_now'](undefined, ctx)
 
     expect(trashService.purgeNow).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ jobId: 'job-1', status: 'completed' })
+    expect(result).toEqual({ status: 'completed' })
   })
 })

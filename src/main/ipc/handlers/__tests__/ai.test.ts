@@ -165,7 +165,7 @@ describe('aiHandlers', () => {
     await expect(aiHandlers['ai.agent.sessions.delete']({ agentId: 'agent-1' }, ctx)).resolves.toEqual({
       deletedIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteAgentSessions).toHaveBeenCalledWith('agent-1', undefined)
+    expect(agentSessionDeliveryService.deleteAgentSessions).toHaveBeenCalledWith('agent-1')
   })
 
   it('delegates mixed-effect workspace deletion to the delivery owner', async () => {

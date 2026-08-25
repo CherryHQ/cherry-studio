@@ -53,7 +53,6 @@ const _p1_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -67,7 +66,6 @@ const _p1_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -101,7 +99,6 @@ const _n2_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -116,7 +113,6 @@ const _n2_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -135,7 +131,6 @@ const _n3_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers,
@@ -151,7 +146,6 @@ const _n3_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers,
@@ -173,7 +167,6 @@ const _n4_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers,
@@ -189,7 +182,6 @@ const _n4_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers,
@@ -217,7 +209,6 @@ const _n5_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -237,7 +228,6 @@ const _n5_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -264,7 +254,6 @@ const _n6_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -286,7 +275,6 @@ const _n6_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -314,7 +302,6 @@ const _n7_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers
@@ -336,7 +323,6 @@ const _n7_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/restore': { POST: ok },
-  '/topics/restore': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
   ...auxiliaryTopicHandlers

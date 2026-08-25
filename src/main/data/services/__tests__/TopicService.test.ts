@@ -831,20 +831,6 @@ describe('TopicService', () => {
         expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
       }
     })
-
-    it('restoreByIds restores archived ids and omits missing/active ones', async () => {
-      await dbh.db.insert(topicTable).values([
-        { id: 't-a', name: 'A', orderKey: 'a0', deletedAt: 500, createdAt: 1, updatedAt: 1 },
-        { id: 't-b', name: 'B', orderKey: 'a1', deletedAt: 500, createdAt: 1, updatedAt: 1 },
-        { id: 't-active', name: 'C', orderKey: 'a2', createdAt: 1, updatedAt: 1 }
-      ])
-
-      const result = topicService.restoreByIds(['t-a', 't-b', 't-active', 'missing'])
-
-      expect(result.restoredIds.sort()).toEqual(['t-a', 't-b'])
-      const rows = await dbh.db.select({ id: topicTable.id }).from(topicTable).where(isNull(topicTable.deletedAt))
-      expect(rows.map((r) => r.id).sort()).toEqual(['t-a', 't-active', 't-b'])
-    })
   })
 
   describe('purgeExpiredTx', () => {

@@ -296,7 +296,7 @@ export const aiRequestSchemas = {
     output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
   }),
   'ai.agent.sessions.delete': defineRoute({
-    input: z.strictObject({ agentId: z.string().min(1), permanent: z.boolean().optional() }),
+    input: z.strictObject({ agentId: z.string().min(1) }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })
   }),
   'ai.agent.support_session.create': defineRoute({

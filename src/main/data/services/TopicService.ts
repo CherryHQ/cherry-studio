@@ -21,7 +21,6 @@ import type {
   LatestTopicQuery,
   ListTopicsQuery,
   MoveTopicDto,
-  RestoreTopicsResult,
   ReusableTopicPlaceholderResponse,
   ReuseOrCreateTopicDto,
   UpdateTopicDto
@@ -538,29 +537,6 @@ export class TopicService {
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored topic', { id })
     return rowToTopic(row)
-  }
-
-  restoreByIds(ids: string[]): RestoreTopicsResult {
-    const uniqueIds = Array.from(new Set(ids))
-    const restoredIds = application.get('DbService').withWriteTx((tx) => {
-      const restored: string[] = []
-      for (let i = 0; i < uniqueIds.length; i += SQLITE_INARRAY_CHUNK) {
-        const rows = tx
-          .update(topicTable)
-          .set({ deletedAt: null })
-          .where(
-            and(inArray(topicTable.id, uniqueIds.slice(i, i + SQLITE_INARRAY_CHUNK)), isNotNull(topicTable.deletedAt))
-          )
-          .returning({ id: topicTable.id })
-          .all()
-        restored.push(...rows.map((row) => row.id))
-      }
-      return restored
-    })
-
-    this.notifyReadModelChange(restoredIds, 'membership')
-    logger.info('Restored topics', { count: restoredIds.length })
-    return { restoredIds }
   }
 
   purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {

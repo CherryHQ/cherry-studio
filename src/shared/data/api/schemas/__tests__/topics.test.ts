@@ -6,7 +6,6 @@ import {
   DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
   ListTopicsQuerySchema,
-  RestoreTopicsQuerySchema,
   SetActiveNodeSchema,
   UpdateTopicSchema
 } from '../topics'
@@ -102,27 +101,17 @@ describe('ListTopicsQuerySchema', () => {
 })
 
 describe('DeleteTopicsQuerySchema / DeleteTopicQuerySchema', () => {
-  it('accepts an optional boolean permanent flag', () => {
-    expect(DeleteTopicsQuerySchema.parse({ ids: 'a,b', permanent: true })).toEqual({
-      ids: ['a', 'b'],
-      permanent: true
-    })
+  it('accepts an optional boolean permanent flag on the single-topic route', () => {
     expect(DeleteTopicQuerySchema.parse({})).toEqual({})
     expect(DeleteTopicQuerySchema.parse({ permanent: true })).toEqual({ permanent: true })
   })
 
   it('rejects a non-boolean permanent (plain z.boolean, no coercion)', () => {
-    expect(() => DeleteTopicsQuerySchema.parse({ ids: 'a', permanent: 'true' })).toThrow()
     expect(() => DeleteTopicQuerySchema.parse({ permanent: 1 })).toThrow()
   })
-})
 
-describe('RestoreTopicsQuerySchema', () => {
-  it('parses trimmed CSV ids', () => {
-    expect(RestoreTopicsQuerySchema.parse({ ids: ' a, , b ' })).toEqual({ ids: ['a', 'b'] })
-  })
-
-  it('rejects an empty ids list', () => {
-    expect(() => RestoreTopicsQuerySchema.parse({ ids: ' , ' })).toThrow()
+  it('has no permanent flag on the collection route — only the single-topic route purges', () => {
+    expect(DeleteTopicsQuerySchema.parse({ ids: 'a,b' })).toEqual({ ids: ['a', 'b'] })
+    expect(() => DeleteTopicsQuerySchema.parse({ ids: 'a', permanent: true })).toThrow()
   })
 })
