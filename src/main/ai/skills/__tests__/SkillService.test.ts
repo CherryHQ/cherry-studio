@@ -564,6 +564,21 @@ describe('SkillService', () => {
       expect(await fs.promises.readdir(path.join(third!, 'skills'))).toEqual(['agent-only', 'another-skill'])
     })
 
+    it('signals a rebuild and republishes after a linked skill changes', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      const agentOnly = await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+      const first = await skillService.ensureWorkspaceSkillPlugin(workdir)
+
+      await fs.promises.writeFile(path.join(agentOnly, 'SKILL.md'), '# updated')
+
+      const changed = await skillService.resolveWorkspaceSkillPluginPath(workdir)
+      expect(changed).not.toBe(first)
+      const second = await skillService.ensureWorkspaceSkillPlugin(workdir)
+      expect(second).not.toBe(first)
+      await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(second)
+    })
+
     it('wipes plugins left by a previous process before the first publish, and only then', async () => {
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-workspace-plugin-workdir-')
@@ -986,6 +1001,18 @@ describe('SkillService', () => {
       expect(published).toBeDefined()
       expect(beforePublish).not.toBe(published)
       await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(published)
+    })
+
+    it('signals a republish when the published directory is incomplete', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+      const published = await skillService.ensureWorkspaceSkillPlugin(workdir)
+
+      await fs.promises.rm(path.join(published!, '.claude-plugin', 'plugin.json'))
+
+      const incomplete = await skillService.resolveWorkspaceSkillPluginPath(workdir)
+      expect(incomplete).toBe(`${published}#unpublished`)
     })
 
     it('signals a republish when the published directory vanishes', async () => {

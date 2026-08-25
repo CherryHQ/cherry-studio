@@ -325,11 +325,11 @@ export class SkillService {
    * settle on a deterministic failure yet still re-trigger a publish attempt later.
    */
   async resolveWorkspaceSkillPluginPath(workdir: string): Promise<string | undefined> {
-    const { pluginDir } = await this.resolveWorkspaceSkillPlugin(workdir)
+    const { pluginDir, links } = await this.resolveWorkspaceSkillPlugin(workdir)
     if (!pluginDir || this.isWorkspaceSkillPluginBackedOff(pluginDir)) return undefined
-    // A missing directory (never published, or OS temp cleanup removed it) reads as a distinct
-    // fact, so the rebuild signature mismatches and the next build (re)publishes it.
-    return (await directoryExists(pluginDir)) ? pluginDir : `${pluginDir}#unpublished`
+    // A missing or incomplete directory reads as a distinct fact, so the rebuild signature
+    // mismatches and the next build (re)publishes it.
+    return (await this.isWorkspaceSkillPluginComplete(pluginDir, links)) ? pluginDir : `${pluginDir}#unpublished`
   }
 
   private isWorkspaceSkillPluginBackedOff(pluginDir: string): boolean {
@@ -360,7 +360,7 @@ export class SkillService {
         })
       }
       if (oversized.length > 0) {
-        logger.warn('Workspace skills too large to bridge as copies were skipped', {
+        logger.warn('Workspace skills too large to fingerprint were skipped', {
           oversized,
           maxEntries: WORKSPACE_SKILL_FINGERPRINT_MAX_ENTRIES
         })
@@ -408,10 +408,9 @@ export class SkillService {
         for (const target of linkFailures) this.junctionUnsupportedTargets.add(target)
         throw new WorkspaceSkillLinkFallback()
       }
-      // The source can change while it is being copied; fingerprint the staging copy itself so a
-      // snapshot that does not match its key is never published (including A→B→A round trips).
+      // The source can change while the plugin is being materialized; fingerprint through each
+      // staged copy/link so a snapshot that does not match its key is never published.
       for (const link of links) {
-        if (!link.copy) continue
         const staged = await this.fingerprintDirectory(path.join(stagingDir, 'skills', link.name), false)
         if (staged !== link.fingerprint) throw new WorkspaceSkillSourceDrift()
       }
@@ -460,15 +459,10 @@ export class SkillService {
         continue
       }
       const copy = this.shouldCopyWorkspaceSkill(skill.path) || this.junctionUnsupportedTargets.has(skill.path)
-      let fingerprint = ''
-      if (copy) {
-        // A copy cannot hot-reload, so its content fingerprint keys the plugin and edits re-publish.
-        const digest = await this.fingerprintDirectory(skill.path)
-        if (digest === null) {
-          oversized.push(skill.path)
-          continue
-        }
-        fingerprint = digest
+      const fingerprint = await this.fingerprintDirectory(skill.path)
+      if (fingerprint === null) {
+        oversized.push(skill.path)
+        continue
       }
       links.push({ name: skill.name, target: skill.path, copy, fingerprint })
     }
@@ -507,9 +501,9 @@ export class SkillService {
   }
 
   /**
-   * Deterministic content digest (relative paths + file bytes) for skills that must be copied, not
-   * linked. `null` marks a tree over the entry or byte cap: an incomplete digest could not tell
-   * edits apart, so such a skill is refused rather than served stale.
+   * Deterministic content digest (relative paths + file bytes) for workspace plugin keys. `null`
+   * marks a tree over the entry or byte cap: an incomplete digest could not tell edits apart, so
+   * such a skill is refused rather than served stale.
    */
   private async fingerprintDirectory(dir: string, cacheResult = true): Promise<string | null> {
     const hash = createHash('sha256')
