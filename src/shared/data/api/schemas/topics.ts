@@ -199,8 +199,8 @@ export type TopicSchemas = {
       response: Topic
     }
     /**
-     * Delete an explicit set of topics. Archives by default; permanently
-     * deletes when `permanent=true`.
+     * Archive an explicit set of topics to the trash. Bulk purging has no caller,
+     * so this route is archive-only — purge one at a time via `DELETE /topics/:id`.
      *
      * Used by multi-select table flows where the selection can span assistants.
      * This operation is all-or-nothing: if any supplied ID does not resolve to

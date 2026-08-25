@@ -221,12 +221,12 @@ describe('FileList', () => {
 
     const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
 
-    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.archive' })).toBeInTheDocument()
 
     rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
 
     expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.archive' })).not.toBeInTheDocument()
   })
 
   it('hides invalid row actions for missing files', () => {

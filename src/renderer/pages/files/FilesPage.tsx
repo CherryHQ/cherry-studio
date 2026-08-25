@@ -577,7 +577,8 @@ function FilesPage() {
       return t('files.remove_from_library')
     }
     if (selectedFiles.some((file) => file.origin === 'external')) return t('files.delete_or_remove')
-    return t('files.delete.label')
+    // Internal files are archived to the trash, so the irreversible wording would be a lie.
+    return t('common.archive')
   }, [selectedFiles, t])
 
   const handleSelect = useCallback((id: string) => {

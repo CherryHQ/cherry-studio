@@ -615,7 +615,7 @@ describe('FilesPage file operations', () => {
     renderFilesPage([entry, secondEntry])
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
-    fireEvent.click(screen.getByText(/files.delete.label/))
+    fireEvent.click(screen.getByText(/common.archive/))
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id, secondEntry.id] })
@@ -642,7 +642,7 @@ describe('FilesPage file operations', () => {
     const actionsButton = screen.getByRole('button', { name: 'files.actions' })
 
     expect(actionsButton).toBeInTheDocument()
-    expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
+    expect(screen.getByText(/common.archive/)).toBeInTheDocument()
   })
 
   it('starts rename from the visible row action button', () => {

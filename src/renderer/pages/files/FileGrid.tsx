@@ -144,10 +144,8 @@ export const FileGrid = memo(function FileGrid({
                             e.stopPropagation()
                             onDelete(file.id)
                           }}
-                          aria-label={
-                            file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
-                          }
-                          title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
+                          aria-label={file.origin === 'external' ? t('files.remove_from_library') : t('common.archive')}
+                          title={file.origin === 'external' ? t('files.remove_from_library') : t('common.archive')}
                           className="!text-muted-foreground hover:!text-destructive size-6 min-h-0 rounded bg-background/80 p-0 shadow-xs backdrop-blur-sm transition-colors">
                           <Trash2 className="size-3" />
                         </Button>

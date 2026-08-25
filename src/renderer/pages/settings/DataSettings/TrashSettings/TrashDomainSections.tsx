@@ -61,7 +61,10 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
     [topics]
   )
 
-  const restoreMutation = useMutation('POST', '/topics/:id/restore', { refresh: ['/topics', '/topics/*'] })
+  // Refresh the list plus the one restored row — `/topics/*` would revalidate every cached topic.
+  const restoreMutation = useMutation('POST', '/topics/:id/restore', {
+    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
+  })
   // Purge refreshes the list only — revalidating `/topics/:id` would fetch a row that is
   // gone and cache the 404 in SWR.
   const deleteMutation = useMutation('DELETE', '/topics/:id', { refresh: ['/topics'] })
@@ -120,7 +123,9 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
   )
   const totalPages = Math.ceil(total / 50)
 
-  const restoreMutation = useMutation('POST', '/agents/:agentId/restore', { refresh: ['/agents', '/agents/*'] })
+  const restoreMutation = useMutation('POST', '/agents/:agentId/restore', {
+    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
+  })
 
   const handleRestore = async (item: TrashItem) => {
     setPendingRestoreId(item.id)
@@ -183,7 +188,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays
   )
 
   const restoreMutation = useMutation('POST', '/agent-sessions/:sessionId/restore', {
-    refresh: ['/agent-sessions', '/agent-sessions/*', '/agents/*']
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`, '/agents/*']
   })
 
   const handleRestore = async (item: TrashItem) => {
@@ -247,7 +252,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({ retentionDa
   const totalPages = Math.ceil(total / 50)
 
   const restoreMutation = useMutation('POST', '/assistants/:id/restore', {
-    refresh: ['/assistants', '/assistants/*']
+    refresh: ({ args }) => ['/assistants', `/assistants/${args!.params.id}`]
   })
   const deleteMutation = useMutation('DELETE', '/assistants/:id', { refresh: ['/assistants'] })
 
@@ -310,7 +315,9 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({ retentionDay
     [paintings]
   )
 
-  const restoreMutation = useMutation('POST', '/paintings/:id/restore', { refresh: ['/paintings', '/paintings/*'] })
+  const restoreMutation = useMutation('POST', '/paintings/:id/restore', {
+    refresh: ({ args }) => ['/paintings', `/paintings/${args!.params.id}`]
+  })
   const deleteMutation = useMutation('DELETE', '/paintings/:id', { refresh: ['/paintings'] })
 
   const handleRestore = async (item: TrashItem) => {

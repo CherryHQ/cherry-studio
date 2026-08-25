@@ -287,7 +287,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       loadingDescription: t('history.records.loading.sessionsDescription'),
       pinLabel: t('selector.common.pin'),
       unpinLabel: t('selector.common.unpin'),
-      deleteLabel: t('common.delete'),
+      deleteLabel: t('common.archive'),
       renameDialogTitle: t('agent.session.edit.title')
     }
   }

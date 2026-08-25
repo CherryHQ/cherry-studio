@@ -74,7 +74,7 @@ function FileContextMenuContent({
       {hasPrimaryAction && <ContextMenuSeparator />}
       <ContextMenuItem variant="destructive" onSelect={() => actions.onDelete(file.id)}>
         <ContextMenuItemContent icon={<Trash2 size={12} />}>
-          {file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
+          {file.origin === 'external' ? t('files.remove_from_library') : t('common.archive')}
         </ContextMenuItemContent>
       </ContextMenuItem>
     </ContextMenuContent>
