@@ -19,6 +19,7 @@ async function addModel(page: Page, model: string): Promise<void> {
   if (
     await page
       .getByText(model, { exact: true })
+      .last()
       .isVisible()
       .catch(() => false)
   )
@@ -56,8 +57,8 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
 }
 
 export async function closeSettings(page: Page): Promise<void> {
-  const back = page.getByRole('button', { name: 'Back', exact: true }).first()
-  if (await back.isVisible().catch(() => false)) await back.click()
+  await page.getByRole('button', { name: 'Back', exact: true }).first().click()
+  await expect(page.getByRole('button', { name: 'Chat', exact: true }).first()).toBeVisible()
 }
 
 export async function selectChatModel(page: Page, model: string): Promise<void> {

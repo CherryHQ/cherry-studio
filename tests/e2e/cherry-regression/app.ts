@@ -37,7 +37,7 @@ export class RegressionApp {
   private async connect(): Promise<Browser> {
     if (this.browser?.isConnected()) return this.browser
     const { cdpPort } = this.record
-    this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`)
+    this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 2 * 60_000 })
     return this.browser
   }
 
