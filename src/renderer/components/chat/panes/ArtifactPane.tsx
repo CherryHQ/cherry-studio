@@ -99,58 +99,7 @@ function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id
   return node.id === WORKSPACE_ROOT_ID ? workspacePath : joinPath(workspacePath, node.id)
 }
 
-/**
- * Cache resolved open-target menu items briefly so rapid right-clicks skip the
- * `external_app.target.list` IPC; sharing the in-flight promise dedupes lookups.
- */
-const OPEN_TARGET_MENU_ITEMS_TTL_MS = 5_000
-const OPEN_TARGET_MENU_ITEMS_CACHE_LIMIT = 32
-interface OpenTargetMenuItemsCacheEntry {
-  at: number
-  promise: Promise<readonly CommandContextMenuExtraItem[]>
-}
-const openTargetMenuItemsCache = new Map<string, OpenTargetMenuItemsCacheEntry>()
-
-function clearOpenTargetMenuItemsCache(): void {
-  openTargetMenuItemsCache.clear()
-}
-
-/** Test-only: drop all cached open-target menu lookups. */
-export function clearOpenTargetMenuItemsCacheForTests(): void {
-  clearOpenTargetMenuItemsCache()
-}
-
-function loadOpenTargetMenuItemsCached(
-  options: Parameters<typeof loadOpenTargetMenuItems>[0],
-  language: string | undefined
-) {
-  // `encodeURIComponent` keeps distinct paths from colliding via delimiters.
-  const key = `${options.pathKind}\0${encodeURIComponent(options.targetPath)}\0${language ?? ''}`
-  const cached = openTargetMenuItemsCache.get(key)
-  if (cached && Date.now() - cached.at < OPEN_TARGET_MENU_ITEMS_TTL_MS) return cached.promise
-
-  // Bound growth: drop expired entries first, then evict oldest-inserted.
-  if (openTargetMenuItemsCache.size >= OPEN_TARGET_MENU_ITEMS_CACHE_LIMIT) {
-    const now = Date.now()
-    for (const [entryKey, entry] of openTargetMenuItemsCache) {
-      if (now - entry.at >= OPEN_TARGET_MENU_ITEMS_TTL_MS) openTargetMenuItemsCache.delete(entryKey)
-    }
-    while (openTargetMenuItemsCache.size >= OPEN_TARGET_MENU_ITEMS_CACHE_LIMIT) {
-      const oldestKey = openTargetMenuItemsCache.keys().next().value
-      if (oldestKey === undefined) break
-      openTargetMenuItemsCache.delete(oldestKey)
-    }
-  }
-
-  // Failures resolve to `[]` — evict them so the next right-click retries the
-  // IPC instead of silently reusing the failed result within the TTL.
-  const promise = loadOpenTargetMenuItems(options).then((items) => {
-    if (!items.length) openTargetMenuItemsCache.delete(key)
-    return items
-  })
-  openTargetMenuItemsCache.set(key, { at: Date.now(), promise })
-  return promise
-}
+const OPEN_TARGET_LOOKUP_TIMEOUT_MS = 1_000
 
 interface ArtifactPaneViewBaseProps {
   workspacePath?: string
@@ -204,7 +153,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     editMode = 'preview',
     onEditModeChange
   } = props
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -311,12 +260,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       toast.error(t('agent.preview_pane.edit.save_failed'))
     }
   }, [fileSession?.metadataRecoveryPending, fileSession?.saveError, t])
-
-  // Open-target items embed workspace-bound paths and closures — drop the
-  // module-level cache when the workspace root changes so they can't leak.
-  useEffect(() => {
-    clearOpenTargetMenuItemsCache()
-  }, [previewWorkspacePath])
 
   useEffect(() => {
     if (!overlayWorkspacePath || !overlayFilePath) return
@@ -563,7 +506,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     let openTargetItems: readonly CommandContextMenuExtraItem[] = []
     try {
       const targetPath = getArtifactPaneSelectionPath(overlaySelection)
-      openTargetItems = await loadOpenTargetMenuItemsCached({ targetPath, pathKind: 'file', t }, i18n.language)
+      const timeoutPromise = new Promise<readonly CommandContextMenuExtraItem[]>((resolve) =>
+        setTimeout(() => resolve([]), OPEN_TARGET_LOOKUP_TIMEOUT_MS)
+      )
+      openTargetItems = await Promise.race([
+        loadOpenTargetMenuItems({ targetPath, pathKind: 'file', t }),
+        timeoutPromise
+      ])
     } catch (error) {
       logger.warn('Failed to resolve open targets for the opened-file header menu', error as Error)
     }
@@ -575,7 +524,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       ...(openTargetItems.length ? [{ type: 'separator' } as const] : []),
       ...buildTabActionItems()
     ]
-  }, [buildTabActionItems, i18n.language, overlaySelection, previewKey, t])
+  }, [buildTabActionItems, overlaySelection, previewKey, t])
 
   const paneHeader =
     props.headerVariant === 'pane' ? (
@@ -598,6 +547,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           ) : null}
           <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
             <CommandContextMenu
+              key={previewKey}
               location="webcontents.context"
               disabled={!overlaySelection}
               pendingExtraItems={tabActionItems}
@@ -694,6 +644,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
               <CommandContextMenu
+                key={previewKey}
                 location="webcontents.context"
                 disabled={!overlaySelection}
                 pendingExtraItems={tabActionItems}
