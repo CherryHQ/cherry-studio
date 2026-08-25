@@ -206,6 +206,11 @@ export class McpRuntimeService extends BaseService {
   private pendingOAuthCancellations = new Map<string, Promise<void>>()
   private pendingOAuthCompletions = new Map<string, Set<Promise<void>>>()
   private oauthCancellationGenerations = new Map<string, number>()
+  // Config fingerprint that armed the pending-auth listener; joins only match this key.
+  private pendingOAuthConfigKeys = new Map<string, string>()
+  // Suppress join-wait while a background OAuth completion drives restartServer —
+  // otherwise connectClient would await the same completion and deadlock.
+  private oauthCompletionReentry = new Set<string>()
   // Different configuration fingerprints can connect concurrently; only the newest
   // attempt for a server id may publish state or control its OAuth listener.
   private connectionAttemptGenerations = new Map<string, number>()
@@ -425,10 +430,14 @@ export class McpRuntimeService extends BaseService {
     // Everything from here to `pendingClients.set` must stay synchronous: an await in between
     // lets two concurrent callers both miss the pending entry, connect twice, and leak the
     // client whose entry the other's cleanup deletes.
-    const pendingClient = this.pendingClients.get(serverKey)
-    if (pendingClient) {
-      getServerLogger(server).silly(`Waiting for pending client initialization`)
-      return pendingClient
+    // Background OAuth completion must not await an external join that is itself waiting on
+    // that completion — that would deadlock. Skip the pending share while re-entering.
+    if (!this.oauthCompletionReentry.has(server.id)) {
+      const pendingClient = this.pendingClients.get(serverKey)
+      if (pendingClient) {
+        getServerLogger(server).silly(`Waiting for pending client initialization`)
+        return pendingClient
+      }
     }
 
     const existingClient = this.clients.get(serverKey)
@@ -464,7 +473,9 @@ export class McpRuntimeService extends BaseService {
     }
 
     const initPromise = this.connectClient(server, serverKey).finally(() => {
-      this.pendingClients.delete(serverKey)
+      if (this.pendingClients.get(serverKey) === initPromise) {
+        this.pendingClients.delete(serverKey)
+      }
     })
     this.pendingClients.set(serverKey, initPromise)
 
@@ -493,13 +504,12 @@ export class McpRuntimeService extends BaseService {
     serverKey: string,
     existingClient: Client
   ): Promise<Client | undefined> {
-    const attemptGeneration = (this.connectionAttemptGenerations.get(server.id) ?? 0) + 1
-    this.connectionAttemptGenerations.set(server.id, attemptGeneration)
-    const isCurrentAttempt = () => this.connectionAttemptGenerations.get(server.id) === attemptGeneration
-    await this.cancelPendingOAuthListener(server.id)
-    if (!isCurrentAttempt()) {
-      throw new OAuthCancelledError(`Connection attempt for MCP server ${server.name} was superseded`)
-    }
+    // Plain reuse is not a new connection attempt: do not bump generations or cancel an
+    // armed background OAuth listener. Concurrent connect/restart bumps the generation and
+    // supersedes this probe; overlapping reuses share one probe via pendingProbes.
+    const attemptGeneration = this.connectionAttemptGenerations.get(server.id) ?? 0
+    const isCurrentAttempt = () =>
+      (this.connectionAttemptGenerations.get(server.id) ?? 0) === attemptGeneration
 
     try {
       // add short timeout to prevent hanging
@@ -542,6 +552,26 @@ export class McpRuntimeService extends BaseService {
     // stale-client cleanup awaits, by which time removeServer may have completed.
     if (this.removedServerIds.has(server.id)) {
       throw new Error(`MCP server ${server.name} has been removed`)
+    }
+
+    // If a background OAuth listener is already armed for this *same* configuration,
+    // do not cancel it (that would discard a submitted code / open another browser).
+    // Callers that need a fresh attempt must stop/restart/remove or change config.
+    // Skip while the background completion itself is restarting.
+    if (
+      !this.oauthCompletionReentry.has(server.id) &&
+      this.hasArmedPendingOAuth(server.id) &&
+      this.pendingOAuthConfigKeys.get(server.id) === serverKey
+    ) {
+      const status = application.get('CacheService').getShared(mcpStatusCacheKey(server.id)) as
+        | McpRuntimeStatus
+        | undefined
+      if (status?.state === 'pending-auth') {
+        throw new OAuthPendingAuthError(
+          `OAuth authorization is pending. Complete the browser flow to connect this server automatically, ` +
+            `or open MCP settings and re-enable the server to retry.`
+        )
+      }
     }
 
     const attemptGeneration = (this.connectionAttemptGenerations.get(server.id) ?? 0) + 1
@@ -817,7 +847,7 @@ export class McpRuntimeService extends BaseService {
       graceAbortController.abort(new Error(`OAuth attempt for MCP server ${server.name} was cancelled`))
       await closeCallbackServer()
     }
-    this.registerPendingOAuthListener(server.id, cancelOAuthAttempt)
+    this.registerPendingOAuthListener(server.id, cancelOAuthAttempt, this.getServerKey(server))
     try {
       const graceSignal = AbortSignal.any([shutdownSignal, graceAbortController.signal])
       authCode = await callbackServer.waitForAuthCode(OAUTH_GRACE_MS, graceSignal)
@@ -907,7 +937,7 @@ export class McpRuntimeService extends BaseService {
           }
         )
       })
-    this.registerPendingOAuthListener(server.id, cancelOAuthAttempt)
+    this.registerPendingOAuthListener(server.id, cancelOAuthAttempt, this.getServerKey(server))
     try {
       await finishAuthUnlessCancelled(authCode!)
       throwIfCancelled()
@@ -1010,7 +1040,7 @@ export class McpRuntimeService extends BaseService {
       }
       await Promise.all([closeClient(), closeCallbackServer()])
     }
-    this.registerPendingOAuthListener(server.id, cancel)
+    this.registerPendingOAuthListener(server.id, cancel, this.getServerKey(server))
 
     const remaining = OAUTH_CALLBACK_TIMEOUT_MS - OAUTH_GRACE_MS
     const completion = callbackServer
@@ -1023,7 +1053,12 @@ export class McpRuntimeService extends BaseService {
           await Promise.all([closeClient(), closeCallbackServer()])
           if (!active || this.stopping || wasStopped() || wasSuperseded()) return
           getServerLogger(server).info(`OAuth token stored; triggering automatic server reconnect`)
-          await this.restartServerIfCurrent(server.id, stopGeneration)
+          this.oauthCompletionReentry.add(server.id)
+          try {
+            await this.restartServerIfCurrent(server.id, stopGeneration)
+          } finally {
+            this.oauthCompletionReentry.delete(server.id)
+          }
         } catch (err) {
           if (!active || this.stopping || wasStopped() || wasSuperseded()) return
           getServerLogger(server).error(`Background OAuth completion failed`, err as Error)
@@ -1068,6 +1103,7 @@ export class McpRuntimeService extends BaseService {
     }
 
     this.pendingOAuthListeners.delete(serverId)
+    this.pendingOAuthConfigKeys.delete(serverId)
     const cancellation = Promise.allSettled([
       ...(inFlightCancellation ? [inFlightCancellation] : []),
       ...[...pending].map((cancel) => cancel())
@@ -1083,10 +1119,24 @@ export class McpRuntimeService extends BaseService {
     return generation
   }
 
-  private registerPendingOAuthListener(serverId: string, cancel: () => Promise<void>): void {
+  private hasArmedPendingOAuth(serverId: string): boolean {
+    return (
+      (this.pendingOAuthListeners.get(serverId)?.size ?? 0) > 0 ||
+      (this.pendingOAuthCompletions.get(serverId)?.size ?? 0) > 0
+    )
+  }
+
+  private registerPendingOAuthListener(
+    serverId: string,
+    cancel: () => Promise<void>,
+    serverKey?: string
+  ): void {
     const pending = this.pendingOAuthListeners.get(serverId) ?? new Set()
     pending.add(cancel)
     this.pendingOAuthListeners.set(serverId, pending)
+    if (serverKey) {
+      this.pendingOAuthConfigKeys.set(serverId, serverKey)
+    }
   }
 
   private unregisterPendingOAuthListener(serverId: string, cancel: () => Promise<void>): void {
@@ -1094,6 +1144,7 @@ export class McpRuntimeService extends BaseService {
     pending?.delete(cancel)
     if (pending?.size === 0) {
       this.pendingOAuthListeners.delete(serverId)
+      this.pendingOAuthConfigKeys.delete(serverId)
     }
   }
 

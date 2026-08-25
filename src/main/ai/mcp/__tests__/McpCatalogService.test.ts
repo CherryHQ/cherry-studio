@@ -215,6 +215,21 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
   })
 
+  it('heals an error status when a later list succeeds', async () => {
+    getById.mockReturnValue(server())
+    cacheStore.set('mcp.status.server-1', { state: 'error', lastCheckedAt: Date.now() })
+    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+
+    const service = new McpCatalogService()
+    await service.refreshTools('server-1')
+
+    expect(cacheService.setShared).toHaveBeenCalledWith(
+      'mcp.tools.server-1',
+      expect.arrayContaining([expect.objectContaining({ name: 'search' })])
+    )
+    expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'connected')
+  })
+
   it('prewarms active server tools into shared cache', async () => {
     listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
     listTools.mockResolvedValue({ tools: [sdkTool('search')] })

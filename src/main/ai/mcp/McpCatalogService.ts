@@ -249,7 +249,10 @@ export class McpCatalogService extends BaseService {
       const runtimeStatus = application.get('CacheService').getShared(mcpStatusCacheKey(server.id)) as
         | McpRuntimeStatus
         | undefined
-      if (runtimeStatus && runtimeStatus.state !== 'connected') {
+      // Only pending-auth is owned by an in-flight OAuth attempt. Other non-connected
+      // states (error/connecting) must still heal on a successful list so a transient
+      // failure cannot wedge the tools cache permanently.
+      if (runtimeStatus?.state === 'pending-auth') {
         return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
       }
       this.writeToolsCache(server.id, tools, tools.length === 0 ? EMPTY_TOOLS_RETRY_MS : 0)

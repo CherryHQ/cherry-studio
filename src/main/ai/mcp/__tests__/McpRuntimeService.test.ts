@@ -1284,14 +1284,16 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
 
     const service = new McpRuntimeService()
     const server = urlServer('streamableHttp')
+    getByIdMock.mockReturnValue(server)
 
     await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
       name: 'OAuthPendingAuthError'
     })
 
+    // A deliberate restart cancels the armed listener; a plain reconnect must not.
     mcpSdkMock.state.failStreamable = false
     mcpSdkMock.state.failStreamableUnauthorized = false
-    await expect((service as any).getOrCreateClient(server)).resolves.toBeDefined()
+    await service.restartServer(server.id)
 
     expect(backgroundSignal?.aborted).toBe(true)
     mcpSdkMock.state.finishAuthError = new Error('stale token exchange failed')
@@ -1958,6 +1960,71 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
       state: 'pending-auth'
     })
+
+    await (service as any).onStop()
+  })
+
+  it('keeps a healthy server connected when connectivity check overlaps client reuse', async () => {
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    getByIdMock.mockReturnValue(server)
+    const client = (await (service as any).getOrCreateClient(server)) as MockClient
+    mcpCatalogMock.clearSharedToolsCache.mockClear()
+
+    const listTools = createDeferred<{ tools: never[] }>()
+    const listToolsSpy = vi.fn(() => listTools.promise)
+    ;(client as any).listTools = listToolsSpy
+
+    const connectivityCheck = service.checkMcpConnectivity(server.id)
+    await vi.waitFor(() => expect(listToolsSpy).toHaveBeenCalledTimes(1))
+
+    await expect((service as any).getOrCreateClient(server)).resolves.toBe(client)
+    listTools.resolve({ tools: [] })
+    await expect(connectivityCheck).resolves.toBe(true)
+    expect(mcpCatalogMock.clearSharedToolsCache).not.toHaveBeenCalled()
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'connected'
+    })
+  })
+
+  it('joins an armed pending-auth listener instead of opening a second OAuth flow', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+
+    let resolveBackgroundCode!: (code: string) => void
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveBackgroundCode = resolve
+          })
+      )
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    getByIdMock.mockReturnValue(server)
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+    expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(2)
+
+    // Passive reconnect must preserve the armed listener — no third browser/callback cycle.
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+    expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(2)
+
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableUnauthorized = false
+    resolveBackgroundCode('background-auth-code')
+    await vi.waitFor(() => {
+      expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+        state: 'connected'
+      })
+    })
+    expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(2)
 
     await (service as any).onStop()
   })
