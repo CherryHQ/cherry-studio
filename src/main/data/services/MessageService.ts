@@ -45,7 +45,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNotNull, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -825,6 +825,27 @@ export class MessageService {
       )
       .all()
     return rows.map((row) => row.id)
+  }
+
+  listLiveCreatedInRange({ fromMs, toMs }: { fromMs: number; toMs: number }): Message[] {
+    const db = application.get('DbService').getDb()
+    const rows = db
+      .select({ ...messageTable })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(messageTable.topicId, topicTable.id))
+      .where(
+        and(
+          gte(messageTable.createdAt, fromMs),
+          lte(messageTable.createdAt, toMs),
+          isNull(messageTable.deletedAt),
+          isNull(topicTable.deletedAt),
+          ne(messageTable.role, 'root')
+        )
+      )
+      .orderBy(desc(messageTable.createdAt), desc(messageTable.id))
+      .all()
+
+    return rows.map(rowToMessage)
   }
 
   /**

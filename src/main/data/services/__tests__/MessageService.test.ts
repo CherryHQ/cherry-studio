@@ -482,6 +482,112 @@ describe('MessageService', () => {
     })
   })
 
+  describe('listLiveCreatedInRange', () => {
+    it('returns only live content messages within the closed range in stable newest-first order', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-range-a', activeNodeId: null, orderKey: 'ba0' },
+        { id: 'topic-range-b', activeNodeId: null, orderKey: 'ba1' },
+        { id: 'topic-range-deleted', activeNodeId: null, orderKey: 'ba2', deletedAt: 1 }
+      ])
+      await dbh.db.insert(messageTable).values([
+        { ...rootRow('topic-range-a'), createdAt: 200, updatedAt: 200 },
+        rootRow('topic-range-b'),
+        rootRow('topic-range-deleted'),
+        {
+          id: 'range-start',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('start'),
+          status: 'success',
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'range-tie-a',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'assistant',
+          data: mainText('tie a'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'range-tie-z',
+          parentId: 'vroot-topic-range-b',
+          topicId: 'topic-range-b',
+          role: 'assistant',
+          data: mainText('tie z'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'range-end',
+          parentId: 'vroot-topic-range-b',
+          topicId: 'topic-range-b',
+          role: 'user',
+          data: mainText('end'),
+          status: 'success',
+          createdAt: 300,
+          updatedAt: 300
+        },
+        {
+          id: 'range-before',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('before'),
+          status: 'success',
+          createdAt: 99,
+          updatedAt: 99
+        },
+        {
+          id: 'range-after',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('after'),
+          status: 'success',
+          createdAt: 301,
+          updatedAt: 301
+        },
+        {
+          id: 'range-message-deleted',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'assistant',
+          data: mainText('deleted message'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200,
+          deletedAt: 1
+        },
+        {
+          id: 'range-topic-deleted',
+          parentId: 'vroot-topic-range-deleted',
+          topicId: 'topic-range-deleted',
+          role: 'assistant',
+          data: mainText('deleted topic'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const messages = messageService.listLiveCreatedInRange({ fromMs: 100, toMs: 300 })
+
+      expect(messages.map((message) => message.id)).toEqual(['range-end', 'range-tie-z', 'range-tie-a', 'range-start'])
+      expect(messages.map((message) => message.createdAt)).toEqual([
+        '1970-01-01T00:00:00.300Z',
+        '1970-01-01T00:00:00.200Z',
+        '1970-01-01T00:00:00.200Z',
+        '1970-01-01T00:00:00.100Z'
+      ])
+    })
+  })
+
   describe('markMessagesError', () => {
     async function seedStatuses() {
       await dbh.db.insert(topicTable).values({

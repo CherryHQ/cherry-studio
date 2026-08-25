@@ -56,7 +56,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -428,6 +428,18 @@ export class AgentSessionMessageService {
 
   hasSessionMessage(sessionId: string, messageId: string): boolean {
     return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
+  }
+
+  listCreatedInRange({ fromMs, toMs }: { fromMs: number; toMs: number }): AgentSessionMessageEntity[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(sessionMessagesTable)
+      .where(and(gte(sessionMessagesTable.createdAt, fromMs), lte(sessionMessagesTable.createdAt, toMs)))
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .all()
+      .map((row) => this.rowToEntity(row))
   }
 
   /**

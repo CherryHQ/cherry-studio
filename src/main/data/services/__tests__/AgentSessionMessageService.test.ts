@@ -1082,6 +1082,99 @@ describe('AgentSessionMessageService', () => {
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
+  it('lists messages in a closed range in stable newest-first order with standard entity fields', async () => {
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: 'range-start',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'start' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: 'range-tie-a',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'tie a' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'range-tie-z',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'tie z' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'range-end',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'end' }] },
+        status: 'success',
+        runtimeResumeToken: 'resume-token',
+        delivery: {
+          version: 1,
+          sender: { agentId: 'sender-agent', sessionId: 'sender-session' },
+          receiver: { agentId: 'receiver-agent', sessionId: SESSION_ID },
+          replyPolicy: 'completion',
+          sourceMessageId: null,
+          outcome: null,
+          error: null,
+          statusAt: '1970-01-01T00:00:00.300Z'
+        },
+        deliveryStatus: 'accepted',
+        deliveryInReplyTo: null,
+        deliveryTurnRef: null,
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: 'range-before',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'before' }] },
+        status: 'success',
+        createdAt: 99,
+        updatedAt: 99
+      },
+      {
+        id: 'range-after',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'after' }] },
+        status: 'success',
+        createdAt: 301,
+        updatedAt: 301
+      }
+    ])
+
+    const messages = agentSessionMessageService.listCreatedInRange({ fromMs: 100, toMs: 300 })
+
+    expect(messages.map((message) => message.id)).toEqual(['range-end', 'range-tie-z', 'range-tie-a', 'range-start'])
+    expect(messages[0]).toMatchObject({
+      id: 'range-end',
+      sessionId: SESSION_ID,
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'end' }] },
+      status: 'success',
+      runtimeResumeToken: 'resume-token',
+      delivery: {
+        sender: { agentId: 'sender-agent', sessionId: 'sender-session' },
+        receiver: { agentId: 'receiver-agent', sessionId: SESSION_ID },
+        replyPolicy: 'completion',
+        status: 'accepted'
+      },
+      createdAt: '1970-01-01T00:00:00.300Z',
+      updatedAt: '1970-01-01T00:00:00.300Z'
+    })
+  })
+
   it('falls back to the newest page when list pagination receives a malformed cursor', async () => {
     await dbh.db.insert(agentSessionMessageTable).values([
       {
