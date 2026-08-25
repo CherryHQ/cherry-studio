@@ -139,7 +139,7 @@ describe('sidebarVariants icons', () => {
       expect(openApp).toHaveBeenCalledWith('assistants', { inNewTab: true })
     })
 
-    it('wires openMiniApp with and without inNewTab for mini_app variant', () => {
+    it('wires openMiniApp for both open actions of the mini_app variant', () => {
       const openMiniApp = vi.fn()
       const miniApp = {
         appId: 'mini-1',
@@ -158,8 +158,10 @@ describe('sidebarVariants icons', () => {
       entry?.onOpen()
       expect(openMiniApp).toHaveBeenCalledWith('mini-1')
 
+      // A mini app has one instance per id, so "open in new tab" resolves to the
+      // same find-or-activate as a plain click.
       entry?.onOpenNewTab?.()
-      expect(openMiniApp).toHaveBeenCalledWith('mini-1', { inNewTab: true })
+      expect(openMiniApp).toHaveBeenLastCalledWith('mini-1')
     })
 
     it('wires openAgent with and without inNewTab for agent variant', () => {

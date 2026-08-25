@@ -1,4 +1,5 @@
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 
 export interface SidebarMiniApp {
@@ -19,6 +20,12 @@ export interface SidebarActiveState {
   activeItem: string
   /** Active mini app id (concrete mini app route). */
   activeTabId?: string
+  /**
+   * Open tabs — lets conversation-backed entries (agents, assistants) decide
+   * "already open" by their tab's entity-ownership tag, the same signal the
+   * click handler uses.
+   */
+  tabs?: readonly Tab[]
 }
 
 /**
