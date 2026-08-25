@@ -40,9 +40,9 @@ const messageListSearchMock = vi.hoisted(() => ({
   } | null
 }))
 const chatLayoutModeMock = vi.hoisted(() => ({
-  railGutterPx: 0,
   setForceWideLayout: () => {},
-  setRailGutterPx: vi.fn()
+  setRailGutter: vi.fn(),
+  getRailGutterPx: vi.fn(() => 0)
 }))
 const originalLanguage = i18n.language
 
@@ -361,8 +361,8 @@ describe('MessageList', () => {
     messageGroupRenderCounts.clear()
     messageGroupMountCounts.clear()
     messageListSearchMock.props = null
-    chatLayoutModeMock.railGutterPx = 0
-    chatLayoutModeMock.setRailGutterPx.mockReset()
+    chatLayoutModeMock.setRailGutter.mockReset()
+    chatLayoutModeMock.getRailGutterPx.mockReset().mockReturnValue(0)
   })
 
   it('does not load the message outline module while outline is disabled', () => {
@@ -485,15 +485,13 @@ describe('MessageList', () => {
     expect(messageListSearchMock.props?.isStreaming).toBe(true)
   })
 
-  it('pads the message column with the rail gutter from the chat layout context', () => {
-    chatLayoutModeMock.railGutterPx = 24
-
+  it('pads the message column with the inherited rail gutter property', () => {
     renderMessageList([createMessage('assistant-1', 'assistant')])
 
-    // Base side padding (24) + context gutter (24) on both sides.
+    // The browser resolves the inherited property without a MessageGroup render.
     expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
-      paddingLeft: '48px',
-      paddingRight: '48px'
+      paddingLeft: 'calc(24px + var(--chat-rail-gutter, 0px))',
+      paddingRight: 'calc(24px + var(--chat-rail-gutter, 0px))'
     })
   })
 
@@ -506,12 +504,12 @@ describe('MessageList', () => {
       </MessageListProvider>
     )
 
-    expect(chatLayoutModeMock.setRailGutterPx).toHaveBeenCalledWith(24)
+    expect(chatLayoutModeMock.setRailGutter).toHaveBeenCalledWith(24, 1)
 
-    chatLayoutModeMock.setRailGutterPx.mockClear()
+    chatLayoutModeMock.setRailGutter.mockClear()
     view.unmount()
 
-    expect(chatLayoutModeMock.setRailGutterPx).not.toHaveBeenCalled()
+    expect(chatLayoutModeMock.setRailGutter).not.toHaveBeenCalled()
   })
 
   it('keeps historical groups sealed while only the live tail changes', () => {

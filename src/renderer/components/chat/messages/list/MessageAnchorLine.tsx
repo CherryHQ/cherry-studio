@@ -1,6 +1,7 @@
 import { classNames } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
+  type CSSProperties,
   type FC,
   memo,
   type MouseEvent as ReactMouseEvent,
@@ -23,8 +24,9 @@ interface MessageLineProps {
   messages: readonly AnchorMessage[]
   /** Message under the viewport-top reading line; highlights its turn's tick. */
   activeMessageId?: string | null
-  /** 0–1 fade driven by the content's rail gutter — the rail eases in/out with width. */
-  railOpacity?: number
+  /** Discrete gate for pointer/focus semantics. Continuous width and opacity
+   * are inherited from the chat layout's CSS custom properties. */
+  railVisible?: boolean
   /** Older turns exist beyond the loaded pages — fade the strip's top as a
    * "more above" hint. The mount-time value also fixes the strip's alignment
    * for the whole rail lifetime (bottom-anchored vs centred), so finishing the
@@ -79,7 +81,7 @@ const tickTransitionClassName =
 const MessageAnchorLine = memo(function MessageAnchorLine({
   messages,
   activeMessageId,
-  railOpacity = 1,
+  railVisible = true,
   hasOlder = false,
   historyPartsByMessageId,
   liveMessageIds,
@@ -101,14 +103,12 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const [mouseY, setMouseY] = useState<number | null>(null)
   /** Once the composer inset leaves too little height, the rail is cramped — hide it. */
   const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
-  const visible = railOpacity > 0.02 && !tooShort
+  const visible = railVisible && !tooShort
   // The hit strip is clickable whenever it is visible, but it only ever
   // occupies space the content has already yielded: the content's right
   // padding is 24px base + gutter, the strip is inset 16px (right-4), and
-  // railOpacity × 24 is the integer gutter — so the strip's width grows with
-  // the fade and everything left of it still belongs to the messages. At full
-  // opacity this is exactly the 32px strip.
-  const hitStripWidth = 8 + Math.round(railOpacity * 24)
+  // The inherited gutter grows the hit strip without a React render. At full
+  // width this is exactly the 32px strip.
 
   const turns = useMemo<AnchorTurn[]>(() => {
     const result: AnchorTurn[] = []
@@ -335,7 +335,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
         // gutter, so the ticks clear it. The fade opacity lives on the tick
         // strip below — NOT here — so the hover preview card stays fully
         // opaque and readable even while the ticks are still fading in. The
-        // strip's width (hitStripWidth) grows with the gutter so it never
+        // strip's width grows with the gutter so it never
         // covers message content mid-fade — the visible ticks are clickable at
         // any fade stage, and clicks left of the strip reach the messages.
         'group absolute top-2.5 right-4 bottom-8 z-20 select-none',
@@ -344,7 +344,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
       // inert keeps the hidden rail out of the Tab order and the accessibility
       // tree — an invisible layer must not take keyboard focus.
       inert={!visible}
-      style={{ width: hitStripWidth }}
+      style={{ width: 'calc(8px + var(--chat-rail-gutter, 24px))' }}
       onMouseMove={handleMouseMove}
       onMouseLeave={clearPointerState}>
       <div
@@ -355,18 +355,23 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
           // so those margins sit OUTSIDE the scroll and never move while the strip
           // scrolls. Ticks fill the viewport (centred when few) and scroll only
           // once they overflow it. It never auto-follows the conversation.
-          'absolute inset-x-0 flex flex-col items-end overflow-y-auto transition-opacity duration-150 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          'absolute inset-x-0 flex flex-col items-end overflow-y-auto transition-opacity duration-150 [opacity:var(--chat-anchor-opacity)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
         )}
-        style={{
-          top: RAIL_MIN_EDGE_MARGIN_PX,
-          bottom: RAIL_MIN_EDGE_MARGIN_PX,
-          // The width-driven fade (railOpacity needs no transition — it already
-          // ramps continuously) combines with the resting 70% dim that hover
-          // lifts (the transition-opacity above eases that lift).
-          opacity: (visible ? railOpacity : 0) * (isHovering ? 1 : 0.7),
-          maskImage: railMask,
-          WebkitMaskImage: railMask
-        }}>
+        style={
+          {
+            top: RAIL_MIN_EDGE_MARGIN_PX,
+            bottom: RAIL_MIN_EDGE_MARGIN_PX,
+            // Keep the expression in a custom property: React treats the
+            // `opacity` field as numeric and would coerce `var(...)` to NaN.
+            '--chat-anchor-opacity': visible
+              ? isHovering
+                ? 'var(--chat-rail-opacity, 1)'
+                : 'var(--chat-rail-rest-opacity, 0.7)'
+              : 0,
+            maskImage: railMask,
+            WebkitMaskImage: railMask
+          } as CSSProperties
+        }>
         <div
           className="flex w-full flex-col items-end"
           style={{ paddingTop: geometry.padTop, paddingBottom: geometry.padBottom }}>
