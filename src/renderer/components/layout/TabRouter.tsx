@@ -5,7 +5,7 @@ import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
 
 interface TabRouterProps {
   tab: Tab
@@ -33,15 +33,29 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
 
-  // Sync internal navigation back to tab state
+  // Read the latest props inside the subscription without re-subscribing:
+  // every shell/tab state update recreates the onUrlChange closure, and with
+  // it in the effect deps each retained router unsubscribed and resubscribed
+  // on unrelated tab operations (#19211).
+  const currentTabUrl = useEffectEvent(() => tab.url)
+  const reportUrlChange = useEffectEvent((nextHref: string) => onUrlChange(nextHref))
+
+  // Sync internal navigation back to tab state. Keyed by router only: the
+  // subscription lives for the router's lifetime, and the effect events above
+  // always observe the latest tab.url / onUrlChange.
   useEffect(() => {
     return router.subscribe('onResolved', ({ toLocation }) => {
       const nextHref = toLocation.href
-      if (nextHref !== tab.url) {
-        onUrlChange(nextHref)
+      if (nextHref !== currentTabUrl()) {
+        reportUrlChange(nextHref)
       }
     })
-  }, [router, tab.url, onUrlChange])
+    // `currentTabUrl` and `reportUrlChange` are Effect Events — they read the
+    // latest render's props, so they stay out of the deps (measured: their
+    // identities are not stable under this component's Activity boundary, and
+    // listing them re-triggered the subscription on every unrelated render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router])
 
   // Navigate when tab.url changes externally (e.g., from Sidebar)
   useEffect(() => {
