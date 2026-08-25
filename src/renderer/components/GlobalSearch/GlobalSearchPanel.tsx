@@ -320,6 +320,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
     useImeAwareDebouncedValue(query.trim())
   const deferredQuery = useDeferredValue(debouncedQuery)
+  // While the debounce window is still collapsing keystrokes, the rendered
+  // list (and the highlighted item) belongs to the previous committed query;
+  // activating it would open a result the input no longer shows.
+  const isSelectionStale = query.trim() !== debouncedQuery
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
   const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
@@ -819,6 +823,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
 
       if (event.key === 'Enter') {
+        // Results still belong to the previous query during the debounce
+        // window; swallow Enter instead of opening the stale active item.
+        if (isSelectionStale) {
+          event.preventDefault()
+          return
+        }
         const item = keyboardItems.find((candidate) => candidate.id === activeItemId)
         if (!item) return
         event.preventDefault()
@@ -837,6 +847,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       activeItemId,
       handleLoadMoreMessageResults,
       isMessageSearchMode,
+      isSelectionStale,
       keyboardItems,
       moveActiveItem,
       onClose,

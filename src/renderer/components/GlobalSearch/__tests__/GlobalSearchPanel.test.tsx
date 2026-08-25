@@ -2082,6 +2082,56 @@ describe('GlobalSearchPanel', () => {
     expect(mocks.onClose).not.toHaveBeenCalled()
   })
 
+  it('does not open the active result when Enter lands during the debounce window', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'assistant',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-1',
+              title: 'Writing Assistant',
+              target: { assistantId: 'assistant-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')
+    await user.type(input, 'assistant')
+    await screen.findByRole('option', { name: /Writing Assistant/ })
+
+    // Typing again leaves the rendered results stale for one debounce window;
+    // Enter inside it must not activate the previous query's active item.
+    fireEvent.change(input, { target: { value: 'assistantx' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).not.toHaveBeenCalled()
+
+    // Once the committed query catches up with the input, Enter works again.
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenLastCalledWith(
+        '/search/entities',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({ q: 'assistantx' })
+        })
+      )
+    })
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-1')
+  })
+
   it('opens the active knowledge base result with Enter', async () => {
     const user = userEvent.setup()
     mocks.queryResult = {
