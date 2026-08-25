@@ -137,7 +137,7 @@ export default function ProviderApiSetupDialog({
     setBusyState('loading-models')
     setError(null)
     setRequiresManualConfirmation(false)
-    setSelectedModelIds(new Set())
+    setSelectedModelIds(new Set(localModelIds))
     setModelViewResetVersion((version) => version + 1)
     probeSucceededModelIdRef.current = null
 
@@ -149,7 +149,7 @@ export default function ProviderApiSetupDialog({
       }
       if (result.error) {
         setError(createError('models', 'settings.models.manage.sync_pull_failed', result.error))
-      } else if (result.models.length === 0 && localModels.length === 0) {
+      } else if (result.models.length === 0 && localModelIds.size === 0) {
         setError({ kind: 'models', message: t('settings.provider.api_setup.no_models') })
       }
     } catch (cause) {
@@ -158,7 +158,7 @@ export default function ProviderApiSetupDialog({
     } finally {
       setBusyState(null)
     }
-  }, [createError, keepProviderDisabled, localModels.length, reloadModels, t])
+  }, [createError, keepProviderDisabled, localModelIds, reloadModels, t])
 
   useEffect(() => {
     if (initializedRef.current || initialStep !== 'models' || isLoadingApiKeys) {
@@ -401,7 +401,7 @@ export default function ProviderApiSetupDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
+                  size="lg"
                   disabled={
                     modelListView.filteredModels.length === 0 ||
                     isBusy ||

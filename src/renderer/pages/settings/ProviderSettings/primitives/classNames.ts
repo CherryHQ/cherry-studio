@@ -413,7 +413,7 @@ export const modelSyncClasses = {
   manageGroupBadge: 'h-4 rounded-md px-1.5 py-0 text-[10px] leading-4',
   manageGroupBody: 'space-y-1 overflow-hidden bg-card py-1.5',
   manageRow:
-    'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success-subtle',
+    'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success-subtle dark:data-[added=true]:bg-success-subtle/15',
   manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
   manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
   manageRowDescriptionHelp:

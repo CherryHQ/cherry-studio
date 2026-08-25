@@ -115,7 +115,7 @@ export default function ApiKey({
               </div>
             ) : (
               <div className={fieldClasses.inputRow}>
-                <Button type="button" variant="outline" className="h-8 flex-1" onClick={onOpenApiSetup}>
+                <Button type="button" variant="outline" className="h-8 flex-1 bg-muted/30" onClick={onOpenApiSetup}>
                   <KeyRound size={14} />
                   {t('settings.provider.api_setup.add_key')}
                 </Button>

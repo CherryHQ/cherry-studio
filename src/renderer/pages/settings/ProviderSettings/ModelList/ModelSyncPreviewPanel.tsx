@@ -188,14 +188,12 @@ const ManageModelRow = memo(function ManageModelRow({
 const SelectModelRow = memo(function SelectModelRow({
   model,
   provider,
-  isAdded,
   isSelected,
   isApplying,
   onSelectModels
 }: {
   model: Model
   provider?: Provider
-  isAdded: boolean
   isSelected: boolean
   isApplying: boolean
   onSelectModels: (modelIds: UniqueModelId[], selected: boolean) => void
@@ -207,13 +205,7 @@ const SelectModelRow = memo(function SelectModelRow({
   return (
     <label
       htmlFor={checkboxId}
-      className={cn(
-        modelSyncClasses.manageRow,
-        'cursor-pointer data-[selected=true]:bg-accent/40',
-        isApplying && 'cursor-default opacity-60'
-      )}
-      data-added={isAdded}
-      data-selected={isSelected}>
+      className={cn(modelSyncClasses.manageRow, 'cursor-pointer', isApplying && 'cursor-default opacity-60')}>
       <ModelRowIdentity model={model} provider={provider} />
       <Checkbox
         id={checkboxId}
@@ -401,7 +393,6 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
               <SelectModelRow
                 provider={provider}
                 model={row.model}
-                isAdded={localModelIds.has(row.model.id)}
                 isSelected={props.selectedModelIds.has(row.model.id)}
                 isApplying={isApplying}
                 onSelectModels={props.onSelectModels}

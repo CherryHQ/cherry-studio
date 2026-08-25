@@ -241,7 +241,7 @@ describe('ProviderApiSetupDialog', () => {
     expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
-  it('creates only the selected missing model and enables the provider only after its real check succeeds', async () => {
+  it('preselects existing models, creates only the selected missing model, and enables after the check succeeds', async () => {
     let resolveCheck: ((value: { latency: number }) => void) | undefined
     checkApiMock.mockReturnValue(
       new Promise<{ latency: number }>((resolve) => {
@@ -254,13 +254,16 @@ describe('ProviderApiSetupDialog', () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={onClose} />)
 
     await screen.findAllByText('alpha')
-    fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[1])
+    const modelCheckboxes = screen.getAllByLabelText('settings.provider.api_setup.select_model')
+    expect(modelCheckboxes[0]).toBeChecked()
+    expect(modelCheckboxes[1]).not.toBeChecked()
+    fireEvent.click(modelCheckboxes[1])
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_and_verify' }))
 
     await waitFor(() =>
       expect(createModelsMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'beta', name: 'beta' }])
     )
-    expect(checkApiMock).toHaveBeenCalledWith('openai::beta', { timeout: 15000 })
+    expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { timeout: 15000 })
     expect(enableProviderMock).not.toHaveBeenCalled()
 
     resolveCheck?.({ latency: 12 })
