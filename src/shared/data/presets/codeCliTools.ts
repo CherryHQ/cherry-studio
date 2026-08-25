@@ -10,6 +10,11 @@ export interface CodeCliToolPreset {
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
+  /**
+   * A peer this tool needs at runtime but whose absence an install still reports
+   * as success, named as `peer` resolved from `host`'s own entry point.
+   */
+  requiredPeer?: { host: string; peer: string }
 }
 
 type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
@@ -47,7 +52,10 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     install: 'npm',
     misePrerelease: true,
     // mise 2026.7.14 aube exceeds its 16-pass fixed-point limit on DSH's recursive peer graph.
-    miseNpmShellOut: true
+    miseNpmShellOut: true,
+    // dsh-scope is nowhere a real dependency, only a transitive peer, so an install
+    // reports success without it (#19313).
+    requiredPeer: { host: '@deepseek-ai/dsh-agent-loop', peer: '@deepseek-ai/dsh-scope' }
   }),
   defineCodeCliTool({
     id: CodeCli.GEMINI_CLI,

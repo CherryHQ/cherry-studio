@@ -610,6 +610,40 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('stays applied when the recipe restructured away the package that hosts its required peer', async () => {
+      // A renamed/absorbed host says the package graph moved on, not that this
+      // install is incomplete — failing closed would strand the tool at broken
+      // with a Retry that can never succeed.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.2.0', active: true }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: '/opt/mise/installs/npm-deepseek-ai-dsh/0.2.0/lib/bin.js\n', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      mockCreateRequire.mockImplementation((filename: string) => ({
+        resolve: (request: string) => {
+          throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+            code: 'MODULE_NOT_FOUND'
+          })
+        }
+      }))
+
+      await expect(service.getToolSnapshots(['dsh'])).resolves.toMatchObject({
+        dsh: { application: { status: 'applied', version: '0.2.0' } }
+      })
+    })
+
     it('stays applied for a recipe with no eponymous bin, through a shim it does expose', async () => {
       // core:rust exposes rustc/cargo and no `rust`, so a name-keyed `mise which`
       // reports a working install as unusable (#19075).
