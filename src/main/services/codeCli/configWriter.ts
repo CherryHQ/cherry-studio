@@ -47,12 +47,12 @@ export interface CliConfigReadFile {
  * Duplicate targets are deduplicated by the route schema, not here.
  */
 export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
-  const files: CliConfigReadFile[] = []
-  for (const target of targets) {
-    const path = resolveTargetPath(target)
-    files.push({ target, path, content: await readOrNull(path) })
-  }
-  return files
+  return Promise.all(
+    targets.map(async (target) => {
+      const path = resolveTargetPath(target)
+      return { target, path, content: await readOrNull(path) }
+    })
+  )
 }
 
 /**
