@@ -1,10 +1,13 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useModelById } from '@renderer/hooks/useModel'
 import { generateConversationSuggestions } from '@renderer/utils/aiGeneration'
 import {
   type ConversationSuggestionPersona,
   type ConversationSuggestions
 } from '@renderer/utils/conversationSuggestions'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import useSWRImmutable from 'swr/immutable'
 
 const logger = loggerService.withContext('useConversationSuggestions')
@@ -30,18 +33,26 @@ export function useConversationSuggestions({
   const [suggestionsModelId] = usePreference('chat.suggestions.model_id')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const active = suggestionsEnabled && enabled
-  const resolvedModelId = suggestionsModelId ?? defaultModelId
-  const key = active
-    ? [
-        'conversation-suggestions',
-        focus,
-        conversationId,
-        outputLanguage,
-        resolvedModelId ?? '',
-        persona?.name ?? '',
-        persona?.description ?? ''
-      ]
-    : null
+  const dedicatedId = active ? ((suggestionsModelId as UniqueModelId | null) ?? null) : null
+  const fallbackId = active ? ((defaultModelId as UniqueModelId | undefined) ?? null) : null
+  const { model: dedicatedModel, isLoading: dedicatedLoading } = useModelById(dedicatedId)
+  const { model: defaultModel, isLoading: defaultLoading } = useModelById(fallbackId)
+  const dedicatedUsable = Boolean(dedicatedModel && !isNonChatModel(dedicatedModel))
+  const generationModel = dedicatedUsable ? dedicatedModel : defaultModel
+  const modelPending =
+    Boolean(dedicatedId && dedicatedLoading) || Boolean(!dedicatedUsable && fallbackId && defaultLoading)
+  const key =
+    active && !modelPending
+      ? [
+          'conversation-suggestions',
+          focus,
+          conversationId,
+          outputLanguage,
+          generationModel?.id ?? '',
+          persona?.name ?? '',
+          persona?.description ?? ''
+        ]
+      : null
   const { data, isLoading } = useSWRImmutable(
     key,
     async () => {
@@ -49,19 +60,22 @@ export function useConversationSuggestions({
       const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
       const now = new Date()
 
-      return generateConversationSuggestions({
-        focus,
-        outputLanguage,
-        systemLocale,
-        localDateTime: now.toLocaleString(systemLocale, {
-          dateStyle: 'full',
-          timeStyle: 'short',
-          timeZone
-        }),
-        timeZone,
-        randomSeed: `${now.getTime()}-${Math.random().toString(36).slice(2)}`,
-        persona
-      })
+      return generateConversationSuggestions(
+        {
+          focus,
+          outputLanguage,
+          systemLocale,
+          localDateTime: now.toLocaleString(systemLocale, {
+            dateStyle: 'full',
+            timeStyle: 'short',
+            timeZone
+          }),
+          timeZone,
+          randomSeed: `${now.getTime()}-${Math.random().toString(36).slice(2)}`,
+          persona
+        },
+        generationModel
+      )
     },
     {
       onError: (error) => logger.warn('Failed to generate conversation suggestions', { focus, conversationId, error }),
@@ -70,8 +84,8 @@ export function useConversationSuggestions({
   )
 
   return {
-    suggestions: active ? (data ?? (!isLoading ? fallback : undefined)) : undefined,
-    isLoading: !active || isLoading,
+    suggestions: active ? (data ?? (!isLoading && !modelPending ? fallback : undefined)) : undefined,
+    isLoading: !active || modelPending || isLoading,
     suggestionsEnabled
   }
 }

@@ -1,6 +1,6 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RefObject } from 'react'
-import { useEffect, useEffectEvent } from 'react'
+import { useEffect, useEffectEvent, useRef } from 'react'
 
 interface ComposerFillActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
@@ -16,18 +16,38 @@ export function useComposerFill<T extends ComposerFillActions>(
   topicId: string,
   apply: (text: string) => void
 ): void {
+  const focusFrameRef = useRef<number | null>(null)
+  const mountedRef = useRef(false)
+
   const fill = useEffectEvent((text: string) => {
     if (actionsRef.current.getDraft().text.trim() !== '') return
     apply(text)
-    window.requestAnimationFrame(() => actionsRef.current.focus('end'))
+    if (focusFrameRef.current !== null) {
+      window.cancelAnimationFrame(focusFrameRef.current)
+    }
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusFrameRef.current = null
+      if (!mountedRef.current) return
+      actionsRef.current.focus('end')
+    })
   })
 
   useEffect(() => {
-    return EventEmitter.on(EVENT_NAMES.FILL_CHAT_COMPOSER, (payload) => {
+    mountedRef.current = true
+    const off = EventEmitter.on(EVENT_NAMES.FILL_CHAT_COMPOSER, (payload) => {
       const input =
         typeof payload === 'object' && payload ? (payload as { topicId?: string; text?: string }) : undefined
       if (input?.topicId !== topicId || !input.text) return
       fill(input.text)
     })
-  }, [fill, topicId])
+    return () => {
+      mountedRef.current = false
+      if (focusFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusFrameRef.current)
+        focusFrameRef.current = null
+      }
+      off()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `fill` is useEffectEvent; resubscribing would cancel a pending focus after apply().
+  }, [topicId])
 }

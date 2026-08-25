@@ -140,14 +140,14 @@ export async function fetchGenerate({
   }
 }
 
-export async function generateConversationSuggestions(context: ConversationSuggestionRequestContext) {
-  const model = await readConversationSuggestionsModel()
-  if (!model) throw new Error('No model available for conversation suggestions')
+export async function generateConversationSuggestions(context: ConversationSuggestionRequestContext, model?: Model) {
+  const resolved = model ?? (await readConversationSuggestionsModel())
+  if (!resolved) throw new Error('No model available for conversation suggestions')
 
   const response = await fetchGenerate({
     prompt: CONVERSATION_SUGGESTIONS_PROMPT,
     content: JSON.stringify(context),
-    model,
+    model: resolved,
     throwOnError: true
   })
   return parseConversationSuggestions(response)
