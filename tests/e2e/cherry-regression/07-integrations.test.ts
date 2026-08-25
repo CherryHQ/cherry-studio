@@ -4,6 +4,7 @@ import { expect, test } from './fixture'
 import { CUSTOM_ASSISTANT, ensureCustomAssistant } from './assistants'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, mainWindow: page }) => {
   await openSettingsSection(page, 'MCP')
@@ -66,10 +67,8 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
   ) {
     await page.getByRole('button', { name: 'Add Skill', exact: true }).click()
     await page.getByText('Local import', { exact: true }).click()
-    const chooserPromise = page.waitForEvent('filechooser')
     await page.getByRole('button', { name: 'Install from directory', exact: true }).click()
-    const chooser = await chooserPromise
-    await chooser.setFiles(join(app.paths.fixtures, 'cherry-regression-fixture'))
+    chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, 'cherry-regression-fixture'))
     await expect(page.getByText('cherry-regression-fixture', { exact: true })).toBeVisible({ timeout: 60_000 })
   }
 

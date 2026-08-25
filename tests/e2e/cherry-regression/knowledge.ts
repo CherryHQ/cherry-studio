@@ -7,7 +7,7 @@ import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
 import { openSettingsSection } from './models'
 
-export const EMBEDDING_PROVIDER = 'Cherry Regression Embedding Provider 31415'
+export const EMBEDDING_PROVIDER = 'Cherry Regression Embedding'
 export const KNOWLEDGE_NAME = 'Cherry Regression Knowledge 31415'
 
 export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): Promise<void> {

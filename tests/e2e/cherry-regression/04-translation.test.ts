@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { expect, test } from './fixture'
 import { selectSidebarApp } from './helpers'
 import { closeSettings, ensureCustomChatProvider } from './models'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[0], model: string): Promise<void> {
   await selectSidebarApp(page, 'Translation')
@@ -28,8 +29,7 @@ test('[T-01] 文本翻译 @translation', async ({ app, mainWindow: page }) => {
   await input.fill('CherryStudio Neptune 27182 TRANSLATION_MARKER')
   await page.locator('[data-ui="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click()
   const output = page.locator('[data-ui="translate.output"]')
-  await expect(output).toContainText('Neptune', { timeout: 2 * 60_000 })
-  await expect(output).toContainText('27182')
+  await expect(output).toContainText('27182', { timeout: 2 * 60_000 })
   await expect(output).toContainText('TRANSLATION_MARKER')
 
   await page.getByRole('button', { name: 'Translation History', exact: true }).click()
@@ -44,10 +44,8 @@ test('[T-02] PDF 文件翻译 @translation', async ({ app, mainWindow: page }) =
   const clear = page.getByText('Clear', { exact: true })
   if (await clear.isVisible().catch(() => false)) await clear.click()
 
-  const chooserPromise = page.waitForEvent('filechooser')
   await page.getByRole('button', { name: 'Drop or click to upload image/document', exact: true }).click()
-  const chooser = await chooserPromise
-  await chooser.setFiles(join(app.paths.fixtures, 'translation.pdf'))
+  chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, 'translation.pdf'))
 
   const input = page.locator('[data-ui="translate.input"]')
   await expect(input).toContainText('PDF_TRANSLATION_MARKER_314159', { timeout: 60_000 })

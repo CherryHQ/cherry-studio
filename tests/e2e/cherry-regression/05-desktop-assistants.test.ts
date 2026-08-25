@@ -9,6 +9,7 @@ async function configureQuickAssistant(page: Parameters<typeof dismissOnboarding
   await openSettingsSection(page, 'Quick Assistant')
   const enabled = page.getByRole('switch').first()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
+  await expect(enabled).toHaveAttribute('aria-checked', 'true')
   const defaultModel = page.getByRole('radio', { name: 'Default Model', exact: true })
   if ((await defaultModel.getAttribute('aria-checked')) !== 'true') await defaultModel.click()
   await page.getByRole('button', { name: 'Go to model settings', exact: true }).click()
@@ -56,7 +57,7 @@ test('[C-02] 使用快捷助手完成全局问答 @quick-assistant', async ({ ap
 test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant', async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await openSettingsSection(page, 'Default Model')
-  await page.locator('[data-selector-shell-root="true"] > button').first().click()
+  await page.locator('[data-selector-shell-root="true"]:visible > button').first().click()
   await page.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
   await page.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()
 
