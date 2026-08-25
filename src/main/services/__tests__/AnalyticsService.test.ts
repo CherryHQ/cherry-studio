@@ -171,6 +171,28 @@ describe('AnalyticsService token usage', () => {
     })
   })
 
+  it('forwards embedding usage when output tokens are zero', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackTokenUsage({
+      provider: 'test-provider',
+      model: 'test-embedding-model',
+      input_tokens: 42,
+      output_tokens: 0,
+      source: 'chat'
+    })
+
+    expect(mockTrackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-embedding-model',
+      input_tokens: 42,
+      output_tokens: 0,
+      source: 'chat'
+    })
+  })
+
   it('does not forward usage when all token counts are zero', async () => {
     const service = new AnalyticsService()
     await service._doInit()
