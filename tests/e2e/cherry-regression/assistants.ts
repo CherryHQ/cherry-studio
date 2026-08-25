@@ -23,7 +23,7 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill(CUSTOM_ASSISTANT)
     await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Cherry Regression Test Assistant')
     await page.locator('[aria-label="Choose avatar"]').click()
-    await page.locator('button[aria-label="star-struck"]').click()
+    await page.locator('button[aria-label="star-struck"]').first().click()
     await page.locator('[aria-label="Model"]').click()
     const modelSelector = page.getByTestId('model-selector-content')
     await expect(modelSelector).toBeVisible()

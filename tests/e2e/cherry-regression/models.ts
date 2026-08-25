@@ -19,13 +19,14 @@ async function closeOpenSettingsDrawer(page: Page): Promise<void> {
 
 export async function openSettingsSection(page: Page, section: string): Promise<void> {
   await dismissOnboarding(page)
+  await page.keyboard.press('Escape')
   await closeOpenSettingsDrawer(page)
   const sectionButton = page
     .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
     .filter({ hasText: section })
     .first()
   if (!(await sectionButton.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
+    await selectSidebarApp(page, 'Settings')
   }
   await sectionButton.click()
 }

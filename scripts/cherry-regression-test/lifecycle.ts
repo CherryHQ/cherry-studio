@@ -435,7 +435,17 @@ async function sendProtocolUrlThroughMainInspector(record: AppRecord, url: strin
     `(() => {
       const electron = process.mainModule?.require?.('electron')
       if (!electron?.app) throw new Error('Electron app is unavailable in the main-process inspector')
-      return electron.app.emit('open-url', { preventDefault() {} }, ${JSON.stringify(url)})
+      const event = { preventDefault() {} }
+      const callbackUrl = ${JSON.stringify(url)}
+      const openUrlDelivered = electron.app.emit('open-url', event, callbackUrl)
+      const secondInstanceDelivered = electron.app.emit(
+        'second-instance',
+        event,
+        [process.execPath, process.argv[1] ?? '', callbackUrl],
+        process.cwd(),
+        {}
+      )
+      return openUrlDelivered || secondInstanceDelivered
     })()`
   )
   if (!delivered) throw new Error('Owned Cherry Studio instance has no protocol URL listener')

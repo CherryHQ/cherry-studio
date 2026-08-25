@@ -18,8 +18,13 @@ async function configureQuickAssistant(page: Parameters<typeof dismissOnboarding
   await page.locator('[data-selector-shell-root="true"]:visible > button').first().click()
   const modelSelector = page.getByTestId('model-selector-content')
   await modelSelector.getByTestId('model-selector-search').fill(model)
-  await expect(modelSelector.getByText(CUSTOM_CHAT_PROVIDER, { exact: true })).toBeVisible()
-  await modelSelector.getByRole('option').filter({ hasText: model }).first().click()
+  const providerHeading = modelSelector.getByText(CUSTOM_CHAT_PROVIDER, { exact: true })
+  await expect(providerHeading).toBeVisible()
+  await providerHeading
+    .locator('xpath=ancestor::div[contains(@class, "group")][1]/following::div[@role="option"]')
+    .filter({ hasText: model })
+    .first()
+    .click()
 
   await page.getByRole('button', { name: 'Keyboard Shortcuts', exact: true }).click()
   await page.getByRole('button', { name: 'Search', exact: true }).click()
@@ -64,8 +69,13 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await page.locator('[data-selector-shell-root="true"]:visible > button').first().click()
   const modelSelector = page.getByTestId('model-selector-content')
   await modelSelector.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
-  await expect(modelSelector.getByText(CUSTOM_CHAT_PROVIDER, { exact: true })).toBeVisible()
-  await modelSelector.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()
+  const providerHeading = modelSelector.getByText(CUSTOM_CHAT_PROVIDER, { exact: true })
+  await expect(providerHeading).toBeVisible()
+  await providerHeading
+    .locator('xpath=ancestor::div[contains(@class, "group")][1]/following::div[@role="option"]')
+    .filter({ hasText: app.config.customProvider.chatModel })
+    .first()
+    .click()
 
   await page.getByRole('button', { name: 'Selection Assistant', exact: true }).click()
   await page.evaluate(async () => {
@@ -82,7 +92,7 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await closeSettings(page)
 
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
-  sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 's'])
+  sendSystemHotkey(app.record.platform, ['Control', 'Shift', 's'])
   const selection = await app.window('/windows/selection/')
   await expect(selection.getByText('Explain', { exact: true })).toBeVisible()
   await expect(selection.getByText('Translate', { exact: true })).toBeVisible()
