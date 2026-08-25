@@ -28,7 +28,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -519,6 +519,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         mcpServerSnapshots,
         linkedChannelSnapshot,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
+        supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code'
       },
