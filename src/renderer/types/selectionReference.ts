@@ -14,7 +14,30 @@ import * as z from 'zod'
 /** Single cell (`B2`) or rectangular range (`A1:C10`) in A1 notation. */
 const XLSX_A1_RANGE_REGEX = /^[A-Z]{1,3}[1-9][0-9]*(?::[A-Z]{1,3}[1-9][0-9]*)?$/
 
-/** `[start, end)` character offsets within the anchored unit's plain text. */
+/** The SpreadsheetML grid (ECMA-376): columns A..XFD, rows 1..1048576. */
+const XLSX_MAX_COLUMN = 16_384
+const XLSX_MAX_ROW = 1_048_576
+
+const columnToIndex = (letters: string): number =>
+  [...letters].reduce((index, letter) => index * 26 + (letter.charCodeAt(0) - 64), 0)
+
+/** A1 notation can spell coordinates past the grid; the office-transform scripts reject those. */
+const isWithinGrid = (range: string): boolean =>
+  range.split(':').every((cell) => {
+    // A malformed cell still reaches here — zod runs refinements after a failed `.regex()` — and the
+    // regex check already reports it, so pass it through rather than reporting the same value twice.
+    const match = /^([A-Z]{1,3})([1-9][0-9]*)$/.exec(cell)
+    if (!match) return true
+    return columnToIndex(match[1]) <= XLSX_MAX_COLUMN && Number(match[2]) <= XLSX_MAX_ROW
+  })
+
+/**
+ * `[start, end)` offsets into the anchored unit's plain text, counted in **Unicode code points**,
+ * not UTF-16 code units. A JS producer must therefore not use `String.prototype.slice`/`.length`
+ * directly: one non-BMP character (an emoji, CJK ext-B) is two UTF-16 units but one code point, so
+ * raw JS indices drift past it and the Python consumer — which slices a `str` by code point —
+ * would extract different text. Iterate with `for...of` or `[...text]` to count.
+ */
 const CharRangeSchema = z
   .tuple([z.number().int().nonnegative(), z.number().int().nonnegative()])
   .refine(([start, end]) => start <= end, { message: 'charRange start must not exceed end' })
@@ -23,7 +46,10 @@ const XlsxAnchorSchema = z.object({
   format: z.literal('xlsx'),
   /** Worksheet name exactly as stored in the workbook. */
   sheet: z.string().min(1),
-  range: z.string().regex(XLSX_A1_RANGE_REGEX, 'range must be A1 notation, e.g. "B2" or "A1:C10"')
+  range: z
+    .string()
+    .regex(XLSX_A1_RANGE_REGEX, 'range must be A1 notation, e.g. "B2" or "A1:C10"')
+    .refine(isWithinGrid, { message: 'range must lie within the worksheet grid (max XFD1048576)' })
 })
 
 const DocxAnchorSchema = z.object({

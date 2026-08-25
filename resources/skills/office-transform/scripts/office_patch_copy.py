@@ -131,6 +131,25 @@ def preflight_zip(archive: zipfile.ZipFile) -> None:
         fail(f"package decompresses to {total} bytes in total (limit {MAX_TOTAL_BYTES})")
 
 
+def reject_invalid_xml_text(value: str, where: str) -> None:
+    """Refuse text XML 1.0 cannot represent, before it reaches a text node.
+
+    minidom escapes `& < > " '` but happily serializes C0 control characters, which XML 1.0 forbids in
+    character data (only tab, LF and CR are legal). Writing one produces a part no parser will read
+    back — Excel and Word open the derived file in repair mode. This is reachable from the skill's own
+    output: python-pptx maps a soft line break to \x0B, so text extracted from a deck and fed back in
+    as a cell value or paragraph carries it.
+    """
+    for index, char in enumerate(value):
+        code = ord(char)
+        legal = code in (0x9, 0xA, 0xD) or 0x20 <= code <= 0xD7FF or 0xE000 <= code <= 0xFFFD or code >= 0x10000
+        if not legal:
+            fail(
+                f"{where} contains a character XML cannot store (U+{code:04X} at offset {index}); "
+                f"strip control characters — a derived file holding one will not open"
+            )
+
+
 def contains_doctype(data: bytes) -> bool:
     """Look for a DTD across the encodings an XML part may legally use.
 
@@ -241,25 +260,47 @@ def drop_calc_chain(archive: zipfile.ZipFile) -> dict[str, bytes]:
     return {CONTENT_TYPES_PART: serialize_part(content_types), WORKBOOK_RELS_PART: serialize_part(rels)}
 
 
-def reject_grouped_formula(formula, ref: str) -> None:
-    """Refuse cells whose formula is shared with, or spills into, cells we are not editing.
+def reject_shared_formula(formula, ref: str) -> None:
+    """Refuse a cell whose formula is shared with cells we are not editing.
 
     A shared-formula master (`<f t="shared" ref="B2:B4" si="0">`) is the only place the expression is
-    stored; its followers carry just `si`. An array formula owns its whole `ref` range the same way.
-    Deleting either one silently guts cells the caller never named — openpyxl reads the orphaned
-    followers back as a bare "=" — so this is a refusal, not something to repair.
+    stored; its followers carry just `si`. Deleting either one silently guts cells the caller never
+    named — openpyxl reads the orphans back as a bare "=" — so this is a refusal, not a repair.
+    Array groups are handled by `array_formula_ranges` instead: their followers carry no `<f>` at all,
+    so there is nothing here to inspect.
     """
-    formula_type = formula.getAttribute("t")
-    if formula_type not in ("shared", "array"):
+    if formula.getAttribute("t") != "shared":
         return
-    # The master carries `ref` (the range it owns); a shared follower carries only `si`.
     group = formula.getAttribute("ref")
     scope = f"covering {group}" if group else f"in shared group si={formula.getAttribute('si')!r}"
     fail(
-        f"cell {ref} holds a {formula_type} formula {scope}; overwriting it would strip the formula from "
-        f"the other cells in that group. Rewrite the whole range with a library "
+        f"cell {ref} holds a shared formula {scope}; overwriting it would strip the formula from the "
+        f"other cells in that group. Rewrite the whole range with a library "
         f"(`uv run --with openpyxl python`) instead of patch-copy."
     )
+
+
+def array_formula_ranges(sheet_data) -> list[tuple[str, tuple[int, int, int, int]]]:
+    """Every range owned by an array formula, as (ref, (min_col, min_row, max_col, max_row)).
+
+    Only the master cell of an array formula carries `<f t="array" ref="...">`; the cells it spills
+    into hold a plain `<v>` and nothing else. Inspecting the edited cell therefore cannot tell you it
+    belongs to an array — the range has to be collected up front and the coordinate tested against it.
+    """
+    ranges = []
+    for row in element_children(sheet_data, "row"):
+        for cell in element_children(row, "c"):
+            formula = first_child(cell, "f")
+            if formula is None or formula.getAttribute("t") != "array":
+                continue
+            ref = formula.getAttribute("ref")
+            if not ref:
+                continue
+            corners = [parse_a1_cell(part) for part in ref.split(":")]
+            cols = [column for column, _ in corners]
+            rows = [row_number for _, row_number in corners]
+            ranges.append((ref, (min(cols), min(rows), max(cols), max(rows))))
+    return ranges
 
 
 def set_cell_value(doc: minidom.Document, cell, value) -> None:
@@ -277,6 +318,7 @@ def set_cell_value(doc: minidom.Document, cell, value) -> None:
         v.appendChild(doc.createTextNode(repr(value)))
         cell.appendChild(v)
     elif isinstance(value, str):
+        reject_invalid_xml_text(value, f"cell {cell.getAttribute('r') or '?'}")
         cell.setAttribute("t", "inlineStr")
         inline = doc.createElement(make_tag(cell.tagName, "is"))
         text = doc.createElement(make_tag(cell.tagName, "t"))
@@ -340,15 +382,24 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
     if sheet_data is None:
         fail(f"{part_name} has no sheetData element")
 
+    array_ranges = array_formula_ranges(sheet_data)
+
     edited: list[tuple[int, int]] = []
     replaced_formula = False
     for ref, value in sorted(cells.items(), key=lambda item: (parse_a1_cell(item[0])[1], parse_a1_cell(item[0])[0])):
         column, row_number = parse_a1_cell(ref)
+        for array_ref, (min_col, min_row, max_col, max_row) in array_ranges:
+            if min_col <= column <= max_col and min_row <= row_number <= max_row:
+                fail(
+                    f"cell {ref} sits inside the array formula covering {array_ref}; an array range is "
+                    f"computed as a unit, so writing one of its cells leaves the range inconsistent. "
+                    f"Rewrite it with a library (`uv run --with openpyxl python`) instead of patch-copy."
+                )
         row = find_or_create_ordered(doc, sheet_data, "row", lambda r: int(r), row_number, str(row_number))
         cell = find_or_create_ordered(doc, row, "c", lambda r: parse_a1_cell(r)[0], column, ref)
         formula = first_child(cell, "f")
         if formula is not None:
-            reject_grouped_formula(formula, ref)
+            reject_shared_formula(formula, ref)
             replaced_formula = True
         set_cell_value(doc, cell, value)
         edited.append((column, row_number))
@@ -377,6 +428,17 @@ SEMANTIC_INLINE_TAGS = {
     "fldChar": "a field",
     "instrText": "a field",
     "hyperlink": "a hyperlink",
+    # Content the rewrite would drop outright rather than flatten: the loop below keeps only pPr, so
+    # anything the new run cannot carry disappears with no trace in the text-only verification the
+    # skill performs afterwards. A dropped w:del is the worst of these — it silently accepts a
+    # pending tracked deletion.
+    "drawing": "an image",
+    "pict": "an image",
+    "object": "an embedded object",
+    "footnoteReference": "a footnote reference",
+    "endnoteReference": "an endnote reference",
+    "ins": "a tracked insertion",
+    "del": "a tracked deletion",
 }
 
 
@@ -417,13 +479,18 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
     for replacement in replacements:
         index = replacement.get("paragraph")
         text = replacement.get("text")
-        if index is None or int(index) < 0 or not isinstance(text, str):
+        if index is None or not isinstance(text, str):
             fail(f"each replacement needs a non-negative 'paragraph' and string 'text': {replacement!r}")
-        index = int(index)
+        # int() would take "3", 3.7 or True and rewrite a paragraph the caller never named.
+        if isinstance(index, bool) or not isinstance(index, int):
+            fail(f"replacement 'paragraph' must be an integer, not {type(index).__name__}: {index!r}")
+        if index < 0:
+            fail(f"replacement 'paragraph' must be >= 0: {index!r}")
         if index >= len(paragraphs):
             fail(f"paragraph {index} out of range (document has {len(paragraphs)} body paragraphs)")
         paragraph = paragraphs[index]
 
+        reject_invalid_xml_text(text, f"replacement text for paragraph {index}")
         reject_semantic_inline_content(paragraph, index)
 
         properties = first_child(paragraph, "pPr")
