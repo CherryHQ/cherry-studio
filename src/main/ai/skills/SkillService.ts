@@ -79,6 +79,7 @@ export class SkillService {
   // Serializes every library mutation — install / uninstall / builtin sync / reconcile — so a
   // reconcile can't read a mid-mutation snapshot (and, e.g., prune a row an install just wrote).
   private readonly mutationLock = new Mutex()
+  private readonly workspaceSkillPluginPublishLock = new Mutex()
   // Dedupes concurrent reconcile-on-open triggers onto a single run.
   private reconcileInFlight: Promise<void> | null = null
   private workspaceSkillPluginsPruned?: Promise<void>
@@ -296,13 +297,13 @@ export class SkillService {
    * reach the SDK only through the bridge plugin, so only names the bridge actually publishes are
    * listed — whitelisting a skipped name could un-hide a same-named disabled managed skill.
    */
-  async listLocalFolderNames(workdir: string): Promise<string[]> {
+  async listLocalFolderNames(workdir: string, workspaceSkillPlugin: string | null): Promise<string[]> {
     const names: string[] = []
     for (const skill of await this.listLocalSkillDirectories(workdir)) {
       if (skill.root === 'claude' && (await findSkillMdPath(skill.path))) names.push(skill.name)
     }
     const { pluginDir, links } = await this.resolveWorkspaceSkillPlugin(workdir)
-    if (pluginDir && !this.isWorkspaceSkillPluginBackedOff(pluginDir)) {
+    if (pluginDir === workspaceSkillPlugin && !this.isWorkspaceSkillPluginBackedOff(pluginDir)) {
       names.push(...links.map((link) => link.name))
     }
     return names
@@ -347,14 +348,14 @@ export class SkillService {
   async ensureWorkspaceSkillPlugin(workdir: string): Promise<string | undefined> {
     // Plugins left by a previous process are dead; wipe them once, before this process publishes any.
     await (this.workspaceSkillPluginsPruned ??= this.pruneStaleWorkspaceSkillPlugins())
-    return await this.publishWorkspaceSkillPlugin(workdir)
+    return await this.workspaceSkillPluginPublishLock.runExclusive(() => this.publishWorkspaceSkillPlugin(workdir))
   }
 
   private async publishWorkspaceSkillPlugin(workdir: string, attempt = 0): Promise<string | undefined> {
     const { pluginDir, links, skipped, oversized } = await this.resolveWorkspaceSkillPlugin(workdir)
     if (attempt === 0) {
       if (skipped.length > 0) {
-        logger.warn('Workspace skills without an exact SKILL.md are not bridged; rename lowercase skill.md', {
+        logger.warn('Workspace skills without a regular exact SKILL.md are not bridged', {
           skipped
         })
       }
@@ -449,7 +450,11 @@ export class SkillService {
       // Mirror the SDK's own lookup: `SKILL.md` exactly, which a lowercase `skill.md` satisfies only on
       // case-insensitive filesystems. The parser's lenient lookup would bridge a skill the SDK never loads.
       try {
-        await fs.promises.access(path.join(skill.path, 'SKILL.md'))
+        const descriptor = await fs.promises.stat(path.join(skill.path, 'SKILL.md'))
+        if (!descriptor.isFile()) {
+          skipped.push(skill.path)
+          continue
+        }
       } catch {
         if (await findSkillMdPath(skill.path)) skipped.push(skill.path)
         continue

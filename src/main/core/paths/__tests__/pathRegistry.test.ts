@@ -91,12 +91,14 @@ describe('buildPathRegistry', () => {
 
   it('isolates workspace skill plugin bridges per userData instance and leaves them to SkillService', () => {
     const registry = buildPathRegistry()
+    const sameInstance = buildPathRegistry()
     getPathMock.mockImplementation((key: string) => (key === 'userData' ? '/mock/userData-dev' : `/mock/${key}`))
     const otherInstance = buildPathRegistry()
 
     const key = 'feature.agents.claude.workspace_skills.temp'
     expect(path.dirname(registry[key])).toBe(path.join('/mock/temp', 'CherryStudio', 'claude-workspace-skills'))
     expect(path.basename(registry[key])).toMatch(/^[0-9a-f]{16}$/)
+    expect(sameInstance[key]).toBe(registry[key])
     expect(otherInstance[key]).not.toBe(registry[key])
     expect(shouldAutoEnsure(key)).toBe(false)
   })

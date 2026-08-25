@@ -392,7 +392,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, { fastMode: true })
 
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
-    expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project')
+    expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project', null)
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.additionalDirectories).toEqual([path.join('/app/feature.agents.data', 'agent-1')])
     expect(mocks.buildPrompt).toHaveBeenCalledWith(
@@ -766,6 +766,9 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('loads the workspace .agents skill bridge as a local plugin', async () => {
     mocks.ensureWorkspaceSkillPlugin.mockResolvedValue('/app/workspace-skills/abc123')
+    mocks.listLocalSkillFolderNames.mockImplementation(async (_cwd, workspaceSkillPlugin) =>
+      workspaceSkillPlugin === '/app/workspace-skills/abc123' ? ['agent-only'] : []
+    )
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -775,8 +778,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(mocks.ensureWorkspaceSkillPlugin).toHaveBeenCalledWith('/workspace/project')
+    expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project', '/app/workspace-skills/abc123')
     expect(settings.plugins).toEqual([{ type: 'local', path: '/app/workspace-skills/abc123', skipMcpDiscovery: true }])
     expect(settings.workspaceSkillPlugin).toBe('/app/workspace-skills/abc123')
+    expect(settings.skills).toEqual(['agent-only'])
   })
 
   it('resolves the bridge plugin a build would publish, and none for a sealed agent', async () => {

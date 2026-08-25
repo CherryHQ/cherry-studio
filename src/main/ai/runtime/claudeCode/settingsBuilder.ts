@@ -264,7 +264,7 @@ export async function buildClaudeCodeSessionSettings(
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this agent + the
   // workspace's own .claude/skills and .agents/skills). The CLAUDE_CONFIG_DIR/skills mirror is
   // maintained by SkillService (install/uninstall/startup), not here.
-  const skills = await buildSkillWhitelist(agent, cwd)
+  const skills = await buildSkillWhitelist(agent, cwd, workspaceSkillPlugin ?? null)
 
   // 10. Build settings
   const declaredContextWindow = options?.contextWindow
@@ -370,7 +370,8 @@ export { buildMcpServers } from './mcpCatalog'
  */
 export async function buildSkillWhitelist(
   agent: Pick<AgentEntity, 'id' | 'configuration'>,
-  cwd: string
+  cwd: string,
+  workspaceSkillPlugin: string | null
 ): Promise<string[]> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
@@ -380,7 +381,7 @@ export async function buildSkillWhitelist(
 
   const [installedSkills, workspaceNames] = await Promise.all([
     skillService.list({ agentId: agent.id }),
-    skillService.listLocalFolderNames(cwd)
+    skillService.listLocalFolderNames(cwd, workspaceSkillPlugin)
   ])
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
 

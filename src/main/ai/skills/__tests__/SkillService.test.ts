@@ -442,7 +442,7 @@ describe('SkillService', () => {
         skillPath.endsWith('valid-skill') ? path.join(skillPath, 'SKILL.md') : null
       )
 
-      const result = await skillService.listLocalFolderNames(workdir)
+      const result = await skillService.listLocalFolderNames(workdir, null)
 
       expect(result).toEqual(['valid-skill'])
       expect(parseSkillMetadata).not.toHaveBeenCalled()
@@ -513,6 +513,30 @@ describe('SkillService', () => {
       )
     })
 
+    it('whitelists .agents skills only for the plugin attached to the current build', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+
+      const pluginDir = await skillService.ensureWorkspaceSkillPlugin(workdir)
+
+      await expect(skillService.listLocalFolderNames(workdir, null)).resolves.toEqual([])
+      await expect(skillService.listLocalFolderNames(workdir, pluginDir!)).resolves.toEqual(['agent-only'])
+    })
+
+    it('skips an .agents skill whose SKILL.md is not a regular file', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+      const invalid = path.join(workdir, '.agents', 'skills', 'invalid-skill')
+      await fs.promises.mkdir(path.join(invalid, 'SKILL.md'), { recursive: true })
+
+      const pluginDir = await skillService.ensureWorkspaceSkillPlugin(workdir)
+
+      expect(await fs.promises.readdir(path.join(pluginDir!, 'skills'))).toEqual(['agent-only'])
+      await expect(skillService.listLocalFolderNames(workdir, pluginDir!)).resolves.toEqual(['agent-only'])
+    })
+
     it('publishes nothing when the workspace has no .agents skill to bridge', async () => {
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-workspace-plugin-workdir-')
@@ -567,18 +591,20 @@ describe('SkillService', () => {
       await fs.promises.mkdir(lowercase, { recursive: true })
       await fs.promises.writeFile(path.join(lowercase, 'skill.md'), '# lowercase')
       // Emulate a case-sensitive filesystem: a name resolves only when the directory lists it verbatim.
-      const accessSpy = vi.spyOn(fs.promises, 'access').mockImplementation(async (target) => {
+      const realStat = fs.promises.stat.bind(fs.promises)
+      const statSpy = vi.spyOn(fs.promises, 'stat').mockImplementation(async (target, options) => {
         const entries = await fs.promises.readdir(path.dirname(String(target)))
         if (!entries.includes(path.basename(String(target)))) {
           throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
         }
+        return realStat(target, options)
       })
 
       try {
         const pluginDir = await skillService.ensureWorkspaceSkillPlugin(workdir)
         expect(await fs.promises.readdir(path.join(pluginDir!, 'skills'))).toEqual(['agent-only'])
       } finally {
-        accessSpy.mockRestore()
+        statSpy.mockRestore()
       }
     })
 
@@ -716,7 +742,7 @@ describe('SkillService', () => {
         await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBeUndefined()
 
         // A backed-off bridge must also leave the whitelist, or the SDK filter un-hides skills we never published.
-        await expect(skillService.listLocalFolderNames(workdir)).resolves.toEqual([])
+        await expect(skillService.listLocalFolderNames(workdir, null)).resolves.toEqual([])
 
         const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(realNow + 6 * 60_000)
         try {
@@ -757,7 +783,7 @@ describe('SkillService', () => {
         expect(await fs.promises.readdir(path.join(pluginDir!, 'skills'))).toEqual(['agent-only'])
         // A truncated fingerprint cannot tell edits apart, so the skill must not be served stale.
         await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(pluginDir)
-        await expect(skillService.listLocalFolderNames(workdir)).resolves.toEqual(['agent-only'])
+        await expect(skillService.listLocalFolderNames(workdir, pluginDir!)).resolves.toEqual(['agent-only'])
       } finally {
         copySpy.mockRestore()
       }
@@ -900,6 +926,52 @@ describe('SkillService', () => {
       const manifest = await fs.promises.readFile(path.join(expected, '.claude-plugin', 'plugin.json'), 'utf-8')
       expect(JSON.parse(manifest)).toEqual({ name: 'cherry-workspace-skills' })
       expect(await fs.promises.readdir(path.join(expected, 'skills'))).toEqual(['agent-only'])
+    })
+
+    it('serializes concurrent repairs of the same incomplete plugin directory', async () => {
+      const skillService = new SkillService()
+      const emptyWorkdir = await createTempDir('skill-workspace-plugin-empty-')
+      await skillService.ensureWorkspaceSkillPlugin(emptyWorkdir)
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+      const expected = (await skillService.resolveWorkspaceSkillPluginPath(workdir))!.replace(/#unpublished$/, '')
+      await fs.promises.mkdir(path.join(expected, 'skills'), { recursive: true })
+
+      const realRm = fs.promises.rm.bind(fs.promises)
+      let targetRemovals = 0
+      let releaseFirstRemoval = () => {}
+      let markFirstRemovalStarted = () => {}
+      const firstRemovalStarted = new Promise<void>((resolve) => {
+        markFirstRemovalStarted = resolve
+      })
+      const rmSpy = vi.spyOn(fs.promises, 'rm').mockImplementation((async (target, options) => {
+        if (String(target) === expected) {
+          targetRemovals += 1
+          if (targetRemovals === 1) {
+            markFirstRemovalStarted()
+            await new Promise<void>((release) => {
+              releaseFirstRemoval = release
+            })
+          }
+        }
+        return realRm(target, options)
+      }) as typeof fs.promises.rm)
+
+      try {
+        const first = skillService.ensureWorkspaceSkillPlugin(workdir)
+        await firstRemovalStarted
+        const second = skillService.ensureWorkspaceSkillPlugin(workdir)
+        for (let i = 0; i < 10 && targetRemovals < 2; i += 1) {
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+        releaseFirstRemoval()
+
+        await expect(Promise.all([first, second])).resolves.toEqual([expected, expected])
+        expect(targetRemovals).toBe(1)
+      } finally {
+        releaseFirstRemoval()
+        rmSpy.mockRestore()
+      }
     })
 
     it('resolves a distinct fact until the plugin is published, then the published directory', async () => {
