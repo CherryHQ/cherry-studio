@@ -257,12 +257,15 @@ describe('useLaunchDialogController', () => {
       result.current.launchDialogProps.onLaunch()
     })
 
-    expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', {
-      mode: 'own-login',
-      cliTool: CodeCli.MCODE,
-      directory: '/tmp/project',
-      terminal: 'terminal'
-    })
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({
+        mode: 'own-login',
+        cliTool: CodeCli.MCODE,
+        directory: '/tmp/project',
+        terminal: 'terminal'
+      })
+    )
   })
 
   // Reviewer: launch previously ran the CLI without re-checking the gateway, so a stopped

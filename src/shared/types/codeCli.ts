@@ -76,6 +76,13 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.PI
 ])
 
+/** CLI tools that never receive a Cherry provider or model configuration. */
+export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
+  CodeCli.MCODE,
+  CodeCli.QODER_CLI,
+  CodeCli.GITHUB_COPILOT_CLI
+])
+
 /**
  * Reserved virtual provider id for the code-CLI "Cherry Gateway" option. Like the
  * own-login entry it is a page-local synthetic provider (never persisted to the

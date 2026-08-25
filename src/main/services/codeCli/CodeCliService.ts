@@ -14,6 +14,7 @@ import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import {
   CodeCli,
   LOGIN_CAPABLE_CLI_TOOLS,
+  PROVIDERLESS_CLI_TOOLS,
   TerminalApp,
   type TerminalConfig,
   type TerminalConfigWithCommand
@@ -375,8 +376,7 @@ export class CodeCliService extends BaseService {
 
     const normal = input.mode === 'normal' ? input : null
     const isLoginFlow = input.mode === 'login-flow'
-    const isProviderlessCli =
-      cliTool === CodeCli.MCODE || cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI
+    const isProviderlessCli = PROVIDERLESS_CLI_TOOLS.has(cliTool)
     // "Own login" run: the CLI uses its own stored account login, so no Cherry
     // provider/model is injected (the renderer already cleared any prior config).
     // Gated to login-capable tools so a genuinely missing provider still errors.
@@ -441,6 +441,16 @@ export class CodeCliService extends BaseService {
 
     const executablePath = availability.path
     const usesCherryExecutionEnv = availability.source !== 'system'
+    let runtimeBin: string | undefined
+    if (availability.source === 'mise') {
+      try {
+        runtimeBin = await binaryManager.prepareRuntimeForExecution(executableName)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error(`Failed to prepare runtime for ${cliTool}:`, error as Error)
+        return { success: false, message: `Failed to prepare runtime for ${cliTool}: ${errorMessage}` }
+      }
+    }
 
     // Cherry's MISE_* variables are needed for currently available mise shims
     // and bundled binaries. A system CLI receives no Cherry environment: adding
@@ -452,7 +462,7 @@ export class CodeCliService extends BaseService {
       Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
     )
     const env: Record<string, string> = usesCherryExecutionEnv
-      ? mergeBinaryExecutionEnv(rawPathEnv, [application.getPath('cherry.bin')])
+      ? mergeBinaryExecutionEnv(rawPathEnv, [application.getPath('cherry.bin')], runtimeBin ? [runtimeBin] : [])
       : {}
     // For a managed Windows launch buildEnvPrefix rewrites PATH inside the
     // terminal from `env`, so the bundled-git tail must land here too, not only

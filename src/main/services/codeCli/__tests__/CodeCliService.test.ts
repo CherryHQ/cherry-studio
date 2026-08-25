@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
   removeTool: vi.fn(() => Promise.resolve()),
+  prepareRuntimeForExecution: vi.fn(),
   getToolSnapshots: vi.fn()
 }))
 
@@ -146,6 +147,7 @@ describe('CodeCliService', () => {
       )
     )
     binaryManagerMock.installByName.mockResolvedValue(undefined)
+    binaryManagerMock.prepareRuntimeForExecution.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
@@ -563,6 +565,25 @@ describe('CodeCliService', () => {
       expect(launchEnv.MISE_CONFIG_FILE).toBeUndefined()
       expect(launchEnv.MISE_DATA_DIR).toBe('/mock/binary-data')
       expect(launchEnv.PRIVATE_TOKEN).toBe('must-not-be-exported')
+    })
+
+    it('launches managed MiniMax Code with its compatible Node before the mutable runtime shim', async () => {
+      binaryManagerMock.prepareRuntimeForExecution.mockResolvedValue('/mock/mcode-node/bin')
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'own-login',
+        cliTool: CodeCli.MCODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(binaryManagerMock.prepareRuntimeForExecution).toHaveBeenCalledWith('mcode')
+      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
+      expect(launchArgs).toContain(
+        "PATH='\\''/mock/mcode-node/bin:/mock/binary-data/shims:/mock/binary-data:/usr/local/bin:/usr/bin'\\''"
+      )
     })
 
     it('single-quotes a directory containing spaces and $() in the assembled command', async () => {

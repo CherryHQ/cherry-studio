@@ -1,5 +1,10 @@
 import { CodeCli } from '@shared/types/codeCli'
 
+export interface CodeCliRuntimeRequirement {
+  tool: `node@${string}`
+  versionRange: string
+}
+
 /** Canonical acquisition facts for a Code CLI tool. */
 export interface CodeCliToolPreset {
   id: CodeCli
@@ -10,6 +15,7 @@ export interface CodeCliToolPreset {
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
+  runtimeRequirement?: Readonly<CodeCliRuntimeRequirement>
 }
 
 type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
@@ -17,6 +23,9 @@ type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
 function defineCodeCliTool(definition: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
   return Object.freeze({
     ...definition,
+    ...(definition.runtimeRequirement
+      ? { runtimeRequirement: Object.freeze({ ...definition.runtimeRequirement }) }
+      : {}),
     miseTool: definition.install === 'npm' ? `npm:${definition.packageName}` : definition.executable
   })
 }
@@ -66,7 +75,11 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     id: CodeCli.MCODE,
     executable: 'mcode',
     packageName: '@minimax-ai/code',
-    install: 'npm'
+    install: 'npm',
+    runtimeRequirement: {
+      tool: 'node@22.19',
+      versionRange: '>=22.19 <23 || >=24 <27'
+    }
   }),
   defineCodeCliTool({
     id: CodeCli.QODER_CLI,

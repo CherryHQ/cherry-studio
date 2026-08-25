@@ -32,17 +32,6 @@ export const CLI_TOOLS = [
   { value: CodeCli.DEEPSEEK_HARNESS, label: 'code.cli_tools.deepseek_harness', icon: Deepseek }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
-/**
- * Provider-less CLI tools: authenticate through their own login flow (OAuth /
- * device code) rather than a Cherry provider + model. They launch with a
- * working directory only — no provider config or model selection is offered.
- */
-export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
-  CodeCli.MCODE,
-  CodeCli.QODER_CLI,
-  CodeCli.GITHUB_COPILOT_CLI
-])
-
 /** Aggregators fronting Gemini behind a non-Gemini provider type, surfaced
  * here so gemini-cli can select them despite lacking a Gemini endpoint. */
 const GEMINI_AGGREGATOR_PROVIDERS = new Set(['aihubmix', 'dmxapi', 'new-api', 'cherryin'])

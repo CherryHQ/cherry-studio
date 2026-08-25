@@ -129,12 +129,13 @@ export function getBinaryIsolatedHomeEnv(): Record<string, string> {
   return env
 }
 
-// `extraPathPrefixes` are prepended after the mise shims dir but before the
-// caller's existing PATH — used by the mise install subprocess to put mise's own
-// dir on PATH so a re-exec'd child mise resolves.
+// `extraPathPrefixes` are prepended after the mise shims dir, while
+// `runtimePathPrefixes` go before it so a CLI's declared interpreter wins over
+// the mutable global runtime shim.
 export function mergeBinaryExecutionEnv(
   env: Record<string, string>,
-  extraPathPrefixes: string[] = []
+  extraPathPrefixes: string[] = [],
+  runtimePathPrefixes: string[] = []
 ): Record<string, string> {
   const binaryEnv = getBinaryExecutionEnv()
   const pathSeparator = isWin ? ';' : path.delimiter
@@ -150,6 +151,7 @@ export function mergeBinaryExecutionEnv(
   // the caller's PATH already carries it (shellEnv appends the same tool dirs
   // upstream).
   const pathValue = dedupePathSegments([
+    ...runtimePathPrefixes,
     binaryEnv.MISE_SHIMS_DIR,
     ...extraPathPrefixes,
     ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator))

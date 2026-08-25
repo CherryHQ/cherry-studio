@@ -40,6 +40,13 @@ describe('Code CLI acquisition catalog', () => {
     expect(Object.isFrozen(CODE_CLI_TOOL_PRESET_MAP)).toBe(true)
   })
 
+  it("declares MiniMax Code's supported Node runtime", () => {
+    const requirement = CODE_CLI_TOOL_PRESET_MAP[CodeCli.MCODE].runtimeRequirement
+
+    expect(requirement).toEqual({ tool: 'node@22.19', versionRange: '>=22.19 <23 || >=24 <27' })
+    expect(Object.isFrozen(requirement)).toBe(true)
+  })
+
   it.each(CODE_CLI_TOOL_PRESETS)('$id: indexes the canonical preset', (preset) => {
     expect(CODE_CLI_TOOL_PRESET_MAP[preset.id]).toBe(preset)
   })

@@ -411,8 +411,7 @@ vi.mock('../constants/cliTools', () => ({
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
-  ],
-  PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
+  ]
 }))
 
 vi.mock('../hooks/useAvailableTerminals', () => ({

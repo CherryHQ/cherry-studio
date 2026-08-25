@@ -4,7 +4,7 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { type CodeCli, isApiGatewayProviderId, PROVIDERLESS_CLI_TOOLS } from '@shared/types/codeCli'
 import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +20,6 @@ import {
   writeCliConfigDraft
 } from '../cliConfig'
 import type { LaunchDialog } from '../components/LaunchDialog'
-import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 import { useAvailableTerminals } from './useAvailableTerminals'
 
