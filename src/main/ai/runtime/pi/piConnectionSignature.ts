@@ -60,10 +60,11 @@ export async function capturePiConnectionSnapshot(
 
   const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
-  const [provider, model, skills] = await Promise.all([
+  const [provider, model, skills, workspaceSkillPaths] = await Promise.all([
     providerService.getByProviderId(parsed.providerId),
     modelService.getByKey(parsed.providerId, parsed.modelId),
-    skillService.list({ agentId: agent.id })
+    skillService.list({ agentId: agent.id }),
+    skillService.listLocalSkillPaths(session.workspace.path)
   ])
   const enabledSkills = skills.filter((skill) => skill.isEnabled)
   const mcpServerSnapshots = new Map<string, ReturnType<typeof mcpServerService.findByIdOrName>>()
@@ -76,9 +77,8 @@ export async function capturePiConnectionSnapshot(
   const mcpTools = mcpServers.flatMap((server) =>
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
   )
-  const linkedChannel = agentChannelService
-    .listChannels({ agentId: agent.id })
-    .find((channel) => channel.sessionId === sessionId)
+  const channel = agentChannelService.findBySessionId(sessionId)
+  const linkedChannel = channel?.agentId === agent.id ? channel : null
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
 
@@ -93,6 +93,7 @@ export async function capturePiConnectionSnapshot(
           model,
           apiKeys,
           enabledSkills,
+          workspaceSkillPaths,
           mcpServers,
           mcpTools,
           linkedChannelId: linkedChannel?.id ?? null,
@@ -108,7 +109,10 @@ export async function capturePiConnectionSnapshot(
     provider,
     model,
     enabledApiKeys: apiKeys,
-    additionalSkillPaths: enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+    additionalSkillPaths: [
+      ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+      ...workspaceSkillPaths
+    ],
     mcpServerSnapshots,
     linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
     signature

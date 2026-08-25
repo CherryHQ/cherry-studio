@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
@@ -11,12 +11,14 @@ import {
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { PromptManagementDialog } from '@renderer/components/resourceCatalog/dialogs/manage'
+import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { Prompt } from '@shared/data/types/prompt'
-import { Pencil, Plus, Zap } from 'lucide-react'
+import type { ListPromptsQueryParams } from '@shared/data/api/schemas/prompts'
+import type { Prompt, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
+import { Plus, Settings, Zap } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,13 +26,15 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   launcher: ToolLauncherApi
   setInputValue: Dispatch<SetStateAction<string>>
+  assistantId?: string
+  agentId?: string
 }
 
 const logger = loggerService.withContext('QuickPhrasesButton')
+const PROMPT_QUERY_SWR_OPTIONS = { keepPreviousData: false } as const
 
-const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
+const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInputValue }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [isManageModalOpen, setIsManageModalOpen] = useState(false)
   const [promptsEnabled, setPromptsEnabled] = useState(false)
   const restoreInputFocusRef = useRef<(() => void) | null>(null)
   const { t } = useTranslation()
@@ -41,12 +45,30 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     updateList: updateQuickPanelList
   } = useQuickPanel()
   const { setTimeoutTimer } = useTimer()
+  const bindingTarget = useMemo<PromptBindingTarget | undefined>(
+    () => (agentId ? { type: 'agent', id: agentId } : assistantId ? { type: 'assistant', id: assistantId } : undefined),
+    [agentId, assistantId]
+  )
+  const promptQuery = useMemo<ListPromptsQueryParams | undefined>(() => {
+    if (!bindingTarget) return { visibility: 'global' }
+    return bindingTarget.type === 'assistant'
+      ? { targetType: 'assistant', targetId: bindingTarget.id, includeGlobal: true }
+      : { targetType: 'agent', targetId: bindingTarget.id, includeGlobal: true }
+  }, [bindingTarget])
 
   const {
     data: promptsRaw,
     isLoading: isPromptsLoading,
-    error: promptsError
-  } = useQuery('/prompts', { enabled: promptsEnabled })
+    error: promptsError,
+    refetch: refetchPrompts
+  } = useQuery('/prompts', {
+    enabled: promptsEnabled,
+    swrOptions: PROMPT_QUERY_SWR_OPTIONS,
+    ...(promptQuery ? { query: promptQuery } : {})
+  })
+  useDataChange('/prompts', () => {
+    if (promptsEnabled) void refetchPrompts()
+  })
 
   const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
     refresh: ['/prompts'],
@@ -93,12 +115,14 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   }, [])
 
   const handleAddModalSave = useCallback(
-    async (data: { title: string; content: string }) => {
+    async (data: { title: string; content: string; visibility: PromptVisibility }) => {
       try {
         await createPrompt({
           body: {
             title: data.title,
-            content: data.content
+            content: data.content,
+            visibility: data.visibility,
+            ...(data.visibility === 'restricted' && bindingTarget ? { bindingTarget } : {})
           }
         })
         setIsAddModalOpen(false)
@@ -107,7 +131,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
         // handled by useMutation onError
       }
     },
-    [createPrompt, restoreInputFocus]
+    [bindingTarget, createPrompt, restoreInputFocus]
   )
 
   const openAddModal = useCallback((options?: QuickPanelCallBackOptions) => {
@@ -120,20 +144,14 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     restoreInputFocus()
   }, [restoreInputFocus])
 
-  const openManageModal = useCallback((options?: QuickPanelCallBackOptions) => {
-    restoreInputFocusRef.current = options?.inputAdapter?.focus ?? null
-    setIsManageModalOpen(true)
-  }, [])
+  const openPromptManagement = useCallback(() => {
+    if (bindingTarget) {
+      openResourceEditDialog({ kind: bindingTarget.type, id: bindingTarget.id, initialTab: 'prompts' })
+      return
+    }
 
-  const handleManageModalOpenChange = useCallback(
-    (open: boolean) => {
-      setIsManageModalOpen(open)
-      if (!open) {
-        restoreInputFocus()
-      }
-    },
-    [restoreInputFocus]
-  )
+    openSettingsTab('/settings/prompts')
+  }, [bindingTarget])
 
   const phraseItems = useMemo(() => {
     const newList: QuickPanelListItem[] = []
@@ -163,18 +181,27 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
 
     newList.push({
       label: t('settings.prompts.manage'),
-      icon: <Pencil />,
-      action: openManageModal
+      icon: <Settings />,
+      action: openPromptManagement
     })
 
     newList.push({
-      label: t('settings.prompts.add') + '...',
+      label: t('settings.prompts.add'),
       icon: <Plus />,
       action: openAddModal
     })
 
     return newList
-  }, [handleItemSelect, isPromptsLoading, openAddModal, openManageModal, promptItems, promptsEnabled, promptsError, t])
+  }, [
+    handleItemSelect,
+    isPromptsLoading,
+    openAddModal,
+    openPromptManagement,
+    promptItems,
+    promptsEnabled,
+    promptsError,
+    t
+  ])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
@@ -233,37 +260,28 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     handleAddModalSave,
     isAddModalOpen,
     isCreatingPrompt,
-    isManageModalOpen,
-    closeAddModal,
-    handleManageModalOpenChange
+    defaultVisibility: bindingTarget ? ('restricted' as const) : ('global' as const),
+    closeAddModal
   }
 }
 
 const QuickPhrasesModal = ({
+  defaultVisibility,
   handleAddModalSave,
   isAddModalOpen,
   isCreatingPrompt,
-  isManageModalOpen,
-  closeAddModal,
-  handleManageModalOpenChange
+  closeAddModal
 }: Pick<
   ReturnType<typeof useQuickPhrasesToolController>,
-  | 'handleAddModalSave'
-  | 'isAddModalOpen'
-  | 'isCreatingPrompt'
-  | 'isManageModalOpen'
-  | 'closeAddModal'
-  | 'handleManageModalOpenChange'
+  'defaultVisibility' | 'handleAddModalSave' | 'isAddModalOpen' | 'isCreatingPrompt' | 'closeAddModal'
 >) => (
-  <>
-    <PromptEditDialog
-      open={isAddModalOpen}
-      saving={isCreatingPrompt}
-      onSave={handleAddModalSave}
-      onCancel={closeAddModal}
-    />
-    <PromptManagementDialog open={isManageModalOpen} onOpenChange={handleManageModalOpenChange} />
-  </>
+  <PromptEditDialog
+    open={isAddModalOpen}
+    defaultVisibility={defaultVisibility}
+    saving={isCreatingPrompt}
+    onSave={handleAddModalSave}
+    onCancel={closeAddModal}
+  />
 )
 
 export const QuickPhrasesToolRuntime = (props: Props) => {

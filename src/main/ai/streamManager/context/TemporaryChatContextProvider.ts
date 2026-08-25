@@ -28,6 +28,7 @@ const logger = loggerService.withContext('TemporaryChatContextProvider')
 
 export class TemporaryChatContextProvider implements ChatContextProvider {
   readonly name = 'temporary'
+  readonly isPersistentConversation = false
 
   canHandle(topicId: string): boolean {
     // Defensive — agent-session prefix is never temporary regardless of `hasTopic`.
@@ -130,6 +131,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
+      serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 

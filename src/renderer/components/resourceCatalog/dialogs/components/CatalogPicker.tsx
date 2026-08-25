@@ -1,6 +1,7 @@
 import {
   Badge,
   Button,
+  type ButtonVariant,
   Checkbox,
   Command,
   CommandGroup,
@@ -193,6 +194,7 @@ export const AddCatalogPopover: FC<{
   footer?: ReactNode
   triggerClassName?: string
   triggerPosition?: 'start' | 'end'
+  triggerVariant?: ButtonVariant
   portalContainer?: HTMLElement | null
 }> = ({
   items,
@@ -206,6 +208,7 @@ export const AddCatalogPopover: FC<{
   footer,
   triggerClassName,
   triggerPosition = 'end',
+  triggerVariant = 'ghost',
   portalContainer
 }) => {
   const [open, setOpen] = useState(false)
@@ -251,7 +254,7 @@ export const AddCatalogPopover: FC<{
       <PopoverTrigger asChild>
         <Button
           type="button"
-          variant="ghost"
+          variant={triggerVariant}
           size="sm"
           disabled={disabled}
           className={cn(

@@ -98,6 +98,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const handledAutoEnableServerIdRef = useRef<string | null>(null)
+  const loadedCapabilityTabsRef = useRef<{ serverId: string; tabs: Set<TabKey> } | null>(null)
 
   const { theme } = useTheme()
 
@@ -111,6 +112,21 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }, [watchedServerType])
 
+  const markCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) => {
+    if (loadedCapabilityTabsRef.current?.serverId !== server.id) {
+      loadedCapabilityTabsRef.current = { serverId: server.id, tabs: new Set() }
+    }
+    loadedCapabilityTabsRef.current.tabs.add(tab)
+  }
+
+  const unmarkCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) => {
+    if (loadedCapabilityTabsRef.current?.serverId !== server.id) return
+    loadedCapabilityTabsRef.current.tabs.delete(tab)
+  }
+
+  const wasCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) =>
+    loadedCapabilityTabsRef.current?.serverId === server.id && loadedCapabilityTabsRef.current.tabs.has(tab)
+
   const fetchTools = async () => {
     if (server?.isActive) {
       try {
@@ -118,6 +134,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id })
       } catch (error) {
         logger.error('Failed to list MCP tools', error as Error)
+        unmarkCapabilityLoaded('tools')
       } finally {
         setLoadingServer(null)
       }
@@ -133,6 +150,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       } catch (error) {
         logger.error('Failed to list MCP prompts', error as Error)
         setPrompts([])
+        unmarkCapabilityLoaded('prompts')
       } finally {
         setLoadingServer(null)
       }
@@ -148,6 +166,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       } catch (error) {
         logger.error('Failed to list MCP resources', error as Error)
         setResources([])
+        unmarkCapabilityLoaded('resources')
       } finally {
         setLoadingServer(null)
       }
@@ -167,14 +186,29 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   }
 
   useEffect(() => {
-    if (server?.isActive) {
-      void fetchTools()
-      void fetchPrompts()
-      void fetchResources()
-      void fetchServerVersion()
+    if (!server?.isActive) {
+      setPrompts([])
+      setResources([])
+      setServerVersion(null)
+      loadedCapabilityTabsRef.current = null
+      return
     }
+
+    void fetchServerVersion()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server?.id, server?.isActive])
+
+  useEffect(() => {
+    if (!server?.isActive) return
+    if (activeTab !== 'tools' && activeTab !== 'prompts' && activeTab !== 'resources') return
+    if (wasCapabilityLoaded(activeTab)) return
+
+    markCapabilityLoaded(activeTab)
+    if (activeTab === 'tools') void fetchTools()
+    if (activeTab === 'prompts') void fetchPrompts()
+    if (activeTab === 'resources') void fetchResources()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, server?.id, server?.isActive])
 
   // Save the form data
   const onSave = async () => {
@@ -293,6 +327,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
           const version = await ipcApi.request('mcp.server.get_version', { serverId: serverForUpdate.id })
           setServerVersion(version)
+
+          markCapabilityLoaded('tools')
+          markCapabilityLoaded('prompts')
+          markCapabilityLoaded('resources')
         } catch (error: any) {
           void popup.error({
             title: t('settings.mcp.startError'),
@@ -303,7 +341,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       } else {
         await updateMcpServer({ body: { isActive: false } })
         await ipcApi.request('mcp.server.stop', { serverId: serverForUpdate.id })
+        setPrompts([])
+        setResources([])
         setServerVersion(null)
+        loadedCapabilityTabsRef.current = null
       }
       form.setValue('isActive', active)
     } catch (error: any) {
@@ -396,7 +437,9 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     serverType,
     onServerTypeChange: setServerType,
     registryState,
-    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)
+    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server),
+    builtinRequiresEnv:
+      (server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)) && Boolean(server.shouldConfig)
   }
 
   const tabs: McpTabItem[] = [

@@ -61,6 +61,11 @@ interface ModelSwitchTarget {
   model: Model
 }
 
+interface CitationPanelState {
+  sessionId: string
+  citations: Citation[]
+}
+
 function getNewSessionWorkspaceDefaults(
   session: AgentSessionEntity
 ): Pick<CreateAgentSessionDefaults, 'workspaceId' | 'workspaceMode'> {
@@ -178,7 +183,8 @@ const AgentChat = ({
   const [skipModelSwitchConfirmationsForAppRun, setSkipModelSwitchConfirmationsForAppRun] = useSharedCache(
     'agent.model_switch_confirmation.skipped'
   )
-  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const currentSessionId = conversationBootstrap.session?.id
+  const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
   const [modelSwitchTarget, setModelSwitchTarget] = useState<ModelSwitchTarget>()
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
@@ -196,6 +202,8 @@ const AgentChat = ({
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
+  const citationPanelCitations =
+    citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -203,10 +211,17 @@ const AgentChat = ({
   useEffect(() => {
     if (visibleWorkspaceId && visibleWorkspace?.type !== 'system') onVisibleWorkspaceChange?.(visibleWorkspaceId)
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
+  useEffect(() => {
+    setCitationPanelState(null)
+  }, [currentSessionId])
 
-  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setCitationPanelCitations(citations)
-  }, [])
+  const handleOpenCitationsPanel = useCallback(
+    ({ citations }: { citations: Citation[] }) => {
+      if (!currentSessionId) return
+      setCitationPanelState({ sessionId: currentSessionId, citations })
+    },
+    [currentSessionId]
+  )
 
   const isInitializing = !sessionSnapshot && conversationBootstrap.sessionLoading
   const citationsPanelOpen = citationPanelCitations !== null
@@ -432,7 +447,7 @@ const AgentChat = ({
     sidePanel = (
       <CitationsPanel
         open={citationsPanelOpen}
-        onClose={() => setCitationPanelCitations(null)}
+        onClose={() => setCitationPanelState(null)}
         citations={citationPanelCitations ?? []}
       />
     )

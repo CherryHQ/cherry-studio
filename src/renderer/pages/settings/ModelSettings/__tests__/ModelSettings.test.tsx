@@ -21,6 +21,11 @@ const harness = vi.hoisted(() => ({
   preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>
 }))
 
+const setTimeoutTimerMock = vi.hoisted(() => vi.fn())
+const matchMediaMock = vi.hoisted(() => vi.fn())
+
+Element.prototype.scrollIntoView = vi.fn()
+
 vi.mock('@cherrystudio/ui', () => ({
   Avatar: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
@@ -106,6 +111,10 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
+vi.mock('@renderer/hooks/useTimer', () => ({
+  useTimer: () => ({ setTimeoutTimer: setTimeoutTimerMock })
+}))
+
 vi.mock('@renderer/pages/translate/TranslateSettings', () => ({
   TranslateSettingsPanelContent: () => null
 }))
@@ -116,6 +125,12 @@ vi.mock('@renderer/services/toast', () => ({
 
 vi.mock('@renderer/utils/model', () => ({
   getModelLogoRef: () => undefined
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useSearch: () => {
+    throw new Error('useSearch must not be called from ModelSettings')
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -143,6 +158,10 @@ const createModel = (providerId: string, apiModelId: string): Model =>
 describe('ModelSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: matchMediaMock.mockReturnValue({ matches: false })
+    })
     harness.defaultModel = undefined
     harness.quickModel = undefined
     harness.translateModel = undefined
@@ -301,5 +320,42 @@ describe('ModelSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.conversation_suggestions.default_model' }))
 
     expect(harness.preferenceSetters['chat.suggestions.model_id']).toHaveBeenCalledWith(null)
+  })
+
+  it.each([
+    ['default', 'settings.models.default_assistant_model'],
+    ['translate', 'settings.models.translate_model']
+  ] as const)('points to the %s model selector requested by the route', (focus, expectedTitle) => {
+    render(<ModelSettings focus={focus} showPaintingModel={false} showSettingsButton={false} />)
+
+    const scrollTarget = vi.mocked(Element.prototype.scrollIntoView).mock.instances[0]
+    expect(scrollTarget).toHaveTextContent(expectedTitle)
+
+    const focusGuide = screen.getByTestId('model-settings-focus-guide')
+    expect(focusGuide).toBeInTheDocument()
+    expect(screen.getAllByTestId('model-settings-focus-guide')).toHaveLength(1)
+    expect(setTimeoutTimerMock).toHaveBeenCalledWith('model-settings-focus-guide', expect.any(Function), 1200)
+
+    const timerCallback = setTimeoutTimerMock.mock.calls[0][1]
+    act(() => {
+      void timerCallback()
+    })
+    expect(screen.queryByTestId('model-settings-focus-guide')).not.toBeInTheDocument()
+  })
+
+  it('avoids smooth scrolling when reduced motion is requested', () => {
+    matchMediaMock.mockReturnValue({ matches: true })
+
+    render(<ModelSettings focus="default" showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'auto',
+      block: 'center',
+      inline: 'nearest'
+    })
+  })
+
+  it('renders off-router (onboarding compact) without calling useSearch', () => {
+    expect(() => render(<ModelSettings compact showPaintingModel={false} showSettingsButton={false} />)).not.toThrow()
   })
 })

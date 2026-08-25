@@ -20,7 +20,7 @@
  */
 // The dsh-compaction-basic / dsh-llm-retry / dsh-plan-mode imports load their SessionEventMap merges.
 import type {} from '@deepseek-ai/dsh-compaction-basic'
-import type { ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { CallId, ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
@@ -131,6 +131,7 @@ export class DshStreamAdapter {
 
   /** Mark the next turn as host-prompted; called by the connection before each bridge prompt. */
   beginTurn(): void {
+    this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
   }
@@ -139,6 +140,17 @@ export class DshStreamAdapter {
   abortTurn(): void {
     this.turnActive = false
     this.autonomousTurn = false
+  }
+
+  /**
+   * Emit a call's input parts now, as if its `tool/call` event had already arrived. The bridge
+   * socket can outrun the session-event stream, and an approval chunk with no tool part truncates
+   * the turn accumulator. The real `tool/call` then no-ops on `startedTools`.
+   */
+  ensureToolCall(callId: string, toolName: string, input: Record<string, unknown>): void {
+    if (this.startedTools.has(callId)) return
+    this.ensureTurnOpen()
+    this.handleToolCall({ callId: callId as CallId, name: toolName, arguments: JSON.stringify(input) })
   }
 
   /** Content with no host-opened turn = the runtime started its own (goal-round) turn. */
@@ -154,7 +166,9 @@ export class DshStreamAdapter {
       case 'turn/start':
         this.flushPendingProviderUsage()
         this.turnUsage = emptyTurnUsage()
-        this.startedTools.clear()
+        // Host turns clear in beginTurn, before cross-channel events can race. Preserve a bridge-first
+        // synthetic call here; an ordinary autonomous turn is still inactive and clears normally.
+        if (!this.turnActive) this.startedTools.clear()
         this.resetStepTiming()
         return
       case 'step/start':

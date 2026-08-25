@@ -38,7 +38,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.103",
     "@ai-sdk/azure": "^3.0.54",
-    "@ai-sdk/deepseek": "^2.0.30",
+    "@ai-sdk/deepseek": "^2.0.57",
     "@ai-sdk/openai-compatible": "^2.0.62",
     "@ai-sdk/provider": "^3.0.14",
     "@ai-sdk/provider-utils": "^4.0.40",
