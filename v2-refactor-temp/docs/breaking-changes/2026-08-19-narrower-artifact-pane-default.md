@@ -2,7 +2,7 @@
 title: "File and artifact panes open narrower by default"
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#18981"
 date: 2026-08-19
 ---
 
