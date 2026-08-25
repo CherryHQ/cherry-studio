@@ -14,9 +14,9 @@ async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[
   await page.getByTestId('model-selector-search').fill(model)
   await page.getByRole('option').filter({ hasText: model }).first().click()
   await page.getByRole('button', { name: 'Source Language' }).click()
-  await page.getByRole('option', { name: 'English', exact: true }).click()
+  await page.getByRole('option').filter({ hasText: 'English' }).first().click()
   await page.getByRole('button', { name: 'Target Language' }).click()
-  await page.getByRole('option', { name: 'Chinese', exact: true }).click()
+  await page.getByRole('option').filter({ hasText: 'Chinese' }).first().click()
 }
 
 test('[T-01] 文本翻译 @translation', async ({ app, mainWindow: page }) => {

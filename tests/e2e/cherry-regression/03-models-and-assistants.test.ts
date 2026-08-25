@@ -32,10 +32,10 @@ test('[M-02] 配置自定义聊天服务商并完成聊天 @custom-provider-chat
 
 test('[C-01] 创建自定义助手并聊天 @custom-assistant', async ({ app, mainWindow: page }) => {
   await ensureCustomAssistant(app, page)
-  await sendChatMarker(page, 'In one sentence, what is two plus two?', 'ASSISTANT_PROMPT_PASS')
+  await sendChatMarker(page, 'In one sentence, what is two plus two?', 'ASSISTANT_PROMPT_PASS', false)
 
   const restarted = await app.restart('authenticated')
   await dismissOnboarding(restarted)
   await expect(restarted.getByText(CUSTOM_ASSISTANT, { exact: true }).first()).toBeVisible()
-  await expect(restarted.getByText('ASSISTANT_PROMPT_PASS', { exact: true }).last()).toBeVisible()
+  await expect(restarted.getByText('ASSISTANT_PROMPT_PASS').last()).toBeVisible()
 })

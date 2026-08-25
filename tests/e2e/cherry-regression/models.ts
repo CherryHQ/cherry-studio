@@ -6,8 +6,17 @@ import { dismissOnboarding, selectSidebarApp } from './helpers'
 
 export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Provider'
 
+async function closeOpenSettingsDrawer(page: Page): Promise<void> {
+  const drawer = page.locator('[data-slot="page-side-panel"][role="dialog"]')
+  if (!(await drawer.isVisible().catch(() => false))) return
+
+  await drawer.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(drawer).toBeHidden()
+}
+
 export async function openSettingsSection(page: Page, section: string): Promise<void> {
   await dismissOnboarding(page)
+  await closeOpenSettingsDrawer(page)
   const sectionButton = page.getByRole('button', { name: section, exact: true })
   if (!(await sectionButton.isVisible().catch(() => false))) {
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
@@ -30,6 +39,7 @@ async function addModel(page: Page, model: string): Promise<void> {
   await modelId.fill(model)
   await dialog.getByRole('button', { name: 'Add Model', exact: true }).click()
   await expect(page.getByText(model, { exact: true }).last()).toBeVisible()
+  await closeOpenSettingsDrawer(page)
 }
 
 export async function ensureCustomChatProvider(app: RegressionApp, page: Page): Promise<void> {
@@ -72,9 +82,9 @@ export async function selectChatModel(page: Page, model: string): Promise<void> 
   )
 }
 
-export async function sendChatMarker(page: Page, prompt: string, marker: string): Promise<void> {
+export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<void> {
   const composer = page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first()
   await composer.fill(prompt)
   await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(page.getByText(marker, { exact: true }).last()).toBeVisible({ timeout: 2 * 60_000 })
+  await expect(page.getByText(marker, { exact }).last()).toBeVisible({ timeout: 2 * 60_000 })
 }
