@@ -1,7 +1,16 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..7d496e21ca8f8f135d44913529af24837d1dff1c 100644
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9af5b4c95 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -737,7 +737,7 @@ var OpenAIChatLanguageModel = class {
+       // messages:
+       messages
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -1725,7 +1725,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
        created: import_v48.z.number().nullish(),
        data: import_v48.z.array(
@@ -55,7 +64,42 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..7d496e21ca8f8f135d44913529af2483
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -3778,6 +3789,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+@@ -2756,9 +2767,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -3002,6 +3015,12 @@ async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
+                   });
++                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   warnings.push({
+                     type: "other",
+@@ -3249,7 +3268,8 @@ async function convertToOpenAIResponsesInput({
+ }
+ var openaiResponsesReasoningProviderOptionsSchema = import_v420.z.object({
+   itemId: import_v420.z.string().nullish(),
+-  reasoningEncryptedContent: import_v420.z.string().nullish()
++  reasoningEncryptedContent: import_v420.z.string().nullish(),
++  rawReasoningContent: import_v420.z.boolean().nullish()
+ });
+ 
+ // src/responses/map-openai-responses-finish-reason.ts
+@@ -3778,6 +3798,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
          summary_index: import_v421.z.number(),
          delta: import_v421.z.string()
        }),
@@ -67,7 +111,25 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..7d496e21ca8f8f135d44913529af2483
        import_v421.z.object({
          type: import_v421.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v421.z.string(),
-@@ -6105,6 +6121,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -3878,7 +3903,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils26.lazySchema)(
+                       index: import_v421.z.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -4812,7 +4837,7 @@ var OpenAIResponsesLanguageModel = class {
+         }
+       }
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -6105,6 +6130,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -86,9 +148,18 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..7d496e21ca8f8f135d44913529af2483
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0a26c7c33f5919f17cdfe40bdef89e8146ef9667 100644
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335c1deac09 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
+@@ -728,7 +728,7 @@ var OpenAIChatLanguageModel = class {
+       // messages:
+       messages
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -1740,7 +1740,8 @@ var openaiImageResponseSchema = lazySchema7(
        created: z8.number().nullish(),
        data: z8.array(
@@ -142,7 +213,42 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0a26c7c33f5919f17cdfe40bdef89e81
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -3855,6 +3866,11 @@ var openaiResponsesChunkSchema = lazySchema19(
+@@ -2833,9 +2844,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -3079,6 +3092,12 @@ async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
+                   });
++                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   warnings.push({
+                     type: "other",
+@@ -3326,7 +3345,8 @@ async function convertToOpenAIResponsesInput({
+ }
+ var openaiResponsesReasoningProviderOptionsSchema = z20.object({
+   itemId: z20.string().nullish(),
+-  reasoningEncryptedContent: z20.string().nullish()
++  reasoningEncryptedContent: z20.string().nullish(),
++  rawReasoningContent: z20.boolean().nullish()
+ });
+ 
+ // src/responses/map-openai-responses-finish-reason.ts
+@@ -3855,6 +3875,11 @@ var openaiResponsesChunkSchema = lazySchema19(
          summary_index: z21.number(),
          delta: z21.string()
        }),
@@ -154,7 +260,25 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0a26c7c33f5919f17cdfe40bdef89e81
        z21.object({
          type: z21.literal("response.reasoning_summary_part.done"),
          item_id: z21.string(),
-@@ -6184,6 +6200,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -3955,7 +3980,7 @@ var openaiResponsesResponseSchema = lazySchema19(
+                       index: z21.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -4891,7 +4916,7 @@ var OpenAIResponsesLanguageModel = class {
+         }
+       }
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -6184,6 +6209,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -173,9 +297,18 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0a26c7c33f5919f17cdfe40bdef89e81
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..9426ec4224219765594253052dd593d5aaa38489 100644
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e613025a06a07 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
+@@ -764,7 +764,7 @@ var OpenAIChatLanguageModel = class {
+       // messages:
+       messages
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -1752,7 +1752,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
        created: import_v48.z.number().nullish(),
        data: import_v48.z.array(
@@ -229,7 +362,42 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..9426ec4224219765594253052dd593d5
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -3720,6 +3731,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
+@@ -2698,9 +2709,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -2944,6 +2957,12 @@ async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
+                   });
++                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   warnings.push({
+                     type: "other",
+@@ -3191,7 +3210,8 @@ async function convertToOpenAIResponsesInput({
+ }
+ var openaiResponsesReasoningProviderOptionsSchema = import_v416.z.object({
+   itemId: import_v416.z.string().nullish(),
+-  reasoningEncryptedContent: import_v416.z.string().nullish()
++  reasoningEncryptedContent: import_v416.z.string().nullish(),
++  rawReasoningContent: import_v416.z.boolean().nullish()
+ });
+ 
+ // src/responses/map-openai-responses-finish-reason.ts
+@@ -3720,6 +3740,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
          summary_index: import_v417.z.number(),
          delta: import_v417.z.string()
        }),
@@ -241,7 +409,25 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..9426ec4224219765594253052dd593d5
        import_v417.z.object({
          type: import_v417.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v417.z.string(),
-@@ -6366,6 +6382,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -3820,7 +3845,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils24.lazySchema)(
+                       index: import_v417.z.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -5073,7 +5098,7 @@ var OpenAIResponsesLanguageModel = class {
+         }
+       }
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -6366,6 +6391,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -260,9 +446,18 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..9426ec4224219765594253052dd593d5
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..c5e7e54d831fbac316ee5c8f7c503891ba0062df 100644
+index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe9cd7493b 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
+@@ -720,7 +720,7 @@ var OpenAIChatLanguageModel = class {
+       // messages:
+       messages
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -1732,7 +1732,8 @@ var openaiImageResponseSchema = lazySchema7(
        created: z8.number().nullish(),
        data: z8.array(
@@ -316,7 +511,42 @@ index db50beda01459008c836cd5648e024340fe31e90..c5e7e54d831fbac316ee5c8f7c503891
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -3746,6 +3757,11 @@ var openaiResponsesChunkSchema = lazySchema15(
+@@ -2724,9 +2735,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -2970,6 +2983,12 @@ async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
+                   });
++                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   warnings.push({
+                     type: "other",
+@@ -3217,7 +3236,8 @@ async function convertToOpenAIResponsesInput({
+ }
+ var openaiResponsesReasoningProviderOptionsSchema = z16.object({
+   itemId: z16.string().nullish(),
+-  reasoningEncryptedContent: z16.string().nullish()
++  reasoningEncryptedContent: z16.string().nullish(),
++  rawReasoningContent: z16.boolean().nullish()
+ });
+ 
+ // src/responses/map-openai-responses-finish-reason.ts
+@@ -3746,6 +3766,11 @@ var openaiResponsesChunkSchema = lazySchema15(
          summary_index: z17.number(),
          delta: z17.string()
        }),
@@ -328,7 +558,25 @@ index db50beda01459008c836cd5648e024340fe31e90..c5e7e54d831fbac316ee5c8f7c503891
        z17.object({
          type: z17.literal("response.reasoning_summary_part.done"),
          item_id: z17.string(),
-@@ -6422,6 +6438,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -3846,7 +3871,7 @@ var openaiResponsesResponseSchema = lazySchema15(
+                       index: z17.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -5129,7 +5154,7 @@ var OpenAIResponsesLanguageModel = class {
+         }
+       }
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -6422,6 +6447,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -346,6 +594,19 @@ index db50beda01459008c836cd5648e024340fe31e90..c5e7e54d831fbac316ee5c8f7c503891
              } else if (value.type === "response.reasoning_summary_part.done") {
                if (store) {
                  controller.enqueue({
+diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
+index 96077d47c9e104143430d261e040b9ae89340940..31417bad69cc06d5213be0b17b3ef08aa6d77671 100644
+--- a/src/chat/openai-chat-language-model.ts
++++ b/src/chat/openai-chat-language-model.ts
+@@ -180,7 +180,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
 diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
 index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
 --- a/src/image/openai-image-api.ts
@@ -390,8 +651,53 @@ index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb
        warnings,
        usage:
          response.usage != null
+diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
+index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d774aecbb 100644
+--- a/src/responses/convert-to-openai-responses-input.ts
++++ b/src/responses/convert-to-openai-responses-input.ts
+@@ -191,9 +191,14 @@ export async function convertToOpenAIResponsesInput({
+               }
+ 
+               input.push({
++                // Ark rejects assistant input items that omit either field (#18253);
++                // both are the canonical Responses shape OpenAI accepts. Only the
++                // assistant item needs it — Ark takes user/system items as-is.
++                type: 'message',
+                 role: 'assistant',
+                 content: [{ type: 'output_text', text: part.text }],
+                 id,
++                status: 'completed',
+                 ...(phase != null && { phase }),
+               });
+ 
+@@ -538,6 +543,17 @@ export async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts,
+                   });
++                } else if (
++                  providerOptions?.rawReasoningContent &&
++                  part.text.length > 0
++                ) {
++                  // Thinking dialects (DeepSeek, …) require the reasoning text itself on
++                  // replay; opt-in because OpenAI rejects `content` on reasoning items.
++                  input.push({
++                    type: 'reasoning',
++                    summary: [],
++                    content: [{ type: 'reasoning_text', text: part.text }],
++                  });
+                 } else {
+                   warnings.push({
+                     type: 'other',
+@@ -848,6 +864,7 @@ export async function convertToOpenAIResponsesInput({
+ const openaiResponsesReasoningProviderOptionsSchema = z.object({
+   itemId: z.string().nullish(),
+   reasoningEncryptedContent: z.string().nullish(),
++  rawReasoningContent: z.boolean().nullish(),
+ });
+ 
+ export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d508936d7cb2df 100644
+index 53a3f242d81d0b52d9126b0f4580a30778373606..b478c2cd2af3112592255d010f67b61187cb4f2b 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
 @@ -985,6 +985,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
@@ -406,10 +712,28 @@ index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d50893
        z.object({
          type: z.literal('response.reasoning_summary_part.done'),
          item_id: z.string(),
+@@ -1111,7 +1116,7 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
+                         index: z.number(),
+                       }),
+                     ]),
+-                  ),
++                  ).nullish().transform((v) => v ?? []),
+                 }),
+               ),
+             }),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
-index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..b277aac9d3f9bb972da7ecb5ab03a1ab449df5c5 100644
+index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..ee29c4bf14104ceb2e5ce1dafe816828b14018cb 100644
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
+@@ -358,7 +358,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
 @@ -1969,6 +1969,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                    } satisfies ResponsesReasoningProviderMetadata,
                  },

@@ -1,6 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
+import { useCommandContextKey } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import {
@@ -11,7 +12,7 @@ import {
 import { cn } from '@renderer/utils/style'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
-import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across
@@ -39,8 +40,15 @@ function paneGeometry(isSplit: boolean, isPrimary: boolean, isSecondary: boolean
 }
 
 const MiniAppTabsPool: React.FC = () => {
-  const { openedKeepAliveMiniApps, currentMiniAppId, splitOpen, splitMiniAppId, setOpenedKeepAliveMiniApps } =
-    useMiniApps()
+  const {
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    splitOpen,
+    splitMiniAppId,
+    setOpenedKeepAliveMiniApps,
+    setCurrentMiniAppId,
+    setMiniAppShow
+  } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
   // Read the active tab's URL from the v2 tabs cache. We can't use the
@@ -50,6 +58,15 @@ const MiniAppTabsPool: React.FC = () => {
 
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
+
+  const tabMiniAppIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const tab of tabs) {
+      const id = miniAppIdFromTabUrl(tab.url)
+      if (id) ids.add(id)
+    }
+    return ids
+  }, [tabs])
 
   // One `<webview>` cannot render in two panes, and switching tabs can make the
   // active app equal the split one, so drop the split instead of blanking a pane.
@@ -112,25 +129,78 @@ const MiniAppTabsPool: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMetadataSignature])
 
+  // closeSplit's contract keeps split-opened apps pooled (the cap-LRU retires them), so remember
+  // every app the split pane ever showed: orphan cleanup only evicts entries no tab references
+  // and the split never owned.
+  const splitPooledIds = useRef(new Set<string>())
+
+  useEffect(() => {
+    if (splitOpen && splitMiniAppId) splitPooledIds.current.add(splitMiniAppId)
+    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || splitPooledIds.current.has(appId)
+    const orphanedApps = openedKeepAliveMiniApps.filter((app) => !isReferenced(app.appId))
+    if (orphanedApps.length === 0) return
+
+    const kept = openedKeepAliveMiniApps.filter((app) => isReferenced(app.appId))
+    setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => isReferenced(app.appId)))
+    for (const app of orphanedApps) clearWebviewState(app.appId)
+
+    // Realign whenever the current id no longer resolves to a pooled app — the stale id may
+    // predate this cleanup rather than be part of it.
+    if (kept.some((app) => app.appId === currentMiniAppId)) return
+
+    if (activeMiniAppId && kept.some((app) => app.appId === activeMiniAppId)) {
+      setCurrentMiniAppId(activeMiniAppId)
+      setMiniAppShow(true)
+      return
+    }
+
+    setCurrentMiniAppId('')
+    setMiniAppShow(false)
+  }, [
+    activeMiniAppId,
+    currentMiniAppId,
+    openedKeepAliveMiniApps,
+    setCurrentMiniAppId,
+    setMiniAppShow,
+    setOpenedKeepAliveMiniApps,
+    splitMiniAppId,
+    splitOpen,
+    tabMiniAppIds
+  ])
+
   /** 设置 ref 回调 */
-  const handleSetRef = (appid: string, el: WebviewTag | null) => {
+  const handleSetRef = useCallback((appid: string, el: WebviewTag | null) => {
     if (el) {
       webviewRefs.current.set(appid, el)
     } else {
       webviewRefs.current.delete(appid)
     }
-  }
+  }, [])
 
   /** WebView 加载完成回调 */
-  const handleLoaded = (appid: string) => {
+  const handleLoaded = useCallback((appid: string) => {
+    // A load event can land after the pool evicted the app; don't resurrect its cleared state.
+    if (!webviewRefs.current.has(appid)) return
     setWebviewLoaded(appid, true)
     logger.debug(`TabPool webview loaded: ${appid}`)
-  }
+  }, [])
 
   /** Record navigation (URL state not yet exposed; can integrate with global URL Map later) */
-  const handleNavigate = (appid: string, url: string) => {
+  const handleNavigate = useCallback((appid: string, url: string) => {
     logger.debug(`TabPool webview navigate: ${appid} -> ${url}`)
-  }
+  }, [])
+
+  // The context key is registered here rather than per pane: every container's effect
+  // stays alive for the pool's lifetime, and the registry resolves to whichever
+  // registered last — so a pane mounting behind a focused one would clear the key.
+  const [focusedAppId, setFocusedAppId] = useState<string | null>(null)
+  const handleFocusChange = useCallback((appid: string, focused: boolean) => {
+    // A pane's blur can land after the next pane's focus, so only the pane that still
+    // holds the key may clear it.
+    setFocusedAppId((current) => (focused ? appid : current === appid ? null : current))
+  }, [])
+  // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
+  useCommandContextKey('webview.focused', focusedAppId !== null)
 
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {
@@ -189,6 +259,7 @@ const MiniAppTabsPool: React.FC = () => {
               onSetRefCallback={handleSetRef}
               onLoadedCallback={handleLoaded}
               onNavigateCallback={handleNavigate}
+              onFocusChange={handleFocusChange}
             />
           </div>
         )

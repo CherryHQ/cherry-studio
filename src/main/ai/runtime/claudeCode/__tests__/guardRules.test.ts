@@ -25,7 +25,7 @@ import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERAC
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
-const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
@@ -91,6 +91,44 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       const decision = await evaluate(makeCtx({ toolName, isDisabled: () => true }))
       expect(decision?.ruleId).toBe('disabled-tool')
       expect(decision?.effect).toBe('deny')
+    })
+  })
+
+  describe('unsupported-image-read', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
+      'denies image reads for a text-only model under %s',
+      async (mode) => {
+        const decision = await evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: '/ws/assets/Preview.PNG' },
+            permissionMode: mode,
+            supportsImages: false
+          })
+        )
+
+        expect(decision).toEqual({
+          effect: 'deny',
+          reason:
+            'The selected model does not support image input, so Read cannot open /ws/assets/Preview.PNG. Use a vision-capable model or inspect the file through a text-only alternative.',
+          ruleId: 'unsupported-image-read'
+        })
+      }
+    )
+
+    it('allows image reads for vision models and non-image reads for text-only models', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: '/ws/assets/Preview.png' },
+            supportsImages: true
+          })
+        )
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ toolName: 'Read', input: { file_path: '/ws/src/Game.cs' }, supportsImages: false }))
+      ).resolves.toBeUndefined()
     })
   })
 

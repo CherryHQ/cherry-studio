@@ -165,8 +165,37 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const activeItem = resolveSidebarActiveItem(pathname)
 
+  const navigateRouteTab = useCallback(
+    (path: string, title: string, options?: { inNewTab?: boolean; icon?: string }) => {
+      if (options?.inNewTab) {
+        openTab(path, { forceNew: true, title, icon: options.icon })
+        return
+      }
+
+      if (activeTab?.url === path) return
+
+      if (activeTab?.isPinned) {
+        openTab(path, { forceNew: true, title, icon: options?.icon })
+        return
+      }
+
+      if (activeTab) {
+        updateTab(activeTab.id, {
+          url: path,
+          title,
+          icon: options?.icon,
+          metadata: undefined
+        })
+        return
+      }
+
+      openTab(path, { forceNew: true, title, icon: options?.icon })
+    },
+    [activeTab, openTab, updateTab]
+  )
+
   const handleNavigate = useCallback(
-    (menuItemId: string) => {
+    (menuItemId: string, options?: { inNewTab?: boolean }) => {
       const menuId = menuItemId as SidebarAppId
       const app = getSidebarApp(menuId)
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
@@ -177,23 +206,22 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      const isActiveTarget =
-        !!activeTab &&
-        (app.conversationRoute
-          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-          : activeTab.url === path)
-      if (isActiveTarget) return
-
-      const title = getDefaultRouteTitle(path)
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
-      } else if (activeTab) {
-        updateTab(activeTab.id, { url: path, title, icon: undefined, metadata: undefined })
-      } else {
-        openTab(path, { forceNew: true, title })
+      if (!options?.inNewTab) {
+        // Conversation apps: any owned tab is already "there" — its URL carries its own
+        // conversation, and re-entering through the route interceptor would just rebind
+        // it. Message-only viewers are not an app entry, so they navigate like any
+        // foreign tab. Apps without sub-instances keep exact-URL matching.
+        const isActiveTarget =
+          !!activeTab &&
+          (app.conversationRoute
+            ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
+            : activeTab.url === path)
+        if (isActiveTarget) return
       }
+
+      navigateRouteTab(path, getDefaultRouteTitle(path), options)
     },
-    [activeTab, activateWorkspace, defaultPaintingProvider, navigationLayout, openTab, updateTab]
+    [activeTab, activateWorkspace, defaultPaintingProvider, navigateRouteTab, navigationLayout]
   )
   const handleOpenLaunchpad = useCallback(() => {
     const title = getDefaultRouteTitle('/app/launchpad')
@@ -204,7 +232,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     }
   }, [activateWorkspace, navigationLayout, openTab])
   const handleOpenSettingsTab = useCallback(() => {
-    openSettingsTab('/settings/general')
+    openSettingsTab()
   }, [])
   const handleOpenFeedback = useCallback(() => {
     setFeedbackDialogMounted(true)
@@ -212,7 +240,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
-    (appId: string) => {
+    (appId: string, options?: { inNewTab?: boolean }) => {
       const app = openableMiniAppById.get(appId)
       if (!app) return
 
@@ -230,50 +258,47 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
       if (existingTab) {
         setActiveTab(existingTab.id)
-      } else if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title, icon })
-      } else if (activeTab) {
-        updateTab(activeTab.id, { url: path, title, icon, metadata: undefined })
-      } else {
-        openTab(path, { forceNew: true, title, icon })
+        return
       }
+
+      navigateRouteTab(path, title, { ...options, icon })
     },
-    [activeTab, activateWorkspace, navigationLayout, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
+    [activeTab, activateWorkspace, navigateRouteTab, navigationLayout, openableMiniAppById, setActiveTab, t, tabs]
   )
 
-  const handleOpenEntity = useCallback(
-    (path: string, title: string, workspaceKey: 'app:agents' | 'app:assistants') => {
+  const handleOpenEntityTab = useCallback(
+    (path: string, title: string, workspaceKey: 'app:agents' | 'app:assistants', options?: { inNewTab?: boolean }) => {
       if (navigationLayout === 'sidebar') {
         activateWorkspace(workspaceKey, path, { title })
-      } else if (activeTab?.url === path) {
         return
-      } else if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
-      } else if (activeTab) {
-        updateTab(activeTab.id, { url: path, title, icon: undefined, metadata: undefined })
-      } else {
-        openTab(path, { forceNew: true, title })
       }
+
+      navigateRouteTab(path, title, options)
     },
-    [activeTab, activateWorkspace, navigationLayout, openTab, updateTab]
+    [activateWorkspace, navigateRouteTab, navigationLayout]
   )
 
-  const handleOpenAgent = useCallback(
-    (agentId: string) => {
+  const handleOpenAgentTab = useCallback(
+    (agentId: string, options?: { inNewTab?: boolean }) => {
       const agent = installedAgents.get(agentId)
       if (!agent) return
-      handleOpenEntity(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name, 'app:agents')
+      handleOpenEntityTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name, 'app:agents', options)
     },
-    [handleOpenEntity, installedAgents]
+    [handleOpenEntityTab, installedAgents]
   )
 
-  const handleOpenAssistant = useCallback(
-    (assistantId: string) => {
+  const handleOpenAssistantTab = useCallback(
+    (assistantId: string, options?: { inNewTab?: boolean }) => {
       const assistant = installedAssistants.get(assistantId)
       if (!assistant) return
-      handleOpenEntity(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name, 'app:assistants')
+      handleOpenEntityTab(
+        `/app/chat?assistantId=${encodeURIComponent(assistantId)}`,
+        assistant.name,
+        'app:assistants',
+        options
+      )
     },
-    [handleOpenEntity, installedAssistants]
+    [handleOpenEntityTab, installedAssistants]
   )
 
   useEffect(() => {
@@ -304,8 +329,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
-      openAgent: handleOpenAgent,
-      openAssistant: handleOpenAssistant,
+      openAgent: handleOpenAgentTab,
+      openAssistant: handleOpenAssistantTab,
       removeApp: handleRemoveSidebarFavorite,
       removeMiniApp: handleRemoveMiniAppFavorite,
       removeAgent,
@@ -322,8 +347,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       defaultModelId,
       handleNavigate,
       handleOpenMiniAppTab,
-      handleOpenAgent,
-      handleOpenAssistant,
+      handleOpenAgentTab,
+      handleOpenAssistantTab,
       handleRemoveSidebarFavorite,
       handleRemoveMiniAppFavorite,
       removeAgent,
@@ -358,11 +383,25 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
               }
             : undefined
 
+        const onOpenNewTab = navigationLayout === 'sidebar' ? undefined : entry.onOpenNewTab
+        const newTabItem = onOpenNewTab
+          ? [
+              {
+                type: 'item' as const,
+                id: `sidebar.open-in-new-tab.${entry.key}`,
+                label: t('common.open_in_new_tab'),
+                onSelect: onOpenNewTab
+              }
+            ]
+          : []
+
         return [
           {
             ...entry,
+            onOpenNewTab,
             status,
             contextMenuItems: [
+              ...newTabItem,
               ...(entry.contextMenuItems ?? []),
               {
                 type: 'item' as const,

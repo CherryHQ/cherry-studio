@@ -707,6 +707,12 @@ When the idle timer expires, the runtime closes the entry:
 - prewarms Claude Code when a latest resume token is known.
 
 Service stop and destroy close all runtime entries.
+Repeated `closeSession()` calls join the in-flight close; if a replacement entry was created meanwhile,
+its close is chained behind the prior one so callers wait for every connection generation to settle.
+An immediate retry may create its entry while that close is still draining, but it cannot connect until
+the predecessor has closed. Teardown also joins an in-flight `driver.connect()` and closes any stale
+connection it produces before releasing the successor; the predecessor's observed resume token is handed
+to that successor directly.
 
 `ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
@@ -742,8 +748,9 @@ the last hold's disposal re-kicks it. New-turn admission through `prepareDispatc
 `beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
 write and `startRuntimeTurn` handoff — plus detached-flow finalizers that may still persist message
-parts after their runtime entry closes. The resulting stream writes belong to `AiStreamManager`'s
-drain. This is distinct from the BaseService lifecycle pause and never touches service state.
+parts and runtime close barriers that may still flush external state after their entry is removed.
+The resulting stream writes belong to `AiStreamManager`'s drain. This is distinct from the BaseService
+lifecycle pause and never touches service state.
 `AgentSessionDeliveryService` suppresses accepted-row kicks while a
 hold is live, tracks validation/claim/send handoffs and deletion orchestration in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks

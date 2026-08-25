@@ -10,7 +10,7 @@
  */
 
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import type { ResolvedReasoningProfile } from '@data/services/ProviderRegistryService'
+import type { ResolvedReasoningProfile, ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'
@@ -47,6 +47,7 @@ export interface RequestScope extends ToolApplyScope {
   readonly aiSdkProviderId: AppProviderId
   readonly reasoningProfile: ResolvedReasoningProfile
   readonly reasoning: ResolvedReasoningInvocation
+  readonly serviceTierControl?: ResolvedServiceTierControl
   readonly requestContext: RequestContext
   /** Resolved context-build settings (global prefs; assistant/topic
    *  overrides wired in P2-D). */

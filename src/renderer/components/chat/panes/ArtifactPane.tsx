@@ -14,10 +14,11 @@ import {
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
-import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
+import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { AlertCircle, ArrowLeft, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Copy, CopySlash, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -29,7 +30,12 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type ArtifactPaneFileSelection, getArtifactPaneSelectionPath, WORKSPACE_ROOT_ID } from './artifactPanePath'
+import {
+  type ArtifactPaneFileSelection,
+  getArtifactPaneSelectionPath,
+  getCopyableAbsolutePath,
+  WORKSPACE_ROOT_ID
+} from './artifactPanePath'
 import {
   type ArtifactFileTreeErrorKind,
   type ArtifactFileTreeModel,
@@ -304,13 +310,52 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [handleClosePreview]
   )
 
-  const getFileTreeMenuItems = useCallback(
-    (node: FileTreeNode): Promise<readonly CommandContextMenuExtraItem[]> => {
-      const targetPath = getFileTreeNodeTargetPath(workspacePath, node)
-      if (!targetPath) return Promise.resolve([])
-      return loadOpenTargetMenuItems({ targetPath, pathKind: node.kind === 'file' ? 'file' : 'directory', t })
+  const copyPath = useCallback(
+    async (path: string) => {
+      try {
+        await navigator.clipboard.writeText(path)
+        toast.success(t('message.copy.success'))
+      } catch (error) {
+        logger.error('Failed to copy path', error as Error)
+        toast.error(t('message.copy.failed'))
+      }
     },
-    [t, workspacePath]
+    [t]
+  )
+
+  const getFileTreeMenuItems = useCallback(
+    async (node: FileTreeNode): Promise<readonly CommandContextMenuExtraItem[]> => {
+      const targetPath = getFileTreeNodeTargetPath(workspacePath, node)
+      if (!targetPath) return []
+
+      const copyItems: CommandContextMenuExtraItem[] = [
+        { type: 'separator' },
+        {
+          type: 'item',
+          id: 'copy-path',
+          label: t('agent.preview_pane.copy_path'),
+          icon: <Copy size={16} />,
+          onSelect: () => void copyPath(getCopyableAbsolutePath(targetPath, isWin))
+        }
+      ]
+      if (node.id !== WORKSPACE_ROOT_ID) {
+        copyItems.push({
+          type: 'item',
+          id: 'copy-relative-path',
+          label: t('agent.preview_pane.copy_relative_path'),
+          icon: <CopySlash size={16} />,
+          onSelect: () => void copyPath(node.id)
+        })
+      }
+
+      const openItems = await loadOpenTargetMenuItems({
+        targetPath,
+        pathKind: node.kind === 'file' ? 'file' : 'directory',
+        t
+      })
+      return [...openItems, ...copyItems]
+    },
+    [copyPath, t, workspacePath]
   )
 
   // Memoized so the file-tree element below keeps its identity across the
@@ -553,12 +598,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Button>
           </div>
         )}
-        <div className="min-h-0 flex-1 overflow-hidden">
+        {/* The inset pads inside the editor's scroll container (not this wrapper) so the
+            editor runs full height under the elevated composer with trailing scroll room. */}
+        <div className="min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
             <CodeEditor
               key={previewKey}
               value={fileSession.draft}
-              language={getLanguageByFilePath(overlaySelection.filePath)}
+              language={getFileExtension(overlaySelection.filePath)}
               theme={activeCmTheme}
               onChange={(content) => fileSession.setDraft(content)}
               height="100%"
@@ -674,7 +721,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       {paneHeader}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
-          <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div
+            data-artifact-file-tree-scroll-region
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--chat-composer-inset,0px)]">
             {fileTreeContent}
           </div>
         </aside>

@@ -75,6 +75,20 @@ function EntryContextMenu({
   )
 }
 
+function createAuxClickHandler(entry: ResolvedSidebarEntry, guardClick: SidebarClickGuard) {
+  if (!entry.onOpenNewTab) return undefined
+  return guardClick(entry.key, (e: React.MouseEvent) => {
+    if (e.button === 1) {
+      e.preventDefault()
+      entry.onOpenNewTab?.()
+    }
+  })
+}
+
+function preventMiddleClickAutoscroll(e: React.MouseEvent) {
+  if (e.button === 1) e.preventDefault()
+}
+
 function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListProps) {
   return (
     <SidebarSortableList
@@ -92,6 +106,8 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 type="button"
                 aria-label={entry.label}
                 onClick={guardClick(entry.key, entry.onOpen)}
+                onMouseDown={preventMiddleClickAutoscroll}
+                onAuxClick={createAuxClickHandler(entry, guardClick)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                   isActive
                     ? 'bg-[var(--sidebar-active-bg)] text-foreground'
@@ -128,6 +144,8 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 label={entry.label}
                 active={isActive}
                 onClick={guardClick(entry.key, entry.onOpen)}
+                onMouseDown={preventMiddleClickAutoscroll}
+                onAuxClick={createAuxClickHandler(entry, guardClick)}
                 className="rounded-xl data-[active=true]:bg-[var(--sidebar-active-bg)]"
               />
             </EntryContextMenu>

@@ -52,7 +52,7 @@ import {
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Model, ReasoningSummary, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -89,7 +89,11 @@ import {
   hasUnsyncedComposerAttachments
 } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
+import {
+  ComposerSpeedControl,
+  resolveComposerReasoningEffort,
+  resolveComposerServiceTier
+} from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -155,6 +159,7 @@ export interface ChatComposerProps {
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
+      serviceTier?: ServiceTierSelection
       fastMode?: boolean
       chatTarget?: ComposerChatTarget
     }
@@ -672,6 +677,15 @@ const ChatComposerInner = ({
   const reasoningMutationVersionRef = useRef(0)
   const reasoningEffort =
     reasoningOverride?.assistantId === selectedAssistantId ? reasoningOverride.value : canonicalReasoningEffort
+  const canonicalServiceTier = assistant?.settings.service_tier ?? 'standard'
+  const [serviceTierOverride, setServiceTierOverride] = useState<{
+    assistantId: string
+    value: ServiceTierSelection
+    version: number
+  } | null>(null)
+  const serviceTierMutationVersionRef = useRef(0)
+  const serviceTier =
+    serviceTierOverride?.assistantId === selectedAssistantId ? serviceTierOverride.value : canonicalServiceTier
   const [fastMode, setFastMode] = useState(false)
 
   // A local override only bridges the latest PATCH/revalidation window. Do
@@ -681,6 +695,13 @@ const ChatComposerInner = ({
       if (!current) return current
       if (current.assistantId !== selectedAssistantId) return null
       return current
+    })
+  }, [selectedAssistantId])
+
+  useEffect(() => {
+    setServiceTierOverride((current) => {
+      if (!current) return current
+      return current.assistantId === selectedAssistantId ? current : null
     })
   }, [selectedAssistantId])
 
@@ -836,12 +857,11 @@ const ChatComposerInner = ({
             ? [runtimeModel]
             : EMPTY_MODELS
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
-  // Without an assistant, reasoning has no persistence owner. Keep Fast available for the selected
-  // model while hiding a reasoning control that could not apply its selection.
+  // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
       effectiveSubmittedModel && !selectedAssistantId
-        ? { ...effectiveSubmittedModel, reasoning: undefined }
+        ? { ...effectiveSubmittedModel, reasoning: undefined, requestControls: undefined }
         : effectiveSubmittedModel,
     [effectiveSubmittedModel, selectedAssistantId]
   )
@@ -879,6 +899,30 @@ const ChatComposerInner = ({
         })
     },
     [assistant?.settings.enableWebSearch, effectiveSubmittedModel, selectedAssistantId, t, updateAssistantSettings]
+  )
+  const handleReasoningSummaryChange = useCallback(
+    (summary: ReasoningSummary) => {
+      void updateAssistantSettings({ reasoning_summary: summary }).catch((error) => {
+        logger.warn('Failed to persist reasoning summary', { error })
+      })
+    },
+    [updateAssistantSettings]
+  )
+  const handleServiceTierChange = useCallback(
+    (tier: ServiceTierSelection) => {
+      if (!selectedAssistantId) return
+      const version = ++serviceTierMutationVersionRef.current
+      setServiceTierOverride({ assistantId: selectedAssistantId, value: tier, version })
+      void updateAssistantSettings({ service_tier: tier })
+        .then(() => {
+          setServiceTierOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setServiceTierOverride((current) => (current?.version === version ? null : current))
+          logger.warn('Failed to persist service tier', { error })
+        })
+    },
+    [selectedAssistantId, updateAssistantSettings]
   )
   const conversationControlsSnapshot = useMemo<ChatConversationControlsSnapshot>(
     () => ({
@@ -1332,6 +1376,12 @@ const ChatComposerInner = ({
               : assistantId
                 ? reasoningEffort
                 : 'default',
+          serviceTier:
+            assistantId && speedControlModel
+              ? resolveComposerServiceTier(speedControlModel, serviceTier)
+              : assistantId
+                ? serviceTier
+                : 'standard',
           ...(fastMode && speedControlModel?.supportsFastMode === true ? { fastMode: true } : {}),
           chatTarget
         })
@@ -1354,6 +1404,7 @@ const ChatComposerInner = ({
       files,
       mentionedModels,
       reasoningEffort,
+      serviceTier,
       selectedKnowledgeBasesInScope,
       speedControlModel
     ]
@@ -1370,6 +1421,7 @@ const ChatComposerInner = ({
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
+          serviceTier: payload.serviceTier,
           ...(payload.fastMode ? { fastMode: true } : {}),
           chatTarget: payload.chatTarget
         })
@@ -1447,6 +1499,7 @@ const ChatComposerInner = ({
         restoreMentionedModelSelector()
       }
       handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      handleServiceTierChange(item.payload.serviceTier ?? 'standard')
       setFastMode(item.payload.fastMode === true)
     },
     [
@@ -1454,6 +1507,7 @@ const ChatComposerInner = ({
       allModels,
       changeMentionedModelMultiSelectMode,
       handleReasoningEffortChange,
+      handleServiceTierChange,
       resetHistoryIndex,
       restoreKnowledgeBaseSelection,
       restoreMentionedModelSelector,
@@ -1540,6 +1594,12 @@ const ChatComposerInner = ({
                     : assistantId
                       ? reasoningEffort
                       : 'default',
+                serviceTier:
+                  assistantId && speedControlModel
+                    ? resolveComposerServiceTier(speedControlModel, serviceTier)
+                    : assistantId
+                      ? serviceTier
+                      : 'standard',
                 fastMode: fastMode && speedControlModel?.supportsFastMode === true
               }
           await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
@@ -1569,6 +1629,7 @@ const ChatComposerInner = ({
       fastMode,
       isMentionedModelSelectorLocked,
       reasoningEffort,
+      serviceTier,
       restoreSavedDraft,
       speedControlModel,
       stopEditing,
@@ -1731,8 +1792,12 @@ const ChatComposerInner = ({
         <ComposerSpeedControl
           model={speedControlModel}
           reasoningEffort={reasoningEffort}
+          reasoningSummary={assistant?.settings.reasoning_summary}
+          serviceTier={serviceTier}
           fastMode={fastMode}
           onReasoningEffortChange={handleReasoningEffortChange}
+          onReasoningSummaryChange={handleReasoningSummaryChange}
+          onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}
         />
       ) : null}

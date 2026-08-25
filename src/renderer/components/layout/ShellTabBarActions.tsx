@@ -26,7 +26,7 @@ export function ShellTabBarActions({ showSettings = false }: { showSettings?: bo
   }
 
   const handleSettingsClick = () => {
-    openSettingsTab('/settings/general')
+    openSettingsTab()
   }
 
   const handleUpdateClick = () => {
