@@ -25,6 +25,15 @@ export interface TrashDomainSectionProps {
   onRequestDelete: (item: TrashItem, deleteItem: (item: TrashItem) => Promise<void>) => void
 }
 
+/**
+ * The batch file routes resolve with per-id outcomes instead of rejecting, so a
+ * failure would otherwise be toasted as success. Turn it back into a throw.
+ */
+function throwOnBatchFailure(result: { failed: Array<{ id: string; error: string }> }): void {
+  const [failure] = result.failed
+  if (failure) throw new Error(failure.error)
+}
+
 /** Shared toast + logging around a restore/delete mutation. */
 function useTrashActionRunner() {
   const { t } = useTranslation()
@@ -123,8 +132,10 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
   )
   const totalPages = Math.ceil(total / 50)
 
+  // `/agent-sessions` too: restoring an agent also restores the sessions archived with
+  // it, and a stale session-trash row would still offer a purge that hard-deletes a live one.
   const restoreMutation = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
+    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`, '/agent-sessions']
   })
 
   const handleRestore = async (item: TrashItem) => {
@@ -144,7 +155,8 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
           deleteSessions: false,
           permanent: true
         })
-        await invalidate(['/agents'])
+        // Retained sessions lose their agent id, so their rows move too.
+        await invalidate(['/agents', '/agent-sessions'])
       })
     )
 
@@ -380,7 +392,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, o
     setPendingRestoreId(item.id)
     try {
       await runAction('restore', async () => {
-        await ipcApi.request('file.batch_restore', { ids: [item.id] })
+        throwOnBatchFailure(await ipcApi.request('file.batch_restore', { ids: [item.id] }))
         await invalidateFiles()
       })
     } finally {
@@ -391,7 +403,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, o
   const handleDelete = (item: TrashItem) =>
     onRequestDelete(item, (target) =>
       runAction('permanent_delete', async () => {
-        await ipcApi.request('file.batch_permanent_delete', { ids: [target.id] })
+        throwOnBatchFailure(await ipcApi.request('file.batch_permanent_delete', { ids: [target.id] }))
         await invalidatePurgedFiles()
       })
     )
