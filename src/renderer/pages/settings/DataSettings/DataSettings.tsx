@@ -13,7 +13,7 @@ import {
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
 import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
-import { lazy, Suspense, type FC } from 'react'
+import { type FC, lazy, Suspense } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
