@@ -32,6 +32,8 @@ import { AgentsMigrator } from '../AgentsMigrator'
 
 const AGENT_ID = 'agent-v1-001'
 const CHANNEL_ID = 'channel-v1-001'
+const FOREIGN_AGENT_ID = 'agent-v1-foreign'
+const FOREIGN_CHANNEL_ID = 'channel-v1-foreign'
 
 async function seedLegacyDb(path: string): Promise<void> {
   const db = new Database(path)
@@ -98,9 +100,7 @@ async function seedLegacyDb(path: string): Promise<void> {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).run('log-2', 'task-interval', null, '2026-05-19T10:00:00.000Z', 567, 'error', null, 'boom')
 
-    // Two subscriptions — one pointing at a task that survives the migration,
-    // one pointing at a task whose agent does NOT exist in target → migrator
-    // must skip the dangling row instead of FK-failing.
+    // Three subscriptions: one valid, one dangling task, one cross-agent link.
     db.prepare(`INSERT INTO channel_task_subscriptions (channel_id, task_id) VALUES (?, ?)`).run(
       CHANNEL_ID,
       'task-cron'
@@ -108,6 +108,10 @@ async function seedLegacyDb(path: string): Promise<void> {
     db.prepare(`INSERT INTO channel_task_subscriptions (channel_id, task_id) VALUES (?, ?)`).run(
       CHANNEL_ID,
       'orphan-task'
+    )
+    db.prepare(`INSERT INTO channel_task_subscriptions (channel_id, task_id) VALUES (?, ?)`).run(
+      FOREIGN_CHANNEL_ID,
+      'task-cron'
     )
   } finally {
     db.close()
@@ -140,15 +144,34 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
       model: null,
       orderKey: 'a0'
     })
-    await dbh.db.insert(agentChannelTable).values({
-      id: CHANNEL_ID,
-      type: 'telegram',
-      name: 'TG channel',
-      agentId: AGENT_ID,
-      workspace: { type: 'system' },
-      config: { bot_token: 'x', allowed_chat_ids: [] },
-      isActive: true
+    await dbh.db.insert(agentTable).values({
+      id: FOREIGN_AGENT_ID,
+      type: 'claude-code',
+      name: 'Foreign Agent',
+      instructions: 'helper',
+      model: null,
+      orderKey: 'a1'
     })
+    await dbh.db.insert(agentChannelTable).values([
+      {
+        id: CHANNEL_ID,
+        type: 'telegram',
+        name: 'TG channel',
+        agentId: AGENT_ID,
+        workspace: { type: 'system' },
+        config: { bot_token: 'x', allowed_chat_ids: [] },
+        isActive: true
+      },
+      {
+        id: FOREIGN_CHANNEL_ID,
+        type: 'telegram',
+        name: 'Foreign TG channel',
+        agentId: FOREIGN_AGENT_ID,
+        workspace: { type: 'system' },
+        config: { bot_token: 'x', allowed_chat_ids: [] },
+        isActive: true
+      }
+    ])
   })
 
   /** Helper: ATTACH the legacy DB to the target connection, run the TS-loop,
@@ -239,9 +262,8 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
     const newScheduleId = cron[0]?.id
 
     const links = await dbh.db.select().from(agentChannelTaskTable)
-    // Only one subscription survives — the orphan-task row is dropped because
-    // its task isn't in legacy.scheduled_tasks (the filter pulls only rows
-    // whose task_id and channel_id both resolve).
+    // Only one subscription survives — the orphan-task row is dangling, and
+    // the foreign channel belongs to a different agent than the task.
     expect(links).toHaveLength(1)
     expect(links[0]?.channelId).toBe(CHANNEL_ID)
     expect(links[0]?.taskId).toBe(newScheduleId)

@@ -1,9 +1,11 @@
-import { mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { lstat, mkdtemp, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { paintingTable } from '@data/db/schemas/painting'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
@@ -11,7 +13,7 @@ import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -19,7 +21,48 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
+// Both sweep entries consult hasPendingRestore before doing anything; default
+// to false so every pre-existing scenario runs unguarded.
+const hasPendingRestoreMock = vi.fn((): boolean => false)
+vi.mock('@data/db/restore/restoreJournal', () => ({
+  hasPendingRestore: () => hasPendingRestoreMock()
+}))
+
+const { inspectFileSweep, runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
+
+beforeEach(() => {
+  hasPendingRestoreMock.mockReturnValue(false)
+})
+
+describe('pending-restore guard', () => {
+  it('runDbSweep aborts with pending-restore before touching any service', () => {
+    hasPendingRestoreMock.mockReturnValue(true)
+    const fileEntryService = { findManualUnreferenced: vi.fn() }
+    const fileRefService = { countByEntryIds: vi.fn() }
+
+    const report = runDbSweep({ fileEntryService, fileRefService })
+
+    expect(report.outcome).toBe('aborted')
+    if (report.outcome === 'aborted') {
+      expect(report.abortReason).toBe('pending-restore')
+    }
+    expect(fileEntryService.findManualUnreferenced).not.toHaveBeenCalled()
+  })
+
+  it('runFileSweep aborts with pending-restore before touching DB snapshot or filesystem', async () => {
+    hasPendingRestoreMock.mockReturnValue(true)
+    const fileEntryService = { listAllIds: vi.fn() }
+
+    const report = await runFileSweep({ fileEntryService })
+
+    expect(report.outcome).toBe('aborted')
+    if (report.outcome === 'aborted') {
+      expect(report.abortReason).toBe('pending-restore')
+    }
+    expect(report.actualDeleteCount).toBe(0)
+    expect(fileEntryService.listAllIds).not.toHaveBeenCalled()
+  })
+})
 
 describe('scanOrphanEntries (report-only)', () => {
   const dbh = setupTestDatabase()
@@ -28,6 +71,20 @@ describe('scanOrphanEntries (report-only)', () => {
     MockMainDbServiceUtils.setDb(dbh.db)
     MockMainCacheServiceUtils.resetMocks()
   })
+
+  // Give an entry a persistent (painting) ref so the sweep treats it as
+  // referenced — the canonical fixture for "this entry is not an orphan".
+  async function seedPersistentRef(fileEntryId: FileEntryId): Promise<void> {
+    const paintingId = uuidv4()
+    await dbh.db.insert(paintingTable).values({
+      id: paintingId,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: paintingId
+    })
+    await dbh.db.insert(paintingFileRefTable).values({ fileEntryId, sourceId: paintingId, role: 'output' })
+  }
 
   it('groups unreferenced entries by origin without deleting any', async () => {
     const referenced = '019606a0-0000-7000-8000-00000000ee20' as FileEntryId
@@ -78,7 +135,7 @@ describe('scanOrphanEntries (report-only)', () => {
         updatedAt: now
       }
     ])
-    fileRefService.createTempSessionRef({ fileEntryId: referenced, sourceId: 'sess-z', role: 'pending' })
+    await seedPersistentRef(referenced)
 
     const report = scanOrphanEntries({ fileEntryService, fileRefService })
     expect(report.total).toBe(3)
@@ -103,7 +160,7 @@ describe('scanOrphanEntries (report-only)', () => {
       createdAt: now,
       updatedAt: now
     })
-    fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 's', role: 'pending' })
+    await seedPersistentRef(id)
 
     const report = scanOrphanEntries({ fileEntryService, fileRefService })
     expect(report.total).toBe(0)
@@ -124,35 +181,13 @@ describe('runDbSweep (umbrella + observability)', () => {
     vi.restoreAllMocks()
   })
 
-  it('emits one structured orphan-sweep record summarising both passes', async () => {
-    const entryId = '019606a0-0000-7000-8000-00000000ee40' as FileEntryId
-    const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values({
-      id: entryId,
-      origin: 'internal',
-      name: 's',
-      ext: 'txt',
-      size: 1,
-      externalPath: null,
-      createdAt: now,
-      updatedAt: now
-    })
-    fileRefService.createTempSessionRef({
-      fileEntryId: entryId,
-      sourceId: 'sess-orphan',
-      role: 'pending'
-    })
-
+  it('emits one structured orphan-sweep record on a completed run', () => {
     const infoSpy = vi.spyOn(loggerService, 'info')
-    await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, entryId))
 
-    const report = runDbSweep({
-      fileEntryService,
-      fileRefService
-    })
+    const report = runDbSweep({ fileEntryService, fileRefService })
 
     expect(report.outcome).toBe('completed')
-    expect(report.orphanRefsByType.temp_session).toBe(1)
+    // The DB sweep only reports; it prunes nothing.
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBe(0)
     expect(typeof report.scanDurationMs).toBe('number')
 
@@ -168,7 +203,7 @@ describe('runDbSweep (umbrella + observability)', () => {
   it('reports failed outcome when an outer-level operation throws', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error')
     const failingEntryService = {
-      findUnreferenced: () => {
+      findManualUnreferenced: () => {
         throw new Error('boom')
       },
       listAllIds: fileEntryService.listAllIds.bind(fileEntryService)
@@ -209,6 +244,30 @@ describe('runFileSweep (FS-level)', () => {
     vi.restoreAllMocks()
   })
 
+  it('reports orphan bytes without unlinking during inspection', async () => {
+    const orphanId = '019606a0-0000-7000-8000-00000000ee49'
+    const orphanPath = path.join(filesDir, `${orphanId}.txt`)
+    await writeFile(orphanPath, 'inspect')
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(orphanPath, ancient, ancient)
+    const debugSpy = vi.spyOn(loggerService, 'debug')
+
+    const report = await inspectFileSweep({ fileEntryService })
+
+    expect(report).toMatchObject({
+      outcome: 'completed',
+      plannedDeleteCount: 1,
+      plannedDeleteBytes: 7,
+      actualDeleteCount: 0,
+      actualDeleteBytes: 0
+    })
+    expect(debugSpy).toHaveBeenCalledWith(
+      'orphan-file-sweep',
+      expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'completed' })
+    )
+    await expect(stat(orphanPath)).resolves.toBeDefined()
+  })
+
   it('unlinks UUID files without a matching DB entry', async () => {
     const knownId = '019606a0-0000-7000-8000-00000000ee50' as FileEntryId
     const orphanId = '019606a0-0000-7000-8000-00000000ee51'
@@ -241,6 +300,22 @@ describe('runFileSweep (FS-level)', () => {
     expect((await stat(knownPath)).size).toBe(1)
     // Orphan file gone.
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
+  })
+
+  it('preserves UUID-named symbolic links', async () => {
+    const orphanId = '019606a0-0000-7000-8000-00000000ee52'
+    const targetPath = path.join(filesDir, 'keep.txt')
+    const linkPath = path.join(filesDir, `${orphanId}.txt`)
+    await writeFile(targetPath, 'keep')
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(targetPath, ancient, ancient)
+    await symlink(targetPath, linkPath)
+
+    const report = await runFileSweep({ fileEntryService })
+
+    expect(report).toMatchObject({ outcome: 'completed', plannedDeleteCount: 0, actualDeleteCount: 0 })
+    expect((await lstat(linkPath)).isSymbolicLink()).toBe(true)
+    expect((await stat(targetPath)).size).toBe(4)
   })
 
   it('preserves orphan files newer than the 5-minute freshness gate', async () => {
@@ -563,7 +638,8 @@ describe('runFileSweep (FS-level)', () => {
       origin: 'internal',
       name: 'doomed-if-filter-creeps-in',
       ext: 'txt',
-      size: 1
+      size: 1,
+      cleanupPolicy: 'manual'
     })
     await writeFile(trashedPath, 'x')
     // 2) Move to trash via the service (sets deletedAt; row stays in DB).

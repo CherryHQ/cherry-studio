@@ -43,6 +43,22 @@ export type CreateAgentWorkspaceDto = z.infer<typeof CreateAgentWorkspaceSchema>
 export const UpdateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({ name: true })
 export type UpdateAgentWorkspaceDto = z.infer<typeof UpdateAgentWorkspaceSchema>
 
+export interface AgentWorkspaceReferenceItem {
+  id: string
+  name: string
+}
+
+export interface AgentWorkspaceReferenceList {
+  items: AgentWorkspaceReferenceItem[]
+  total: number
+}
+
+export interface AgentWorkspaceReferences {
+  sessions: AgentWorkspaceReferenceList
+  channels: AgentWorkspaceReferenceList
+  tasks: AgentWorkspaceReferenceList
+}
+
 export type AgentWorkspaceSchemas = {
   '/agent-workspaces': {
     GET: {
@@ -65,15 +81,13 @@ export type AgentWorkspaceSchemas = {
       body: UpdateAgentWorkspaceDto
       response: AgentWorkspaceEntity
     }
-    /**
-     * Delete a user workspace.
-     *
-     * Cascades: every session bound to this workspace, plus their messages
-     * and pins, are deleted in the same transaction.
-     */
-    DELETE: {
+  }
+
+  /** List sessions and resource configurations that reference a user workspace. */
+  '/agent-workspaces/:workspaceId/references': {
+    GET: {
       params: { workspaceId: string }
-      response: void
+      response: AgentWorkspaceReferences
     }
   }
 } & OrderEndpoints<'/agent-workspaces'>

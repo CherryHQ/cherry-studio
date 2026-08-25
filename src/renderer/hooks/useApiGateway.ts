@@ -1,6 +1,8 @@
 import { cacheService } from '@data/CacheService'
-import { useSharedCache } from '@data/hooks/useCache'
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,19 +16,23 @@ const API_GATEWAY_PREFERENCE_KEYS = {
 /**
  * API Gateway hook.
  *
- * - Config flows through the DataApi preference layer (`feature.api_gateway.*`).
+ * - Config flows through the Preference subsystem (`feature.api_gateway.*`).
  * - Running state is published by Main to the shared cache (Main is
- *   authoritative); the renderer reads it reactively via `useSharedCache`.
- *   No IPC ready-broadcast or EventEmitter listener is involved.
+ *   authoritative); the renderer observes it read-only via `useSharedCacheValue`
+ *   (no default write-back into the Main-owned key). No IPC ready-broadcast or
+ *   EventEmitter listener is involved.
  * - Start/stop/restart remain imperative IPC commands; Main updates the shared
  *   cache as part of activation, so `apiGatewayRunning` updates on its own.
+ * - Main persists `enabled` inside those commands. The renderer must NOT write it
+ *   back: a second, unawaited write is what let a failed persist diverge from the
+ *   running state and reopen the port on the next launch (#18521).
  */
 export const useApiGateway = () => {
   const { t } = useTranslation()
 
   const [apiGatewayConfig, setApiGatewayConfig] = useMultiplePreferences(API_GATEWAY_PREFERENCE_KEYS)
 
-  const [apiGatewayRunning] = useSharedCache('feature.api_gateway.running', false)
+  const apiGatewayRunning = useSharedCacheValue('feature.api_gateway.running') ?? false
 
   // Tracks an in-flight start/stop/restart command (for button spinners) AND the
   // initial shared-cache hydration window. Starts `true` until the shared cache is
@@ -39,74 +45,66 @@ export const useApiGateway = () => {
     return cacheService.onSharedCacheReady(() => setApiGatewayLoading(false))
   }, [])
 
-  const setApiGatewayEnabled = useCallback(
-    (enabled: boolean) => {
-      void setApiGatewayConfig({ enabled })
-    },
-    [setApiGatewayConfig]
-  )
-
-  const startApiGateway = useCallback(async () => {
-    if (apiGatewayLoading) return
+  // Resolves `true` only when Main confirms the server is listening (its IPC `start()` succeeds
+  // after the server binds). Returns `false` on the loading no-op, an unsuccessful IPC result, or a
+  // thrown error, so callers that gate on a running gateway (e.g. the code-CLI gateway provider) can
+  // tell a real start from a swallowed failure instead of trusting a stale persisted key.
+  const startApiGateway = useCallback(async (): Promise<boolean> => {
+    if (apiGatewayLoading) return false
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.start()
+      const result = await ipcApi.request('api_gateway.start')
       if (result.success) {
-        setApiGatewayEnabled(true)
-        window.toast.success(t('apiGateway.messages.startSuccess'))
-      } else {
-        window.toast.error(t('apiGateway.messages.startError') + result.error)
+        toast.success(t('apiGateway.messages.startSuccess'))
+        return true
       }
+      toast.error(t('apiGateway.messages.startError') + result.error)
+      return false
     } catch (error: any) {
-      window.toast.error(t('apiGateway.messages.startError') + (error.message || error))
+      toast.error(t('apiGateway.messages.startError') + (error.message || error))
+      return false
     } finally {
       setApiGatewayLoading(false)
     }
-  }, [apiGatewayLoading, setApiGatewayEnabled, t])
+  }, [apiGatewayLoading, t])
 
   const stopApiGateway = useCallback(async () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.stop()
+      const result = await ipcApi.request('api_gateway.stop')
       if (result.success) {
-        setApiGatewayEnabled(false)
-        window.toast.success(t('apiGateway.messages.stopSuccess'))
+        if (result.outcome === 'deferred') {
+          toast.info(t('apiGateway.messages.stopDeferred'))
+        } else {
+          toast.success(t('apiGateway.messages.stopSuccess'))
+        }
       } else {
-        window.toast.error(t('apiGateway.messages.stopError') + result.error)
+        toast.error(t('apiGateway.messages.stopError') + result.error)
       }
     } catch (error: any) {
-      window.toast.error(t('apiGateway.messages.stopError') + (error.message || error))
+      toast.error(t('apiGateway.messages.stopError') + (error.message || error))
     } finally {
       setApiGatewayLoading(false)
     }
-  }, [apiGatewayLoading, setApiGatewayEnabled, t])
+  }, [apiGatewayLoading, t])
 
   const restartApiGateway = useCallback(async () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.restart()
+      const result = await ipcApi.request('api_gateway.restart')
       if (result.success) {
-        setApiGatewayEnabled(result.success)
-        window.toast.success(t('apiGateway.messages.restartSuccess'))
+        toast.success(t('apiGateway.messages.restartSuccess'))
       } else {
-        window.toast.error(t('apiGateway.messages.restartError') + result.error)
+        toast.error(t('apiGateway.messages.restartError') + result.error)
       }
     } catch (error) {
-      window.toast.error(t('apiGateway.messages.restartFailed') + (error as Error).message)
+      toast.error(t('apiGateway.messages.restartFailed') + (error as Error).message)
     } finally {
       setApiGatewayLoading(false)
     }
-  }, [apiGatewayLoading, setApiGatewayEnabled, t])
-
-  // Keep the UI toggle in sync when Main auto-starts the gateway (e.g. when
-  // agents exist) while the persisted `enabled` flag is still false.
-  useEffect(() => {
-    if (apiGatewayRunning && !apiGatewayConfig.enabled) {
-      setApiGatewayEnabled(true)
-    }
-  }, [apiGatewayRunning, apiGatewayConfig.enabled, setApiGatewayEnabled])
+  }, [apiGatewayLoading, t])
 
   return {
     apiGatewayConfig,
@@ -115,7 +113,6 @@ export const useApiGateway = () => {
     startApiGateway,
     stopApiGateway,
     restartApiGateway,
-    setApiGatewayEnabled,
     setApiGatewayConfig
   }
 }

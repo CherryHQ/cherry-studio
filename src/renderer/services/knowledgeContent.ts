@@ -1,6 +1,7 @@
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n/resolver'
 import type { FileMetadata } from '@renderer/types/file'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import {
   analyzeMessageContent,
@@ -19,6 +20,10 @@ import {
 export async function analyzeTopicContent(topic: Topic): Promise<TopicContentStats> {
   const messages = await getTopicMessages(topic.id)
 
+  return analyzeMessagesContent(messages)
+}
+
+export function analyzeMessagesContent(messages: ExportableMessage[]): TopicContentStats {
   const stats: TopicContentStats = {
     text: 0,
     code: 0,
@@ -51,24 +56,15 @@ export async function analyzeTopicContent(topic: Topic): Promise<TopicContentSta
   return stats
 }
 
-/**
- * 根据选择的内容类型，处理话题内容
- * 将选中的文本类型合并为字符串，提取文件列表
- * @param topic 话题对象
- * @param selectedTypes 选择的内容类型
- * @returns 话题预处理结果
- */
-export async function processTopicContent(topic: Topic, selectedTypes: ContentType[]): Promise<TopicPreprocessResult> {
-  const messages = await getTopicMessages(topic.id)
-
+export function processMessagesContent(
+  title: string,
+  messages: ExportableMessage[],
+  selectedTypes: ContentType[]
+): TopicPreprocessResult {
   const textParts: string[] = []
   const files: FileMetadata[] = []
 
-  // 添加话题标题（如果选择了文本类型）
   const selectedTypeSet = new Set(selectedTypes)
-  if (selectedTypeSet.has(CONTENT_TYPES.TEXT)) {
-    textParts.push(`# ${topic.name}`)
-  }
 
   // 处理每个消息
   for (const message of messages) {
@@ -84,8 +80,25 @@ export async function processTopicContent(topic: Topic, selectedTypes: ContentTy
     files.push(...messageResult.files)
   }
 
+  // 标题不参与 `---` 分隔，否则标题和首条消息之间会多出一条分割线
+  const body = textParts.join('\n\n---\n\n')
+  const heading = selectedTypeSet.has(CONTENT_TYPES.TEXT) ? `# ${title}` : ''
+
   return {
-    text: textParts.join('\n\n---\n\n'),
+    text: [heading, body].filter(Boolean).join('\n\n'),
     files
   }
+}
+
+/**
+ * 根据选择的内容类型，处理话题内容
+ * 将选中的文本类型合并为字符串，提取文件列表
+ * @param topic 话题对象
+ * @param selectedTypes 选择的内容类型
+ * @returns 话题预处理结果
+ */
+export async function processTopicContent(topic: Topic, selectedTypes: ContentType[]): Promise<TopicPreprocessResult> {
+  const messages = await getTopicMessages(topic.id)
+
+  return processMessagesContent(topic.name, messages, selectedTypes)
 }

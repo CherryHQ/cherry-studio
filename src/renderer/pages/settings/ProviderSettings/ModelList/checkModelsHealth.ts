@@ -1,57 +1,22 @@
 import { loggerService } from '@logger'
-import { serializeHealthCheckError } from '@renderer/utils/error'
 
-import type { ApiKeyWithStatus, ModelCheckOptions, ModelWithStatus } from '../types/healthCheck'
+import type { ModelCheckOptions, ModelWithStatus } from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
-import { aggregateApiKeyResults, checkApi } from '../utils/healthCheck'
+import { aggregateApiKeyResults, checkModelWithMultipleKeys } from '../utils/healthCheck'
 
 const logger = loggerService.withContext('ProviderSettings:checkModelsHealth')
-
-export async function checkModelWithMultipleKeys(
-  model: ModelCheckOptions['models'][number],
-  apiKeys: string[],
-  timeout?: number,
-  signal?: AbortSignal
-): Promise<ApiKeyWithStatus[]> {
-  if (apiKeys.length === 0) return []
-
-  // `checkApi` has no per-key override — it always resolves the provider's rotated DB
-  // credential, so probing each configured key would just rerun the identical check N
-  // times (and the "partial" multi-key status is unreachable). Probe once and report the
-  // same outcome for each key. See breaking-changes:
-  // 2026-06-04-health-check-uses-rotated-credential.md.
-  signal?.throwIfAborted()
-  try {
-    const { latency } = await checkApi(model.id, { timeout, signal })
-    return apiKeys.map(
-      (key) => ({ kind: 'ok', key, status: HealthStatus.SUCCESS, checking: false, latency }) satisfies ApiKeyWithStatus
-    )
-  } catch (error) {
-    const serialized = serializeHealthCheckError(error)
-    return apiKeys.map(
-      (key) =>
-        ({
-          kind: 'failed',
-          key,
-          status: HealthStatus.FAILED,
-          checking: false,
-          error: serialized
-        }) satisfies ApiKeyWithStatus
-    )
-  }
-}
 
 export async function checkModelsHealth(
   options: ModelCheckOptions,
   onModelChecked?: (result: ModelWithStatus, index: number) => void
 ): Promise<ModelWithStatus[]> {
-  const { models, apiKeys, isConcurrent, timeout, signal } = options
+  const { models, credentials, isConcurrent, timeout, signal } = options
   const results: ModelWithStatus[] = []
 
   try {
     const runModelCheck = async (model: ModelCheckOptions['models'][number], index: number) => {
       signal?.throwIfAborted()
-      const keyResults = await checkModelWithMultipleKeys(model, apiKeys, timeout, signal)
+      const keyResults = await checkModelWithMultipleKeys(model, credentials, timeout, signal)
       signal?.throwIfAborted()
       const analysis = aggregateApiKeyResults(keyResults)
 

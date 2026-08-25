@@ -1,8 +1,17 @@
+---
+description: How the SQLite DB is built at boot - drizzle migrations, CUSTOM_SQL_STATEMENTS replay, FTS5 fts_rowid, rebuilds
+sources:
+  - src/main/data/db/DbService.ts
+  - src/main/data/db/applyMigrations.ts
+  - src/main/data/db/customSqls.ts
+  - migrations/sqlite-drizzle
+---
+
 # Database Construction (Build, Migrations, Custom SQL, FTS5)
 
 How the SQLite database is **built at boot and evolved over time**. Scope: drizzle migrations, the `CUSTOM_SQL_STATEMENTS` replay, FTS5 / `fts_rowid`, and the additive-vs-rebuild rule.
 
-> **Not here (linked, not duplicated):** schema-authoring patterns (FKs, raw-SQL casing, `rowToEntity`) → [database-patterns.md](./database-patterns.md); default-value & nullability rules → [best-practice-default-values-and-nullability.md](./best-practice-default-values-and-nullability.md); naming (tables / `XxxRow` types) → [naming-conventions.md](../naming-conventions.md); the test harness → [testing/database-testing.md](../testing/database-testing.md); the data-system choice (BootConfig / Cache / Preference / DataApi / `app_state`) → [data/README.md](./README.md); the one-shot v1→v2 data-migration engine → [v2-migration-guide.md](./v2-migration-guide.md).
+> **Not here (linked, not duplicated):** schema-authoring patterns (FKs, raw-SQL casing, `rowToEntity`) → [database-patterns.md](./database-patterns.md); default-value & nullability rules → [best-practice-default-values-and-nullability.md](./best-practice-default-values-and-nullability.md); naming (tables / `XxxRow` types) → [naming-conventions.md](../architecture/naming-conventions.md); the test harness → [testing/database-testing.md](../testing/database-testing.md); the data-system choice (BootConfig / Cache / Preference / DataApi / `app_state`) → [data/README.md](./README.md); the one-shot v1→v2 data-migration engine → [v2-migration-guide.md](./v2-migration-guide.md).
 
 ## 1. Boot init order
 
@@ -12,8 +21,8 @@ How the SQLite database is **built at boot and evolved over time**. Scope: drizz
 |---|---|---|
 | 1 | `ensureDatabaseIntegrity()` (constructor) | Deletes a 0-byte `.db` and orphaned `-wal`/`-shm` sidecars to avoid `SQLITE_IOERR_SHORT_READ`. Opening the DB can delete files. |
 | 2 | `configurePragmas()` | `journal_mode=WAL` via `db.run()` (persisted in the file, once); `synchronous=NORMAL` + `foreign_keys=ON` set once on the single persistent connection (see below). |
-| 3 | `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
-| 4 | `runCustomMigrations()` | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
+| 3 | `applyMigrations()`: `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
+| 4 | `applyMigrations()`: custom SQL replay | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
 | 5 | `SeedRunner.runAll(seeders)` | Runs on the just-migrated schema; a schema change a seeder relies on must land in the migration first. See [database-seeding-guide.md](./database-seeding-guide.md). |
 
 **Single persistent connection — PRAGMAs set once.** better-sqlite3 keeps **one connection** open for the whole process, so the per-connection PRAGMAs (`synchronous=NORMAL`, `foreign_keys=ON`) are applied a single time in `configurePragmas()` and stay in effect — there is no transaction-boundary reconnect that could reset them, and no per-statement replay machinery is needed. `WAL` is also set once and persisted in the file.
@@ -53,7 +62,7 @@ A DB column `DEFAULT` is effectively **near-permanent** (SQLite has no `ALTER CO
 
 ## 3. Custom SQL (`CUSTOM_SQL_STATEMENTS`)
 
-Drizzle cannot manage **virtual tables (FTS5) or triggers**, so they are NOT in any `.sql`. They live as `string[]` in the schema files (`MESSAGE_FTS_STATEMENTS` in `schemas/message.ts`, `AGENT_SESSION_MESSAGE_FTS_STATEMENTS` in `schemas/agentSessionMessage.ts`), are aggregated in `customSqls.ts` (`CUSTOM_SQL_STATEMENTS`), and `DbService.runCustomMigrations()` replays them after `migrate()` on **every boot**. This is mandatory: a table rebuild's `DROP TABLE` silently drops the table's triggers, so they must be re-asserted afterward — which happens in the same boot (self-healing).
+Drizzle cannot manage **virtual tables (FTS5) or triggers**, so they are NOT in any `.sql`. They live as `string[]` in the schema files (`MESSAGE_FTS_STATEMENTS` in `schemas/message.ts`, `AGENT_SESSION_MESSAGE_FTS_STATEMENTS` in `schemas/agentSessionMessage.ts`), are aggregated in `customSqls.ts` (`CUSTOM_SQL_STATEMENTS`), and `applyMigrations()` (`src/main/data/db/applyMigrations.ts` — the migration path shared by `DbService.onInit()`, the test harness, and the backup restore pipeline) replays them after `migrate()` on **every boot**. This is mandatory: a table rebuild's `DROP TABLE` silently drops the table's triggers, so they must be re-asserted afterward — which happens in the same boot (self-healing).
 
 ### Cost: O(1) metadata, ~0.1 ms — do NOT gate it on "did a migration run"
 
@@ -96,11 +105,11 @@ A table rebuild (drizzle's `INSERT…SELECT` drops the implicit rowid) **and `VA
 | Nullable by design | The AFTER INSERT trigger fills it after the row exists; a `NOT NULL` column would reject the row before the trigger runs. |
 | Assignment | `fts_rowid = (SELECT COALESCE(MAX(fts_rowid),0)+1 FROM <table>)` in the AFTER INSERT trigger. The `…_fts_rowid_uniq` UNIQUE index makes this an O(log N) min/max lookup (a bare column → O(N²) bulk migration) and rejects any duplicate loudly. Race-free **only** because writes serialize through `DbService.withWriteTx` (see [database-patterns.md](./database-patterns.md) → Write Serialization). |
 | Local-only physical identity | Like `rowid`: never set by app code, **never exported/imported in backups**. Restore MUST insert row-by-row through the trigger; a content row left with NULL `fts_rowid` makes `integrity-check, 1` fail and the row unsearchable. |
-| `searchable_text` | Trigger-populated (NOT a SQLite `GENERATED` column). `group_concat` over text parts wrapped in `COALESCE(…,'')` (it returns NULL for tool-only/empty messages; the column is `NOT NULL DEFAULT ''`). `message` extracts `text` parts + `data-code`/`data-translation`/`data-compact` content + `data-error` message; `agent_session_message` extracts `text`+`reasoning`. Adding a searchable part type means updating `searchableTextExpression` — and because triggers are DROP+CREATE, the fix lands on existing DBs at the next boot replay. |
+| `searchable_text` | Trigger-populated (NOT a SQLite `GENERATED` column). `group_concat` over text parts wrapped in `COALESCE(…,'')` (it returns NULL for tool-only/empty messages; the column is `NOT NULL DEFAULT ''`). `message` extracts `text` parts + `data-code`/`data-translation`/`data-compact` content + `data-error` message; `agent_session_message` extracts only `text` parts so hidden reasoning cannot leak through search snippets. Adding a searchable part type means updating the relevant trigger expression — and because triggers are DROP+CREATE, the fix lands on existing DBs at the next boot replay. |
 
 ### Knowledge `search_text_fts` follows the same rule
 
-`src/main/features/knowledge/vectorstore/indexStore/schema.ts` keys `search_text_fts` on a stable `fts_rowid` column too (assigned by the `search_text_ai` trigger; `content_rowid='fts_rowid'`). It is a **separate per-base `index.sqlite`** (not the main DB, not drizzle-managed, not in `CUSTOM_SQL_STATEMENTS`), but the same hazard applies: its `reclaim()` path runs `VACUUM` to return freed pages to the OS after a large delete, which renumbers the implicit rowid — keying on `fts_rowid` keeps the external-content index aligned by construction. The regression guard is `KnowledgeIndexStore.test.ts` → "keeps search_text_fts aligned after a rowid-reshuffling rebuild".
+`src/main/features/knowledge/pipeline/vectorstore/indexStore/schema.ts` keys `search_text_fts` on a stable `fts_rowid` column too (assigned by the `search_text_ai` trigger; `content_rowid='fts_rowid'`). It is a **separate per-base `index.sqlite`** (not the main DB, not drizzle-managed, not in `CUSTOM_SQL_STATEMENTS`), but the same hazard applies: its `reclaim()` path runs `VACUUM` to return freed pages to the OS after a large delete, which renumbers the implicit rowid — keying on `fts_rowid` keeps the external-content index aligned by construction. The regression guard is `KnowledgeIndexStore.test.ts` → "keeps search_text_fts aligned after a rowid-reshuffling rebuild".
 
 ## 5. Testing the build
 

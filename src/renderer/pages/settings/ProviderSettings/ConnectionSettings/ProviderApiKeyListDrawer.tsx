@@ -2,6 +2,7 @@ import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
@@ -23,7 +24,6 @@ interface DraftState {
   id: string
   key: string
   label: string
-  isEnabled: boolean
   isNew: boolean
 }
 
@@ -31,7 +31,6 @@ const createEmptyDraft = (): DraftState => ({
   id: uuidv4(),
   key: '',
   label: '',
-  isEnabled: true,
   isNew: true
 })
 
@@ -46,24 +45,14 @@ function toDraft(entry: ApiKeyEntry): DraftState {
     id: entry.id,
     key: entry.key,
     label: entry.label ?? '',
-    isEnabled: entry.isEnabled,
     isNew: false
-  }
-}
-
-function toEntry(draft: DraftState): ApiKeyEntry {
-  return {
-    id: draft.id,
-    key: normalizeApiKeyValue(draft.key),
-    label: draft.label.trim() || undefined,
-    isEnabled: draft.isEnabled
   }
 }
 
 export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: ProviderApiKeyListDrawerProps) {
   const { t } = useTranslation()
   const { data: apiKeysData } = useProviderApiKeys(providerId)
-  const { updateApiKeys } = useProviderMutations(providerId)
+  const { addApiKey, updateApiKey, deleteApiKey } = useProviderMutations(providerId)
   const apiKeys = useMemo(() => apiKeysData?.keys ?? [], [apiKeysData?.keys])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<DraftState | null>(null)
@@ -80,7 +69,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
   const enabledCount = apiKeys.filter((item) => item.isEnabled).length
 
   const persist = useCallback(
-    async (nextKeys: ApiKeyEntry[]) => {
+    async (mutation: () => Promise<void>) => {
       if (savingRef.current) {
         return false
       }
@@ -88,35 +77,35 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       savingRef.current = true
       setSaving(true)
       try {
-        await updateApiKeys(nextKeys)
+        await mutation()
         return true
       } catch (error) {
         logger.error('Failed to persist provider API keys', { providerId, error })
-        window.toast.error(t('settings.provider.api_key.save_failed'))
+        toast.error(t('settings.provider.api_key.save_failed'))
         return false
       } finally {
         savingRef.current = false
         setSaving(false)
       }
     },
-    [providerId, t, updateApiKeys]
+    [providerId, t]
   )
 
   const validateDraft = useCallback(
     (nextDraft: DraftState) => {
       const key = normalizeApiKeyValue(nextDraft.key)
       if (!key) {
-        window.toast.warning(t('settings.provider.api.key.error.empty'))
+        toast.warning(t('settings.provider.api.key.error.empty'))
         return null
       }
 
       const isDuplicate = apiKeys.some((item) => item.id !== nextDraft.id && item.key.trim() === key)
       if (isDuplicate) {
-        window.toast.warning(t('settings.provider.api.key.error.duplicate'))
+        toast.warning(t('settings.provider.api.key.error.duplicate'))
         return null
       }
 
-      return toEntry(nextDraft)
+      return key
     },
     [apiKeys, t]
   )
@@ -143,31 +132,34 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       return
     }
 
-    const entry = validateDraft(draft)
-    if (!entry) {
+    const key = validateDraft(draft)
+    if (!key) {
       return
     }
 
-    const nextKeys = draft.isNew ? [...apiKeys, entry] : apiKeys.map((item) => (item.id === entry.id ? entry : item))
-    if (await persist(nextKeys)) {
+    const label = draft.label.trim()
+    const saved = await persist(() =>
+      draft.isNew ? addApiKey(key, label || undefined) : updateApiKey(draft.id, { key, label })
+    )
+    if (saved) {
       cancelEdit()
     }
-  }, [apiKeys, cancelEdit, draft, persist, validateDraft])
+  }, [addApiKey, cancelEdit, draft, persist, updateApiKey, validateDraft])
 
   const removeKey = useCallback(
     async (id: string) => {
-      if ((await persist(apiKeys.filter((item) => item.id !== id))) && editingId === id) {
+      if ((await persist(() => deleteApiKey(id))) && editingId === id) {
         cancelEdit()
       }
     },
-    [apiKeys, cancelEdit, editingId, persist]
+    [cancelEdit, deleteApiKey, editingId, persist]
   )
 
   const toggleEnabled = useCallback(
     async (entry: ApiKeyEntry, isEnabled: boolean) => {
-      await persist(apiKeys.map((item) => (item.id === entry.id ? { ...item, isEnabled } : item)))
+      await persist(() => updateApiKey(entry.id, { isEnabled }))
     },
-    [apiKeys, persist]
+    [persist, updateApiKey]
   )
 
   return (

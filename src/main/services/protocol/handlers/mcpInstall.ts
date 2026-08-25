@@ -1,82 +1,65 @@
-import { application } from '@application'
 import { loggerService } from '@logger'
-import { WindowType } from '@main/core/window/types'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import { IpcChannel } from '@shared/IpcChannel'
-import { nanoid } from 'nanoid'
+import { ProtocolMcpServerConfigSchema, type ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
 
-function installMcpServer(server: McpServer) {
-  const now = Date.now()
+function toProtocolMcpServerInstall(value: unknown, fallbackName?: string): ProtocolMcpServerInstall {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('MCP server config must be an object')
+  }
 
-  const payload: McpServer = {
-    ...server,
-    id: server.id ?? nanoid(),
+  const candidate = { ...(value as Record<string, unknown>) }
+  const legacyUrl = candidate.url
+
+  delete candidate.url
+
+  if (!candidate.name && fallbackName) {
+    candidate.name = fallbackName
+  }
+  if (candidate.baseUrl === undefined && typeof legacyUrl === 'string') {
+    candidate.baseUrl = legacyUrl
+  }
+
+  const protocolServer = ProtocolMcpServerConfigSchema.parse(candidate)
+
+  return {
+    ...protocolServer,
     installSource: 'protocol',
     isTrusted: false,
     isActive: false,
-    trustedAt: undefined,
-    installedAt: server.installedAt ?? now
-  }
-
-  application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Mcp_AddServer, payload)
-}
-
-function installMcpServers(servers: Record<string, McpServer>) {
-  for (const name in servers) {
-    const server = servers[name]
-    if (!server.name) {
-      server.name = name
-    }
-    installMcpServer(server)
+    installedAt: Date.now()
   }
 }
 
-export function handleMcpProtocolUrl(url: URL) {
-  const params = new URLSearchParams(url.search)
-  switch (url.pathname) {
-    case '/install': {
-      // jsonConfig example:
-      // {
-      //   "mcpServers": {
-      //     "everything": {
-      //       "command": "npx",
-      //       "args": [
-      //         "-y",
-      //         "@modelcontextprotocol/server-everything"
-      //       ]
-      //     }
-      //   }
-      // }
-      // cherrystudio://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
-
-      const data = params.get('servers')
-
-      if (data) {
-        const stringify = Buffer.from(data, 'base64').toString('utf8')
-        logger.debug(`install MCP servers from protocol: ${stringify}`)
-        const jsonConfig = JSON.parse(stringify)
-        logger.debug(`install MCP servers from protocol: ${JSON.stringify(jsonConfig)}`)
-
-        // support both {mcpServers: [servers]}, [servers] and {server}
-        if (jsonConfig.mcpServers) {
-          installMcpServers(jsonConfig.mcpServers)
-        } else if (Array.isArray(jsonConfig)) {
-          for (const server of jsonConfig) {
-            installMcpServer(server)
-          }
-        } else {
-          installMcpServer(jsonConfig)
-        }
-      }
-
-      application.get('MainWindowService').showMainWindow()
-
-      break
-    }
-    default:
-      logger.error(`Unknown MCP protocol URL: ${url}`)
-      break
+function parseMcpServerDtos(value: unknown): ProtocolMcpServerInstall[] {
+  if (Array.isArray(value)) {
+    return value.map((server) => toProtocolMcpServerInstall(server))
   }
+
+  if (value && typeof value === 'object' && 'mcpServers' in value) {
+    const servers = (value as { mcpServers?: unknown }).mcpServers
+    if (Array.isArray(servers)) {
+      return servers.map((server) => toProtocolMcpServerInstall(server))
+    }
+    if (!servers || typeof servers !== 'object') {
+      throw new Error('mcpServers must be an object')
+    }
+    return Object.entries(servers).map(([name, server]) => toProtocolMcpServerInstall(server, name))
+  }
+
+  return [toProtocolMcpServerInstall(value)]
+}
+
+export function parseMcpInstallProtocolUrl(url: URL): ProtocolMcpServerInstall[] | null {
+  if (url.pathname !== '/install') {
+    logger.error(`Unknown MCP protocol URL: ${url}`)
+    return null
+  }
+
+  const data = url.searchParams.get('servers')
+  if (!data) return null
+
+  const jsonConfig = JSON.parse(Buffer.from(data, 'base64').toString('utf8'))
+  const servers = parseMcpServerDtos(jsonConfig)
+  return servers.length > 0 ? servers : null
 }

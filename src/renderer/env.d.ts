@@ -1,17 +1,13 @@
 /// <reference types="vite/client" />
 
-import type { ToastUtilities } from '@cherrystudio/ui'
-import type { AppModalApi } from '@renderer/components/AppModal'
+declare const __APP_RELEASE_NOTES__: string
+declare const __APP_RELEASE_VERSION__: string
+declare const __APP_RELEASE_HISTORY__: ReadonlyArray<{
+  readonly releaseNotes: string
+  readonly version: string
+}>
 
-declare global {
-  interface ImportMetaEnv {
-    readonly RENDERER_VITE_AIHUBMIX_SECRET: string
-    readonly RENDERER_VITE_PPIO_APP_SECRET: string
-  }
-
-  interface Window {
-    root: HTMLElement
-    modal: AppModalApi
-    toast: ToastUtilities
-  }
+interface ImportMetaEnv {
+  readonly RENDERER_VITE_AIHUBMIX_SECRET: string
+  readonly RENDERER_VITE_PPIO_APP_SECRET: string
 }

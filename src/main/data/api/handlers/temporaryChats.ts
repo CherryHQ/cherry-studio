@@ -12,6 +12,7 @@
  */
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
+import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
 import type { TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
 import type { HandlersFor } from '@shared/data/api/types'
 
@@ -31,7 +32,10 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
 
   '/temporary/topics/:topicId/messages': {
     POST: async ({ params, body }) => {
-      return temporaryChatService.appendMessage(params.topicId, body)
+      // Parse at the boundary (matches `messages.ts`) so a malformed structured `messageSnapshot`
+      // can't be stored in memory and later persisted via `persist()`.
+      const parsed = CreateMessageSchema.parse(body)
+      return temporaryChatService.appendMessage(params.topicId, parsed)
     },
     GET: async ({ params }) => {
       return temporaryChatService.listMessages(params.topicId)

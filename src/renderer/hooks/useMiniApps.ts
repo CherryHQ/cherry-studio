@@ -6,7 +6,9 @@ import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -81,7 +83,7 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
 
   regionDetectionPromise = (async () => {
     try {
-      const country = await window.api.getIpCountry()
+      const country = await ipcApi.request('system.get_ip_country')
       return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
     } catch (err) {
       // Default to CN so mainland China users — the primary audience — never
@@ -145,8 +147,9 @@ async function settleAndInvalidate(
   return fulfilled.map((r) => r.value)
 }
 
-export const useMiniApps = () => {
-  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps')
+export const useMiniApps = (options: { enabled?: boolean } = {}) => {
+  const queryEnabled = options.enabled ?? true
+  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
   const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
 
   // Partition by status in single pass (js-combine-iterations)
@@ -177,7 +180,7 @@ export const useMiniApps = () => {
 
   // Auto-detect region once per session
   useEffect(() => {
-    if (miniAppRegionSetting !== 'auto' || detectedRegion) return
+    if (!queryEnabled || miniAppRegionSetting !== 'auto' || detectedRegion) return
     let cancelled = false
     detectUserRegion()
       .then((region) => {
@@ -195,7 +198,7 @@ export const useMiniApps = () => {
     return () => {
       cancelled = true
     }
-  }, [miniAppRegionSetting, detectedRegion, setDetectedRegion])
+  }, [detectedRegion, miniAppRegionSetting, queryEnabled, setDetectedRegion])
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
@@ -216,8 +219,11 @@ export const useMiniApps = () => {
   const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
   openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
+  const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
 
   // === Mutations (DataApi) ===
@@ -339,9 +345,11 @@ export const useMiniApps = () => {
       }
 
       const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      const icon = updated.logoSrc ?? updated.logo
       for (const tab of tabsContext?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
-          tabsContext?.updateTab(tab.id, { title, icon: updated.logo })
+          tabsContext?.updateTab(tab.id, { title, icon })
         }
       }
     },
@@ -364,6 +372,13 @@ export const useMiniApps = () => {
         setMiniAppShow(false)
       }
 
+      // The split pane's app is gone; leaving the pane open would replace it
+      // with a picker the user never asked for.
+      if (splitMiniAppId === appId) {
+        setSplitMiniAppId('')
+        setSplitOpen(false)
+      }
+
       clearWebviewState(appId)
 
       for (const tab of tabsContext?.tabs ?? []) {
@@ -371,14 +386,20 @@ export const useMiniApps = () => {
           tabsContext?.closeTab(tab.id)
         }
       }
+
+      removeSidebarFavoriteMiniApp(appId)
     },
     [
       currentMiniAppId,
+      splitMiniAppId,
       openedOneOffMiniApp,
       setCurrentMiniAppId,
+      setSplitMiniAppId,
+      setSplitOpen,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
+      removeSidebarFavoriteMiniApp,
       tabsContext
     ]
   )
@@ -399,6 +420,24 @@ export const useMiniApps = () => {
       }
     },
     [patchAppTrigger, syncOpenedCustomMiniApp]
+  )
+
+  const refreshCustomMiniApp = useCallback(
+    async (appId: string) => {
+      try {
+        const updated = await dataApiService.get(`/mini-apps/${encodeURIComponent(appId)}`)
+        syncOpenedCustomMiniApp(updated)
+      } catch (syncError) {
+        logger.error('Failed to sync custom mini app after logo update', { appId, error: syncError })
+      }
+
+      try {
+        await invalidate('/mini-apps')
+      } catch (refreshError) {
+        logger.error('Failed to refresh mini apps after logo update', { appId, error: refreshError })
+      }
+    },
+    [invalidate, syncOpenedCustomMiniApp]
   )
 
   const removeCustomMiniApp = useCallback(
@@ -474,10 +513,14 @@ export const useMiniApps = () => {
     pinned: pinnedApps,
     openedKeepAliveMiniApps,
     currentMiniAppId,
+    splitOpen,
+    splitMiniAppId,
     miniAppShow,
     openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId,
+    setSplitOpen,
+    setSplitMiniAppId,
     setMiniAppShow,
     setOpenedOneOffMiniApp,
     isLoading,
@@ -487,6 +530,7 @@ export const useMiniApps = () => {
     setAppStatusBulk,
     createCustomMiniApp,
     updateCustomMiniApp,
+    refreshCustomMiniApp,
     removeCustomMiniApp,
     reorderMiniApps,
     reorderMiniAppsByStatus

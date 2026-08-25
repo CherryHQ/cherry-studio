@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -12,7 +12,16 @@ export class AppService {
     // Set login item settings for windows and mac
     // linux is not supported because it requires more file operations
     if (isWin || isMac) {
-      app.setLoginItemSettings({ openAtLogin: isLaunchOnBoot })
+      const settings: Parameters<typeof app.setLoginItemSettings>[0] = { openAtLogin: isLaunchOnBoot }
+
+      // electron-builder's portable launcher sets this to its stable source path.
+      // process.execPath points at the extracted Temp payload and becomes stale.
+      if (isWin && isPortable && process.env.PORTABLE_EXECUTABLE_FILE) {
+        settings.path = process.env.PORTABLE_EXECUTABLE_FILE
+        settings.args = []
+      }
+
+      app.setLoginItemSettings(settings)
     } else if (isLinux) {
       try {
         const autostartDir = application.getPath('sys.appdata.autostart')

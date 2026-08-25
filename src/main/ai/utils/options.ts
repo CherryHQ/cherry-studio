@@ -2,108 +2,93 @@ import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
+import type { ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import type { Assistant } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
-import {
-  type GroqServiceTier,
-  GroqServiceTiers,
-  isGroqServiceTier,
-  isOpenAIServiceTier,
-  type OpenAIServiceTier,
-  OpenAIServiceTiers,
-  type Provider,
-  type ServiceTier
-} from '@shared/data/types/provider'
-import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@shared/types/aiSdk'
-import {
-  getModelSupportedVerbosity,
-  isAnthropicModel,
-  isGeminiModel,
-  isGrokModel,
-  isOpenAIModel,
-  isReasoningModel,
-  isSupportFlexServiceTierModel,
-  isSupportVerbosityModel
-} from '@shared/utils/model'
-import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
+import { ENDPOINT_TYPE, type EndpointType, type Model, type ServiceTierSelection } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { type AiSdkParam, isAiSdkParam } from '@shared/types/aiSdk'
+import { isReasoningModel } from '@shared/utils/model'
+import { isSupportFastMode } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { JSONValue } from 'ai'
 import { merge } from 'es-toolkit/compat'
-import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
-import { getAiSdkProviderId } from '../provider/factory'
+import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
 import { buildGeminiGenerateImageParams } from './image'
-import {
-  getAnthropicReasoningParams,
-  getBedrockReasoningParams,
-  getGeminiReasoningParams,
-  getOllamaReasoningParams,
-  getOpenAIReasoningParams,
-  getReasoningEffort,
-  getXAIReasoningParams
-} from './reasoning'
+import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './reasoningSerializers'
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
 
-type GroqProvider = Provider & { id: 'groq' }
-type NonGroqProvider = Provider & { id: Exclude<string, 'groq'> }
+export function applyFastModeToProviderOptions(
+  provider: Pick<Provider, 'fastMode'>,
+  model: Pick<Model, 'supportsFastMode'>,
+  providerOptions: ProviderOptions,
+  fastMode: boolean
+): ProviderOptions {
+  if (!fastMode || !isSupportFastMode(provider, model)) {
+    return providerOptions
+  }
+  // 'claude-code' carries Fast inside the SDK, not through providerOptions.
+  if (provider.fastMode.transport !== 'openai-priority') return providerOptions
+  const serviceTier = provider.fastMode.serviceTier ?? 'priority'
 
-function isGroqProvider(provider: Provider): provider is GroqProvider {
-  return provider.id === SystemProviderIds.groq
+  return {
+    ...providerOptions,
+    openai: {
+      ...providerOptions.openai,
+      serviceTier
+    }
+  }
 }
 
-function toOpenAIServiceTier(model: Model, serviceTier: ServiceTier): OpenAIServiceTier {
-  if (
-    !isOpenAIServiceTier(serviceTier) ||
-    (serviceTier === OpenAIServiceTiers.flex && !isSupportFlexServiceTierModel(model))
-  ) {
-    return undefined
-  }
-  return serviceTier
+export function resolveServiceTierWireValue(
+  control: ResolvedServiceTierControl,
+  selection: ServiceTierSelection | undefined
+): string {
+  const effective = selection && control.options.includes(selection) ? selection : control.default
+  const value = control.wire.values[effective]
+  if (!value) throw new Error(`Missing wire value for service tier '${effective}'`)
+  return value
 }
 
-function toGroqServiceTier(model: Model, serviceTier: ServiceTier): GroqServiceTier {
-  if (
-    !isGroqServiceTier(serviceTier) ||
-    (serviceTier === GroqServiceTiers.flex && !isSupportFlexServiceTierModel(model))
-  ) {
-    return undefined
+export function applyServiceTierToProviderOptions<T extends ProviderOptions>(
+  providerOptions: T,
+  providerOptionsKey: string,
+  control: ResolvedServiceTierControl,
+  selection: ServiceTierSelection | undefined
+): T {
+  if (control.wire.delivery.type === 'request-body') {
+    const namespace = providerOptions[providerOptionsKey]
+    if (!namespace || !Object.hasOwn(namespace, control.wire.delivery.key)) return providerOptions
+    const cleanedNamespace = { ...namespace }
+    delete cleanedNamespace[control.wire.delivery.key]
+    return { ...providerOptions, [providerOptionsKey]: cleanedNamespace } as T
   }
-  return serviceTier
+  return {
+    ...providerOptions,
+    [providerOptionsKey]: {
+      ...providerOptions[providerOptionsKey],
+      [control.wire.delivery.key]: resolveServiceTierWireValue(control, selection)
+    }
+  } as T
 }
 
-function getServiceTier<T extends GroqProvider>(model: Model, provider: T): GroqServiceTier
-function getServiceTier<T extends NonGroqProvider>(model: Model, provider: T): OpenAIServiceTier
-function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAIServiceTier | GroqServiceTier {
-  const serviceTierSetting = provider.settings.serviceTier as ServiceTier | undefined
-
-  if (!isSupportServiceTierProvider(provider) || !isOpenAIModel(model) || !serviceTierSetting) {
-    return undefined
-  }
-
-  if (isGroqProvider(provider)) {
-    return toGroqServiceTier(model, serviceTierSetting)
-  }
-  return toOpenAIServiceTier(model, serviceTierSetting)
-}
-
-function getVerbosity(model: Model, provider: Provider): OpenAIVerbosity {
-  if (!isSupportVerbosityModel(model) || !isSupportVerbosityProvider(provider)) {
-    return undefined
-  }
-
-  const userVerbosity = provider.settings.verbosity as OpenAIVerbosity
-
-  if (userVerbosity) {
-    const supportedVerbosity = getModelSupportedVerbosity(model)
-    return supportedVerbosity.includes(userVerbosity) ? userVerbosity : (supportedVerbosity[0] as OpenAIVerbosity)
-  }
-  return undefined
+function shouldNormalizeOpenAICompatibleReasoning(
+  providerId: AppProviderId,
+  endpointType: EndpointType | undefined
+): boolean {
+  return (
+    providerId === 'openai-compatible' ||
+    providerId === 'github-copilot-openai-compatible' ||
+    providerId === 'google-vertex-maas' ||
+    (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+      (providerId === 'aihubmix' || providerId === SystemProviderIds.dmxapi))
+  )
 }
 
 export function extractAiSdkStandardParams(customParams: Record<string, any>): {
@@ -124,14 +109,28 @@ export function extractAiSdkStandardParams(customParams: Record<string, any>): {
 }
 
 export function buildCapabilityProviderOptions(
-  assistant: Assistant,
   model: Model,
   actualProvider: Provider,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  context: {
+    aiSdkProviderId: AppProviderId
+    runtimeProviderId: AppProviderId
+    providerOptionsKey: string
+    endpointType: EndpointType | undefined
+    reasoning: ResolvedReasoningInvocation
+  }
 ): Record<string, Record<string, JSONValue>> {
-  const rawProviderId = getAiSdkProviderId(actualProvider, model)
-  const serviceTier = getServiceTier(model, actualProvider)
-  const textVerbosity = getVerbosity(model, actualProvider)
+  const rawProviderId = context.runtimeProviderId
+  const providerOptionsKey = context.providerOptionsKey
+  const resolvedReasoningOptions = capabilities.enableReasoning
+    ? encodeReasoningOptions(providerOptionsKey, context.reasoning)
+    : {
+        providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : providerOptionsKey,
+        options: {}
+      }
+  const reasoningOptions = shouldNormalizeOpenAICompatibleReasoning(rawProviderId, context.endpointType)
+    ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
+    : resolvedReasoningOptions
 
   let providerSpecificOptions: Record<string, any> = {}
 
@@ -141,66 +140,60 @@ export function buildCapabilityProviderOptions(
     case 'azure':
     case 'azure-responses':
     case 'huggingface':
-      providerSpecificOptions = buildOpenAIProviderOptions(
-        assistant,
-        model,
-        capabilities,
-        actualProvider,
-        serviceTier,
-        textVerbosity
-      )
+      providerSpecificOptions = buildOpenAIProviderOptions(model, capabilities, reasoningOptions.options)
+      break
+    case 'open-responses':
+      providerSpecificOptions = buildOpenResponsesProviderOptions(reasoningOptions.options)
       break
     case 'anthropic':
     case 'azure-anthropic':
+      providerSpecificOptions = buildAnthropicProviderOptions(reasoningOptions.options)
+      break
     case 'google-vertex-anthropic':
-      providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
+      providerSpecificOptions = buildAnthropicProviderOptions(reasoningOptions.options, providerOptionsKey)
       break
     case 'google':
+      providerSpecificOptions = buildGeminiProviderOptions(capabilities, reasoningOptions.options)
+      break
     case 'google-vertex':
-      providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities)
+      providerSpecificOptions = buildGeminiProviderOptions(capabilities, reasoningOptions.options, providerOptionsKey)
       break
     case 'xai':
     case 'xai-responses':
-      providerSpecificOptions = buildXAIProviderOptions(assistant, model, capabilities)
+      providerSpecificOptions = buildXAIProviderOptions(reasoningOptions.options)
       break
     case 'bedrock':
-      providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
+      providerSpecificOptions = buildBedrockProviderOptions(model, reasoningOptions.options)
       break
     case SystemProviderIds.ollama:
-      providerSpecificOptions = buildOllamaProviderOptions(assistant, model, capabilities)
+      providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options)
       break
     case 'cherryin':
+    case 'cherryin-chat':
     case 'newapi':
     case 'aihubmix':
+    case SystemProviderIds.dmxapi:
     case SystemProviderIds.gateway:
       providerSpecificOptions = buildAIGatewayOptions(
-        assistant,
         model,
         capabilities,
         actualProvider,
-        serviceTier,
-        textVerbosity
+        context.endpointType,
+        reasoningOptions
       )
       break
     case 'deepseek':
     case 'openrouter':
     case 'openai-compatible':
+    case 'google-vertex-maas':
     default:
       providerSpecificOptions = buildGenericProviderOptions(
-        rawProviderId,
-        assistant,
+        reasoningOptions.providerId,
         model,
+        actualProvider,
         capabilities,
-        actualProvider
+        reasoningOptions.options
       )
-      providerSpecificOptions = {
-        ...providerSpecificOptions,
-        [rawProviderId]: {
-          ...providerSpecificOptions[rawProviderId],
-          serviceTier,
-          textVerbosity
-        }
-      }
       break
   }
 
@@ -212,6 +205,44 @@ export function buildCapabilityProviderOptions(
   return providerSpecificOptions
 }
 
+function encodeReasoningOptions(
+  providerOptionsKey: string,
+  invocation: ResolvedReasoningInvocation
+): { providerId: string; options: Record<string, unknown> } {
+  return { providerId: providerOptionsKey, options: encodeReasoningInvocation(invocation) }
+}
+
+/** Build the single providerOptions namespace that owns reasoning for this endpoint adapter. */
+export function buildResolvedReasoningProviderOptions(context: {
+  aiSdkProviderId: AppProviderId
+  providerOptionsKey: string
+  endpointType: EndpointType | undefined
+  reasoning: ResolvedReasoningInvocation
+}): Record<string, Record<string, unknown>> {
+  const encoded = encodeReasoningOptions(context.providerOptionsKey, context.reasoning)
+  const options = shouldNormalizeOpenAICompatibleReasoning(context.aiSdkProviderId, context.endpointType)
+    ? normalizeOpenAICompatibleParams(encoded.options)
+    : encoded.options
+  if (Object.keys(options).length === 0) return {}
+
+  return {
+    [encoded.providerId]: {
+      ...options,
+      ...(context.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+        encoded.providerId === 'openai' && { forceReasoning: true })
+    }
+  }
+}
+
+/** Whether a custom parameter key names a providerOptions namespace rather than a body field. */
+export function isCustomProviderNamespace(
+  key: string,
+  providerOptions: Record<string, unknown>,
+  rawProviderId: string
+): boolean {
+  return Object.hasOwn(providerOptions, key) || key === rawProviderId
+}
+
 /**
  * For `openai-compatible`, rename `reasoning_effort` → `reasoningEffort` —
  * AI SDK silently drops the snake_case form.
@@ -220,26 +251,31 @@ export function buildCapabilityProviderOptions(
 export function mergeCustomProviderParameters(
   providerOptions: Record<string, Record<string, JSONValue>>,
   providerParams: Record<string, any>,
-  rawProviderId: string
+  rawProviderId: string,
+  adapterFamily: AppProviderId = rawProviderId as AppProviderId
 ): Record<string, Record<string, JSONValue>> {
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]
-
-  if (primaryAiSdkProviderId === 'openai-compatible' && 'reasoning_effort' in providerParams) {
-    if (!('reasoningEffort' in providerParams)) {
-      providerParams.reasoningEffort = providerParams.reasoning_effort
-    }
-    delete providerParams.reasoning_effort
-  }
+  const normalizedProviderParams =
+    adapterFamily === 'openai-compatible' ? normalizeOpenAICompatibleParams(providerParams) : providerParams
 
   let result = providerOptions
-  for (const key of Object.keys(providerParams)) {
+  for (const key of Object.keys(normalizedProviderParams)) {
+    const isProviderNamespace = isCustomProviderNamespace(key, providerOptions, rawProviderId)
+    const value =
+      adapterFamily === 'openai-compatible' &&
+      isProviderNamespace &&
+      normalizedProviderParams[key] !== null &&
+      typeof normalizedProviderParams[key] === 'object' &&
+      !Array.isArray(normalizedProviderParams[key])
+        ? normalizeOpenAICompatibleParams(normalizedProviderParams[key])
+        : normalizedProviderParams[key]
     if (actualAiSdkProviderIds.includes(key)) {
       result = {
         ...result,
         [key]: {
           ...result[key],
-          ...providerParams[key]
+          ...value
         }
       }
     } else if (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId)) {
@@ -248,7 +284,7 @@ export function mergeCustomProviderParameters(
           ...result,
           [key]: {
             ...result[key],
-            ...providerParams[key]
+            ...value
           }
         }
       } else {
@@ -256,7 +292,7 @@ export function mergeCustomProviderParameters(
           ...result,
           [primaryAiSdkProviderId]: {
             ...result[primaryAiSdkProviderId],
-            ...providerParams[key]
+            ...value
           }
         }
       }
@@ -265,7 +301,7 @@ export function mergeCustomProviderParameters(
         ...result,
         [primaryAiSdkProviderId]: {
           ...result[primaryAiSdkProviderId],
-          [key]: providerParams[key]
+          [key]: value
         }
       }
     }
@@ -273,71 +309,60 @@ export function mergeCustomProviderParameters(
   return result
 }
 
+function normalizeOpenAICompatibleParams(params: Record<string, any>): Record<string, any> {
+  if (!('reasoning_effort' in params)) return params
+
+  const normalized = { ...params }
+  if (!('reasoningEffort' in normalized)) normalized.reasoningEffort = normalized.reasoning_effort
+  delete normalized.reasoning_effort
+  return normalized
+}
+
 function buildOpenAIProviderOptions(
-  assistant: Assistant,
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  provider: Provider,
-  serviceTier: OpenAIServiceTier,
-  textVerbosity?: OpenAIVerbosity
+  reasoningOptions: Record<string, unknown>
 ): Record<string, OpenAIResponsesProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: OpenAIResponsesProviderOptions = {}
   if (enableReasoning) {
-    const reasoningParams = getOpenAIReasoningParams(assistant, model, {
-      summaryText: provider.settings.summaryText
-    })
     providerOptions = {
       ...providerOptions,
-      ...reasoningParams,
-      // TODO: Remove after migrating to @ai-sdk/open-responses (#13462).
+      ...reasoningOptions,
+      // Non-allowlisted ids still served by @ai-sdk/openai (grok-cli's grok models,
+      // relay gpt aliases) need the model-id allowlist bypass.
       ...(isReasoningModel(model) && { forceReasoning: true })
     }
   }
 
-  if (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)) {
-    const userVerbosity = provider.settings.verbosity as OpenAIVerbosity
-    if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
-      const supportedVerbosity = getModelSupportedVerbosity(model)
-      const verbosity = supportedVerbosity.includes(userVerbosity)
-        ? userVerbosity
-        : (supportedVerbosity[0] as OpenAIVerbosity)
-      providerOptions = {
-        ...providerOptions,
-        textVerbosity: verbosity
-      }
-    }
-  }
+  return { openai: { ...providerOptions, store: false } }
+}
 
-  providerOptions = {
-    ...providerOptions,
-    serviceTier,
-    textVerbosity,
-    store: false
-  }
-  return { openai: providerOptions }
+/**
+ * Options for `@ai-sdk/open-responses` models (namespace 'openai' via `name: 'openai'`).
+ * The package accepts only `reasoningEffort`/`reasoningSummary` — OpenAI-only keys
+ * (store/serviceTier/textVerbosity/forceReasoning) are deliberately not sent.
+ */
+function buildOpenResponsesProviderOptions(
+  reasoningOptions: Record<string, unknown>
+): Record<string, Record<string, unknown>> {
+  return { openai: { ...reasoningOptions } }
 }
 
 function buildAnthropicProviderOptions(
-  assistant: Assistant,
-  model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  reasoningOptions: Record<string, unknown>,
+  providerOptionsKey = 'anthropic'
 ): Record<string, AnthropicProviderOptions> {
-  const { enableReasoning } = capabilities
-  let providerOptions: AnthropicProviderOptions = {}
-  if (enableReasoning) {
-    const reasoningParams = getAnthropicReasoningParams(assistant, model)
-    providerOptions = { ...providerOptions, ...reasoningParams }
-  }
-  return { anthropic: { ...providerOptions } }
+  const providerOptions = { ...reasoningOptions } as AnthropicProviderOptions
+  return { [providerOptionsKey]: { ...providerOptions } }
 }
 
 function buildGeminiProviderOptions(
-  assistant: Assistant,
-  model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  reasoningOptions: Record<string, unknown>,
+  providerOptionsKey = 'google'
 ): Record<string, GoogleGenerativeAIProviderOptions> {
-  const { enableReasoning, enableGenerateImage } = capabilities
+  const { enableGenerateImage } = capabilities
   let providerOptions: GoogleGenerativeAIProviderOptions = {
     safetySettings: [
       {
@@ -362,40 +387,25 @@ function buildGeminiProviderOptions(
       }
     ]
   }
-  if (enableReasoning) {
-    const reasoningParams = getGeminiReasoningParams(assistant, model)
-    providerOptions = { ...providerOptions, ...reasoningParams }
-  }
+  providerOptions = { ...providerOptions, ...reasoningOptions }
   if (enableGenerateImage) {
     providerOptions = { ...providerOptions, ...buildGeminiGenerateImageParams() }
   }
-  return { google: { ...providerOptions } }
+  return { [providerOptionsKey]: { ...providerOptions } }
 }
 
 function buildXAIProviderOptions(
-  assistant: Assistant,
-  model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  reasoningOptions: Record<string, unknown>
 ): Record<string, XaiResponsesProviderOptions> {
-  const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
-  if (enableReasoning) {
-    providerOptions = { ...providerOptions, ...getXAIReasoningParams(assistant, model) }
-  }
-  return { xai: { ...providerOptions } }
+  return { xai: { ...reasoningOptions } }
 }
 
 function buildBedrockProviderOptions(
-  assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  reasoningOptions: Record<string, unknown>
 ): Record<string, BedrockProviderOptions> {
-  const { enableReasoning } = capabilities
-  let providerOptions: BedrockProviderOptions = {}
-  if (enableReasoning) {
-    providerOptions = { ...providerOptions, ...getBedrockReasoningParams(assistant, model) }
-  }
-  const betaHeaders = addAnthropicHeaders(assistant, model)
+  const providerOptions = { ...reasoningOptions } as BedrockProviderOptions
+  const betaHeaders = addAnthropicHeaders(model)
   if (betaHeaders.length > 0) {
     providerOptions.anthropicBeta = betaHeaders
   }
@@ -403,45 +413,45 @@ function buildBedrockProviderOptions(
 }
 
 function buildOllamaProviderOptions(
-  assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
-): Record<string, OllamaProviderOptions> {
-  const { enableReasoning } = capabilities
-  let options: Record<string, any> = {}
-  if (enableReasoning) {
-    options = { ...options, ...getOllamaReasoningParams(assistant, model) }
+  reasoningOptions: Record<string, unknown>
+): Record<string, Record<string, unknown>> {
+  return {
+    ollama: {
+      ...reasoningOptions,
+      // Forward the model's context window so large-context models are not silently
+      // truncated. Omitting it is deliberate when unknown: Ollama then sizes by available
+      // VRAM (4k / 32k / 256k), which beats any fixed guess we could substitute.
+      ...(model.contextWindow ? { options: { num_ctx: model.contextWindow } } : {})
+    }
   }
-  return { ollama: options }
 }
 
 function buildGenericProviderOptions(
   providerId: string,
-  assistant: Assistant,
   model: Model,
+  provider: Provider,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  provider: Provider
+  reasoningOptions: Record<string, unknown>
 ): Record<string, any> {
   const { enableWebSearch } = capabilities
   let providerOptions: Record<string, any> = {}
 
-  const reasoningParams = getReasoningEffort(assistant, model, provider)
-  providerOptions = { ...providerOptions, ...reasoningParams }
+  providerOptions = { ...providerOptions, ...reasoningOptions }
 
   if (enableWebSearch) {
-    providerOptions = merge({}, providerOptions, getWebSearchParams(model))
+    providerOptions = merge({}, providerOptions, getWebSearchParams(model, provider))
   }
 
   return { [providerId]: providerOptions }
 }
 
 function buildAIGatewayOptions(
-  assistant: Assistant,
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   provider: Provider,
-  serviceTier: OpenAIServiceTier,
-  textVerbosity?: OpenAIVerbosity
+  endpointType: EndpointType | undefined,
+  reasoning: { providerId: string; options: Record<string, unknown> }
 ): Record<
   string,
   | OpenAIResponsesProviderOptions
@@ -449,22 +459,16 @@ function buildAIGatewayOptions(
   | GoogleGenerativeAIProviderOptions
   | Record<string, unknown>
 > {
-  switch (model.endpointTypes?.[0]) {
+  switch (endpointType) {
     case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
-      return buildAnthropicProviderOptions(assistant, model, capabilities)
+      return buildAnthropicProviderOptions(reasoning.options)
     case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
-      return buildGeminiProviderOptions(assistant, model, capabilities)
+      return buildGeminiProviderOptions(capabilities, reasoning.options)
     case ENDPOINT_TYPE.OPENAI_RESPONSES:
-      return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)
+      return buildOpenAIProviderOptions(model, capabilities, reasoning.options)
     case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
     case ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION:
-      return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities, provider)
+      return buildGenericProviderOptions(reasoning.providerId, model, provider, capabilities, reasoning.options)
   }
-
-  if (isAnthropicModel(model)) return buildAnthropicProviderOptions(assistant, model, capabilities)
-  if (isOpenAIModel(model))
-    return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)
-  if (isGeminiModel(model)) return buildGeminiProviderOptions(assistant, model, capabilities)
-  if (isGrokModel(model)) return buildXAIProviderOptions(assistant, model, capabilities)
-  return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities, provider)
+  return { [reasoning.providerId]: reasoning.options }
 }

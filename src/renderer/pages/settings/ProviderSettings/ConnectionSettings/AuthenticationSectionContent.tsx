@@ -1,21 +1,18 @@
 import { useProvider } from '@renderer/hooks/useProvider'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
-import { useProviderConnectionCheck } from '../hooks/providerSetting/useProviderConnectionCheck'
 import ApiHost from './ApiHost'
 import ApiKey from './ApiKey'
-import ProviderConnectionCheckDrawer from './ProviderConnectionCheckDrawer'
 
 export interface AuthenticationSectionContentProps {
   providerId: string
-  onOpenModelHealthCheck?: () => void
+  onRequestModelPullGuide?: () => void
 }
 
 export function AuthenticationSectionContent({
   providerId,
-  onOpenModelHealthCheck
+  onRequestModelPullGuide
 }: AuthenticationSectionContentProps) {
-  const connectionCheck = useProviderConnectionCheck(providerId)
   const { provider } = useProvider(providerId)
 
   // Login-based providers (claude-code CLI login, codex/grok OAuth) accept no API
@@ -27,22 +24,8 @@ export function AuthenticationSectionContent({
 
   return (
     <>
-      <ApiKey
-        providerId={providerId}
-        apiKeyConnectivity={connectionCheck.apiKeyConnectivity}
-        onShowApiKeyError={connectionCheck.showApiKeyError}
-        onOpenConnectionCheck={connectionCheck.openConnectionCheck}
-      />
-      <ApiHost providerId={providerId} />
-      <ProviderConnectionCheckDrawer
-        open={connectionCheck.connectionCheckOpen}
-        models={connectionCheck.checkableModels}
-        apiKeys={connectionCheck.checkableApiKeys}
-        isSubmitting={connectionCheck.apiKeyConnectivity.checking ?? false}
-        onClose={connectionCheck.closeConnectionCheck}
-        onStart={connectionCheck.startConnectionCheck}
-        onOpenModelHealthCheck={onOpenModelHealthCheck}
-      />
+      <ApiKey providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
+      <ApiHost providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
     </>
   )
 }

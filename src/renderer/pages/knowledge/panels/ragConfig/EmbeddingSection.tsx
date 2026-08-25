@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-import { isEmbeddingModel, KnowledgeModelSelect } from '../../components/KnowledgeModelSelect'
+import { KnowledgeEmbeddingModelSelect } from '../../components/KnowledgeEmbeddingModelSelect'
 import { RagFieldLabel } from './panelPrimitives'
 
 interface EmbeddingSectionProps {
@@ -15,11 +15,11 @@ const EmbeddingSection = ({ embeddingModelId, onEmbeddingModelChange }: Embeddin
     <div className="flex flex-col gap-4">
       <div>
         <RagFieldLabel label={t('knowledge.rag.embedding_model')} hint={t('knowledge.rag.hints.embedding_model')} />
-        <KnowledgeModelSelect
+        <KnowledgeEmbeddingModelSelect
           aria-label={t('knowledge.rag.embedding_model')}
           value={embeddingModelId}
-          placeholder={t('knowledge.not_set')}
-          filter={isEmbeddingModel}
+          placeholder={t('knowledge.rag.rerank_disabled')}
+          noneOptionLabel={t('knowledge.rag.rerank_disabled')}
           onChange={onEmbeddingModelChange}
         />
       </div>

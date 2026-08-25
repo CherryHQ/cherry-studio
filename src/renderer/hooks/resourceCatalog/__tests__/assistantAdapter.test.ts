@@ -1,11 +1,10 @@
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Tag } from '@shared/data/types/tag'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistantMutations } from '../assistantAdapter'
+import { useImportAssistantMutation } from '../assistantAdapter'
 
-const createTriggerMock = vi.hoisted(() => vi.fn())
+const importTriggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -23,16 +22,6 @@ vi.mock('react-i18next', () => ({
     }
   })
 }))
-
-function createTag(id: string, name: string): Tag {
-  return {
-    id,
-    name,
-    color: '#3b82f6',
-    createdAt: '2026-04-20T00:00:00.000Z',
-    updatedAt: '2026-04-20T00:00:00.000Z'
-  }
-}
 
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
@@ -55,59 +44,45 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
       maxToolCalls: 20,
       enableMaxToolCalls: true,
       enableWebSearch: false,
+      enableGenerateImage: false,
       customParameters: []
     },
     modelId: 'openai::gpt-4o',
+    groupId: null,
     mcpServerIds: ['mcp-1'],
     knowledgeBaseIds: ['kb-1'],
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
-    tags: [],
     modelName: 'GPT-4o',
     ...overrides
   }
 }
 
-describe('useAssistantMutations', () => {
+describe('useImportAssistantMutation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('imports an assistant through the atomic import endpoint and refreshes groups', async () => {
+    const imported = createAssistant({ id: 'ast-imported', groupId: '11111111-1111-4111-8111-111111111111' })
+    importTriggerMock.mockResolvedValue(imported)
     useMutationMock.mockReturnValue({
-      trigger: createTriggerMock,
+      trigger: importTriggerMock,
       isLoading: false,
       error: undefined
     })
-  })
 
-  it('forwards only one tag id to the create endpoint when duplicating an assistant', async () => {
-    const created = createAssistant({ id: 'ast-copy', tags: [] })
-    createTriggerMock.mockResolvedValue(created)
-
-    const source = createAssistant({
-      tags: [createTag('tag-1', '生产力'), createTag('tag-2', '编程')]
-    })
-
-    const { result } = renderHook(() => useAssistantMutations())
+    const { result } = renderHook(() => useImportAssistantMutation())
 
     await act(async () => {
-      await result.current.duplicateAssistant(source)
+      await result.current.importAssistant({ name: 'Imported', prompt: 'prompt', groupName: 'work' })
     })
 
-    // Atomic: one POST /assistants carries the assistant payload AND the tag ids.
-    // No follow-up PUT /tags/entities/... means no half-success window where the
-    // row exists without its bindings.
-    expect(createTriggerMock).toHaveBeenCalledTimes(1)
-    expect(createTriggerMock).toHaveBeenCalledWith({
-      body: {
-        name: '原助手 (副本)',
-        prompt: 'prompt',
-        emoji: '💬',
-        description: 'desc',
-        modelId: 'openai::gpt-4o',
-        settings: source.settings,
-        mcpServerIds: ['mcp-1'],
-        knowledgeBaseIds: ['kb-1'],
-        tagIds: ['tag-1']
-      }
+    expect(useMutationMock).toHaveBeenCalledWith('POST', '/assistants:import', {
+      refresh: ['/assistants', '/groups']
+    })
+    expect(importTriggerMock).toHaveBeenCalledWith({
+      body: { name: 'Imported', prompt: 'prompt', groupName: 'work' }
     })
   })
 })

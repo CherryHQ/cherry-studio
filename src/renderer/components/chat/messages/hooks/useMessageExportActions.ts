@@ -1,17 +1,6 @@
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessageAsMarkdown as exportMessageAsMarkdownFile,
-  exportMessageToNotes,
-  exportMessageToNotion,
-  getMessageTitle,
-  messageToMarkdown
-} from '@renderer/services/ExportService'
+import { ipcApi } from '@renderer/ipc'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { useCallback, useMemo } from 'react'
 
@@ -46,19 +35,24 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
   }, [])
 
   const exportToWord = useCallback((markdown: string, title: string) => {
-    return window.api.export.toWord(markdown, title)
+    return ipcApi.request('export.word.from_markdown', { markdown, fileName: title })
   }, [])
 
-  const saveToKnowledge = useCallback((message: MessageExportView) => {
+  const saveToKnowledge = useCallback(async (message: MessageExportView) => {
+    const { default: SaveToKnowledgePopup } = await import('@renderer/components/SaveToKnowledgePopup')
     void SaveToKnowledgePopup.showForMessage(message)
   }, [])
 
-  const exportMessageAsMarkdown = useCallback((message: MessageExportView, includeReasoning?: boolean) => {
+  const exportMessageAsMarkdown = useCallback(async (message: MessageExportView, includeReasoning?: boolean) => {
+    const { exportMessageAsMarkdown: exportMessageAsMarkdownFile } = await import('@renderer/services/ExportService')
     return exportMessageAsMarkdownFile(message, includeReasoning)
   }, [])
 
   const exportToNotes = useCallback(
     async (message: MessageExportView) => {
+      const { exportMessageToNotes, getMessageTitle, messageToMarkdown } = await import(
+        '@renderer/services/ExportService'
+      )
       const title = await getMessageTitle(message)
       const markdown = await messageToMarkdown(message)
       return exportMessageToNotes(title, markdown, notesPath)
@@ -67,12 +61,18 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
   )
 
   const exportToNotion = useCallback(async (message: MessageExportView) => {
+    const { exportMessageToNotion, getMessageTitle, messageToMarkdown } = await import(
+      '@renderer/services/ExportService'
+    )
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
     await exportMessageToNotion(title, markdown, message)
   }, [])
 
   const exportToYuque = useCallback(async (message: MessageExportView) => {
+    const { exportMarkdownToYuque, getMessageTitle, messageToMarkdown } = await import(
+      '@renderer/services/ExportService'
+    )
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
     await exportMarkdownToYuque(title, markdown)
@@ -81,17 +81,22 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
   const exportToObsidian = useCallback(
     async (message: MessageExportView) => {
       const title = topicName?.replace(/\\/g, '_') || 'Untitled'
+      const { default: ObsidianExportPopup } = await import('@renderer/components/ObsidianExportPopup')
       await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
     },
     [topicName]
   )
 
   const exportToJoplin = useCallback(async (message: MessageExportView) => {
+    const { exportMarkdownToJoplin, getMessageTitle } = await import('@renderer/services/ExportService')
     const title = await getMessageTitle(message)
     await exportMarkdownToJoplin(title, message)
   }, [])
 
   const exportToSiyuan = useCallback(async (message: MessageExportView) => {
+    const { exportMarkdownToSiyuan, getMessageTitle, messageToMarkdown } = await import(
+      '@renderer/services/ExportService'
+    )
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
     return exportMarkdownToSiyuan(title, markdown)

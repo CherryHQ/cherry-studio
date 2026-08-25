@@ -1,18 +1,8 @@
 import type { ExportableMessage } from '@renderer/types/messageExport'
+import { isComposerMessageTextTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type ComposerMessageSnapshot, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
 
-const RENDERABLE_COMPOSER_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
-  'command',
-  'file',
-  'knowledge',
-  'reference',
-  'skill'
-])
-const DISPLAY_COMPOSER_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
-  ...RENDERABLE_COMPOSER_TOKEN_KINDS,
-  'quote'
-])
 const SKILL_TOKEN_ID_PREFIX = 'skill:'
 const KNOWLEDGE_TOKEN_ID_PREFIX = 'knowledge:'
 
@@ -27,19 +17,19 @@ function getMessageParts(message: ExportableMessage): CherryMessagePart[] {
 
 function getSortedComposerTokens(
   composer: ComposerMessageSnapshot,
-  allowedKinds: ReadonlySet<ComposerMessageToken['kind']>
+  isAllowedKind: (kind: ComposerMessageToken['kind']) => boolean
 ): ComposerMessageToken[] {
   return composer.tokens
-    .filter((token) => allowedKinds.has(token.kind) && token.label)
+    .filter((token) => isAllowedKind(token.kind) && token.label)
     .sort((a, b) => a.textOffset - b.textOffset || a.index - b.index)
 }
 
 export function getRenderableComposerTokens(composer: ComposerMessageSnapshot): ComposerMessageToken[] {
-  return getSortedComposerTokens(composer, RENDERABLE_COMPOSER_TOKEN_KINDS)
+  return getSortedComposerTokens(composer, isComposerMessageTextTokenKind)
 }
 
 export function getDisplayComposerTokens(composer: ComposerMessageSnapshot): ComposerMessageToken[] {
-  return getSortedComposerTokens(composer, DISPLAY_COMPOSER_TOKEN_KINDS)
+  return getSortedComposerTokens(composer, isComposerMessageTokenKind)
 }
 
 export function getComposerTokenClipboardText(token: ComposerMessageToken): string {
@@ -54,6 +44,12 @@ export function getComposerTokenClipboardText(token: ComposerMessageToken): stri
       ? token.id.slice(KNOWLEDGE_TOKEN_ID_PREFIX.length)
       : token.label
     return `#${marker}#`
+  }
+  if (token.kind === 'folder') {
+    return token.promptText ?? token.label
+  }
+  if (token.kind === 'link') {
+    return token.promptText ?? token.label
   }
   return token.label
 }

@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedFirstSorter,
   createPinnedGroupResolver,
   createTimeGroupResolver,
   getResourceTimeBucket,
-  sortByResourceGroupRank
+  sortByResourceGroupRank,
+  sortRankedResourceItems
 } from '../resourceListGrouping'
+import { compareResourceOrderKey } from '../resourceListReorder'
 
 type TestItem = {
   id: string
@@ -83,5 +86,58 @@ describe('resourceListGrouping', () => {
         (item) => item.id
       )
     ).toEqual(['pinned-old', 'pinned-new', 'today', 'week'])
+  })
+
+  describe('sortRankedResourceItems', () => {
+    it('keeps pinned in incoming order at the top, then orders the rest by the within-group key', () => {
+      // Callers fold pinned → rank 0. p-b has a newer timestamp than p-a but must
+      // stay after it (pinned rows keep their incoming/server pin.orderKey order,
+      // never reshuffled by recency); non-pinned then sort newest-first.
+      const items: TestItem[] = [
+        { id: 'p-a', pinned: true, updatedAt: localIso(2026, 5, 1) },
+        { id: 'n-old', updatedAt: localIso(2026, 5, 2) },
+        { id: 'p-b', pinned: true, updatedAt: localIso(2026, 5, 20) },
+        { id: 'n-new', updatedAt: localIso(2026, 5, 10) }
+      ]
+
+      const sorted = sortRankedResourceItems(items, {
+        getRank: (item) => (item.pinned === true ? 0 : 1),
+        isPinned: (item) => item.pinned === true,
+        compareWithinGroup: compareResourceRecency((item) => item.updatedAt)
+      })
+
+      expect(sorted.map((item) => item.id)).toEqual(['p-a', 'p-b', 'n-new', 'n-old'])
+    })
+
+    it('separates groups by rank and falls back to a stable index tiebreak', () => {
+      type OrderItem = { id: string; rank: number; orderKey: string }
+      const items: OrderItem[] = [
+        { id: 'g1-b', rank: 1, orderKey: 'a2' },
+        { id: 'g0-x', rank: 0, orderKey: 'a9' },
+        { id: 'g1-a', rank: 1, orderKey: 'a1' },
+        { id: 'tie-1', rank: 1, orderKey: 'a5' },
+        { id: 'tie-2', rank: 1, orderKey: 'a5' }
+      ]
+
+      const sorted = sortRankedResourceItems(items, {
+        getRank: (item) => item.rank,
+        isPinned: () => false,
+        compareWithinGroup: (a, b) => compareResourceOrderKey(a.orderKey, b.orderKey)
+      })
+
+      // rank 0 first; rank 1 by orderKey ASC; equal orderKey preserves incoming index.
+      expect(sorted.map((item) => item.id)).toEqual(['g0-x', 'g1-a', 'g1-b', 'tie-1', 'tie-2'])
+    })
+  })
+
+  it('compareResourceRecency ranks newer first and treats unparseable timestamps as equal', () => {
+    const compare = compareResourceRecency<{ updatedAt: string }>((item) => item.updatedAt)
+    const newer = { updatedAt: localIso(2026, 5, 10) }
+    const older = { updatedAt: localIso(2026, 5, 1) }
+
+    expect(compare(newer, older)).toBeLessThan(0)
+    expect(compare(older, newer)).toBeGreaterThan(0)
+    expect(compare({ updatedAt: 'nonsense' }, older)).toBe(0)
+    expect(compare({ updatedAt: 'nonsense' }, { updatedAt: 'also bad' })).toBe(0)
   })
 })

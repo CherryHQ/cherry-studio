@@ -11,16 +11,21 @@
  */
 
 import type { EndpointType } from '@shared/data/types/model'
-import type {
-  ApiFeatures,
-  ApiKeyEntry,
-  AuthConfig,
-  EndpointConfig,
-  ProviderSettings
-} from '@shared/data/types/provider'
+import type { ApiKeyEntry, AuthConfig, EndpointConfigOverride, ProviderSettings } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex } from './_columnHelpers'
+
+/**
+ * Main-only persisted provider endpoint delta.
+ *
+ * `adapterFamily` is legacy migration provenance for custom v1 relay
+ * providers. It is deliberately absent from the shared renderer write DTO so
+ * ordinary settings PATCHes cannot create, replace, or clear the routing hint.
+ */
+export type StoredEndpointConfigOverride = EndpointConfigOverride & {
+  adapterFamily?: string
+}
 
 export const userProviderTable = sqliteTable(
   'user_provider',
@@ -35,8 +40,19 @@ export const userProviderTable = sqliteTable(
 
     name: text().notNull(),
 
-    /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
-    endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<Partial<Record<EndpointType, EndpointConfig>>>(),
+    /**
+     * Preset/bundled logo reference (`icon:<providerId>` ref), or null for
+     * preset providers that render a bundled icon by id. Holds an icon key /
+     * ref only — never a remote URL or data URL. A user-uploaded custom logo
+     * has no key here: it lives solely in the `provider_logo_file_ref` table
+     * (the single source of truth), resolved back via `getSingleFileRefId`.
+     */
+    logoKey: text('logo_key'),
+
+    /** User endpoint overrides plus the legacy adapter-family hint. Registry facts resolve at read time. */
+    endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<
+      Partial<Record<EndpointType, StoredEndpointConfigOverride>>
+    >(),
 
     /** Default text generation endpoint (when supporting multiple) */
     defaultChatEndpoint: text().$type<EndpointType>(),
@@ -46,9 +62,6 @@ export const userProviderTable = sqliteTable(
 
     /** Unified auth configuration for different auth methods */
     authConfig: text({ mode: 'json' }).$type<AuthConfig>(),
-
-    /** API feature support (null = use preset default) */
-    apiFeatures: text('api_features', { mode: 'json' }).$type<ApiFeatures>(),
 
     /** Provider-specific settings as JSON */
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),

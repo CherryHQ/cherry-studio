@@ -5,10 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ChatPreferenceSections from '../ChatPreferenceSections'
 
 const mocks = vi.hoisted(() => ({
+  loadThemeNames: vi.fn(async () => ['auto', 'github']),
   setPreference: vi.fn(),
   preferenceValues: {
-    'topic.layout': 'modern',
-    'agent.layout': 'classic',
     'chat.message.style': 'plain',
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
@@ -60,7 +59,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ themeNames: ['auto', 'github'] })
+  useCodeStyleThemeCatalog: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -107,6 +106,7 @@ describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
+    mocks.loadThemeNames.mockClear()
     mocks.setPreference.mockClear()
   })
 

@@ -164,10 +164,8 @@ First-level `+` entries:
 
 Model effects:
 
-- Function-calling capability plus assistant `toolUseMode=function` enables
-  native tool-use features such as knowledge and MCP.
-- Assistant `toolUseMode=prompt` enables prompt-based tool use even when the
-  model lacks native function calling.
+- Function-calling capability enables native tool-use features such as
+  knowledge and MCP.
 - Reasoning capability controls whether Thinking can be enabled; fixed
   reasoning models should show disabled rather than silently disappear.
 - Image generation capability controls Generate image.
@@ -259,7 +257,7 @@ Suggested reason examples:
 |---|---|
 | Thinking | Current model does not support adjustable reasoning |
 | Generate image | Current model does not support image generation |
-| Knowledge base | Select a tool-capable model or enable prompt tool use |
+| Knowledge base | Select a tool-capable model |
 | Knowledge base | No knowledge base is configured for this assistant |
 | MCP | No MCP tools are enabled for this assistant |
 | Web search | Configure a web search provider |

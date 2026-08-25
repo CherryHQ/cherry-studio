@@ -6,26 +6,134 @@
  */
 
 import { application } from '@application'
+import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
+import { loggerService } from '@logger'
+import {
+  COMPACTION_INPUT_SAFETY_RATIO,
+  COMPACTION_MIN_INPUT_BUDGET,
+  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
+  CONTEXT_COMPACT_TRIGGER_RATIO
+} from '@main/ai/constants'
+import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
+import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
+import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { messageService } from '@main/data/services/MessageService'
+import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import { applyApprovalDecisions } from '@shared/ai/transport'
-import { type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
+import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
+import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
+import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
+import {
+  type AssistantTurnOptions,
+  type Message as SharedMessage,
+  type MessageRole,
+  type MessageSnapshot,
+  toContentRole
+} from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
+import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
+import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
+import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
+import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
+import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
+import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
+import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
+import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
+import {
+  applyDeepestMarker,
+  type CompactionRow,
+  estimateRowTokens,
+  findDeepestMarker,
+  planKeepBoundary,
+  summaryRow
+} from './compaction'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
+const logger = loggerService.withContext('PersistentChatContextProvider')
+
+/**
+ * Adapt a turn subscriber into a {@link CompactionSink}.
+ *
+ * Turn-start compaction is a full summarize round-trip that runs BEFORE the
+ * model stream opens, so without this the UI sits on an idle placeholder for
+ * however long the summarizer takes. The subscriber is already live here (it is
+ * `prepareDispatch`'s first argument), so the anchor part can stream ahead of
+ * the assistant's own content. Both writes share one id, so the `done` event
+ * replaces the spinner rather than appending a second anchor.
+ */
+function toCompactionSink(subscriber: StreamListener): CompactionSink {
+  return (anchorId, data) =>
+    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
+}
+
+/** Media cost table for the turn. Unreachable provider row → the openai table. */
+function resolveRowDialect(model: Model | undefined): TokenDialect {
+  if (!model) return 'openai'
+  try {
+    return resolveModelTokenDialect(providerService.getByProviderId(model.providerId), model)
+  } catch {
+    return 'openai'
+  }
+}
+
+/** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
+function resolveAssistantIdentity(assistantId: string | undefined) {
+  if (!assistantId) return undefined
+  const a = assistantDataService.getById(assistantId)
+  return { id: a.id, name: a.name, emoji: a.emoji }
+}
+
+/**
+ * The assistant-layer context-settings override, snapshotted once per prepare
+ * and handed to BOTH consumers (durable compaction + the persist-time trim) so
+ * the two lanes stay on the same effective settings. Missing/deleted assistant
+ * (incl. agent-session agentIds) degrades to "inherit globals".
+ */
+function resolveAssistantContextOverride(assistantId: string | undefined): ContextSettingsOverride | null | undefined {
+  if (!assistantId) return undefined
+  try {
+    return assistantDataService.getById(assistantId).settings.contextSettings
+  } catch {
+    return undefined
+  }
+}
+
+/** Author snapshot for an assistant reply: the assistant with its model nested inside. */
+function buildAssistantMessageSnapshot(
+  model: Model,
+  assistant: { id: string; name: string; emoji: string } | undefined
+): MessageSnapshot | undefined {
+  if (!assistant) return undefined
+  return {
+    ...assistant,
+    model: {
+      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+      name: model.name,
+      provider: model.providerId
+    }
+  }
+}
+
+/**
+ * One OTel root span per execution. Stream-manager sets the span active
+ * around `runExecutionLoop` so AI SDK spans become children.
+ */
 function startTurnRootSpans(
   topicId: string,
   trigger: string,
@@ -97,8 +205,9 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       parentId: message.parentId,
       siblingsGroupId: message.siblingsGroupId || undefined,
       modelId: message.modelId ?? undefined,
-      modelSnapshot: message.modelSnapshot ?? undefined,
+      messageSnapshot: message.messageSnapshot ?? undefined,
       status: message.status,
+      turnOptions: message.data.turnOptions,
       createdAt: message.createdAt,
       stats: message.stats ?? undefined,
       isActiveBranch: true,
@@ -107,8 +216,15 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
   } satisfies CherryUIMessage
 }
 
+function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | undefined): void {
+  if (modelIds && new Set(modelIds).size !== modelIds.length) {
+    throw new Error('mentionedModelIds must not contain duplicate model ids')
+  }
+}
+
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
+  readonly isPersistentConversation = true
 
   /** Default provider — matches any topic not claimed by a more specific provider. */
   canHandle(): boolean {
@@ -120,22 +236,53 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
+    assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
+
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
-    const { assistantId, defaultModelId } = resolveAssistantModelId(topic?.assistantId)
+    // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
+    // sibling position, descendants, and the topic's active branch remain untouched.
+    if (req.trigger === 'regenerate-message' && req.retryMessageId) {
+      return this.prepareAssistantRetry(subscriber, req, topic?.assistantId ?? undefined)
+    }
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
-      return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
+      return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
     }
 
     // steer-continuation answers a steer user message persisted while a turn was live — a fresh
     // assistant placeholder under that user row (no new user row), single model.
     if (req.trigger === 'steer-continuation') {
-      return this.prepareSteerContinuation(subscriber, req, assistantId, defaultModelId)
+      return this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)
+    }
+
+    const selectedModelId = req.mentionedModelIds?.[0]
+    const { assistantId, defaultModelId } =
+      !topic?.assistantId && selectedModelId
+        ? { assistantId: undefined, defaultModelId: selectedModelId }
+        : resolveAssistantModelId(topic?.assistantId)
+    const hasExplicitReservedTarget = req.trigger === 'submit-message' && req.targetMode === 'reserved-branch'
+    const reservedBranchId =
+      req.trigger === 'submit-message' &&
+      req.parentAnchorId &&
+      (hasExplicitReservedTarget ||
+        (req.targetMode === undefined && messageService.isAwaitingInputLeaf(req.parentAnchorId, req.topicId)))
+        ? req.parentAnchorId
+        : undefined
+
+    if (hasExplicitReservedTarget && !reservedBranchId) {
+      throw new Error("'reserved-branch' target requires parentAnchorId")
     }
 
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
+      // A reserved branch belongs to another tree path and must never be injected as a steer
+      // into the topic's running turn. Renderer queues it until idle; this synchronous check
+      // is the main-process race backstop and performs no writes on rejection.
+      if (hasExplicitReservedTarget || reservedBranchId) {
+        throw new Error('Cannot submit a reserved branch while a stream is live on this topic')
+      }
+
       // Stamp the row with the model the user selected for this steer so the continuation answers
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
       // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
@@ -145,61 +292,113 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         parentId: req.parentAnchorId,
         data: { parts: req.userMessageParts },
         status: 'success',
-        modelId: steerModelId,
-        modelSnapshot: (() => {
-          const { providerId, modelId: rawModelId } = parseUniqueModelId(steerModelId)
-          return { id: rawModelId, name: rawModelId, provider: providerId }
-        })()
+        // User rows carry only `modelId` (read by steer-continuation); the author snapshot
+        // lives on the assistant reply, which is what the header renders.
+        modelId: steerModelId
       })
 
       return {
         topicId: req.topicId,
         models: [],
         listeners: [subscriber],
-        userMessageId: userMessage.id,
         pendingSteerUserMessageId: userMessage.id,
-        reservedMessages: [toReservedUIMessage(userMessage)],
-        isMultiModel: false
+        pendingSteerReasoningEffort: req.reasoningEffort,
+        pendingSteerServiceTier: req.serviceTier,
+        pendingSteerFastMode: req.fastMode === true,
+        reservedMessages: [toReservedUIMessage(userMessage)]
       }
     }
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
-    const isMultiModel = models.length > 1
+    const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
+    let liveGroupSourceAnchorMessageId: string | undefined
+    const turnOptions: AssistantTurnOptions = {
+      reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
+      fastMode: req.fastMode === true
+    }
 
     if (isRegenerate && !req.parentAnchorId) {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
-    }
-
-    // A regenerate while the topic is still live would build placeholder rows that send()'s inject
-    // path discards — orphaning them as `pending`. The renderer gates regenerate on a non-busy topic,
-    // so reject this should-not-happen state before any DB write instead of failing silently.
-    if (isRegenerate && ctx.hasLiveStream) {
-      throw new Error('Cannot regenerate while a stream is live on this topic')
     }
 
     // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
     // for non-regenerate, so passing undefined parentAnchorId is harmless.
     const siblingsGroupId = resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
 
+    if (liveGroupAppendMessageId) {
+      const parentAnchorId = req.parentAnchorId
+      if (!parentAnchorId) {
+        throw new Error(`'regenerate-message' requires parentAnchorId`)
+      }
+      if (models.length !== 1) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.SINGLE_MODEL_REQUIRED)
+      }
+      if (siblingsGroupId === undefined) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+      }
+      let targetSiblingsGroupId: number | undefined
+      try {
+        targetSiblingsGroupId = messageService.getById(liveGroupAppendMessageId).siblingsGroupId || undefined
+      } catch {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+      }
+      const admission = application.get('AiStreamManager').admitLiveExecutionChange(req.topicId, {
+        mode: 'append',
+        modelId: models[0].id,
+        targetMessageId: liveGroupAppendMessageId,
+        parentAnchorId,
+        siblingsGroupId: targetSiblingsGroupId
+      })
+      if (admission.mode === 'append-live') {
+        liveGroupSourceAnchorMessageId = admission.groupAnchorMessageId
+      }
+    } else if (isRegenerate && ctx.hasLiveStream) {
+      // An ordinary regenerate while the topic is live would build placeholder rows that send()'s
+      // inject path discards. Only the explicit @-model live-group append is allowed through.
+      application.get('AiStreamManager').admitLiveExecutionChange(req.topicId, {
+        mode: 'start',
+        modelCount: models.length
+      })
+    }
+
+    if (liveGroupSourceAnchorMessageId && (!req.parentAnchorId || siblingsGroupId === undefined)) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    }
+    const preparedLiveExecutionChange =
+      liveGroupSourceAnchorMessageId && req.parentAnchorId && siblingsGroupId !== undefined
+        ? {
+            mode: 'append' as const,
+            groupAnchorMessageId: liveGroupSourceAnchorMessageId,
+            parentAnchorId: req.parentAnchorId,
+            siblingsGroupId,
+            activateFallback: true
+          }
+        : undefined
+    const assistantIdentity = resolveAssistantIdentity(assistantId)
+
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
     const userMessageInput =
       req.trigger === 'submit-message'
-        ? ({
-            mode: 'create' as const,
-            dto: {
-              role: 'user' as const,
-              parentId: req.parentAnchorId,
+        ? reservedBranchId
+          ? ({
+              mode: 'fill-reserved' as const,
+              id: reservedBranchId,
               data: { parts: req.userMessageParts },
-              status: 'success' as const,
-              modelId: defaultModelId,
-              modelSnapshot: (() => {
-                const { providerId, modelId: rawModelId } = parseUniqueModelId(defaultModelId)
-                return { id: rawModelId, name: rawModelId, provider: providerId }
-              })()
-            }
-          } as const)
+              modelId: defaultModelId
+            } as const)
+          : ({
+              mode: 'create' as const,
+              dto: {
+                role: 'user' as const,
+                parentId: req.parentAnchorId,
+                data: { parts: req.userMessageParts },
+                status: 'success' as const,
+                modelId: defaultModelId
+              }
+            } as const)
         : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
 
     // Container trace: one trace tree per topic. Each model's `ai.turn` span is
@@ -212,16 +411,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
+        preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
-          data: { parts: [] },
+          data: { parts: [], turnOptions },
           status: 'pending',
           modelId: model.id,
-          modelSnapshot: {
-            id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-            name: model.name,
-            provider: model.providerId
-          }
+          messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
         }))
       })
 
@@ -238,6 +434,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // 1 subscriber + N per-model persistence listeners. Auto-rename attaches
       // to the first backend only so it fires once for multi-model turns.
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [subscriber]
       for (let i = 0; i < assistantPlaceholders.length; i++) {
         const { model, placeholder } = assistantPlaceholders[i]
@@ -248,11 +445,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             modelId: model.id,
             backend: new MessageServiceBackend({
               assistantMessageId: placeholder.id,
-              modelSnapshot: {
-                id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-                name: model.name,
-                provider: model.providerId
-              },
+              turnOptions,
+              contextSettingsOverride,
               afterPersist: attachAutoRename
                 ? async (finalMessage) => {
                     await topicNamingService.maybeRenameFromConversationSummary(
@@ -272,7 +466,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const history = this.buildHistory(userMessage.id)
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+        userMessage.id,
+        req.topicId,
+        assistantPlaceholders.map((p) => p.model),
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
+      const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(
@@ -281,7 +483,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           model.id,
           history,
           placeholder.id,
-          req.knowledgeBaseIds
+          knowledgeBaseIds,
+          turnOptions.reasoningEffort,
+          turnOptions.serviceTier,
+          turnOptions.fastMode === true,
+          retainedContext
         ),
         rootSpan
       }))
@@ -300,10 +506,140 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: models_,
         listeners,
-        userMessageId: userMessage.id,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
-        isMultiModel
+        liveExecutionChange: preparedLiveExecutionChange,
+        preserveActiveNode: Boolean(liveGroupAppendMessageId)
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
+    }
+  }
+
+  private async prepareAssistantRetry(
+    subscriber: StreamListener,
+    req: Extract<MainDispatchRequest, { trigger: 'regenerate-message' }>,
+    assistantId: string | undefined
+  ): Promise<PreparedDispatch> {
+    const target = messageService.getById(req.retryMessageId as string)
+    if (target.role !== 'assistant') {
+      throw new Error(`'retryMessageId' must identify an assistant message (got '${target.role}')`)
+    }
+    if (target.topicId !== req.topicId || target.parentId !== req.parentAnchorId) {
+      throw new Error('Retry target does not belong to the requested topic/user anchor')
+    }
+    const parent = messageService.getById(req.parentAnchorId)
+    if (parent.role !== 'user' || parent.topicId !== req.topicId) {
+      throw new Error(`'regenerate-message' parentAnchorId must identify a user message in the topic`)
+    }
+
+    const targetModelId = (target.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    if (req.mentionedModelIds && (req.mentionedModelIds.length !== 1 || req.mentionedModelIds[0] !== targetModelId)) {
+      throw new Error('In-place retry cannot change the assistant model')
+    }
+    const [model] = resolveModels([targetModelId], targetModelId)
+    const compatibleSiblingsGroupId = target.siblingsGroupId > 0 ? target.siblingsGroupId : undefined
+    const manager = application.get('AiStreamManager')
+    await manager.awaitExecutionRetry(
+      req.topicId,
+      targetModelId,
+      target.id,
+      req.parentAnchorId,
+      compatibleSiblingsGroupId
+    )
+    const turnOptions: AssistantTurnOptions = {
+      reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
+      serviceTier: req.serviceTier ?? target.data.turnOptions?.serviceTier,
+      fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
+    }
+    const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
+    const containerTraceId = topicService.ensureTraceId(req.topicId)
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
+    const [{ span: rootSpan }] = turnRootSpans
+
+    try {
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+        parent.id,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
+      const request = this.buildStreamRequest(
+        req.topicId,
+        assistantId,
+        model.id,
+        history,
+        target.id,
+        getKnowledgeBaseIdsFromParts(parent.data.parts ?? []),
+        turnOptions.reasoningEffort,
+        turnOptions.serviceTier,
+        turnOptions.fastMode === true,
+        retainedContext
+      )
+      applyTurnInputAttributes(rootSpan, {
+        modelId: model.id,
+        topicId: req.topicId,
+        operation: 'chat',
+        messages: request.messages
+      })
+
+      // Context preparation can outlive the original sibling turn. Re-admit against the exact
+      // model+anchor immediately before the synchronous reset/dispatch handoff, so an unrelated
+      // newer live turn cannot leave this historical row reset to pending without owning it.
+      const admission = await manager.awaitExecutionRetry(
+        req.topicId,
+        targetModelId,
+        target.id,
+        req.parentAnchorId,
+        compatibleSiblingsGroupId
+      )
+
+      // Reset only after all async context preparation and the final admission succeed. This atomic
+      // update deliberately does not write topic.activeNodeId, so retrying an off-path branch cannot
+      // activate it.
+      const resetMessage = messageService.resetAssistantForRetry(target.id)
+      const listeners: StreamListener[] = [
+        subscriber,
+        new PersistenceListener({
+          topicId: req.topicId,
+          modelId: model.id,
+          backend: new MessageServiceBackend({
+            assistantMessageId: target.id,
+            turnOptions,
+            contextSettingsOverride
+          }),
+          onPersistFailed: (error) =>
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+        }),
+        new TraceFlushListener(req.topicId)
+      ]
+
+      return {
+        topicId: req.topicId,
+        models: [{ modelId: model.id, request, seedFromEmpty: true, rootSpan }],
+        listeners,
+        reservedMessages: [toReservedUIMessage(resetMessage)],
+        siblingsGroupId: target.siblingsGroupId || undefined,
+        liveExecutionChange:
+          admission.mode === 'replace-live'
+            ? {
+                mode: 'replace',
+                parentAnchorId: req.parentAnchorId,
+                siblingsGroupId: compatibleSiblingsGroupId
+              }
+            : admission.mode === 'append-live'
+              ? {
+                  mode: 'append',
+                  groupAnchorMessageId: admission.groupAnchorMessageId,
+                  parentAnchorId: req.parentAnchorId,
+                  siblingsGroupId: target.siblingsGroupId,
+                  activateFallback: false
+                }
+              : undefined,
+        preserveActiveNode: true
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -320,8 +656,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async prepareContinueDispatch(
     subscriber: StreamListener,
     req: MainContinueConversationRequest,
-    assistantId: string | undefined,
-    defaultModelId: UniqueModelId
+    assistantId: string | undefined
   ): Promise<PreparedDispatch> {
     const anchor = messageService.getById(req.parentAnchorId)
     if (anchor.role !== 'assistant') {
@@ -330,14 +665,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (anchor.topicId !== req.topicId) {
       throw new Error(`'continue-conversation' anchor does not belong to topic ${req.topicId}`)
     }
+    const knowledgeBaseIds = anchor.parentId
+      ? getKnowledgeBaseIdsFromParts(messageService.getById(anchor.parentId).data.parts ?? [])
+      : undefined
 
-    // Apply decisions to DB parts and flip status to `pending` so buildHistory sees the approved state.
+    // Apply decisions to DB parts and flip status to `pending` so resolveCompactedHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
     // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
-    const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
-    const [model] = resolveModels([continueModelId], defaultModelId)
+    const continueModelId = (anchor.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const [model] = resolveModels([continueModelId], continueModelId)
 
     // `ai.turn` span under the topic's container trace; end it explicitly if
     // anything below throws or it leaks.
@@ -346,10 +684,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [{ span: rootSpan }] = turnRootSpans
     try {
       messageService.update(req.parentAnchorId, {
-        data: { parts: updatedParts },
+        data: { ...anchor.data, parts: updatedParts },
         status: 'pending'
       })
 
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
@@ -357,11 +696,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           modelId: model.id,
           backend: new MessageServiceBackend({
             assistantMessageId: anchor.id,
-            modelSnapshot: anchor.modelSnapshot ?? {
-              id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-              name: model.name,
-              provider: model.providerId
-            }
+            turnOptions: anchor.data.turnOptions,
+            contextSettingsOverride
           }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
@@ -369,19 +705,37 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const history = this.buildHistory(anchor.id)
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+        anchor.id,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
       return {
         topicId: req.topicId,
         models: [
           {
             modelId: model.id,
-            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id, undefined),
+            runtimeTimingSeed: anchor.stats?.runtimeTiming,
+            request: this.buildStreamRequest(
+              req.topicId,
+              assistantId,
+              model.id,
+              history,
+              anchor.id,
+              knowledgeBaseIds,
+              anchor.data.turnOptions?.reasoningEffort,
+              anchor.data.turnOptions?.serviceTier,
+              anchor.data.turnOptions?.fastMode === true,
+              retainedContext
+            ),
             rootSpan
           }
         ],
         listeners,
-        siblingsGroupId: undefined,
-        isMultiModel: false
+        siblingsGroupId: undefined
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -397,8 +751,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async prepareSteerContinuation(
     subscriber: StreamListener,
     req: MainSteerContinuationRequest,
-    assistantId: string | undefined,
-    defaultModelId: UniqueModelId
+    assistantId: string | undefined
   ): Promise<PreparedDispatch> {
     const userMessage = messageService.getById(req.userMessageId)
     if (userMessage.role !== 'user') {
@@ -408,12 +761,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'steer-continuation' anchor does not belong to topic ${req.topicId}`)
     }
 
-    const steerModelId = (userMessage.modelId ?? defaultModelId) as UniqueModelId
-    const [model] = resolveModels([steerModelId], defaultModelId)
-    const modelSnapshot = {
-      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-      name: model.name,
-      provider: model.providerId
+    const steerModelId = (userMessage.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const [model] = resolveModels([steerModelId], steerModelId)
+    const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
+    const turnOptions: AssistantTurnOptions = {
+      reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
+      fastMode: req.fastMode
     }
 
     const containerTraceId = topicService.ensureTraceId(req.topicId)
@@ -423,35 +777,66 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const { placeholders } = messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: { mode: 'existing', id: req.userMessageId },
-        placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending', modelId: model.id, modelSnapshot }]
+        placeholders: [
+          {
+            role: 'assistant',
+            data: { parts: [], turnOptions },
+            status: 'pending',
+            modelId: model.id,
+            messageSnapshot
+          }
+        ]
       })
       const placeholder = placeholders[0]
 
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
           topicId: req.topicId,
           modelId: model.id,
-          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, modelSnapshot }),
+          backend: new MessageServiceBackend({
+            assistantMessageId: placeholder.id,
+            turnOptions,
+            contextSettingsOverride
+          }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
         new TraceFlushListener(req.topicId)
       ]
 
-      const history = withSteerReminder(this.buildHistory(req.userMessageId))
+      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
+        req.userMessageId,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
+      const history = withSteerReminder(compactedHistory)
       return {
         topicId: req.topicId,
         models: [
           {
             modelId: model.id,
-            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id, undefined),
+            request: this.buildStreamRequest(
+              req.topicId,
+              assistantId,
+              model.id,
+              history,
+              placeholder.id,
+              getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
+              req.reasoningEffort,
+              req.serviceTier,
+              req.fastMode,
+              retainedContext
+            ),
             rootSpan
           }
         ],
         listeners,
-        reservedMessages: [toReservedUIMessage(placeholder)],
-        isMultiModel: false
+        reservedMessages: [toReservedUIMessage(placeholder)]
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -459,18 +844,237 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
   }
 
+  private toRow(m: SharedMessage): CompactionRow {
+    return {
+      id: m.id,
+      role: m.role,
+      parts: (m.data?.parts ?? []) as CompactionRow['parts'],
+      compactionSummary: m.compactionSummary ?? undefined,
+      contextTokens: m.stats?.contextTokens ?? undefined
+    }
+  }
+
+  private toServed(row: CompactionRow): CherryUIMessage {
+    // Route the role through toContentRole to keep the virtual-root guard that the
+    // rest of this file relies on (a `root` row must never reach model history).
+    return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
+  }
+
+  private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {
+    return rows.reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
+  }
+
   /**
-   * Path from root → anchor. Anchor: user msg for submit/regenerate, or
-   * assistant msg for continue-conversation (so the model sees the
-   * approval-responded state).
+   * Trigger estimate for the served history. Anchors on the most recent assistant
+   * row in the served view that carries a real contextTokens (prior turn's last-step
+   * totalTokens), adding a tokenx estimate of only the rows after it. Falls back to a
+   * full tokenx estimate when no anchor exists or it was folded out by the marker.
    */
-  private buildHistory(anchorMessageId: string): CherryUIMessage[] {
+  private estimateContext(effective: CompactionRow[], dialect: TokenDialect): number {
+    let anchorIdx = -1
+    for (let i = effective.length - 1; i >= 0; i--) {
+      if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
+        anchorIdx = i
+        break
+      }
+    }
+    if (anchorIdx < 0) return this.estimateTotal(effective, dialect)
+    const base = effective[anchorIdx].contextTokens as number
+    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
+    return base + tail
+  }
+
+  /**
+   * Build the model-facing history for a turn, applying durable compaction.
+   * 1. Load the full path and discard rows through the latest explicit clear-context marker.
+   * 2. Preserve the remaining rows with ids/roles/compactionSummary.
+   * 3. Apply the DEEPEST marker on the path (a marker not on this path is ignored
+   *    → branch switches stay correct).
+   * 4. If over the trigger budget AND compression is enabled, snap a new keep
+   *    boundary to a `user` row, summarize everything older (folding the prior
+   *    summary), persist the summary onto the new boundary row, and serve the
+   *    compacted view. The tree is never structurally mutated; only a column is set.
+   */
+  private async resolveCompactedHistory(
+    anchorMessageId: string,
+    topicId: string,
+    models: Model[],
+    assistantId: string | undefined,
+    assistantContextOverride?: ContextSettingsOverride | null,
+    /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
+    compactionSink?: CompactionSink
+  ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
+    // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
+    // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
-    return messagePath.map((msg) => ({
-      id: msg.id,
-      role: toContentRole(msg.role),
-      parts: msg.data.parts ?? []
-    }))
+    const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
+    const rawMsgs = messagePath.slice(lastClearIndex + 1)
+    // Capability state from the RAW path: compaction folds file parts and tool
+    // outputs out of the served view, so scanning served messages downstream
+    // would silently drop read_file for folded attachments (finding #2) and
+    // fs_read for folded persisted outputs. `rawUI` is mapped ONCE and sliced
+    // for the manifest prefixes below — handle dedup is a left-to-right fold,
+    // so a slice's handles match the full pass only when both share this array.
+    const rawUI = rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage)
+    const retainedContext = collectRetainedContext(rawUI)
+    const rows = rawMsgs.map((m) => this.toRow(m))
+    // Manifest handles cover ONLY the rows folded behind the boundary: live
+    // attachments still ride served messages as file parts, and scoping the
+    // manifest to the folded prefix makes the summary-row bytes a pure
+    // function of the boundary — attaching a file later never rewrites them
+    // (provider prefix caches hold).
+    const d = findDeepestMarker(rows)
+    const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
+    // A folded marker's blob stays allow-listed, so the summary must name its
+    // path or the model holds fs_read with no legal argument.
+    const manifestPaths = (endIdx: number) => [...collectPersistedOutputPaths(rawUI.slice(0, endIdx + 1))]
+    const effective = applyDeepestMarker(
+      rows,
+      d >= 0 ? manifestHandles(d) : undefined,
+      d >= 0 ? manifestPaths(d) : undefined
+    )
+
+    // A user-drawn window, unlike a space-saving fold, must also revoke
+    // read_file / fs_read access to whatever slid out of it.
+    const retainedForWindow = (windowed: CompactionRow[]): RetainedContext => {
+      const servedIds = new Set(windowed.map((r) => r.id))
+      return collectRetainedContext(rawUI.filter((_, i) => servedIds.has(rawMsgs[i].id)))
+    }
+
+    const { contextSettings, compressionModel } = await resolveRequestContextSettings(
+      models[0],
+      assistantContextOverride
+    )
+    const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
+    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    // NOT gated on `contextSettings.enabled`: that switch owns the overflow
+    // policy, while this decides how much history is sent at all.
+    if (contextSettings.maxMessages != null) {
+      // RAW rows, no compaction state: a summary covers everything up to its
+      // boundary, so serving one would carry pre-window content back in.
+      const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
+      return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
+    }
+    if (!on) return serve(effective)
+    if (!compressionModel) return serve(effective)
+
+    // `contextWindow` is optional on `Model` (custom / v1-imported / CherryAI
+    // rows can omit it). Without one there is no budget to compact against —
+    // and an `as number` cast here made every derived budget `NaN`, which
+    // silently disabled compaction instead of triggering it. Serve as-is; the
+    // persist lane still bounds tool outputs by the character setting.
+    const minContextWindow = resolveMinContextWindow(models.map((m) => m.contextWindow))
+    if (minContextWindow === null) {
+      logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
+      return serve(effective)
+    }
+    // Against the room the PROMPT actually has: whatever this request declares
+    // as max_tokens is billed alongside the input, so it is not history's to use.
+    const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
+    // Selects the media cost tables only; text stays on tokenx, matching the
+    // in-loop hook so the two triggers cannot disagree on the same history.
+    const dialect = resolveRowDialect(models[0])
+    if (this.estimateContext(effective, dialect) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+      return serve(effective)
+    }
+
+    const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
+    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO), dialect)
+    // Over-budget-without-compacting edge: when everything in `recent` fits the keep
+    // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
+    // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
+    // missed compaction — the in-loop `prepareStep` hook owns this case as the second
+    // safety net (see inLoopCompaction; the no-double-compact test pins the interaction).
+    if (keepIdx === null) return serve(effective)
+
+    const boundary = recent[keepIdx - 1] // real row before the kept user row
+
+    const oldSummary = d >= 0 ? rows[d].compactionSummary : undefined
+    // Declared before the try so the catch can settle the anchor it opened:
+    // this summarize call runs BEFORE the model stream, so without an explicit
+    // clear a failed fold would leave "compacting…" pinned on a live turn.
+    const startedAt = new Date().toISOString()
+    const preTokens = this.estimateContext(effective, dialect)
+    // One id per fold: a turn can compact several times, and a shared id would
+    // make each later fold overwrite the previous one's anchor.
+    const anchorId = compactionAnchorChunkId()
+    try {
+      // Fold = the older slice of `recent` (before the keep boundary). Convert those rows
+      // to served UIMessages, then to ModelMessages via the shared pipeline. (messageConverter
+      // + its prepareModelMessages were removed in main #16257; toModelMessages is the successor.)
+      const realModelMessages = await toModelMessages(recent.slice(0, keepIdx).map((r) => this.toServed(r)))
+      const modelMessages: ModelMessage[] = [
+        ...(oldSummary
+          ? [{ role: 'user' as const, content: ContextPrompts.getCompactSummaryWrapper(oldSummary) }]
+          : []),
+        ...realModelMessages
+      ]
+      // Budget the summarize call against the window it is meant to protect:
+      // its input carries whole tool outputs, so without a cap the compression
+      // request can itself exceed the window (starving the output budget until
+      // the model returns no summary at all — the empty-summary path below).
+      // The window that matters here is the COMPRESSOR's, not the request
+      // model's: an explicitly picked 8k compressor on a 128k chat would
+      // otherwise be handed a 128k-derived budget and overflow immediately.
+      const compressionWindow = compressionModel.contextWindow ?? minContextWindow
+      const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+      compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
+      const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
+        maxOutputTokens,
+        maxInputTokens: Math.max(
+          COMPACTION_MIN_INPUT_BUDGET,
+          Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+        )
+      })
+      // Every exit below clears the spinner — a fold that produced nothing and a
+      // fold that threw both continue with un-compacted history, so leaving
+      // "compacting…" on screen would misreport a turn that is really running.
+      const settle = (extra?: Partial<CompactionAnchorData>) => {
+        const completedAt = new Date().toISOString()
+        compactionSink?.(anchorId, {
+          status: 'done',
+          phase: 'turn-start',
+          startedAt,
+          completedAt,
+          durationMs: Date.parse(completedAt) - Date.parse(startedAt),
+          preTokens,
+          ...extra
+        })
+      }
+      // A fold that changed nothing (empty summary) or threw is served with UN-compacted
+      // history, so it must settle as `skipped` (metric-free) — settling `done` here is exactly
+      // what makes an untouched history render a false "context compacted" marker.
+      const skip = () =>
+        compactionSink?.(anchorId, {
+          status: 'skipped',
+          phase: 'turn-start',
+          startedAt,
+          completedAt: new Date().toISOString()
+        })
+      if (!summary) {
+        logger.warn('durable compaction yielded empty summary; serving marker-applied history', { topicId })
+        skip()
+        return serve(effective)
+      }
+      messageService.setCompactionSummary(boundary.id, summary)
+      // Boundary index in rawUI: recent = rows.slice(d + 1), boundary = recent[keepIdx - 1].
+      const served = [
+        summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
+        ...recent.slice(keepIdx)
+      ]
+      settle({ postTokens: this.estimateContext(served, dialect), foldedCount: keepIdx })
+      return serve(served)
+    } catch (error) {
+      logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
+      // Un-compacted history served → settle `skipped`, not `done` (no false marker).
+      compactionSink?.(anchorId, {
+        status: 'skipped',
+        phase: 'turn-start',
+        startedAt,
+        completedAt: new Date().toISOString()
+      })
+      return serve(effective)
+    }
   }
 
   private buildStreamRequest(
@@ -479,7 +1083,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     uniqueModelId: UniqueModelId,
     history: CherryUIMessage[],
     messageId: string,
-    knowledgeBaseIds: string[] | undefined
+    knowledgeBaseIds: string[] | undefined,
+    reasoningEffort: AiStreamRequest['reasoningEffort'],
+    serviceTier: AiStreamRequest['serviceTier'],
+    fastMode: boolean,
+    retainedContext?: RetainedContext
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -488,7 +1096,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       uniqueModelId,
       messages: history,
       messageId,
-      knowledgeBaseIds
+      knowledgeBaseIds,
+      reasoningEffort,
+      serviceTier,
+      fastMode,
+      ...(retainedContext ? { retainedContext } : {})
     }
   }
 }

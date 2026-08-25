@@ -1,13 +1,60 @@
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CreateKnowledgeBaseDialog from '../CreateKnowledgeBaseDialog'
 
+const mockIpcRequest = vi.fn()
+const mockSettingsNavigate = vi.fn()
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (...args: unknown[]) => mockIpcRequest(...args)
+  }
+}))
+
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classNames: Array<string | false | null | undefined>) => classNames.filter(Boolean).join(' ')
+}))
+
+vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
+    value,
+    placeholder,
+    noneOptionLabel,
+    onChange,
+    onSettingsNavigate,
+    'aria-label': ariaLabel
+  }: {
+    value: string | null
+    placeholder: string
+    noneOptionLabel?: string
+    onChange: (modelId: string | null) => void
+    onSettingsNavigate?: (navigate: () => void) => void
+    'aria-label'?: string
+  }) => (
+    <>
+      <input
+        aria-label={ariaLabel ?? placeholder}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      />
+      <button type="button" onClick={() => onSettingsNavigate?.(mockSettingsNavigate)}>
+        open model settings
+      </button>
+      <button type="button" onClick={() => onChange('local-embedding::qwen3-embedding-0.6b')}>
+        local-model-option
+      </button>
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
+    </>
+  )
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -90,12 +137,16 @@ vi.mock('react-i18next', () => ({
         ({
           'common.name': '名称',
           'common.cancel': '取消',
+          'common.clear': '清除',
           'knowledge.add.title': '新建知识库',
           'knowledge.add.group': '分组',
           'knowledge.add.submit': '创建',
+          'knowledge.embedding_model': '嵌入模型',
           'knowledge.name_required': '知识库名称为必填项',
           'knowledge.error.failed_to_create': '知识库创建失败',
-          'knowledge.groups.default': '默认'
+          'knowledge.groups.default': '默认',
+          'knowledge.rag.rerank_disabled': '不使用',
+          'message.error.get_embedding_dimensions': '获取嵌入维度失败'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -134,6 +185,8 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
 describe('CreateKnowledgeBaseDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // The embedding dimensions probe goes through ipcApi.request('ai.embedding.embed_many', …).
+    mockIpcRequest.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
   })
 
   it('does not submit when the name is empty', async () => {
@@ -157,7 +210,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.getByText('知识库名称为必填项')).toBeInTheDocument()
   })
 
-  it('does not render an embedding model field because it is configured later in settings', () => {
+  it('renders the embedding model field as optional', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -169,7 +222,10 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.queryByLabelText('嵌入模型')).not.toBeInTheDocument()
+    expect(screen.getByText('嵌入模型')).toBeInTheDocument()
+    expect(screen.getByLabelText('嵌入模型')).toHaveValue('')
+    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
+    expect(screen.queryByText('未设置')).not.toBeInTheDocument()
   })
 
   it('renders all required fields and actions when a knowledge base is being created', () => {
@@ -187,6 +243,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.getByRole('heading', { name: '新建知识库' })).toBeInTheDocument()
     expect(screen.getByText('名称')).toBeInTheDocument()
     expect(screen.getByLabelText('名称')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('名称')).toBeInTheDocument()
     expect(screen.queryByText('分组')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '创建' })).toBeInTheDocument()
@@ -357,5 +414,159 @@ describe('CreateKnowledgeBaseDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base', groupId: 'group-2' }))
+  })
+
+  it('creates a BM25-only base without probing dimensions after clearing a picked embedding model', async () => {
+    const user = userEvent.setup()
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+    await user.click(screen.getByRole('button', { name: '不使用' }))
+    await user.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base' }))
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it('submits the picked embedding model together with its probed dimensions', async () => {
+    const createBase = vi
+      .fn()
+      .mockResolvedValue(createKnowledgeBase({ embeddingModelId: 'openai::text-embedding-3-small', dimensions: 1536 }))
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(createBase).toHaveBeenCalledWith({
+        name: 'My Base',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 1536
+      })
+    )
+    expect(mockIpcRequest).toHaveBeenCalledWith('ai.embedding.embed_many', {
+      uniqueModelId: 'openai::text-embedding-3-small',
+      values: ['test']
+    })
+  })
+
+  it('keeps the local embedding entry inside the model selector', () => {
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'local-model-option' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+
+    expect(screen.getByRole('button', { name: 'local-model-option' })).toBeInTheDocument()
+  })
+
+  it('submits the local embedding model with its fixed dimensions and no probe', async () => {
+    const createBase = vi.fn().mockResolvedValue(
+      createKnowledgeBase({
+        embeddingModelId: 'local-embedding::qwen3-embedding-0.6b',
+        dimensions: 1024
+      })
+    )
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.click(screen.getByRole('button', { name: 'local-model-option' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(createBase).toHaveBeenCalledWith({
+        name: 'My Base',
+        embeddingModelId: 'local-embedding::qwen3-embedding-0.6b',
+        dimensions: 1024
+      })
+    )
+    // The local model runs in-process with a known dimension, so it is never probed.
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps the dialog open and reports the error when probing dimensions fails', async () => {
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+    const onOpenChange = vi.fn()
+    mockIpcRequest.mockRejectedValue(new Error('probe failed'))
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={onOpenChange}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('获取嵌入维度失败: probe failed'))
+    expect(createBase).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('closes the dialog before navigating to the model settings', () => {
+    const onOpenChange = vi.fn()
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
+        onOpenChange={onOpenChange}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open model settings' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

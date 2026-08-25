@@ -1,17 +1,17 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import {
   calculateModelListDerivedState,
   countModelsInGroups,
   groupModels,
-  MODEL_LIST_CAPABILITY_FILTERS,
+  type ModelGroups,
   type ModelListCapabilityCounts,
-  type ModelListCapabilityFilter,
-  type ModelSections
+  type ModelListCapabilityFilter
 } from './modelListDerivedState'
 
 export interface ModelListGroupItem {
@@ -24,18 +24,14 @@ export interface ModelListGroupSection {
 }
 
 export interface ProviderModelListHeaderSurface {
-  enabledModelCount: number
   modelCount: number
   hasVisibleModels: boolean
-  allEnabled: boolean
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
-  selectedCapabilityFilter: ModelListCapabilityFilter
-  setSelectedCapabilityFilter: (filter: ModelListCapabilityFilter) => void
-  capabilityOptions: readonly ModelListCapabilityFilter[]
-  capabilityModelCounts: ModelListCapabilityCounts
-  onToggleVisibleModels: (enabled: boolean) => Promise<void>
+  selectedTypeFilter: ModelListCapabilityFilter
+  setSelectedTypeFilter: (filter: ModelListCapabilityFilter) => void
+  typeCounts: ModelListCapabilityCounts
 }
 
 export interface ProviderModelListSectionsSurface {
@@ -44,15 +40,12 @@ export interface ProviderModelListSectionsSurface {
   hasVisibleModels: boolean
   displayEnabledModelCount: number
   enabledSections: ModelListGroupSection[]
-  disabledSections: ModelListGroupSection[]
-  displayDisabledModelCount: number
   disabled: boolean
   pendingModelIds: Set<string>
+  defaultModelIds: Set<UniqueModelId>
   onEditModel: (model: Model) => void
   onDeleteModel: (model: Model) => Promise<void>
   onDeleteModels: (models: Model[]) => Promise<void>
-  onToggleModel: (model: Model, enabled: boolean) => Promise<void>
-  onToggleModels: (models: Model[], enabled: boolean) => Promise<void>
 }
 
 interface UseProviderModelListArgs {
@@ -62,12 +55,11 @@ interface UseProviderModelListArgs {
 }
 
 type DisplayedSectionState = {
-  sections: ModelSections
+  groups: ModelGroups
   displayEnabledModelCount: number
-  displayDisabledModelCount: number
 }
 
-const toGroupSections = (groups: ModelSections['enabled']): ModelListGroupSection[] => {
+const toGroupSections = (groups: ModelGroups): ModelListGroupSection[] => {
   return Object.entries(groups).map(([groupName, models]) => ({
     groupName,
     items: models.map((model) => ({ model }))
@@ -91,37 +83,34 @@ const withPrunedModelIds = <T>(entries: Record<string, T>, validIds: Set<string>
 }
 
 export function useProviderModelList({ providerId, disabled = false }: UseProviderModelListArgs) {
-  const { models, isLoading: isModelsLoading } = useModels(
-    { providerId },
-    { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
-  )
-  const { deleteModel, deleteModels, updateModel, updateModels } = useModelMutations()
+  const {
+    models,
+    isLoading: isModelsLoading,
+    refetch: refetchModels
+  } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
+  const { deleteModel, deleteModels } = useModelMutations()
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
+  const [translateModelId] = usePreference('feature.translate.model_id')
   const [searchInputText, setSearchInputText] = useState('')
   const searchText = useDeferredValue(searchInputText)
-  const [selectedCapabilityFilter, setSelectedCapabilityFilterState] = useState<ModelListCapabilityFilter>('all')
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<ModelListCapabilityFilter>('all')
   const [editingModel, setEditingModel] = useState<Model | null>(null)
-  const [isBulkUpdating, setIsBulkUpdating] = useState(false)
-  const [optimisticEnabledByModelId, setOptimisticEnabledByModelId] = useState<Record<string, boolean>>({})
   const [optimisticDeletedByModelId, setOptimisticDeletedByModelId] = useState<Record<string, true>>({})
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
-
-  const setSelectedCapabilityFilter = useCallback((filter: ModelListCapabilityFilter) => {
-    startTransition(() => {
-      setSelectedCapabilityFilterState(filter)
-    })
-  }, [])
-
-  const modelById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
-  const optimisticModels = useMemo(
+  const defaultModelIds = useMemo(
     () =>
-      models
-        .filter((model) => !optimisticDeletedByModelId[model.id])
-        .map((model) =>
-          optimisticEnabledByModelId[model.id] === undefined
-            ? model
-            : { ...model, isEnabled: optimisticEnabledByModelId[model.id] }
-        ),
-    [models, optimisticDeletedByModelId, optimisticEnabledByModelId]
+      new Set(
+        [defaultModelId, quickAssistantModelId, translateModelId].filter(
+          (modelId): modelId is UniqueModelId => modelId != null
+        )
+      ),
+    [defaultModelId, quickAssistantModelId, translateModelId]
+  )
+
+  const optimisticModels = useMemo(
+    () => models.filter((model) => !optimisticDeletedByModelId[model.id]),
+    [models, optimisticDeletedByModelId]
   )
 
   const derivedState = useMemo(
@@ -129,82 +118,62 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       calculateModelListDerivedState({
         models: optimisticModels,
         searchText,
-        selectedCapabilityFilter,
+        selectedCapabilityFilter: selectedTypeFilter,
         modelStatuses: []
       }),
-    [optimisticModels, searchText, selectedCapabilityFilter]
+    [optimisticModels, searchText, selectedTypeFilter]
   )
-
-  useEffect(() => {
-    if (selectedCapabilityFilter === 'all') {
-      return
-    }
-
-    if ((derivedState.capabilityModelCounts[selectedCapabilityFilter] ?? 0) === 0) {
-      setSelectedCapabilityFilter('all')
-    }
-  }, [derivedState.capabilityModelCounts, selectedCapabilityFilter, setSelectedCapabilityFilter])
 
   useEffect(() => {
     const validModelIds = new Set(models.map((model) => model.id))
 
     setPendingModelIdMap((current) => withPrunedModelIds(current, validModelIds))
     setOptimisticDeletedByModelId((current) => withPrunedModelIds(current, validModelIds))
-    setOptimisticEnabledByModelId((current) => {
-      const pruned = withPrunedModelIds(current, validModelIds)
-      let changed = pruned !== current
-      const next = pruned === current ? { ...current } : { ...pruned }
-
-      for (const [modelId, optimisticEnabled] of Object.entries(next)) {
-        if (pendingModelIdMap[modelId]) {
-          continue
-        }
-
-        if (modelById.get(modelId as Model['id'])?.isEnabled === optimisticEnabled) {
-          delete next[modelId]
-          changed = true
-        }
-      }
-
-      return changed ? next : current
-    })
-  }, [modelById, models, pendingModelIdMap])
+  }, [models])
 
   const displayState = useMemo<DisplayedSectionState>(() => {
-    const enabledModels: Model[] = []
-    const disabledModels: Model[] = []
     const preserveGroupOrder = Boolean(searchText.trim())
-
-    for (const model of derivedState.filteredModels) {
-      if (model.isEnabled) {
-        enabledModels.push(model)
-      } else {
-        disabledModels.push(model)
-      }
-    }
-
-    const sections: ModelSections = {
-      enabled: groupModels(enabledModels, preserveGroupOrder),
-      disabled: groupModels(disabledModels, preserveGroupOrder)
-    }
+    const groups = groupModels(derivedState.filteredModels, preserveGroupOrder, { preferModelGroup: true })
 
     return {
-      sections,
-      displayEnabledModelCount: countModelsInGroups(sections.enabled),
-      displayDisabledModelCount: countModelsInGroups(sections.disabled)
+      groups,
+      displayEnabledModelCount: countModelsInGroups(groups)
     }
   }, [derivedState.filteredModels, searchText])
 
-  const openEditModelDrawer = useCallback((model: Model) => {
-    setEditingModel(model)
-  }, [])
+  const openEditModelDrawer = useCallback(
+    (model: Model) => {
+      if (!disabled) setEditingModel(model)
+    },
+    [disabled]
+  )
 
   const closeEditModelDrawer = useCallback(() => {
     setEditingModel(null)
   }, [])
 
+  const confirmModelsDeleted = useCallback(
+    async (modelIds: readonly UniqueModelId[]) => {
+      try {
+        const refreshedModels = (await refetchModels()) as readonly Model[] | undefined
+        if (!refreshedModels) return false
+
+        const refreshedModelIds = new Set(refreshedModels.map((model) => model.id))
+        return modelIds.every((modelId) => !refreshedModelIds.has(modelId))
+      } catch {
+        return false
+      }
+    },
+    [refetchModels]
+  )
+
   const onDeleteModel = useCallback(
     async (model: Model) => {
+      if (disabled) return
+      if (defaultModelIds.has(model.id)) {
+        return
+      }
+
       const { modelId } = parseUniqueModelId(model.id)
 
       setOptimisticDeletedByModelId((current) => ({ ...current, [model.id]: true }))
@@ -213,13 +182,15 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       try {
         await deleteModel(model.providerId, modelId)
       } catch (error) {
+        const deletionConfirmed = await confirmModelsDeleted([model.id])
+
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
           delete next[model.id]
           return next
         })
 
-        throw error
+        if (!deletionConfirmed) throw error
       } finally {
         setPendingModelIdMap((current) => {
           const next = { ...current }
@@ -228,19 +199,22 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [deleteModel]
+    [confirmModelsDeleted, defaultModelIds, deleteModel, disabled]
   )
 
   const onDeleteModels = useCallback(
     async (modelsToDelete: Model[]) => {
-      if (modelsToDelete.length === 0) {
+      if (disabled) return
+      const deletableModels = modelsToDelete.filter((model) => !defaultModelIds.has(model.id))
+      if (deletableModels.length === 0) {
         return
       }
+      const deletableModelIds = deletableModels.map((model) => model.id)
 
       setOptimisticDeletedByModelId((current) => {
         const next = { ...current }
 
-        for (const model of modelsToDelete) {
+        for (const model of deletableModels) {
           next[model.id] = true
         }
 
@@ -249,7 +223,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       setPendingModelIdMap((current) => {
         const next = { ...current }
 
-        for (const model of modelsToDelete) {
+        for (const model of deletableModels) {
           next[model.id] = true
         }
 
@@ -257,24 +231,26 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       })
 
       try {
-        await deleteModels(modelsToDelete.map((model) => model.id))
+        await deleteModels(deletableModelIds)
       } catch (error) {
+        const deletionConfirmed = await confirmModelsDeleted(deletableModelIds)
+
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
 
-          for (const model of modelsToDelete) {
-            delete next[model.id]
+          for (const modelId of deletableModelIds) {
+            delete next[modelId]
           }
 
           return next
         })
 
-        throw error
+        if (!deletionConfirmed) throw error
       } finally {
         setPendingModelIdMap((current) => {
           const next = { ...current }
 
-          for (const model of modelsToDelete) {
+          for (const model of deletableModels) {
             delete next[model.id]
           }
 
@@ -282,150 +258,21 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [deleteModels]
+    [confirmModelsDeleted, defaultModelIds, deleteModels, disabled]
   )
 
-  const onToggleModel = useCallback(
-    async (model: Model, enabled: boolean) => {
-      const { modelId } = parseUniqueModelId(model.id)
-      const previousEnabled = optimisticEnabledByModelId[model.id] ?? model.isEnabled
-
-      setOptimisticEnabledByModelId((current) => ({ ...current, [model.id]: enabled }))
-      setPendingModelIdMap((current) => ({ ...current, [model.id]: true }))
-
-      try {
-        await updateModel(model.providerId, modelId, { isEnabled: enabled })
-      } catch (error) {
-        setOptimisticEnabledByModelId((current) => {
-          const next = { ...current }
-
-          if (previousEnabled === model.isEnabled) {
-            delete next[model.id]
-          } else {
-            next[model.id] = previousEnabled
-          }
-
-          return next
-        })
-
-        throw error
-      } finally {
-        setPendingModelIdMap((current) => {
-          const next = { ...current }
-          delete next[model.id]
-          return next
-        })
-      }
-    },
-    [optimisticEnabledByModelId, updateModel]
-  )
-
-  const onToggleModels = useCallback(
-    async (modelsToToggle: Model[], enabled: boolean) => {
-      const targetModels = modelsToToggle.filter((model) => model.isEnabled !== enabled)
-
-      if (targetModels.length === 0) {
-        return
-      }
-
-      const targetStates = targetModels.map((model) => {
-        const previousEnabled = optimisticEnabledByModelId[model.id] ?? model.isEnabled
-
-        return {
-          model,
-          previousEnabled
-        }
-      })
-
-      setOptimisticEnabledByModelId((current) => {
-        const next = { ...current }
-
-        for (const { model } of targetStates) {
-          next[model.id] = enabled
-        }
-
-        return next
-      })
-      setPendingModelIdMap((current) => {
-        const next = { ...current }
-
-        for (const { model } of targetStates) {
-          next[model.id] = true
-        }
-
-        return next
-      })
-
-      setIsBulkUpdating(true)
-
-      try {
-        // `PATCH /models` is atomic: either every row commits or the whole
-        // transaction rolls back, so there is no partial-failure branch.
-        await updateModels(
-          targetStates.map(({ model }) => ({
-            uniqueModelId: model.id,
-            patch: { isEnabled: enabled }
-          }))
-        )
-      } catch (error) {
-        setOptimisticEnabledByModelId((current) => {
-          const next = { ...current }
-
-          for (const { model, previousEnabled } of targetStates) {
-            if (previousEnabled === model.isEnabled) {
-              delete next[model.id]
-            } else {
-              next[model.id] = previousEnabled
-            }
-          }
-
-          return next
-        })
-
-        throw error
-      } finally {
-        setPendingModelIdMap((current) => {
-          const next = { ...current }
-
-          for (const { model } of targetStates) {
-            delete next[model.id]
-          }
-
-          return next
-        })
-        setIsBulkUpdating(false)
-      }
-    },
-    [optimisticEnabledByModelId, updateModels]
-  )
-
-  const onToggleVisibleModels = useCallback(
-    async (enabled: boolean) => {
-      await onToggleModels(derivedState.filteredModels, enabled)
-    },
-    [derivedState.filteredModels, onToggleModels]
-  )
-
-  const enabledSections = useMemo(() => toGroupSections(displayState.sections.enabled), [displayState.sections.enabled])
-  const disabledSections = useMemo(
-    () => toGroupSections(displayState.sections.disabled),
-    [displayState.sections.disabled]
-  )
+  const enabledSections = useMemo(() => toGroupSections(displayState.groups), [displayState.groups])
   const pendingModelIds = useMemo(() => new Set(Object.keys(pendingModelIdMap)), [pendingModelIdMap])
 
   const header: ProviderModelListHeaderSurface = {
-    enabledModelCount: derivedState.enabledModelCount,
     modelCount: derivedState.modelCount,
     hasVisibleModels: derivedState.hasVisibleModels,
-    allEnabled: derivedState.allEnabled,
     hasNoModels: derivedState.hasNoModels,
     searchText: searchInputText,
     setSearchText: setSearchInputText,
-    selectedCapabilityFilter,
-    setSelectedCapabilityFilter,
-    capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-    capabilityModelCounts: derivedState.capabilityModelCounts,
-    onToggleVisibleModels
+    selectedTypeFilter,
+    setSelectedTypeFilter,
+    typeCounts: derivedState.capabilityModelCounts
   }
 
   const sections: ProviderModelListSectionsSurface = {
@@ -434,15 +281,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     hasVisibleModels: derivedState.hasVisibleModels,
     displayEnabledModelCount: displayState.displayEnabledModelCount,
     enabledSections,
-    disabledSections,
-    displayDisabledModelCount: displayState.displayDisabledModelCount,
     disabled,
     pendingModelIds,
+    defaultModelIds,
     onEditModel: openEditModelDrawer,
     onDeleteModel,
-    onDeleteModels,
-    onToggleModel,
-    onToggleModels
+    onDeleteModels
   }
 
   return {
@@ -452,8 +296,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       open: editingModel !== null,
       model: editingModel,
       onClose: closeEditModelDrawer
-    },
-    isBulkUpdating
+    }
   }
 }
 

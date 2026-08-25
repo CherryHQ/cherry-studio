@@ -1,11 +1,18 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
+import { useCommandContextKey } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import {
+  DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
+  miniAppIdFromTabUrl,
+  trimMiniAppKeepAlive
+} from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
-import React, { useEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across
@@ -19,11 +26,31 @@ import React, { useEffect, useMemo, useRef } from 'react'
  *  - All other webviews stay mounted but display:none (keep-alive)
  */
 const logger = loggerService.withContext('MiniAppTabsPool')
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
+
+/**
+ * Horizontal placement of one pane. Only the CSS box changes between split and
+ * full width — the `<webview>` node itself never moves in the DOM, which would
+ * blank its content on reattach.
+ */
+function paneGeometry(isSplit: boolean, isPrimary: boolean, isSecondary: boolean): string {
+  if (!isSplit) return 'left-0 w-full'
+  if (isPrimary) return 'left-0 w-1/2'
+  if (isSecondary) return 'left-1/2 w-1/2'
+  return 'left-0 w-full'
+}
 
 const MiniAppTabsPool: React.FC = () => {
-  const { openedKeepAliveMiniApps, currentMiniAppId, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow } =
-    useMiniApps()
+  const {
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    splitOpen,
+    splitMiniAppId,
+    setOpenedKeepAliveMiniApps,
+    setCurrentMiniAppId,
+    setMiniAppShow
+  } = useMiniApps()
+  const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
+  const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
   // Read the active tab's URL from the v2 tabs cache. We can't use the
   // `@tanstack/react-router` `useLocation` here — the Pool sits above the
   // per-tab MemoryRouter, with no Router context.
@@ -35,27 +62,49 @@ const MiniAppTabsPool: React.FC = () => {
   const tabMiniAppIds = useMemo(() => {
     const ids = new Set<string>()
     for (const tab of tabs) {
-      if (!tab.url.startsWith(MINI_APP_ROUTE_PREFIX)) continue
-      const id = tab.url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
+      const id = miniAppIdFromTabUrl(tab.url)
       if (id) ids.add(id)
     }
     return ids
   }, [tabs])
 
-  const activeTabMiniAppId = useMemo(() => {
-    const url = tabs.find((t) => t.id === activeTabId)?.url
-    if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return null
-    return url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0] || null
-  }, [tabs, activeTabId])
+  // One `<webview>` cannot render in two panes, and switching tabs can make the
+  // active app equal the split one, so drop the split instead of blanking a pane.
+  const paneSplitId = splitOpen && splitMiniAppId !== currentMiniAppId ? splitMiniAppId : ''
 
-  // Show only when the active tab's URL points at a specific miniapp detail.
-  const shouldShow = useMemo(() => {
+  const activeMiniAppId = useMemo(() => {
     const url = tabs.find((t) => t.id === activeTabId)?.url ?? ''
-    if (url === '/app/mini-app') return false
-    if (!url.startsWith('/app/mini-app/')) return false
-    const parts = url.split('/').filter(Boolean) // ['app', 'mini-app', '<id>', ...]
-    return parts.length >= 3
+    return miniAppIdFromTabUrl(url)
   }, [tabs, activeTabId])
+  const shouldShow = activeMiniAppId !== null
+
+  // Reconcile retention here, not in MiniAppPage: the pool remains mounted when
+  // the hard tab fuse hibernates every route that could otherwise run that hook.
+  const protectedAppIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (activeMiniAppId) ids.add(activeMiniAppId)
+    for (const tab of tabs) {
+      if (!tab.isPinned || tab.isDormant) continue
+      const appId = miniAppIdFromTabUrl(tab.url)
+      if (appId) ids.add(appId)
+    }
+    // The split pane's app owns no tab of its own, so nothing else keeps this
+    // retention pass from evicting the webview shown beside the active one.
+    if (splitOpen && splitMiniAppId) ids.add(splitMiniAppId)
+    return ids
+  }, [activeMiniAppId, splitMiniAppId, splitOpen, tabs])
+  const retention = useMemo(
+    () => trimMiniAppKeepAlive(openedKeepAliveMiniApps, cap, protectedAppIds),
+    [cap, openedKeepAliveMiniApps, protectedAppIds]
+  )
+
+  // Commit the render-time retention decision before MiniAppPage passive
+  // effects can add or touch entries in the shared keep-alive cache.
+  useLayoutEffect(() => {
+    if (retention.evicted.length === 0) return
+    setOpenedKeepAliveMiniApps(retention.keep)
+    for (const app of retention.evicted) clearWebviewState(app.appId)
+  }, [retention, setOpenedKeepAliveMiniApps])
 
   // Render the pool in a stable order (by appId), independent of the LRU
   // ordering inside `openedKeepAliveMiniApps`. Order in the cache is correct
@@ -65,13 +114,13 @@ const MiniAppTabsPool: React.FC = () => {
   // (known platform limitation). A stable sort breaks that link: every
   // surviving webview keeps the same DOM position across reorders, so
   // switching tabs never re-loads.
-  const appMetadataSignature = openedKeepAliveMiniApps
+  const appMetadataSignature = retention.keep
     .map((a) => JSON.stringify([a.appId, a.url]))
     .sort()
     .join('|')
 
   const apps = useMemo(() => {
-    const sorted = [...openedKeepAliveMiniApps]
+    const sorted = [...retention.keep]
     sorted.sort((a, b) => (a.appId < b.appId ? -1 : a.appId > b.appId ? 1 : 0))
     return sorted
     // The metadata hash captures membership and webview URL values without
@@ -81,16 +130,18 @@ const MiniAppTabsPool: React.FC = () => {
   }, [appMetadataSignature])
 
   useEffect(() => {
-    const orphanedApps = openedKeepAliveMiniApps.filter((app) => !tabMiniAppIds.has(app.appId))
+    // The split pane's app owns no tab of its own, so it is exempt from orphan cleanup.
+    const isReferenced = (appId: string) => tabMiniAppIds.has(appId) || (splitOpen && appId === splitMiniAppId)
+    const orphanedApps = openedKeepAliveMiniApps.filter((app) => !isReferenced(app.appId))
     if (orphanedApps.length === 0) return
 
-    setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => tabMiniAppIds.has(app.appId)))
+    setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => isReferenced(app.appId)))
     for (const app of orphanedApps) clearWebviewState(app.appId)
 
     if (!orphanedApps.some((app) => app.appId === currentMiniAppId)) return
 
-    if (activeTabMiniAppId && openedKeepAliveMiniApps.some((app) => app.appId === activeTabMiniAppId)) {
-      setCurrentMiniAppId(activeTabMiniAppId)
+    if (activeMiniAppId && openedKeepAliveMiniApps.some((app) => app.appId === activeMiniAppId)) {
+      setCurrentMiniAppId(activeMiniAppId)
       setMiniAppShow(true)
       return
     }
@@ -98,43 +149,57 @@ const MiniAppTabsPool: React.FC = () => {
     setCurrentMiniAppId('')
     setMiniAppShow(false)
   }, [
-    activeTabMiniAppId,
+    activeMiniAppId,
     currentMiniAppId,
     openedKeepAliveMiniApps,
     setCurrentMiniAppId,
     setMiniAppShow,
     setOpenedKeepAliveMiniApps,
+    splitMiniAppId,
+    splitOpen,
     tabMiniAppIds
   ])
 
   /** 设置 ref 回调 */
-  const handleSetRef = (appid: string, el: WebviewTag | null) => {
+  const handleSetRef = useCallback((appid: string, el: WebviewTag | null) => {
     if (el) {
       webviewRefs.current.set(appid, el)
     } else {
       webviewRefs.current.delete(appid)
     }
-  }
+  }, [])
 
   /** WebView 加载完成回调 */
-  const handleLoaded = (appid: string) => {
+  const handleLoaded = useCallback((appid: string) => {
     setWebviewLoaded(appid, true)
     logger.debug(`TabPool webview loaded: ${appid}`)
-  }
+  }, [])
 
   /** Record navigation (URL state not yet exposed; can integrate with global URL Map later) */
-  const handleNavigate = (appid: string, url: string) => {
+  const handleNavigate = useCallback((appid: string, url: string) => {
     logger.debug(`TabPool webview navigate: ${appid} -> ${url}`)
-  }
+  }, [])
 
-  /** Toggle display: only the active one is visible, the rest are hidden */
+  // The context key is registered here rather than per pane: every container's effect
+  // stays alive for the pool's lifetime, and the registry resolves to whichever
+  // registered last — so a pane mounting behind a focused one would clear the key.
+  const [focusedAppId, setFocusedAppId] = useState<string | null>(null)
+  const handleFocusChange = useCallback((appid: string, focused: boolean) => {
+    // A pane's blur can land after the next pane's focus, so only the pane that still
+    // holds the key may clear it.
+    setFocusedAppId((current) => (focused ? appid : current === appid ? null : current))
+  }, [])
+  // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
+  useCommandContextKey('webview.focused', focusedAppId !== null)
+
+  /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {
     webviewRefs.current.forEach((ref, id) => {
       if (!ref) return
-      const active = id === currentMiniAppId && shouldShow
+      const active = (id === currentMiniAppId || id === paneSplitId) && shouldShow
       ref.style.display = active ? 'inline-flex' : 'none'
     })
-  }, [currentMiniAppId, shouldShow, apps.length])
+  }, [currentMiniAppId, paneSplitId, shouldShow, apps.length])
 
   /** When an entry is in the Map but no longer in openedKeepAlive, remove the ref (React unmounts the element itself) */
   useEffect(() => {
@@ -167,22 +232,28 @@ const MiniAppTabsPool: React.FC = () => {
       }
       data-mini-app-tabs-pool
       aria-hidden={!shouldShow}>
-      {apps.map((app) => (
-        <div
-          key={app.appId}
-          className={cn(
-            'absolute inset-0 h-full w-full',
-            app.appId === currentMiniAppId ? 'pointer-events-auto' : 'pointer-events-none'
-          )}>
-          <WebviewContainer
-            appid={app.appId}
-            url={app.url}
-            onSetRefCallback={handleSetRef}
-            onLoadedCallback={handleLoaded}
-            onNavigateCallback={handleNavigate}
-          />
-        </div>
-      ))}
+      {apps.map((app) => {
+        const isPrimaryPane = app.appId === currentMiniAppId
+        const isSplitPane = app.appId === paneSplitId
+        return (
+          <div
+            key={app.appId}
+            className={cn(
+              'absolute top-0 bottom-0 h-full',
+              isPrimaryPane || isSplitPane ? 'pointer-events-auto' : 'pointer-events-none',
+              paneGeometry(splitOpen, isPrimaryPane, isSplitPane)
+            )}>
+            <WebviewContainer
+              appid={app.appId}
+              url={app.url}
+              onSetRefCallback={handleSetRef}
+              onLoadedCallback={handleLoaded}
+              onNavigateCallback={handleNavigate}
+              onFocusChange={handleFocusChange}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }

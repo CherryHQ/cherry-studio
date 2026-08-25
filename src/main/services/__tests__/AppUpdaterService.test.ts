@@ -1,7 +1,13 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock dependencies
+const { netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } = vi.hoisted(() => ({
+  netFetchMock: vi.fn(),
+  releaseNotesCheckMock: vi.fn(),
+  releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
+  trackAppUpdateMock: vi.fn()
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -12,20 +18,18 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// Mock PreferenceService using the existing mock
 vi.mock('@data/PreferenceService', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   return MockMainPreferenceServiceExport
 })
 
-// Mock application using unified factory
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'MainWindowService') {
-      return { getMainWindow: vi.fn() }
+    if (name === 'AnalyticsService') {
+      return { trackAppUpdate: trackAppUpdateMock }
     }
     return originalGet(name)
   })
@@ -48,7 +52,7 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/services/RegionService', () => ({
-  regionService: { getCountry: vi.fn(() => 'US') }
+  regionService: { getCountry: vi.fn(async () => 'US') }
 }))
 
 vi.mock('@main/utils/systemInfo', () => ({
@@ -59,46 +63,62 @@ vi.mock('@main/utils/systemInfo', () => ({
 vi.mock('electron', () => ({
   app: {
     isPackaged: true,
-    getVersion: vi.fn(() => '1.0.0'),
-    getPath: vi.fn(() => '/test/path')
+    getVersion: vi.fn(() => '1.0.0')
   },
-  dialog: {
-    showMessageBox: vi.fn()
-  },
-  BrowserWindow: vi.fn(),
-  net: {
-    fetch: vi.fn()
+  net: { fetch: netFetchMock }
+}))
+
+vi.mock('electron-updater', () => {
+  class MockAppUpdater {
+    allowDowngrade = false
+    autoDownload = true
+    autoInstallOnAppQuit = true
+    channel = ''
+    forceDevUpdateConfig = false
+    logger: unknown = null
+    requestHeaders: Record<string, string> = {}
+
+    constructor(public options?: unknown) {
+      releaseNotesUpdaterInstances.push(this as unknown as Record<string, unknown>)
+    }
+
+    checkForUpdates() {
+      return releaseNotesCheckMock()
+    }
   }
-}))
 
-vi.mock('electron-updater', () => ({
-  autoUpdater: {
-    logger: null,
-    forceDevUpdateConfig: false,
-    autoDownload: false,
-    autoInstallOnAppQuit: false,
-    requestHeaders: {},
-    on: vi.fn(),
-    setFeedURL: vi.fn(),
-    checkForUpdates: vi.fn(),
-    downloadUpdate: vi.fn(),
-    quitAndInstall: vi.fn(),
-    channel: '',
-    allowDowngrade: false,
-    disableDifferentialDownload: false,
-    currentVersion: '1.0.0'
-  },
-  Logger: vi.fn(),
-  NsisUpdater: vi.fn(),
-  AppUpdater: vi.fn()
-}))
+  return {
+    autoUpdater: {
+      logger: null,
+      forceDevUpdateConfig: false,
+      autoDownload: false,
+      autoInstallOnAppQuit: false,
+      requestHeaders: {},
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      checkForUpdates: vi.fn(),
+      downloadUpdate: vi.fn(),
+      quitAndInstall: vi.fn(),
+      channel: '',
+      allowDowngrade: false,
+      disableDifferentialDownload: false,
+      currentVersion: '1.0.0'
+    },
+    AppUpdater: MockAppUpdater,
+    Logger: vi.fn(),
+    NsisUpdater: vi.fn()
+  }
+})
 
-// Import after mocks
 import { application } from '@application'
+import { regionService } from '@main/services/RegionService'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { APP_NAME } from '@shared/utils/constants'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'
+import { autoUpdater } from 'electron-updater'
 
-import { AppUpdaterService, UpdateMirror } from '../AppUpdaterService'
+import { AppUpdaterService } from '../AppUpdaterService'
 
 describe('AppUpdaterService', () => {
   let appUpdater: AppUpdaterService
@@ -106,135 +126,184 @@ describe('AppUpdaterService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', false)
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.LATEST)
+    vi.mocked(app.getVersion).mockReturnValue('1.0.0')
+    vi.mocked(regionService.getCountry).mockResolvedValue('US')
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue(null)
+    netFetchMock.mockReset()
+    releaseNotesCheckMock.mockReset().mockResolvedValue(null)
+    releaseNotesUpdaterInstances.length = 0
+    autoUpdater.requestHeaders = {}
+    autoUpdater.channel = ''
+    autoUpdater.allowDowngrade = false
+    autoUpdater.disableDifferentialDownload = false
     appUpdater = new AppUpdaterService()
   })
 
-  describe('parseMultiLangReleaseNotes', () => {
-    const sampleReleaseNotes = `<!--LANG:en-->
-🚀 New Features:
-- Feature A
-- Feature B
+  describe('managed update feed', () => {
+    it('uses the latest channel and global region outside China', async () => {
+      await (appUpdater as any).configureUpdaterForCheck()
 
-🎨 UI Improvements:
-- Improvement A
-<!--LANG:zh-CN-->
-🚀 新功能：
-- 功能 A
-- 功能 B
-
-🎨 界面改进：
-- 改进 A
-<!--LANG:END-->`
-
-    it('should return Chinese notes for zh-CN users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('新功能')
-      expect(result).toContain('功能 A')
-      expect(result).not.toContain('New Features')
+      expect(autoUpdater.channel).toBe(UpgradeChannel.LATEST)
+      expect(autoUpdater.requestHeaders).toMatchObject({
+        'User-Agent': 'test-user-agent',
+        'Cache-Control': 'no-cache',
+        'Client-Id': 'test-client-id',
+        'App-Name': APP_NAME,
+        'App-Version': 'v1.0.0',
+        OS: process.platform,
+        'X-Region': 'global'
+      })
+      expect(autoUpdater.requestHeaders).not.toHaveProperty('X-Release-Channel')
+      expect(autoUpdater.allowDowngrade).toBe(false)
+      expect(autoUpdater.disableDifferentialDownload).toBe(true)
     })
 
-    it('should return Chinese notes for zh-TW users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-TW')
+    it('uses the China region for users in China', async () => {
+      vi.mocked(regionService.getCountry).mockResolvedValue('CN')
 
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
+      await (appUpdater as any).configureUpdaterForCheck()
 
-      expect(result).toContain('新功能')
-      expect(result).toContain('功能 A')
-      expect(result).not.toContain('New Features')
+      expect(autoUpdater.requestHeaders).toMatchObject({
+        'X-Region': 'cn'
+      })
+      expect(autoUpdater.requestHeaders).not.toHaveProperty('X-Release-Channel')
     })
 
-    it('should return English notes for non-Chinese users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+    it('keeps existing updater request headers', async () => {
+      autoUpdater.requestHeaders = { Authorization: 'existing-header' }
 
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
+      await (appUpdater as any).configureUpdaterForCheck()
 
-      expect(result).toContain('New Features')
-      expect(result).toContain('Feature A')
-      expect(result).not.toContain('新功能')
+      expect(autoUpdater.requestHeaders).toMatchObject({
+        Authorization: 'existing-header',
+        'X-Region': 'global'
+      })
     })
 
-    it('should return English notes for other language users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ru-RU')
+    it.each([
+      ['RC', UpgradeChannel.RC],
+      ['Beta', UpgradeChannel.BETA]
+    ])('requests the %s manifest when that test channel is enabled', async (_label, channel) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', channel)
 
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
+      await (appUpdater as any).configureUpdaterForCheck()
 
-      expect(result).toContain('New Features')
-      expect(result).not.toContain('新功能')
+      expect(autoUpdater.channel).toBe(channel)
     })
 
-    it('should handle missing language sections gracefully', () => {
-      const malformedNotes = 'Simple release notes without markers'
+    it('uses the selected test channel when the installed prerelease came from another channel', async () => {
+      vi.mocked(app.getVersion).mockReturnValue('2.0.0-rc.1')
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
 
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(malformedNotes)
+      await (appUpdater as any).configureUpdaterForCheck()
 
-      expect(result).toBe('Simple release notes without markers')
+      expect(autoUpdater.channel).toBe(UpgradeChannel.BETA)
     })
 
-    it('should handle malformed markers', () => {
-      const malformedNotes = `<!--LANG:en-->English only`
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(malformedNotes)
-
-      // Should clean up markers and return cleaned content
-      expect(result).toContain('English only')
-      expect(result).not.toContain('<!--LANG:')
-    })
-
-    it('should handle empty release notes', () => {
-      const result = (appUpdater as any).parseMultiLangReleaseNotes('')
-
-      expect(result).toBe('')
-    })
-
-    it('should handle errors gracefully', () => {
-      // Create a fresh instance for this test to avoid issues with constructor mocking
-      const testAppUpdater = new AppUpdaterService()
-
-      // Force an error by mocking PreferenceService to throw
-      vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
-        throw new Error('Test error')
+    it('applies the channel and request headers before checking for updates', async () => {
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementation(async () => {
+        expect(autoUpdater.channel).toBe(UpgradeChannel.LATEST)
+        expect(autoUpdater.requestHeaders).toMatchObject({
+          'App-Version': 'v1.0.0',
+          'X-Region': 'global'
+        })
+        return null
       })
 
-      const result = (testAppUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
+      await appUpdater.checkForUpdates()
 
-      // Should return original notes as fallback
-      expect(result).toBe(sampleReleaseNotes)
-    })
-  })
-
-  describe('hasMultiLanguageMarkers', () => {
-    it('should return true when markers are present', () => {
-      const notes = '<!--LANG:en-->Test'
-
-      const result = (appUpdater as any).hasMultiLanguageMarkers(notes)
-
-      expect(result).toBe(true)
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
     })
 
-    it('should return false when no markers are present', () => {
-      const notes = 'Simple text without markers'
+    it('fetches and validates release history through the managed release service', async () => {
+      vi.mocked(regionService.getCountry).mockResolvedValue('CN')
+      const releaseNotes = '<!--LANG:en-->Remote notes<!--LANG:zh-CN-->远端说明<!--LANG:END-->'
+      const history = [{ releaseNotes, version: '1.1.0' }]
+      netFetchMock.mockResolvedValue(new Response(JSON.stringify(history)))
 
-      const result = (appUpdater as any).hasMultiLanguageMarkers(notes)
+      await expect(appUpdater.getReleaseHistory()).resolves.toEqual(history)
 
-      expect(result).toBe(false)
+      expect(net.fetch).toHaveBeenCalledWith(
+        'https://releases.cherry-ai.com/release-history.json',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'App-Version': 'v1.0.0',
+            'X-Region': 'cn'
+          }),
+          redirect: 'follow',
+          signal: expect.any(AbortSignal)
+        })
+      )
+      expect(releaseNotesUpdaterInstances).toHaveLength(1)
+    })
+
+    it('merges a newer channel release with stable release history', async () => {
+      const stableNotes = '<!--LANG:en-->Stable notes<!--LANG:zh-CN-->稳定版说明<!--LANG:END-->'
+      const rcNotes = '<!--LANG:en-->RC notes<!--LANG:zh-CN-->测试版说明<!--LANG:END-->'
+      netFetchMock.mockResolvedValue(new Response(JSON.stringify([{ releaseNotes: stableNotes, version: '1.1.0' }])))
+      releaseNotesCheckMock.mockResolvedValue({
+        isUpdateAvailable: true,
+        updateInfo: { releaseNotes: rcNotes, version: '1.2.0-rc.1' }
+      })
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toEqual([
+        { releaseNotes: rcNotes, version: '1.2.0-rc.1' },
+        { releaseNotes: stableNotes, version: '1.1.0' }
+      ])
+    })
+
+    it('keeps newer updater notes when release history is unavailable', async () => {
+      netFetchMock.mockRejectedValue(new Error('offline'))
+      releaseNotesCheckMock.mockResolvedValue({
+        isUpdateAvailable: true,
+        updateInfo: { releaseNotes: 'New release notes', version: '1.1.0' }
+      })
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toEqual([
+        { releaseNotes: 'New release notes', version: '1.1.0' }
+      ])
+    })
+
+    it('falls back to bundled history when the managed response is invalid', async () => {
+      netFetchMock.mockResolvedValue(new Response(JSON.stringify([{ releaseNotes: 'English only', version: '1.1.0' }])))
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toBeNull()
+    })
+
+    it('falls back to bundled history when the managed request fails', async () => {
+      netFetchMock.mockRejectedValue(new Error('offline'))
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toBeNull()
+    })
+
+    it('rejects release history larger than the response limit before reading it', async () => {
+      const text = vi.fn()
+      netFetchMock.mockResolvedValue({
+        headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
+        ok: true,
+        status: 200,
+        text
+      })
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toBeNull()
+      expect(text).not.toHaveBeenCalled()
     })
   })
 
   describe('processReleaseInfo', () => {
-    it('should process multi-language release notes in string format', () => {
+    it('localizes marked release notes', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-
       const releaseInfo = {
         version: '1.0.0',
         files: [],
         path: '',
         sha512: '',
         releaseDate: new Date().toISOString(),
-        releaseNotes: `<!--LANG:en-->English notes<!--LANG:zh-CN-->中文说明<!--LANG:END-->`
+        releaseNotes: '<!--LANG:en-->English notes<!--LANG:zh-CN-->中文说明<!--LANG:END-->'
       } as UpdateInfo
 
       const result = (appUpdater as any).processReleaseInfo(releaseInfo)
@@ -242,7 +311,7 @@ describe('AppUpdaterService', () => {
       expect(result.releaseNotes).toBe('中文说明')
     })
 
-    it('should not process release notes without markers', () => {
+    it('leaves unmarked release notes unchanged', () => {
       const releaseInfo = {
         version: '1.0.0',
         files: [],
@@ -252,12 +321,10 @@ describe('AppUpdaterService', () => {
         releaseNotes: 'Simple release notes'
       } as UpdateInfo
 
-      const result = (appUpdater as any).processReleaseInfo(releaseInfo)
-
-      expect(result.releaseNotes).toBe('Simple release notes')
+      expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBe('Simple release notes')
     })
 
-    it('should handle array format release notes', () => {
+    it('leaves array release notes unchanged', () => {
       const releaseInfo = {
         version: '1.0.0',
         files: [],
@@ -270,12 +337,10 @@ describe('AppUpdaterService', () => {
         ]
       } as UpdateInfo
 
-      const result = (appUpdater as any).processReleaseInfo(releaseInfo)
-
-      expect(result.releaseNotes).toEqual(releaseInfo.releaseNotes)
+      expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toEqual(releaseInfo.releaseNotes)
     })
 
-    it('should handle null release notes', () => {
+    it('leaves null release notes unchanged', () => {
       const releaseInfo = {
         version: '1.0.0',
         files: [],
@@ -285,740 +350,23 @@ describe('AppUpdaterService', () => {
         releaseNotes: null
       } as UpdateInfo
 
-      const result = (appUpdater as any).processReleaseInfo(releaseInfo)
-
-      expect(result.releaseNotes).toBeNull()
-    })
-  })
-
-  describe('_fetchUpdateConfig', () => {
-    const mockConfig = {
-      lastUpdated: '2025-01-05T00:00:00Z',
-      versions: {
-        '1.6.7': {
-          minCompatibleVersion: '1.0.0',
-          description: 'Test version',
-          channels: {
-            latest: {
-              version: '1.6.7',
-              feedUrls: {
-                github: 'https://github.com/test/v1.6.7',
-                gitcode: 'https://gitcode.com/test/v1.6.7'
-              }
-            },
-            rc: null,
-            beta: null
-          }
-        }
-      }
-    }
-
-    it('should fetch config from GitHub mirror', async () => {
-      vi.mocked(net.fetch).mockResolvedValue({
-        ok: true,
-        json: async () => mockConfig
-      } as any)
-
-      const result = await (appUpdater as any)._fetchUpdateConfig(UpdateMirror.GITHUB)
-
-      expect(result).toEqual(mockConfig)
-      expect(net.fetch).toHaveBeenCalledWith(expect.stringContaining('github'), expect.any(Object))
+      expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBeNull()
     })
 
-    it('should fetch config from GitCode mirror', async () => {
-      vi.mocked(net.fetch).mockResolvedValue({
-        ok: true,
-        json: async () => mockConfig
-      } as any)
-
-      const result = await (appUpdater as any)._fetchUpdateConfig(UpdateMirror.GITCODE)
-
-      expect(result).toEqual(mockConfig)
-      // GitCode URL may vary, just check that fetch was called
-      expect(net.fetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
-    })
-
-    it('should return null on HTTP error', async () => {
-      vi.mocked(net.fetch).mockResolvedValue({
-        ok: false,
-        status: 404
-      } as any)
-
-      const result = await (appUpdater as any)._fetchUpdateConfig(UpdateMirror.GITHUB)
-
-      expect(result).toBeNull()
-    })
-
-    it('should return null on network error', async () => {
-      vi.mocked(net.fetch).mockRejectedValue(new Error('Network error'))
-
-      const result = await (appUpdater as any)._fetchUpdateConfig(UpdateMirror.GITHUB)
-
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('_findCompatibleChannel', () => {
-    const mockConfig = {
-      lastUpdated: '2025-01-05T00:00:00Z',
-      versions: {
-        '1.6.7': {
-          minCompatibleVersion: '1.0.0',
-          description: 'v1.6.7',
-          channels: {
-            latest: {
-              version: '1.6.7',
-              feedUrls: {
-                github: 'https://github.com/test/v1.6.7',
-                gitcode: 'https://gitcode.com/test/v1.6.7'
-              }
-            },
-            rc: {
-              version: '1.7.0-rc.1',
-              feedUrls: {
-                github: 'https://github.com/test/v1.7.0-rc.1',
-                gitcode: 'https://gitcode.com/test/v1.7.0-rc.1'
-              }
-            },
-            beta: {
-              version: '1.7.0-beta.3',
-              feedUrls: {
-                github: 'https://github.com/test/v1.7.0-beta.3',
-                gitcode: 'https://gitcode.com/test/v1.7.0-beta.3'
-              }
-            }
-          }
-        },
-        '2.0.0': {
-          minCompatibleVersion: '1.7.0',
-          description: 'v2.0.0',
-          channels: {
-            latest: null,
-            rc: null,
-            beta: null
-          }
-        }
-      }
-    }
-
-    it('should find compatible latest channel', () => {
-      vi.mocked(app.getVersion).mockReturnValue('1.5.0')
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'latest', mockConfig)
-
-      expect(result?.config).toEqual({
-        version: '1.6.7',
-        feedUrls: {
-          github: 'https://github.com/test/v1.6.7',
-          gitcode: 'https://gitcode.com/test/v1.6.7'
-        }
+    it('leaves marked release notes unchanged when language lookup fails', () => {
+      const releaseInfo = {
+        version: '1.0.0',
+        files: [],
+        path: '',
+        sha512: '',
+        releaseDate: new Date().toISOString(),
+        releaseNotes: '<!--LANG:en-->English notes<!--LANG:zh-CN-->中文说明<!--LANG:END-->'
+      } as UpdateInfo
+      vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
+        throw new Error('Test error')
       })
-      expect(result?.channel).toBe('latest')
-    })
 
-    it('should find compatible rc channel', () => {
-      vi.mocked(app.getVersion).mockReturnValue('1.5.0')
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'rc', mockConfig)
-
-      expect(result?.config).toEqual({
-        version: '1.7.0-rc.1',
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.0-rc.1',
-          gitcode: 'https://gitcode.com/test/v1.7.0-rc.1'
-        }
-      })
-      expect(result?.channel).toBe('rc')
-    })
-
-    it('should find compatible beta channel', () => {
-      vi.mocked(app.getVersion).mockReturnValue('1.5.0')
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'beta', mockConfig)
-
-      expect(result?.config).toEqual({
-        version: '1.7.0-beta.3',
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.0-beta.3',
-          gitcode: 'https://gitcode.com/test/v1.7.0-beta.3'
-        }
-      })
-      expect(result?.channel).toBe('beta')
-    })
-
-    it('should return latest when latest version >= rc version', () => {
-      const configWithNewerLatest = {
-        lastUpdated: '2025-01-05T00:00:00Z',
-        versions: {
-          '1.7.0': {
-            minCompatibleVersion: '1.0.0',
-            description: 'v1.7.0',
-            channels: {
-              latest: {
-                version: '1.7.0',
-                feedUrls: {
-                  github: 'https://github.com/test/v1.7.0',
-                  gitcode: 'https://gitcode.com/test/v1.7.0'
-                }
-              },
-              rc: {
-                version: '1.7.0-rc.1',
-                feedUrls: {
-                  github: 'https://github.com/test/v1.7.0-rc.1',
-                  gitcode: 'https://gitcode.com/test/v1.7.0-rc.1'
-                }
-              },
-              beta: null
-            }
-          }
-        }
-      }
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.0', 'rc', configWithNewerLatest)
-
-      // Should return latest instead of rc because 1.7.0 >= 1.7.0-rc.1
-      expect(result?.config).toEqual({
-        version: '1.7.0',
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.0',
-          gitcode: 'https://gitcode.com/test/v1.7.0'
-        }
-      })
-      expect(result?.channel).toBe('latest') // ✅ 返回 latest 频道
-    })
-
-    it('should return latest when latest version >= beta version', () => {
-      const configWithNewerLatest = {
-        lastUpdated: '2025-01-05T00:00:00Z',
-        versions: {
-          '1.7.0': {
-            minCompatibleVersion: '1.0.0',
-            description: 'v1.7.0',
-            channels: {
-              latest: {
-                version: '1.7.0',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.7.0',
-
-                  gitcode: 'https://gitcode.com/test/v1.7.0'
-                }
-              },
-              rc: null,
-              beta: {
-                version: '1.6.8-beta.1',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.6.8-beta.1',
-
-                  gitcode: 'https://gitcode.com/test/v1.6.8-beta.1'
-                }
-              }
-            }
-          }
-        }
-      }
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.0', 'beta', configWithNewerLatest)
-
-      // Should return latest instead of beta because 1.7.0 >= 1.6.8-beta.1
-      expect(result?.config).toEqual({
-        version: '1.7.0',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.0',
-
-          gitcode: 'https://gitcode.com/test/v1.7.0'
-        }
-      })
-    })
-
-    it('should not compare latest with itself when requesting latest channel', () => {
-      const config = {
-        lastUpdated: '2025-01-05T00:00:00Z',
-        versions: {
-          '1.7.0': {
-            minCompatibleVersion: '1.0.0',
-            description: 'v1.7.0',
-            channels: {
-              latest: {
-                version: '1.7.0',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.7.0',
-
-                  gitcode: 'https://gitcode.com/test/v1.7.0'
-                }
-              },
-              rc: {
-                version: '1.7.0-rc.1',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.7.0-rc.1',
-
-                  gitcode: 'https://gitcode.com/test/v1.7.0-rc.1'
-                }
-              },
-              beta: null
-            }
-          }
-        }
-      }
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.0', 'latest', config)
-
-      // Should return latest directly without comparing with itself
-      expect(result?.config).toEqual({
-        version: '1.7.0',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.0',
-
-          gitcode: 'https://gitcode.com/test/v1.7.0'
-        }
-      })
-    })
-
-    it('should return rc when rc version > latest version', () => {
-      const configWithNewerRc = {
-        lastUpdated: '2025-01-05T00:00:00Z',
-        versions: {
-          '1.7.0': {
-            minCompatibleVersion: '1.0.0',
-            description: 'v1.7.0',
-            channels: {
-              latest: {
-                version: '1.6.7',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.6.7',
-
-                  gitcode: 'https://gitcode.com/test/v1.6.7'
-                }
-              },
-              rc: {
-                version: '1.7.0-rc.1',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.7.0-rc.1',
-
-                  gitcode: 'https://gitcode.com/test/v1.7.0-rc.1'
-                }
-              },
-              beta: null
-            }
-          }
-        }
-      }
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.0', 'rc', configWithNewerRc)
-
-      // Should return rc because 1.7.0-rc.1 > 1.6.7
-      expect(result?.config).toEqual({
-        version: '1.7.0-rc.1',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.0-rc.1',
-
-          gitcode: 'https://gitcode.com/test/v1.7.0-rc.1'
-        }
-      })
-    })
-
-    it('should return beta when beta version > latest version', () => {
-      const configWithNewerBeta = {
-        lastUpdated: '2025-01-05T00:00:00Z',
-        versions: {
-          '1.7.0': {
-            minCompatibleVersion: '1.0.0',
-            description: 'v1.7.0',
-            channels: {
-              latest: {
-                version: '1.6.7',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.6.7',
-
-                  gitcode: 'https://gitcode.com/test/v1.6.7'
-                }
-              },
-              rc: null,
-              beta: {
-                version: '1.7.0-beta.5',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.7.0-beta.5',
-
-                  gitcode: 'https://gitcode.com/test/v1.7.0-beta.5'
-                }
-              }
-            }
-          }
-        }
-      }
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.0', 'beta', configWithNewerBeta)
-
-      // Should return beta because 1.7.0-beta.5 > 1.6.7
-      expect(result?.config).toEqual({
-        version: '1.7.0-beta.5',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.0-beta.5',
-
-          gitcode: 'https://gitcode.com/test/v1.7.0-beta.5'
-        }
-      })
-    })
-
-    it('should return lower version when higher version has no compatible channel', () => {
-      vi.mocked(app.getVersion).mockReturnValue('1.8.0')
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.8.0', 'latest', mockConfig)
-
-      // 1.8.0 >= 1.7.0 but 2.0.0 has no latest channel, so return 1.6.7
-      expect(result?.config).toEqual({
-        version: '1.6.7',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.6.7',
-
-          gitcode: 'https://gitcode.com/test/v1.6.7'
-        }
-      })
-    })
-
-    it('should return null when current version does not meet minCompatibleVersion', () => {
-      vi.mocked(app.getVersion).mockReturnValue('0.9.0')
-
-      const result = (appUpdater as any)._findCompatibleChannel('0.9.0', 'latest', mockConfig)
-
-      // 0.9.0 < 1.0.0 (minCompatibleVersion)
-      expect(result).toBeNull()
-    })
-
-    it('should return lower version rc when higher version has no rc channel', () => {
-      const result = (appUpdater as any)._findCompatibleChannel('1.8.0', 'rc', mockConfig)
-
-      // 1.8.0 >= 1.7.0 but 2.0.0 has no rc channel, so return 1.6.7 rc
-      expect(result?.config).toEqual({
-        version: '1.7.0-rc.1',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.0-rc.1',
-
-          gitcode: 'https://gitcode.com/test/v1.7.0-rc.1'
-        }
-      })
-    })
-
-    it('should fallback to latest channel when requested channel is null', () => {
-      const configWithoutRc = {
-        lastUpdated: '2025-01-05T00:00:00Z',
-        versions: {
-          '1.6.7': {
-            minCompatibleVersion: '1.0.0',
-            description: 'v1.6.7',
-            channels: {
-              latest: {
-                version: '1.6.7',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v1.6.7',
-
-                  gitcode: 'https://gitcode.com/test/v1.6.7'
-                }
-              },
-              rc: null,
-              beta: null
-            }
-          }
-        }
-      }
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'rc', configWithoutRc)
-
-      expect(result).toEqual({
-        config: configWithoutRc.versions['1.6.7'].channels.latest,
-        channel: 'latest'
-      })
-    })
-
-    it('should return null when no version has the requested channel or latest channel', () => {
-      const configWithoutAny = {
-        lastUpdated: '2025-01-05T00:00:00Z',
-        versions: {
-          '1.6.7': {
-            minCompatibleVersion: '1.0.0',
-            description: 'v1.6.7',
-            channels: {
-              latest: null,
-              rc: null,
-              beta: null
-            }
-          }
-        }
-      }
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'rc', configWithoutAny)
-
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('Upgrade Path', () => {
-    const fullConfig = {
-      lastUpdated: '2025-01-05T00:00:00Z',
-      versions: {
-        '1.6.7': {
-          minCompatibleVersion: '1.0.0',
-          description: 'Last v1.x',
-          channels: {
-            latest: {
-              version: '1.6.7',
-
-              feedUrls: {
-                github: 'https://github.com/test/v1.6.7',
-
-                gitcode: 'https://gitcode.com/test/v1.6.7'
-              }
-            },
-            rc: {
-              version: '1.7.0-rc.1',
-
-              feedUrls: {
-                github: 'https://github.com/test/v1.7.0-rc.1',
-
-                gitcode: 'https://gitcode.com/test/v1.7.0-rc.1'
-              }
-            },
-            beta: {
-              version: '1.7.0-beta.3',
-
-              feedUrls: {
-                github: 'https://github.com/test/v1.7.0-beta.3',
-
-                gitcode: 'https://gitcode.com/test/v1.7.0-beta.3'
-              }
-            }
-          }
-        },
-        '2.0.0': {
-          minCompatibleVersion: '1.7.0',
-          description: 'First v2.x',
-          channels: {
-            latest: null,
-            rc: null,
-            beta: null
-          }
-        }
-      }
-    }
-
-    it('should upgrade from 1.6.3 to 1.6.7', () => {
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.3', 'latest', fullConfig)
-
-      expect(result?.config).toEqual({
-        version: '1.6.7',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.6.7',
-
-          gitcode: 'https://gitcode.com/test/v1.6.7'
-        }
-      })
-    })
-
-    it('should block upgrade from 1.6.7 to 2.0.0 (minCompatibleVersion not met)', () => {
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.7', 'latest', fullConfig)
-
-      // Should return 1.6.7, not 2.0.0, because 1.6.7 < 1.7.0 (minCompatibleVersion of 2.0.0)
-      expect(result?.config).toEqual({
-        version: '1.6.7',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.6.7',
-
-          gitcode: 'https://gitcode.com/test/v1.6.7'
-        }
-      })
-    })
-
-    it('should allow upgrade from 1.7.0 to 2.0.0', () => {
-      const configWith2x = {
-        ...fullConfig,
-        versions: {
-          ...fullConfig.versions,
-          '2.0.0': {
-            minCompatibleVersion: '1.7.0',
-            description: 'First v2.x',
-            channels: {
-              latest: {
-                version: '2.0.0',
-
-                feedUrls: {
-                  github: 'https://github.com/test/v2.0.0',
-
-                  gitcode: 'https://gitcode.com/test/v2.0.0'
-                }
-              },
-              rc: null,
-              beta: null
-            }
-          }
-        }
-      }
-
-      const result = (appUpdater as any)._findCompatibleChannel('1.7.0', 'latest', configWith2x)
-
-      expect(result?.config).toEqual({
-        version: '2.0.0',
-
-        feedUrls: {
-          github: 'https://github.com/test/v2.0.0',
-
-          gitcode: 'https://gitcode.com/test/v2.0.0'
-        }
-      })
-    })
-  })
-
-  describe('Complete Multi-Step Upgrade Path', () => {
-    const fullUpgradeConfig = {
-      lastUpdated: '2025-01-05T00:00:00Z',
-      versions: {
-        '1.7.5': {
-          minCompatibleVersion: '1.0.0',
-          description: 'Last v1.x stable',
-          channels: {
-            latest: {
-              version: '1.7.5',
-
-              feedUrls: {
-                github: 'https://github.com/test/v1.7.5',
-
-                gitcode: 'https://gitcode.com/test/v1.7.5'
-              }
-            },
-            rc: null,
-            beta: null
-          }
-        },
-        '2.0.0': {
-          minCompatibleVersion: '1.7.0',
-          description: 'First v2.x - intermediate version',
-          channels: {
-            latest: {
-              version: '2.0.0',
-
-              feedUrls: {
-                github: 'https://github.com/test/v2.0.0',
-
-                gitcode: 'https://gitcode.com/test/v2.0.0'
-              }
-            },
-            rc: null,
-            beta: null
-          }
-        },
-        '2.1.6': {
-          minCompatibleVersion: '2.0.0',
-          description: 'Current v2.x stable',
-          channels: {
-            latest: {
-              version: '2.1.6',
-
-              feedUrls: {
-                github: 'https://github.com/test/latest',
-
-                gitcode: 'https://gitcode.com/test/latest'
-              }
-            },
-            rc: null,
-            beta: null
-          }
-        }
-      }
-    }
-
-    it('should upgrade from 1.6.3 to 1.7.5 (step 1)', () => {
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.3', 'latest', fullUpgradeConfig)
-
-      expect(result?.config).toEqual({
-        version: '1.7.5',
-
-        feedUrls: {
-          github: 'https://github.com/test/v1.7.5',
-
-          gitcode: 'https://gitcode.com/test/v1.7.5'
-        }
-      })
-    })
-
-    it('should upgrade from 1.7.5 to 2.0.0 (step 2)', () => {
-      const result = (appUpdater as any)._findCompatibleChannel('1.7.5', 'latest', fullUpgradeConfig)
-
-      expect(result?.config).toEqual({
-        version: '2.0.0',
-
-        feedUrls: {
-          github: 'https://github.com/test/v2.0.0',
-
-          gitcode: 'https://gitcode.com/test/v2.0.0'
-        }
-      })
-    })
-
-    it('should upgrade from 2.0.0 to 2.1.6 (step 3)', () => {
-      const result = (appUpdater as any)._findCompatibleChannel('2.0.0', 'latest', fullUpgradeConfig)
-
-      expect(result?.config).toEqual({
-        version: '2.1.6',
-
-        feedUrls: {
-          github: 'https://github.com/test/latest',
-
-          gitcode: 'https://gitcode.com/test/latest'
-        }
-      })
-    })
-
-    it('should complete full upgrade path: 1.6.3 -> 1.7.5 -> 2.0.0 -> 2.1.6', () => {
-      // Step 1: 1.6.3 -> 1.7.5
-      let currentVersion = '1.6.3'
-      let result = (appUpdater as any)._findCompatibleChannel(currentVersion, 'latest', fullUpgradeConfig)
-      expect(result?.config.version).toBe('1.7.5')
-
-      // Step 2: 1.7.5 -> 2.0.0
-      currentVersion = result?.config.version!
-      result = (appUpdater as any)._findCompatibleChannel(currentVersion, 'latest', fullUpgradeConfig)
-      expect(result?.config.version).toBe('2.0.0')
-
-      // Step 3: 2.0.0 -> 2.1.6
-      currentVersion = result?.config.version!
-      result = (appUpdater as any)._findCompatibleChannel(currentVersion, 'latest', fullUpgradeConfig)
-      expect(result?.config.version).toBe('2.1.6')
-
-      // Final: 2.1.6 is the latest, no more upgrades
-      currentVersion = result?.config.version!
-      result = (appUpdater as any)._findCompatibleChannel(currentVersion, 'latest', fullUpgradeConfig)
-      expect(result?.config.version).toBe('2.1.6')
-    })
-
-    it('should block direct upgrade from 1.6.3 to 2.0.0 (skip intermediate)', () => {
-      const result = (appUpdater as any)._findCompatibleChannel('1.6.3', 'latest', fullUpgradeConfig)
-
-      // Should return 1.7.5, not 2.0.0, because 1.6.3 < 1.7.0 (minCompatibleVersion of 2.0.0)
-      expect(result?.config.version).toBe('1.7.5')
-      expect(result?.config.version).not.toBe('2.0.0')
-    })
-
-    it('should block direct upgrade from 1.7.5 to 2.1.6 (skip intermediate)', () => {
-      const result = (appUpdater as any)._findCompatibleChannel('1.7.5', 'latest', fullUpgradeConfig)
-
-      // Should return 2.0.0, not 2.1.6, because 1.7.5 < 2.0.0 (minCompatibleVersion of 2.1.6)
-      expect(result?.config.version).toBe('2.0.0')
-      expect(result?.config.version).not.toBe('2.1.6')
+      expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBe(releaseInfo.releaseNotes)
     })
   })
 })

@@ -11,11 +11,10 @@ import {
   TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
-import { useAssistantMutations } from '@renderer/hooks/resourceCatalog'
-import { useEnsureTags } from '@renderer/hooks/useTags'
+import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
+import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
-import { getRandomTagColor } from '@renderer/utils/resourceCatalog'
-import { Clipboard, FileJson, Link, Upload } from 'lucide-react'
+import { Clipboard, FileJson, Import, Link } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -122,16 +121,14 @@ export function summarizeAssistantImportOutcomes(
 
 /**
  * Import-config dialog for assistants — visual layout mirrors the ui-design
- * `ImportModal` (file / clipboard / URL tabs). Business flow per record:
- *   1. `ensureTags(names)` resolves / POSTs any tag names present in the file.
- *   2. `createAssistant(dto + tagIds)` creates the assistant and its tag
- *      bindings in a single server-side transaction. `dto.modelId` is left
- *      unset so the backend fills it from the user's default-model preference.
+ * `ImportModal` (file / clipboard / URL tabs). Each record is sent through the
+ * dedicated import endpoint so optional group resolution and assistant
+ * creation are atomic. `dto.modelId` stays unset so the backend fills it from
+ * the user's default-model preference.
  */
 export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props) {
   const { t } = useTranslation()
-  const { createAssistant } = useAssistantMutations()
-  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
+  const { importAssistant } = useImportAssistantMutation()
 
   const [tab, setTab] = useState<ImportTab>('file')
   const [clipboardText, setClipboardText] = useState('')
@@ -163,13 +160,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   }
 
   /**
-   * Shared pipeline: parse JSON → per draft, ensureTags → single atomic create.
+   * Shared pipeline: parse JSON → one atomic import request per draft.
    *
-   * Each draft wraps a single `createAssistant({ ...dto, tagIds })` call — the
-   * backend lands the assistant row and its tag bindings in one transaction,
-   * so there is no "created but tag-bind failed" half-success to report. Final
-   * outcomes are "ok" or "failed"; a mid-batch failure leaves prior successes
-   * intact and continues with the next draft.
+   * Final outcomes are "ok" or "failed"; a mid-batch failure leaves prior
+   * successes intact and continues with the next draft.
    */
   const runImport = async (content: string, source: 'file' | 'clipboard' | 'url', fileName?: string) => {
     setLoading(true)
@@ -192,16 +186,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     }
 
     const outcomes: DraftOutcome[] = []
-
     for (const draft of drafts) {
       try {
-        // Names → ids first so the create call carries tagIds directly.
-        // ensureTags is idempotent (POST /tags only for names the backend
-        // doesn't already have). A failure here aborts the draft without
-        // creating an orphan assistant row.
-        const tagIds = draft.tags.length > 0 ? (await ensureTags(draft.tags)).map((tag) => tag.id) : undefined
-
-        await createAssistant({ ...draft.dto, ...(tagIds ? { tagIds } : {}) })
+        const groupName = draft.groupName?.trim()
+        await importAssistant({ ...draft.dto, ...(groupName ? { groupName } : {}) })
         outcomes.push({ kind: 'ok' })
       } catch (error) {
         outcomes.push({
@@ -218,7 +206,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     setStatus(nextStatus)
 
     if (nextStatus.kind === 'success') {
-      window.toast.success(nextStatus.message)
+      toast.success(nextStatus.message)
       // File-mode banner stays so the filename echo is visible;
       // clipboard / URL auto-close after a short delay.
       if (source !== 'file') {
@@ -229,7 +217,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
         }, AUTO_CLOSE_DELAY_MS)
       }
     } else {
-      window.toast.error(nextStatus.message)
+      toast.error(nextStatus.message)
     }
 
     setLoading(false)
@@ -309,8 +297,8 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     }
   }
 
-  const tabs: { id: ImportTab; label: string; icon: typeof Upload }[] = [
-    { id: 'file', label: t('library.import_dialog.tab.file'), icon: Upload },
+  const tabs: { id: ImportTab; label: string; icon: typeof Import }[] = [
+    { id: 'file', label: t('library.import_dialog.tab.file'), icon: Import },
     { id: 'clipboard', label: t('library.import_dialog.tab.clipboard'), icon: Clipboard },
     { id: 'url', label: t('library.import_dialog.tab.url'), icon: Link }
   ]
@@ -331,7 +319,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
             <h3 className="font-semibold text-foreground text-lg leading-none">
               {t('assistants.presets.import.title')}
             </h3>
-            <p className="mt-2 text-foreground-secondary text-sm">{t('library.import_dialog.subtitle')}</p>
+            <p className="mt-2 text-muted-foreground text-sm">{t('library.import_dialog.subtitle')}</p>
           </div>
         </div>
 
@@ -344,7 +332,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                 <TabsTrigger
                   key={tabDef.id}
                   value={tabDef.id}
-                  className="flex h-8 flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-foreground-secondary text-xs shadow-none hover:bg-accent hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:border-0 dark:data-[state=active]:bg-secondary">
+                  className="flex h-8 flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-muted-foreground text-xs shadow-none hover:bg-accent hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground data-[state=active]:shadow-none">
                   <Icon size={12} />
                   <span>{tabDef.label}</span>
                 </TabsTrigger>
@@ -370,13 +358,11 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onError={() =>
                     setStatus({ kind: 'error', message: t('assistants.presets.import.error.invalid_format') })
                   }
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-muted border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-hover hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-subtle border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
                   <DropzoneEmptyState>
-                    <Upload size={24} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
-                    <p className="mb-1 text-foreground-secondary text-xs">
-                      {t('library.import_dialog.file.drop_hint')}
-                    </p>
-                    <p className="text-foreground-muted text-xs">{t('library.import_dialog.file.formats')}</p>
+                    <Import size={24} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
+                    <p className="mb-1 text-muted-foreground text-xs">{t('library.import_dialog.file.drop_hint')}</p>
+                    <p className="text-muted-foreground text-xs">{t('library.import_dialog.file.formats')}</p>
                   </DropzoneEmptyState>
                 </Dropzone>
               </motion.div>
@@ -392,7 +378,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onValueChange={setClipboardText}
                   disabled={loading}
                   placeholder={t('library.import_dialog.clipboard.placeholder')}
-                  className="h-32 min-h-0 w-full resize-none rounded-md border border-input bg-background p-3 font-mono text-foreground text-xs shadow-none placeholder:text-foreground-muted disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1"
+                  className="h-32 min-h-0 w-full resize-none rounded-md border border-input bg-background p-3 font-mono text-foreground text-xs shadow-none placeholder:text-muted-foreground disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1"
                 />
                 <Button
                   variant="emphasis"
@@ -411,13 +397,13 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}>
-                <p className="mb-3 text-foreground-secondary text-xs">{t('library.import_dialog.url.hint')}</p>
+                <p className="mb-3 text-muted-foreground text-xs">{t('library.import_dialog.url.hint')}</p>
                 <Input
                   value={urlText}
                   onChange={(e) => setUrlText(e.target.value)}
                   disabled={loading}
                   placeholder="https://gist.github.com/..."
-                  className="font-mono text-xs placeholder:text-foreground-muted disabled:cursor-not-allowed"
+                  className="font-mono text-xs placeholder:text-muted-foreground disabled:cursor-not-allowed"
                 />
                 <div className="mt-3 flex items-center gap-3">
                   <Button
@@ -428,7 +414,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                     <Link size={12} className="lucide-custom" />
                     <span>{t('library.import_dialog.url.button')}</span>
                   </Button>
-                  <p className="text-foreground-muted text-xs">{t('library.import_dialog.url.supports')}</p>
+                  <p className="text-muted-foreground text-xs">{t('library.import_dialog.url.supports')}</p>
                 </div>
               </motion.div>
             )}

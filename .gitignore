@@ -1,6 +1,7 @@
 # Logs
 logs
-*.log*
+*.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -41,6 +42,7 @@ stats.html
 .eslintcache
 # Downloaded native binaries (mise, etc.)
 resources/binaries/
+scripts/linux-native/prebuilt/
 
 # ENV
 .env
@@ -66,6 +68,9 @@ local
 CLAUDE.local.md
 AGENTS.override.md
 
+# Local Electron development
+.context/cherry-electron-dev/
+
 # vitest
 coverage
 .vitest-cache
@@ -89,3 +94,4 @@ YOUR_MEMORY_FILE_PATH
 
 .sessions/
 .devtools
+.omo/

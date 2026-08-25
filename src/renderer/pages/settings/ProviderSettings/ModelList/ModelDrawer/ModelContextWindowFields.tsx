@@ -8,8 +8,11 @@ interface ModelContextWindowFieldsProps {
   maxInputTokens: string
   maxOutputTokens: string
   onContextWindowChange: (value: string) => void
+  onContextWindowBlur?: () => void
   onMaxInputTokensChange: (value: string) => void
+  onMaxInputTokensBlur?: () => void
   onMaxOutputTokensChange: (value: string) => void
+  onMaxOutputTokensBlur?: () => void
 }
 
 export function ModelContextWindowFields({
@@ -17,8 +20,11 @@ export function ModelContextWindowFields({
   maxInputTokens,
   maxOutputTokens,
   onContextWindowChange,
+  onContextWindowBlur,
   onMaxInputTokensChange,
-  onMaxOutputTokensChange
+  onMaxInputTokensBlur,
+  onMaxOutputTokensChange,
+  onMaxOutputTokensBlur
 }: ModelContextWindowFieldsProps) {
   const { t } = useTranslation()
 
@@ -29,15 +35,14 @@ export function ModelContextWindowFields({
         titleClassName={drawerClasses.fieldTitle}
         className={drawerClasses.field}>
         <Input
-          type="number"
-          min={1}
-          step={1}
+          type="text"
           inputMode="numeric"
           aria-label={t('settings.models.add.context_window.label')}
           value={contextWindow}
           placeholder={t('settings.models.add.context_window.placeholder')}
           className={drawerClasses.input}
           onChange={(event) => onContextWindowChange(event.target.value.replace(/[^\d]/g, ''))}
+          onBlur={onContextWindowBlur}
         />
       </ProviderField>
 
@@ -46,15 +51,14 @@ export function ModelContextWindowFields({
         titleClassName={drawerClasses.fieldTitle}
         className={drawerClasses.field}>
         <Input
-          type="number"
-          min={1}
-          step={1}
+          type="text"
           inputMode="numeric"
           aria-label={t('settings.models.add.max_input_tokens.label')}
           value={maxInputTokens}
           placeholder={t('settings.models.add.max_input_tokens.placeholder')}
           className={drawerClasses.input}
           onChange={(event) => onMaxInputTokensChange(event.target.value.replace(/[^\d]/g, ''))}
+          onBlur={onMaxInputTokensBlur}
         />
       </ProviderField>
 
@@ -63,15 +67,14 @@ export function ModelContextWindowFields({
         titleClassName={drawerClasses.fieldTitle}
         className={drawerClasses.field}>
         <Input
-          type="number"
-          min={1}
-          step={1}
+          type="text"
           inputMode="numeric"
           aria-label={t('settings.models.add.max_output_tokens.label')}
           value={maxOutputTokens}
           placeholder={t('settings.models.add.max_output_tokens.placeholder')}
           className={drawerClasses.input}
           onChange={(event) => onMaxOutputTokensChange(event.target.value.replace(/[^\d]/g, ''))}
+          onBlur={onMaxOutputTokensBlur}
         />
       </ProviderField>
     </>

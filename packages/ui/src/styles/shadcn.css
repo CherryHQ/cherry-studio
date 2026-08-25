@@ -1,0 +1,63 @@
+/**
+ * Canonical Shadcn theme contract.
+ *
+ * Official Shadcn variables remain unprefixed for ecosystem compatibility.
+ * Foundation providers and controlled runtime inputs are imported before this
+ * file. Cherry Studio product semantics are imported after it so they may
+ * intentionally follow official variables and third-party themes such as
+ * TweakCN.
+ */
+
+:root {
+  /* Core surfaces and content */
+  --background: var(--cs-background);
+  --foreground: var(--cs-foreground);
+  --card: var(--cs-card);
+  --card-foreground: var(--cs-card-foreground);
+  --popover: var(--cs-popover);
+  --popover-foreground: var(--cs-popover-foreground);
+  --primary: var(--cs-theme-primary);
+  --primary-foreground: var(--cs-theme-primary-foreground);
+  --secondary: var(--cs-secondary);
+  --secondary-foreground: var(--cs-secondary-foreground);
+  --muted: var(--cs-muted);
+  --muted-foreground: var(--cs-muted-foreground);
+  --accent: var(--cs-accent);
+  --accent-foreground: var(--cs-accent-foreground);
+  --destructive: var(--cs-destructive);
+  --destructive-foreground: var(--cs-destructive-foreground);
+
+  /* Controls */
+  --border: var(--cs-border);
+  --input: var(--cs-input);
+  --ring: var(--cs-ring);
+
+  /* Charts */
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+
+  /* Sidebar */
+  --sidebar: var(--cs-sidebar);
+  --sidebar-foreground: var(--cs-sidebar-foreground);
+  --sidebar-primary: var(--cs-sidebar-primary);
+  --sidebar-primary-foreground: var(--cs-sidebar-primary-foreground);
+  --sidebar-accent: var(--cs-sidebar-accent);
+  --sidebar-accent-foreground: var(--cs-sidebar-accent-foreground);
+  --sidebar-border: var(--cs-sidebar-border);
+  --sidebar-ring: var(--cs-sidebar-ring);
+
+  /* Shadcn radius input */
+  --radius: var(--cs-radius-lg);
+}
+
+.dark {
+  /* Existing `--cs-*` semantic providers switch mode independently. */
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+}

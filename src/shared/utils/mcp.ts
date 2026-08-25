@@ -1,7 +1,10 @@
+import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js'
+import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 export const BuiltinMcpServerNames = {
   flomo: '@cherry/flomo',
+  qveris: '@cherry/qveris',
   mcpAutoInstall: '@cherry/mcp-auto-install',
   memory: '@cherry/memory',
   sequentialThinking: '@cherry/sequentialthinking',
@@ -25,10 +28,18 @@ export const isBuiltinMcpServerName = (name: string): name is BuiltinMcpServerNa
 }
 
 export type BuiltinMcpServer = McpServer & {
-  type: 'inMemory'
+  type: 'inMemory' | 'stdio'
   name: BuiltinMcpServerName
 }
 
-export const isBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer => {
+export const isInMemoryBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer & { type: 'inMemory' } => {
   return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
+}
+
+/**
+ * Spec-aligned guard for a single MCP `CallToolResult` content block
+ * (text / image / audio / resource_link / embedded resource).
+ */
+export const isMcpContentBlock = (value: unknown): value is ContentBlock => {
+  return ContentBlockSchema.safeParse(value).success
 }

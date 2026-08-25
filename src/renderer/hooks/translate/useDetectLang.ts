@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/ai/prompts'
 import {
@@ -56,10 +57,13 @@ export const detectLanguageByLLM = async (
     throw new Error(i18n.t('translate.error.detect.qwen_mt'))
   }
 
-  const systemPrompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
+  const systemPrompt = LANG_DETECT_PROMPT.replaceAll(/{{list_lang}}|{{input}}/g, (placeholder) =>
+    placeholder === '{{list_lang}}' ? listLangText : text
+  )
 
-  const { text: result } = await ipcApi.request('ai.generate_text', {
+  const { text: result } = await ipcApi.request('ai.text.generate', {
     uniqueModelId: model.id,
+    reasoningEffort: 'none',
     system: systemPrompt,
     prompt: 'follow system prompt'
   })
@@ -151,6 +155,19 @@ export const detectWithMethod = async (
   }
 }
 
+export const detectLanguageOrUnknown = async (
+  text: string,
+  detectLanguage: (text: string) => Promise<TranslateLangCode>,
+  onError: (error: unknown) => void
+): Promise<TranslateLangCode> => {
+  try {
+    return await detectLanguage(text)
+  } catch (error) {
+    onError(error)
+    return UNKNOWN_LANG_CODE
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -167,10 +184,9 @@ export const detectWithMethod = async (
  */
 export const useDetectLang = () => {
   const [method] = usePreference('feature.translate.auto_detection_method')
-  const { languages } = useLanguages()
+  const { languages, status } = useLanguages()
   const { quickModel } = useDefaultModel()
 
-  const toastedNotReadyRef = useRef(false)
   const toastedEmptyRef = useRef(false)
 
   const detectLanguage = useCallback(
@@ -178,12 +194,18 @@ export const useDetectLang = () => {
       const text = inputText.trim()
       if (!text) return UNKNOWN_LANG_CODE
 
+      if (status === 'loading') {
+        logger.warn('useDetectLang invoked while languages were loading, returning UNKNOWN')
+        return UNKNOWN_LANG_CODE
+      }
+
+      if (status === 'error') {
+        logger.warn('useDetectLang invoked after languages failed to load, returning UNKNOWN')
+        return UNKNOWN_LANG_CODE
+      }
+
       if (languages === undefined) {
         logger.warn('useDetectLang invoked before languages were ready, returning UNKNOWN')
-        if (!toastedNotReadyRef.current) {
-          toastedNotReadyRef.current = true
-          window.toast?.error(i18n.t('translate.error.languages_load_failed'))
-        }
         return UNKNOWN_LANG_CODE
       }
 
@@ -194,7 +216,7 @@ export const useDetectLang = () => {
         logger.error('useDetectLang invoked with an empty language list')
         if (!toastedEmptyRef.current) {
           toastedEmptyRef.current = true
-          window.toast?.error(i18n.t('translate.error.languages_load_failed'))
+          toast.error(i18n.t('translate.error.languages_load_failed'))
         }
         return UNKNOWN_LANG_CODE
       }
@@ -205,7 +227,7 @@ export const useDetectLang = () => {
       logger.info(`Detected language: ${result}`)
       return result
     },
-    [method, languages, quickModel]
+    [method, languages, quickModel, status]
   )
 
   return detectLanguage

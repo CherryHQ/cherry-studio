@@ -2,9 +2,9 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
-import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
-import { promises as fs } from 'fs'
+import { existsSync, promises as fs } from 'fs'
+import { join } from 'path'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
@@ -48,75 +48,14 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
       }
       return { action: 'deny' }
     } else {
-      return { action: 'allow' }
+      // In-app popups must stay on web origins; isSafeExternalUrl is not reused here
+      // because its allowlist (mailto:, editor deep-links) targets shell.openExternal.
+      if (url.startsWith('http:') || url.startsWith('https:')) {
+        return { action: 'allow' }
+      }
+      logger.warn(`Blocked in-app popup for untrusted URL scheme: ${url}`)
+      return { action: 'deny' }
     }
-  })
-}
-
-const attachKeyboardHandler = (contents: Electron.WebContents) => {
-  if (contents.getType?.() !== 'webview') {
-    return
-  }
-
-  const handleBeforeInput = (event: Electron.Event, input: Electron.Input) => {
-    if (!input) {
-      return
-    }
-
-    const key = input.key?.toLowerCase()
-    if (!key) {
-      return
-    }
-
-    // Helper to check if this is a shortcut we handle
-    const isHandledShortcut = (k: string) => {
-      const isFindShortcut = (input.control || input.meta) && k === 'f'
-      const isPrintShortcut = (input.control || input.meta) && k === 'p'
-      const isSaveShortcut = (input.control || input.meta) && k === 's'
-      const isEscape = k === 'escape'
-      const isEnter = k === 'enter'
-      return isFindShortcut || isPrintShortcut || isSaveShortcut || isEscape || isEnter
-    }
-
-    if (!isHandledShortcut(key)) {
-      return
-    }
-
-    const host = contents.hostWebContents
-    if (!host || host.isDestroyed()) {
-      return
-    }
-
-    const isFindShortcut = (input.control || input.meta) && key === 'f'
-    const isPrintShortcut = (input.control || input.meta) && key === 'p'
-    const isSaveShortcut = (input.control || input.meta) && key === 's'
-
-    // Always prevent Cmd/Ctrl+F to override the guest page's native find dialog
-    if (isFindShortcut) {
-      event.preventDefault()
-    }
-
-    // Prevent default print/save dialogs and handle them with custom logic
-    if (isPrintShortcut || isSaveShortcut) {
-      event.preventDefault()
-    }
-
-    // Send the hotkey event to the renderer
-    // The renderer will decide whether to preventDefault for Escape and Enter
-    // based on whether the search bar is visible
-    host.send(IpcChannel.Webview_SearchHotkey, {
-      webviewId: contents.id,
-      key,
-      control: Boolean(input.control),
-      meta: Boolean(input.meta),
-      shift: Boolean(input.shift),
-      alt: Boolean(input.alt)
-    })
-  }
-
-  contents.on('before-input-event', handleBeforeInput)
-  contents.once('destroyed', () => {
-    contents.removeListener('before-input-event', handleBeforeInput)
   })
 }
 
@@ -125,28 +64,7 @@ const attachKeyboardHandler = (contents: Electron.WebContents) => {
 export class WebviewService extends BaseService {
   protected async onInit() {
     this.initSessionUserAgent()
-    this.initWebviewHotkeys()
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) => {
-      setOpenLinkExternal(webviewId, isExternal)
-    })
-
-    this.ipcHandle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
-      const webview = webContents.fromId(webviewId)
-      if (!webview) return
-      webview.session.setSpellCheckerEnabled(isEnable)
-    })
-
-    this.ipcHandle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
-      return await this.printWebviewToPDF(webviewId)
-    })
-
-    this.ipcHandle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
-      return await this.saveWebviewAsHTML(webviewId)
-    })
+    this.initKeyboardRelayPreload()
   }
 
   /**
@@ -172,25 +90,31 @@ export class WebviewService extends BaseService {
   }
 
   /**
-   * Attach keyboard hotkey handlers to all existing and future webviews.
+   * Install the keyboard relay into every MiniApp guest. Assigned per `<webview>` rather
+   * than on the session, which `persist:webview` OAuth login windows also share.
    */
-  private initWebviewHotkeys() {
-    webContents.getAllWebContents().forEach((contents) => {
-      if (contents.isDestroyed()) return
-      attachKeyboardHandler(contents)
-    })
-
-    const handler = (_: Electron.Event, contents: Electron.WebContents) => {
-      attachKeyboardHandler(contents)
+  private initKeyboardRelayPreload() {
+    const preloadPath = join(__dirname, '../preload/miniApp.js')
+    // Electron reports nothing when a preload path is wrong, and the symptom is every
+    // MiniApp shortcut silently dying, so the mismatch has to be its own signal.
+    if (!existsSync(preloadPath)) {
+      logger.error(`MiniApp keyboard relay preload is missing, shortcuts will not work: ${preloadPath}`)
+      return
     }
-    app.on('web-contents-created', handler)
-    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
+
+    const attach = (_: Electron.Event, contents: Electron.WebContents) => {
+      contents.on('will-attach-webview', (_event, webPreferences) => {
+        webPreferences.preload = preloadPath
+      })
+    }
+    app.on('web-contents-created', attach)
+    this.registerDisposable(() => app.removeListener('web-contents-created', attach))
   }
 
   /**
    * Print webview content to PDF.
    */
-  private async printWebviewToPDF(webviewId: number): Promise<string | null> {
+  async printWebviewToPDF(webviewId: number): Promise<string | null> {
     const webview = webContents.fromId(webviewId)
     if (!webview) {
       throw new Error('Webview not found')
@@ -228,7 +152,7 @@ export class WebviewService extends BaseService {
   /**
    * Save webview content as HTML.
    */
-  private async saveWebviewAsHTML(webviewId: number): Promise<string | null> {
+  async saveWebviewAsHTML(webviewId: number): Promise<string | null> {
     const webview = webContents.fromId(webviewId)
     if (!webview) {
       throw new Error('Webview not found')

@@ -1,46 +1,71 @@
-import {
-  buildDashScopeTransport,
-  DASHSCOPE_PROVIDER_NAME,
-  type DashScopeProviderSettings
-} from './dashscope/dashscopeProvider'
-import {
-  buildDmxapiTransport,
-  DMXAPI_PROVIDER_NAME,
-  type DmxapiProviderSettings,
-  dmxapiUsesCustomTransport
-} from './dmxapi/dmxapiProvider'
+import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
 import type { ImageGenerationTransport } from './imageGenerationModel'
-import {
-  buildModelscopeTransport,
-  MODELSCOPE_PROVIDER_NAME,
-  type ModelscopeProviderSettings
-} from './modelscope/modelscopeProvider'
-import { buildPpioTransport, PPIO_PROVIDER_NAME, type PpioProviderSettings } from './ppio/ppioProvider'
 
-/**
- * Resolve a poll-capable image transport for a custom provider, keyed by the
- * resolved AI SDK provider id (`sdkConfig.providerId`). Returns `null` for
- * providers/models that have no submit/poll transport (they keep the in-SDK
- * `aiCoreGenerateImage` path).
- *
- * This exists so the image-generation job handler can rebuild the exact same
- * transport the SDK path would use — after a restart it has only the persisted
- * `uniqueModelId`, so it re-resolves provider settings (re-reading the apiKey
- * from config, never persisting it) and feeds them back through here. The
- * `build*Transport` helpers are the single source of truth shared with each
- * provider factory.
- */
-type TransportResolver = (modelId: string, providerSettings: unknown) => ImageGenerationTransport | null
+interface TransportRegistration {
+  supports: (modelId: string) => boolean
+  load: (providerSettings: unknown) => Promise<ImageGenerationTransport>
+  poll?: boolean
+  cancel?: boolean
+}
 
-const RESOLVERS: Record<string, TransportResolver> = {
-  [PPIO_PROVIDER_NAME]: (_modelId, settings) => buildPpioTransport(settings as PpioProviderSettings),
-  [DASHSCOPE_PROVIDER_NAME]: (_modelId, settings) => buildDashScopeTransport(settings as DashScopeProviderSettings),
-  [MODELSCOPE_PROVIDER_NAME]: (_modelId, settings) => buildModelscopeTransport(settings as ModelscopeProviderSettings),
-  // DMXAPI is a multi-backend gateway — only its bespoke families use the
-  // custom transport (the rest go through native / openai-compat SDK image
-  // models, which we leave on the in-SDK path).
-  [DMXAPI_PROVIDER_NAME]: (modelId, settings) =>
-    dmxapiUsesCustomTransport(modelId) ? buildDmxapiTransport(settings as DmxapiProviderSettings) : null
+function createLazyTransport(registration: TransportRegistration, providerSettings: unknown): ImageGenerationTransport {
+  let transportPromise: Promise<ImageGenerationTransport> | undefined
+  const load = () => (transportPromise ??= registration.load(providerSettings))
+
+  return {
+    submit: async (input) => (await load()).submit(input),
+    ...(registration.poll && {
+      poll: async (...args: Parameters<NonNullable<ImageGenerationTransport['poll']>>) => {
+        const transport = await load()
+        if (!transport.poll) throw new Error('Image transport does not implement polling')
+        return transport.poll(...args)
+      }
+    }),
+    ...(registration.cancel && {
+      cancel: async (taskId: string) => {
+        await (await load()).cancel?.(taskId)
+      }
+    })
+  }
+}
+
+const TRANSPORTS: Record<string, TransportRegistration> = {
+  ppio: {
+    supports: () => true,
+    poll: true,
+    load: async (settings) => {
+      const { buildPpioTransport } = await import('./ppio/ppioProvider')
+      return buildPpioTransport(settings as Parameters<typeof buildPpioTransport>[0])
+    }
+  },
+  dashscope: {
+    supports: () => true,
+    poll: true,
+    cancel: true,
+    load: async (settings) => {
+      const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
+      return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
+    }
+  },
+  modelscope: {
+    supports: () => true,
+    poll: true,
+    load: async (settings) => {
+      const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
+      return buildModelscopeTransport(settings as Parameters<typeof buildModelscopeTransport>[0])
+    }
+  },
+  dmxapi: {
+    supports: dmxapiUsesCustomTransport,
+    load: async (settings) => {
+      const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
+      return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
+    }
+  }
+}
+
+export function hasImageTransport(providerId: string, modelId: string): boolean {
+  return TRANSPORTS[providerId]?.supports(modelId) ?? false
 }
 
 export function resolveImageTransport(
@@ -48,6 +73,6 @@ export function resolveImageTransport(
   modelId: string,
   providerSettings: unknown
 ): ImageGenerationTransport | null {
-  const resolver = RESOLVERS[aiSdkProviderId]
-  return resolver ? resolver(modelId, providerSettings) : null
+  const registration = TRANSPORTS[aiSdkProviderId]
+  return registration?.supports(modelId) ? createLazyTransport(registration, providerSettings) : null
 }

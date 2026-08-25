@@ -1,9 +1,10 @@
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
-import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkApiCallError,
@@ -43,6 +44,7 @@ interface ErrorDetailContentProps {
   error?: SerializedError
   diagnosisContext?: DiagnosisContext
   blockId?: string
+  onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
   cachedDiagnosis?: DiagnosisResult
 }
 
@@ -91,7 +93,7 @@ const ErrorDetailLabel = ({ className, ...props }: React.HTMLAttributes<HTMLDivE
 const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'rounded-[4px] border border-[var(--color-border)] bg-background-subtle p-2 font-[var(--code-font-family)] text-[12px] text-foreground [word-break:break-word]',
+      'rounded-[4px] border border-border bg-background-subtle p-2 font-[var(--code-font-family)] text-[12px] text-foreground [word-break:break-word]',
       className
     )}
     {...props}
@@ -101,7 +103,7 @@ const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivE
 const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'rounded-[6px] border border-error-base bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-error-base [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
+      'rounded-[6px] border border-error-border bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-error [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
       className
     )}
     {...props}
@@ -110,9 +112,9 @@ const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement
 
 const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
   <span
-    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-[var(--color-warning)]', className)}
+    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-warning', className)}
     style={{
-      background: 'var(--color-warning-bg, rgba(250, 173, 20, 0.1))',
+      background: 'var(--warning-subtle)',
       ...style
     }}
     {...props}
@@ -494,6 +496,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   error,
   diagnosisContext,
   blockId,
+  onDiagnosisComplete,
   cachedDiagnosis
 }) => {
   const { t } = useTranslation()
@@ -531,7 +534,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     }
 
     void navigator.clipboard.writeText(errorText)
-    window.toast.success(t('message.copied'))
+    toast.success(t('message.copied'))
   }, [error, t])
 
   const renderErrorDetails = (error?: SerializedError) => {
@@ -580,6 +583,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
             onStatusChange={setDiagStatus}
             diagnosisContext={diagnosisContext}
             blockId={blockId}
+            onDiagnosisComplete={onDiagnosisComplete}
             cachedDiagnosis={cachedDiagnosis}
           />
         )}
@@ -605,12 +609,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
 }
 
 export function showErrorDetailPopup(params: ErrorDetailContentProps) {
-  void GeneralPopup.show({
+  void ContentPopup.show({
     title: i18n.t('error.detail'),
     content: <ErrorDetailContent {...params} />,
-    footer: null,
     width: '60vw',
-    style: { maxWidth: '1200px', minWidth: '600px' }
+    styles: { content: { maxWidth: '1200px', minWidth: '600px' } }
   })
 }
 

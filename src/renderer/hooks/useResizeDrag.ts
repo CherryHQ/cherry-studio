@@ -3,17 +3,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface UseResizeDragOptions {
   onMove: (event: MouseEvent, stop: () => void) => void
+  /** Called exactly once when a drag ends, however it ends (mouseup, blur,
+   *  visibilitychange, mouseleave, unmount, or onMove calling stop()). */
+  onEnd?: () => void
   cursor?: CSSProperties['cursor']
 }
 
-export function useResizeDrag({ onMove, cursor = 'col-resize' }: UseResizeDragOptions) {
+export function useResizeDrag({ onMove, onEnd, cursor = 'col-resize' }: UseResizeDragOptions) {
   const onMoveRef = useRef(onMove)
+  const onEndRef = useRef(onEnd)
   const cleanupRef = useRef<(() => void) | null>(null)
   const [isResizing, setIsResizing] = useState(false)
 
   useEffect(() => {
     onMoveRef.current = onMove
   }, [onMove])
+
+  useEffect(() => {
+    onEndRef.current = onEnd
+  }, [onEnd])
 
   useEffect(() => {
     return () => cleanupRef.current?.()
@@ -56,6 +64,7 @@ export function useResizeDrag({ onMove, cursor = 'col-resize' }: UseResizeDragOp
         document.removeEventListener('visibilitychange', onVisibilityChange)
         window.removeEventListener('blur', cleanup)
         if (cleanupRef.current === cleanup) cleanupRef.current = null
+        onEndRef.current?.()
       }
 
       document.addEventListener('mousemove', onMouseMove)

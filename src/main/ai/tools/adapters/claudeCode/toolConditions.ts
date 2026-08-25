@@ -16,8 +16,6 @@ import { CLAUDE_TOOL_DEFS } from '@shared/ai/claudecode/toolRegistry'
 export interface ClaudeToolContext {
   /** Session workspace directory. */
   cwd: string
-  /** The agent's channels (pre-fetched — channel lookup is async; predicates read the list). */
-  channels: readonly unknown[]
 }
 
 function dirHasGit(cwd: string): boolean {
@@ -35,9 +33,7 @@ function dirHasGit(cwd: string): boolean {
  */
 const TOOL_ENABLE_PREDICATES: Record<string, (ctx: ClaudeToolContext) => boolean> = {
   EnterWorktree: (ctx) => dirHasGit(ctx.cwd),
-  ExitWorktree: (ctx) => dirHasGit(ctx.cwd),
-  mcp__claw__notify: (ctx) => ctx.channels.length > 0,
-  mcp__claw__config: (ctx) => ctx.channels.length > 0
+  ExitWorktree: (ctx) => dirHasGit(ctx.cwd)
 }
 
 /**

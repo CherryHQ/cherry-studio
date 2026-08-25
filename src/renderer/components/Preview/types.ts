@@ -12,6 +12,6 @@ export interface BasicPreviewProps {
 export interface BasicPreviewHandles {
   pan: (dx: number, dy: number, absolute?: boolean) => void
   zoom: (delta: number, absolute?: boolean) => void
-  copy: () => Promise<void>
+  copy: () => Promise<boolean>
   download: (format: 'svg' | 'png') => Promise<void>
 }

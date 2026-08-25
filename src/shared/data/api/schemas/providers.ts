@@ -6,20 +6,21 @@
 
 import * as z from 'zod'
 
-import { ENDPOINT_TYPE, type EndpointType, objectValues } from '../../types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../../types/model'
 import {
-  ApiFeaturesSchema,
   type ApiKeyEntry,
   ApiKeyEntrySchema,
   type AuthConfig,
   AuthConfigSchema,
   type EndpointConfig,
-  EndpointConfigSchema,
+  type EndpointConfigOverride,
+  EndpointConfigOverrideSchema,
   type Provider,
   type ProviderSettings,
   ProviderSettingsSchema
 } from '../../types/provider'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { CreateLogoSchema } from './logo'
 
 // ============================================================================
 // Field atoms
@@ -36,16 +37,45 @@ const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 // `partialRecord` keeps keys optional so PATCH bodies can carry just the
 // endpoints actually configured (e.g. cherryin only sets `openai-chat-completions`
 // and `anthropic-messages`, not the full EndpointType set).
-const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, EndpointConfigSchema) as z.ZodType<
-  Partial<Record<EndpointType, EndpointConfig>>
+//
+// Values are the persisted OVERRIDE shape, not the full runtime EndpointConfig:
+// registry-owned fields (`modelsApiUrls`) are silently stripped here so a
+// renderer echoing a merged runtime snapshot can't re-freeze registry data
+// into the row (#17096).
+const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, EndpointConfigOverrideSchema) as z.ZodType<
+  Partial<Record<EndpointType, EndpointConfigOverride>>
 >
 
-/**
- * Provider-settings is a loose bag today (e.g. OAuth tokens, provider-specific
- * knobs); keep `Partial<ProviderSettings>` as the DTO shape for parity with
- * the existing API surface.
- */
-const ProviderSettingsPartialSchema = ProviderSettingsSchema.partial()
+/** Provider settings accepted while creating a provider. */
+const ProviderSettingsCreateSchema = ProviderSettingsSchema.partial()
+
+/** RFC 7396 merge patch accepted while updating an existing provider. */
+const ProviderSettingsMergePatchSchema = z.object({
+  streamOptions: z
+    .object({
+      includeUsage: ProviderSettingsSchema.shape.streamOptions.unwrap().shape.includeUsage.nullable().optional()
+    })
+    .nullable()
+    .optional(),
+  apiVersion: ProviderSettingsSchema.shape.apiVersion.nullable().optional(),
+  cacheControl: z
+    .object({
+      enabled: z.boolean().nullable().optional(),
+      tokenThreshold: z.number().nullable().optional(),
+      cacheSystemMessage: z.boolean().nullable().optional(),
+      cacheLastNMessages: z.number().nullable().optional()
+    })
+    .nullable()
+    .optional(),
+  keepAliveTime: ProviderSettingsSchema.shape.keepAliveTime.nullable().optional(),
+  rateLimit: ProviderSettingsSchema.shape.rateLimit.nullable().optional(),
+  timeout: ProviderSettingsSchema.shape.timeout.nullable().optional(),
+  extraHeaders: z.record(z.string(), z.string().nullable()).nullable().optional(),
+  notes: ProviderSettingsSchema.shape.notes.nullable().optional(),
+  isAuthed: ProviderSettingsSchema.shape.isAuthed.nullable().optional(),
+  oauthUsername: ProviderSettingsSchema.shape.oauthUsername.nullable().optional(),
+  oauthAvatar: ProviderSettingsSchema.shape.oauthAvatar.nullable().optional()
+})
 
 // ============================================================================
 // DTOs
@@ -59,6 +89,12 @@ export const CreateProviderSchema = z.strictObject({
   presetProviderId: z.string().optional(),
   /** Display name (required on create) */
   name: z.string().min(1),
+  /**
+   * Custom logo for a user-defined provider — a preset key only
+   * (`{ kind: 'key', key }`). Uploaded images go through the `provider.set_logo`
+   * IpcApi command (bytes → file_entry main-side), not this DTO.
+   */
+  logo: CreateLogoSchema.optional(),
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
@@ -67,10 +103,8 @@ export const CreateProviderSchema = z.strictObject({
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
   /** Authentication configuration */
   authConfig: AuthConfigSchema.optional(),
-  /** API feature support */
-  apiFeatures: ApiFeaturesSchema.optional(),
   /** Provider-specific settings */
-  providerSettings: ProviderSettingsPartialSchema.optional()
+  providerSettings: ProviderSettingsCreateSchema.optional()
 })
 export type CreateProviderDto = z.infer<typeof CreateProviderSchema>
 
@@ -84,23 +118,27 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
   name: true,
   endpointConfigs: true,
   defaultChatEndpoint: true,
-  authConfig: true,
-  apiFeatures: true,
-  providerSettings: true
+  authConfig: true
 })
 
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
-  /** Whether this provider is enabled */
+  /** RFC 7396 merge patch; null removes a stored setting. */
+  providerSettings: ProviderSettingsMergePatchSchema.optional(),
+  /**
+   * Whether this provider is enabled. A persisted false-to-true transition also
+   * moves the provider to the first position atomically; redundant true updates
+   * preserve the existing order.
+   */
   isEnabled: z.boolean().optional()
+  // Logo edits (preset key / image upload / clear) go through the
+  // `provider.set_logo` IpcApi command, not this PATCH body.
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 
 /** Query parameters for GET /providers */
 export const ListProvidersQuerySchema = z.strictObject({
   /** Filter by enabled status */
-  enabled: z.boolean().optional(),
-  /** Filter by endpoint type (kebab-case `EndpointType` value) */
-  endpointType: z.string().optional() as z.ZodOptional<z.ZodType<EndpointType>>
+  enabled: z.boolean().optional()
 })
 export type ListProvidersQuery = z.infer<typeof ListProvidersQuerySchema>
 
@@ -110,6 +148,25 @@ export const ListProviderApiKeysQuerySchema = z.strictObject({
   enabled: z.boolean().optional()
 })
 export type ListProviderApiKeysQuery = z.infer<typeof ListProviderApiKeysQuerySchema>
+
+export const PROVIDER_PRESET_FIELDS = ['endpointConfigs', 'models'] as const
+export const ProviderPresetFieldSchema = z.enum(PROVIDER_PRESET_FIELDS)
+export type ProviderPresetField = z.infer<typeof ProviderPresetFieldSchema>
+
+/** Query parameters for the sparse provider preset projection. */
+export const ProviderPresetQuerySchema = z.strictObject({
+  fields: z.union([ProviderPresetFieldSchema, z.array(ProviderPresetFieldSchema).min(1)])
+})
+export type ProviderPresetQuery = z.infer<typeof ProviderPresetQuerySchema>
+
+/**
+ * Sparse provider-level registry projection. Only requested fields are present.
+ * A requested unavailable endpoint config is `null`; unavailable models are `[]`.
+ */
+export interface ProviderPreset {
+  endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>> | null
+  models?: Model[]
+}
 
 /** POST /providers/:providerId/api-keys body */
 export const AddProviderApiKeySchema = z.strictObject({
@@ -229,6 +286,19 @@ export type ProviderSchemas = {
     GET: {
       params: { providerId: string }
       response: AuthConfig | null
+    }
+  }
+
+  /**
+   * Sparse provider-level projection of the effective registry preset.
+   * Unrequested fields are omitted.
+   * @example GET /providers/openai/preset?fields=endpointConfigs&fields=models
+   */
+  '/providers/:providerId/preset': {
+    GET: {
+      params: { providerId: string }
+      query: ProviderPresetQuery
+      response: ProviderPreset
     }
   }
 

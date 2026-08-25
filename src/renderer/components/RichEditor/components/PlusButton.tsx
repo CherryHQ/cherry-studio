@@ -62,7 +62,9 @@ export const PlusButton: React.FC<PlusButtonProps> = (props: PlusButtonProps) =>
       editor.registerPlugin(plugin.current)
     }
     return () => {
-      editor.unregisterPlugin(pluginKey)
+      if (!editor.isDestroyed) {
+        editor.unregisterPlugin(pluginKey)
+      }
       plugin.current = null
       if (initPlugin) {
         initPlugin.unbind()

@@ -1,20 +1,22 @@
 import {
   Button,
-  Input,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Kbd,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   RowFlex,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
@@ -27,6 +29,9 @@ import {
   settingsContentHeaderTitleClassName,
   settingsContentScrollClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -42,9 +47,10 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
+import { useSearch } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
-import { Check, ChevronDown, Filter, Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
-import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
+import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -67,7 +73,7 @@ const keyCodeToAccelerator: Record<string, ShortcutToken> = {
 }
 
 const passthrough =
-  /^(Page(Up|Down)|Insert|Home|End|Arrow(Up|Down|Left|Right)|F([1-9]|1[0-9])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
+  /^(Page(Up|Down)|Insert|Home|End|CapsLock|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
 
 const usableEndKeys = (code: string): ShortcutToken | null => {
   if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
@@ -76,69 +82,12 @@ const usableEndKeys = (code: string): ShortcutToken | null => {
   return null
 }
 
-const groupIconMap: Record<ShortcutSettingsGroup, ReactNode> = {
-  general: <Keyboard size={16} />,
-  chat: <MessageSquareText size={16} />,
-  topic: <Tags size={16} />,
-  assistant: <Sparkles size={16} />
-}
-
 type ShortcutSettingsFilterGroup = 'all' | ShortcutSettingsGroup
 
 interface ShortcutGroupOption {
-  key: ShortcutSettingsFilterGroup
+  value: ShortcutSettingsFilterGroup
   label: string
   count: number
-}
-
-interface ShortcutGroupFilterMenuProps {
-  groups: ShortcutGroupOption[]
-  activeGroup: ShortcutSettingsFilterGroup
-  onSelect: (group: ShortcutSettingsFilterGroup) => void
-}
-
-const ShortcutGroupFilterMenu: FC<ShortcutGroupFilterMenuProps> = ({ groups, activeGroup, onSelect }) => {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg px-2.5 text-xs shadow-none">
-          <Filter size={14} />
-          {t('settings.shortcuts.filter')}
-          <ChevronDown size={14} className="text-muted-foreground" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-52 rounded-xl p-1.5">
-        <MenuList className="gap-0.5">
-          {groups.map((group) => {
-            const active = activeGroup === group.key
-
-            return (
-              <MenuItem
-                key={group.key}
-                className="h-8 rounded-lg px-2.5 text-sm"
-                icon={group.key === 'all' ? <Keyboard size={16} /> : groupIconMap[group.key]}
-                active={active}
-                label={group.label}
-                suffix={
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-muted-foreground">{group.count}</span>
-                    <Check className={cn('size-3.5', active ? 'opacity-100' : 'opacity-0')} />
-                  </span>
-                }
-                onClick={() => {
-                  onSelect(group.key)
-                  setOpen(false)
-                }}
-              />
-            )
-          })}
-        </MenuList>
-      </PopoverContent>
-    </Popover>
-  )
 }
 
 const ShortcutSettings: FC = () => {
@@ -153,6 +102,19 @@ const ShortcutSettings: FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeGroup, setActiveGroup] = useState<ShortcutSettingsFilterGroup>('all')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
+
+  // `?command=<id>` arrives from pages that own a feature but not its shortcut, so landing
+  // here mid-list would leave the user hunting. Highlight fades; the scroll stays put.
+  const { command: focusedCommand } = useSearch({ strict: false }) as { command?: CommandId }
+  const focusedRowRef = useRef<HTMLDivElement | null>(null)
+  const [focusFaded, setFocusFaded] = useState(false)
+
+  useEffect(() => {
+    if (!focusedCommand || !focusedRowRef.current) return
+    scrollIntoView(focusedRowRef.current)
+    setFocusFaded(false)
+    setTimeoutTimer('focus-fade', () => setFocusFaded(true), 2000)
+  }, [focusedCommand, setTimeoutTimer])
 
   const groupMeta = useMemo(
     () => [
@@ -174,20 +136,28 @@ const ShortcutSettings: FC = () => {
     )
   }, [shortcuts])
 
-  const groupOptions = useMemo(
+  const groupOptions = useMemo<ShortcutGroupOption[]>(
     () => [
       {
-        key: 'all' as const,
+        value: 'all' as const,
         label: t('settings.shortcuts.categories.all'),
         count: shortcuts.length
       },
-      ...groupMeta.map((group) => ({
-        ...group,
-        count: shortcutsByGroup[group.key].length
-      }))
+      ...groupMeta.flatMap((group) => {
+        const count = shortcutsByGroup[group.key].length
+        if (count === 0) return []
+
+        return {
+          value: group.key,
+          label: group.label,
+          count
+        }
+      })
     ],
     [groupMeta, shortcuts.length, shortcutsByGroup, t]
   )
+
+  const activeGroupOption = groupOptions.find((option) => option.value === activeGroup) ?? groupOptions[0]
 
   const currentGroupShortcuts = activeGroup === 'all' ? shortcuts : shortcutsByGroup[activeGroup]
 
@@ -238,7 +208,7 @@ const ShortcutSettings: FC = () => {
       })
 
       if (hasConflict) {
-        window.toast.error(t('settings.shortcuts.occupied_by_other_application'))
+        toast.error(t('settings.shortcuts.occupied_by_other_application'))
       }
     })
   }, [t])
@@ -270,7 +240,7 @@ const ShortcutSettings: FC = () => {
 
   const handleUpdateFailure = (record: (typeof shortcuts)[number], error: unknown) => {
     logger.error(`Failed to update shortcut preference: ${record.key}`, error as Error)
-    window.toast.error(t('settings.shortcuts.save_failed_with_name', { name: record.label }))
+    toast.error(t('settings.shortcuts.save_failed_with_name', { name: record.label }))
   }
 
   const handleResetShortcut = async (record: (typeof shortcuts)[number]) => {
@@ -320,7 +290,7 @@ const ShortcutSettings: FC = () => {
   }
 
   const showConflictToast = (label: string) => {
-    window.toast.error(t('settings.shortcuts.conflict_with', { name: label }))
+    toast.error(t('settings.shortcuts.conflict_with', { name: label }))
   }
 
   const handleKeyDown = async (event: ReactKeyboardEvent, record: (typeof shortcuts)[number]) => {
@@ -374,22 +344,22 @@ const ShortcutSettings: FC = () => {
     }
   }
 
-  const handleResetAllShortcuts = () => {
-    window.modal.confirm({
+  const handleResetAllShortcuts = async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.shortcuts.reset_defaults_confirm'),
-      centered: true,
-      onOk: async () => {
-        const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
-
-        try {
-          clearSystemConflict()
-          await preferenceService.setMultiple(updates)
-        } catch (error) {
-          logger.error('Failed to reset all shortcuts to defaults', error as Error)
-          window.toast.error(t('settings.shortcuts.reset_defaults_failed'))
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
+
+    try {
+      clearSystemConflict()
+      await preferenceService.setMultiple(updates)
+    } catch (error) {
+      logger.error('Failed to reset all shortcuts to defaults', error as Error)
+      toast.error(t('settings.shortcuts.reset_defaults_failed'))
+    }
   }
 
   const handleToggleVisibleShortcuts = async (enabled: boolean) => {
@@ -430,7 +400,7 @@ const ShortcutSettings: FC = () => {
       await preferenceService.setMultiple(updates)
     } catch (error) {
       logger.error(`Failed to toggle shortcuts for group ${activeGroup}`, error as Error)
-      window.toast.error(t('settings.shortcuts.save_failed'))
+      toast.error(t('settings.shortcuts.save_failed'))
     }
   }
 
@@ -457,9 +427,9 @@ const ShortcutSettings: FC = () => {
             type="button"
             variant="ghost"
             className={cn(
-              'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
+              'h-8 w-36 rounded-lg border-border-subtle bg-background text-center text-sm',
               !pendingDisplay && 'text-muted-foreground',
-              hasConflict && 'border-red-500 focus-visible:ring-red-500/50'
+              hasConflict && 'border-error-border focus-visible:border-error-border'
             )}
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onBlur={(event) => {
@@ -471,7 +441,7 @@ const ShortcutSettings: FC = () => {
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
           </Button>
           {hasConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
@@ -496,8 +466,8 @@ const ShortcutSettings: FC = () => {
             )}
             <RowFlex
               className={cn(
-                'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border/60 hover:bg-muted/35',
-                hasSystemConflict && 'border-red-500',
+                'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border-subtle hover:bg-muted/35',
+                hasSystemConflict && 'border-error-border',
                 isEditable ? 'cursor-pointer hover:bg-accent/60' : 'cursor-not-allowed opacity-50'
               )}
               onClick={() => isEditable && handleAddShortcut(record.key)}>
@@ -505,8 +475,8 @@ const ShortcutSettings: FC = () => {
                 <Kbd
                   key={key}
                   className={cn(
-                    'min-w-6 rounded-md border border-border/60 bg-card px-1.5 py-0.75 text-foreground text-xs shadow-none',
-                    hasSystemConflict && 'border-red-500/60 text-red-500'
+                    'min-w-6 rounded-md border border-border-subtle bg-card px-1.5 py-0.75 text-card-foreground text-xs shadow-none',
+                    hasSystemConflict && 'border-error-border text-error'
                   )}>
                   {formatKeyDisplay(key, isMac)}
                 </Kbd>
@@ -514,7 +484,7 @@ const ShortcutSettings: FC = () => {
             </RowFlex>
           </RowFlex>
           {hasSystemConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
               {conflictMessage}
             </span>
           )}
@@ -526,17 +496,15 @@ const ShortcutSettings: FC = () => {
       <div className="relative flex flex-col items-end">
         <span
           className={cn(
-            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border/60 hover:bg-muted/30',
-            hasSystemConflict && 'border-red-500 text-red-500',
+            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border-subtle hover:bg-muted/30',
+            hasSystemConflict && 'border-error-border text-error',
             isEditable ? 'cursor-pointer hover:bg-accent/50' : 'cursor-not-allowed opacity-50'
           )}
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>
         {hasSystemConflict && (
-          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
-            {conflictMessage}
-          </span>
+          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">{conflictMessage}</span>
         )}
       </div>
     )
@@ -572,13 +540,18 @@ const ShortcutSettings: FC = () => {
     return (
       <div
         key={record.key}
+        ref={record.command === focusedCommand ? focusedRowRef : undefined}
+        data-focused={record.command === focusedCommand || undefined}
         className={cn(
           'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
           !record.preference.enabled && 'opacity-60',
-          !isLast && 'border-border/50 border-b'
+          !isLast && 'border-border-subtle border-b',
+          record.command === focusedCommand &&
+            !focusFaded &&
+            '-mx-2 rounded-md bg-primary/10 px-2 ring-1 ring-primary/40'
         )}>
         <div className="min-w-0 pr-2">
-          <div className="truncate font-medium text-[14px] text-foreground">{record.label}</div>
+          <div className="truncate text-[14px] text-foreground">{record.label}</div>
         </div>
         <div className="flex min-h-9 items-center justify-end">{renderShortcutCell(record)}</div>
         <div className="flex justify-end">
@@ -598,68 +571,80 @@ const ShortcutSettings: FC = () => {
     <div className="flex flex-1" data-theme-mode={theme}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 overflow-hidden">
         <Scrollbar className={settingsContentScrollClassName}>
-          <SettingsContentBody>
-            <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
-              <h1 className={settingsContentHeaderTitleClassName}>
-                {activeGroup === 'all'
-                  ? t('settings.shortcuts.title')
-                  : groupOptions.find((item) => item.key === activeGroup)?.label}
-              </h1>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2.5 text-xs shadow-none"
-                  onClick={() => void handleToggleVisibleShortcuts(true)}>
-                  {t('settings.shortcuts.all_enable')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2.5 text-xs shadow-none"
-                  onClick={() => void handleToggleVisibleShortcuts(false)}>
-                  {t('settings.shortcuts.all_disable')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-1.5 px-2.5 text-destructive text-xs shadow-none hover:text-destructive"
-                  onClick={handleResetAllShortcuts}>
-                  <Undo2 size={13} />
-                  {t('settings.shortcuts.reset')}
-                </Button>
-              </div>
-            </div>
-
-            <div className="mb-3 flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
-                <Input
-                  className="h-9 w-full rounded-lg border-border/60 bg-background pr-3 pl-9"
-                  placeholder={t('settings.shortcuts.search_placeholder')}
+          <SettingsContentBody className="pt-4">
+            <div className={cn(settingsContentHeaderClassName, 'flex items-center justify-between gap-3')}>
+              <h1 className={cn(settingsContentHeaderTitleClassName, 'shrink-0')}>{t('settings.shortcuts.title')}</h1>
+              <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                <CollapsibleSearchBar
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onSearch={setSearchQuery}
+                  placeholder={t('settings.shortcuts.search_placeholder')}
+                  tooltip={t('common.search')}
+                  clearLabel={t('common.clear')}
+                  maxWidth={260}
+                  collapsedSize={32}
                 />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs shadow-none">
+                      <ListFilter className="size-3.5" />
+                      {activeGroupOption?.label}
+                      <ChevronDown className="size-3.5 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-44">
+                    <DropdownMenuRadioGroup
+                      value={activeGroup}
+                      onValueChange={(value) => {
+                        setActiveGroup(value as ShortcutSettingsFilterGroup)
+                        setSearchQuery('')
+                      }}>
+                      {groupOptions.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value} className="gap-2">
+                          <span>{option.label}</span>
+                          <span className="ml-auto text-[11px] text-foreground-tertiary">{option.count}</span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-8 shrink-0 text-muted-foreground shadow-none"
+                      aria-label={t('common.more')}>
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-36">
+                    <DropdownMenuItem onSelect={() => void handleToggleVisibleShortcuts(true)}>
+                      {t('settings.shortcuts.all_enable')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void handleToggleVisibleShortcuts(false)}>
+                      {t('settings.shortcuts.all_disable')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onSelect={handleResetAllShortcuts}>
+                      {t('settings.shortcuts.reset')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              <ShortcutGroupFilterMenu
-                groups={groupOptions}
-                activeGroup={activeGroup}
-                onSelect={(group) => {
-                  setActiveGroup(group)
-                  setSearchQuery('')
-                }}
-              />
             </div>
 
-            {visibleShortcuts.length > 0 ? (
-              <div>
-                {visibleShortcuts.map((record, index) =>
-                  renderShortcutRow(record, index === visibleShortcuts.length - 1)
-                )}
-              </div>
-            ) : (
-              <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
-            )}
+            <SettingGroup theme={theme} className="mt-0 p-0">
+              {visibleShortcuts.length > 0 ? (
+                <div className="px-4">
+                  {visibleShortcuts.map((record, index) =>
+                    renderShortcutRow(record, index === visibleShortcuts.length - 1)
+                  )}
+                </div>
+              ) : (
+                <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
+              )}
+            </SettingGroup>
           </SettingsContentBody>
         </Scrollbar>
       </div>

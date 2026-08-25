@@ -15,7 +15,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@main/services/settingsNavigation', () => ({
+vi.mock('@main/services/mainWindowNavigation', () => ({
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
@@ -71,5 +71,15 @@ describe('providersImport protocol handler', () => {
     const payload = Buffer.from("({'id':'custom-openai'})", 'utf-8').toString('base64')
 
     expect(parseProvidersImportData(payload)).toBe(JSON.stringify({ id: 'custom-openai' }))
+  })
+
+  it('preserves standard JSON string values with apostrophes and parentheses', () => {
+    const config = {
+      id: 'custom-openai',
+      name: "Bob's OpenAI (EU)"
+    }
+    const payload = Buffer.from(JSON.stringify(config), 'utf-8').toString('base64')
+
+    expect(parseProvidersImportData(payload)).toBe(JSON.stringify(config))
   })
 })

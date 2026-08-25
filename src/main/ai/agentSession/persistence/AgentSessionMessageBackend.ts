@@ -8,15 +8,16 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { v7 as uuidv7 } from 'uuid'
 
-import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../../streamManager'
+import type { PersistAssistantInput, PersistenceBackend } from '../../streamManager'
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */
   sessionId: string
+  /** Existing assistant placeholder id to finalize. */
+  assistantMessageId: string
   /** Model id used for this assistant message. */
   modelId?: UniqueModelId
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
@@ -27,6 +28,8 @@ export interface AgentSessionMessageBackendOptions {
 
 export class AgentSessionMessageBackend implements PersistenceBackend {
   readonly kind = 'agents-db'
+  readonly canPersistEmptyTerminal = true
+  readonly canPersistEmptySuccessTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
   constructor(private readonly opts: AgentSessionMessageBackendOptions) {
@@ -34,21 +37,27 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   }
 
   persistAssistant(input: PersistAssistantInput): void {
-    const { finalMessage, status, stats } = input
-    const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
+    const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    agentSessionMessageService.saveMessage({
-      sessionId: this.opts.sessionId,
-      ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
-      message: {
-        id: finalMessage?.id ?? uuidv7(),
-        role: 'assistant',
-        status,
-        data: { parts },
-        modelId: this.opts.modelId,
-        ...(stats ? { stats } : {})
-      }
-    })
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: this.opts.sessionId,
+        ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
+        ...(runtimeStats ? { runtimeStats } : {}),
+        message: {
+          id: finalMessage?.id ?? this.opts.assistantMessageId,
+          role: 'assistant',
+          status,
+          data: { parts: finalMessage?.parts ?? [] },
+          modelId: this.opts.modelId
+        }
+      },
+      { publishDataChange: true }
+    )
+  }
+
+  markTerminalError(): void {
+    agentSessionMessageService.markAssistantMessageTerminalError(this.opts.sessionId, this.opts.assistantMessageId)
   }
 
   private getRuntimeResumeToken(): string | undefined {

@@ -5,14 +5,12 @@
  * as extracted/OCR text.
  *
  * The first-party provider set + per-model PDF check are lifted from the retired
- * `pdfCompatibility` feature. Image/audio/video native input rides on the model
- * capability alone (`isVision`/`isAudio`/`isVideo`) — matching how the legacy
- * path inlined media to any provider — so a multimodal model stays native even
- * on an aggregator / openai-compatible endpoint. Only PDF additionally requires
- * a first-party protocol (its native-PDF support is provider-specific).
+ * `pdfCompatibility` feature. Image input rides on the model capability alone.
+ * Audio/video additionally require the resolved AI SDK converter to support the
+ * modality; model metadata describes intrinsic capability, not wire compatibility.
  */
 
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   isAnthropicModel,
@@ -31,6 +29,13 @@ export interface NativeFileSupport {
   readonly pdf: boolean
   readonly audio: boolean
   readonly video: boolean
+}
+
+/** Resolved request routing needed to identify the actual AI SDK converter. */
+export interface NativeFileRouting {
+  readonly endpointType?: EndpointType
+  readonly aiSdkProviderId: AppProviderId
+  readonly runtimeProviderId: AppProviderId
 }
 
 /**
@@ -59,6 +64,67 @@ const NATIVE_FILE_PROVIDER_IDS = new Set<AppProviderId>([
 /** Providers known to choke on native file parts; force text extraction (e.g. Qiniu, #15090). */
 const FORCE_TEXT_PROVIDER_IDS = new Set<string>(['qiniu'])
 
+/** AI SDK converters that reject or discard every audio/video file part. */
+const NO_NATIVE_AUDIO_VIDEO_PROVIDER_IDS = new Set<AppProviderId>([
+  'openai',
+  'azure-responses',
+  'anthropic',
+  'azure-anthropic',
+  'bedrock',
+  'google-vertex-anthropic',
+  'anthropic-vertex',
+  'xai',
+  'xai-responses',
+  'mistral',
+  'groq',
+  'perplexity'
+])
+
+/** AI SDK converters with native support for both audio and video file parts. */
+const NATIVE_AUDIO_VIDEO_PROVIDER_IDS = new Set<AppProviderId>(['google', 'google-vertex', 'openrouter'])
+
+/** OpenAI chat-compatible converters: partial audio support, no video file parts. */
+const OPENAI_CHAT_MEDIA_PROVIDER_IDS = new Set<AppProviderId>([
+  'openai-chat',
+  'openai-compatible',
+  'azure',
+  'github-copilot-openai-compatible',
+  'google-vertex-maas'
+])
+
+interface NativeAudioVideoSupport {
+  readonly audio: boolean
+  readonly video: boolean
+}
+
+function resolveNativeAudioVideoSupport(
+  runtimeProviderId: AppProviderId,
+  endpointType?: EndpointType
+): NativeAudioVideoSupport {
+  if (NO_NATIVE_AUDIO_VIDEO_PROVIDER_IDS.has(runtimeProviderId)) return { audio: false, video: false }
+  // Protocol-level denials override otherwise-capable converters.
+  if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES || endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+    return { audio: false, video: false }
+  }
+  if (NATIVE_AUDIO_VIDEO_PROVIDER_IDS.has(runtimeProviderId)) return { audio: true, video: true }
+  if (OPENAI_CHAT_MEDIA_PROVIDER_IDS.has(runtimeProviderId)) return { audio: true, video: false }
+
+  // Multi-backend providers retain their own provider id, so their resolved
+  // endpoint is the source of truth for which converter they select internally.
+  if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+    // Chat-completions supports a subset of audio MIME types, but no video.
+    // Keep the existing boolean audio contract permissive rather than rejecting
+    // working WAV/MP3 input; MIME-aware routing is a separate concern.
+    return { audio: true, video: false }
+  }
+  if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
+    return { audio: true, video: true }
+  }
+
+  // Preserve the previous model-only behavior for unclassified endpoints.
+  return { audio: true, video: true }
+}
+
 function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProviderId): boolean {
   if (
     FORCE_TEXT_PROVIDER_IDS.has(provider.id) ||
@@ -86,12 +152,13 @@ function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: Ap
 export function resolveNativeFileSupport(
   provider: Provider,
   model: Model,
-  aiSdkProviderId: AppProviderId
+  routing: NativeFileRouting
 ): NativeFileSupport {
+  const mediaSupport = resolveNativeAudioVideoSupport(routing.runtimeProviderId, routing.endpointType)
   return {
     image: isVisionModel(model),
-    pdf: supportsNativePdf(provider, model, aiSdkProviderId),
-    audio: isAudioModel(model),
-    video: isVideoModel(model)
+    pdf: supportsNativePdf(provider, model, routing.aiSdkProviderId),
+    audio: mediaSupport.audio && isAudioModel(model),
+    video: mediaSupport.video && isVideoModel(model)
   }
 }

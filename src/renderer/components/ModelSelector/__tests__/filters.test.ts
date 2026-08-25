@@ -1,110 +1,64 @@
-/**
- * Behavior tests for the model-selector tag filter predicates. Focus is on
- * the parts that are easy to silently break: the "free" substring match
- * (false-positive risk on words like `freedom-*` / `carefree-*`), the
- * capability tag dispatch, and cherryai special-casing.
- */
-
-import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODALITY, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { MODEL_SELECTOR_TAGS } from '../filters'
+import { useModelTagFilter } from '../filters'
 
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {
     id: 'openai::gpt-4',
     providerId: 'openai',
-    modelId: 'gpt-4',
-    apiModelId: 'gpt-4',
     name: 'GPT-4',
-    description: '',
-    group: null,
     capabilities: [],
     inputModalities: [],
-    outputModalities: [],
-    endpointTypes: [],
-    parameterSupport: {},
     supportsStreaming: true,
-    contextWindow: null,
-    maxOutputTokens: null,
-    reasoning: null,
-    pricing: null,
     isEnabled: true,
     isHidden: false,
-    sortOrder: 0,
-    notes: null,
     ...overrides
   } as Model
 }
 
-describe('MODEL_SELECTOR_TAGS', () => {
-  it('lists the tags the selector surfaces in the filter chip row', () => {
-    expect(MODEL_SELECTOR_TAGS).toEqual([
-      MODEL_CAPABILITY.IMAGE_RECOGNITION,
-      MODEL_CAPABILITY.WEB_SEARCH,
-      MODEL_CAPABILITY.REASONING,
-      MODEL_CAPABILITY.FUNCTION_CALL,
-      MODEL_CAPABILITY.EMBEDDING,
-      MODEL_CAPABILITY.RERANK,
-      'free'
-    ])
-  })
-})
+describe('useModelTagFilter', () => {
+  it('requires models to match every selected tag', () => {
+    const { result } = renderHook(() => useModelTagFilter())
 
-describe('modelMatchesDisplayTag — capability tags', () => {
-  it('matches when the model declares the matching capability', () => {
-    const model = makeModel({ capabilities: [MODEL_CAPABILITY.REASONING] })
+    act(() => {
+      result.current.toggleTag(MODEL_CAPABILITY.REASONING)
+      result.current.toggleTag(MODEL_CAPABILITY.IMAGE_RECOGNITION)
+    })
 
-    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.REASONING)).toBe(true)
-  })
-
-  it('does not match when the capability is absent', () => {
-    const model = makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
-
-    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.REASONING)).toBe(false)
+    expect(result.current.selectedTags).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING])
+    expect(
+      result.current.tagFilter(
+        makeModel({
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          inputModalities: [MODALITY.IMAGE]
+        })
+      )
+    ).toBe(true)
+    expect(result.current.tagFilter(makeModel({ capabilities: [MODEL_CAPABILITY.REASONING] }))).toBe(false)
   })
 
-  it('dispatches each capability to its own predicate (no cross-matching)', () => {
-    const model = makeModel({ capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+  it('resets the active tags and restores the pass-through filter', () => {
+    const { result } = renderHook(() => useModelTagFilter())
 
-    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.WEB_SEARCH)).toBe(true)
-    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.RERANK)).toBe(false)
-    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.EMBEDDING)).toBe(false)
-  })
-})
+    act(() => result.current.toggleTag(MODEL_CAPABILITY.REASONING))
+    act(() => result.current.resetTags())
 
-describe('modelMatchesDisplayTag — "free" tag', () => {
-  it('treats every cherryai-provider model as free regardless of name', () => {
-    // cherryai is the in-app trial provider; its models are always free.
-    const model = makeModel({ providerId: 'cherryai', name: 'Qwen3-8B', id: 'cherryai::Qwen/Qwen3-8B' })
-
-    expect(modelMatchesDisplayTag(model, 'free')).toBe(true)
+    expect(result.current.selectedTags).toEqual([])
+    expect(result.current.tagFilter(makeModel())).toBe(true)
   })
 
-  it('matches when the name contains the "free" substring (case-insensitive)', () => {
-    const model = makeModel({ name: 'Llama-3-Free-8B' })
+  it('routes web-search tags through provider server-tool availability', () => {
+    const { result } = renderHook(() => useModelTagFilter())
+    const provider = {
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' }]
+    } as Provider
 
-    expect(modelMatchesDisplayTag(model, 'free')).toBe(true)
-  })
+    act(() => result.current.toggleTag(SERVER_TOOL.WEB_SEARCH))
 
-  it('uses the shared free-model check instead of selector-only apiModelId matching', () => {
-    const model = makeModel({ name: 'Llama-3', apiModelId: 'llama-3:free' })
-
-    expect(modelMatchesDisplayTag(model, 'free')).toBe(false)
-  })
-
-  it('accepts the substring even when embedded in a longer word (known false-positive surface)', () => {
-    // "freedom" / "carefree" will match. Locking this in explicitly so a
-    // future tightening of the predicate surfaces as a test change rather
-    // than a silent UX regression.
-    expect(modelMatchesDisplayTag(makeModel({ name: 'freedom-pro' }), 'free')).toBe(true)
-    expect(modelMatchesDisplayTag(makeModel({ name: 'carefree-mini' }), 'free')).toBe(true)
-  })
-
-  it('returns false when no field contains "free" and provider is not cherryai', () => {
-    const model = makeModel({ name: 'GPT-4', providerId: 'openai', apiModelId: 'gpt-4' })
-
-    expect(modelMatchesDisplayTag(model, 'free')).toBe(false)
+    expect(result.current.tagFilter(makeModel(), provider)).toBe(true)
+    expect(result.current.tagFilter(makeModel(), { ...provider, serverTools: [] })).toBe(false)
   })
 })

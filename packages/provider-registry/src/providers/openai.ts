@@ -1,4 +1,7 @@
 import { defineProvider } from './types'
+import { openaiResponsesSummaryWire } from './wires'
+
+const webSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 
 export default defineProvider({
   id: 'openai',
@@ -7,12 +10,11 @@ export default defineProvider({
   endpointConfigs: {
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://api.openai.com'
+      baseUrl: 'https://api.openai.com',
+      reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
-  apiFeatures: {
-    serviceTier: true
-  },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', modelIdPrefixes: webSearchModels }],
   metadata: {
     website: {
       apiKey: 'https://platform.openai.com/api-keys',

@@ -69,6 +69,12 @@ export class AgentChannelWorkflowService {
       logger.warn('updateChannel: row disappeared mid-update', { channelId })
       return null
     }
+    const agentIdChanged = updates.agentId !== undefined && updates.agentId !== (existing.agentId ?? null)
+    const subscribedTaskIds = agentIdChanged ? agentChannelService.getSubscribedTasks(channelId) : []
+    if (agentIdChanged) {
+      // Restored on successful rollback; kept cleared only if the row restore fails to prevent wrong-agent delivery.
+      agentChannelService.clearTaskSubscriptionsForChannel(channelId)
+    }
 
     try {
       await application.get('ChannelManager').syncChannel(channelId, { awaitConnect: true, strictDisconnect: true })
@@ -80,7 +86,6 @@ export class AgentChannelWorkflowService {
       const restoreUpdates = {
         name: existing.name,
         agentId: existing.agentId ?? null,
-        sessionId: existing.sessionId ?? null,
         workspace: existing.workspace,
         config: existing.config,
         isActive: existing.isActive,
@@ -90,6 +95,13 @@ export class AgentChannelWorkflowService {
 
       try {
         agentChannelService.updateChannel(channelId, restoreUpdates)
+        if (agentIdChanged) {
+          // Re-clear subscriptions created during the transient rebind window, then restore the old-agent snapshot.
+          agentChannelService.clearTaskSubscriptionsForChannel(channelId)
+          for (const taskId of subscribedTaskIds) {
+            agentChannelService.subscribeToTask(channelId, taskId)
+          }
+        }
       } catch (restoreError) {
         logger.warn('Failed to restore channel after sync failure', {
           channelId,

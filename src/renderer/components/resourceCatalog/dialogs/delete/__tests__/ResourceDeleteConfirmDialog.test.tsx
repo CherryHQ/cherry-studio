@@ -90,7 +90,6 @@ function createResource(type: ResourceItem['type']): ResourceItem {
     name: type,
     description: '',
     avatar: type[0],
-    tags: [],
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-01T00:00:00.000Z',
     raw: {} as ResourceItem['raw']
