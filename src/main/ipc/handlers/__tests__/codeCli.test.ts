@@ -11,6 +11,9 @@ const codeCliService = {
   run: vi.fn(),
   writeConfigFiles: vi.fn(),
   readConfigFiles: vi.fn(),
+  applyMiniMaxCodeProvider: vi.fn(),
+  clearMiniMaxCodeProviders: vi.fn(),
+  activateMiniMaxCodeOfficial: vi.fn(),
   getAvailableTerminalsForPlatform: vi.fn()
 }
 
@@ -144,6 +147,20 @@ describe('codeCliHandlers', () => {
       const result = await codeCliHandlers['code_cli.get_available_terminals'](undefined, ctx)
       expect(codeCliService.getAvailableTerminalsForPlatform).toHaveBeenCalledWith()
       expect(result).toEqual([{ id: 'terminal', name: 'Terminal' }])
+    })
+  })
+
+  describe('MiniMax Code provider schemas', () => {
+    it('rejects an unsupported API format at the IPC boundary', () => {
+      const parsed = codeCliRequestSchemas['code_cli.mcode_provider.apply'].input.safeParse({
+        providerName: 'Provider',
+        baseUrl: 'https://example.com/v1',
+        apiFormat: 'gemini',
+        model: 'model',
+        apiKey: 'secret'
+      })
+
+      expect(parsed.success).toBe(false)
     })
   })
 })

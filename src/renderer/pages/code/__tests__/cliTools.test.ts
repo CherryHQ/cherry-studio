@@ -41,6 +41,7 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
         CodeCli.GEMINI_CLI,
         CodeCli.QWEN_CODE,
         CodeCli.KIMI_CODE,
+        CodeCli.MCODE,
         CodeCli.PI
       ].sort()
     )
@@ -54,16 +55,31 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
 })
 
 describe('MiniMax Code provider support', () => {
-  it('launches through its own login without exposing Cherry providers', () => {
-    expect(PROVIDERLESS_CLI_TOOLS.has(CodeCli.MCODE)).toBe(true)
-    expect(
-      CLI_TOOL_PROVIDER_MAP[CodeCli.MCODE]([
-        provider({
-          apiKeys: [{ id: 'key', isEnabled: true }],
-          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
-        })
-      ])
-    ).toEqual([])
+  it('offers MiniMax Official, Unified Gateway, and providers using a supported API format', () => {
+    expect(LOGIN_CAPABLE_CLI_TOOLS.has(CodeCli.MCODE)).toBe(true)
+    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.MCODE)).toBe(true)
+    expect(PROVIDERLESS_CLI_TOOLS.has(CodeCli.MCODE)).toBe(false)
+
+    const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.MCODE]([
+      provider({
+        id: 'anthropic',
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } }
+      }),
+      provider({
+        id: 'openai-chat',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
+      }),
+      provider({
+        id: 'openai-responses',
+        endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.example/v1' } }
+      }),
+      provider({
+        id: 'gemini-only',
+        endpointConfigs: { 'google-generate-content': { baseUrl: 'https://api.example' } }
+      })
+    ])
+
+    expect(supported.map((item) => item.id)).toEqual(['anthropic', 'openai-chat', 'openai-responses'])
   })
 })
 

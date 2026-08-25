@@ -7,10 +7,10 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isMac, isWin } from '@main/core/platform'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
-import { removeEnvProxy } from '@main/utils/processRunner'
+import { executeCommand, removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
-import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type { CodeCliRunInput, MiniMaxCodeProviderApplyInput } from '@shared/ipc/schemas/codeCli'
 import {
   CodeCli,
   LOGIN_CAPABLE_CLI_TOOLS,
@@ -38,6 +38,15 @@ import {
 const execAsync = promisify(require('child_process').exec)
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('CodeCliService')
+const MCODE_PROVIDER_NAME_PREFIX = '[Cherry Studio] '
+const MCODE_PROVIDER_API_KEY_ENV = 'CHERRY_STUDIO_MCODE_API_KEY'
+const MCODE_PROVIDER_COMMAND_TIMEOUT = 30_000
+
+interface MiniMaxCodeListedProvider {
+  providerId: string
+  name: string
+  kind?: string
+}
 
 /**
  * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
@@ -74,6 +83,7 @@ export class CodeCliService extends BaseService {
     timestamp: number
   } | null = null
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
+  private mcodeProviderTail: Promise<void> = Promise.resolve()
 
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
@@ -127,6 +137,161 @@ export class CodeCliService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.terminalsCache = null
+  }
+
+  private enqueueMiniMaxCodeProviderOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.mcodeProviderTail.then(operation, operation)
+    this.mcodeProviderTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
+  private async resolveMiniMaxCodeCommand(): Promise<{ path: string; env: Record<string, string> }> {
+    const binaryManager = application.get('BinaryManager')
+    let snapshot = (await binaryManager.getToolSnapshots(['mcode'])).mcode
+    if (snapshot.availability.source === 'none') {
+      await binaryManager.installByName({ name: 'mcode' })
+      snapshot = (await binaryManager.getToolSnapshots(['mcode'])).mcode
+    }
+    if (snapshot.availability.source === 'none') {
+      throw new Error('MiniMax Code is not available after install')
+    }
+
+    const shellEnv = await getRawShellEnv()
+    if (snapshot.availability.source === 'system') {
+      const env = { ...shellEnv }
+      removeEnvProxy(env)
+      return { path: snapshot.availability.path, env }
+    }
+
+    const runtimeBin = await binaryManager.prepareRuntimeForExecution('mcode')
+    const env = mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')], runtimeBin ? [runtimeBin] : [])
+    removeEnvProxy(env)
+    return { path: snapshot.availability.path, env }
+  }
+
+  private async runMiniMaxCodeProviderCommand(
+    runtime: { path: string; env: Record<string, string> },
+    args: string[],
+    extraEnv: Record<string, string> = {}
+  ): Promise<string> {
+    return executeCommand(runtime.path, ['provider', ...args], {
+      env: { ...runtime.env, ...extraEnv },
+      maxOutputBytes: 1024 * 1024,
+      timeout: MCODE_PROVIDER_COMMAND_TIMEOUT
+    })
+  }
+
+  private async listManagedMiniMaxCodeProviders(runtime: {
+    path: string
+    env: Record<string, string>
+  }): Promise<MiniMaxCodeListedProvider[]> {
+    const output = await this.runMiniMaxCodeProviderCommand(runtime, ['list', '--json'])
+    const parsed: unknown = JSON.parse(output)
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { providers?: unknown }).providers)) {
+      throw new Error('MiniMax Code returned an invalid provider list')
+    }
+    return (parsed as { providers: unknown[] }).providers.filter((provider): provider is MiniMaxCodeListedProvider => {
+      if (!provider || typeof provider !== 'object') return false
+      const entry = provider as Partial<MiniMaxCodeListedProvider>
+      return (
+        entry.kind === 'custom' &&
+        typeof entry.providerId === 'string' &&
+        entry.providerId.startsWith('custom_provider:') &&
+        typeof entry.name === 'string' &&
+        entry.name.startsWith(MCODE_PROVIDER_NAME_PREFIX)
+      )
+    })
+  }
+
+  public async applyMiniMaxCodeProvider(input: MiniMaxCodeProviderApplyInput): Promise<OperationResult> {
+    return this.enqueueMiniMaxCodeProviderOperation(async () => {
+      try {
+        const runtime = await this.resolveMiniMaxCodeCommand()
+        const previousProviders = await this.listManagedMiniMaxCodeProviders(runtime)
+        const previousIds = new Set(previousProviders.map((provider) => provider.providerId))
+        const managedName = `${MCODE_PROVIDER_NAME_PREFIX}${input.providerName}`
+        await this.runMiniMaxCodeProviderCommand(
+          runtime,
+          [
+            'add',
+            '--name',
+            managedName,
+            '--base-url',
+            input.baseUrl,
+            '--api-format',
+            input.apiFormat,
+            '--model',
+            input.model,
+            '--api-key-env',
+            MCODE_PROVIDER_API_KEY_ENV,
+            '--use'
+          ],
+          { [MCODE_PROVIDER_API_KEY_ENV]: input.apiKey }
+        )
+
+        const providers = await this.listManagedMiniMaxCodeProviders(runtime)
+        const activeProvider =
+          providers.find((provider) => !previousIds.has(provider.providerId)) ??
+          providers.find((provider) => provider.name === managedName) ??
+          providers.at(-1)
+        if (!activeProvider) throw new Error('MiniMax Code did not retain the applied provider')
+
+        for (const provider of providers) {
+          if (provider.providerId === activeProvider.providerId) continue
+          await this.runMiniMaxCodeProviderCommand(runtime, ['remove', provider.providerId, '--yes']).catch((error) =>
+            logger.warn('Failed to remove a stale Cherry-managed MiniMax Code provider', error as Error)
+          )
+        }
+        return { success: true }
+      } catch (error) {
+        const message = (error instanceof Error ? error.message : String(error)).replaceAll(input.apiKey, REDACTED)
+        logger.warn('Failed to apply MiniMax Code provider', { message })
+        return { success: false, message }
+      }
+    })
+  }
+
+  public async clearMiniMaxCodeProviders(): Promise<OperationResult> {
+    return this.enqueueMiniMaxCodeProviderOperation(async () => {
+      try {
+        const runtime = await this.resolveMiniMaxCodeCommand()
+        const providers = await this.listManagedMiniMaxCodeProviders(runtime)
+        for (const provider of providers) {
+          await this.runMiniMaxCodeProviderCommand(runtime, ['remove', provider.providerId, '--yes'])
+        }
+        return { success: true }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.warn('Failed to clear Cherry-managed MiniMax Code providers', { message })
+        return { success: false, message }
+      }
+    })
+  }
+
+  public async activateMiniMaxCodeOfficial(): Promise<OperationResult> {
+    return this.enqueueMiniMaxCodeProviderOperation(async () => {
+      try {
+        const runtime = await this.resolveMiniMaxCodeCommand()
+        await this.runMiniMaxCodeProviderCommand(runtime, ['use', 'token-plan'])
+        const providers = await this.listManagedMiniMaxCodeProviders(runtime).catch((error) => {
+          logger.warn('Failed to list stale MiniMax Code providers after activating Official', error as Error)
+          return []
+        })
+        for (const provider of providers) {
+          await this.runMiniMaxCodeProviderCommand(runtime, ['remove', provider.providerId, '--yes']).catch((error) =>
+            logger.warn('Failed to remove a stale Cherry-managed MiniMax Code provider', error as Error)
+          )
+        }
+        return { success: true }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.warn('Failed to activate MiniMax Code Official', { message })
+        return { success: false, message }
+      }
+    })
   }
 
   /**

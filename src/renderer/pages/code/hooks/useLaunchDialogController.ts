@@ -87,9 +87,9 @@ export function useLaunchDialogController({
 
   // The CLI config file is written at "enable" time, not here — launch only
   // opens a terminal running the CLI in the provider's directory. Provider-less
-  // tools (MiniMax Code / Qoder / Copilot) launch with a directory only.
+  // tools (Qoder / Copilot) launch with a directory only.
   const handleLaunch = useCallback(async () => {
-    // Provider-less tools (MiniMax Code/Qoder/Copilot) and the virtual "own login" option both
+    // Provider-less tools (Qoder/Copilot) and the virtual "own login" option both
     // launch with a directory only — no Cherry provider/model is injected.
     const runWithoutProvider = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool) || isOwnLoginSelected
     if (!directory || (!runWithoutProvider && !enabledProvider)) {

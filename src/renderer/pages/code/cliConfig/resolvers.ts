@@ -7,6 +7,7 @@ import {
   CODEX_CHAT_ENDPOINT,
   CODEX_RESPONSES_ENDPOINT,
   GEMINI_AGGREGATOR_BASE_URLS,
+  MCODE_ENDPOINTS,
   OPEN_CODE_ENDPOINTS,
   PI_ENDPOINTS
 } from './constants'
@@ -21,6 +22,12 @@ export type PiApi = 'anthropic-messages' | 'google-generative-ai' | 'openai-comp
 
 export interface PiProviderInfo {
   api: PiApi
+  baseUrl: string
+  endpointType: EndpointType
+}
+
+export interface MiniMaxCodeProviderInfo {
+  apiFormat: 'anthropic-messages' | 'openai-completions' | 'openai-responses'
   baseUrl: string
   endpointType: EndpointType
 }
@@ -147,6 +154,25 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
         : withoutTrailingSlash(rawBaseUrl ?? '')
 
   return { api: apiByEndpoint[endpointType]!, baseUrl, endpointType }
+}
+
+export function resolveMiniMaxCodeProviderInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[]
+): MiniMaxCodeProviderInfo {
+  const endpointType = resolveSupportedEndpointType(provider, modelEndpointTypes, MCODE_ENDPOINTS, 'anthropic-messages')
+  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const apiFormatByEndpoint: Partial<Record<EndpointType, MiniMaxCodeProviderInfo['apiFormat']>> = {
+    'anthropic-messages': 'anthropic-messages',
+    'openai-chat-completions': 'openai-completions',
+    'openai-responses': 'openai-responses'
+  }
+  const baseUrl =
+    endpointType === 'openai-chat-completions' || endpointType === 'openai-responses'
+      ? formatApiHost(rawBaseUrl)
+      : withoutTrailingSlash(rawBaseUrl ?? '')
+
+  return { apiFormat: apiFormatByEndpoint[endpointType]!, baseUrl, endpointType }
 }
 
 export function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {

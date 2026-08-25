@@ -61,7 +61,7 @@ export function normalizeDeepSeekHarnessSettings(value: unknown): DeepSeekHarnes
 export const CLI_OWN_LOGIN_PROVIDER_ID = 'cherry:cli-own-login'
 
 /**
- * CLI tools that can run through their own account login (OAuth) instead of a
+ * CLI tools that can run through their own account/login mode instead of a
  * Cherry provider + API key. These surface the virtual "own login" option and,
  * when it is selected, launch provider-less (no credential injection). Distinct
  * from the provider-less tools (Qoder / Copilot), which never accept a Cherry
@@ -73,15 +73,12 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.GEMINI_CLI,
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
+  CodeCli.MCODE,
   CodeCli.PI
 ])
 
 /** CLI tools that never receive a Cherry provider or model configuration. */
-export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
-  CodeCli.MCODE,
-  CodeCli.QODER_CLI,
-  CodeCli.GITHUB_COPILOT_CLI
-])
+export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([CodeCli.QODER_CLI, CodeCli.GITHUB_COPILOT_CLI])
 
 /**
  * Reserved virtual provider id for the code-CLI "Cherry Gateway" option. Like the
@@ -118,6 +115,7 @@ export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.OPEN_CODE,
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
+  CodeCli.MCODE,
   CodeCli.PI,
   CodeCli.DEEPSEEK_HARNESS
 ])

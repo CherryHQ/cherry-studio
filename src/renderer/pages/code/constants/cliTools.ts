@@ -60,8 +60,8 @@ const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_
  * - DeepSeek Harness: direct mode also requires API-key or keyless authentication.
  * - Gemini CLI: inject reads the Gemini-format endpoint (`google-generate-content`).
  * - Qwen Code / Kimi CLI: inject reads an OpenAI-compatible endpoint.
- * - Pi: injects any endpoint supported by Pi's custom-provider schema.
- * - MiniMax Code / Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
+ * - MiniMax Code / Pi: inject any endpoint supported by each CLI's custom-provider schema.
+ * - Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),
@@ -80,7 +80,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter((p) => isGeminiProvider(p) || hasGemini(p) || GEMINI_AGGREGATOR_PROVIDERS.has(p.id)),
   [CodeCli.QWEN_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.KIMI_CODE]: (providers) => providers.filter(hasOpenAILike),
-  [CodeCli.MCODE]: () => [],
+  [CodeCli.MCODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
   [CodeCli.QODER_CLI]: () => [],
   [CodeCli.GITHUB_COPILOT_CLI]: () => [],
   [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p))
