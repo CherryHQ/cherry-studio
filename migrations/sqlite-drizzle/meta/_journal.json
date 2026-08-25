@@ -112,6 +112,13 @@
       "when": 1787387094750,
       "tag": "0015_chief_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1787514273959,
+      "tag": "0016_agent_session_message_reasoning_backfill",
+      "breakpoints": true
     }
   ],
   "version": "7"

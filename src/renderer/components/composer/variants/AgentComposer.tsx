@@ -270,7 +270,6 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
-    inlineDescription: true,
     icon: <ToolCase size={16} />,
     suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
@@ -1203,7 +1202,11 @@ const AgentComposerInner = ({
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
-    await chatStop()
+    try {
+      await chatStop()
+    } catch (error) {
+      logger.error('Failed to abort agent session', { sessionTopicId, error })
+    }
   }, [chatStop, sessionTopicId])
 
   const handleAgentChange = useCallback(
