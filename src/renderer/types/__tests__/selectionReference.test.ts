@@ -41,6 +41,28 @@ describe('SelectionReferenceSchema', () => {
     ).not.toBeNull()
   })
 
+  // Every shape SKILL.md documents, including the ones the scripts branch on. The pptx refine reads
+  // `nodeId !== undefined || (paragraph === undefined && tableCell === undefined)`; getting it
+  // backwards would reject whole-slide and shape-only anchors, and nothing above would notice.
+  it.each([
+    ['xlsx single cell', { format: 'xlsx', sheet: 'Sheet1', range: 'B2' }],
+    ['xlsx grid maximum', { format: 'xlsx', sheet: 'Sheet1', range: 'XFD1048576' }],
+    ['docx without charRange', { format: 'docx', paragraph: 4 }],
+    ['pdf with charRange', { format: 'pdf', page: 2, charRange: [0, 40] }],
+    ['pptx whole slide', { format: 'pptx', slide: 3 }],
+    ['pptx whole shape', { format: 'pptx', slide: 3, nodeId: '7' }],
+    ['pptx shape paragraph', { format: 'pptx', slide: 3, nodeId: '7', paragraph: 2 }]
+  ])('accepts the documented %s anchor', (_label, anchor) => {
+    expect(parseSelectionReference({ ...validReference, anchor })?.anchor).toEqual(anchor)
+  })
+
+  it.each(['ZZZ1', 'XFE1', 'A1048577', 'A1:XFE9'])(
+    'rejects %s, which is outside the grid the office-transform scripts accept',
+    (range) => {
+      expect(parseSelectionReference({ ...validReference, anchor: { format: 'xlsx', sheet: 'S', range } })).toBeNull()
+    }
+  )
+
   it('rejects a zero-based slide number that would address the wrong slide', () => {
     expect(parseSelectionReference({ ...validReference, anchor: { format: 'pptx', slide: 0, nodeId: '4' } })).toBeNull()
   })

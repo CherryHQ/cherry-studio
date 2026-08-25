@@ -113,6 +113,20 @@ def preflight_zip(path: "Path") -> None:
         fail(f"package decompresses to {total} bytes in total (limit {MAX_TOTAL_BYTES})")
 
 
+def require_index(value, field: str, minimum: int) -> int:
+    """Return an anchor ordinal, refusing anything int() would silently reinterpret.
+
+    Bare int() accepts "3", 3.7 (truncated) and True (1), each of which addresses a different
+    paragraph/page/slide than the caller meant and reports nothing. bool is checked first because it
+    is a subclass of int.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        fail(f"{field} must be an integer, not {type(value).__name__}: {value!r}")
+    if value < minimum:
+        fail(f"{field} must be >= {minimum}: {value!r}")
+    return value
+
+
 def slice_char_range(text: str, char_range) -> str:
     if char_range is None:
         return text
@@ -195,10 +209,9 @@ def extract_docx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
     except ImportError:
         fail("python-docx is required for docx sources — rerun via `uv run --with python-docx python ...`")
 
-    paragraph_index = anchor.get("paragraph")
-    if paragraph_index is None or int(paragraph_index) < 0:
+    if anchor.get("paragraph") is None:
         fail("docx anchor requires a non-negative 'paragraph' ordinal")
-    paragraph_index = int(paragraph_index)
+    paragraph_index = require_index(anchor.get("paragraph"), "docx anchor 'paragraph'", 0)
 
     document = docx.Document(str(src))
     paragraphs = document.paragraphs
@@ -222,10 +235,10 @@ def extract_pdf(src: Path, anchor: dict, out_path: Path, out_format: str) -> Non
     except ImportError:
         fail("pypdf is required for pdf sources — rerun via `uv run --with pypdf python ...`")
 
-    page_number = anchor.get("page")
-    if page_number is None or int(page_number) < 1:
+    if anchor.get("page") is None:
         fail("pdf anchor requires a one-based 'page' number")
-    page_index = int(page_number) - 1
+    page_number = require_index(anchor.get("page"), "pdf anchor 'page'", 1)
+    page_index = page_number - 1
 
     # OOXML sources go through preflight_zip; PDFs had no ceiling at all before PdfReader parsed them.
     source_bytes = src.stat().st_size
@@ -272,10 +285,10 @@ def extract_pptx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
     except ImportError:
         fail("python-pptx is required for pptx sources — rerun via `uv run --with python-pptx python ...`")
 
-    slide_number = anchor.get("slide")
-    if slide_number is None or int(slide_number) < 1:
+    if anchor.get("slide") is None:
         fail("pptx anchor requires a one-based 'slide' number")
-    slide_index = int(slide_number) - 1
+    slide_number = require_index(anchor.get("slide"), "pptx anchor 'slide'", 1)
+    slide_index = slide_number - 1
 
     presentation = Presentation(str(src))
     slides = list(presentation.slides)
@@ -304,8 +317,9 @@ def extract_pptx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
             if not (getattr(shape, "has_table", False) and shape.has_table):
                 fail(f"shape {node_id!r} is not a table but anchor has 'tableCell'")
             rows = list(shape.table.rows)
-            row, col = int(table_cell.get("row", -1)), int(table_cell.get("col", -1))
-            if row < 0 or row >= len(rows) or col < 0 or col >= len(list(rows[row].cells)):
+            row = require_index(table_cell.get("row"), "pptx anchor tableCell 'row'", 0)
+            col = require_index(table_cell.get("col"), "pptx anchor tableCell 'col'", 0)
+            if row >= len(rows) or col >= len(list(rows[row].cells)):
                 fail(f"tableCell {table_cell!r} out of range for shape {node_id!r}")
             lines = [list(rows[row].cells)[col].text]
         elif paragraph_index is not None:
@@ -314,9 +328,10 @@ def extract_pptx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
             paragraphs = shape.text_frame.paragraphs
             # Bounded on both sides: a negative ordinal would index from the end and quietly return a
             # paragraph nobody asked for.
-            if int(paragraph_index) < 0 or int(paragraph_index) >= len(paragraphs):
+            paragraph_index = require_index(paragraph_index, "pptx anchor 'paragraph'", 0)
+            if paragraph_index >= len(paragraphs):
                 fail(f"paragraph {paragraph_index} out of range (shape has {len(paragraphs)} paragraphs)")
-            lines = [paragraphs[int(paragraph_index)].text]
+            lines = [paragraphs[paragraph_index].text]
         else:
             lines = shape_text_lines(shape)
 
