@@ -1,5 +1,5 @@
 ---
-title: Empty conversations now offer generated starter prompts
+title: Empty conversations can offer generated starter prompts
 category: changed
 severity: notice
 introduced_in_pr: "#18440"
@@ -8,12 +8,12 @@ date: 2026-08-18
 
 ## What changed
 
-Empty Chat and Agent conversations now generate three localized starter prompts using a configurable model.
+Empty Chat and Agent conversations can generate three localized starter prompts. Conversation Suggestions is off by default and uses a dedicated model when set, otherwise the default chat model.
 
 ## Why this matters to the user
 
-Opening an empty conversation can make one background model request. Users can disable conversation suggestions or choose a dedicated model in model settings.
+Opening an empty conversation does not make a background model request until the user enables Conversation Suggestions in Settings > Default Model.
 
 ## What the user should do
 
-Nothing - automatic. Users who do not want background suggestion requests can turn off Conversation Suggestions in model settings.
+Nothing — automatic. To show starter prompts, turn on Conversation Suggestions in Settings > Default Model and optionally pick a dedicated model.

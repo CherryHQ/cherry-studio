@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "Порог усечения вывода инструментов (символов)",
   "settings.models.context_management.truncate_threshold_description": "Вывод инструментов длиннее указанного числа символов выгружается в файл и усекается; модель может прочитать его при необходимости. Ассистенты могут переопределить эту настройку",
   "settings.models.conversation_suggestions.default_model": "Использовать модель по умолчанию",
-  "settings.models.conversation_suggestions.description": "Создавать стартовые запросы для пустых диалогов Chat и Agent",
+  "settings.models.conversation_suggestions.description": "Если включено, создаёт стартовые запросы для пустых диалогов Chat и Agent",
   "settings.models.conversation_suggestions.label": "Подсказки для начала диалога",
   "settings.models.default_assistant_model": "Модель ассистента по умолчанию",
   "settings.models.default_assistant_model_description": "Используется, если у ассистента нет модели.",

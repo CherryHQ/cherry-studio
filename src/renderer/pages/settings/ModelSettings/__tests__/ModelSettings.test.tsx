@@ -310,6 +310,17 @@ describe('ModelSettings', () => {
     expect(harness.preferenceSetters['chat.suggestions.model_id']).toHaveBeenCalledWith(selectedModel.id)
   })
 
+  it('hides the suggestions model picker until the feature is enabled', () => {
+    harness.preferenceValues['chat.suggestions.enabled'] = false
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'settings.models.conversation_suggestions.default_model' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('settings.models.conversation_suggestions.label'))
+    expect(harness.preferenceSetters['chat.suggestions.enabled']).toHaveBeenCalledWith(true)
+  })
+
   it('lets users reset a dedicated suggestions model to follow the default', () => {
     const selectedModel = createModel('openai', 'gpt-4o-mini')
     harness.suggestionsModel = selectedModel

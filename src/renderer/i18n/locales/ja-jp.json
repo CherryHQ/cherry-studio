@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "ツール出力の切り詰めしきい値（文字）",
   "settings.models.context_management.truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます",
   "settings.models.conversation_suggestions.default_model": "デフォルトモデルを使用",
-  "settings.models.conversation_suggestions.description": "空の Chat と Agent の会話向けに開始プロンプトを生成します",
+  "settings.models.conversation_suggestions.description": "有効にすると、空の Chat と Agent の会話向けに開始プロンプトを生成します",
   "settings.models.conversation_suggestions.label": "会話の候補",
   "settings.models.default_assistant_model": "デフォルトアシスタントモデル",
   "settings.models.default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",

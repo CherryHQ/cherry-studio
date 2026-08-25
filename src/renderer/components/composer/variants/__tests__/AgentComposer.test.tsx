@@ -3444,7 +3444,7 @@ describe('AgentComposer', () => {
       index: 0,
       textOffset: 0
     }
-    mocks.getDraft.mockReturnValue({ text: 'existing text', tokens: [skillToken] })
+    mocks.getDraft.mockImplementation(() => ({ text: '', tokens: [skillToken] }))
     render(
       <AgentComposer
         agentId="agent-1"
@@ -3475,6 +3475,30 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
+  })
+
+  it('does not replace typed draft text when a suggestion is clicked', async () => {
+    mocks.getDraft.mockImplementation(() => ({ text: 'already typed', tokens: [] }))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="suggestion-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('suggestion-session'),
+        text: 'Review the current changes'
+      })
+    })
+
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).not.toBe('Review the current changes')
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
   })
 
   it('adopts launch options that arrive after the restored session first renders', async () => {

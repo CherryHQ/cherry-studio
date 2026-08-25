@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "工具輸出截斷閾值（字元）",
   "settings.models.context_management.truncate_threshold_description": "超過該字元數的工具輸出會被轉存為檔案並截斷，模型可按需讀回。助理可單獨覆寫",
   "settings.models.conversation_suggestions.default_model": "使用預設模型",
-  "settings.models.conversation_suggestions.description": "為空白的 Chat 和 Agent 對話產生開場提示",
+  "settings.models.conversation_suggestions.description": "開啟後，為空白的 Chat 和 Agent 對話產生開場提示",
   "settings.models.conversation_suggestions.label": "對話推薦",
   "settings.models.default_assistant_model": "預設助理模型",
   "settings.models.default_assistant_model_description": "助理未設定模型時使用。",

@@ -26,10 +26,12 @@ export async function readQuickModel(): Promise<Model | undefined> {
 }
 
 export async function readConversationSuggestionsModel(): Promise<Model | undefined> {
-  const id = ((await preferenceService.get('chat.suggestions.model_id')) ??
-    (await preferenceService.get('chat.default_model_id'))) as UniqueModelId | undefined
-  if (!id) return undefined
-  return (await dataApiService.get(`/models/${id}`)) ?? undefined
+  const dedicatedId = (await preferenceService.get('chat.suggestions.model_id')) as UniqueModelId | null | undefined
+  if (dedicatedId) {
+    const dedicated = await dataApiService.get(`/models/${dedicatedId}`)
+    if (dedicated) return dedicated
+  }
+  return readDefaultModel()
 }
 
 export async function readTranslateModel(): Promise<Model | undefined> {

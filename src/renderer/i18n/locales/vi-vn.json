@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "Ngưỡng cắt bớt kết quả công cụ (ký tự)",
   "settings.models.context_management.truncate_threshold_description": "Kết quả công cụ vượt quá số ký tự này sẽ được lưu tách ra tệp và cắt bớt; mô hình có thể đọc lại khi cần. Trợ lý có thể ghi đè cài đặt này",
   "settings.models.conversation_suggestions.default_model": "Dùng mô hình mặc định",
-  "settings.models.conversation_suggestions.description": "Tạo lời nhắc mở đầu cho cuộc trò chuyện Chat và Agent trống",
+  "settings.models.conversation_suggestions.description": "Khi bật, tạo lời nhắc mở đầu cho cuộc trò chuyện Chat và Agent trống",
   "settings.models.conversation_suggestions.label": "Gợi ý trò chuyện",
   "settings.models.default_assistant_model": "Mô hình Trợ lý Mặc định",
   "settings.models.default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",

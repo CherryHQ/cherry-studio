@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "Tool-output truncation threshold (chars)",
   "settings.models.context_management.truncate_threshold_description": "Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this",
   "settings.models.conversation_suggestions.default_model": "Use default model",
-  "settings.models.conversation_suggestions.description": "Generate starter prompts for empty Chat and Agent conversations",
+  "settings.models.conversation_suggestions.description": "When enabled, generate starter prompts for empty Chat and Agent conversations",
   "settings.models.conversation_suggestions.label": "Conversation Suggestions",
   "settings.models.default_assistant_model": "Default Assistant Model",
   "settings.models.default_assistant_model_description": "Used when an assistant has no model.",

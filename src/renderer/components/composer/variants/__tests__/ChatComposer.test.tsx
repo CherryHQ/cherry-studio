@@ -1337,7 +1337,7 @@ describe('ChatComposer', () => {
         textOffset: 0
       }
     ]
-    mocks.getDraft.mockReturnValue({ text: 'existing text', tokens })
+    mocks.getDraft.mockReturnValue({ text: '', tokens })
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
     await waitFor(() => expect(mocks.eventListeners.has('FILL_CHAT_COMPOSER')).toBe(true))
@@ -1354,6 +1354,19 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('Use this prompt')
     expect(onSend).not.toHaveBeenCalled()
     await waitFor(() => expect(mocks.focusComposer).toHaveBeenCalledWith('end'))
+  })
+
+  it('does not replace typed draft text when a suggestion is clicked', async () => {
+    mocks.getDraft.mockReturnValue({ text: 'already typed', tokens: [] })
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => expect(mocks.eventListeners.has('FILL_CHAT_COMPOSER')).toBe(true))
+    act(() => {
+      mocks.eventListeners.get('FILL_CHAT_COMPOSER')?.({ topicId: 'topic-1', text: 'Use this prompt' })
+    })
+
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).not.toBe('Use this prompt')
   })
 
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {

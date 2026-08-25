@@ -1,6 +1,6 @@
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useConversationSuggestions } from '@renderer/hooks/useConversationSuggestions'
+import { useConversationSuggestions } from '@renderer/hooks/chat/useConversationSuggestions'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
   type ConversationSuggestionMode,

@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "工具输出截断阈值(字符)",
   "settings.models.context_management.truncate_threshold_description": "超过该字符数的工具输出会被转存为文件并截断，模型可按需读回。助手可单独覆盖",
   "settings.models.conversation_suggestions.default_model": "使用默认模型",
-  "settings.models.conversation_suggestions.description": "为空白 Chat 和 Agent 对话生成推荐话术",
+  "settings.models.conversation_suggestions.description": "开启后，为空白 Chat 和 Agent 对话生成推荐话术",
   "settings.models.conversation_suggestions.label": "对话推荐",
   "settings.models.default_assistant_model": "默认助手模型",
   "settings.models.default_assistant_model_description": "助手没有模型时使用这个模型",

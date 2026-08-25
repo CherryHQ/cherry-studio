@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
   "settings.models.context_management.truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben",
   "settings.models.conversation_suggestions.default_model": "Standardmodell verwenden",
-  "settings.models.conversation_suggestions.description": "Startprompts für leere Chat- und Agent-Unterhaltungen generieren",
+  "settings.models.conversation_suggestions.description": "Wenn aktiviert, Startprompts für leere Chat- und Agent-Unterhaltungen generieren",
   "settings.models.conversation_suggestions.label": "Gesprächsvorschläge",
   "settings.models.default_assistant_model": "Standard-Assistent-Modell",
   "settings.models.default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",

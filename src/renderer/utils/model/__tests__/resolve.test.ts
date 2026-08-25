@@ -44,4 +44,17 @@ describe('readConversationSuggestionsModel', () => {
     await expect(readConversationSuggestionsModel()).resolves.toBe(defaultModel)
     expect(mockDataApiService.get).toHaveBeenCalledWith(`/models/${defaultModel.id}`)
   })
+
+  it('falls back to the global default model when the dedicated model cannot be resolved', async () => {
+    mockPreferenceService.get.mockImplementation(async (key: string) =>
+      key === 'chat.suggestions.model_id' ? dedicatedModel.id : defaultModel.id
+    )
+    mockDataApiService.get.mockImplementation(async (path: string) =>
+      path === `/models/${defaultModel.id}` ? defaultModel : undefined
+    )
+
+    await expect(readConversationSuggestionsModel()).resolves.toBe(defaultModel)
+    expect(mockDataApiService.get).toHaveBeenCalledWith(`/models/${dedicatedModel.id}`)
+    expect(mockDataApiService.get).toHaveBeenCalledWith(`/models/${defaultModel.id}`)
+  })
 })

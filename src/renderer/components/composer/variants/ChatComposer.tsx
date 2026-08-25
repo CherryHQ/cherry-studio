@@ -82,6 +82,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { useComposerFill } from './shared/composerFill'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
   buildComposerQueuedPayload,
@@ -1349,33 +1350,18 @@ const ChatComposerInner = ({
     })
   }, [actionsRef, streamScopeKey])
 
-  useEffect(() => {
-    return EventEmitter.on(EVENT_NAMES.FILL_CHAT_COMPOSER, (payload) => {
-      const input =
-        typeof payload === 'object' && payload ? (payload as { topicId?: string; text?: string }) : undefined
-      if (input?.topicId !== streamScopeKey || !input.text) return
-
-      const historyPreview = exitInputHistoryPreview()
-      const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
-      actionsRef.current.replaceDraft({ text: input.text, tokens: currentDraft.tokens })
-      setText(input.text)
-      setDraftTokens(currentDraft.tokens.length ? currentDraft.tokens : undefined)
-      if (historyPreview.tools) {
-        setFiles(historyPreview.tools.files)
-        setMentionedModels(historyPreview.tools.mentionedModels)
-        setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
-      }
-      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
-    })
-  }, [
-    actionsRef,
-    exitInputHistoryPreview,
-    setFiles,
-    setMentionedModels,
-    setSelectedKnowledgeBases,
-    setText,
-    streamScopeKey
-  ])
+  useComposerFill(actionsRef, streamScopeKey, (text) => {
+    const historyPreview = exitInputHistoryPreview()
+    const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
+    actionsRef.current.replaceDraft({ text, tokens: currentDraft.tokens })
+    setText(text)
+    setDraftTokens(currentDraft.tokens.length ? currentDraft.tokens : undefined)
+    if (historyPreview.tools) {
+      setFiles(historyPreview.tools.files)
+      setMentionedModels(historyPreview.tools.mentionedModels)
+      setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
+    }
+  })
 
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })

@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "Prag de trunchiere a rezultatelor instrumentelor (caractere)",
   "settings.models.context_management.truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare",
   "settings.models.conversation_suggestions.default_model": "Folosește modelul implicit",
-  "settings.models.conversation_suggestions.description": "Generează prompturi de început pentru conversațiile Chat și Agent goale",
+  "settings.models.conversation_suggestions.description": "Când este activat, generează prompturi de început pentru conversațiile Chat și Agent goale",
   "settings.models.conversation_suggestions.label": "Sugestii de conversație",
   "settings.models.default_assistant_model": "Model asistent implicit",
   "settings.models.default_assistant_model_description": "Folosit când un asistent nu are model.",

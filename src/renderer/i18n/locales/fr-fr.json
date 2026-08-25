@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "Seuil de troncature des sorties d’outils (caractères)",
   "settings.models.context_management.truncate_threshold_description": "Les sorties d’outils dépassant ce nombre de caractères sont déchargées dans un fichier et tronquées ; le modèle peut les relire à la demande. Les assistants peuvent le remplacer",
   "settings.models.conversation_suggestions.default_model": "Utiliser le modèle par défaut",
-  "settings.models.conversation_suggestions.description": "Générer des invites de départ pour les conversations Chat et Agent vides",
+  "settings.models.conversation_suggestions.description": "Une fois activé, génère des invites de départ pour les conversations Chat et Agent vides",
   "settings.models.conversation_suggestions.label": "Suggestions de conversation",
   "settings.models.default_assistant_model": "Modèle d'assistant par défaut",
   "settings.models.default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",

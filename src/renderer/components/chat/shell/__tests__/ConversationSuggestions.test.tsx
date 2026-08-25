@@ -10,11 +10,11 @@ const mocks = vi.hoisted(() => ({
   useConversationSuggestions: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useConversationSuggestions', () => ({
+vi.mock('@renderer/hooks/chat/useConversationSuggestions', () => ({
   useConversationSuggestions: mocks.useConversationSuggestions
 }))
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [key === 'app.language' ? 'zh-CN' : mocks.suggestionsEnabled]
+  usePreference: () => [mocks.suggestionsEnabled]
 }))
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { FILL_CHAT_COMPOSER: 'FILL_CHAT_COMPOSER' },
@@ -79,6 +79,9 @@ describe('ConversationSuggestions', () => {
       />
     )
 
+    expect(mocks.useConversationSuggestions).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }))
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('conversation-suggestions')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('conversation-suggestions-loading')).not.toBeInTheDocument()
   })
 })

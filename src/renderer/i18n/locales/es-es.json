@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "Umbral de truncado de salida de herramientas (caracteres)",
   "settings.models.context_management.truncate_threshold_description": "Las salidas de herramientas que superen este número de caracteres se descargan a un archivo y se truncan; el modelo puede volver a leerlas cuando lo necesite. Los asistentes pueden anularlo",
   "settings.models.conversation_suggestions.default_model": "Usar modelo predeterminado",
-  "settings.models.conversation_suggestions.description": "Generar mensajes iniciales para conversaciones vacías de Chat y Agent",
+  "settings.models.conversation_suggestions.description": "Si está activado, genera mensajes iniciales para conversaciones vacías de Chat y Agent",
   "settings.models.conversation_suggestions.label": "Sugerencias de conversación",
   "settings.models.default_assistant_model": "Modelo predeterminado del asistente",
   "settings.models.default_assistant_model_description": "Se usa cuando un asistente no tiene modelo.",

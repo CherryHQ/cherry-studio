@@ -113,6 +113,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { useComposerFill } from './shared/composerFill'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
@@ -1103,29 +1104,22 @@ const AgentComposerInner = ({
     })
   }, [actionsRef, sessionTopicId])
 
-  useEffect(() => {
-    return EventEmitter.on(EVENT_NAMES.FILL_CHAT_COMPOSER, (payload) => {
-      const input =
-        typeof payload === 'object' && payload ? (payload as { topicId?: string; text?: string }) : undefined
-      if (input?.topicId !== sessionTopicId || !input.text) return
-
-      const draftBeforeHistory = takeDraftBeforeHistory()
-      const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
-      const nextDraftTokens = getAgentDraftTokens(currentDraft.tokens)
-      actionsRef.current.replaceDraft({ text: input.text, tokens: nextDraftTokens })
-      setText(input.text)
-      setDraftTokens(nextDraftTokens)
-      draftTokensRef.current = nextDraftTokens
-      setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
-      const savedTools = inputHistoryToolsRef.current
-      inputHistoryToolsRef.current = null
-      if (savedTools) {
-        setFiles(savedTools.files)
-        setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
-      }
-      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
-    })
-  }, [actionsRef, sessionTopicId, setFiles, setSelectedKnowledgeBases, setText, takeDraftBeforeHistory])
+  useComposerFill(actionsRef, sessionTopicId, (text) => {
+    const draftBeforeHistory = takeDraftBeforeHistory()
+    const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
+    const nextDraftTokens = getAgentDraftTokens(currentDraft.tokens)
+    actionsRef.current.replaceDraft({ text, tokens: nextDraftTokens })
+    setText(text)
+    setDraftTokens(nextDraftTokens)
+    draftTokensRef.current = nextDraftTokens
+    setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
+    const savedTools = inputHistoryToolsRef.current
+    inputHistoryToolsRef.current = null
+    if (savedTools) {
+      setFiles(savedTools.files)
+      setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+    }
+  })
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return

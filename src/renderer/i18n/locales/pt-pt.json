@@ -4086,7 +4086,7 @@
   "settings.models.context_management.truncate_threshold": "Limite de truncagem da saída de ferramentas (caracteres)",
   "settings.models.context_management.truncate_threshold_description": "Saídas de ferramentas acima deste número de caracteres são descarregadas para um ficheiro e truncadas; o modelo pode voltar a lê-las quando precisar. Os assistentes podem substituir esta definição",
   "settings.models.conversation_suggestions.default_model": "Usar modelo predefinido",
-  "settings.models.conversation_suggestions.description": "Gerar prompts iniciais para conversas vazias de Chat e Agent",
+  "settings.models.conversation_suggestions.description": "Quando ativado, gera prompts iniciais para conversas vazias de Chat e Agent",
   "settings.models.conversation_suggestions.label": "Sugestões de conversa",
   "settings.models.default_assistant_model": "Modelo de assistente padrão",
   "settings.models.default_assistant_model_description": "Usado quando um assistente não tem modelo.",

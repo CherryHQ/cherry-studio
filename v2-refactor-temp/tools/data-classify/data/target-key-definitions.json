@@ -196,9 +196,9 @@
     {
       "targetKey": "chat.suggestions.enabled",
       "type": "boolean",
-      "defaultValue": true,
+      "defaultValue": false,
       "status": "classified",
-      "description": "Generate starter prompts for empty Chat and Agent conversations"
+      "description": "Generate starter prompts for empty Chat and Agent conversations; off by default to avoid background paid generation"
     },
     {
       "targetKey": "chat.suggestions.model_id",
