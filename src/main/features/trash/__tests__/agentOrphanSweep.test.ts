@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -18,6 +18,14 @@ const { sweepAgentOrphans } = await import('../agentOrphanSweep')
 
 /** Older than the sweep's 5-minute freshness gate. */
 const STALE_SECONDS = (Date.now() - 60 * 60 * 1000) / 1000
+
+/** Backdate a whole tree past the gate — `newestMtimeMs` walks children, so each one has to move. */
+function makeStale(target: string) {
+  if (statSync(target).isDirectory()) {
+    for (const child of readdirSync(target)) makeStale(path.join(target, child))
+  }
+  utimesSync(target, STALE_SECONDS, STALE_SECONDS)
+}
 
 const AGENT_LIVE = '11111111-1111-4111-8111-111111111111'
 const AGENT_ARCHIVED = '22222222-2222-4222-8222-222222222222'
@@ -99,6 +107,7 @@ describe('sweepAgentOrphans', () => {
     const orphan = path.join(root, AGENT_GONE)
     mkdirSync(orphan)
     writeFileSync(path.join(orphan, 'residue.txt'), 'x')
+    makeStale(orphan)
 
     const { removed } = await sweepAgentOrphans()
 
@@ -108,6 +117,27 @@ describe('sweepAgentOrphans', () => {
     expect(existsSync(path.join(root, AGENT_ARCHIVED))).toBe(true)
   })
 
+  it('keeps a warm agent dir — its agent row may not have committed when the keep-set was read', async () => {
+    const racing = path.join(root, AGENT_GONE)
+    mkdirSync(racing)
+    writeFileSync(path.join(racing, 'identity.json'), '{}')
+
+    const { removed } = await sweepAgentOrphans()
+
+    expect(removed).toEqual([])
+    expect(existsSync(racing)).toBe(true)
+  })
+
+  it('keeps a warm session workspace dir whose agent_workspace row has not committed yet', async () => {
+    const racing = path.join(workspacesRoot, '2026-08-19', 'session-being-created')
+    mkdirSync(racing, { recursive: true })
+
+    const { removed } = await sweepAgentOrphans()
+
+    expect(removed).toEqual([])
+    expect(existsSync(racing)).toBe(true)
+  })
+
   it('removes session workspace dirs whose agent_workspace row was purged, and the emptied date dir', async () => {
     const dateDir = path.join(workspacesRoot, '2026-08-19')
     const claimed = path.join(dateDir, 'session-claimed')
@@ -115,6 +145,8 @@ describe('sweepAgentOrphans', () => {
     mkdirSync(claimed, { recursive: true })
     mkdirSync(orphan, { recursive: true })
     writeFileSync(path.join(orphan, 'agent-output.md'), 'x')
+    makeStale(claimed)
+    makeStale(orphan)
     await seedWorkspace('ws-1', claimed)
 
     const { removed } = await sweepAgentOrphans()

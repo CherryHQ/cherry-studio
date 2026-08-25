@@ -6,8 +6,9 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
-import { listEntries } from '@main/ai/runtime/orphanSessionReclaim'
+import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 
 const logger = loggerService.withContext('AgentOrphanSweep')
 
@@ -41,9 +42,13 @@ export interface AgentSweepReport {
  *
  * Archived agents/sessions keep everything: their rows (and tokens) are still
  * there, so restore stays lossless. Removal failures are logged for the next run.
+ *
+ * Every pass is freshness-gated: the keep-sets are one snapshot, so a dir created
+ * before its claiming row commits would otherwise read as an orphan and be lost.
  */
 export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
   const db = application.get('DbService').getDb()
+  const options: OrphanSessionReclaimOptions = { freshnessGateMs: FRESHNESS_GATE_MS, now: Date.now() }
   const agentsRoot = application.getPath('feature.agents.data')
   const workspacesRoot = application.getPath('feature.agents.system_workspaces')
 
@@ -68,7 +73,7 @@ export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
 
   for (const entry of await listEntries(agentsRoot)) {
     if (!entry.isDirectory() || !AGENT_DIR_NAME.test(entry.name) || agentIds.has(entry.name)) continue
-    if (await remove(path.resolve(agentsRoot, entry.name), removed)) agentDirs++
+    if (await reclaim(path.resolve(agentsRoot, entry.name), removed, options)) agentDirs++
   }
 
   for (const dateEntry of await listEntries(workspacesRoot)) {
@@ -78,12 +83,12 @@ export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
       if (!sessionEntry.isDirectory()) continue
       const sessionDir = path.resolve(dateDir, sessionEntry.name)
       if (claimedWorkspaces.has(sessionDir)) continue
-      if (await remove(sessionDir, removed)) workspaceDirs++
+      if (await reclaim(sessionDir, removed, options)) workspaceDirs++
     }
-    if ((await listEntries(dateDir)).length === 0) await remove(dateDir, removed)
+    await removeIfEmpty(dateDir, removed)
   }
 
-  const { runtimeSessions, failedDrivers } = await reclaimRuntimeSessions(removed)
+  const { runtimeSessions, failedDrivers } = await reclaimRuntimeSessions(removed, options)
 
   logger.info('agent-orphan-sweep', { event: 'agent-orphan-sweep', agentDirs, workspaceDirs, runtimeSessions })
   return { removed, failedDrivers }
@@ -95,13 +100,13 @@ export async function sweepAgentOrphans(): Promise<AgentSweepReport> {
  * purge transaction has committed.
  */
 async function reclaimRuntimeSessions(
-  removed: string[]
+  removed: string[],
+  options: OrphanSessionReclaimOptions
 ): Promise<{ runtimeSessions: Record<string, number>; failedDrivers: string[] }> {
   const drivers = runtimeDriverRegistry.getAgentSessionDrivers().filter((driver) => driver.reclaimOrphanSessions)
   if (drivers.length === 0) return { runtimeSessions: {}, failedDrivers: [] }
 
   const keptResumeTokens = agentSessionMessageService.listAllRuntimeResumeTokens()
-  const options = { freshnessGateMs: FRESHNESS_GATE_MS, now: Date.now() }
   const runtimeSessions: Record<string, number> = {}
   const failedDrivers: string[] = []
 
@@ -119,13 +124,18 @@ async function reclaimRuntimeSessions(
   return { runtimeSessions, failedDrivers }
 }
 
-async function remove(dirPath: string, removed: string[]): Promise<boolean> {
+async function reclaim(dirPath: string, removed: string[], options: OrphanSessionReclaimOptions): Promise<boolean> {
+  if (!(await reclaimStale(dirPath, options))) return false
+  removed.push(dirPath)
+  return true
+}
+
+/** Non-recursive on purpose: ENOTEMPTY is the guard if a session repopulated the date dir mid-sweep. */
+async function removeIfEmpty(dateDir: string, removed: string[]): Promise<void> {
   try {
-    await fs.rm(dirPath, { recursive: true, force: true })
-    removed.push(dirPath)
-    return true
-  } catch (error) {
-    logger.warn('Failed to remove orphan agent directory — retried next run', { dirPath, error })
-    return false
+    await fs.rmdir(dateDir)
+    removed.push(dateDir)
+  } catch {
+    // Still in use (ENOTEMPTY) or already gone — nothing to reclaim this run.
   }
 }
