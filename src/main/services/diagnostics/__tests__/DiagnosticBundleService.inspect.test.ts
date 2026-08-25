@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChatRecordCandidate, ChatRecordCollection } from '../chatRecordCollector'
+import type * as ChatRecordCollectorModule from '../chatRecordCollector'
 import type * as SourceCollectorModule from '../sourceCollector'
 import type { SourceCollection } from '../types'
 
@@ -14,7 +15,7 @@ const sourceMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../chatRecordCollector', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../chatRecordCollector')>()
+  const actual = await importOriginal<typeof ChatRecordCollectorModule>()
   return { ...actual, collectChatRecords: chatMocks.collectChatRecords }
 })
 
@@ -95,28 +96,28 @@ describe('DiagnosticBundleService inspection scheduling', () => {
     })
   })
 
-  it('does not scan diagnostic sources concurrently while chat collection is in progress', async () => {
-    let finishFirstChatScan: () => void = () => undefined
-    sourceMocks.collectDiagnosticSources.mockResolvedValue(emptyCollection())
-    chatMocks.collectChatRecords
+  it('does not scan diagnostic sources concurrently', async () => {
+    let finishFirstSourceScan: () => void = () => undefined
+    sourceMocks.collectDiagnosticSources
       .mockImplementationOnce(
         () =>
-          new Promise<ChatRecordCollection>((resolve) => {
-            finishFirstChatScan = () => resolve(emptyChatCollection())
-          }) as never
+          new Promise<SourceCollection>((resolve) => {
+            finishFirstSourceScan = () => resolve(emptyCollection())
+          })
       )
-      .mockReturnValueOnce(emptyChatCollection())
+      .mockResolvedValueOnce(emptyCollection())
+    chatMocks.collectChatRecords.mockReturnValue(emptyChatCollection())
     const service = new DiagnosticBundleService()
 
     const firstInspection = service.inspect('24h')
-    await vi.waitFor(() => expect(chatMocks.collectChatRecords).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(sourceMocks.collectDiagnosticSources).toHaveBeenCalledTimes(1))
 
     const secondInspection = service.inspect('3d')
     await Promise.resolve()
     expect(sourceMocks.collectDiagnosticSources).toHaveBeenCalledTimes(1)
-    expect(chatMocks.collectChatRecords).toHaveBeenCalledTimes(1)
+    expect(chatMocks.collectChatRecords).not.toHaveBeenCalled()
 
-    finishFirstChatScan()
+    finishFirstSourceScan()
     await firstInspection
     await secondInspection
     expect(sourceMocks.collectDiagnosticSources).toHaveBeenCalledTimes(2)

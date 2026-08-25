@@ -16,7 +16,7 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 
 import type {
   CrashDumpInventory,
-  DiagnosticSourceKind,
+  DiagnosticFileSourceKind,
   DiagnosticTimeRange,
   DiagnosticWarning,
   SourceCandidate,
@@ -123,7 +123,7 @@ async function* readRawLines(snapshot: ReadableFileSnapshot, snapshotBytes = sna
   }
 }
 
-function parseLineTimestamp(line: Buffer, kind: DiagnosticSourceKind): number | 'empty' | undefined {
+function parseLineTimestamp(line: Buffer, kind: DiagnosticFileSourceKind): number | 'empty' | undefined {
   const text = line.toString('utf8').trim()
   if (!text) return 'empty'
 
@@ -144,7 +144,7 @@ function isInRange(timestamp: number, range: DiagnosticTimeRange): boolean {
   return timestamp >= range.fromMs && timestamp <= range.toMs
 }
 
-function classifyLine(line: RawLine, kind: DiagnosticSourceKind, range: DiagnosticTimeRange): ClassifiedLine {
+function classifyLine(line: RawLine, kind: DiagnosticFileSourceKind, range: DiagnosticTimeRange): ClassifiedLine {
   if (line.tooLarge || !line.data) return 'malformed'
   const timestamp = parseLineTimestamp(line.data, kind)
   if (timestamp === 'empty') return undefined
@@ -168,7 +168,7 @@ function logMayOverlapRange(fileName: string, range: DiagnosticTimeRange): boole
 
 async function scanSnapshot(
   snapshot: ReadableFileSnapshot,
-  kind: DiagnosticSourceKind,
+  kind: DiagnosticFileSourceKind,
   range: DiagnosticTimeRange
 ): Promise<ScanResult> {
   let eligibleBytes = 0
@@ -196,7 +196,7 @@ function portableSegment(value: string): string {
 async function scanCandidate(
   sourcePath: AbsoluteFilePath,
   archiveName: string,
-  kind: DiagnosticSourceKind,
+  kind: DiagnosticFileSourceKind,
   range: DiagnosticTimeRange,
   warnings: Set<DiagnosticWarning>
 ): Promise<SourceCandidate | undefined> {

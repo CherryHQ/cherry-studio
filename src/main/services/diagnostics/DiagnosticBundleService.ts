@@ -296,7 +296,7 @@ export class DiagnosticBundleService {
   private async performInspection(rangeName: DiagnosticRange): Promise<InspectResult> {
     const range = toTimeRange(rangeName, Date.now())
     const collection = await collectDiagnosticSources(range, { includeLogs: true, includeTraces: true })
-    const chatCollection = await collectChatRecords(range)
+    const chatCollection = collectChatRecords(range)
     mergeWarnings(collection.warnings, chatCollection.warnings)
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
     const chats = chatRecordStats(chatCollection.candidates)
@@ -366,7 +366,7 @@ export class DiagnosticBundleService {
     await assertDestinationOutsideSources(destination)
     const range = toTimeRange(input.range, Date.now())
     const collection = await collectDiagnosticSources(range, input)
-    const chatCollection = input.includeChatRecords ? await collectChatRecords(range) : emptyChatRecordCollection()
+    const chatCollection = input.includeChatRecords ? collectChatRecords(range) : emptyChatRecordCollection()
     mergeWarnings(collection.warnings, chatCollection.warnings)
     const enabledFileCandidates = [...collection.logs, ...collection.traces]
     const destinationIdentity = await probeDestination(destination)
@@ -424,7 +424,7 @@ export class DiagnosticBundleService {
       try {
         const range = toTimeRange(input.range, Date.now())
         const collection = await collectDiagnosticSources(range, input)
-        const chatCollection = input.includeChatRecords ? await collectChatRecords(range) : emptyChatRecordCollection()
+        const chatCollection = input.includeChatRecords ? collectChatRecords(range) : emptyChatRecordCollection()
         mergeWarnings(collection.warnings, chatCollection.warnings)
         const selection = selectBundleSources([...collection.logs, ...collection.traces], chatCollection.candidates)
         if (selection.omittedFiles.length > 0 || selection.omittedChats.length > 0) {
