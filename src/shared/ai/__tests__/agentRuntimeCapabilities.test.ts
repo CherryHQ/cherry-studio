@@ -42,13 +42,14 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('plan')
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('plan')
-    // pi implements `auto` itself in the approval extension, so it offers it and starts there.
+    // pi implements `auto` itself in the approval extension, so it offers it.
     expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
     // dsh plan mode is enforced by the bridge policy (its own plan mode is guidance-only).
     expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).toContain('plan')
     expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.createDefaults.permissionMode).toBe('default')
+    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode).toBe('auto')
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.createDefaults.permissionMode).toBe('acceptEdits')
   })
 
   describe('isModelCompatible — managed CherryAI default model', () => {

@@ -47,27 +47,32 @@ beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = () => {}
 })
 
-function PermissionSelectHarness() {
+function PermissionSelectHarness({ onValueChange }: { onValueChange?: (value: PermissionMode) => void }) {
   const form = useForm<{ permissionMode: PermissionMode }>({ defaultValues: { permissionMode: 'default' } })
 
   return (
     <Form {...form}>
-      <FormField
-        control={form.control}
-        name="permissionMode"
-        render={({ field }) => (
-          <FormItem>
-            <PermissionModeSelect
-              cards={[withoutWarning, withWarning]}
-              value={field.value}
-              onValueChange={field.onChange}
-              portalContainer={document.body}
-              ariaLabel="Permission mode"
-              t={t}
-            />
-          </FormItem>
-        )}
-      />
+      <form>
+        <FormField
+          control={form.control}
+          name="permissionMode"
+          render={({ field }) => (
+            <FormItem>
+              <PermissionModeSelect
+                cards={[withoutWarning, withWarning]}
+                value={field.value}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  onValueChange?.(value)
+                }}
+                portalContainer={document.body}
+                ariaLabel="Permission mode"
+                t={t}
+              />
+            </FormItem>
+          )}
+        />
+      </form>
     </Form>
   )
 }
@@ -201,5 +206,22 @@ describe('PermissionModeWarning', () => {
     fireEvent.pointerMove(screen.getByLabelText('Needs a model that supports it.'), { pointerType: 'mouse' })
 
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Needs a model that supports it.')
+  })
+})
+
+describe('PermissionModeSelect', () => {
+  it('ignores a transient empty value from the native select', () => {
+    const onValueChange = vi.fn()
+    render(<PermissionSelectHarness onValueChange={onValueChange} />)
+
+    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toHaveTextContent('Ask Before Acting')
+
+    const nativeSelect = document.querySelector('select')
+    expect(nativeSelect).not.toBeNull()
+    fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: '' } })
+    expect(onValueChange).not.toHaveBeenCalled()
+
+    fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: 'auto' } })
+    expect(onValueChange).toHaveBeenCalledWith('auto')
   })
 })

@@ -7,10 +7,12 @@ import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { decodeTextBufferIfText, isOutsidePath, openReadableFileSnapshot } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type {
   SkillFileNode,
   SkillImportSystemOptions,
@@ -31,6 +33,7 @@ import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
 
+const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const WORKSPACE_SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-workspace-skills' }, null, 2)}\n`
 
@@ -137,7 +140,21 @@ export class SkillService {
     if (!filePath.startsWith(skillRoot + path.sep) && filePath !== skillRoot) return null
 
     try {
-      return await fs.promises.readFile(filePath, 'utf-8')
+      const [realRoot, realFile] = await Promise.all([fs.promises.realpath(skillRoot), fs.promises.realpath(filePath)])
+      if (isOutsidePath(path.relative(realRoot, realFile))) return null
+
+      const snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(realFile))
+      try {
+        if (snapshot.size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return null
+
+        const chunks: Buffer[] = []
+        for await (const chunk of snapshot.createReadStream()) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+        }
+        return decodeTextBufferIfText(Buffer.concat(chunks, snapshot.size))
+      } finally {
+        await snapshot.close()
+      }
     } catch {
       return null
     }

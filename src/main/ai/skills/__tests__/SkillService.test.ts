@@ -10,6 +10,7 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
@@ -1040,11 +1041,37 @@ describe('SkillService', () => {
         '# Large skill'
       )
       expect((await fs.promises.lstat(path.join(dataSkillsRoot, 'large-skill'))).isSymbolicLink()).toBe(false)
-      expect(await fs.promises.realpath(path.join(mirrorRoot, 'large-skill'))).toBe(
-        await fs.promises.realpath(path.join(dataSkillsRoot, 'large-skill'))
-      )
-      expect(skillService.getInstalledSkillDirectory(result)).toBe(path.join(dataSkillsRoot, 'large-skill'))
+      const mirrored = path.join(mirrorRoot, 'large-skill')
+      const managed = path.join(dataSkillsRoot, 'large-skill')
+      expect((await fs.promises.lstat(mirrored)).isSymbolicLink()).toBe(!isWin)
+      if (isWin) {
+        await expect(fs.promises.readFile(path.join(mirrored, 'SKILL.md'), 'utf-8')).resolves.toBe('# Large skill')
+      } else {
+        expect(path.normalize(await fs.promises.realpath(mirrored))).toBe(
+          path.normalize(await fs.promises.realpath(managed))
+        )
+      }
+      expect(path.normalize(skillService.getInstalledSkillDirectory(result))).toBe(path.normalize(managed))
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
+    })
+
+    it('serves only bounded text content to the skill file preview', async () => {
+      const result = await skillService.importSystem({ directoryPath: sourceSkillDir })
+      const managedRoot = path.join(dataSkillsRoot, 'large-skill')
+
+      await fs.promises.writeFile(path.join(managedRoot, 'binary.bin'), Buffer.alloc(512))
+      await fs.promises.writeFile(path.join(managedRoot, 'oversized.txt'), Buffer.alloc(2 * 1024 * 1024 + 1, 0x61))
+
+      await expect(skillService.readFile(result.id, 'SKILL.md')).resolves.toBe('# Large skill')
+      await expect(skillService.readFile(result.id, 'binary.bin')).resolves.toBeNull()
+      await expect(skillService.readFile(result.id, 'oversized.txt')).resolves.toBeNull()
+
+      if (process.platform !== 'win32') {
+        const outsideFile = path.join(home, 'outside.txt')
+        await fs.promises.writeFile(outsideFile, 'outside content')
+        await fs.promises.symlink(outsideFile, path.join(managedRoot, 'escape.txt'))
+        await expect(skillService.readFile(result.id, 'escape.txt')).resolves.toBeNull()
+      }
     })
 
     it('does not overwrite the editable managed copy when the system skill is already imported', async () => {
@@ -2061,7 +2088,7 @@ describe('SkillService', () => {
 
       await skillService.linkMirror('pdf')
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
-      expect((await fs.promises.lstat(path.join(mirrorRoot, 'pdf'))).isSymbolicLink()).toBe(true)
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'pdf'))).isSymbolicLink()).toBe(!isWin)
 
       await skillService.unlinkMirror('pdf')
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf'))).rejects.toThrow()
@@ -2069,14 +2096,27 @@ describe('SkillService', () => {
 
     it('linkMirror replaces a broken mirror symlink', async () => {
       await writeLibrarySkill('pdf')
-      await fs.promises.symlink(path.join(dataSkillsRoot, 'missing'), path.join(mirrorRoot, 'pdf'), 'dir')
+      if (isWin) {
+        await fs.promises.mkdir(path.join(mirrorRoot, 'pdf'), { recursive: true })
+      } else {
+        await fs.promises.symlink(path.join(dataSkillsRoot, 'missing'), path.join(mirrorRoot, 'pdf'), 'dir')
+      }
 
       await skillService.linkMirror('pdf')
 
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
-      expect(await fs.promises.realpath(path.join(mirrorRoot, 'pdf'))).toBe(
-        await fs.promises.realpath(path.join(dataSkillsRoot, 'pdf'))
-      )
+      const mirrored = path.join(mirrorRoot, 'pdf')
+      const managed = path.join(dataSkillsRoot, 'pdf')
+      expect((await fs.promises.lstat(mirrored)).isSymbolicLink()).toBe(!isWin)
+      if (isWin) {
+        await expect(fs.promises.readFile(path.join(mirrored, 'SKILL.md'), 'utf-8')).resolves.toBe(
+          await fs.promises.readFile(path.join(managed, 'SKILL.md'), 'utf-8')
+        )
+      } else {
+        expect(path.normalize(await fs.promises.realpath(mirrored))).toBe(
+          path.normalize(await fs.promises.realpath(managed))
+        )
+      }
     })
 
     it('linkMirror removes a stale mirror when the library descriptor is missing', async () => {
@@ -2202,7 +2242,7 @@ describe('SkillService', () => {
       expect(rows[0]?.version).toBe('3.0.0')
       expect(rows[0]?.isEnabled).toBe(true)
       await expect(fs.promises.access(path.join(authored, 'SKILL.md'))).resolves.toBeUndefined()
-      expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(!isWin)
     })
 
     it('treats different local directories as different install origins', async () => {
