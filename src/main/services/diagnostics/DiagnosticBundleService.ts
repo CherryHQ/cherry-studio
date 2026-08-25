@@ -118,7 +118,7 @@ function candidateStats(candidates: readonly SourceCandidate[], kind: 'logs' | '
 }
 
 function emptyChatRecordCollection(): ChatRecordCollection {
-  return { candidates: [], records: new Map(), warnings: new Set() }
+  return { candidates: [], warnings: new Set() }
 }
 
 function mergeWarnings(target: Set<DiagnosticWarning>, source: ReadonlySet<DiagnosticWarning>): void {

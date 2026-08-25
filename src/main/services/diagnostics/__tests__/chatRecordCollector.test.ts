@@ -113,15 +113,18 @@ describe('chat record collection', () => {
 
   it('collects and stages canonical normal-chat and agent-session entities as UTF-8 JSONL', async () => {
     const collection = collectChatRecords({ fromMs: 1_000, toMs: 2_000 })
+    const records = new Map(
+      collection.candidates.flatMap((candidate) => candidate.parts.map((record) => [record.key, record] as const))
+    )
 
     expect(collection.candidates).toHaveLength(3)
-    expect(collection.records).toHaveLength(5)
+    expect(records).toHaveLength(5)
     expect(chatRecordStats(collection.candidates)).toEqual({
       bytes: expect.any(Number),
       messageCount: 3,
       recordCount: 5
     })
-    expect([...collection.records.values()].map((record) => record.archiveName)).toEqual(
+    expect([...records.values()].map((record) => record.archiveName)).toEqual(
       expect.arrayContaining([
         'chats/topics.jsonl',
         'chats/messages.jsonl',
@@ -130,13 +133,13 @@ describe('chat record collection', () => {
       ])
     )
 
-    const normalMessageRecord = collection.records.get('message:message-new')!
+    const normalMessageRecord = records.get('message:message-new')!
     const normalLine = `${JSON.stringify(normalMessages[0])}\n`
     expect(normalMessageRecord.data).toEqual(Buffer.from(normalLine, 'utf8'))
     expect(normalMessageRecord.bytes).toBe(Buffer.byteLength(normalLine, 'utf8'))
     expect(JSON.parse(normalMessageRecord.data.toString('utf8'))).toEqual(normalMessages[0])
 
-    const agentMessageRecord = collection.records.get('agent-session-message:agent-message-1')!
+    const agentMessageRecord = records.get('agent-session-message:agent-message-1')!
     expect(JSON.parse(agentMessageRecord.data.toString('utf8'))).toEqual(agentMessage)
     expect(JSON.parse(agentMessageRecord.data.toString('utf8'))).toMatchObject({
       runtimeResumeToken: 'runtime-resume-token',
@@ -193,8 +196,9 @@ describe('chat record collection', () => {
 
     expect(collection.warnings).toEqual(new Set(['source_unreadable']))
     expect(collection.candidates).toHaveLength(1)
-    expect(collection.records.get('agent-session-message:agent-message-1')?.data.toString('utf8')).toBe(
-      `${JSON.stringify(agentMessage)}\n`
+    const agentMessageRecord = collection.candidates[0]?.parts.find(
+      (record) => record.key === 'agent-session-message:agent-message-1'
     )
+    expect(agentMessageRecord?.data.toString('utf8')).toBe(`${JSON.stringify(agentMessage)}\n`)
   })
 })

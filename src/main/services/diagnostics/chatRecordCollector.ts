@@ -37,7 +37,6 @@ export interface ChatRecordCandidate {
 
 export interface ChatRecordCollection {
   readonly candidates: ChatRecordCandidate[]
-  readonly records: Map<string, SerializedChatRecord>
   readonly warnings: Set<DiagnosticWarning>
 }
 
@@ -46,10 +45,7 @@ function serializeRecord(archiveName: ChatArchiveName, key: string, entity: unkn
   return { archiveName, bytes: data.length, data, key }
 }
 
-function collectNormalChatRecords(
-  records: Map<string, SerializedChatRecord>,
-  range: DiagnosticTimeRange
-): ChatRecordCandidate[] {
+function collectNormalChatRecords(range: DiagnosticTimeRange): ChatRecordCandidate[] {
   const topics = new Map<string, unknown>()
   return messageService.listLiveCreatedInRange(range).map((message) => {
     let topic = topics.get(message.topicId)
@@ -60,8 +56,6 @@ function collectNormalChatRecords(
 
     const messageRecord = serializeRecord('chats/messages.jsonl', `message:${message.id}`, message)
     const topicRecord = serializeRecord('chats/topics.jsonl', `topic:${message.topicId}`, topic)
-    records.set(messageRecord.key, messageRecord)
-    records.set(topicRecord.key, topicRecord)
     return {
       id: `message:${message.id}`,
       kind: 'chatRecords',
@@ -71,10 +65,7 @@ function collectNormalChatRecords(
   })
 }
 
-function collectAgentChatRecords(
-  records: Map<string, SerializedChatRecord>,
-  range: DiagnosticTimeRange
-): ChatRecordCandidate[] {
+function collectAgentChatRecords(range: DiagnosticTimeRange): ChatRecordCandidate[] {
   const sessions = new Map<string, unknown>()
   return agentSessionMessageService.listCreatedInRange(range).map((message) => {
     let session = sessions.get(message.sessionId)
@@ -89,8 +80,6 @@ function collectAgentChatRecords(
       message
     )
     const sessionRecord = serializeRecord('chats/agent-sessions.jsonl', `agent-session:${message.sessionId}`, session)
-    records.set(messageRecord.key, messageRecord)
-    records.set(sessionRecord.key, sessionRecord)
     return {
       id: `agent-session-message:${message.id}`,
       kind: 'chatRecords',
@@ -113,29 +102,22 @@ function warnUnreadableChatSource(
 }
 
 export function collectChatRecords(range: DiagnosticTimeRange): ChatRecordCollection {
-  const records = new Map<string, SerializedChatRecord>()
   const warnings = new Set<DiagnosticWarning>()
   const candidates: ChatRecordCandidate[] = []
 
   try {
-    const familyRecords = new Map<string, SerializedChatRecord>()
-    const familyCandidates = collectNormalChatRecords(familyRecords, range)
-    familyRecords.forEach((record, key) => records.set(key, record))
-    candidates.push(...familyCandidates)
+    candidates.push(...collectNormalChatRecords(range))
   } catch (error) {
     warnUnreadableChatSource(warnings, 'normal-chat', error)
   }
 
   try {
-    const familyRecords = new Map<string, SerializedChatRecord>()
-    const familyCandidates = collectAgentChatRecords(familyRecords, range)
-    familyRecords.forEach((record, key) => records.set(key, record))
-    candidates.push(...familyCandidates)
+    candidates.push(...collectAgentChatRecords(range))
   } catch (error) {
     warnUnreadableChatSource(warnings, 'agent-session', error)
   }
 
-  return { candidates, records, warnings }
+  return { candidates, warnings }
 }
 
 function newestFirst(a: ChatRecordCandidate, b: ChatRecordCandidate): number {

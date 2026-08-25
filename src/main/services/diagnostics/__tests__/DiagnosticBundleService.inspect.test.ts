@@ -35,7 +35,7 @@ function emptyCollection(): SourceCollection {
 }
 
 function emptyChatCollection(): ChatRecordCollection {
-  return { candidates: [], records: new Map(), warnings: new Set() }
+  return { candidates: [], warnings: new Set() }
 }
 
 function chatCandidate(id: string, latestAt: number, parts: ChatRecordCandidate['parts']): ChatRecordCandidate {
@@ -83,7 +83,6 @@ describe('DiagnosticBundleService inspection scheduling', () => {
     sourceMocks.collectDiagnosticSources.mockResolvedValue(emptyCollection())
     chatMocks.collectChatRecords.mockReturnValue({
       candidates,
-      records: new Map(),
       warnings: new Set(['source_unreadable'])
     })
     const service = new DiagnosticBundleService()
