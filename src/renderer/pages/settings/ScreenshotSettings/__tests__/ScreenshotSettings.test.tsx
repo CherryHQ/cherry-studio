@@ -1,3 +1,4 @@
+import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -52,9 +53,15 @@ interface IpcStub {
   /** Status the OS reports back after prompting. */
   afterRequest?: ScreenCaptureStatus
   ocrStatus?: string
+  defaultOcrProcessorId?: FileProcessorId
 }
 
-function stubIpc({ permission = 'authorized', afterRequest = 'authorized', ocrStatus = 'not_downloaded' }: IpcStub) {
+function stubIpc({
+  permission = 'authorized',
+  afterRequest = 'authorized',
+  ocrStatus = 'not_downloaded',
+  defaultOcrProcessorId = 'system'
+}: IpcStub) {
   mockRequest.mockImplementation((route: string) => {
     switch (route) {
       case 'system.mac.screen_capture_status':
@@ -63,6 +70,8 @@ function stubIpc({ permission = 'authorized', afterRequest = 'authorized', ocrSt
         return Promise.resolve(afterRequest)
       case 'local_model.get_status':
         return Promise.resolve({ status: ocrStatus })
+      case 'file_processing.configured_processor.get':
+        return Promise.resolve(defaultOcrProcessorId)
       default:
         return Promise.resolve()
     }
@@ -131,6 +140,22 @@ describe('ScreenshotSettings', () => {
       expect(screen.queryByText('settings.screenshot.ocr.model.unavailable')).not.toBeInTheDocument()
     }
   )
+
+  it('uses the effective default processor when the preference is unset', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', null)
+    stubIpc({ defaultOcrProcessorId: 'system', ocrStatus: 'not_downloaded' })
+
+    render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
+    expect(requestedRoutes()).toContain('file_processing.configured_processor.get')
+    expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+    expect(screen.queryByText('settings.screenshot.ocr.model.unavailable')).not.toBeInTheDocument()
+
+    await user.click(autoOcrSwitch())
+    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('feature.screenshot.auto_ocr')).toBe(false))
+  })
 
   it('offers System Settings rather than an authorize button once the permission is denied', async () => {
     stubIpc({ permission: 'denied' })

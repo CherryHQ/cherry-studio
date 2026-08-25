@@ -46,6 +46,10 @@ export const fileProcessingRequestSchemas = {
     input: z.void(),
     output: ListAvailableFileProcessorsResultSchema
   }),
+  'file_processing.configured_processor.get': defineRoute({
+    input: z.object({ feature: z.enum(FILE_PROCESSOR_FEATURES) }).strict(),
+    output: z.enum(FILE_PROCESSOR_IDS)
+  }),
   /**
    * Is the configured Open MinerU host answering? A probe that cannot reach the
    * host is an answer, not a failure, so it resolves false rather than rejecting.
