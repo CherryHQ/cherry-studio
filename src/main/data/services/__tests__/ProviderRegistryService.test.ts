@@ -131,7 +131,8 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { mergePresetModel, providerRegistryService } = await import('../ProviderRegistryService')
+const { mergePresetModel, projectRuntimeReasoning, providerRegistryService, resolveReasoningProfileFromRegistry } =
+  await import('../ProviderRegistryService')
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -319,6 +320,23 @@ describe('ProviderRegistryService', () => {
       })
     })
 
+    it('projects service tier choices to renderer models without exposing native wire configuration', () => {
+      const model = mergePresetModel({ id: 'gpt-oss-120b', name: 'GPT OSS 120B' }, null, 'groq', undefined, undefined, {
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex'],
+        wire: {
+          delivery: { type: 'provider-option', key: 'serviceTier' },
+          values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
+        }
+      } as any)
+
+      expect(model.requestControls?.serviceTier).toEqual({
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex']
+      })
+      expect(model.requestControls?.serviceTier).not.toHaveProperty('wire')
+    })
+
     it('uses a persisted presetProviderId for lookup and catalog models while keeping runtime identities', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({
@@ -462,7 +480,17 @@ describe('ProviderRegistryService', () => {
               },
               'openai-responses': {
                 adapterFamily: 'openai',
-                reasoningFormat: { type: 'openai-responses' }
+                reasoningFormat: { type: 'openai-responses' },
+                requestControls: {
+                  serviceTier: {
+                    default: 'standard',
+                    options: ['standard', 'fast'],
+                    wire: {
+                      delivery: { type: 'provider-option', key: 'serviceTier' },
+                      values: { standard: 'default', fast: 'priority' }
+                    }
+                  }
+                }
               }
             },
             metadata: {}
@@ -480,7 +508,9 @@ describe('ProviderRegistryService', () => {
       })
 
       expect(responses.reasoningProfile.format).toBe('openai-responses')
+      expect(responses.serviceTierControl?.options).toEqual(['standard', 'fast'])
       expect(chat.reasoningProfile.format).toBe('openai-chat')
+      expect(chat.serviceTierControl).toBeUndefined()
     })
 
     it('should rethrow provider lookup errors instead of silently using registry defaults', async () => {
@@ -981,5 +1011,42 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
     })
+  })
+})
+
+describe('projectRuntimeReasoning summary options', () => {
+  const effortSupport = { controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }] }
+
+  // The renderer must not offer a knob the endpoint rejects — Ark 400s on `reasoning.summary`.
+  it('offers summary verbosity only where the wire carries it', () => {
+    const withSummary = projectRuntimeReasoning(effortSupport, {
+      effort: {
+        operations: [
+          { target: 'reasoningEffort', value: { source: 'effort' } },
+          { target: 'reasoningSummary', value: { source: 'assistant-summary' } }
+        ]
+      }
+    })
+    const withoutSummary = projectRuntimeReasoning(effortSupport, {
+      effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+    })
+
+    expect(withSummary.summaryOptions).toEqual(['auto', 'concise', 'detailed'])
+    expect(withoutSummary.summaryOptions).toBeUndefined()
+  })
+
+  it('lets an endpoint override enable or disable the Responses summary wire', () => {
+    const enabled = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-responses',
+      reasoningSummary: true
+    })
+    const disabled = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-responses',
+      format: { type: 'openai-responses', wire: enabled.wire },
+      reasoningSummary: false
+    })
+
+    expect(projectRuntimeReasoning(effortSupport, enabled.wire).summaryOptions).toEqual(['auto', 'concise', 'detailed'])
+    expect(projectRuntimeReasoning(effortSupport, disabled.wire).summaryOptions).toBeUndefined()
   })
 })

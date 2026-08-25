@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "39524def-f5bd-48e2-ada1-ede1d811aab7",
+  "id": "f0cb0475-dec3-4b5b-bcfc-7ab54578dd0a",
   "prevId": "f88ffda1-c02a-42a5-a3f7-15eb419fb3c3",
   "tables": {
     "agent": {
@@ -4643,13 +4643,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "preferred_endpoint_type": {
-          "name": "preferred_endpoint_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "context_window": {
           "name": "context_window",
           "type": "integer",
@@ -4849,13 +4842,6 @@
         },
         "auth_config": {
           "name": "auth_config",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_features": {
-          "name": "api_features",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

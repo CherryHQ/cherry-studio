@@ -39,8 +39,6 @@ This project uses symlinks to synchronize files such as AGENTS.md and skills. Wi
 pnpm install
 ```
 
-### Development
-
 ### Setup Node.js
 
 The required Node.js version is defined in `.node-version`. Use a version manager like [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm) to install it automatically:
@@ -91,7 +89,10 @@ CS_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
 CS_DEV_USER_DATA_SUFFIX=DevParis pnpm dev
 ```
 
-Blank values are ignored and fall back to `Dev`.
+The suffix must be a single path component (no path separator, drive colon,
+`* ? " < > |`, control character, or trailing dot). Blank values fall back to
+`Dev`; anything else that breaks those rules stops the dev run instead of
+falling back, so two instances never end up sharing one directory.
 
 ### Debug
 

@@ -204,6 +204,7 @@ describe('AgentChatContextProvider', () => {
       agentType: 'claude-code',
       modelId: 'anthropic::claude-sonnet',
       reasoningEffort: 'default',
+      serviceTier: 'standard',
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({
         id: prepared.reservedMessages?.find((message) => message.role === 'user')?.id,
@@ -257,7 +258,8 @@ describe('AgentChatContextProvider', () => {
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
-        reasoningEffort: 'default'
+        reasoningEffort: 'default',
+        serviceTier: 'standard'
       }
     )
     expect(prepared.models).toEqual([])
@@ -306,28 +308,32 @@ describe('AgentChatContextProvider', () => {
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
-        reasoningEffort: 'default'
+        reasoningEffort: 'default',
+        serviceTier: 'standard'
       }
     )
   })
 
-  it('uses the persisted agent reasoning effort when the request does not override it', async () => {
+  it('uses persisted Agent turn controls when the request does not override them', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       name: 'My Agent',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet',
-      configuration: { reasoning_effort: 'high' }
+      configuration: { reasoning_effort: 'high', service_tier: 'flex' }
     })
 
     const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
 
-    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'high' }))
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ reasoningEffort: 'high', serviceTier: 'flex' })
+    )
     expect(prepared.models[0].request.reasoningEffort).toBe('high')
+    expect(prepared.models[0].request.serviceTier).toBe('flex')
   })
 
-  it('prefers an explicit request reasoning effort over the persisted agent default', async () => {
+  it('prefers explicit request turn controls over persisted Agent defaults', async () => {
     mocks.runtimeIsSessionBusy.mockReturnValue(true)
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -335,15 +341,15 @@ describe('AgentChatContextProvider', () => {
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet',
-      configuration: { reasoning_effort: 'high' }
+      configuration: { reasoning_effort: 'high', service_tier: 'flex' }
     })
 
-    await provider.prepareDispatch(makeSubscriber(), openReq({ reasoningEffort: 'low' }))
+    await provider.prepareDispatch(makeSubscriber(), openReq({ reasoningEffort: 'low', serviceTier: 'fast' }))
 
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
       expect.objectContaining({ role: 'user' }),
-      expect.objectContaining({ reasoningEffort: 'low' })
+      expect.objectContaining({ reasoningEffort: 'low', serviceTier: 'fast' })
     )
   })
 

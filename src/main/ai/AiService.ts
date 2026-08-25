@@ -151,7 +151,7 @@ function createCaptureContext(input: {
     modelId: input.sdkModelId,
     modelName: input.model.name,
     pricing: input.model.pricing,
-    trustProviderReportedCost: input.provider.apiFeatures.reportsActualCost,
+    trustProviderReportedCost: input.provider.reportsActualCost,
     reportedCostCurrency: input.provider.reportedCostCurrency,
     credentialReceipt: input.credentialReceipt,
     source: input.source,

@@ -7,6 +7,7 @@ import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
+import McpManagerServer from '@main/ai/mcp/servers/mcpManager'
 import SkillsServer from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -77,6 +78,12 @@ export function buildAgentMcpServers(
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsServer(agent.id).mcpServer }
+  }
+  if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
+    servers['mcp-manager'] = {
+      name: CHERRY_MCP_SERVER.MCP_MANAGER,
+      instance: new McpManagerServer(agent.id).mcpServer
+    }
   }
 
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {

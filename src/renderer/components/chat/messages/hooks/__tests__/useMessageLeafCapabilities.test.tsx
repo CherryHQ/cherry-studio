@@ -1,5 +1,4 @@
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,8 +11,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const { mockUseExternalApps, mockPreview, mockSafeOpen, mockLoggerWarn, mockLoggerDebug } = vi.hoisted(() => ({
-  mockUseExternalApps: vi.fn(() => ({ data: [] })),
+const { mockPreview, mockSafeOpen, mockLoggerWarn, mockLoggerDebug } = vi.hoisted(() => ({
   mockPreview: vi.fn(),
   mockSafeOpen: vi.fn(),
   mockLoggerWarn: vi.fn(),
@@ -30,10 +28,6 @@ vi.mock('../useAttachment', () => ({
   useAttachment: () => ({ preview: mockPreview })
 }))
 
-vi.mock('@renderer/hooks/useExternalApps', () => ({
-  useExternalApps: mockUseExternalApps
-}))
-
 vi.mock('@renderer/utils/file/safeOpen', () => ({
   safeOpen: mockSafeOpen
 }))
@@ -41,18 +35,7 @@ vi.mock('@renderer/utils/file/safeOpen', () => ({
 describe('useMessageLeafCapabilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseExternalApps.mockReturnValue({ data: [] })
     mockSafeOpen.mockResolvedValue(undefined)
-  })
-
-  it('loads external apps for the message list regardless of inline path hints', () => {
-    const partsByMessageId: Record<string, CherryMessagePart[]> = {
-      message: [{ type: 'text', text: 'plain response' } as CherryMessagePart]
-    }
-
-    renderHook(() => useMessageLeafCapabilities({ partsByMessageId }))
-
-    expect(mockUseExternalApps).toHaveBeenCalledWith()
   })
 
   it('opens shared attachment files through safeOpen', async () => {

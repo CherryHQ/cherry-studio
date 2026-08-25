@@ -353,7 +353,12 @@ topicActionRegistry.registerAction({
   label: ({ t }) => t('chat.topics.clear.title'),
   icon: () => <BrushCleaning size={14} />,
   order: 40,
-  surface: 'menu'
+  surface: 'menu',
+  confirm: ({ t }) => ({
+    title: t('chat.input.clear.title'),
+    confirmText: t('common.confirm'),
+    cancelText: t('common.cancel')
+  })
 })
 
 topicActionRegistry.registerAction({

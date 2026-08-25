@@ -93,6 +93,7 @@ export default function AddModelFormPanel({
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
   // Undefined until the user picks: an untouched picker must not pin the model to today's default.
   const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | undefined>(undefined)
+  const [inputModalitiesTouched, setInputModalitiesTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -122,6 +123,7 @@ export default function AddModelFormPanel({
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
     setPreferredEndpointType(undefined)
+    setInputModalitiesTouched(false)
     setShowMoreSettings(false)
     setSubmitError(null)
   }, [defaultChatEndpoint, prefill])
@@ -176,6 +178,11 @@ export default function AddModelFormPanel({
               }
             )
           : null
+      const submittedInputModalities = submittedPurposeFields?.inputModalities ?? classifiedInputModalities
+      const shouldSubmitInputModalities =
+        inputModalitiesTouched ||
+        prefill?.model?.inputModalities !== undefined ||
+        (submittedInputModalities?.length ?? 0) > 0
 
       await createModel({
         providerId,
@@ -190,7 +197,7 @@ export default function AddModelFormPanel({
               : undefined,
         ...(preferredEndpointType ? { preferredEndpointType } : {}),
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
-        inputModalities: submittedPurposeFields?.inputModalities ?? classifiedInputModalities,
+        ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
         outputModalities: submittedPurposeFields?.outputModalities,
         ...(values.contextWindow ? { contextWindow: Number(values.contextWindow) } : {}),
         ...(values.maxInputTokens ? { maxInputTokens: Number(values.maxInputTokens) } : {}),
@@ -207,6 +214,7 @@ export default function AddModelFormPanel({
       modelPurpose,
       models,
       preferredEndpointType,
+      inputModalitiesTouched,
       prefill?.model,
       provider,
       providerId,
@@ -294,6 +302,7 @@ export default function AddModelFormPanel({
   }, [])
 
   const handleInputModalityToggle = useCallback((modality: ModelInputModality) => {
+    setInputModalitiesTouched(true)
     setClassification((current) => {
       const inputModalities = new Set(current.inputModalities)
       if (inputModalities.has(modality)) {
