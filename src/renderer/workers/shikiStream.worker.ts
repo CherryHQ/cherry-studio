@@ -11,7 +11,7 @@ import { ShikiStreamTokenizer } from '../services/ShikiStreamTokenizer'
 const logger = loggerService.initWindowSource('Worker').withContext('ShikiStream')
 
 // Worker 消息类型
-type WorkerMessageType = 'init' | 'highlight' | 'cleanup' | 'dispose'
+type WorkerMessageType = 'init' | 'highlight' | 'highlight-html' | 'cleanup' | 'dispose'
 
 interface WorkerRequest {
   id: number
@@ -245,6 +245,22 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
           throw new Error('Missing required highlight parameters')
         }
         break
+
+      case 'highlight-html': {
+        if (!highlighter) {
+          throw new Error('Highlighter not initialized')
+        }
+
+        const { chunk, language, theme } = e.data
+        if (typeof chunk !== 'string' || !language || !theme) {
+          throw new Error('Missing required highlight-html parameters')
+        }
+
+        const { actualLanguage, actualTheme } = await ensureLanguageAndThemeLoaded(language, theme)
+        const html = highlighter.codeToHtml(chunk, { lang: actualLanguage, theme: actualTheme })
+        self.postMessage({ id, type: 'highlight-html-result', result: html } as WorkerResponse)
+        break
+      }
 
       case 'cleanup':
         if (e.data.callerId) {

@@ -10,11 +10,11 @@ import {
   Input,
   Spinner
 } from '@cherrystudio/ui'
-import { ipcApi } from '@renderer/ipc'
 import { backupToS3 } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
+import { createDefaultBackupFileName } from '@renderer/utils/backupFileName'
 import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
@@ -46,12 +46,7 @@ export function useS3BackupModal() {
   }
 
   const showBackupModal = useCallback(async () => {
-    // 获取默认文件名
-    const deviceType = await ipcApi.request('system.get_device_type')
-    const hostname = await window.api.system.getHostname()
-    const timestamp = dayjs().format('YYYYMMDDHHmmss')
-    const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
-    setCustomFileName(defaultFileName)
+    setCustomFileName(await createDefaultBackupFileName())
     setIsModalVisible(true)
   }, [])
 

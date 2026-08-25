@@ -68,6 +68,7 @@ import type {
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
 import type { TranslationFiles } from './translationFiles'
+import { usePacedMarkdownOutput } from './usePacedMarkdownOutput'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -621,23 +622,39 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
+  // Input-side pacing: usePacedMarkdownOutput coalesces stream frames into
+  // one emission per interval; this effect renders the latest emission.
+  const pacedOutput = usePacedMarkdownOutput(translateOutput)
+
   useEffect(() => {
+    if (!enableMarkdown || !pacedOutput) {
+      setRenderedMarkdown('')
+      return
+    }
     let cancelled = false
+    let retryTimer: number | null = null
+    let retried = false
     const render = async () => {
-      if (!enableMarkdown || !translateOutput) {
-        setRenderedMarkdown('')
-        return
-      }
-      const markdown = await shikiMarkdownIt(translateOutput)
-      if (!cancelled) {
-        setRenderedMarkdown(markdown)
+      try {
+        const markdown = await shikiMarkdownIt(pacedOutput)
+        if (!cancelled) setRenderedMarkdown(markdown)
+      } catch (error) {
+        logger.error('Markdown render failed.', error as Error)
+        // One retry so a failed final render doesn't leave stale content behind.
+        if (!retried) {
+          retried = true
+          retryTimer = window.setTimeout(() => {
+            if (!cancelled) void render()
+          }, 500)
+        }
       }
     }
     void render()
     return () => {
       cancelled = true
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
     }
-  }, [enableMarkdown, shikiMarkdownIt, translateOutput])
+  }, [enableMarkdown, shikiMarkdownIt, pacedOutput])
 
   const modelSelectorFilter = useCallback(
     (model: SelectorModel) =>

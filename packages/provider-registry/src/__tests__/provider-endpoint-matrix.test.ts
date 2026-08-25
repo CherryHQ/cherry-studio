@@ -111,6 +111,15 @@ describe('deepseek endpoint matrix', () => {
   )
 })
 
+describe('MiniMax endpoint matrix', () => {
+  it.each(['minimax', 'minimax-global'])(
+    '%s keeps Chat Completions first while exposing Anthropic Messages for Agent sessions',
+    (providerId) => {
+      expect(endpointsOf(providerId, 'minimax-m3')).toEqual(['openai-chat-completions', 'anthropic-messages'])
+    }
+  )
+})
+
 /**
  * OpenCode Go multiplexes three wire protocols over one base URL, and the protocol per model is
  * published as models.dev's per-model `provider.npm` (`@ai-sdk/openai` → Responses, `@ai-sdk/anthropic`

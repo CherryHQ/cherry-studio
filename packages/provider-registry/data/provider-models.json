@@ -17356,6 +17356,11 @@
       "providerId": "minimax"
     },
     {
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "minimax-m3",
+      "providerId": "minimax"
+    },
+    {
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -17529,6 +17534,11 @@
         }
       },
       "modelId": "image-01-live",
+      "providerId": "minimax-global"
+    },
+    {
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "minimax-m3",
       "providerId": "minimax-global"
     },
     {
@@ -37345,5 +37355,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a5c82bc4c3148c26"
+  "version": "0a7235f43bce4abb"
 }

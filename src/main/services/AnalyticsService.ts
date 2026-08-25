@@ -13,6 +13,7 @@ const logger = loggerService.withContext('AnalyticsService')
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
+  private hasTrackedAppLaunch = false
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
   /**
@@ -79,14 +80,13 @@ export class AnalyticsService extends BaseService implements Activatable {
       }
     })
 
-    // FIXME: trackAppLaunch is called on every activate.
-    // Original code called it once in onInit. When the user toggles the preference
-    // off then on at runtime, this produces an extra launch event.
-    // This is beyond the scope of the Activatable refactoring — keeping as-is.
-    this.client.trackAppLaunch({
-      version: app.getVersion(),
-      os: process.platform
-    })
+    if (!this.hasTrackedAppLaunch) {
+      this.client.trackAppLaunch({
+        version: app.getVersion(),
+        os: process.platform
+      })
+      this.hasTrackedAppLaunch = true
+    }
 
     logger.info('Analytics service activated')
   }

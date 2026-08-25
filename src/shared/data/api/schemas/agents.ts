@@ -184,6 +184,11 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   updatedAt: z.string()
 })
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
+export type TaskRunSummary =
+  | { status: 'queued' }
+  | { status: 'running' }
+  | { status: 'completed' | 'failed' | 'cancelled'; finishedAt: string }
+export type ScheduledTaskListItem = ScheduledTaskEntity & { runSummary: TaskRunSummary | null }
 
 export const TaskRunLogEntitySchema = z.strictObject({
   id: z.string(),
@@ -286,7 +291,7 @@ export type AgentSchemas = {
   '/agent-tasks': {
     GET: {
       query?: ListQuery
-      response: OffsetPaginationResponse<ScheduledTaskEntity>
+      response: OffsetPaginationResponse<ScheduledTaskListItem>
     }
   }
 

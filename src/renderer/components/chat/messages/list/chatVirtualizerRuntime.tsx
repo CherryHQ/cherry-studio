@@ -45,6 +45,8 @@ export interface MessageVirtualListHandle {
   scrollToBottom(): void
   scrollToTop(behavior?: ScrollBehavior): void
   scrollToKey(key: string, align?: 'start' | 'center' | 'end'): void
+  /** Base item for adjacent navigation: the latest item while following, otherwise the current explicit target. */
+  getNavigationBaseKey(): string | null
   /** Smooth-scroll `element` to the requested viewport alignment, then freeze the viewport on it. */
   scrollToElement(element: HTMLElement, align?: 'start' | 'center'): void
   /** Center an exact text range immediately, then freeze the viewport on its rendered content. */
@@ -97,6 +99,11 @@ interface FreezeAnchor {
   element: HTMLElement | null
   /** Element top relative to the scroller viewport at capture time. */
   elementViewportTop: number | null
+}
+
+interface ExplicitNavigationBase {
+  key: string
+  topicId?: string
 }
 
 export interface ChatVirtualizerRuntime<T> {
@@ -202,6 +209,7 @@ export function useChatVirtualizerRuntime<T>({
   const userScrollGestureRef = useRef(false)
   const scrollbarDragActiveRef = useRef(false)
   const readNavigationActiveRef = useRef(false)
+  const explicitNavigationBaseRef = useRef<ExplicitNavigationBase | null>(null)
   const lastScrollOffsetRef = useRef(0)
   const markUserInput = useCallback(() => {
     lastUserInputAtRef.current = performance.now()
@@ -230,6 +238,25 @@ export function useChatVirtualizerRuntime<T>({
     if (index < 0 || index >= list.length) return null
     return getItemKeyRef.current(list[index], index)
   }, [])
+  const rememberNavigationBase = useCallback(
+    (key: string) => {
+      if (!scrollerRef.current || findDataIndexByKey(key) < 0) return
+      explicitNavigationBaseRef.current = { key, topicId }
+    },
+    [findDataIndexByKey, topicId]
+  )
+  const getNavigationBaseKey = useCallback((): string | null => {
+    if (viewportFollow.isFollowing()) {
+      return getDataKeyAtIndex(itemsRef.current.length - 1)
+    }
+    const base = explicitNavigationBaseRef.current
+    if (!base) return null
+    if (base.topicId !== topicId || findDataIndexByKey(base.key) < 0) {
+      explicitNavigationBaseRef.current = null
+      return null
+    }
+    return base.key
+  }, [findDataIndexByKey, getDataKeyAtIndex, topicId, viewportFollow])
   const bottomFollowInsetRef = useRef(0)
   bottomFollowInsetRef.current = freezeSpacerHeightRef.current
   const setFreezeSpacerHeight = useCallback((height: number) => {
@@ -413,6 +440,7 @@ export function useChatVirtualizerRuntime<T>({
 
   const beginUserScrollGesture = useCallback(() => {
     if (userScrollGestureRef.current) return
+    explicitNavigationBaseRef.current = null
     // Any slack belongs to the old resting position. Once the user moves the
     // native thumb, its live scroll range must be the only range in play.
     setFreezeSpacerHeight(0)
@@ -445,6 +473,7 @@ export function useChatVirtualizerRuntime<T>({
 
   const enterFollowingMode = useCallback(
     (reason: FollowingReason) => {
+      explicitNavigationBaseRef.current = null
       viewportFollow.enterFollowing(reason)
       clearFreeze()
     },
@@ -473,6 +502,12 @@ export function useChatVirtualizerRuntime<T>({
   // ---- wrap items with stable DOM identity -----------------------------
 
   const dataKeys = useMemo(() => items.map((value, i) => getItemKey(value, i)), [items, getItemKey])
+  useLayoutEffect(() => {
+    const base = explicitNavigationBaseRef.current
+    if (base && (base.topicId !== topicId || !dataKeys.includes(base.key))) {
+      explicitNavigationBaseRef.current = null
+    }
+  }, [dataKeys, topicId])
   const previousDataKeysRef = useRef(dataKeys)
   const previousDataKeys = previousDataKeysRef.current
   const lengthDelta = dataKeys.length - previousDataKeys.length
@@ -840,13 +875,17 @@ export function useChatVirtualizerRuntime<T>({
 
   const scrollToTop = useCallback(
     (behavior: ScrollBehavior = 'instant') => {
+      const firstKey = getDataKeyAtIndex(0)
+      if (firstKey) rememberNavigationBase(firstKey)
       navigateForReading(() => 0, behavior)
     },
-    [navigateForReading]
+    [getDataKeyAtIndex, navigateForReading, rememberNavigationBase]
   )
 
   const scrollToElement = useCallback(
     (element: HTMLElement, align: 'start' | 'center' = 'start') => {
+      const itemKey = element.closest<HTMLElement>('[data-message-key]')?.dataset.messageKey
+      if (itemKey) rememberNavigationBase(itemKey)
       navigateForReading(
         (scroller) => {
           if (!element.isConnected) return scroller.scrollTop
@@ -859,7 +898,7 @@ export function useChatVirtualizerRuntime<T>({
         () => (element.isConnected ? element : null)
       )
     },
-    [navigateForReading]
+    [navigateForReading, rememberNavigationBase]
   )
 
   const scrollToRange = useCallback(
@@ -871,6 +910,8 @@ export function useChatVirtualizerRuntime<T>({
       }
       const scroller = scrollerRef.current
       if (!scroller || !getRangeElement()) return
+      const itemKey = getRangeElement()?.closest<HTMLElement>('[data-message-key]')?.dataset.messageKey
+      if (itemKey) rememberNavigationBase(itemKey)
 
       navigateForReading(
         (currentScroller) => {
@@ -889,7 +930,7 @@ export function useChatVirtualizerRuntime<T>({
         getRangeElement
       )
     },
-    [navigateForReading]
+    [navigateForReading, rememberNavigationBase]
   )
 
   useImperativeHandle(
@@ -899,6 +940,7 @@ export function useChatVirtualizerRuntime<T>({
       scrollToTop,
       scrollToKey: (key, align = 'start') => {
         if (findDataIndexByKey(key) < 0) return
+        rememberNavigationBase(key)
         const resolveTarget = (scroller: HTMLElement) => {
           const handle = vlistHandleRef.current
           const idx = findDataIndexByKey(key)
@@ -929,6 +971,7 @@ export function useChatVirtualizerRuntime<T>({
           return Array.from(elements).find((element) => element.dataset.messageKey === key) ?? null
         })
       },
+      getNavigationBaseKey,
       scrollToElement,
       scrollToRange,
       isFollowing: viewportFollow.isFollowing,
@@ -937,7 +980,9 @@ export function useChatVirtualizerRuntime<T>({
     [
       clampToReachable,
       findDataIndexByKey,
+      getNavigationBaseKey,
       navigateForReading,
+      rememberNavigationBase,
       scrollToBottom,
       scrollToElement,
       scrollToRange,

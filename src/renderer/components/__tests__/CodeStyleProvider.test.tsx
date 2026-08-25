@@ -1,7 +1,8 @@
 import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
-import { getHighlighter, getShiki, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
+import { shikiStreamService } from '@renderer/services/ShikiStreamService'
+import { getShiki } from '@renderer/utils/shiki'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,6 +31,7 @@ vi.mock('@renderer/services/ShikiStreamService', () => ({
   shikiStreamService: {
     dispose: vi.fn(),
     highlightCodeChunk: vi.fn(),
+    highlightCodeToHtml: vi.fn(),
     highlightStreamingCode: vi.fn(),
     cleanupTokenizers: vi.fn(),
     getShikiPreProperties: vi.fn()
@@ -158,19 +160,14 @@ describe('CodeStyleProvider', () => {
     await waitFor(() => expect(screen.getByTestId('shiki-theme').textContent).toBe('nord'))
   })
 
-  it('passes loader-resolved language and theme fallbacks to shiki', async () => {
-    const highlighter = { codeToHtml: vi.fn(() => '<pre>value</pre>') }
-    vi.mocked(getHighlighter).mockResolvedValue(highlighter as never)
-    vi.mocked(loadLanguageAndThemeIfNeeded).mockResolvedValue({
-      loadedLanguage: 'text',
-      loadedTheme: 'one-light'
-    })
+  it('routes one-shot highlights through the stream service instead of the main thread', async () => {
+    vi.mocked(shikiStreamService.highlightCodeToHtml).mockResolvedValue('<pre>value</pre>')
 
     renderProvider()
     fireEvent.click(screen.getByRole('button', { name: 'Highlight code' }))
 
     await waitFor(() =>
-      expect(highlighter.codeToHtml).toHaveBeenCalledWith('value', { lang: 'text', theme: 'one-light' })
+      expect(shikiStreamService.highlightCodeToHtml).toHaveBeenCalledWith('value', 'missing-language', 'one-light')
     )
   })
 })
