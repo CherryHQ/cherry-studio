@@ -26,11 +26,18 @@ const SearchResultsPage = () => {
   const navigate = useNavigate()
   const search = useSearch({ from: '/settings/search' })
   const { t } = useTranslation()
+  // en-US is the catalog source of truth; scoring it at the alias tier lets
+  // "skill"/"proxy" find 技能/代理 in any UI language. useSuspense:false renders
+  // immediately while the lazy pack loads; gating on the bundle skips scoring
+  // until then (the engine would drop key-literals, but this also avoids the
+  // missing-key log burst).
+  const { t: tEn, i18n } = useTranslation(undefined, { lng: 'en-US', useSuspense: false })
+  const tEnReady = i18n.hasResourceBundle('en-US', 'translation') ? tEn : undefined
   const { activeIndex } = useSettingsSearchKeyboard()
   const listRef = useRef<HTMLDivElement>(null)
 
   const query = typeof search.q === 'string' ? search.q : ''
-  const results = useMemo(() => rankEntries(query, settingsSearchSections, t), [query, t])
+  const results = useMemo(() => rankEntries(query, settingsSearchSections, t, tEnReady), [query, t, tEnReady])
 
   useEffect(() => {
     publishResults(results.length)

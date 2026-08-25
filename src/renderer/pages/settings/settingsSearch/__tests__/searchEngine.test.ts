@@ -184,3 +184,78 @@ describe('rankEntries boundaries', () => {
     expect(hit?.description).toBe('网络代理设置')
   })
 })
+
+describe('rankEntries cross-language source matching', () => {
+  // zh UI with fully-translated rows; the en-US catalog is the migration
+  // vocabulary ("skill"/"mcp") users carry over from other platforms
+  const zhDict: Record<string, string> = {
+    'sec.skills': '技能',
+    'sec.other': '其它',
+    'row.global': '全局启用技能',
+    'row.global.desc': '控制每个技能的启用状态',
+    'row.mcpNative': 'MCP 服务器',
+    'row.enOnly': '无关联中文',
+    'row.missing': '未翻译条目'
+  }
+  const zh = (key: string) => zhDict[key] ?? key
+  const enDict: Record<string, string> = {
+    'sec.skills': 'Skills',
+    'sec.other': 'Other',
+    'row.global': 'Global skills',
+    'row.global.desc': 'Enable or disable each installed skill',
+    'row.mcpNative': 'MCP servers',
+    'row.enOnly': 'MCP marketplace'
+    // 'row.missing' absent → tEn returns the key literal (unloaded / missing)
+  }
+  const tEn = (key: string) => enDict[key] ?? key
+
+  const fixture: SettingsSearchSection[] = [
+    {
+      route: '/settings/skills',
+      sectionTitleKey: 'sec.skills',
+      entries: [
+        { anchorId: 'global', titleKey: 'row.global', descriptionKey: 'row.global.desc' },
+        { anchorId: 'missing', titleKey: 'row.missing' }
+      ]
+    },
+    {
+      route: '/settings/other',
+      sectionTitleKey: 'sec.other',
+      entries: [
+        { anchorId: 'native', titleKey: 'row.mcpNative' },
+        { anchorId: 'enonly', titleKey: 'row.enOnly' }
+      ]
+    }
+  ]
+
+  it('finds sections and entries via the en-US source at the alias tier', () => {
+    const ranked = rankEntries('skill', fixture, zh, tEn)
+
+    expect(ranked.map((r) => r.title)).toEqual(['技能', '全局启用技能'])
+    expect(ranked.map((r) => r.score)).toEqual([250, 200])
+  })
+
+  it('matches en-US descriptions for queries only the description contains', () => {
+    const ranked = rankEntries('disable', fixture, zh, tEn)
+
+    expect(ranked.map((r) => r.title)).toEqual(['全局启用技能'])
+    expect(ranked[0]?.score).toBe(200)
+  })
+
+  it('ranks same-language matches above cross-language hits', () => {
+    // MCP 服务器 hits natively at the title tier; MCP marketplace only via en-US
+    const ranked = rankEntries('mcp', fixture, zh, tEn)
+
+    expect(ranked.map((r) => r.focusId)).toEqual(['setting-other-native', 'setting-other-enonly'])
+    expect(ranked.map((r) => r.score)).toEqual([650, 250])
+  })
+
+  it('drops unresolved en-US keys instead of scoring the key literal', () => {
+    // 'row.missing' resolves to the key itself; 'missing' is a substring of it
+    expect(rankEntries('missing', fixture, zh, tEn)).toEqual([])
+  })
+
+  it('keeps en-US-only vocabulary unmatched when tEn is not provided', () => {
+    expect(rankEntries('skill', fixture, zh)).toEqual([])
+  })
+})

@@ -43,6 +43,18 @@ function scoreField(text: string, query: string, tier: Tier, allowPinyin: boolea
   return 0
 }
 
+/**
+ * Resolves the en-US source text for cross-language matching. i18next returns
+ * the key itself when unresolved (language not yet loaded or key missing), so
+ * key-literal results are dropped — scoring them would make queries like
+ * "settings" match every entry via the key path.
+ */
+function sourceText(tEn: Translate | undefined, key: string): string | undefined {
+  if (!tEn) return undefined
+  const text = tEn(key)
+  return text === key ? undefined : text
+}
+
 interface Candidate {
   score: number
   sectionIndex: number
@@ -59,11 +71,16 @@ export function isQueryTooLarge(query: string): boolean {
  * Ranks settings sections and leaf entries against a query.
  * Pure function: sections carry the deterministic order (menu order → declaration
  * order) used as the tie-break, so equal scores keep a stable, predictable list.
+ * `tEn` optionally resolves the en-US source catalog: hits there score at the
+ * alias tier, so users migrating from other platforms find "skill" / "proxy"
+ * while the UI shows 技能 / 代理 — cross-language matches always rank below any
+ * same-language match.
  */
 export function rankEntries(
   query: string,
   sections: readonly SettingsSearchSection[],
-  t: Translate
+  t: Translate,
+  tEn?: Translate
 ): SettingsSearchResult[] {
   const trimmed = query.trim()
   if (!trimmed || isQueryTooLarge(trimmed)) return []
@@ -73,7 +90,10 @@ export function rankEntries(
     const sectionTitle = t(section.sectionTitleKey)
     const breadcrumb = [sectionTitle]
 
-    const sectionScore = scoreField(sectionTitle, trimmed, TIER.section, true)
+    const sectionScore = Math.max(
+      scoreField(sectionTitle, trimmed, TIER.section, true),
+      scoreField(sourceText(tEn, section.sectionTitleKey) ?? '', trimmed, TIER.alias, false)
+    )
     if (sectionScore > 0) {
       candidates.push({
         score: sectionScore,
@@ -86,12 +106,16 @@ export function rankEntries(
     section.entries.forEach((entry, entryIndex) => {
       const title = t(entry.titleKey)
       const description = entry.descriptionKey ? t(entry.descriptionKey) : undefined
+      const enTitle = sourceText(tEn, entry.titleKey)
+      const enDescription = entry.descriptionKey ? sourceText(tEn, entry.descriptionKey) : undefined
       const route = entry.route ?? section.route
       const entryBreadcrumb = [...(entry.groupKey ? [t(entry.groupKey)] : []), ...breadcrumb]
 
       const score = Math.max(
         scoreField(title, trimmed, TIER.title, true),
         description ? scoreField(description, trimmed, TIER.description, false) : 0,
+        scoreField(enTitle ?? '', trimmed, TIER.alias, false),
+        scoreField(enDescription ?? '', trimmed, TIER.alias, false),
         ...(entry.aliases?.map((alias) => scoreField(alias, trimmed, TIER.alias, true)) ?? [0])
       )
       if (score <= 0) return
