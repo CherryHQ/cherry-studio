@@ -4,6 +4,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 
 import { prepareBackport } from '../release/backport-patch'
 import {
@@ -737,5 +738,38 @@ describe('release publication state', () => {
     expect(() => validateBuildCompletion({ release: { draft: false }, tag: 'v1.2.0' })).toThrow(
       'refusing any post-publication tag mutation'
     )
+  })
+})
+
+describe('release workflow gates', () => {
+  const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
+
+  it('runs the shared publish validator with pending hotfixes immediately before publication', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const publishStep = workflow.jobs['publish-release'].steps.find(
+      (step: { name?: string }) => step.name === 'Publish current draft'
+    )
+
+    expect(publishStep.run).toContain('PENDING_HOTFIXES="$(collect_pending_hotfixes)"')
+    expect(publishStep.run).toContain('PENDING_HOTFIXES="$PENDING_HOTFIXES"')
+    expect(publishStep.run).toContain('node scripts/release/validate-release-state.js publish')
+    expect(publishStep.run.lastIndexOf('git fetch origin')).toBeGreaterThan(
+      publishStep.run.indexOf('node scripts/release/validate-release-state.js publish')
+    )
+  })
+
+  it('reports a merged hotfix contract failure before release resolution', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'backport-release-fixes.yml'), 'utf8'))
+    const backportSteps = workflow.jobs.backport.steps
+    const contractStep = backportSteps.find((step: { id?: string }) => step.id === 'hotfix-contract')
+    const failureStep = backportSteps.find(
+      (step: { name?: string }) => step.name === 'Synchronize failed backport state'
+    )
+
+    expect(contractStep.run).toContain('$RUNNER_TEMP/backport-failure-message')
+    expect(failureStep.if).toBe('always() && failure()')
+    expect(failureStep.env.CONTRACT_OUTCOME).toBe('${{ steps.hotfix-contract.outcome }}')
+    expect(failureStep.run).toContain('if [ "$CONTRACT_OUTCOME" = "failure" ]; then')
+    expect(failureStep.run).toContain('gh pr comment')
   })
 })

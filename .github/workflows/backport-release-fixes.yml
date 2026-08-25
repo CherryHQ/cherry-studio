@@ -77,6 +77,7 @@ jobs:
           ref: ${{ github.workflow_sha }}
 
       - name: Validate merged hotfix contract
+        id: hotfix-contract
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,6 +92,7 @@ jobs:
             if [ "$HAS_LABEL" = "true" ]; then
               gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "hotfix"
             fi
+            echo "Automatic backport stopped because the merged pull request does not satisfy the exact hotfix title and bilingual release-note contract." > "$RUNNER_TEMP/backport-failure-message"
             exit 1
           fi
 
@@ -608,16 +610,29 @@ jobs:
           gh pr comment "$PR_NUMBER" --repo "$REPO" --body "No backport pull request was needed because \`release/$TAG\` already contains this fix."
 
       - name: Synchronize failed backport state
-        if: always() && steps.release-ref.outputs.eligible == 'true' && failure()
+        if: always() && failure()
         shell: bash
         env:
           BACKPORT_BRANCH: ${{ steps.release-ref.outputs.backport-branch }}
+          CONTRACT_OUTCOME: ${{ steps.hotfix-contract.outcome }}
+          ELIGIBLE: ${{ steps.release-ref.outputs.eligible }}
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RELEASE_BRANCH: ${{ steps.release-ref.outputs.branch }}
           REPO: ${{ github.repository }}
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
+          if [ "$CONTRACT_OUTCOME" = "failure" ]; then
+            FAILURE_MESSAGE="$(cat "$RUNNER_TEMP/backport-failure-message")"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$FAILURE_MESSAGE Review the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) and correct the source pull request metadata before retrying."
+            exit 0
+          fi
+
+          if [ "$ELIGIBLE" != "true" ]; then
+            echo "Backport failure state is unavailable because no active release was resolved"
+            exit 0
+          fi
+
           PENDING_LABEL="backport/$TAG"
           COMPLETE_LABEL="backported/$TAG"
           FAILED_LABEL="backport-failed/$TAG"
