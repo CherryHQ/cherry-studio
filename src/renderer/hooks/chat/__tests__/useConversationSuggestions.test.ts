@@ -222,11 +222,13 @@ describe('useConversationSuggestions', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.suggestions.model_id', suggestionsModel.id)
     rerender()
     await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2))
+    expect(mocks.generateConversationSuggestions).toHaveBeenLastCalledWith(expect.any(Object), suggestionsModel)
 
     MockUsePreferenceUtils.setPreferenceValue('chat.suggestions.model_id', null)
     MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', defaultModel2.id)
     rerender()
     await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(3))
+    expect(mocks.generateConversationSuggestions).toHaveBeenLastCalledWith(expect.any(Object), defaultModel2)
   })
 
   it('keys cache to the fallback model when the dedicated model is missing, non-chat, or unreadable', async () => {
@@ -252,6 +254,7 @@ describe('useConversationSuggestions', () => {
     const missing = renderHook(() => useConversationSuggestions(options), { wrapper })
     await waitFor(() => expect(missing.result.current.suggestions).toEqual(generated))
     expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1)
+    expect(mocks.generateConversationSuggestions).toHaveBeenCalledWith(expect.any(Object), defaultModel)
     missing.unmount()
 
     enableSuggestions('missing-model-2', defaultModel.id)
@@ -331,8 +334,10 @@ describe('useConversationSuggestions', () => {
     expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
   })
 
-  it('does not generate until Conversation Suggestions is enabled', async () => {
+  it('does not look up models or generate until Conversation Suggestions is enabled', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.suggestions.enabled', false)
+    MockUsePreferenceUtils.setPreferenceValue('chat.suggestions.model_id', suggestionsModel.id)
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', defaultModel.id)
     const { result } = renderHook(
       () =>
         useConversationSuggestions({
@@ -346,6 +351,8 @@ describe('useConversationSuggestions', () => {
 
     expect(result.current).toEqual({ suggestions: undefined, isLoading: true, suggestionsEnabled: false })
     expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', expect.objectContaining({ enabled: false }))
+    expect(mockUseQuery.mock.calls.filter(([, options]) => options?.enabled !== false)).toEqual([])
   })
 
   it('waits to expose fallback suggestions until generation is enabled', async () => {
@@ -364,6 +371,8 @@ describe('useConversationSuggestions', () => {
 
     expect(result.current).toEqual({ suggestions: undefined, isLoading: true, suggestionsEnabled: true })
     expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', expect.objectContaining({ enabled: false }))
+    expect(mockUseQuery.mock.calls.filter(([, options]) => options?.enabled !== false)).toEqual([])
 
     rerender({ enabled: true })
     await waitFor(() => expect(result.current.suggestions).toEqual(fallback))

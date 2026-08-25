@@ -33,12 +33,14 @@ export function useConversationSuggestions({
   const [suggestionsModelId] = usePreference('chat.suggestions.model_id')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const active = suggestionsEnabled && enabled
-  const dedicatedId = active ? ((suggestionsModelId as UniqueModelId | null) ?? null) : null
-  const fallbackId = active ? ((defaultModelId as UniqueModelId | undefined) ?? null) : null
+  // Inactive lookups use undefined so useModelById stays mounted (hook order)
+  // without an id. null is reserved for an active unset dedicated/default id.
+  const dedicatedId = active ? ((suggestionsModelId as UniqueModelId | null) ?? null) : undefined
+  const fallbackId = active ? ((defaultModelId as UniqueModelId | null) ?? null) : undefined
   const { model: dedicatedModel, isLoading: dedicatedLoading } = useModelById(dedicatedId)
   const { model: defaultModel, isLoading: defaultLoading } = useModelById(fallbackId)
-  const dedicatedUsable = Boolean(dedicatedModel && !isNonChatModel(dedicatedModel))
-  const generationModel = dedicatedUsable ? dedicatedModel : defaultModel
+  const dedicatedUsable = Boolean(active && dedicatedModel && !isNonChatModel(dedicatedModel))
+  const generationModel = active ? (dedicatedUsable ? dedicatedModel : defaultModel) : undefined
   const modelPending =
     Boolean(dedicatedId && dedicatedLoading) || Boolean(!dedicatedUsable && fallbackId && defaultLoading)
   const key =
