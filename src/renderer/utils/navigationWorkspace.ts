@@ -61,7 +61,6 @@ export function getWorkspaceKeyForFavorite(favorite: SidebarFavoriteItem): Navig
 export interface SidebarWorkspaceSession {
   tabs: Tab[]
   activeTabId: string
-  removedTabIds: string[]
 }
 
 /** Collapse a tab session to one mounted page per application workspace. */
@@ -94,7 +93,6 @@ export function normalizeSidebarWorkspaceSession(tabs: readonly Tab[], activeTab
 
   const keepFocusedTab = activeTab && !activeTab.workspaceKey ? activeTab : undefined
   const keptTabs = normalizedTabs.filter((tab) => selectedWorkspaceIds.has(tab.id) || tab.id === keepFocusedTab?.id)
-  const removedTabIds = normalizedTabs.filter((tab) => !keptTabs.includes(tab)).map((tab) => tab.id)
 
   const fallbackWorkspace = keptTabs.reduce<Tab | undefined>((latest, tab) => {
     if (!tab.workspaceKey) return latest
@@ -102,5 +100,5 @@ export function normalizeSidebarWorkspaceSession(tabs: readonly Tab[], activeTab
   }, undefined)
   const resolvedActiveId = keptTabs.some((tab) => tab.id === activeTabId) ? activeTabId : (fallbackWorkspace?.id ?? '')
 
-  return { tabs: keptTabs, activeTabId: resolvedActiveId, removedTabIds }
+  return { tabs: keptTabs, activeTabId: resolvedActiveId }
 }

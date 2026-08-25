@@ -276,7 +276,7 @@ export function TabsProvider({
       }
     } else {
       const revealActiveTab = (tab: Tab) =>
-        tab.id === restoredSession.activeTabId ? { ...tab, isTabBarVisible: true } : tab
+        tab.id === restoredSession.activeTabId && !isTabVisibleInTabBar(tab) ? { ...tab, isTabBarVisible: true } : tab
       initialSessionRef.current = {
         ...restoredSession,
         normalTabs: restoredSession.normalTabs.map(revealActiveTab),
@@ -758,7 +758,6 @@ export function TabsProvider({
         return openTabRaw(url, { ...options, workspaceKey })
       }
 
-      ensureWorkspaceFavorites([workspaceKey])
       const existingTab = projectedTabsRef.current.find((tab) => getTabWorkspaceKey(tab) === workspaceKey)
       if (!existingTab) return activateWorkspace(workspaceKey, url, options)
 
@@ -777,16 +776,7 @@ export function TabsProvider({
       }
       return activateWorkspace(workspaceKey, url, options)
     },
-    [
-      activateWorkspace,
-      activeTabId,
-      closeTabs,
-      ensureWorkspaceFavorites,
-      navigationLayout,
-      openFocusedRoute,
-      openTabRaw,
-      updateTab
-    ]
+    [activateWorkspace, activeTabId, closeTabs, navigationLayout, openFocusedRoute, openTabRaw, updateTab]
   )
 
   const openTab = openRoute
@@ -813,12 +803,13 @@ export function TabsProvider({
       ensureWorkspaceFavorites(workspaceKeys)
 
       const needsRewrite =
-        normalized.removedTabIds.length > 0 ||
         normalized.activeTabId !== activeTabId ||
-        tabs.some((tab) => {
-          const normalizedTab = normalized.tabs.find((candidate) => candidate.id === tab.id)
+        normalized.tabs.length !== tabs.length ||
+        normalized.tabs.some((normalizedTab, index) => {
+          const tab = tabs[index]
           return (
-            !normalizedTab ||
+            !tab ||
+            tab.id !== normalizedTab.id ||
             tab.workspaceKey !== normalizedTab.workspaceKey ||
             Boolean(tab.isPinned) !== Boolean(normalizedTab.isPinned)
           )
@@ -861,12 +852,15 @@ export function TabsProvider({
         }))
       const exposureUnchanged =
         combinedTabs.length === tabs.length &&
-        combinedTabs.every(
-          (tab, index) =>
-            tab.id === tabs[index]?.id &&
-            tab.isTabBarVisible === tabs[index]?.isTabBarVisible &&
-            Boolean(tab.isPinned) === Boolean(tabs[index]?.isPinned)
-        )
+        combinedTabs.every((tab, index) => {
+          const previousTab = tabs[index]
+          return (
+            !!previousTab &&
+            tab.id === previousTab.id &&
+            isTabVisibleInTabBar(tab) === isTabVisibleInTabBar(previousTab) &&
+            Boolean(tab.isPinned) === Boolean(previousTab.isPinned)
+          )
+        })
       if (exposureUnchanged) return
 
       setPinnedTabs(combinedTabs.filter(storesPinned))
@@ -884,7 +878,8 @@ export function TabsProvider({
     const visibilityUnchanged = topLayoutTabs.every(
       (tab, index) =>
         tab.id === normalTabs[index]?.id &&
-        tab.isTabBarVisible === normalTabs[index]?.isTabBarVisible &&
+        !!normalTabs[index] &&
+        isTabVisibleInTabBar(tab) === isTabVisibleInTabBar(normalTabs[index]) &&
         Boolean(tab.isPinned) === Boolean(normalTabs[index]?.isPinned)
     )
     if (visibilityUnchanged && topLayoutTabs.length === normalTabs.length) return

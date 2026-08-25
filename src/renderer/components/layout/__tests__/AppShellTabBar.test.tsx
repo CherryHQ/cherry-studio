@@ -226,7 +226,7 @@ describe('AppShellTabBar', () => {
     const user = userEvent.setup()
     const openTab = vi.fn()
 
-    renderTabBar({ showsSidebar: true, openTab })
+    renderTabBar({ legacyCombinedLayout: true, openTab })
 
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
@@ -237,7 +237,7 @@ describe('AppShellTabBar', () => {
   it('subtracts the visible Sidebar width from the legacy macOS traffic-light reserve', () => {
     mocks.platformState.isMac = true
 
-    renderTabBar({ showsSidebar: true })
+    renderTabBar({ legacyCombinedLayout: true })
 
     // This CSS formula is the pre-layout-selector contract for the combined shell.
     expect(screen.getByTestId('app-shell-tab-strip')).toHaveStyle({
@@ -248,7 +248,7 @@ describe('AppShellTabBar', () => {
   it('keeps the full macOS traffic-light reserve when the Sidebar is hidden', () => {
     mocks.platformState.isMac = true
 
-    renderTabBar({ showsSidebar: false })
+    renderTabBar()
 
     expect(screen.getByTestId('app-shell-tab-strip')).toHaveStyle({
       paddingLeft: 'env(titlebar-area-x, 0px)'

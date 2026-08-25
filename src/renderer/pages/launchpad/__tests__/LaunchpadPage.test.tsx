@@ -289,8 +289,8 @@ describe('LaunchpadPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Knowledge' }))
 
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge', { forceNew: true })
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge', undefined)
+    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
   it('replaces the current launchpad tab when an app opens in tabs layout', async () => {
@@ -304,6 +304,19 @@ describe('LaunchpadPage', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
     expect(mocks.openRoute).not.toHaveBeenCalled()
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
+  })
+
+  it('does not rewrite Sidebar favorites when a tabs-layout app is already pinned', async () => {
+    const user = userEvent.setup()
+    mocks.navigationLayout = 'tabs'
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
+
+    render(<LaunchpadPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Knowledge' }))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
+    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
   it('preserves the legacy Launchpad behavior in the combined layout', async () => {
@@ -342,7 +355,7 @@ describe('LaunchpadPage', () => {
 
     await user.click(shortcut)
 
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/code?tool=deepseek-harness', { forceNew: true })
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/code?tool=deepseek-harness', undefined)
   })
 
   it('suppresses only the dragged launchpad item click', () => {
@@ -357,7 +370,7 @@ describe('LaunchpadPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
 
     expect(mocks.openRoute).toHaveBeenCalledTimes(1)
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/chat', { forceNew: true })
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/chat', undefined)
   })
 
   it('opens chat and agent apps as separate destinations', async () => {
@@ -368,11 +381,11 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Chat' }))
     await user.click(screen.getByRole('button', { name: 'Agent' }))
 
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/chat', { forceNew: true })
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/agents', { forceNew: true })
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/chat', undefined)
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/agents', undefined)
   })
 
-  it('opens and favorites concrete mini apps without replacing the Sidebar launchpad workspace', async () => {
+  it('opens concrete mini apps without writing favorites directly in Sidebar layout', async () => {
     const user = userEvent.setup()
     mocks.pinnedMiniApps = [createMiniApp('calculator')]
 
@@ -381,10 +394,22 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Calculator' }))
 
     expect(mocks.openRoute).toHaveBeenCalledWith('/app/mini-app/calculator', {
-      forceNew: true,
       title: 'Calculator',
       icon: 'calculator-logo'
     })
+    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
+  })
+
+  it('favorites an unpinned mini app when replacing the launchpad tab in tabs layout', async () => {
+    const user = userEvent.setup()
+    mocks.navigationLayout = 'tabs'
+    mocks.pinnedMiniApps = [createMiniApp('calculator')]
+
+    render(<LaunchpadPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Calculator' }))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app/calculator' })
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), miniAppFavorite('calculator')])
   })
 

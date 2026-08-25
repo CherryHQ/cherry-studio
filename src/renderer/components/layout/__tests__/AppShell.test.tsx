@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   closeFocusedRoute: vi.fn(),
   detachTab: vi.fn(),
   setActiveTab: vi.fn(),
+  updateTab: vi.fn(),
   commandHandlers: new Map<string, { handler: () => void; options?: { enabled?: boolean } }>(),
   ipcHandlers: new Map<string, (value: unknown) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve(false)),
@@ -90,7 +91,7 @@ vi.mock('../../../hooks/tab', () => ({
     tabBarTabs: mocks.tabBarTabs ?? mocks.tabs,
     tabs: mocks.tabs,
     unpinTab: vi.fn(),
-    updateTab: vi.fn()
+    updateTab: mocks.updateTab
   })
 }))
 
@@ -174,6 +175,14 @@ describe('AppShell', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('title-bar')).toBeInTheDocument()
     expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument()
+  })
+
+  it('does not write exact-tab dormancy metadata in Sidebar layout', () => {
+    mocks.navigationLayout = 'sidebar'
+
+    render(<AppShell />)
+
+    expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
   it('owns the resource source provider at the route host boundary', () => {

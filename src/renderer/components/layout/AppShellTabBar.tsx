@@ -31,7 +31,6 @@ type AppShellTabBarProps = {
   isFullscreen?: boolean
   isFocusedTab?: boolean
   legacyCombinedLayout?: boolean
-  showsSidebar?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   closeTabs: (ids: readonly string[], activateId?: string) => void
@@ -575,7 +574,6 @@ export const AppShellTabBar = ({
   isFullscreen = false,
   isFocusedTab = false,
   legacyCombinedLayout = false,
-  showsSidebar = false,
   setActiveTab,
   closeTab,
   closeTabs,
@@ -787,7 +785,7 @@ export const AppShellTabBar = ({
   const handleOpenLaunchpad = () => {
     openTab('/app/launchpad', {
       title: t('title.launchpad'),
-      ...(showsSidebar ? { forceNew: true } : {})
+      ...(legacyCombinedLayout ? { forceNew: true } : {})
     })
   }
 
@@ -904,7 +902,7 @@ export const AppShellTabBar = ({
               ? {
                   paddingLeft: isFocusedTab
                     ? 'env(titlebar-area-x)'
-                    : showsSidebar
+                    : legacyCombinedLayout
                       ? MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
                       : 'env(titlebar-area-x, 0px)'
                 }
@@ -1169,10 +1167,10 @@ export const AppShellTabBar = ({
                 </Tooltip>
               </div>
             )}
-            {legacyCombinedLayout ? <WindowControls /> : <ShellTabBarActions showSettings={!showsSidebar} />}
+            {legacyCombinedLayout ? <WindowControls /> : <ShellTabBarActions showSettings />}
           </div>
         ) : (
-          <ShellTabBarActions showSettings={!showsSidebar} />
+          <ShellTabBarActions showSettings={!legacyCombinedLayout} />
         )}
       </header>
     </>

@@ -8,7 +8,7 @@ date: 2026-08-20
 
 ## What changed
 
-The main window now offers Sidebar-only, Tabs-only, and Sidebar + Tabs layouts in Settings → Appearance. Sidebar + Tabs remains the default and preserves the navigation behavior from previous releases.
+The main window now offers Sidebar-only, Tabs-only, and Sidebar + Tabs layouts in Settings → Laboratory. Sidebar + Tabs remains the default and preserves the navigation behavior from previous releases.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ Existing users see no layout or navigation change after upgrading. Sidebar-only 
 
 ## What the user should do
 
-Nothing — automatic. Choose Sidebar or Tabs in Settings → Appearance to opt into either streamlined layout.
+Nothing — automatic. Choose Sidebar or Tabs in Settings → Laboratory to opt into either streamlined layout.
 
 ## Notes for release manager
 

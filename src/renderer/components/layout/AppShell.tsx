@@ -223,7 +223,6 @@ export const AppShell = () => {
       unpinTab={unpinTab}
       detachTab={handleDetachTab}
       openTab={openTab}
-      showsSidebar={showsSidebar}
     />
   )
 
@@ -247,7 +246,7 @@ export const AppShell = () => {
             .filter((t) => t.type === 'route' && !t.isDormant)
             .map((tab) => (
               <Fragment key={tab.id}>
-                <TabTaskDormancyRuntime tab={tab} navigationLayout={navigationLayout} updateTab={updateTab} />
+                {navigationLayout !== 'sidebar' && <TabTaskDormancyRuntime tab={tab} updateTab={updateTab} />}
                 <TabRouter
                   tab={tab}
                   isActive={tab.id === activeTabId}

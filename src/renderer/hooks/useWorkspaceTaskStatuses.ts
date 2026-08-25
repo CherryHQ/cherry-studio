@@ -1,4 +1,4 @@
-import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -13,6 +13,8 @@ export type WorkspaceTaskStatus = 'action-required' | 'completed' | 'error' | 'i
 
 const AGENT_SESSION_TOPIC_PREFIX = buildAgentSessionTopicId('')
 const EMPTY_STATUS_INDEX: TopicStatusSnapshotIndex = Object.freeze({})
+const STATUS_INDEX_KEYS = [TOPIC_STATUS_INDEX_CACHE_KEY] as const
+const NO_STATUS_INDEX_KEYS = [] as const
 
 const STATUS_PRIORITY: Record<WorkspaceTaskStatus, number> = {
   idle: 0,
@@ -71,9 +73,13 @@ function aggregateWorkspaceStatuses(index: TopicStatusSnapshotIndex): {
   }
 }
 
+function selectStatusIndex(values: readonly (TopicStatusSnapshotIndex | undefined)[]): TopicStatusSnapshotIndex {
+  return values[0] ?? EMPTY_STATUS_INDEX
+}
+
 /** Main-owned conversation state grouped by Sidebar app. */
-export function useWorkspaceTaskStatuses(): ReadonlyMap<SidebarAppId, WorkspaceTaskStatus> {
-  const statusIndex = useSharedCacheValue(TOPIC_STATUS_INDEX_CACHE_KEY) ?? EMPTY_STATUS_INDEX
+export function useWorkspaceTaskStatuses(enabled = true): ReadonlyMap<SidebarAppId, WorkspaceTaskStatus> {
+  const statusIndex = useSharedCacheSelector(enabled ? STATUS_INDEX_KEYS : NO_STATUS_INDEX_KEYS, selectStatusIndex)
   const { assistantStatus, agentStatus } = useMemo(() => aggregateWorkspaceStatuses(statusIndex), [statusIndex])
 
   return useMemo(

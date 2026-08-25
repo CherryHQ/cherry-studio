@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
@@ -18,7 +19,7 @@ const sidebarMocks = vi.hoisted(() => ({
     { type: 'app' as const, id: 'assistants' as const },
     { type: 'app' as const, id: 'agents' as const },
     { type: 'app' as const, id: 'files' as const }
-  ]
+  ] as SidebarFavoriteItem[]
 }))
 
 const PINNED_FILES_TAB: Tab = {
@@ -280,6 +281,9 @@ function WorkspaceControls() {
       <button type="button" onClick={() => openRoute('/app/release-notes')}>
         Open release notes
       </button>
+      <button type="button" onClick={() => openRoute('/app/notes')}>
+        Open notes
+      </button>
       <button type="button" onClick={() => setActiveTab('home')}>
         Activate home workspace
       </button>
@@ -423,6 +427,18 @@ beforeEach(() => {
   pinnedTabsValue = [PINNED_FILES_TAB]
   normalTabsValue = []
   activeTabIdValue = ''
+  sidebarMocks.favorites = [
+    { type: 'app', id: 'assistants' },
+    { type: 'app', id: 'agents' },
+    { type: 'app', id: 'files' }
+  ]
+  sidebarMocks.ensureFavoritesPinned.mockImplementation((items: readonly SidebarFavoriteItem[]) => {
+    for (const item of items) {
+      if (!sidebarMocks.favorites.some((favorite) => favorite.type === item.type && favorite.id === item.id)) {
+        sidebarMocks.favorites = [...sidebarMocks.favorites, item]
+      }
+    }
+  })
 })
 
 afterEach(() => {
@@ -604,6 +620,23 @@ describe('TabsProvider', () => {
       expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('home:app:assistants:/app/chat?topicId=second')
     )
     expect((screen.getByTestId('workspace-tabs').textContent ?? '').split(',')).toHaveLength(1)
+  })
+
+  it('favorites a new Sidebar workspace with one preference write', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open notes' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('app:notes:/app/notes'))
+    expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledTimes(1)
+    expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledWith([{ type: 'app', id: 'notes' }])
   })
 
   it('uses one focused route and returns to its source workspace', async () => {

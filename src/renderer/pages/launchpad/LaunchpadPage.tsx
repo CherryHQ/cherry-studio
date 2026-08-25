@@ -58,12 +58,13 @@ export default function LaunchpadPage() {
   const { closeWorkspace, navigationLayout, openRoute } = useTabs()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { appFavorites, setAppPinned, setMiniAppPinned } = useSidebarFavorites()
+  const { appFavorites, miniAppFavoriteIds, setAppPinned, setMiniAppPinned } = useSidebarFavorites()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
   const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
+  const visibleMiniAppFavoriteSet = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
 
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)
@@ -99,7 +100,7 @@ export default function LaunchpadPage() {
         return
       }
 
-      openRoute(`${parsedUrl.pathname}${parsedUrl.search}`, { ...options, forceNew: true })
+      openRoute(`${parsedUrl.pathname}${parsedUrl.search}`, options)
     },
     [navigate, navigationLayout, openRoute]
   )
@@ -109,14 +110,14 @@ export default function LaunchpadPage() {
 
     const path = getSidebarMenuPath(favorite, defaultPaintingProvider)
     if (!path) return
-    if (navigationLayout !== 'both') setAppPinned(favorite, true)
+    if (navigationLayout === 'tabs' && !visibleSidebarFavoriteSet.has(favorite)) setAppPinned(favorite, true)
     openUrl(path)
   }
 
   const openMiniApp = (app: MiniAppType) => {
     if (shouldSuppressLaunchClick(app.appId)) return
 
-    if (navigationLayout !== 'both') setMiniAppPinned(app.appId, true)
+    if (navigationLayout === 'tabs' && !visibleMiniAppFavoriteSet.has(app.appId)) setMiniAppPinned(app.appId, true)
     openUrl(`/app/mini-app/${app.appId}`, {
       title: app.nameKey ? t(app.nameKey) : app.name,
       icon: app.logoSrc ?? app.logo
@@ -124,7 +125,7 @@ export default function LaunchpadPage() {
   }
 
   const openDeepSeekHarness = () => {
-    if (navigationLayout !== 'both') setAppPinned('code_tools', true)
+    if (navigationLayout === 'tabs' && !visibleSidebarFavoriteSet.has('code_tools')) setAppPinned('code_tools', true)
     openUrl(DEEPSEEK_HARNESS_URL)
   }
 

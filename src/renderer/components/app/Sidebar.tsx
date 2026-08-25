@@ -60,7 +60,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   } = useSidebarFavorites()
   const { activeTab, activateWorkspace, closeWorkspace, navigationLayout, openTab, setActiveTab, tabs, updateTab } =
     useTabs()
-  const workspaceTaskStatuses = useWorkspaceTaskStatuses()
+  const workspaceTaskStatuses = useWorkspaceTaskStatuses(navigationLayout === 'sidebar')
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const { agents } = useAgents({ enabled: agentFavoriteIds.length > 0 })
   const { assistants } = useAssistantsApi({ enabled: assistantFavoriteIds.length > 0 })
@@ -309,7 +309,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!workspaceKey?.startsWith('app:')) continue
       const status = workspaceTaskStatuses.get(workspaceKey.slice('app:'.length) as SidebarAppId)
       const preventDormancy = status === 'action-required' || status === 'running'
-      if (tab.metadata?.preventDormancy === preventDormancy) continue
+      if (Boolean(tab.metadata?.preventDormancy) === preventDormancy) continue
       updateTab(tab.id, { metadata: { ...tab.metadata, preventDormancy } })
     }
   }, [navigationLayout, tabs, updateTab, workspaceTaskStatuses])

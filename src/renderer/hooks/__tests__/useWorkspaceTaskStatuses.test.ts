@@ -3,14 +3,17 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const cacheValues = vi.hoisted(() => new Map<string, unknown>())
+const selectorKeys = vi.hoisted(() => [] as string[][])
 const historyHooks = vi.hoisted(() => ({
   useTopics: vi.fn(() => ({ topics: [] })),
   useSessions: vi.fn(() => ({ sessions: [] }))
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCacheSelector: (_keys: readonly string[], selector: (values: readonly unknown[]) => unknown) => selector([]),
-  useSharedCacheValue: (key: string) => cacheValues.get(key)
+  useSharedCacheSelector: (keys: readonly string[], selector: (values: readonly unknown[]) => unknown) => {
+    selectorKeys.push([...keys])
+    return selector(keys.map((key) => cacheValues.get(key)))
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({ useTopics: historyHooks.useTopics }))
@@ -53,6 +56,7 @@ describe('aggregateConversationTaskStatus', () => {
 describe('useWorkspaceTaskStatuses', () => {
   beforeEach(() => {
     cacheValues.clear()
+    selectorKeys.length = 0
     historyHooks.useTopics.mockClear()
     historyHooks.useSessions.mockClear()
   })
@@ -69,5 +73,17 @@ describe('useWorkspaceTaskStatuses', () => {
     expect(result.current.get('agents')).toBe('running')
     expect(historyHooks.useTopics).not.toHaveBeenCalled()
     expect(historyHooks.useSessions).not.toHaveBeenCalled()
+  })
+
+  it('does not observe the runtime index outside Sidebar-only layout', () => {
+    cacheValues.set('topic.stream.status_index', {
+      'chat-topic': entry('streaming')
+    })
+
+    const { result } = renderHook(() => useWorkspaceTaskStatuses(false))
+
+    expect(selectorKeys).toEqual([[]])
+    expect(result.current.get('assistants')).toBe('idle')
+    expect(result.current.get('agents')).toBe('idle')
   })
 })
