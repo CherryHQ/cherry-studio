@@ -14,7 +14,9 @@ applies no selection-dependent edits, and stops safely.
 ## State model
 
 - **Proposed**: a valid candidate drafted from a recurring uncovered pattern
-  and recorded in the review report. No checklist file is edited.
+  and recorded in the review report. No checklist file is edited. This state
+  is session-scoped: the report is not a durable carrier, so a candidate does
+  not survive into a later session.
 - **Accepted**: a user explicitly selects a proposed candidate during a
   separately authorized checklist-maintenance flow. Acceptance authorizes the
   rule choice, not an implicit commit, push, or PR.
@@ -54,10 +56,19 @@ there: do not prompt for selection, edit a checklist, or claim persistence.
 ## Step 2: Accept in an explicit maintenance flow
 
 Continue past Step 1 only when the user explicitly requests checklist
-maintenance or asks to adopt proposed candidates. In an interactive run,
-present the candidates for selection. Unselected candidates remain proposed or
-are discarded; selected candidates become **Accepted**. In an automated run,
-report the candidates and stop before acceptance.
+maintenance or asks to adopt proposed candidates.
+
+**Proposed candidates live only in the session that drafted them.** A review
+report is session output, not a durable store, so maintenance runs only in the
+same session as the review that produced the candidates. If this session holds
+no proposed candidates, say so and stop — do not reconstruct candidates from
+memory, from an earlier session's report, or by re-reviewing. To adopt
+candidates from an earlier session, re-run the review that produces them.
+
+In an interactive run, present this session's candidates for selection.
+Unselected candidates remain proposed or are discarded; selected candidates
+become **Accepted**. In an automated run, report the candidates and stop before
+acceptance.
 
 Acceptance does not authorize writing into a temporary PR review worktree. The
 maintenance flow must identify a user-designated persistent checkout and

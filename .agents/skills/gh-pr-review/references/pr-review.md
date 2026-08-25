@@ -35,7 +35,7 @@ this run did not confirm.
 
 ## Step 1: Create worktree
 
-If `$ARGUMENTS` is a URL, extract the PR number from it.
+If `REVIEW_TARGET` is a URL, extract the PR number from it.
 
 Validate PR target:
 ```bash
@@ -45,7 +45,7 @@ gh pr view {number} --json headRefName,baseRefName,headRefOid,state,body
 Record `OWNER_REPO` and split it into `OWNER` and `REPO`. Extract: `PR_BRANCH`,
 `BASE_BRANCH`, `HEAD_SHA`, `STATE`, `PR_BODY`.
 If either command fails, inform the user and abort.
-If `$ARGUMENTS` is a URL containing `{owner}/{repo}`, verify it matches
+If `REVIEW_TARGET` is a URL containing `{owner}/{repo}`, verify it matches
 `OWNER_REPO`. If not, inform the user that cross-repo PR review is not
 supported and abort.
 If `STATE` is not `OPEN`, inform the user and exit.
@@ -172,7 +172,8 @@ signal. Do not replace CI with local lint, test, or format runs.
 Only after the worktree, `PR_BODY`, complete accessible conversation state, and
 CI state have all been collected, calculate `CHANGED_LINES`, `CHANGED_FILES`,
 binary status, and `SMALL_SCOPE` from the complete merge-base diff using the
-canonical definition in `SKILL.md` § Route. Do not use GitHub's summary counts
+canonical definition in `SKILL.md` § Route → Scope derivation, which names and
+owns `SMALL_SCOPE`. Do not use GitHub's summary counts
 or a module-merge heuristic as a substitute.
 
 ---

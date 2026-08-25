@@ -1,16 +1,16 @@
 # Local Review
 
-Single-agent review for small changes, or as the explicit fallback when a
-runtime cannot launch independent subagents. The canonical size calculation
-lives in `SKILL.md` § Route. Reviews the diff and reports confirmed issues with
+Single-agent review for a small scope, or as the explicit fallback when a
+runtime cannot launch independent subagents. Scope and `SMALL_SCOPE` are
+derived by `SKILL.md` § Route → Scope derivation. Reviews the diff and reports confirmed issues with
 fix guidance; edits code only when the invocation explicitly authorized fixing.
 Follow `SKILL.md` § Interaction and interruption contract; this flow introduces
 no additional prompt category.
 
 ## Input from SKILL.md
 
-- Review scope (already determined during routing; re-derive with the Step 1
-  rules if invoked standalone).
+- `REVIEW_TARGET`, the resolved review scope, and `SMALL_SCOPE`, all derived
+  by `SKILL.md` § Route → Scope derivation.
 - `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
   fixing (`fix` modifier or equivalent user wording). Commit and range
   targets are always report-only regardless of the flag.
@@ -32,39 +32,10 @@ no additional prompt category.
 
 ## Step 1: Scope
 
-Determine the diff to review based on `$ARGUMENTS` and working tree state:
-
-- **Empty `$ARGUMENTS`**, **uncommitted changes exist**: scope is
-  uncommitted changes only. Fetch with `git diff HEAD` (staged + unstaged
-  tracked files). Also check for untracked files with `git status --porcelain`
-  (`??` lines) and read their contents for review.
-- **Empty `$ARGUMENTS`**, **no uncommitted changes**: find the base branch by
-  checking common base branches in order: `main`, `master`. Use the first one
-  that exists. Fetch the branch diff:
-  ```
-  git merge-base origin/{base_branch} HEAD
-  git diff <merge-base-sha>
-  ```
-  Also check for untracked files with `git status --porcelain` (`??` lines).
-- **Commit hash** (e.g., `abc123`): validate with `git rev-parse --verify`,
-  then `git show`.
-- **Commit range** (e.g., `abc123..def456` or `abc123...def456`): validate both
-  endpoints. Fetch the diff including both endpoints:
-  ```
-  git diff A~1..B
-  ```
-- **File/directory paths**: verify all paths exist on disk, then read file
-  contents.
-
-The resolved review scope, not a diff, decides whether there is work: for a
-path target it is the set of files resolved from the given paths; for every
-other target it is the diff. A clean tree does not make a path target empty.
-
-If the resolved review scope is empty → show usage examples and exit:
-`/gh-pr-review` (uncommitted changes or current branch),
-`/gh-pr-review a1b2c3d`, `/gh-pr-review a1b2c3d..e4f5g6h`,
-`/gh-pr-review src/foo.ts`, `/gh-pr-review 123`,
-`/gh-pr-review https://github.com/.../pull/123`.
+Scope, resolved-scope emptiness, and `SMALL_SCOPE` are owned by `SKILL.md`
+§ Route → Scope derivation. The router already resolved them; when invoked
+standalone, derive them with those rules and print its usage examples if the
+resolved scope is empty. Do not restate the derivation here.
 
 ---
 
@@ -131,14 +102,9 @@ because there are no confirmed issues to evolve into checklist candidates.
 
 Do not ask the user which issues to fix.
 
-- **`AUTHORIZED_FIX` = false** (default): report all issues with at-altitude
-  fix guidance; edit nothing.
-- **`AUTHORIZED_FIX` = true**: auto-fix **low-risk** issues only (a single
-  reasonable fix exists), keeping every fix at the defect's altitude per
-  `cherry-review-guidance.md` § Fix Recommendation Policy. Medium- and
-  high-risk issues report feasible options, key trade-offs, and an optional
-  reviewer recommendation — multiple reasonable implementations must be
-  surfaced, never silently chosen.
+Apply `judgment-matrix.md` § Handling by Risk Level, which owns what each risk
+level permits under `AUTHORIZED_FIX`. Keep every applied fix at the defect's
+altitude per `cherry-review-guidance.md` § Fix Recommendation Policy.
 
 Present a summary of what was reviewed and either the issues fixed/reported
 with their fix guidance or "no issues found". If
@@ -149,9 +115,10 @@ with product impact, include the Product Demand summary — impact, direction,
 and points needing human confirmation — explicitly marked as awaiting a
 product decision, never as approved.
 
-Validation: when fixes were applied, the session is a coding task — run
-`pnpm lint`, `pnpm test`, and `pnpm format`, and report their results; a
-failure caused by a fix means the fix is reverted or reported as failed.
+Validation: when fixes were applied, the session is a coding task — run the
+validation selected per `SKILL.md` § Validation after applied fixes and report
+the results; a failure caused by a fix means the fix is reverted or reported
+as failed.
 
 When nothing was edited, do not run local lint/test/format and state the CI
 baseline recorded in Step 2, matching it: with an associated PR, existing CI

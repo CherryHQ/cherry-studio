@@ -26,8 +26,8 @@ artifact or excerpt is explicitly required as evidence.
 
 ## Input from SKILL.md
 
-- Review scope (already determined during routing; re-derive with the Phase 1
-  rules if invoked standalone).
+- `REVIEW_TARGET`, the resolved review scope, and `SMALL_SCOPE`, all derived
+  by `SKILL.md` § Route → Scope derivation.
 - `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
   fixing (`fix` modifier or equivalent user wording); commit and range
   targets are always report-only. When false, skip Phase 4 entirely —
@@ -63,49 +63,18 @@ behavior only when the invocation or workflow explicitly identifies an
 automated run; then decide nothing and carry the product-impact summary into
 the Report. Reviewers cover stages 2–5.
 
-- **Filter** routes low-risk issues to Fix/Validate (authorized fix only);
-  medium- and high-risk issues go straight to Report with feasible options,
-  key trade-offs, and an optional reviewer recommendation — multiple
-  reasonable implementations are surfaced, never silently chosen.
-  If nothing is fixable, skip directly to Report.
+- **Filter** routes issues per `judgment-matrix.md` § Handling by Risk Level,
+  which owns the risk-to-action mapping. If nothing is fixable, skip directly
+  to Report.
 
 ---
 
 ## Phase 1: Scope
 
-Determine the diff to review based on `$ARGUMENTS` and working-tree state:
-
-- **Empty arguments**, **uncommitted changes exist**: scope is uncommitted
-  changes only. Fetch with `git diff HEAD` (staged + unstaged tracked files).
-  Also check `git status --porcelain` for untracked (`??`) files and review
-  their full contents as new code.
-- **Empty arguments**, **no uncommitted changes**: find the base branch by
-  checking common base branches in order: `main`, `master`. Use the first one
-  that exists. Fetch the branch diff:
-  ```
-  git merge-base origin/{base_branch} HEAD
-  git diff <merge-base-sha>
-  ```
-  (On main/master itself this diff is empty → usage examples below.)
-- **Commit hash** (e.g., `abc123`): validate with `git rev-parse --verify`,
-  then `git show`.
-- **Commit range** (e.g., `abc123..def456` or `abc123...def456`): validate both
-  endpoints. Fetch the diff including both endpoints:
-  ```
-  git diff A~1..B
-  ```
-- **File/directory paths**: verify all paths exist on disk, then read file
-  contents.
-
-The resolved review scope, not a diff, decides whether there is work: for a
-path target it is the set of files resolved from the given paths; for every
-other target it is the diff. A clean tree does not make a path target empty.
-
-If the resolved review scope is empty → show usage examples and exit:
-`/gh-pr-review` (uncommitted changes or current branch),
-`/gh-pr-review a1b2c3d`, `/gh-pr-review a1b2c3d..e4f5g6h`,
-`/gh-pr-review src/foo.ts`, `/gh-pr-review 123`,
-`/gh-pr-review https://github.com/.../pull/123`.
+Scope, resolved-scope emptiness, and `SMALL_SCOPE` are owned by `SKILL.md`
+§ Route → Scope derivation. The router already resolved them; when invoked
+standalone, derive them with those rules and print its usage examples if the
+resolved scope is empty. Do not restate the derivation here.
 
 ### Associated PR conversation
 
@@ -314,10 +283,9 @@ at-altitude options instead.
 
 All confirmed issues are recorded with risk level.
 
-| Condition | → |
-|-----------|---|
-| Low risk, `AUTHORIZED_FIX` = true | auto-fix queue |
-| Medium or high risk, or `AUTHORIZED_FIX` = false | `reported` (with fix guidance) |
+Route each issue per `judgment-matrix.md` § Handling by Risk Level: what it
+sends to the auto-fix queue goes to Phase 4, everything else is `reported`
+with fix guidance.
 
 - Cross-module impact: if a fix requires updates outside the fixer's module,
   add it to the current fix queue and assign to the appropriate fixer.
@@ -393,8 +361,8 @@ user changes while removing an unsuccessful fixer edit.
 
 Re-read every fixer diff and repeat the relevant reviewer/verifier checks.
 Then, because applied fixes make the session a coding task, run the
-repository validation commands — `pnpm lint`, `pnpm test`, `pnpm format` —
-and include their results in the report. Existing CI validates the reviewed
+validation selected per `SKILL.md` § Validation after applied fixes and
+include its results in the report. Existing CI validates the reviewed
 remote commit, not these unpushed fixes; state that limitation in the report.
 If a later user-authorized publish workflow pushes the fixes, inspect the
 resulting CI before claiming them fully validated.
@@ -427,8 +395,8 @@ Summary:
 - Reported issues listed with risk, `file:line`, and at-altitude fix guidance
   (`cherry-review-guidance.md` § Fix Recommendation Policy); Medium/High
   guidance includes options, trade-offs, and an optional recommendation
-- Local validation results (`pnpm lint` / `pnpm test` / `pnpm format`) when
-  fixes were applied
+- Local validation results (the commands selected per `SKILL.md` §
+  Validation after applied fixes) when fixes were applied
 - Rolled-back issues and reasons
 - Associated PR CI status, or "unavailable" when there is no PR
 - Unpushed fixes: CI pending until published
