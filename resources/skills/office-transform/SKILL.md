@@ -33,14 +33,37 @@ Chat surfaces may hand you a fenced `selection-ref` block:
 {"path": "/abs/report.xlsx", "anchor": {"format": "xlsx", "sheet": "Sheet1", "range": "A1:C10"}, "excerpt": "…", "fileStamp": {"size": 1024, "mtimeMs": 1700000000000}}
 ```
 
-The `anchor` object is exactly what the scripts take via `--anchor`. Before acting on
-one, compare `fileStamp` against the file's current size/mtime (`stat`); if they
-differ, tell the user the file changed since they selected and ask them to re-select —
-never silently re-anchor. Before a patch-copy edit, also verify the anchor still points
-where the user thinks: extract the anchored region first and compare its text with the
-reference's `excerpt` (ignoring whitespace differences); on a mismatch, stop and tell
-the user the anchor no longer matches their selection — never edit at a mismatched
-anchor and never go searching for a "close enough" location. Users may also describe
+The `anchor` object is exactly what the scripts take via `--anchor`.
+
+**Freshness check.** `fileStamp.mtimeMs` is milliseconds since the Unix epoch, floored to
+whole milliseconds. Do not compare it to `stat`'s default output: `stat -f %m` (macOS) and
+`stat -c %Y` (GNU) give whole *seconds*, so multiplying by 1000 loses the sub-second part and
+never matches. Read it the same way the app wrote it, and allow one second of slack so a
+filesystem with coarser timestamps does not report every file as changed:
+
+```bash
+uv run python -c "import os,sys;st=os.stat(sys.argv[1]);print(st.st_size, int(st.st_mtime*1000))" '/abs/report.xlsx'
+```
+
+Treat the file as changed when the size differs, or when the mtimes differ by more than
+1000 ms. On a change, tell the user the file changed since they selected and ask them to
+re-select — never silently re-anchor.
+
+**Anchor check.** Before a patch-copy edit, also verify the anchor still points where the
+user thinks: extract the anchored region first and compare its text with the reference's
+`excerpt`; on a mismatch, stop and tell the user the anchor no longer matches their
+selection — never edit at a mismatched anchor and never go searching for a "close enough"
+location. Compare after normalizing both sides the same way (NFC, collapse each whitespace
+run to one space, trim). Two cases need care because the two sides are not directly
+comparable as-is:
+
+- **xlsx**: the `excerpt` is tab-separated cells and newline-separated rows, while extraction
+  writes csv or md. Compare cell values, not the raw file — read the csv with a csv reader and
+  join the fields with single spaces before normalizing, so `,` and `|` never count as a
+  difference.
+- **docx with `charRange`**: extraction returns only that slice, but patch-copy compares (and
+  replaces) the **whole paragraph**. Re-extract the paragraph *without* `charRange` for this
+  check, and see "Edit docx" below before writing. Users may also describe
 the region in words ("sheet 2, columns A through C"); build the anchor JSON yourself,
 confirming the worksheet name or paragraph if ambiguous.
 
@@ -61,11 +84,15 @@ skill folder. Python dependencies are per-format and provided at invocation time
 
 ### Extract — pull the anchored region into a new file
 
+Always single-quote paths — real documents have spaces in their names (`Q1 report.xlsx`).
+If a path itself contains a single quote, close and reopen the quoting around it:
+`'/abs/Bob'\''s deck.pptx'`.
+
 ```bash
 uv run --with openpyxl python scripts/office_extract.py \
-  --file /abs/report.xlsx \
+  --file '/abs/report.xlsx' \
   --anchor '{"format":"xlsx","sheet":"Sheet1","range":"A1:C10"}' \
-  --out /abs/report-q1-range.csv
+  --out '/abs/report-q1-range.csv'
 ```
 
 The output format is inferred from `--out`'s extension:
@@ -84,9 +111,9 @@ saved result. docx extraction to `docx` carries text only, not run styling.
 
 ```bash
 uv run python scripts/office_patch_copy.py \
-  --file /abs/report.xlsx \
+  --file '/abs/report.xlsx' \
   --edits '{"format":"xlsx","sheet":"Sheet1","cells":{"B2":42,"C3":"hello"}}' \
-  --out /abs/report-updated.xlsx
+  --out '/abs/report-updated.xlsx'
 ```
 
 OOXML packages are ZIPs of XML parts. Patch-copy copies every part byte-for-byte and
@@ -103,11 +130,21 @@ styles, charts, images, and macros in untouched parts survive exactly. Edit shap
   Coordinates outside the worksheet grid (past XFD or row 1048576) are refused too.
 - `{"format":"docx","replacements":[{"paragraph":3,"text":"new text"}]}` — the
   paragraph keeps its paragraph style and the first run's character style; extra run-level
-  styling within that one paragraph is flattened into the new text. Paragraphs carrying
-  content this rewrite cannot preserve — bookmarks, comment anchors, fields, hyperlinks —
-  are **refused**, not silently stripped: their start/end markers can span paragraphs, so
-  rewriting one half would leave the document unbalanced. Edit those with `python-docx`
+  styling within that one paragraph is flattened into the new text.
+  **`text` must be the complete new paragraph.** The whole body paragraph is replaced, and
+  `charRange` does not narrow that — feeding back a `charRange` slice as `text` silently
+  discards the rest of the sentence.
+  Paragraphs carrying content this rewrite cannot preserve are **refused**, not silently
+  stripped: bookmarks, comment anchors and fields pair a start with an end that may sit in
+  another paragraph, so rewriting one half would unbalance the document; images, embedded
+  objects, footnote/endnote references, hyperlinks and tracked changes (`w:ins`/`w:del`)
+  have no place in the rebuilt run and would simply vanish — a dropped `w:del` would even
+  accept a pending deletion on the user's behalf. Edit those with `python-docx`
   (`uv run --with python-docx python`), which preserves inline structure.
+- Any text written into a cell or paragraph must be storable in XML: control characters
+  other than tab, newline and carriage return are refused. Text extracted from a deck can
+  carry them (python-pptx maps a soft line break to `\x0B`), so strip them before feeding
+  extracted text back in as an edit value.
 
 ### Generate — write ad-hoc library code for new documents
 
@@ -138,13 +175,24 @@ def walk(shapes):  # extraction recurses into groups, so editing must too — a 
 
 p = Presentation("/abs/deck.pptx")
 shape = next(s for s in walk(p.slides[1].shapes) if s.shape_id == 4)
-shape.text_frame.text = "new text"
+
+# Write at the granularity the anchor addresses. `text_frame.text = ...` replaces the WHOLE
+# shape — using it for a paragraph-level anchor deletes every other paragraph in that shape.
+shape.text_frame.paragraphs[0].text = "new text"   # anchor had "paragraph": 0
+# shape.table.cell(1, 0).text = "new text"         # anchor had "tableCell": {"row":1,"col":0}
+# shape.text_frame.text = "new text"               # only when the anchor is the shape itself
+
 p.save("/abs/deck-updated.pptx")  # never save over the source
 
-# Verify: reopen the derived deck and read the shape back.
+# Verify at the same granularity you wrote at.
 check = Presentation("/abs/deck-updated.pptx")
-assert next(s for s in walk(check.slides[1].shapes) if s.shape_id == 4).text_frame.text == "new text"
+edited = next(s for s in walk(check.slides[1].shapes) if s.shape_id == 4)
+assert edited.text_frame.paragraphs[0].text == "new text"
+assert len(edited.text_frame.paragraphs) == len(shape.text_frame.paragraphs)  # nothing was dropped
 ```
+
+A table shape has no `text_frame` at all — reaching for one raises `AttributeError`. Route a
+`tableCell` anchor through `shape.table.cell(row, col)`.
 
 ## Output conventions
 
