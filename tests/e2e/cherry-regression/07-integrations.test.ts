@@ -68,6 +68,7 @@ test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ a
     await page.getByRole('button', { name: 'Add Skill', exact: true }).click()
     await page.getByText('Local import', { exact: true }).click()
     await page.getByRole('button', { name: 'Install from directory', exact: true }).click()
+    await page.waitForTimeout(1_000)
     chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, 'cherry-regression-fixture'))
     await expect(page.getByText('cherry-regression-fixture', { exact: true })).toBeVisible({ timeout: 60_000 })
   }

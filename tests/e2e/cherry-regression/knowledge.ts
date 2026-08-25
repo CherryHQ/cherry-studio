@@ -6,6 +6,7 @@ import type { RegressionApp } from './app'
 import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
 import { openSettingsSection } from './models'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 export const EMBEDDING_PROVIDER = 'Cherry Regression Embedding'
 export const KNOWLEDGE_NAME = 'Cherry Regression Knowledge 31415'
@@ -72,15 +73,14 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promi
 
   const readyFiles = page.getByText('Ready', { exact: true })
   if ((await readyFiles.count()) < 3) {
-    const chooserPromise = page.waitForEvent('filechooser')
     const folder = page.getByRole('button', { name: 'Folder', exact: true })
     if (await folder.isVisible().catch(() => false)) await folder.click()
     else {
       await page.getByRole('button', { name: 'Add Data Source', exact: true }).click()
       await page.getByRole('menuitem', { name: 'Folder', exact: true }).click()
     }
-    const chooser = await chooserPromise
-    await chooser.setFiles(join(app.paths.fixtures, 'knowledge'))
+    await page.waitForTimeout(1_000)
+    chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, 'knowledge'))
   }
   await expect
     .poll(async () => page.getByText('Ready', { exact: true }).count(), { timeout: 3 * 60_000 })

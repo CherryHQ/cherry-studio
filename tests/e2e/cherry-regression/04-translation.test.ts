@@ -14,10 +14,16 @@ async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[
     .click()
   await page.getByTestId('model-selector-search').fill(model)
   await page.getByRole('option').filter({ hasText: model }).first().click()
-  await page.getByRole('button', { name: 'Source Language' }).click()
-  await page.getByRole('option').filter({ hasText: 'English' }).first().click()
-  await page.getByRole('button', { name: /^Target Language\b/ }).click()
-  await page.getByRole('option').filter({ hasText: 'Chinese' }).first().click()
+  const sourceLanguage = page.getByRole('button', { name: 'Source Language' })
+  if (!(await sourceLanguage.textContent())?.includes('English')) {
+    await sourceLanguage.click()
+    await page.getByRole('option').filter({ hasText: 'English' }).first().click()
+  }
+  const targetLanguage = page.getByRole('button', { name: /^Target Language\b/ })
+  if (!(await targetLanguage.textContent())?.includes('Chinese')) {
+    await targetLanguage.click()
+    await page.getByRole('option').filter({ hasText: 'Chinese' }).first().click()
+  }
 }
 
 test('[T-01] 文本翻译 @translation', async ({ app, mainWindow: page }) => {
@@ -32,7 +38,7 @@ test('[T-01] 文本翻译 @translation', async ({ app, mainWindow: page }) => {
   await expect(output).toContainText('27182', { timeout: 2 * 60_000 })
 
   await page.getByRole('button', { name: 'Translation History', exact: true }).click()
-  await expect(page.getByText('CherryStudio Neptune 27182 TRANSLATION_MARKER', { exact: true })).toBeVisible()
+  await expect(page.getByText('CherryStudio Neptune 27182 TRANSLATION_MARKER', { exact: true }).last()).toBeVisible()
 })
 
 test('[T-02] PDF 文件翻译 @translation', async ({ app, mainWindow: page }) => {

@@ -35,6 +35,7 @@ async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void
   const selectFolder = page.getByText('Select Folder', { exact: true })
   if (await selectFolder.isVisible().catch(() => false)) {
     await selectFolder.click()
+    await page.waitForTimeout(1_000)
     chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
     await expect(page.getByRole('dialog')).toContainText('agent-workspace')
     await page.getByRole('dialog').getByRole('button', { name: 'Launch', exact: true }).click()
