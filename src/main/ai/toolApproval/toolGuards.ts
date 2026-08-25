@@ -32,8 +32,12 @@ export interface ToolGuardContext {
   readonly builtinRole: string | undefined
   /** Cherry-owned MCP servers mounted for this session (not role-derivable). */
   readonly mountedServers: ReadonlySet<string>
+  /** Loaded plugin directories by manifest name, for conditions that resolve plugin-owned files. */
+  readonly pluginDirectories: ReadonlyMap<string, string>
   readonly cwd: string
   readonly agentDataPath: string
+  /** Whether the connection model accepts native image input. Undefined preserves legacy behavior. */
+  readonly supportsImages?: boolean
   readonly interaction: ToolGuardInteractionState
   /** Live disabled predicate; returns false when no snapshot is bound (canUseTool fails closed). */
   readonly isDisabled: (toolName: string) => boolean

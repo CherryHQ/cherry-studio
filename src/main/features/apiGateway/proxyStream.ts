@@ -19,6 +19,7 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
@@ -33,6 +34,7 @@ import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
+import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
 import { resolveGatewayModelAddress } from './utils/models'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 
@@ -65,16 +67,20 @@ function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
 
 function extractSystemPrompt(messages: CherryUIMessage[]): { conversation: CherryUIMessage[]; system?: string } {
   const systemSections: string[] = []
-  const conversation = messages.filter((message) => {
-    if (message.role !== 'system') return true
+  let index = 0
+  for (; index < messages.length; index++) {
+    const message = messages[index]
+    if (message.role !== 'system') break
     const text = message.parts
       .filter((part) => part.type === 'text')
       .map((part) => part.text)
       .join('\n')
     if (text) systemSections.push(text)
-    return false
-  })
-  return { conversation, system: systemSections.length > 0 ? systemSections.join('\n\n') : undefined }
+  }
+  return {
+    conversation: messages.slice(index),
+    system: systemSections.length > 0 ? systemSections.join('\n\n') : undefined
+  }
 }
 
 function removeConflictingSupportIdentity(params: MessageCreateParams): MessageCreateParams {
@@ -240,7 +246,15 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const { conversation, system } = isInternalSupportRequest
     ? extractSystemPrompt(convertedMessages)
     : { conversation: convertedMessages, system: undefined }
-  const messages = isInternalAnthropicAgentRequest ? appendInternalAgentContinuation(conversation) : conversation
+  // Later inline system updates stay in conversation so verified turn order is preserved.
+  const positionedMessages = positionInlineSystemMessages(
+    conversation,
+    resolveEffectiveEndpoint(provider, model).endpointType,
+    config.requestHeaders
+  )
+  const messages = isInternalAnthropicAgentRequest
+    ? appendInternalAgentContinuation(positionedMessages)
+    : positionedMessages
   const tools = converter.toAiSdkTools?.(effectiveParams)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 

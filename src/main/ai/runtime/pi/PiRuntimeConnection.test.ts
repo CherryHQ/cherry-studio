@@ -1388,7 +1388,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        new Set(['cherry-tools', 'agent-memory', 'skills']),
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1487,7 +1487,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'skills']),
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1501,7 +1501,7 @@ describe('PiRuntimeConnection', () => {
       ])
     })
 
-    it('wraps agent instructions with the shared authority contract after the persona', async () => {
+    it('wraps agent instructions with the shared authority contract before the persona', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be terse.', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
@@ -1510,7 +1510,7 @@ describe('PiRuntimeConnection', () => {
       const prompt = appendedSystemPrompt()
       expect(prompt).toContain('## Instruction Precedence')
       expect(prompt).toContain('<agent_instructions>\nBe terse.\n</agent_instructions>')
-      expect(prompt.indexOf('AGENT PROMPT')).toBeLessThan(prompt.indexOf('<agent_instructions>'))
+      expect(prompt.indexOf('<agent_instructions>')).toBeLessThan(prompt.indexOf('AGENT PROMPT'))
     })
 
     it('resolves Agent System Prompt variables before injecting them', async () => {
@@ -1582,7 +1582,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'skills']),
+        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
         { id: 'chan-1' },
         AGENT_DATA_PATH,

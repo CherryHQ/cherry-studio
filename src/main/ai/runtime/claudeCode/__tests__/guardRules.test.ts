@@ -10,13 +10,22 @@ import {
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>()
+}))
+
+vi.mock('../skillDependencies', () => ({
+  SKILL_TOOL_NAME: 'Skill',
+  checkSkillRuntimeDependencies: mocks.checkSkillRuntimeDependencies
+}))
 
 import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
-const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
@@ -33,6 +42,7 @@ function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
     permissionMode: 'default',
     builtinRole: undefined,
     mountedServers: WITHOUT_HOST_TOOLS,
+    pluginDirectories: new Map(),
     cwd: '/ws',
     agentDataPath: '/data',
     interaction: INTERACTIVE,
@@ -44,6 +54,11 @@ function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
 const evaluate = (ctx: ToolGuardContext) => evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, ctx)
 
 describe('CLAUDE_TOOL_GUARD_RULES', () => {
+  beforeEach(() => {
+    mocks.checkSkillRuntimeDependencies.mockReset()
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
+  })
+
   it('is structurally valid', () => {
     expect(validateToolGuardRules(CLAUDE_TOOL_GUARD_RULES)).toEqual([])
   })
@@ -76,6 +91,44 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       const decision = await evaluate(makeCtx({ toolName, isDisabled: () => true }))
       expect(decision?.ruleId).toBe('disabled-tool')
       expect(decision?.effect).toBe('deny')
+    })
+  })
+
+  describe('unsupported-image-read', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
+      'denies image reads for a text-only model under %s',
+      async (mode) => {
+        const decision = await evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: '/ws/assets/Preview.PNG' },
+            permissionMode: mode,
+            supportsImages: false
+          })
+        )
+
+        expect(decision).toEqual({
+          effect: 'deny',
+          reason:
+            'The selected model does not support image input, so Read cannot open /ws/assets/Preview.PNG. Use a vision-capable model or inspect the file through a text-only alternative.',
+          ruleId: 'unsupported-image-read'
+        })
+      }
+    )
+
+    it('allows image reads for vision models and non-image reads for text-only models', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: '/ws/assets/Preview.png' },
+            supportsImages: true
+          })
+        )
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ toolName: 'Read', input: { file_path: '/ws/src/Game.cs' }, supportsImages: false }))
+      ).resolves.toBeUndefined()
     })
   })
 
@@ -137,6 +190,34 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         })
       )
       expect(decision?.ruleId).toBe('global-install')
+    })
+  })
+
+  describe('skill-absent-dependency', () => {
+    it('denies a provably absent dependency in every mode, bypass included', async () => {
+      mocks.checkSkillRuntimeDependencies.mockResolvedValue({ deny: 'its forked subagent is not installed.' })
+
+      for (const mode of ['default', 'bypassPermissions'] as const) {
+        const decision = await evaluate(
+          makeCtx({ toolName: 'Skill', permissionMode: mode, input: { skill: 'parallel-web-search' } })
+        )
+        expect(decision).toEqual({
+          effect: 'deny',
+          reason: 'its forked subagent is not installed.',
+          ruleId: 'skill-absent-dependency'
+        })
+      }
+    })
+
+    it('leaves an advisory-only result to the hook plane', async () => {
+      mocks.checkSkillRuntimeDependencies.mockResolvedValue({ warning: 'may be missing runtime dependencies.' })
+
+      await expect(evaluate(makeCtx({ toolName: 'Skill', input: { skill: 'shadcn' } }))).resolves.toBeUndefined()
+    })
+
+    it('does not run the check when the call names no skill', async () => {
+      await expect(evaluate(makeCtx({ toolName: 'Skill', input: {} }))).resolves.toBeUndefined()
+      expect(mocks.checkSkillRuntimeDependencies).not.toHaveBeenCalled()
     })
   })
 

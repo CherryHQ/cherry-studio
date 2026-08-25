@@ -82,17 +82,31 @@ export async function buildAgentRuntimePrompt({
   )
 
   const agentInstructions = hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined
-  const roleContext = isSupport
-    ? [agentInstructions, hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined, parts.context]
-    : [hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined, parts.context, agentInstructions]
-  const append = [
-    ...roleContext,
-    workspaceInstructions,
-    parts.base.kind === 'custom' || isSupport ? customBaseContext : undefined,
-    citationsGuidance,
-    REPORT_ARTIFACTS_PROMPT,
-    isSupport ? "IMPORTANT: Respond in the language of the user's latest message." : getLanguageInstruction()
-  ]
+  // Prefix-cache layout for non-Support: Cherry-owned policy that is identical across sessions
+  // comes first. Support identity is standing system, so it leads and keeps latest-message language.
+  const append = (
+    isSupport
+      ? [
+          agentInstructions,
+          hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
+          parts.context,
+          workspaceInstructions,
+          customBaseContext,
+          citationsGuidance,
+          REPORT_ARTIFACTS_PROMPT,
+          "IMPORTANT: Respond in the language of the user's latest message."
+        ]
+      : [
+          hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
+          REPORT_ARTIFACTS_PROMPT,
+          agentInstructions,
+          workspaceInstructions,
+          parts.context,
+          parts.base.kind === 'custom' ? customBaseContext : undefined,
+          citationsGuidance,
+          getLanguageInstruction()
+        ]
+  )
     .filter(Boolean)
     .join('\n\n')
 

@@ -35,9 +35,7 @@ export function ModelContextWindowFields({
         titleClassName={drawerClasses.fieldTitle}
         className={drawerClasses.field}>
         <Input
-          type="number"
-          min={1}
-          step={1}
+          type="text"
           inputMode="numeric"
           aria-label={t('settings.models.add.context_window.label')}
           value={contextWindow}
@@ -53,9 +51,7 @@ export function ModelContextWindowFields({
         titleClassName={drawerClasses.fieldTitle}
         className={drawerClasses.field}>
         <Input
-          type="number"
-          min={1}
-          step={1}
+          type="text"
           inputMode="numeric"
           aria-label={t('settings.models.add.max_input_tokens.label')}
           value={maxInputTokens}
@@ -71,9 +67,7 @@ export function ModelContextWindowFields({
         titleClassName={drawerClasses.fieldTitle}
         className={drawerClasses.field}>
         <Input
-          type="number"
-          min={1}
-          step={1}
+          type="text"
           inputMode="numeric"
           aria-label={t('settings.models.add.max_output_tokens.label')}
           value={maxOutputTokens}

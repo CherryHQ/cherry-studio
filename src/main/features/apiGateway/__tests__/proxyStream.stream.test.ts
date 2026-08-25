@@ -343,6 +343,73 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     )
   })
 
+  it('extracts only the leading Support system so later inline system updates keep their turn', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const converted = [
+      {
+        id: 'standing',
+        role: 'system',
+        parts: [{ type: 'text', text: 'You are Cherry Studio official built-in product support.' }]
+      },
+      { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'First turn' }] },
+      { id: 'inline', role: 'system', parts: [{ type: 'text', text: 'MCP servers are still connecting.' }] },
+      { id: 'user-2', role: 'user', parts: [{ type: 'text', text: 'Second turn' }] }
+    ] as CherryUIMessage[]
+    mockToUIMessages.mockReturnValueOnce(converted)
+
+    await processAndCaptureStreamMessages(
+      createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'First turn' }])
+    )
+
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'You are Cherry Studio official built-in product support.',
+        messages: [
+          expect.objectContaining({ id: 'user-1', role: 'user' }),
+          expect.objectContaining({ id: 'inline', role: 'system' }),
+          expect.objectContaining({ id: 'user-2', role: 'user' })
+        ]
+      })
+    )
+  })
+
+  it('hoists remaining Support inline system on endpoints that cannot keep it in place', async () => {
+    useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const converted = [
+      {
+        id: 'standing',
+        role: 'system',
+        parts: [{ type: 'text', text: 'You are Cherry Studio official built-in product support.' }]
+      },
+      { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'First turn' }] },
+      { id: 'inline', role: 'system', parts: [{ type: 'text', text: 'MCP servers are still connecting.' }] },
+      { id: 'user-2', role: 'user', parts: [{ type: 'text', text: 'Second turn' }] }
+    ] as CherryUIMessage[]
+    mockToUIMessages.mockReturnValueOnce(converted)
+
+    await processAndCaptureStreamMessages(
+      createAnthropicParams('gpt-5', [{ role: 'user', content: 'First turn' }], true, 'openai')
+    )
+
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'You are Cherry Studio official built-in product support.',
+        messages: [
+          expect.objectContaining({
+            role: 'system',
+            parts: [{ type: 'text', text: 'MCP servers are still connecting.' }]
+          }),
+          expect.objectContaining({ id: 'user-1', role: 'user' }),
+          expect.objectContaining({ id: 'user-2', role: 'user' })
+        ]
+      })
+    )
+  })
+
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
     useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
     mockIsInternalAgentRequest.mockReturnValue(true)
@@ -813,7 +880,7 @@ describe('processMessage (streaming)', () => {
   })
 
   it('preserves interspersed system messages for public gateway requests', async () => {
-    useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai')
+    useGatewayModel('claude-opus-5')
     const converted = [
       { id: 'system-1', role: 'system', parts: [{ type: 'text', text: 'Initial instructions' }] },
       { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'First turn' }] },
@@ -823,7 +890,7 @@ describe('processMessage (streaming)', () => {
     mockToUIMessages.mockReturnValueOnce(converted)
 
     const response = processMessage({
-      params: { model: 'openai:gpt-5', stream: true, messages: [] },
+      params: { model: 'aihubmix:claude-opus-5', stream: true, messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai'
     })
