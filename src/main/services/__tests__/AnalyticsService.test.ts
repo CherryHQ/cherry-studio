@@ -147,3 +147,59 @@ describe('AnalyticsService data collection preference', () => {
     expect(service.isActivated).toBe(true)
   })
 })
+
+describe('AnalyticsService token usage', () => {
+  it('forwards reportable usage without changing its source', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackTokenUsage({
+      provider: 'test-provider',
+      model: 'test-model',
+      input_tokens: 3,
+      output_tokens: 5,
+      source: 'agent'
+    })
+
+    expect(mockTrackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-model',
+      input_tokens: 3,
+      output_tokens: 5,
+      source: 'agent'
+    })
+  })
+
+  it('does not forward usage when all token counts are zero', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackTokenUsage({
+      provider: 'test-provider',
+      model: 'test-model',
+      input_tokens: 0,
+      output_tokens: 0,
+      source: 'agent'
+    })
+
+    expect(mockTrackTokenUsage).not.toHaveBeenCalled()
+  })
+
+  it('does not forward local-provider usage', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackTokenUsage({
+      provider: 'local-provider',
+      model: 'test-model',
+      input_tokens: 3,
+      output_tokens: 5,
+      source: 'agent'
+    })
+
+    expect(mockTrackTokenUsage).not.toHaveBeenCalled()
+  })
+})

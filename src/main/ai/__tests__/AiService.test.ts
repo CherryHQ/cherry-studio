@@ -339,7 +339,8 @@ describe('AiService', () => {
       provider: 'test-provider',
       model: 'test-api-model',
       input_tokens: 3,
-      output_tokens: 5
+      output_tokens: 5,
+      source: 'chat'
     })
   })
 
@@ -371,39 +372,23 @@ describe('AiService', () => {
       provider: 'test-provider',
       model: 'test-api-model',
       input_tokens: 3,
-      output_tokens: 5
+      output_tokens: 5,
+      source: 'chat'
     })
   })
 
-  it('does not report token analytics when all token counts are zero', async () => {
+  it('reports explicitly classified token analytics as agent usage', async () => {
     const service = createService()
-    const hooks = (service as any).analyticsHookPart({
-      id: 'test-model',
-      providerId: 'test-provider',
-      apiModelId: 'test-api-model'
-    })
-
-    await hooks.onStepFinish({
-      usage: {
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-        inputTokenDetails: {},
-        outputTokenDetails: {}
-      }
-    })
-    await hooks.onFinish()
-
-    expect(mockApplicationGet).not.toHaveBeenCalled()
-  })
-
-  it('does not report token analytics for local-provider', async () => {
-    const service = createService()
-    const hooks = (service as any).analyticsHookPart({
-      id: 'test-model',
-      providerId: 'local-provider',
-      apiModelId: 'test-api-model'
-    })
+    const trackTokenUsage = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage })
+    const hooks = (service as any).analyticsHookPart(
+      {
+        id: 'test-model',
+        providerId: 'test-provider',
+        apiModelId: 'test-api-model'
+      },
+      'agent'
+    )
 
     await hooks.onStepFinish({
       usage: {
@@ -416,7 +401,13 @@ describe('AiService', () => {
     })
     await hooks.onFinish()
 
-    expect(mockApplicationGet).not.toHaveBeenCalled()
+    expect(trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-api-model',
+      input_tokens: 3,
+      output_tokens: 5,
+      source: 'agent'
+    })
   })
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {

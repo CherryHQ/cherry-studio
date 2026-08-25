@@ -1826,6 +1826,19 @@ export class AgentSessionRuntimeService extends BaseService {
       metrics: invocation.metrics,
       completedAt: Date.now()
     })
+
+    if (!invocation.usage) return
+    try {
+      application.get('AnalyticsService').trackTokenUsage({
+        provider: capture.providerId,
+        model: modelId,
+        input_tokens: invocation.usage.inputTokens,
+        output_tokens: invocation.usage.outputTokens,
+        source: 'agent'
+      })
+    } catch {
+      // Telemetry must never affect Agent runtime delivery.
+    }
   }
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
