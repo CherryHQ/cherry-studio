@@ -1987,6 +1987,38 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     })
   })
 
+  it('defers a new connect when an armed OAuth listener outlives a drifted status', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new callbackServerMock.OAuthCallbackTimeoutError(8_000))
+      .mockImplementationOnce(() => new Promise<string>(() => undefined))
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    getByIdMock.mockReturnValue(server)
+    const cancelSpy = vi.spyOn(service as any, 'cancelPendingOAuthListener')
+    const serverKey = (service as any).getServerKey(server)
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+    expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(2)
+    cancelSpy.mockClear()
+
+    MockMainCacheServiceUtils.setSharedCacheValue(`mcp.status.${server.id}` as any, {
+      state: 'error',
+      message: 'transient surface failure'
+    })
+
+    await expect((service as any).connectClient(server, serverKey)).rejects.toMatchObject({
+      name: 'OAuthCancelledError',
+      message: expect.stringContaining('in-flight OAuth flow')
+    })
+    expect(cancelSpy).not.toHaveBeenCalled()
+    expect(callbackServerMock.waitForAuthCode).toHaveBeenCalledTimes(2)
+  })
+
   it('joins an armed pending-auth listener instead of opening a second OAuth flow', async () => {
     mcpSdkMock.state.failStreamable = true
     mcpSdkMock.state.failStreamableUnauthorized = true

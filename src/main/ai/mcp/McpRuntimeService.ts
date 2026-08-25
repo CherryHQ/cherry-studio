@@ -124,7 +124,11 @@ const OAUTH_GRACE_MS = 8_000
 class OAuthFlowControlError extends Error {}
 
 class OAuthPendingAuthError extends OAuthFlowControlError {
-  constructor(message: string) {
+  static readonly MESSAGE =
+    'OAuth authorization is pending. Complete the browser flow to connect this server automatically, ' +
+    'or open MCP settings and re-enable the server to retry.'
+
+  constructor(message: string = OAuthPendingAuthError.MESSAGE) {
     super(message)
     this.name = 'OAuthPendingAuthError'
   }
@@ -247,6 +251,8 @@ export class McpRuntimeService extends BaseService {
     this.oauthCancellationGenerations.clear()
     this.connectionAttemptGenerations.clear()
     this.pendingOAuthCancellations.clear()
+    this.pendingOAuthConfigKeys.clear()
+    this.oauthCompletionReentry.clear()
     this.oauthShutdownController = new AbortController()
   }
 
@@ -258,6 +264,8 @@ export class McpRuntimeService extends BaseService {
     )
     const inFlightCancellations = [...this.pendingOAuthCancellations.values()]
     this.pendingOAuthListeners.clear()
+    this.pendingOAuthConfigKeys.clear()
+    this.oauthCompletionReentry.clear()
     this.abortActiveToolCalls()
     await Promise.allSettled([...inFlightCancellations, ...cancellations])
     this.pendingOAuthCancellations.clear()
@@ -566,11 +574,13 @@ export class McpRuntimeService extends BaseService {
         | McpRuntimeStatus
         | undefined
       if (status?.state === 'pending-auth') {
-        throw new OAuthPendingAuthError(
-          `OAuth authorization is pending. Complete the browser flow to connect this server automatically, ` +
-            `or open MCP settings and re-enable the server to retry.`
-        )
+        throw new OAuthPendingAuthError()
       }
+      // Listener is armed for the same config but status drifted (e.g. transient error/connecting).
+      // Do not cancel it — defer the new connect attempt instead.
+      throw new OAuthCancelledError(
+        `MCP server ${server.name} has an in-flight OAuth flow; deferring the new connect attempt`
+      )
     }
 
     const attemptGeneration = (this.connectionAttemptGenerations.get(server.id) ?? 0) + 1
@@ -896,10 +906,7 @@ export class McpRuntimeService extends BaseService {
         `OAuth not completed in grace window (${OAUTH_GRACE_MS / 1000}s) — ` +
           `marking server as pending-auth and listening in background for up to ${OAUTH_CALLBACK_TIMEOUT_MS / 1000}s`
       )
-      const pendingError = new OAuthPendingAuthError(
-        `OAuth authorization is pending. Complete the browser flow to connect this server automatically, ` +
-          `or open MCP settings and re-enable the server to retry.`
-      )
+      const pendingError = new OAuthPendingAuthError()
       this.setServerStatus(server.id, 'pending-auth', pendingError)
       await this.scheduleBackgroundOAuthCompletion({
         client,
