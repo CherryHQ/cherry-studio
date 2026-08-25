@@ -6,14 +6,16 @@ const getTokenizerCache = () => (shikiStreamService as any).tokenizerCache
 
 const workerMocks = vi.hoisted(() => ({
   failInit: false,
-  terminate: vi.fn()
+  terminate: vi.fn(),
+  lastMessage: null as { type?: string; language?: string } | null
 }))
 
 vi.mock('../../workers/shikiStream.worker?worker', () => ({
   default: class MockShikiStreamWorker {
     onmessage: ((event: MessageEvent) => void) | null = null
 
-    postMessage(message: { id: number; type: string; chunk?: string }) {
+    postMessage(message: { id: number; type: string; chunk?: string; language?: string }) {
+      workerMocks.lastMessage = message
       if (message.type === 'init' && workerMocks.failInit) {
         queueMicrotask(() => {
           this.onmessage?.({ data: { id: message.id, type: 'error', error: 'init failed' } } as MessageEvent)
@@ -217,6 +219,29 @@ describe('ShikiStreamService', () => {
 
       expect(html).toMatch(/^<pre class="shiki/)
       expect(shikiStreamService.hasMainHighlighter()).toBe(false)
+    })
+
+    it("normalizes an empty language to 'text' before the worker round-trip", async () => {
+      const html = await shikiStreamService.highlightCodeToHtml('code', '', theme)
+
+      expect(html).toMatch(/^<pre class="shiki/)
+      expect(workerMocks.lastMessage?.type).toBe('highlight-html')
+      expect(workerMocks.lastMessage?.language).toBe('text')
+    })
+
+    it("resolves an empty language to 'text' HTML on the main-thread fallback path", async () => {
+      const originalWorker = globalThis.Worker
+      // @ts-ignore: 强制删除 Worker 构造函数
+      globalThis.Worker = undefined
+      try {
+        const html = await shikiStreamService.highlightCodeToHtml('plain words', '', theme)
+
+        expect(html).toMatch(/^<pre class="shiki/)
+        expect(html).toContain('plain')
+      } finally {
+        // @ts-ignore: 恢复 Worker 构造函数
+        globalThis.Worker = originalWorker
+      }
     })
 
     it('falls back to real main-thread shiki HTML when the worker is unavailable', async () => {

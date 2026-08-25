@@ -59,7 +59,6 @@ import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
 import TranslateLanguageBar from './components/TranslateLanguageBar'
 import TranslateOutputPane from './components/TranslateOutputPane'
-import { MarkdownRenderScheduler } from './markdownRenderScheduler'
 import type {
   BabelDocAvailability,
   PdfTranslationFile,
@@ -69,6 +68,7 @@ import type {
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
 import type { TranslationFiles } from './translationFiles'
+import { usePacedMarkdownOutput } from './usePacedMarkdownOutput'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -244,11 +244,6 @@ const TranslatePage: FC = () => {
   })
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
-  const shikiFnRef = useRef(shikiMarkdownIt)
-  const renderTimerRef = useRef<number | null>(null)
-  const enableMarkdownRef = useRef(true)
-  const isMountedRef = useRef(true)
-  const schedulerRef = useRef<MarkdownRenderScheduler | null>(null)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -627,65 +622,39 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
-  // Render executor: the scheduling state machine lives in
-  // markdownRenderScheduler.ts; this adapter only runs renders and commits.
-  const runMarkdownRender = useCallback(async () => {
-    const scheduler = schedulerRef.current
-    if (!scheduler) return
-    const ticket = scheduler.renderStarted()
-    let settled = false
-    try {
-      const markdown = await shikiFnRef.current(ticket.content)
-      if (!isMountedRef.current || !enableMarkdownRef.current) return
-      settled = true
-      if (scheduler.renderCompleted(ticket) === 'commit') {
-        setRenderedMarkdown(markdown)
-      }
-    } catch (error) {
-      logger.error('Markdown render failed.', error as Error)
-    } finally {
-      if (!settled) scheduler.renderAborted()
-    }
-  }, [])
+  // Input-side pacing: usePacedMarkdownOutput coalesces stream frames into
+  // one emission per interval; this effect renders the latest emission.
+  const pacedOutput = usePacedMarkdownOutput(translateOutput)
 
-  if (schedulerRef.current === null) {
-    schedulerRef.current = new MarkdownRenderScheduler({
-      now: () => Date.now(),
-      armTimer: (delayMs) => {
-        if (renderTimerRef.current !== null) window.clearTimeout(renderTimerRef.current)
-        renderTimerRef.current = window.setTimeout(() => {
-          renderTimerRef.current = null
-          schedulerRef.current?.onTimerFired()
-        }, delayMs)
-      },
-      clearTimer: () => {
-        if (renderTimerRef.current !== null) {
-          window.clearTimeout(renderTimerRef.current)
-          renderTimerRef.current = null
+  useEffect(() => {
+    if (!enableMarkdown || !pacedOutput) {
+      setRenderedMarkdown('')
+      return
+    }
+    let cancelled = false
+    let retryTimer: number | null = null
+    let retried = false
+    const render = async () => {
+      try {
+        const markdown = await shikiMarkdownIt(pacedOutput)
+        if (!cancelled) setRenderedMarkdown(markdown)
+      } catch (error) {
+        logger.error('Markdown render failed.', error as Error)
+        // One retry so a failed final render doesn't leave stale content behind.
+        if (!retried) {
+          retried = true
+          retryTimer = window.setTimeout(() => {
+            if (!cancelled) void render()
+          }, 500)
         }
-      },
-      requestRender: () => {
-        void runMarkdownRender()
-      },
-      requestPaneClear: () => {
-        setRenderedMarkdown('')
       }
-    })
-  }
-
-  useEffect(() => {
-    isMountedRef.current = true
-    return () => {
-      isMountedRef.current = false
-      schedulerRef.current?.dispose()
     }
-  }, [])
-
-  useEffect(() => {
-    shikiFnRef.current = shikiMarkdownIt
-    enableMarkdownRef.current = enableMarkdown
-    schedulerRef.current?.onOutputChange(translateOutput, enableMarkdown)
-  }, [enableMarkdown, shikiMarkdownIt, translateOutput])
+    void render()
+    return () => {
+      cancelled = true
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
+    }
+  }, [enableMarkdown, shikiMarkdownIt, pacedOutput])
 
   const modelSelectorFilter = useCallback(
     (model: SelectorModel) =>

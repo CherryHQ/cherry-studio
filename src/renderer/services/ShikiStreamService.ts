@@ -364,6 +364,9 @@ class ShikiStreamService {
    * @returns 高亮后的 HTML 字符串
    */
   async highlightCodeToHtml(code: string, language: string, theme: string): Promise<string> {
+    // The worker rejects an empty language; 'text' (shiki's plain language)
+    // is the natural degradation instead of a doomed round-trip.
+    const lang = language || 'text'
     if (!this.hasWorkerHighlighter()) {
       try {
         await this.initWorker()
@@ -377,7 +380,7 @@ class ShikiStreamService {
         const html = await this.sendWorkerMessage({
           type: 'highlight-html',
           chunk: code,
-          language,
+          language: lang,
           theme
         })
         return html as string
@@ -386,7 +389,7 @@ class ShikiStreamService {
       }
     }
 
-    const { loadedLanguage, loadedTheme } = await this.ensureHighlighterConfigured(language, theme)
+    const { loadedLanguage, loadedTheme } = await this.ensureHighlighterConfigured(lang, theme)
     if (!this.highlighter) {
       throw new Error('Highlighter not initialized')
     }
