@@ -82,6 +82,7 @@ export async function buildAgentRuntimePrompt({
   )
 
   const agentInstructions = hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined
+  const workspaceCustomBase = parts.base.kind === 'custom' ? parts.base.content : undefined
   // Prefix-cache layout for non-Support: Cherry-owned policy that is identical across sessions
   // comes first. Support identity is standing system, so it leads and keeps latest-message language.
   const append = (
@@ -89,6 +90,7 @@ export async function buildAgentRuntimePrompt({
       ? [
           agentInstructions,
           hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
+          workspaceCustomBase,
           parts.context,
           workspaceInstructions,
           customBaseContext,
@@ -110,7 +112,8 @@ export async function buildAgentRuntimePrompt({
     .filter(Boolean)
     .join('\n\n')
 
-  return { base: parts.base, append }
+  // Support identity replaces the runtime native base; workspace system.md is standing context after it.
+  return { base: isSupport ? { kind: 'native' } : parts.base, append }
 }
 
 function buildAgentInstructionsSection(instructions: string): string {

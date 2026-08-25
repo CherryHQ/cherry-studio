@@ -429,6 +429,28 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledWith('support')
   })
 
+  it('keeps Support identity before workspace system.md on a custom base', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue({
+      instructions:
+        "You are Cherry Studio's official built-in product support and feedback AI Agent, not a human employee."
+    })
+    mockBuildPrompt.mockResolvedValueOnce({
+      base: { kind: 'custom', content: 'WORKSPACE_SYSTEM_MD' },
+      context: 'SOUL_PROMPT'
+    })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'support' } as never })
+
+    const result = await buildSystemPrompt(agent, '/tmp/cwd')
+    const text = promptText(result)
+
+    expect(typeof result).toBe('string')
+    expect(text).toContain('WORKSPACE_SYSTEM_MD')
+    expect(text).toContain('SOUL_PROMPT')
+    expect(text.indexOf('official built-in product support')).toBeGreaterThanOrEqual(0)
+    expect(text.indexOf('official built-in product support')).toBeLessThan(text.indexOf('WORKSPACE_SYSTEM_MD'))
+    expect(text.indexOf('WORKSPACE_SYSTEM_MD')).toBeLessThan(text.indexOf('SOUL_PROMPT'))
+  })
+
   it('initializes persona and memory resources in agent data on every build', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',

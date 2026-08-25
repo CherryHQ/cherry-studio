@@ -83,12 +83,44 @@ function extractSystemPrompt(messages: CherryUIMessage[]): { conversation: Cherr
   }
 }
 
+function containsMarker(text: string, markers: readonly string[]): boolean {
+  return markers.some((marker) => text.includes(marker))
+}
+
+function isCherryOwnedSupportIdentity(text: string): boolean {
+  return containsMarker(text, CHERRY_SUPPORT_IDENTITY_MARKERS)
+}
+
+function isConflictingSdkIdentity(text: string): boolean {
+  return containsMarker(text, CONFLICTING_SUPPORT_IDENTITY_MARKERS) && !isCherryOwnedSupportIdentity(text)
+}
+
+function leadingStandingIdentityEnd(texts: readonly string[]): number {
+  const cherryIndex = texts.findIndex(isCherryOwnedSupportIdentity)
+  return cherryIndex === -1 ? texts.length : cherryIndex
+}
+
+function stripLeadingConflictingIdentityText(text: string): string | undefined {
+  const sections = text.split('\n\n')
+  const leadingEnd = leadingStandingIdentityEnd(sections)
+  const kept = sections.filter((section, index) => index >= leadingEnd || !isConflictingSdkIdentity(section))
+  const remaining = kept.join('\n\n').trim()
+  return remaining.length > 0 ? remaining : undefined
+}
+
 function removeConflictingSupportIdentity(params: MessageCreateParams): MessageCreateParams {
+  if (typeof params.system === 'string') {
+    if (params.system.length === 0) return params
+    const system = stripLeadingConflictingIdentityText(params.system)
+    if (system === params.system) return params
+    return { ...params, system }
+  }
   if (!Array.isArray(params.system)) return params
-  const system = params.system.filter((block) => {
+  const leadingEnd = leadingStandingIdentityEnd(params.system.map((block) => (block.type === 'text' ? block.text : '')))
+  const system = params.system.filter((block, index) => {
     if (block.type !== 'text') return true
-    if (CHERRY_SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))) return true
-    return !CONFLICTING_SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))
+    if (index >= leadingEnd) return true
+    return !isConflictingSdkIdentity(block.text)
   })
   return system.length === params.system.length ? params : { ...params, system }
 }
