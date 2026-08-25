@@ -420,8 +420,8 @@ export function HtmlArtifactPopupOutlet() {
         html={popupSession.html}
         onSave={popupSession.onSave}
         editable={popupSession.editable}
-        // Upstream-intentional: maximize opens the interactive tier directly (with
-        // approve-on-close memory); the card path instead defers to its run action.
+        // Maximize opens the interactive tier directly (upstream for documents, this
+        // PR's extension for active fragments); the card path defers to View webpage.
         canCapturePreview={!requiresInteractivePreview}
         renderPreview={(iframeRef) => (
           <HtmlArtifactPreviewSurface

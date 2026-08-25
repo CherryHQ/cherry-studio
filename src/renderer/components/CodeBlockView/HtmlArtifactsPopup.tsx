@@ -203,9 +203,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   // Security default: static tier on open; only the explicit run action authorizes
   // the webview (mirrors the inline consent card — "open" is not authorization).
   const requiresInteractivePreview = useMemo(() => htmlArtifactPreviewRequiresInteractive(html), [html])
-  // Authorization is scoped to the exact content, synchronously: the stored html must
-  // match the current html in the same render, so new bytes (e.g. a still-streaming
-  // source) can never inherit a previous run action — no effect-timing window.
+  // Authorization is scoped to the exact content: the stored html must match in the
+  // same render, so new bytes never inherit a previous run action — no effect-timing window.
   const interactiveDisclosureId = useId()
   const [interactiveAuth, setInteractiveAuth] = useState<{ html: string; authorized: boolean }>({
     html: '',

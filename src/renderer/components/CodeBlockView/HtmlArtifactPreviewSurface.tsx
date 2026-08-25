@@ -281,7 +281,7 @@ export const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
  *
  * Consent contract: the interactive tier activates only when `authorized` is true —
  * never by mounting. Pass it true solely as the result of a semantically explicit user
- * action (the card popup's "run interactive preview" button, the maximize outlet's
+ * action (the card popup's "View webpage" action, the maximize outlet's
  * documented open-interactive behavior); unauthorized callers get the script-less
  * fallback. Mount location alone carries no authority.
  */

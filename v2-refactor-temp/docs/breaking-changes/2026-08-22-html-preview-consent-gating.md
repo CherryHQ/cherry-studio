@@ -8,7 +8,7 @@ date: 2026-08-22
 
 ## What changed
 
-The full-screen HTML preview popup (opened from a code-block card) no longer runs scripts in a same-origin iframe. It now opens in the script-less static tier by default; when the content is active (scripts, embeds, external resources), an explicit **"View webpage"** action appears (查看网页 in the Chinese UI) — the same wording as the inline preview's consent card, and only that mounts the hardened isolated webview — the same consent wording the inline preview already uses.
+The full-screen HTML preview popup (opened from a code-block card) no longer runs scripts in a same-origin iframe. It now opens in the script-less static tier by default; when the content is active (scripts, embeds, external resources), an explicit **"View webpage"** action appears (查看网页 in the Chinese UI) — the same consent wording the inline preview's card already uses — and only that action mounts the hardened isolated webview.
 
 ## Why this matters to the user
 
@@ -20,4 +20,4 @@ Click "View webpage" (查看网页) when you want an active artifact to execute;
 
 ## Notes for release manager
 
-Security motivation: a same-origin scripted iframe reaches the preload IPC bridge (`parent.api`) regardless of sender validation (the bridge closure executes in the parent frame); a live PoC on the old default read `/etc/hosts` through it. Tiering follows explicit authorization (review feedback on PR #18764): the card popup defaults static and activates the webview only via the "run interactive preview" action; the maximize outlet treats its documented open action as authorization (documents as before, fragments newly included); automatic/inline rendering stays script-less for fragments per the documented `HtmlArtifactViewProps.kind` model. Related hardening in the same PR: unclassified previews fail closed to a script-less sandbox by default.
+Security motivation: a same-origin scripted iframe reaches the preload IPC bridge (`parent.api`) regardless of sender validation (the bridge closure executes in the parent frame); a live PoC on the old default read `/etc/hosts` through it. Tiering follows explicit authorization (review feedback on PR #18764): the card popup defaults static and activates the webview only via the "View webpage" action; the maximize outlet treats its documented open action as authorization (documents as before, fragments newly included); automatic/inline rendering stays script-less for fragments per the documented `HtmlArtifactViewProps.kind` model. Related hardening in the same PR: unclassified previews fail closed to a script-less sandbox by default.
