@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -110,6 +111,11 @@ const MISE_PRERELEASE_TOOLS = new Set(
 )
 const MISE_NPM_SHELL_OUT_TOOLS = new Set(
   CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmShellOut).map((preset) => preset.miseTool)
+)
+const MISE_REQUIRED_PEERS = new Map(
+  CODE_CLI_TOOL_PRESETS.flatMap((preset) =>
+    preset.requiredPeer ? [[preset.miseTool, preset.requiredPeer] as const] : []
+  )
 )
 
 // Main-owned session state. Renderer windows receive operations only through
@@ -558,6 +564,9 @@ export class BinaryManager extends BaseService {
         // Update/Uninstall authority over a foreign provider. When mise omits
         // install_path, fall back to the runnable-only check above.
         if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) {
+          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+        }
+        if (!this.hasRequiredRuntimeDependencies(tool, runnable.canonical)) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         return {
@@ -1111,7 +1120,40 @@ export class BinaryManager extends BaseService {
     const activeEntry = entries.find((entry) => entry.active)
     if (!activeEntry) return false
     const runnable = await this.resolveRunnableShim(name, tool)
-    return runnable !== null && (await this.isWithinInstall(activeEntry, runnable.canonical))
+    return (
+      runnable !== null &&
+      (await this.isWithinInstall(activeEntry, runnable.canonical)) &&
+      this.hasRequiredRuntimeDependencies(tool, runnable.canonical)
+    )
+  }
+
+  /**
+   * Whether a recipe declaring a required peer still has it, resolved the way the
+   * tool's own runtime would. A recipe declaring none passes untouched, so this
+   * costs nothing for the tools that install completely.
+   */
+  private hasRequiredRuntimeDependencies(tool: string, entryPath: string): boolean {
+    const required = MISE_REQUIRED_PEERS.get(tool)
+    if (!required) return true
+    let hostEntry: string
+    try {
+      hostEntry = createRequire(entryPath).resolve(required.host)
+    } catch {
+      // An absent host means the recipe restructured its packages, which is not
+      // evidence that THIS install lost the peer — never fail a tool closed on it.
+      return true
+    }
+    try {
+      createRequire(hostEntry).resolve(required.peer)
+      return true
+    } catch (error) {
+      logger.warn('Managed tool dependency tree is incomplete', {
+        tool,
+        ...required,
+        error: this.errorMessage(error)
+      })
+      return false
+    }
   }
 
   private async resolveMiseBinaryForTool(

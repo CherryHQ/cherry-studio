@@ -7,6 +7,7 @@ import type { RenderItemType, SortableDragHandleProps } from './types'
 
 interface ItemRendererProps<T> {
   ref?: React.Ref<HTMLDivElement>
+  activatorRef?: React.Ref<HTMLDivElement>
   index?: number
   item: T
   renderItem: RenderItemType<T>
@@ -22,6 +23,7 @@ interface ItemRendererProps<T> {
 
 export function ItemRenderer<T>({
   ref,
+  activatorRef,
   index,
   item,
   renderItem,
@@ -63,6 +65,7 @@ export function ItemRenderer<T>({
         ...(dragOverlay ? ({ '--scale': 1.02, zIndex: 999, position: 'relative' } as React.CSSProperties) : {})
       }}>
       <div
+        ref={activatorRef}
         style={
           {
             position: 'relative',

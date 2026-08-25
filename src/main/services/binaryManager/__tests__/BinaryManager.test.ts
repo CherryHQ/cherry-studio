@@ -1,8 +1,11 @@
+import type * as NodeModule from 'node:module'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mockCreateRequire = vi.hoisted(() => vi.fn())
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
   platformMock: { isWin: false },
@@ -37,6 +40,11 @@ const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, 
     subscribeMultipleChanges: vi.fn(() => () => {})
   }
 }))
+
+vi.mock('node:module', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeModule>()
+  return { ...actual, createRequire: mockCreateRequire }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -154,6 +162,7 @@ describe('BinaryManager', () => {
     vi.clearAllMocks()
     MockMainCacheServiceUtils.resetMocks()
     mockExecFileAsync.mockReset()
+    mockCreateRequire.mockReset().mockReturnValue({ resolve: vi.fn(() => '/mock/resolved-package') })
     platformMock.isWin = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
@@ -558,6 +567,80 @@ describe('BinaryManager', () => {
         name: 'fd',
         availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
         application: { status: 'applied', version: '10.0.0' }
+      })
+    })
+
+    it('reports managed DeepSeek Harness as broken when its required scope package cannot resolve', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: '/opt/mise/installs/npm-deepseek-ai-dsh/0.1.1-rc.2/lib/bin.js\n', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      mockCreateRequire.mockImplementation((filename: string) => ({
+        resolve: (request: string) => {
+          if (request === '@deepseek-ai/dsh-agent-loop') {
+            return '/opt/mise/installs/npm-deepseek-ai-dsh/0.1.1-rc.2/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js'
+          }
+          if (request === '@deepseek-ai/dsh-scope') {
+            throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+              code: 'MODULE_NOT_FOUND'
+            })
+          }
+          throw new Error(`Unexpected package resolution: ${request}`)
+        }
+      }))
+
+      await expect(service.getToolSnapshots(['dsh'])).resolves.toMatchObject({
+        dsh: {
+          availability: { source: 'none' },
+          application: { status: 'broken', version: '0.1.1-rc.2' }
+        }
+      })
+    })
+
+    it('stays applied when the recipe restructured away the package that hosts its required peer', async () => {
+      // A renamed/absorbed host says the package graph moved on, not that this
+      // install is incomplete — failing closed would strand the tool at broken
+      // with a Retry that can never succeed.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.2.0', active: true }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: '/opt/mise/installs/npm-deepseek-ai-dsh/0.2.0/lib/bin.js\n', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      mockCreateRequire.mockImplementation((filename: string) => ({
+        resolve: (request: string) => {
+          throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+            code: 'MODULE_NOT_FOUND'
+          })
+        }
+      }))
+
+      await expect(service.getToolSnapshots(['dsh'])).resolves.toMatchObject({
+        dsh: { application: { status: 'applied', version: '0.2.0' } }
       })
     })
 
@@ -2387,6 +2470,45 @@ describe('BinaryManager', () => {
         '--force',
         'node@22.23.2'
       ])
+    })
+
+    it('repairs an applied DeepSeek Harness whose required scope package is missing', async () => {
+      const service = makeService()
+      let reinstalled = false
+      ;(service as any).isolatedEnv = { env: { PATH: '/mock/mise/shims:/usr/bin' }, usesDefaultChinaPipIndex: false }
+      mockCreateRequire.mockImplementation(() => ({
+        resolve: (request: string) => {
+          if (request === '@deepseek-ai/dsh-agent-loop') return '/mock/dsh-agent-loop/lib/index.js'
+          if (request === '@deepseek-ai/dsh-scope' && !reinstalled) {
+            throw Object.assign(new Error(`Cannot find package ${request}`), { code: 'MODULE_NOT_FOUND' })
+          }
+          if (request === '@deepseek-ai/dsh-scope') return '/mock/dsh-scope/lib/index.js'
+          throw new Error(`Unexpected package resolution: ${request}`)
+        }
+      }))
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args.includes('npm:@deepseek-ai/dsh@latest')) reinstalled = true
+        if (args[0] === 'which' && args[1] === 'node') {
+          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
+        }
+        if (args[0] === 'which' && args[1] === 'npm') {
+          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/dsh/lib/bin.js\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'dsh' })).resolves.toBeUndefined()
+
+      expect(reinstalled).toBe(true)
+      expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest'])
     })
   })
 
