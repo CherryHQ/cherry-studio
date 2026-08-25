@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
-  getSidebarDisplayWidth,
+  getSidebarColumnWidth,
   getSidebarLayout,
   getSidebarPeekWidth,
   normalizeSidebarWidth,
@@ -94,9 +94,12 @@ export default function Sidebar({
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
+  // Reset on unmount: the settings tab drops the whole column, and a stale width would
+  // leave anything anchored to it laying out around a sidebar that is not there.
   useLayoutEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
+    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarColumnWidth(activeSidebarWidth)}px`)
   }, [activeSidebarWidth])
+  useLayoutEffect(() => () => document.documentElement.style.setProperty('--sidebar-width', '0px'), [])
 
   // Migration, not dead code: the resize path only persists normalized widths,
   // but older builds (three-state layout, default 65) persisted intermediate
@@ -113,14 +116,13 @@ export default function Sidebar({
     }
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
-  // The toggle button restores the band the user was last in, so the last visible
-  // width has to be tracked here — collapsing by drag never goes through the button.
+  // The toggle restores the band the user was last in, and collapsing by drag never goes
+  // through the toggle, so the last visible width is tracked from the width itself.
   useEffect(() => {
-    if (previewSidebarWidth !== null) return
     if (getSidebarLayout(sidebarWidth) === 'hidden' || sidebarWidth === expandedWidth) return
 
     setExpandedWidth(sidebarWidth)
-  }, [expandedWidth, previewSidebarWidth, setExpandedWidth, sidebarWidth])
+  }, [expandedWidth, setExpandedWidth, sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()

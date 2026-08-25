@@ -33,16 +33,12 @@ export function useSidebarResize(
       const startWidth = getSidebarDisplayWidth(width)
       let lastWidth: number | null = null
 
-      const commitDragWidth = (nextWidth: number) => {
+      // Every frame of the drag is a preview; only the released width is persisted.
+      // Dragging a full-width sidebar down to hidden sweeps through the icon band,
+      // and persisting those frames would overwrite the width it restores to.
+      const previewDragWidth = (nextWidth: number) => {
         lastWidth = nextWidth
-
-        if (isIntermediateSidebarWidth(nextWidth)) {
-          onResizePreview?.(nextWidth)
-          return
-        }
-
-        onResizePreview?.(null)
-        setWidth(nextWidth)
+        onResizePreview?.(nextWidth)
       }
 
       const onMouseMove = (moveEvent: MouseEvent) => {
@@ -50,11 +46,11 @@ export function useSidebarResize(
         const nextWidth = moveEvent.clientX - containerLeft
 
         if (nextWidth < SIDEBAR_HIDDEN_THRESHOLD) {
-          commitDragWidth(0)
+          previewDragWidth(0)
         } else if (nextWidth <= SIDEBAR_ICON_WIDTH) {
-          commitDragWidth(SIDEBAR_ICON_WIDTH)
+          previewDragWidth(SIDEBAR_ICON_WIDTH)
         } else {
-          commitDragWidth(Math.min(SIDEBAR_MAX_WIDTH, nextWidth))
+          previewDragWidth(Math.min(SIDEBAR_MAX_WIDTH, nextWidth))
         }
       }
 
@@ -69,8 +65,14 @@ export function useSidebarResize(
       }
 
       const onMouseUp = () => {
-        if (lastWidth !== null && isIntermediateSidebarWidth(lastWidth)) {
-          setWidth(lastWidth > startWidth ? SIDEBAR_FULL_THRESHOLD : SIDEBAR_ICON_WIDTH)
+        if (lastWidth !== null) {
+          setWidth(
+            isIntermediateSidebarWidth(lastWidth)
+              ? lastWidth > startWidth
+                ? SIDEBAR_FULL_THRESHOLD
+                : SIDEBAR_ICON_WIDTH
+              : lastWidth
+          )
         }
         cleanup()
       }

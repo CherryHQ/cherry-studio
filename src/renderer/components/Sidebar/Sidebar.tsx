@@ -6,7 +6,7 @@ import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
-import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
+import { getSidebarDisplayWidth, getSidebarLayout, SIDEBAR_HIDDEN_GUTTER } from './constants'
 import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
@@ -96,12 +96,8 @@ export function Sidebar({
 
   useEffect(() => clearHoverDismiss, [clearHoverDismiss])
 
-  // The sidebar toggle paints over this panel but is a DOM sibling, so reaching for
-  // it fires our mouseleave and the peek would close right under the user's cursor.
-  // Leaving the toggle has to re-arm the dismiss by hand for the same reason: the
-  // pointer never touched the panel itself, so no mouseleave of ours will follow.
-  // The mount pass must stay inert, or the peek would self-close before the pointer
-  // ever reaches it.
+  // The toggle paints over this panel but is a DOM sibling: reaching for it fires our
+  // mouseleave, and leaving it fires none of ours, so both edges are handled by hand.
   const wasKeptOpen = useRef(keepOpen)
   useEffect(() => {
     if (keepOpen) {
@@ -224,7 +220,7 @@ export function Sidebar({
   // --- Hidden sidebar (hover zone + resize handle) ---
   if (layout === 'hidden') {
     return (
-      <div ref={sidebarRef} className="relative h-full w-2 shrink-0">
+      <div ref={sidebarRef} style={{ width: SIDEBAR_HIDDEN_GUTTER }} className="relative h-full shrink-0">
         <div
           className="absolute inset-y-0 left-0 z-50 w-4 [-webkit-app-region:no-drag]"
           onMouseEnter={() => {

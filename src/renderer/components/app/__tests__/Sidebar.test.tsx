@@ -41,6 +41,8 @@ const mocks = vi.hoisted(() => ({
     title: 'Chat'
   } as FakeTab | null,
   setSidebarWidth: vi.fn(),
+  expandedWidth: 50,
+  setExpandedWidth: vi.fn(),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
@@ -54,8 +56,20 @@ const mocks = vi.hoisted(() => ({
   onEntriesReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined
 }))
 
+// Key-aware on purpose: the sidebar reads two width keys, and aliasing them would make
+// the remembered-width effect a no-op that no test in this file could fail on.
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => {
+  usePersistCache: (key: string) => {
+    if (key === 'ui.sidebar.expanded_width') {
+      return [
+        mocks.expandedWidth,
+        (width: number) => {
+          mocks.expandedWidth = width
+          mocks.setExpandedWidth(width)
+        }
+      ]
+    }
+
     return [
       mocks.sidebarWidth,
       (width: number) => {
@@ -232,7 +246,8 @@ vi.mock('../../Sidebar', async () => {
       return isFloating ? (
         <div
           className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
-          data-testid="floating-sidebar">
+          data-testid="floating-sidebar"
+          data-width={width}>
           {typeof actions === 'function' ? actions('full') : actions}
           <button type="button" onClick={onDismiss}>
             dismiss
@@ -311,6 +326,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { SIDEBAR_ICON_WIDTH, SIDEBAR_PEEK_WIDTH } from '../../Sidebar/constants'
 import Sidebar from '../Sidebar'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
@@ -355,6 +371,7 @@ afterEach(() => {
   mocks.visibleMiniApps = null
   mocks.pinnedMiniApps = []
   mocks.sidebarWidth = 50
+  mocks.expandedWidth = 50
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
 })
@@ -390,6 +407,56 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-shell-actions-icon'))
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/general')
+  })
+
+  // The toggle button restores whatever this effect stored, so a regression here is
+  // invisible in the button's own tests — it just restores a plausible wrong width.
+  it('remembers the width the sidebar was last visible at', () => {
+    mocks.sidebarWidth = 240
+
+    render(<Sidebar />)
+
+    expect(mocks.setExpandedWidth).toHaveBeenCalledWith(240)
+  })
+
+  it('never remembers a hidden width', () => {
+    mocks.sidebarWidth = 0
+
+    render(<Sidebar />)
+
+    expect(mocks.setExpandedWidth).not.toHaveBeenCalled()
+  })
+
+  it('opens the hover overlay at the remembered width', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarWidth = 0
+    mocks.expandedWidth = 240
+    const ShellHost = () => {
+      const [peekOpen, setPeekOpen] = useState(false)
+      return <Sidebar peekOpen={peekOpen} onPeekOpenChange={setPeekOpen} />
+    }
+    render(<ShellHost />)
+
+    await user.click(screen.getByRole('button', { name: 'reveal' }))
+
+    expect(screen.getByTestId('floating-sidebar')).toHaveAttribute('data-width', '240')
+  })
+
+  // An icon-band memory would render the overlay as a 50px rail, but it always draws
+  // labels, so it falls back to a readable width instead.
+  it('widens the hover overlay when the remembered width is an icon rail', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarWidth = 0
+    mocks.expandedWidth = SIDEBAR_ICON_WIDTH
+    const ShellHost = () => {
+      const [peekOpen, setPeekOpen] = useState(false)
+      return <Sidebar peekOpen={peekOpen} onPeekOpenChange={setPeekOpen} />
+    }
+    render(<ShellHost />)
+
+    await user.click(screen.getByRole('button', { name: 'reveal' }))
+
+    expect(screen.getByTestId('floating-sidebar')).toHaveAttribute('data-width', String(SIDEBAR_PEEK_WIDTH))
   })
 
   it('keeps feedback mounted when the floating sidebar closes', async () => {

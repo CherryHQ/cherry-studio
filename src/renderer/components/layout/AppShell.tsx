@@ -12,7 +12,7 @@ import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { AppSidebarToggleButton } from '../app/AppSidebarToggleButton'
+import { APP_SIDEBAR_TOGGLE_INSET, AppSidebarToggleButton } from '../app/AppSidebarToggleButton'
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
@@ -131,6 +131,15 @@ export const AppShell = () => {
     }
   }, [isSettingsTabActive])
 
+  // Settings unmounts the sidebar and its toggle, so neither can report the pointer
+  // leaving, and a peek left set would pop back open on return.
+  useEffect(() => {
+    if (!isSettingsTabActive) return
+
+    setSidebarPeekOpen(false)
+    setSidebarTogglePointerInside(false)
+  }, [isSettingsTabActive])
+
   // The compact minimum tracks the active tab's route here, at window level.
   // It must not live in the pages themselves: they sit inside <Activity>, whose
   // hide/show re-runs mount effects, so a per-page []-dep effect re-issues this
@@ -225,18 +234,20 @@ export const AppShell = () => {
     </div>
   )
 
-  // The toggle keeps one fixed spot: beside the macOS traffic lights, where it stays
-  // put across every sidebar width. Without them it leads the tab strip instead.
-  // It must stay the LAST child of the shell root: Chromium collects draggable
-  // regions in DOM order, so an earlier `no-drag` is overwritten by the title-bar
-  // and tab-strip drag regions that follow, and real clicks never reach the button.
+  // Must stay the LAST child of the shell root: Electron composes draggable regions in
+  // DOM order, so an earlier `no-drag` is overwritten and real clicks never land.
   const sidebarToggle = !isSettingsTabActive && (
     <div
       data-testid="app-sidebar-toggle-slot"
       onMouseEnter={() => setSidebarTogglePointerInside(true)}
       onMouseLeave={() => setSidebarTogglePointerInside(false)}
       className="absolute top-0 z-50 flex h-11 items-center [-webkit-app-region:no-drag]"
-      style={{ left: isMac && !isFullscreen ? 'env(titlebar-area-x)' : 'calc(var(--sidebar-width, 0px) + 8px)' }}>
+      style={{
+        left:
+          isMac && !isFullscreen
+            ? 'env(titlebar-area-x)'
+            : `calc(var(--sidebar-width, 0px) + ${APP_SIDEBAR_TOGGLE_INSET}px)`
+      }}>
       <AppSidebarToggleButton peekOpen={sidebarPeekOpen} />
     </div>
   )

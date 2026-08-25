@@ -1,4 +1,5 @@
 export {
+  getSidebarColumnWidth,
   getSidebarDisplayWidth,
   getSidebarLayout,
   getSidebarPeekWidth,

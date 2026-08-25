@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -81,7 +81,13 @@ vi.mock('../../../hooks/tab', () => ({
 }))
 
 vi.mock('../../app/Sidebar', () => ({
-  default: () => <aside data-testid="sidebar" />
+  default: ({ peekOpen, onPeekOpenChange }: { peekOpen?: boolean; onPeekOpenChange?: (open: boolean) => void }) => (
+    <aside data-testid="sidebar" data-peek-open={String(Boolean(peekOpen))}>
+      <button type="button" onClick={() => onPeekOpenChange?.(true)}>
+        reveal-peek
+      </button>
+    </aside>
+  )
 }))
 
 vi.mock('../../GlobalSearch/globalSearchGroups', () => ({
@@ -209,12 +215,42 @@ describe('AppShell', () => {
     render(<AppShell />)
 
     expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
+    // The toggle drives the sidebar this tab does not have, and the tab strip only
+    // reserves room for the traffic lights while it is gone.
+    expect(screen.queryByTestId('app-sidebar-toggle-slot')).not.toBeInTheDocument()
     expect(mocks.tabBarProps).toMatchObject({
       activeTabId: settingsTab.id,
       isFocusedTab: true,
       tabs: [settingsTab]
     })
     expect(screen.getAllByTestId('tab-router').map((router) => router.dataset.tabId)).toEqual(['home', 'settings'])
+  })
+
+  // The overlay's own settings entry is a one-click path into this state, and neither
+  // the sidebar nor the toggle survives the settings tab to report the pointer leaving.
+  it('drops a pending sidebar peek when the Settings tab takes over', () => {
+    const settingsTab = {
+      id: 'settings',
+      isDormant: false,
+      title: 'Settings',
+      type: 'route' as const,
+      url: '/settings/provider'
+    }
+    mocks.tabs = [...mocks.tabs, settingsTab]
+
+    const { rerender } = render(<AppShell />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'reveal-peek' }))
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-peek-open', 'true')
+
+    mocks.activeTabId = settingsTab.id
+    rerender(<AppShell />)
+    expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
+
+    mocks.activeTabId = 'home'
+    rerender(<AppShell />)
+
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-peek-open', 'false')
   })
 
   it('keeps a background Settings tab in the positional tab-bar list', () => {

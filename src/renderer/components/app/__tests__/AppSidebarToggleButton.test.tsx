@@ -97,11 +97,20 @@ describe('AppSidebarToggleButton', () => {
     expect(sidebarWidth()).toBe(SIDEBAR_ICON_WIDTH)
   })
 
+  // A toggle whose label and pressed state are inverted still passes every click test,
+  // so both directions have to be pinned.
   it('announces the action it will perform', () => {
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 0)
 
-    render(<AppSidebarToggleButton />)
-
+    const { unmount } = render(<AppSidebarToggleButton />)
     expect(screen.getByRole('button')).toHaveAccessibleName('navbar.show_sidebar')
+    expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'false')
+    unmount()
+
+    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', SIDEBAR_ICON_WIDTH)
+
+    render(<AppSidebarToggleButton />)
+    expect(screen.getByRole('button')).toHaveAccessibleName('navbar.hide_sidebar')
+    expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true')
   })
 })

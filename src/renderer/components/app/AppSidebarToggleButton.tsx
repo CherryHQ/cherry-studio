@@ -1,8 +1,16 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/icons/SidebarToggleIcons'
+import NavbarIcon from '@renderer/components/NavbarIcon'
 import { getSidebarLayout, getSidebarPeekWidth, SIDEBAR_ICON_WIDTH } from '@renderer/components/Sidebar'
 import { useTranslation } from 'react-i18next'
+
+/** NavbarIcon's `icon-navbar` size — the footprint the shell keeps clear for this button. */
+export const APP_SIDEBAR_TOGGLE_SIZE = 30
+/** Gap between the toggle and whatever the shell lays out after it. */
+export const APP_SIDEBAR_TOGGLE_GAP = 10
+/** Leading inset where there are no traffic lights for the toggle to sit beside. */
+export const APP_SIDEBAR_TOGGLE_INSET = 8
 
 export function AppSidebarToggleButton({ peekOpen = false }: { peekOpen?: boolean }) {
   const { t } = useTranslation()
@@ -30,16 +38,10 @@ export function AppSidebarToggleButton({ peekOpen = false }: { peekOpen?: boolea
 
   return (
     <Tooltip content={label} placement="bottom" delay={800}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={label}
-        aria-pressed={!isHidden}
-        onClick={toggleSidebar}
-        className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
-        <ToggleIcon className="size-[18px]" />
-      </Button>
+      {/* Same control as the conversation-pane toggle it sits above, so the two read as one family. */}
+      <NavbarIcon tone="conversation" aria-label={label} aria-pressed={!isHidden} onClick={toggleSidebar}>
+        <ToggleIcon />
+      </NavbarIcon>
     </Tooltip>
   )
 }

@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  getSidebarColumnWidth,
   getSidebarDisplayWidth,
   getSidebarPeekWidth,
   normalizeSidebarWidth,
@@ -230,16 +231,31 @@ describe('Sidebar resize handle', () => {
     }
   })
 
-  it('clears the preview when a multi-step drag leaves the intermediate band', () => {
+  it('previews every step of a multi-step drag and clears it on release', () => {
     const { setWidth, onResizePreview } = dragResizeFrom(SIDEBAR_ICON_WIDTH, [
       INTERMEDIATE_WIDTH,
       SIDEBAR_FULL_THRESHOLD + 10
     ])
 
     expect(onResizePreview).toHaveBeenNthCalledWith(1, INTERMEDIATE_WIDTH)
-    expect(onResizePreview).toHaveBeenNthCalledWith(2, null)
+    expect(onResizePreview).toHaveBeenNthCalledWith(2, SIDEBAR_FULL_THRESHOLD + 10)
+    expect(onResizePreview).toHaveBeenLastCalledWith(null)
     expect(setWidth).toHaveBeenCalledTimes(1)
     expect(setWidth).toHaveBeenLastCalledWith(SIDEBAR_FULL_THRESHOLD + 10)
+  })
+
+  // Consumers derive the width to restore from whatever gets persisted, so a drag
+  // that sweeps a full sidebar through the icon band must not commit that band.
+  it('persists only the released width when a drag sweeps across bands', () => {
+    const { setWidth } = dragResizeFrom(SIDEBAR_MAX_WIDTH, [
+      SIDEBAR_FULL_THRESHOLD + 10,
+      INTERMEDIATE_WIDTH,
+      SIDEBAR_ICON_WIDTH,
+      SIDEBAR_HIDDEN_THRESHOLD - 10
+    ])
+
+    expect(setWidth).toHaveBeenCalledTimes(1)
+    expect(setWidth).toHaveBeenLastCalledWith(0)
   })
 
   it('stops tracking the mouse and restores the cursor after release', () => {
@@ -297,6 +313,19 @@ describe('Sidebar resize handle', () => {
     expect(normalizeSidebarWidth(SIDEBAR_ICON_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
     expect(normalizeSidebarWidth(INTERMEDIATE_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
     expect(normalizeSidebarWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)
+  })
+
+  // The tab strip anchors to --sidebar-width, which is fed by getSidebarColumnWidth.
+  // Any drift between that and the column the sidebar actually renders shifts the tabs.
+  it('reports the column width the sidebar actually renders at', () => {
+    for (const width of [SIDEBAR_HIDDEN_THRESHOLD - 10, SIDEBAR_ICON_WIDTH, INTERMEDIATE_WIDTH, SIDEBAR_MAX_WIDTH]) {
+      const { container, unmount } = render(
+        <Sidebar width={width} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
+      )
+
+      expect(container.firstElementChild).toHaveStyle({ width: `${getSidebarColumnWidth(width)}px` })
+      unmount()
+    }
   })
 
   it('keeps the hidden-state hot zone full height without moving the resize binding', () => {
