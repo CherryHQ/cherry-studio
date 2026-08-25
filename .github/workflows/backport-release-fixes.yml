@@ -24,23 +24,34 @@ jobs:
       github.event.pull_request.state == 'open' &&
       github.event.action != 'closed'
     runs-on: ubuntu-latest
+    concurrency:
+      group: hotfix-classify-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - name: Check out workflow scripts
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
 
       - name: Synchronize hotfix label
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
           REPO: ${{ github.repository }}
         run: |
           export LC_ALL=C
-          HAS_LABEL="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq 'any(.labels[]; .name == "hotfix")')"
+          PR_JSON="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json baseRefName,body,labels,state,title)"
+          if [ "$(jq -r '.state' <<< "$PR_JSON")" != "OPEN" ] || [ "$(jq -r '.baseRefName' <<< "$PR_JSON")" != "main" ]; then
+            echo "Ignoring a pull request that is no longer open against main"
+            exit 0
+          fi
+
+          PR_BODY="$(jq -r '.body // ""' <<< "$PR_JSON")"
+          PR_TITLE="$(jq -r '.title' <<< "$PR_JSON")"
+          HAS_LABEL="$(jq -r 'any(.labels[]; .name == "hotfix")' <<< "$PR_JSON")"
+          export PR_BODY
 
           if [[ "$PR_TITLE" =~ $HOTFIX_TITLE_PATTERN ]]; then
             if ! node scripts/release/hotfix-release-notes.js --check; then
@@ -69,6 +80,7 @@ jobs:
     concurrency:
       group: release-state
       cancel-in-progress: false
+      queue: max
     steps:
       - name: Check out trusted workflow scripts
         uses: actions/checkout@v6
@@ -154,6 +166,11 @@ jobs:
           TAG="${CANDIDATES[0]}"
           BRANCH="release/$TAG"
           RELEASE_HEAD="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "release-head=$RELEASE_HEAD" >> "$GITHUB_OUTPUT"
+
           SOURCE_MARKER="<!-- release-backport-source-pr: $PR_NUMBER -->"
           PULL_REQUESTS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state all --limit 1000 --json body,headRefName,headRefOid,isCrossRepository,mergedAt,number,state,url)"
           EXISTING_PR="$(jq -c --arg marker "$SOURCE_MARKER" '
@@ -195,9 +212,19 @@ jobs:
             exit 0
           fi
 
-          OPEN_BACKPORTS="$(jq -c --arg prefix "backport/$TAG/" '[.[] | select(.state == "OPEN" and .isCrossRepository == false and (.headRefName | startswith($prefix)))]' <<< "$PULL_REQUESTS")"
+          OPEN_BACKPORTS="$(jq -c --arg prefix "backport/$TAG/" '[.[] |
+            (.headRefName | ltrimstr($prefix)) as $suffix |
+            select(
+              .state == "OPEN" and
+              .isCrossRepository == false and
+              (.headRefName | startswith($prefix)) and
+              ($suffix | test("^pr-[1-9][0-9]*$")) and
+              (((.body // "") | split("\n") | index("<!-- release-backport-source-pr: \($suffix | ltrimstr("pr-")) -->")) != null)
+            )
+          ]' <<< "$PULL_REQUESTS")"
           if [ "$(jq 'length' <<< "$OPEN_BACKPORTS")" -gt 1 ]; then
-            echo "Multiple open backport pull requests target $BRANCH; merge or close extras before retrying" >&2
+            echo "Multiple recognized automatic backport pull requests target $BRANCH; merge or close extras before retrying" > "$RUNNER_TEMP/backport-failure-message"
+            cat "$RUNNER_TEMP/backport-failure-message" >&2
             exit 1
           fi
 
@@ -216,13 +243,9 @@ jobs:
             [.[] | select(.headRefName == $branch and .state == "CLOSED" and .mergedAt == null)][0].number // empty
           ' <<< "$PULL_REQUESTS")"
 
-          echo "eligible=true" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           echo "backport-branch=$BACKPORT_BRANCH" >> "$GITHUB_OUTPUT"
           echo "backport-pr-number=$APPEND_PR_NUMBER" >> "$GITHUB_OUTPUT"
           echo "checkout-sha=$CHECKOUT_SHA" >> "$GITHUB_OUTPUT"
-          echo "release-head=$RELEASE_HEAD" >> "$GITHUB_OUTPUT"
           echo "retry-pr-number=$RETRY_PR_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Check out exact release head
@@ -346,7 +369,6 @@ jobs:
           BRANCH: ${{ steps.release-ref.outputs.backport-branch }}
           EXPECTED_HEAD: ${{ steps.release-ref.outputs.checkout-sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
           RELEASE_BRANCH: ${{ steps.release-ref.outputs.branch }}
           REPO: ${{ github.repository }}
           SIGNOFF_EMAIL: ${{ steps.backport-publisher.outputs.email }}
@@ -413,7 +435,7 @@ jobs:
                 },
                 expectedHeadOid: process.env.EXPECTED_HEAD,
                 message: {
-                  headline: process.env.PR_TITLE,
+                  headline: `fix(release): backport #${process.env.PR_NUMBER}`,
                   body: `Backport #${process.env.PR_NUMBER} to ${process.env.RELEASE_BRANCH}.\n\nSource: ${process.env.SOURCE_SHA}\n\nSigned-off-by: ${process.env.SIGNOFF_NAME} <${process.env.SIGNOFF_EMAIL}>`
                 },
                 fileChanges
@@ -470,6 +492,8 @@ jobs:
           fi
 
           TITLE="fix(release): backport #$SOURCE_PR to $TAG"
+          MAIN_GAP="$(printf 'The fix from %s exists on `main` but not on `%s`.' "$SOURCE_URL" "$RELEASE_BRANCH")"
+          APPLIED_FIX="$(printf 'The source pull request change set and its bilingual hotfix note are applied to `%s` for %s.' "$RELEASE_BRANCH" "$TAG")"
           BODY="$(printf '%s\n' \
             '> ### Branch strategy' \
             '>' \
@@ -479,11 +503,11 @@ jobs:
             '' \
             'Before this PR:' \
             '' \
-            "The fix from $SOURCE_URL exists on `main` but not on `$RELEASE_BRANCH`." \
+            "$MAIN_GAP" \
             '' \
             'After this PR:' \
             '' \
-            "The source pull request change set and its bilingual hotfix note are applied to `$RELEASE_BRANCH` for $TAG." \
+            "$APPLIED_FIX" \
             '' \
             'Fixes # N/A' \
             '' \
@@ -638,8 +662,11 @@ jobs:
           FAILED_LABEL="backport-failed/$TAG"
           LABELS="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels)"
           SOURCE_MARKER="<!-- release-backport-source-pr: $PR_NUMBER -->"
-          BACKPORT_PRS="$(gh pr list --repo "$REPO" --base "$RELEASE_BRANCH" --head "$BACKPORT_BRANCH" --state all --json body,mergedAt,state,url)"
-          BACKPORT_PR="$(jq -c --arg marker "$SOURCE_MARKER" '[.[] | select((((.body // "") | split("\n") | index($marker)) != null))][0] // empty' <<< "$BACKPORT_PRS")"
+          BACKPORT_PR=""
+          if [ -n "$BACKPORT_BRANCH" ]; then
+            BACKPORT_PRS="$(gh pr list --repo "$REPO" --base "$RELEASE_BRANCH" --head "$BACKPORT_BRANCH" --state all --json body,mergedAt,state,url)"
+            BACKPORT_PR="$(jq -c --arg marker "$SOURCE_MARKER" '[.[] | select((((.body // "") | split("\n") | index($marker)) != null))][0] // empty' <<< "$BACKPORT_PRS")"
+          fi
 
           if [ -n "$BACKPORT_PR" ]; then
             echo "Backport pull request state is owned by its lifecycle tracker: $(jq -r '.url' <<< "$BACKPORT_PR")"
@@ -670,6 +697,7 @@ jobs:
     concurrency:
       group: backport-state-${{ github.event.pull_request.number }}
       cancel-in-progress: false
+      queue: max
     steps:
       - name: Synchronize source pull request status
         shell: bash

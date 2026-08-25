@@ -26,6 +26,7 @@ on:
 concurrency:
   group: release-state
   cancel-in-progress: false
+  queue: max
 
 permissions:
   actions: read

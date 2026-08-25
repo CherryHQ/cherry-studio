@@ -89,10 +89,17 @@ function resolvePatchBase({ cwd, mergeSha, prCommitCount, prNumber, getAssociate
   let patchBase = parents[0]
   if (parents.length === 1 && prCommitCount > 1) {
     let currentSha = mergeSha
+    let foundRebaseCommit = false
     for (let index = 1; index < prCommitCount; index += 1) {
       const parentSha = run('git', ['rev-parse', `${currentSha}^1`], cwd)
-      if (!getAssociatedPullRequests(parentSha).includes(prNumber)) break
+      if (!getAssociatedPullRequests(parentSha).includes(prNumber)) {
+        if (!foundRebaseCommit) break
+        throw new Error(
+          `Cannot identify the complete ${prCommitCount}-commit rebase result for pull request #${prNumber}`
+        )
+      }
 
+      foundRebaseCommit = true
       currentSha = parentSha
       patchBase = run('git', ['rev-parse', `${currentSha}^1`], cwd)
     }

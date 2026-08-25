@@ -11,7 +11,7 @@ Automate the Cherry Studio release workflow: collect changes → generate biling
 
 Parse the version intent from the user's message. Accept any of these forms:
 - Bump type keyword: `patch`, `minor`, `major`
-- Exact version: `x.y.z` or `x.y.z-pre.N` (e.g. `1.8.0`, `1.8.0-beta.1`, `1.8.0-rc.1`)
+- Exact version: strict `x.y.z` or `x.y.z-<prerelease>` without build metadata (e.g. `1.8.0`, `1.8.0-beta.1`, `1.8.0-rc.1`)
 - Natural language: "prepare a beta release", "bump to 1.8.0-rc.2", etc.
 
 Defaults to `patch` if no version is specified. Always echo the resolved target version back to the user before proceeding with any file edits.
@@ -43,7 +43,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    Stop on a mismatch: the latest Post Release metadata PR must be merged into `main` before another release is prepared.
 5. Compute the new version based on the argument:
    - `patch` / `minor` / `major`: bump from the current version.
-   - `x.y.z` or `x.y.z-pre.N`: use as-is after validating it is valid semver.
+   - An exact version must match `^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` and pass `semver.valid`; build metadata such as `+build.1` is not accepted.
    - In both cases, require the result to be strictly greater than the current version according to semver precedence. Reject equal versions and downgrades.
 
 ### Step 2: Collect Commits
@@ -170,8 +170,38 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
    git fetch origin refs/heads/main:refs/remotes/origin/main --tags
    test "$(git branch --show-current)" = main
    test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+   RELEASES_JSON="$(gh release list --limit 1000 --json isDraft,tagName)"
+   RELEASE_BRANCHES="$(git ls-remote --heads origin 'refs/heads/release/v*')"
+   UNFINISHED_RELEASES="$(RELEASES_JSON="$RELEASES_JSON" RELEASE_BRANCHES="$RELEASE_BRANCHES" node <<'NODE'
+   const strictTag = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+   const releases = JSON.parse(process.env.RELEASES_JSON)
+   const branchTags = new Set(
+     process.env.RELEASE_BRANCHES.split('\n').filter(Boolean).map((line) => line.split(/\s+/)[1].replace('refs/heads/release/', ''))
+   )
+   const unfinished = new Set()
+   for (const tag of branchTags) {
+     if (!strictTag.test(tag)) continue
+     const release = releases.find((candidate) => candidate.tagName === tag)
+     if (!release || release.isDraft) unfinished.add(tag)
+   }
+   for (const release of releases) {
+     if (release.isDraft && strictTag.test(release.tagName) && !branchTags.has(release.tagName)) {
+       unfinished.add(`${release.tagName} (draft without branch)`)
+     }
+   }
+   process.stdout.write([...unfinished].join(', '))
+   NODE
+   )"
+   test -z "$UNFINISHED_RELEASES"
+   CURRENT_VERSION="$(node -p "require('./package.json').version")"
+   BASELINE_TAG="v$CURRENT_VERSION"
+   git rev-parse --verify "refs/tags/$BASELINE_TAG"
+   LATEST_PUBLISHED="$(gh release list --limit 1000 --json isDraft,publishedAt,tagName --jq '[.[] | select(.isDraft == false and (.tagName | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")))] | sort_by(.publishedAt) | last | .tagName // empty')"
+   test "$LATEST_PUBLISHED" = "$BASELINE_TAG"
    test -z "$(git ls-remote --heads origin refs/heads/release/v{version})"
    git status --short
+   UNEXPECTED_RELEASE_PATHS="$(git status --porcelain | cut -c4- | grep -Ev '^(package\.json|electron-builder\.yml|resources/cherry-studio/release-history\.json|resources/builtin-agents/cherry-assistant/product-manifest\.json)$' || true)"
+   test -z "$UNEXPECTED_RELEASE_PATHS"
    git checkout -b release/v{version}
    git add package.json electron-builder.yml resources/cherry-studio/release-history.json resources/builtin-agents/cherry-assistant/product-manifest.json
    git commit -S --signoff -m "chore(release): prepare v{version}"

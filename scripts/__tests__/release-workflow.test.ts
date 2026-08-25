@@ -156,6 +156,24 @@ describe('backport patch preparation', () => {
     expect(fs.readFileSync(path.join(fixture.repo, 'second.txt'), 'utf8')).toBe('second\n')
   })
 
+  it('rejects a partial rebase range when an intermediate commit is not associated with the source PR', () => {
+    const fixture = createGitFixture()
+    const base = git(fixture.repo, 'rev-parse', 'HEAD')
+    write(fixture.repo, 'first.txt', 'first\n')
+    commit(fixture.repo, 'first rebased fix')
+    write(fixture.repo, 'second.txt', 'second\n')
+    const secondCommit = commit(fixture.repo, 'second rebased fix')
+    write(fixture.repo, 'third.txt', 'third\n')
+    const mergeSha = commit(fixture.repo, 'third rebased fix')
+    markOriginMain(fixture.repo, mergeSha)
+    git(fixture.repo, 'checkout', '-b', 'release', base)
+
+    expect(() => runBackport(fixture, mergeSha, 3, new Set([secondCommit]))).toThrow(
+      'Cannot identify the complete 3-commit rebase result'
+    )
+    expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
+  })
+
   it('reports a patch already present without staging a duplicate', () => {
     const fixture = createGitFixture()
     const base = git(fixture.repo, 'rev-parse', 'HEAD')
@@ -289,6 +307,13 @@ describe('hotfix release notes', () => {
   })
 
   it.each([
+    HOTFIX_BODY.replace('<!--LANG:en-->', 'Unexpected preface\n<!--LANG:en-->'),
+    HOTFIX_BODY.replace('<!--LANG:END-->', '<!--LANG:END-->\nUnexpected suffix')
+  ])('rejects text outside the hotfix language-marker span', (body) => {
+    expect(() => extractHotfixReleaseNote(body)).toThrow('exact English and Chinese language markers')
+  })
+
+  it.each([
     ['a missing component', 'Fix messages disappearing after restart.', '[聊天] 修复重启后消息消失的问题。'],
     [
       'multiple English lines',
@@ -328,6 +353,27 @@ describe('hotfix release notes', () => {
     expect(updatedNotes.match(/Fix messages disappearing/g)).toHaveLength(1)
     expect(updatedNotes.match(/修复重启后消息消失/g)).toHaveLength(1)
     expect(JSON.parse(fs.readFileSync(historyPath, 'utf8'))[0].releaseNotes).toBe(updatedNotes)
+  })
+
+  it('inserts a missing bug-fix category before later release-note categories', () => {
+    const fixture = createGitFixture()
+    const notes = releaseNotes('1.0.0', 'Existing fix.')
+      .replace('🐛 Bug Fixes\n- [Chat] Existing fix.', '💄 Improvements\n- [Chat] Existing improvement.')
+      .replace('🐛 问题修复\n- [聊天] Existing fix.', '💄 改进\n- [聊天] 现有改进。')
+    const builderPath = path.join(fixture.repo, 'electron-builder.yml')
+    const historyPath = path.join(fixture.repo, 'release-history.json')
+    write(fixture.repo, 'electron-builder.yml', builderYaml(notes))
+    write(
+      fixture.repo,
+      'release-history.json',
+      `${JSON.stringify([{ version: '1.0.0', releaseNotes: notes }], null, 2)}\n`
+    )
+
+    updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
+
+    const updatedNotes = readBuilderReleaseNotes(fs.readFileSync(builderPath, 'utf8')).releaseNotes
+    expect(updatedNotes.indexOf('🐛 Bug Fixes')).toBeLessThan(updatedNotes.indexOf('💄 Improvements'))
+    expect(updatedNotes.indexOf('🐛 问题修复')).toBeLessThan(updatedNotes.indexOf('💄 改进'))
   })
 })
 
@@ -499,6 +545,20 @@ describe('prepared release validation', () => {
     expect(() => validatePreparedRelease({ cwd: fixture.repo, targetVersion: '1.1.0-rc.1' })).toThrow(
       'unexpected set of source files'
     )
+  })
+
+  it('accepts prerelease preparation when release history stays unchanged', () => {
+    const fixture = createPreparedReleaseFixture('1.1.0-rc.1')
+    expect(() => validatePreparedRelease({ cwd: fixture.repo, targetVersion: '1.1.0-rc.1' })).not.toThrow()
+  })
+
+  it('revalidates prepared metadata after the trusted product manifest is generated', () => {
+    const fixture = createPreparedReleaseFixture()
+    write(fixture.repo, 'resources/builtin-agents/cherry-assistant/product-manifest.json', '{"version":"1.1.0"}\n')
+
+    expect(() =>
+      validatePreparedRelease({ cwd: fixture.repo, includeGeneratedManifest: true, targetVersion: '1.1.0' })
+    ).not.toThrow()
   })
 })
 
@@ -753,23 +813,70 @@ describe('release workflow gates', () => {
     expect(publishStep.run).toContain('PENDING_HOTFIXES="$(collect_pending_hotfixes)"')
     expect(publishStep.run).toContain('PENDING_HOTFIXES="$PENDING_HOTFIXES"')
     expect(publishStep.run).toContain('node scripts/release/validate-release-state.js publish')
-    expect(publishStep.run.lastIndexOf('git fetch origin')).toBeGreaterThan(
-      publishStep.run.indexOf('node scripts/release/validate-release-state.js publish')
-    )
+    const validatorIndex = publishStep.run.indexOf('node scripts/release/validate-release-state.js publish')
+    const publicationIndex = publishStep.run.indexOf('gh release edit "$TAG"')
+    expect(publishStep.run.lastIndexOf('git fetch origin')).toBeGreaterThan(validatorIndex)
+    expect(publishStep.run.lastIndexOf('git fetch origin')).toBeLessThan(publicationIndex)
+    expect(validatorIndex).toBeLessThan(publicationIndex)
   })
 
   it('reports a merged hotfix contract failure before release resolution', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'backport-release-fixes.yml'), 'utf8'))
     const backportSteps = workflow.jobs.backport.steps
     const contractStep = backportSteps.find((step: { id?: string }) => step.id === 'hotfix-contract')
+    const contractIndex = backportSteps.indexOf(contractStep)
+    const releaseRefIndex = backportSteps.findIndex((step: { id?: string }) => step.id === 'release-ref')
     const failureStep = backportSteps.find(
       (step: { name?: string }) => step.name === 'Synchronize failed backport state'
     )
 
     expect(contractStep.run).toContain('$RUNNER_TEMP/backport-failure-message')
+    expect(contractStep.run).toContain('node scripts/release/hotfix-release-notes.js --check')
+    expect(contractIndex).toBeLessThan(releaseRefIndex)
     expect(failureStep.if).toBe('always() && failure()')
     expect(failureStep.env.CONTRACT_OUTCOME).toBe('${{ steps.hotfix-contract.outcome }}')
     expect(failureStep.run).toContain('if [ "$CONTRACT_OUTCOME" = "failure" ]; then')
     expect(failureStep.run).toContain('gh pr comment')
+  })
+
+  it('builds preview source commits without repository or service credentials', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const checkoutStep = workflow.jobs.build.steps.find(
+      (step: { name?: string }) => step.name === 'Check out preview commit'
+    )
+    const sourceSteps = workflow.jobs.build.steps.filter((step: { name?: string }) => step.name?.startsWith('Build '))
+
+    expect(checkoutStep.with['persist-credentials']).toBe(false)
+    for (const step of sourceSteps) {
+      expect(Object.keys(step.env ?? {})).not.toContain('GH_TOKEN')
+      expect(Object.keys(step.env ?? {}).every((key) => !key.includes('SECRET') && !key.startsWith('APPLE_'))).toBe(
+        true
+      )
+    }
+  })
+
+  it('revalidates the downloaded preparation artifact before creating the release branch', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'prepare-release.yml'), 'utf8'))
+    const validationStep = workflow.jobs.publish.steps.find(
+      (step: { name?: string }) => step.name === 'Validate prepared release artifact'
+    )
+
+    expect(validationStep.run.indexOf('fs.copyFileSync')).toBeLessThan(
+      validationStep.run.indexOf('validate-prepared-release.js')
+    )
+    expect(validationStep.run).toContain('--include-generated-manifest')
+  })
+
+  it('runs release workflow contract tests for release-workflow-only pull requests', () => {
+    const workflow = fs.readFileSync(path.join(workflowRoot, 'ci.yml'), 'utf8')
+    for (const workflowName of [
+      'backport-release-fixes.yml',
+      'post-release.yml',
+      'prepare-release.yml',
+      'preview-release.yml',
+      'release.yml'
+    ]) {
+      expect(workflow).toContain(`- '.github/workflows/${workflowName}'`)
+    }
   })
 })

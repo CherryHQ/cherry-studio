@@ -20,11 +20,13 @@ permissions:
 concurrency:
   group: release-state
   cancel-in-progress: false
+  queue: max
 
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     outputs:
       version: ${{ steps.release-version.outputs.version }}
     steps:
@@ -267,6 +269,17 @@ jobs:
           persist-credentials: false
           ref: ${{ github.sha }}
 
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Install validation dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
       - name: Download prepared release files
         uses: actions/download-artifact@v8
         with:
@@ -397,6 +410,8 @@ jobs:
             echo "Prepared version is not a supported semantic version: $RELEASE_VERSION" >&2
             exit 1
           fi
+
+          node scripts/release/validate-prepared-release.js --target-version "$REQUESTED_VERSION" --include-generated-manifest
 
           RELEASE_BRANCH="release/v$RELEASE_VERSION"
           echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"

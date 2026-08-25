@@ -46,13 +46,17 @@ function validateReleaseNotes(releaseNotes, targetVersion) {
   }
 }
 
-function validatePreparedRelease({ cwd, targetVersion }) {
+function validatePreparedRelease({ cwd, includeGeneratedManifest = false, targetVersion }) {
   if (!semverValid(targetVersion)) throw new Error(`Invalid target version: ${targetVersion}`)
 
   const stableRelease = semverPrerelease(targetVersion) === null
   const expectedPaths = stableRelease
     ? ['electron-builder.yml', 'package.json', 'resources/cherry-studio/release-history.json']
     : ['electron-builder.yml', 'package.json']
+  if (includeGeneratedManifest) {
+    expectedPaths.push('resources/builtin-agents/cherry-assistant/product-manifest.json')
+    expectedPaths.sort()
+  }
   const actualPaths = changedPaths(cwd)
   assert.deepStrictEqual(actualPaths, expectedPaths, 'Release preparation changed an unexpected set of source files')
   for (const filePath of actualPaths) {
@@ -111,7 +115,11 @@ function main() {
   const versionFlag = process.argv.indexOf('--target-version')
   const targetVersion = versionFlag >= 0 ? process.argv[versionFlag + 1] : undefined
   if (!targetVersion) throw new Error('--target-version is required')
-  validatePreparedRelease({ cwd: process.cwd(), targetVersion })
+  validatePreparedRelease({
+    cwd: process.cwd(),
+    includeGeneratedManifest: process.argv.includes('--include-generated-manifest'),
+    targetVersion
+  })
   console.log(`Validated release metadata for ${targetVersion}`)
 }
 

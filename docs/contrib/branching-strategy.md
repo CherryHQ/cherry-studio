@@ -50,8 +50,8 @@ When contributing to Cherry Studio, please follow these guidelines:
 
    - Create from `main` branch
    - Naming format: `hotfix/issue-number-brief-description`
-   - Use a `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR title; CI synchronizes the required `hotfix` label from this exact grammar
-   - Put exactly one user-facing release-note line in English and Chinese inside the PR template's `release-note` fence; automatic backporting rejects missing, single-language, multiline, or bullet-prefixed notes
+   - Use a `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR title
+   - Put exactly one user-facing release-note line in English and Chinese inside the PR template's `release-note` fence; CI synchronizes the required `hotfix` label only when both the title grammar and this note contract pass
    - Submit PR back to `main`
 
 5. **Release Branches:**

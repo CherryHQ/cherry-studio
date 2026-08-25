@@ -20,7 +20,7 @@ The release branch is the source of every installer and release asset. `main` re
 
 | Stage | Source | Workflow | Result |
 | --- | --- | --- | --- |
-| Preview | Any trusted repository branch | **Preview Release** | Creates an isolated draft GitHub Release for internal testing |
+| Preview | Any same-repository branch | **Preview Release** | Creates an isolated draft GitHub Release for internal testing |
 | Prepare | `main` | **Pre Release** | Creates `release/v<version>` with a signed release metadata commit |
 | Validate | `release/v<version>` | **CI** | Validates the exact release branch commit |
 | Build | `release/v<version>` | **Release** | Moves the draft tag to the validated commit and uploads artifacts |
@@ -35,13 +35,13 @@ Use **Preview Release** when a maintainer needs installable packages from an unr
 
 1. Open **Actions** → **Preview Release** → **Run workflow**.
 2. Select `main` in the workflow branch selector. The workflow definition and its permissions must always come from `main`.
-3. Enter the trusted same-repository source branch in the `branch` input.
+3. Enter a same-repository source branch in the `branch` input.
 4. Select `all`, `windows`, `mac`, or `linux`, then run the workflow.
 5. Open the resulting draft under **Releases** and download its installers.
 
 Every selected platform builds the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview.g<commit>`. After every selected platform succeeds, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads the installers there.
 
-Preview builds use packaging secrets, so never run this workflow for an untrusted branch. Their non-semantic-version tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
+Preview source code runs without repository credentials, application service secrets, signing certificates, or notarization credentials, so these internal packages are unsigned and may omit secret-backed integrations. Their non-semantic-version tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
 
 ## Before Starting
 
@@ -65,7 +65,7 @@ Do not create the release branch, release tag, or metadata synchronization pull 
    - An exact version such as `2.1.0`, `2.1.0-rc.1`, or `2.1.0-beta.1`.
 4. Run the workflow and wait for it to finish.
 
-The workflow first verifies that `main` records the latest published version and is still at the selected remote head. Its release-note collection base is the published tag when that tag is an ancestor; otherwise it requires the latest commit whose full message contains the exact line `release-metadata-boundary: v<version>`. Only metadata sync commits created before that marker existed may use the legacy exact subject `chore(release): sync v<version> metadata`, optionally followed by GitHub's ` (#<number>)` squash suffix. The requested version must be strictly greater than that baseline. It then collects release notes, updates the release metadata source files, validates that only the intended version, notes, and stable history entry changed, and regenerates the product manifest itself without a write token. A fresh job accepts only the four staged metadata files, revalidates the current `main` and release slot, and creates `release/v<version>` through the GitHub API. The commit must be both Verified and DCO-signed off.
+The workflow first verifies that `main` records the latest published version and is still at the selected remote head. If that published baseline is `v<baseline-version>`, its release-note collection base is that tag when it is an ancestor; otherwise it requires the latest commit whose full message contains the exact line `release-metadata-boundary: v<baseline-version>`. This marker always names the last published version already represented on `main`, not the requested target version. Only metadata sync commits created before that marker existed may use the legacy exact subject `chore(release): sync v<baseline-version> metadata`, optionally followed by GitHub's ` (#<number>)` squash suffix. The requested version must be strictly greater than that baseline. It then collects release notes, updates the release metadata source files, validates that only the intended version, notes, and stable history entry changed, and regenerates the product manifest itself without a write token. A fresh job accepts only the four staged metadata files, revalidates their contents together with the current `main` and release slot, and creates `release/v<version>` through the GitHub API. The commit must be both Verified and DCO-signed off.
 
 Release preparation may change only these files:
 
@@ -86,6 +86,8 @@ After the workflow succeeds, verify:
 
 If the workflow says the release branch already exists, stop and inspect that branch and any matching draft release. Do not overwrite or delete it until you have confirmed whether it is an active or abandoned release.
 
+To explicitly abandon an unpublished release, first set `TAG=v<version>` and `BRANCH=release/$TAG`, then inspect `gh release view "$TAG" --json isDraft,tagName,url`, `git ls-remote --heads origin "refs/heads/$BRANCH"`, and `gh pr list --base "$BRANCH" --state open`. Continue only after confirming the release is still a draft and every related backport PR is closed. Delete the draft and its movable tag with `gh release delete "$TAG" --cleanup-tag --yes`, then delete the release branch with `git push origin --delete "$BRANCH"`. If only an orphan branch exists, skip the release deletion; if only an orphan draft exists, skip the branch deletion. These deletions are destructive and require an explicit maintainer decision.
+
 ## 2. Wait for Release Branch CI
 
 Pushing `release/v<version>` automatically starts **CI**. Wait for the CI run attached to the latest release branch commit to succeed.
@@ -99,7 +101,7 @@ Do not start a release build while CI is queued, running, cancelled, or failing.
 The first release-branch CI run happens before a draft GitHub Release exists, so automatic backporting cannot safely select that branch yet. If code must change for this initial CI run to pass:
 
 1. Fix the root cause through a pull request to `main` titled `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>`. The workflow adds the `hotfix` label, but it does not backport yet because there is no matching draft.
-2. After the hotfix merges, create `backport/v<version>/pr-<source-number>` from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch. Run `PR_BODY="$(gh pr view <number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` on that branch to add its bilingual note to the prepared release metadata.
+2. After the hotfix merges, create `backport/v<version>/pr-<source-number>` from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch. Run `PR_BODY="$(gh pr view <source-number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` on that branch to add its bilingual note to the prepared release metadata.
 3. Push a signed, DCO-signed commit and open a pull request from that topic branch to `release/v<version>`. Put `<!-- release-backport-source-pr: <source-number> -->` on its own line in the pull request body so the lifecycle tracker automatically maintains the source hotfix's `backport/v<version>` and `backported/v<version>` labels.
 4. Review the release-specific diff, merge it after CI passes, and wait for CI on the new release branch head.
 5. Start the initial **Release** build. Once its draft exists, later merged hotfix pull requests use the automatic backport flow.
@@ -243,7 +245,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 
 ## Invariants
 
-- Build internal feature previews only with **Preview Release** from a trusted same-repository branch; preview draft releases never become formal release state.
+- Build internal feature previews only with **Preview Release** from a same-repository branch; source builds are credentialless and unsigned, and preview draft releases never become formal release state.
 - Build and publish from `release/v<version>`, never from `main`.
 - Merge every hotfix into `main` before backporting it to the release branch.
 - Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.

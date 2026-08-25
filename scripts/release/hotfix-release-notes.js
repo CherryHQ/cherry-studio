@@ -31,7 +31,7 @@ function extractHotfixReleaseNote(prBody) {
   return { english, chinese }
 }
 
-function appendBugFix(releaseNotes, startMarker, endMarker, heading, item) {
+function appendBugFix(releaseNotes, startMarker, endMarker, heading, followingHeadings, item) {
   const lines = releaseNotes.split('\n')
   const startIndex = lines.indexOf(startMarker)
   const endIndex = lines.indexOf(endMarker)
@@ -53,7 +53,10 @@ function appendBugFix(releaseNotes, startMarker, endMarker, heading, item) {
     }
     lines.splice(lastItemIndex + 1, 0, `- ${item}`)
   } else {
-    lines.splice(endIndex, 0, heading, `- ${item}`, '')
+    const followingIndex = lines.findIndex(
+      (line, index) => index > startIndex && index < endIndex && followingHeadings.includes(line)
+    )
+    lines.splice(followingIndex >= 0 ? followingIndex : endIndex, 0, heading, `- ${item}`, '')
   }
 
   return lines.join('\n')
@@ -86,9 +89,17 @@ function updateHotfixReleaseMetadata({ builderPath, historyPath, prBody, version
     LANGUAGE_MARKERS[0],
     LANGUAGE_MARKERS[1],
     '🐛 Bug Fixes',
+    ['💄 Improvements', '⚡ Performance'],
     note.english
   )
-  releaseNotes = appendBugFix(releaseNotes, LANGUAGE_MARKERS[1], LANGUAGE_MARKERS[2], '🐛 问题修复', note.chinese)
+  releaseNotes = appendBugFix(
+    releaseNotes,
+    LANGUAGE_MARKERS[1],
+    LANGUAGE_MARKERS[2],
+    '🐛 问题修复',
+    ['💄 改进', '⚡ 性能优化'],
+    note.chinese
+  )
 
   const replacement = releaseNotes
     .split('\n')
