@@ -294,17 +294,64 @@ describe('PermissionRequestComposer', () => {
     })
   })
 
-  it('does not approve or deny when Enter and Escape are used inside the rejection reason', async () => {
+  it('denies with the typed reason when Enter is pressed inside the rejection reason', async () => {
     const user = userEvent.setup()
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
     const reason = screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })
     await user.click(reason)
-    await user.keyboard('use a copy instead{Enter}{Escape}')
+    await user.keyboard('use a copy instead{Enter}')
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: false,
+      reason: 'use a copy instead'
+    })
+    expect(reason).toHaveValue('use a copy instead')
+  })
+
+  it('keeps Shift+Enter as a newline inside the rejection reason', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    const reason = screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })
+    await user.click(reason)
+    await user.keyboard('use a copy{Shift>}{Enter}{/Shift}instead')
 
     expect(onRespond).not.toHaveBeenCalled()
-    expect(reason).toHaveValue('use a copy instead\n')
+    expect(reason).toHaveValue('use a copy\ninstead')
+  })
+
+  it('denies rather than approves when Enter is pressed outside a filled rejection reason', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    await user.type(screen.getByRole('textbox', { name: 'Reason for rejection (optional)' }), 'use a copy instead')
+    fireEvent.keyDown(document, { key: 'Enter' })
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: false,
+      reason: 'use a copy instead'
+    })
+  })
+
+  it('moves the Enter hint onto Deny once a rejection reason is typed', async () => {
+    const user = userEvent.setup()
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: /Allow/ })).toHaveTextContent('Enter')
+    expect(screen.getByRole('button', { name: /Deny/ })).toHaveTextContent('Esc')
+
+    await user.type(screen.getByRole('textbox', { name: 'Reason for rejection (optional)' }), 'use a copy instead')
+
+    expect(screen.getByRole('button', { name: /Allow/ })).not.toHaveTextContent('Enter')
+    expect(screen.getByRole('button', { name: /Deny/ })).toHaveTextContent('Enter')
   })
 
   it('does not carry a rejection reason into the next approval request', async () => {

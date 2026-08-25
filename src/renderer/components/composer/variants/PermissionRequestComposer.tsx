@@ -163,6 +163,8 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
   const isSubmitting = submittingApprovalId === request.approvalId
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
+  // A typed reason means the user is denying — Enter must not approve behind their back.
+  const hasRejectionReason = rejectionReason.trim().length > 0
   const subtitle = getPermissionRequestSubtitle(request)
   const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
   const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
@@ -209,7 +211,12 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
     )
   }, [isSubmitting, rejectionReason, request.match, respond, t])
 
-  useHotkeys('enter', () => void approve(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [approve])
+  useHotkeys(
+    'enter',
+    () => void (hasRejectionReason ? deny() : approve()),
+    { preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [approve, deny, hasRejectionReason]
+  )
   useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
 
   return (
@@ -255,6 +262,11 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             placeholder={t('agent.toolPermission.reasonPlaceholder')}
             className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
             onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value })}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              void deny()
+            }}
           />
         </label>
 
@@ -262,14 +274,16 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
             {t('agent.toolPermission.button.deny')}
             <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
-              Esc
+              {hasRejectionReason ? 'Enter' : 'Esc'}
             </Kbd>
           </Button>
           <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
             {t('agent.toolPermission.button.allow')}
-            <Kbd aria-hidden="true" className="bg-current/10 text-current">
-              Enter
-            </Kbd>
+            {!hasRejectionReason && (
+              <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                Enter
+              </Kbd>
+            )}
           </Button>
         </div>
       </div>
