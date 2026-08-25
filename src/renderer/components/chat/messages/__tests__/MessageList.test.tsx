@@ -59,11 +59,11 @@ vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
 }))
 
 vi.mock('@renderer/components/chat/HtmlArtifactView', async () => {
-  const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+  const { useHtmlArtifactPopupSession } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
 
   return {
     HtmlArtifactPopupOutlet: () => {
-      const { popupSession } = useHtmlArtifactPopupContext()
+      const popupSession = useHtmlArtifactPopupSession()
       return popupSession ? (
         <div role="dialog" aria-label={`${popupSession.title} popup`}>
           {popupSession.html}
@@ -159,18 +159,20 @@ vi.mock('../list/MessageAnchorLine', () => ({
 
 vi.mock('../list/MessageGroup', async () => {
   const React = await import('react')
-  const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+  const { useApprovedInteractiveHtml, useHtmlArtifactPopupActions } = await import(
+    '@renderer/components/chat/HtmlArtifactPopupContext'
+  )
   const ArtifactLifecycleControl = () => {
-    const popupContext = useHtmlArtifactPopupContext()
+    const popupActions = useHtmlArtifactPopupActions()
     const artifactId = 'artifact-1'
     const html = '<script>interactive()</script>'
-    const isApproved = popupContext.approvedInteractiveHtmlById[artifactId] === html
+    const isApproved = useApprovedInteractiveHtml(artifactId) === html
 
     return isApproved ? (
       <button
         type="button"
         onClick={() =>
-          popupContext.openPopup({
+          popupActions.openPopup({
             artifactId,
             html,
             title: 'Interactive artifact',
@@ -182,7 +184,7 @@ vi.mock('../list/MessageGroup', async () => {
         Open artifact
       </button>
     ) : (
-      <button type="button" onClick={() => popupContext.approveInteractiveHtml(artifactId, html)}>
+      <button type="button" onClick={() => popupActions.approveInteractiveHtml(artifactId, html)}>
         Approve artifact
       </button>
     )
