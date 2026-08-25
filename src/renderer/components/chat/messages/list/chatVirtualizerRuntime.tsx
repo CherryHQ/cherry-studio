@@ -148,6 +148,12 @@ export interface ChatVirtualizerRuntime<T> {
   beginAutoscroll(): void
   /** Clear the autoscroll flag and re-anchor the viewport. */
   endAutoscroll(): void
+  /** Arm a candidate middle-click autoscroll; freeze still holds until scroll confirms it. */
+  armAutoscrollCandidate(): void
+  /** Confirm a candidate via real outer-scroller movement; starts freeze suppression. */
+  confirmAutoscroll(): void
+  /** Dismiss any candidate or confirmed autoscroll and re-anchor the viewport. */
+  dismissAutoscroll(): void
 }
 
 const SCROLL_WHEEL_DEBOUNCE_MS = 100
@@ -161,6 +167,12 @@ const LONG_JUMP_VIEWPORTS = 3
 // non-scrollbar gestures stay active until onScrollEnd, so trackpad momentum is
 // not cut off by a timer. Native scrollbar drags use the pointer lifecycle below.
 const USER_SCROLL_INPUT_WINDOW_MS = 250
+// Middle-click autoscroll synthesizes scrollTop without wheel/pointer events.
+// A middle press only arms a candidate; real outer-scroller movement must
+// confirm it before freeze logic yields. Both candidate and confirmed states
+// are time-bounded so a swallowed dismissal click cannot latch suppression.
+const AUTOSCROLL_CANDIDATE_MS = 400
+const AUTOSCROLL_IDLE_MS = 250
 // While the user holds the viewport frozen, snap scrollTop back to the freeze
 // anchor when a layout change drifts it by more than this. Kept above
 // subpixel/rounding noise so an already-stable viewport never churns.
@@ -212,6 +224,9 @@ export function useChatVirtualizerRuntime<T>({
   const userScrollGestureRef = useRef(false)
   const scrollbarDragActiveRef = useRef(false)
   const autoscrollActiveRef = useRef(false)
+  const autoscrollCandidateRef = useRef(false)
+  const autoscrollCandidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autoscrollIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const readNavigationActiveRef = useRef(false)
   const explicitNavigationBaseRef = useRef<ExplicitNavigationBase | null>(null)
   const lastScrollOffsetRef = useRef(0)
@@ -481,16 +496,82 @@ export function useChatVirtualizerRuntime<T>({
     settleUserScrollGesture()
   }, [settleUserScrollGesture])
 
-  const beginAutoscroll = useCallback(() => {
-    autoscrollActiveRef.current = true
-    markUserInput()
-  }, [markUserInput])
+  const clearAutoscrollCandidateTimer = useCallback(() => {
+    if (autoscrollCandidateTimerRef.current) {
+      clearTimeout(autoscrollCandidateTimerRef.current)
+      autoscrollCandidateTimerRef.current = null
+    }
+  }, [])
 
-  const endAutoscroll = useCallback(() => {
+  const clearAutoscrollIdleTimer = useCallback(() => {
+    if (autoscrollIdleTimerRef.current) {
+      clearTimeout(autoscrollIdleTimerRef.current)
+      autoscrollIdleTimerRef.current = null
+    }
+  }, [])
+
+  const endAutoscrollInternal = useCallback(() => {
     if (!autoscrollActiveRef.current) return
     autoscrollActiveRef.current = false
+    clearAutoscrollIdleTimer()
     settleUserScrollGesture()
-  }, [settleUserScrollGesture])
+  }, [clearAutoscrollIdleTimer, settleUserScrollGesture])
+
+  const dismissAutoscroll = useCallback(() => {
+    const wasCandidate = autoscrollCandidateRef.current
+    const wasActive = autoscrollActiveRef.current
+    if (!wasCandidate && !wasActive) return
+    autoscrollCandidateRef.current = false
+    clearAutoscrollCandidateTimer()
+    if (wasActive) {
+      endAutoscrollInternal()
+    }
+  }, [clearAutoscrollCandidateTimer, endAutoscrollInternal])
+
+  const beginAutoscroll = useCallback(() => {
+    autoscrollCandidateRef.current = false
+    clearAutoscrollCandidateTimer()
+    if (autoscrollActiveRef.current) {
+      clearAutoscrollIdleTimer()
+    } else {
+      autoscrollActiveRef.current = true
+    }
+    markUserInput()
+    clearAutoscrollIdleTimer()
+    autoscrollIdleTimerRef.current = setTimeout(() => {
+      autoscrollIdleTimerRef.current = null
+      endAutoscrollInternal()
+    }, AUTOSCROLL_IDLE_MS)
+  }, [clearAutoscrollCandidateTimer, clearAutoscrollIdleTimer, endAutoscrollInternal, markUserInput])
+
+  const endAutoscroll = useCallback(() => {
+    dismissAutoscroll()
+  }, [dismissAutoscroll])
+
+  const armAutoscrollCandidate = useCallback(() => {
+    if (autoscrollCandidateRef.current || autoscrollActiveRef.current) {
+      dismissAutoscroll()
+      return
+    }
+    autoscrollCandidateRef.current = true
+    clearAutoscrollCandidateTimer()
+    autoscrollCandidateTimerRef.current = setTimeout(() => {
+      autoscrollCandidateRef.current = false
+      autoscrollCandidateTimerRef.current = null
+    }, AUTOSCROLL_CANDIDATE_MS)
+  }, [clearAutoscrollCandidateTimer, dismissAutoscroll])
+
+  const confirmAutoscroll = useCallback(() => {
+    if (!autoscrollCandidateRef.current && !autoscrollActiveRef.current) return
+    beginAutoscroll()
+  }, [beginAutoscroll])
+
+  useEffect(() => {
+    return () => {
+      clearAutoscrollCandidateTimer()
+      clearAutoscrollIdleTimer()
+    }
+  }, [clearAutoscrollCandidateTimer, clearAutoscrollIdleTimer])
 
   const enterFollowingMode = useCallback(
     (reason: FollowingReason) => {
@@ -1061,7 +1142,10 @@ export function useChatVirtualizerRuntime<T>({
     beginScrollbarDrag,
     endScrollbarDrag,
     beginAutoscroll,
-    endAutoscroll
+    endAutoscroll,
+    armAutoscrollCandidate,
+    confirmAutoscroll,
+    dismissAutoscroll
   }
 }
 

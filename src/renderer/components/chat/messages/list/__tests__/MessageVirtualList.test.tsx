@@ -5,21 +5,95 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MessageVirtualList } from '../MessageVirtualList'
 import { useScrollRuntimeBoundary } from '../ScrollOwnershipContext'
 
-const runtimeMockState = vi.hoisted(() => ({
-  isScrollToBottomButtonVisible: false,
-  takeUserControl: vi.fn(),
-  scrollToBottom: vi.fn(),
-  notifyWheelIntent: vi.fn(),
-  scrollByWheel: vi.fn(() => true),
-  markUserInput: vi.fn(),
-  beginScrollbarDrag: vi.fn(),
-  endScrollbarDrag: vi.fn(),
-  beginAutoscroll: vi.fn(),
-  endAutoscroll: vi.fn(),
-  onWheel: vi.fn(),
-  shift: false,
-  scrollerRef: { current: null as HTMLDivElement | null }
-}))
+const runtimeMockState = vi.hoisted(() => {
+  let armed = false
+  let active = false
+  let candidateTimer: ReturnType<typeof setTimeout> | null = null
+  let idleTimer: ReturnType<typeof setTimeout> | null = null
+  const clearCandidate = () => {
+    if (candidateTimer) {
+      clearTimeout(candidateTimer)
+      candidateTimer = null
+    }
+  }
+  const clearIdle = () => {
+    if (idleTimer) {
+      clearTimeout(idleTimer)
+      idleTimer = null
+    }
+  }
+  const beginAutoscrollImpl = vi.fn(() => {
+    active = true
+    armed = false
+    clearCandidate()
+    clearIdle()
+    idleTimer = setTimeout(() => {
+      active = false
+      idleTimer = null
+      endAutoscrollImpl()
+    }, 250)
+  })
+  const endAutoscrollImpl = vi.fn(() => {
+    if (!active && !armed) return
+    active = false
+    armed = false
+    clearCandidate()
+    clearIdle()
+  })
+  const armAutoscrollCandidateImpl = vi.fn(() => {
+    if (armed || active) {
+      endAutoscrollImpl()
+      return
+    }
+    armed = true
+    clearCandidate()
+    candidateTimer = setTimeout(() => {
+      armed = false
+      candidateTimer = null
+    }, 400)
+  })
+  const confirmAutoscrollImpl = vi.fn(() => {
+    if (!armed && !active) return
+    if (active) {
+      clearIdle()
+      idleTimer = setTimeout(() => {
+        active = false
+        idleTimer = null
+        endAutoscrollImpl()
+      }, 250)
+      return
+    }
+    beginAutoscrollImpl()
+  })
+  const dismissAutoscrollImpl = vi.fn(() => {
+    if (!armed && !active) return
+    endAutoscrollImpl()
+  })
+  return {
+    isScrollToBottomButtonVisible: false,
+    takeUserControl: vi.fn(),
+    scrollToBottom: vi.fn(),
+    notifyWheelIntent: vi.fn(),
+    scrollByWheel: vi.fn(() => true),
+    markUserInput: vi.fn(),
+    beginScrollbarDrag: vi.fn(),
+    endScrollbarDrag: vi.fn(),
+    beginAutoscroll: beginAutoscrollImpl,
+    endAutoscroll: endAutoscrollImpl,
+    armAutoscrollCandidate: armAutoscrollCandidateImpl,
+    confirmAutoscroll: confirmAutoscrollImpl,
+    dismissAutoscroll: dismissAutoscrollImpl,
+    onWheel: vi.fn(),
+    shift: false,
+    scrollerRef: { current: null as HTMLDivElement | null },
+    _resetAutoscrollState: () => {
+      armed = false
+      active = false
+      clearCandidate()
+      clearIdle()
+    }
+  }
+})
 
 const virtuaMockState = vi.hoisted(() => ({
   scrollRefReadyAtMount: [] as boolean[]
@@ -95,6 +169,9 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       endScrollbarDrag: runtimeMockState.endScrollbarDrag,
       beginAutoscroll: runtimeMockState.beginAutoscroll,
       endAutoscroll: runtimeMockState.endAutoscroll,
+      armAutoscrollCandidate: runtimeMockState.armAutoscrollCandidate,
+      confirmAutoscroll: runtimeMockState.confirmAutoscroll,
+      dismissAutoscroll: runtimeMockState.dismissAutoscroll,
       shift: runtimeMockState.shift,
       wrappedItems: items,
       wrappedRenderItem: (item: unknown, index: number) =>
@@ -134,9 +211,13 @@ describe('MessageVirtualList', () => {
     runtimeMockState.endScrollbarDrag.mockClear()
     runtimeMockState.beginAutoscroll.mockClear()
     runtimeMockState.endAutoscroll.mockClear()
+    runtimeMockState.armAutoscrollCandidate.mockClear()
+    runtimeMockState.confirmAutoscroll.mockClear()
+    runtimeMockState.dismissAutoscroll.mockClear()
     runtimeMockState.onWheel.mockClear()
     runtimeMockState.shift = false
     runtimeMockState.scrollerRef.current = null
+    runtimeMockState._resetAutoscrollState()
     virtuaMockState.scrollRefReadyAtMount.length = 0
   })
 
@@ -586,7 +667,7 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.beginAutoscroll).toHaveBeenCalledTimes(1)
   })
 
-  it('decays the autoscroll yield after stillness and re-confirms on the next movement', () => {
+  it('decays the autoscroll yield after stillness and requires fresh arming to re-confirm', () => {
     vi.useFakeTimers()
     try {
       render(
@@ -607,9 +688,15 @@ describe('MessageVirtualList', () => {
       vi.advanceTimersByTime(250)
       expect(runtimeMockState.endAutoscroll).toHaveBeenCalledTimes(1)
 
-      // Resuming (cursor pushed past the dead zone again) re-yields without a
-      // new middle press, before the next tick can be snapped back.
+      // After decay, a stale scroll without fresh middle press must NOT re-yield
+      // — otherwise programmatic drift could be misclassified as autoscroll.
       scroller.scrollTop = 150
+      fireEvent.scroll(scroller)
+      expect(runtimeMockState.beginAutoscroll).toHaveBeenCalledTimes(1)
+
+      // Fresh middle press re-arms and next movement re-confirms.
+      fireEvent.mouseDown(scroller, { button: 1 })
+      scroller.scrollTop = 200
       fireEvent.scroll(scroller)
       expect(runtimeMockState.beginAutoscroll).toHaveBeenCalledTimes(2)
     } finally {
