@@ -16,7 +16,7 @@ Routing resolves as `preferredEndpointType` → the first supported endpoint →
 
 Existing models are untouched: the new column starts empty for every stored model, so they keep routing on their supported-endpoint order exactly as before. Nothing is backfilled — an upgrade must not invent a preference the user never expressed.
 
-Migrating from v1 now carries the model's v1 `endpoint_type` across as the preferred endpoint. Previously it was merged into the supported-endpoint list, where a model whose v1 route was not first in `supported_endpoint_types` silently moved to a different protocol on upgrade. **This applies only to users who migrate v1 → v2 from this version onward** — the v1 migrator does not re-run for anyone already on v2, and their original `endpoint_type` is no longer recoverable. Those users keep today's behavior and can set the endpoint by hand in the model drawer.
+Migrating from v1 now carries the model's v1 `endpoint_type` across as the preferred endpoint. Previously it was merged into the supported-endpoint list, where a model whose v1 route was not first in `supported_endpoint_types` silently moved to a different protocol on upgrade. This applies to new v1 → v2 migrations and to an explicit migration rerun from retained v1 sources in Settings → Data. A rerun discards the current v2 data, so create a full backup and follow the confirmation flow first. Users who do not rerun keep today's behavior and can set the endpoint by hand in the model drawer.
 
 ## Why this matters to the user
 

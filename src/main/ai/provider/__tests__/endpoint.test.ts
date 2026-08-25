@@ -341,6 +341,30 @@ describe('resolveEffectiveEndpoint', () => {
     expect(baseUrl).toBe('https://ark.example.com/v3/responses/')
   })
 
+  it('uses the shared New API host for a preferred adapter-only endpoint', () => {
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://new-api.example.com',
+          adapterFamily: 'newapi'
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' }
+      }
+    })
+    const model = {
+      id: 'new-api::claude-sonnet',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    } as never
+
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: 'https://new-api.example.com'
+    })
+  })
+
   it('ignores a persisted preference removed from the model capability set', () => {
     const provider = makeProvider({
       id: 'relay',

@@ -7,7 +7,7 @@ import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
-import { getModelPreferredEndpoint, isModelEndpointTypeAvailable } from '@shared/utils/provider'
+import { getModelPreferredEndpoint, isModelEndpointTypeAvailable, matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -82,7 +82,11 @@ export function resolveEffectiveEndpoint(
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return {
     endpointType,
-    baseUrl: getBaseUrl(provider, endpointType, { selectedEndpointOnly: selectedEndpoint !== undefined }),
+    baseUrl: getBaseUrl(provider, endpointType, {
+      // New API exposes every protocol through one user-configured host; secondary route configs
+      // intentionally carry only their adapter family and inherit the default endpoint's URL.
+      selectedEndpointOnly: selectedEndpoint !== undefined && !matchesPreset(provider, 'new-api')
+    }),
     providerOptionsKey
   }
 }

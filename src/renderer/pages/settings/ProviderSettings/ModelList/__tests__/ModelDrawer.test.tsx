@@ -1015,6 +1015,43 @@ describe('Model drawers', () => {
     expect(radios[0]).toHaveAttribute('value', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
   })
 
+  it('falls back to configured chat routes when an aggregator reports no endpoints', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'new-api',
+        name: 'New API',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com' },
+          [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="new-api"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'new-api::unclassified-model',
+            providerId: 'new-api',
+            name: 'Unclassified Model',
+            capabilities: [],
+            endpointTypes: [],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    const radios = within(preferredField).getAllByRole('radio')
+    expect(radios).toHaveLength(1)
+    expect(radios[0]).toHaveAttribute('value', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
   it('auto-saves an endpoint switch as a routing preference, leaving the supported set alone', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({

@@ -653,19 +653,24 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  it('routes a declared Anthropic model through the gateway when the provider configures no Messages base URL', async () => {
-    // Without a Messages base URL there is nothing to point ANTHROPIC_BASE_URL at; falling back to the
-    // effective host would post Messages bodies at an OpenAI-compatible endpoint.
+  it('routes a resolved Anthropic endpoint through the gateway when its base URL is empty', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'custom::relay-model' })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'custom',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' } }
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {}
+      }
     })
     mocks.getModelByKey.mockReturnValue({
       id: 'relay-model',
       apiModelId: 'relay-model',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.resolveEffectiveEndpoint.mockReturnValue({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: ''
     })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 

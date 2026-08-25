@@ -856,16 +856,15 @@ function resolveRuntimeModelRef(
  * resolver for that dialect instead of taking the in-app-chat default (`endpointTypes[0]`). A model
  * that declares `anthropic-messages` behind another dialect — DeepSeek V4 Flash lists it third — would
  * otherwise be pushed onto the gateway, which re-serializes the SDK's native thinking blocks into a
- * dialect that cannot carry them back. The resolver declines the preference when the model does not
- * declare the endpoint or the provider configures no base URL for it, which this comparison detects.
+ * dialect that cannot carry them back. A direct route also requires a concrete URL; an endpoint-only
+ * resolution cannot populate ANTHROPIC_BASE_URL safely.
  */
 function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   if (!ref.provider || !ref.model) return false
-  return (
-    resolveEffectiveEndpoint(ref.provider, ref.model, {
-      requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-    }).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-  )
+  const resolved = resolveEffectiveEndpoint(ref.provider, ref.model, {
+    requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  })
+  return resolved.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && Boolean(resolved.baseUrl)
 }
 
 function toGatewayModelId(ref: RuntimeModelRef): string {
