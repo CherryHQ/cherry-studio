@@ -27,7 +27,7 @@ artifact or excerpt is explicitly required as evidence.
 ## Input from SKILL.md
 
 - `REVIEW_TARGET`, the resolved review scope, and `SMALL_SCOPE`, all derived
-  by `SKILL.md` § Route → Scope derivation.
+  by `SKILL.md` § Scope derivation.
 - `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
   fixing (`fix` modifier or equivalent user wording); commit and range
   targets are always report-only. When false, skip Phase 4 entirely —
@@ -72,7 +72,7 @@ the Report. Reviewers cover stages 2–5.
 ## Phase 1: Scope
 
 Scope, resolved-scope emptiness, and `SMALL_SCOPE` are owned by `SKILL.md`
-§ Route → Scope derivation. The router already resolved them; when invoked
+§ Scope derivation. The router already resolved them; when invoked
 standalone, derive them with those rules and print its usage examples if the
 resolved scope is empty. Do not restate the derivation here.
 

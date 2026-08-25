@@ -105,10 +105,12 @@ When there is product impact:
   the direction the change takes, and the points needing human confirmation.
   Never phrase this as product approval having been obtained.
 
-**Authority model** — a review request authorizes analysis and reporting
-only. The review target, review depth, and reviewer–verifier confidence never
-grant execution authority; authority is granted explicitly at invocation
-time, and execution is prompt-free only after it has been granted:
+## Authority model
+
+A review request authorizes analysis and reporting only. The review target,
+review depth, and reviewer–verifier confidence never grant execution
+authority; authority is granted explicitly at invocation time, and execution
+is prompt-free only after it has been granted:
 
 - **Report-only (default)**: every review, any target — findings are reported
   with fix guidance. No working-tree edits, no GitHub writes.
@@ -118,16 +120,18 @@ time, and execution is prompt-free only after it has been granted:
   `references/judgment-matrix.md` § Handling by Risk Level; this section grants
   the authority and never restates the mapping.
   Applying fixes makes the session a coding task, so it must end with the
-  validation selected per **Validation after applied fixes** below.
+  validation selected per § Validation after applied fixes below.
 - **Submit (explicit)**: granted only by the invocation — `submit` in
   `$ARGUMENTS` or equivalent explicit user wording. PR flows then submit all
   confirmed findings without per-comment prompts. Approving or merging always
   requires its own explicit request.
 
-**Validation after applied fixes** — never run local lint, test, or format
-during a review that edited nothing. When fixes were applied, select the
-validation matching the changed surface, following `AGENTS.md` § Operational
-Rules ("Check what you changed, not the whole repo"), and report the results:
+## Validation after applied fixes
+
+Never run local lint, test, or format during a review that edited nothing.
+When fixes were applied, select the validation matching the changed surface,
+following `AGENTS.md` § Operational Rules ("Check what you changed, not the
+whole repo"), and report the results:
 
 - Docs/markdown-only fixes — including this skill's own files — run
   `pnpm docs:check`.
@@ -155,10 +159,44 @@ capabilities. Set `HAS_SUBAGENTS = true` only when it can launch an independent
 reviewer and a fresh independent verifier. Parallel execution is not required;
 sequential subagents still satisfy the isolation contract.
 
+### Rules
+
+Match the **first** applicable rule top-to-bottom:
+
+1. `REVIEW_TARGET` is `diag` → `references/diagnosis.md`.
+2. `REVIEW_TARGET` is `checklist`, or the user explicitly asks to adopt the
+   proposed checklist candidates → `references/checklist-evolution.md`,
+   entering at its Step 2. Maintenance runs only in the session that produced
+   the candidates; it reviews nothing.
+3. `REVIEW_TARGET` is a PR number or URL containing `/pull/` →
+   `references/pr-review.md` (pass `AUTHORIZED_SUBMIT` and `HAS_SUBAGENTS`;
+   the wrapper collects the exact PR scope before selecting the engine).
+4. Everything else: derive the scope and `SMALL_SCOPE` per § Scope derivation
+   below, then select the engine.
+   - `SMALL_SCOPE = true` → `references/local-review.md`.
+   - `SMALL_SCOPE = false` with `HAS_SUBAGENTS = true` →
+     `references/teams-review.md`.
+   - `SMALL_SCOPE = false` with `HAS_SUBAGENTS = false` →
+     `references/local-review.md`; pass `LIMITED_SINGLE_AGENT = true` so the
+     report explicitly states that a large diff received single-agent review
+     without independent adversarial verification.
+   - Pass `AUTHORIZED_FIX` (commit and range targets are immutable history —
+     always report-only regardless of the flag).
+
+Each `→` means: `Read` the target file and follow it as the sole remaining
+instruction for how to obtain diffs, apply fixes, and submit results. Do NOT
+review from memory or habit. The skill-wide sections — § Review Stages,
+§ Authority model, § Validation after applied fixes, and § Scope derivation —
+stay binding; the leaf flows reference them by name.
+
+Never ask the user anything to route. Pass `REVIEW_TARGET`, the resolved
+scope, `SMALL_SCOPE`, and the authority flags to the target file.
+
 ### Scope derivation
 
-This subsection is the **sole owner** of how a review scope and its size are
-derived. Leaf flows reference it and never restate it.
+Reached only from Rule 4 above; `diag` and `checklist` targets never enter this
+subsection. It is the **sole owner** of how a review scope and its size are
+derived — leaf flows reference it and never restate it.
 
 Resolve `REVIEW_TARGET` into the review scope:
 
@@ -217,34 +255,3 @@ Print this list when the resolved scope is empty:
 /gh-pr-review diag                 diagnose gaps in this skill
 ```
 
-### Rules
-
-Match the **first** applicable rule top-to-bottom:
-
-1. `REVIEW_TARGET` is `diag` → `references/diagnosis.md`.
-2. `REVIEW_TARGET` is `checklist`, or the user explicitly asks to adopt the
-   proposed checklist candidates → `references/checklist-evolution.md`,
-   entering at its Step 2. Maintenance runs only in the session that produced
-   the candidates; it reviews nothing.
-3. `REVIEW_TARGET` is a PR number or URL containing `/pull/` →
-   `references/pr-review.md` (pass `AUTHORIZED_SUBMIT` and `HAS_SUBAGENTS`;
-   the wrapper collects the exact PR scope before selecting the engine).
-4. Everything else: derive the scope and `SMALL_SCOPE` per **Scope
-   derivation**, then select the engine.
-   - `SMALL_SCOPE = true` → `references/local-review.md`.
-   - `SMALL_SCOPE = false` with `HAS_SUBAGENTS = true` →
-     `references/teams-review.md`.
-   - `SMALL_SCOPE = false` with `HAS_SUBAGENTS = false` →
-     `references/local-review.md`; pass `LIMITED_SINGLE_AGENT = true` so the
-     report explicitly states that a large diff received single-agent review
-     without independent adversarial verification.
-   - Pass `AUTHORIZED_FIX` (commit and range targets are immutable history —
-     always report-only regardless of the flag).
-
-Each `→` means: `Read` the target file and follow it as the sole remaining
-instruction. Ignore all sections below. Do NOT review from memory or habit —
-each target file defines specific constraints on how to obtain diffs, apply
-fixes, and submit results.
-
-Never ask the user anything to route. Pass `REVIEW_TARGET`, the resolved
-scope, `SMALL_SCOPE`, and the authority flags to the target file.

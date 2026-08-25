@@ -2,15 +2,16 @@
 
 Single-agent review for a small scope, or as the explicit fallback when a
 runtime cannot launch independent subagents. Scope and `SMALL_SCOPE` are
-derived by `SKILL.md` § Route → Scope derivation. Reviews the diff and reports confirmed issues with
-fix guidance; edits code only when the invocation explicitly authorized fixing.
+derived by `SKILL.md` § Scope derivation. Reviews the diff and reports
+confirmed issues with fix guidance; edits code only when the invocation
+explicitly authorized fixing.
 Follow `SKILL.md` § Interaction and interruption contract; this flow introduces
 no additional prompt category.
 
 ## Input from SKILL.md
 
 - `REVIEW_TARGET`, the resolved review scope, and `SMALL_SCOPE`, all derived
-  by `SKILL.md` § Route → Scope derivation.
+  by `SKILL.md` § Scope derivation.
 - `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
   fixing (`fix` modifier or equivalent user wording). Commit and range
   targets are always report-only regardless of the flag.
@@ -33,7 +34,7 @@ no additional prompt category.
 ## Step 1: Scope
 
 Scope, resolved-scope emptiness, and `SMALL_SCOPE` are owned by `SKILL.md`
-§ Route → Scope derivation. The router already resolved them; when invoked
+§ Scope derivation. The router already resolved them; when invoked
 standalone, derive them with those rules and print its usage examples if the
 resolved scope is empty. Do not restate the derivation here.
 

@@ -172,7 +172,7 @@ signal. Do not replace CI with local lint, test, or format runs.
 Only after the worktree, `PR_BODY`, complete accessible conversation state, and
 CI state have all been collected, calculate `CHANGED_LINES`, `CHANGED_FILES`,
 binary status, and `SMALL_SCOPE` from the complete merge-base diff using the
-canonical definition in `SKILL.md` § Route → Scope derivation, which names and
+canonical definition in `SKILL.md` § Scope derivation, which names and
 owns `SMALL_SCOPE`. Do not use GitHub's summary counts
 or a module-merge heuristic as a substitute.
 
