@@ -45,6 +45,7 @@ export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
+  MCP_MANAGER: 'mcp-manager',
   ASSISTANT: 'assistant',
   ASSISTANT_FILES: 'assistant-files'
 } as const
@@ -99,6 +100,9 @@ const BUILTIN_TOOL_POLICIES = {
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
   installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'runtime'),
+  // A stdio install launches an arbitrary local command with the caller's env, so this asks per call
+  // like cli_install rather than deferring to the runtime's permission mode.
+  installMcpServer: tool(CHERRY_MCP_SERVER.MCP_MANAGER, 'install_mcp_server', 'required'),
 
   assistantNavigate: tool(CHERRY_MCP_SERVER.ASSISTANT, 'navigate', 'auto'),
   assistantProductInfo: tool(CHERRY_MCP_SERVER.ASSISTANT, 'product_info', 'auto'),

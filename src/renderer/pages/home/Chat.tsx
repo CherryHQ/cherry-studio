@@ -70,13 +70,18 @@ interface Props {
   resourcePaneCount?: ResourcePaneCountButtonProps
 }
 
+interface CitationPanelState {
+  topicId: string
+  citations: Citation[]
+}
+
 const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const clearTopicMessages = useClearTopicMessages()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [topicDisplayMode] = usePreference('topic.tab.display_mode')
-  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
 
@@ -87,6 +92,8 @@ const Chat: FC<Props> = (props) => {
   const isActiveTab = useIsActiveTab()
   const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
+  const citationPanelCitations =
+    citationPanelState && citationPanelState.topicId === activeTopicId ? citationPanelState.citations : null
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
   })
@@ -106,6 +113,10 @@ const Chat: FC<Props> = (props) => {
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
+
+  useEffect(() => {
+    setCitationPanelState(null)
+  }, [activeTopicId])
 
   useEffect(() => {
     setBranchLocateMessageId(undefined)
@@ -158,9 +169,13 @@ const Chat: FC<Props> = (props) => {
 
   const citationsPanelOpen = citationPanelCitations !== null
 
-  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setCitationPanelCitations(citations)
-  }, [])
+  const handleOpenCitationsPanel = useCallback(
+    ({ citations }: { citations: Citation[] }) => {
+      if (!activeTopicId) return
+      setCitationPanelState({ topicId: activeTopicId, citations })
+    },
+    [activeTopicId]
+  )
   const handleAssistantChange = useCallback(
     async (nextAssistantId: string | null) => {
       if (!activeTopic || !nextAssistantId || nextAssistantId === activeTopic.assistantId) return
@@ -286,7 +301,7 @@ const Chat: FC<Props> = (props) => {
         showConversation ? (
           <CitationsPanel
             open={citationsPanelOpen}
-            onClose={() => setCitationPanelCitations(null)}
+            onClose={() => setCitationPanelState(null)}
             citations={citationPanelCitations ?? []}
           />
         ) : undefined

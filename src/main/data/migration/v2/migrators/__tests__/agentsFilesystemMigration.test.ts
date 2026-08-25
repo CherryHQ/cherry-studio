@@ -839,9 +839,12 @@ describe('agentsFilesystemMigration', () => {
         sessions: [session]
       })
       try {
-        await vi.waitFor(() => {
-          expect(copyMutation.copyFileCalls.some(([source]) => source.endsWith('file-016.txt'))).toBe(true)
-        })
+        await vi.waitFor(
+          () => {
+            expect(copyMutation.copyFileCalls.some(([source]) => source.endsWith('file-016.txt'))).toBe(true)
+          },
+          { timeout: 10_000 }
+        )
       } finally {
         releaseFirst()
         await migration

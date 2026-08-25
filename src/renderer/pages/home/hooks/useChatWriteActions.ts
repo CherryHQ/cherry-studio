@@ -73,6 +73,7 @@ function getInheritedTurnOptions(
 function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
   return {
     ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
+    ...(turnOptions?.serviceTier !== undefined && { serviceTier: turnOptions.serviceTier }),
     ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
   }
 }
@@ -518,6 +519,12 @@ export function useChatWriteActions(params: Params): Result {
     [setActiveNodeTrigger, topic.id]
   )
 
+  const handlePause = useCallback<ChatWriteActions['pause']>(() => {
+    void stop().catch((error) => {
+      logger.error('Failed to pause chat stream', { topicId: topic.id, error })
+    })
+  }, [stop, topic.id])
+
   const actions = useMemo<ChatWriteActions>(
     () => ({
       canStartNewContext,
@@ -527,7 +534,7 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
-      pause: stop,
+      pause: handlePause,
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
@@ -542,7 +549,7 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       handleDeleteMessage,
       handleDeleteMessageGroup,
-      stop,
+      handlePause,
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,

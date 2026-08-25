@@ -20,6 +20,7 @@ import zhCN from '../../../i18n/locales/zh-cn.json'
 import zhTW from '../../../i18n/locales/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
+  cancelTopicRenaming: vi.fn(),
   clearTopicMessagesTrigger: vi.fn(),
   deleteTopic: vi.fn(),
   deleteTopics: vi.fn(),
@@ -167,6 +168,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
+  cancelTopicRenaming: hookMocks.cancelTopicRenaming,
   finishTopicRenaming: hookMocks.finishTopicRenaming,
   getTopicMessages: hookMocks.getTopicMessages,
   mapApiTopicToRendererTopic: (topic: Topic) => ({
@@ -464,6 +466,7 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-alpha'], deletedCount: 1 })
     hookMocks.batchUpdateTopics.mockReset()
     hookMocks.batchUpdateTopics.mockResolvedValue([])
+    hookMocks.cancelTopicRenaming.mockReset()
     hookMocks.finishTopicRenaming.mockReset()
     hookMocks.getTopicMessages.mockReset()
     hookMocks.getTopicMessages.mockResolvedValue([])
@@ -1211,6 +1214,43 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
   })
 
+  it('clears automatic topic renaming without a success reveal after a failed history update', async () => {
+    let rejectUpdate!: (reason?: unknown) => void
+    hookMocks.getTopicMessages.mockResolvedValueOnce([{}, {}])
+    hookMocks.updateTopic.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectUpdate = reject
+        })
+    )
+    setupAssistantHistory()
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Generate conversation name' }))
+      await flushCommandMenuAction()
+    })
+
+    await vi.waitFor(() =>
+      expect(hookMocks.updateTopic).toHaveBeenCalledWith('topic-alpha', {
+        name: 'Auto title',
+        isNameManuallyEdited: false
+      })
+    )
+    expect(hookMocks.startTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.cancelTopicRenaming).not.toHaveBeenCalled()
+    expect(hookMocks.finishTopicRenaming).not.toHaveBeenCalled()
+
+    await act(async () => {
+      rejectUpdate(new Error('Automatic rename failed'))
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
+    expect(hookMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.finishTopicRenaming).not.toHaveBeenCalled()
+  })
+
   it('does not persist empty or unchanged topic names from history rename dialog', async () => {
     const { unmount } = setupAssistantHistory()
 
@@ -1455,34 +1495,22 @@ describe('HistoryRecordsView locale resources', () => {
 
     for (const resource of runtimeLocaleResources) {
       for (const key of requiredGlobalKeys) {
-        expect(getNestedValue(resource, key)).toEqual(expect.any(String))
+        expect(resource[key]).toEqual(expect.any(String))
       }
 
-      const records = getNestedValue(resource, 'history.records') as Record<string, unknown>
       for (const key of requiredRuntimeRecordKeys) {
-        const value = getNestedValue(records, key)
+        const value = resource[`history.records.${key}`]
         expect(value).toEqual(expect.any(String))
         expect(value).not.toMatch(/^\[to be translated]/)
       }
     }
 
     for (const resource of originalLocaleResources) {
-      const history = getNestedValue(resource, 'history') as Record<string, unknown>
-      const records = getNestedValue(resource, 'history.records') as Record<string, unknown>
-
-      expect(history.records).toBeTypeOf('object')
-      expect(history.v2).toBeUndefined()
+      // The `history.v2.*` namespace was renamed to `history.records.*`; no key may go back.
+      expect(Object.keys(resource).filter((key) => key.startsWith('history.v2.'))).toEqual([])
       for (const key of requiredRecordKeys) {
-        expect(getNestedValue(records, key)).toEqual(expect.any(String))
+        expect(resource[`history.records.${key}`]).toEqual(expect.any(String))
       }
     }
   })
 })
-
-function getNestedValue(source: Record<string, unknown>, key: string) {
-  return key.split('.').reduce<unknown>((value, segment) => {
-    if (!value || typeof value !== 'object') return undefined
-
-    return (value as Record<string, unknown>)[segment]
-  }, source)
-}

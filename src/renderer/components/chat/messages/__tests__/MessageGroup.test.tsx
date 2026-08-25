@@ -437,6 +437,42 @@ describe('MessageGroup', () => {
     }
   )
 
+  it('uses the injected runtime for grouped message navigation', () => {
+    let runtime: { locateMessage: (messageId: string) => void } | undefined
+    const bindMessageGroupRuntime = vi.fn(
+      (_messageIds: string[], nextRuntime: { locateMessage: (messageId: string) => void }) => {
+        runtime = nextRuntime
+        return vi.fn()
+      }
+    )
+    mocks.messageListActions.mockReturnValue({ bindMessageGroupRuntime })
+    const addEventListenerSpy = vi.spyOn(document, 'addEventListener')
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+
+    try {
+      render(<MessageGroup messages={messages} />)
+
+      expect(addEventListenerSpy).not.toHaveBeenCalledWith('flow-navigate-to-message', expect.any(Function))
+      expect(bindMessageGroupRuntime).toHaveBeenCalledWith(
+        ['msg-1', 'msg-2'],
+        expect.objectContaining({ locateMessage: expect.any(Function) })
+      )
+      expect(runtime).toBeDefined()
+
+      act(() => {
+        runtime?.locateMessage('msg-1')
+      })
+
+      expect(mocks.scrollIntoView).toHaveBeenCalledWith(document.getElementById('message-msg-1'), {
+        behavior: 'smooth',
+        block: 'start',
+        container: 'nearest'
+      })
+    } finally {
+      addEventListenerSpy.mockRestore()
+    }
+  })
+
   it('uses two equal columns across the full width in grid layout', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'grid',

@@ -52,7 +52,13 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
-import { finishTopicRenaming, getTopicMessages, startTopicRenaming, useTopicMutations } from '@renderer/hooks/useTopic'
+import {
+  cancelTopicRenaming,
+  finishTopicRenaming,
+  getTopicMessages,
+  startTopicRenaming,
+  useTopicMutations
+} from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { popup } from '@renderer/services/popup'
@@ -690,18 +696,30 @@ export function Topics({
       if (messages.length < 2) return
 
       startTopicRenaming(topic.id)
+      let didPersistRename = false
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
-          void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          try {
+            await updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+            didPersistRename = true
+          } catch (err) {
+            logger.error('Failed to save automatically renamed topic', { topicId: topic.id, err })
+            const message = err instanceof Error ? err.message : t('common.save_failed')
+            toast.error(message)
+          }
         } else if (summaryError) {
           toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
       } finally {
-        finishTopicRenaming(topic.id)
+        if (didPersistRename) {
+          finishTopicRenaming(topic.id)
+        } else {
+          cancelTopicRenaming(topic.id)
+        }
       }
     },
-    [t, updateTopic, finishTopicRenaming]
+    [t, updateTopic]
   )
 
   const topicGroupBy = useMemo(

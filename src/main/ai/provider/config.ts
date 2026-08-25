@@ -30,7 +30,8 @@ import {
   isGeminiProvider,
   isOllamaProvider,
   isVertexProvider,
-  matchesPreset
+  matchesPreset,
+  resolveEndpointDialect
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'es-toolkit/compat'
@@ -108,15 +109,7 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
 
   // Providers that don't append API version
-  const noVersionProviders = [
-    'copilot',
-    'github',
-    CHERRYAI_PROVIDER_ID,
-    'perplexity',
-    'newapi',
-    'new-api',
-    'azure-openai'
-  ]
+  const noVersionProviders = ['copilot', CHERRYAI_PROVIDER_ID, 'perplexity', 'newapi', 'new-api', 'azure-openai']
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
     return formatApiHost(baseURL, false)
   }
@@ -269,18 +262,26 @@ export async function resolveProviderAiSdkConfig(
         providerSettings: {
           ...ctx.baseConfig,
           ...buildCommonOptions(ctx),
-          includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+          includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
         }
       }))
     },
-    // Doubao's built-in search rides the generic OpenAI Responses adapter, which auto-adds
+    // Doubao's built-in search rides the OpenAI Responses adapter, which auto-adds
     // `include: web_search_call.action.sources` alongside the web_search tool. Ark accepts the
-    // tool but 400s on that include, so strip it on the way out (arkResponses.ts).
+    // tool but 400s on that include, so strip it on the way out (ark.ts). Ark data reporting
+    // (X-Fornax-Trace) rides along in developer mode, mirroring applyHttpTrace's gate.
     {
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.doubao),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
-        config.providerSettings.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const settings = config.providerSettings as {
+          headers?: Record<string, string>
+          fetch?: typeof globalThis.fetch
+        }
+        if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
+          settings.headers = { ...settings.headers, 'X-Fornax-Trace': 'true' }
+        }
+        settings.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
           const response = await customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
           return normalizeArkResponsesResponse(input, response)
         }
@@ -299,6 +300,9 @@ export async function resolveProviderAiSdkConfig(
         return config
       })
     },
+    // Subset Responses servers (HuggingFace router today) speak the spec-neutral dialect: the
+    // minimal body only, no OpenAI-only extras they would reject.
+    { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
     // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
@@ -533,7 +537,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
     providerSettings: {
       ...ctx.baseConfig,
       name: ctx.actualProvider.id,
-      includeUsage: ctx.actualProvider.apiFeatures.streamOptions,
+      includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const signature = generateSignature({
@@ -782,7 +786,7 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
       ...ctx.baseConfig,
       ...commonOptions,
       name: ctx.actualProvider.id,
-      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+      includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
 }
@@ -794,6 +798,30 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
     providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions }
+  }
+}
+
+/**
+ * `createOpenResponses` takes a full POST endpoint URL and a `name` that sets both the
+ * providerOptions namespace and the model's `provider` string. `name: 'openai'` keeps
+ * wire options under `providerOptions.openai` and lets tool-factory resolution fall
+ * back to the OpenAI extension — matching the `@ai-sdk/openai` behavior it replaces.
+ */
+function buildOpenResponsesConfig(ctx: BuilderContext): ProviderConfig<'open-responses'> {
+  return {
+    providerId: 'open-responses',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      url: `${ctx.baseConfig.baseURL.replace(/\/+$/, '')}/responses`,
+      name: 'openai',
+      apiKey: ctx.baseConfig.apiKey,
+      headers: {
+        ...defaultAppHeaders(),
+        ...getExtraHeaders(ctx.actualProvider),
+        // Parity with buildCommonOptions' 'openai' branch — these providers received it before.
+        'X-Api-Key': ctx.baseConfig.apiKey
+      }
+    }
   }
 }
 
@@ -837,7 +865,7 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     providerSettings: {
       ...ctx.baseConfig,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+      includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
 }

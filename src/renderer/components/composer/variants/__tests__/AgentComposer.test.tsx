@@ -14,6 +14,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -98,8 +99,10 @@ const mocks = vi.hoisted(() => ({
     | {
         model: Model
         reasoningEffort: string
+        serviceTier: string
         fastMode: boolean
         onReasoningEffortChange: (effort: string) => void
+        onServiceTierChange: (tier: 'standard' | 'auto' | 'fast' | 'flex') => void
         onFastModeChange: (enabled: boolean) => void
       }
     | undefined,
@@ -480,8 +483,10 @@ vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', as
     ComposerSpeedControl: (props: {
       model: Model
       reasoningEffort: string
+      serviceTier: string
       fastMode: boolean
       onReasoningEffortChange: (effort: string) => void
+      onServiceTierChange: (tier: 'standard' | 'auto' | 'fast' | 'flex') => void
       onFastModeChange: (enabled: boolean) => void
     }) => {
       mocks.speedControlProps = props
@@ -1092,6 +1097,7 @@ describe('AgentComposer', () => {
   })
 
   it('restores queued reasoning and Fast controls when editing the item', async () => {
+    mocks.updateAgent.mockReturnValue(new Promise(() => undefined))
     mocks.modelResult = {
       ...model,
       supportsFastMode: true,
@@ -1099,7 +1105,8 @@ describe('AgentComposer', () => {
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'high'] }],
         selectableEfforts: ['low', 'high']
-      }
+      },
+      requestControls: { serviceTier: { default: 'standard', options: ['standard', 'fast', 'flex'] } }
     }
     render(
       <AgentComposer
@@ -1113,6 +1120,7 @@ describe('AgentComposer', () => {
 
     act(() => {
       mocks.speedControlProps?.onReasoningEffortChange('high')
+      mocks.speedControlProps?.onServiceTierChange('flex')
       mocks.speedControlProps?.onFastModeChange(true)
     })
     await act(async () => {
@@ -1121,6 +1129,7 @@ describe('AgentComposer', () => {
 
     act(() => {
       mocks.speedControlProps?.onReasoningEffortChange('low')
+      mocks.speedControlProps?.onServiceTierChange('standard')
       mocks.speedControlProps?.onFastModeChange(false)
     })
     const dock = getQueueDock()
@@ -1129,6 +1138,7 @@ describe('AgentComposer', () => {
     })
 
     expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
+    expect(mocks.speedControlProps?.serviceTier).toBe('flex')
     expect(mocks.speedControlProps?.fastMode).toBe(true)
   })
 
@@ -1344,6 +1354,37 @@ describe('AgentComposer', () => {
       { showSuccessToast: false }
     )
     expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
+  })
+
+  it('persists and snapshots the selected Agent service tier', async () => {
+    mocks.modelResult = {
+      ...model,
+      requestControls: { serviceTier: { default: 'standard', options: ['standard', 'fast', 'flex'] } }
+    }
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onServiceTierChange('flex'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'use flex', tokens: [] })
+    })
+
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-1', configuration: { service_tier: 'flex' } },
+      { showSuccessToast: false }
+    )
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'use flex' },
+      { body: expect.objectContaining({ serviceTier: 'flex' }) }
+    )
   })
 
   it('updates the agent model from the inline model selector when model changes are allowed', () => {
@@ -4045,6 +4086,7 @@ describe('AgentComposer', () => {
           agentId: 'agent-1',
           sessionId: 'session-1',
           reasoningEffort: 'default',
+          serviceTier: 'standard',
           userMessageParts: [
             expect.objectContaining({
               type: 'text',
@@ -4119,6 +4161,7 @@ describe('AgentComposer', () => {
           agentId: 'agent-1',
           sessionId: 'session-1',
           reasoningEffort: 'default',
+          serviceTier: 'standard',
           userMessageParts: expect.arrayContaining([
             expect.objectContaining({
               type: 'text',
@@ -4263,6 +4306,7 @@ describe('AgentComposer', () => {
           agentId: 'agent-1',
           sessionId: 'session-1',
           reasoningEffort: 'default',
+          serviceTier: 'standard',
           userMessageParts: expect.arrayContaining([
             expect.objectContaining({
               type: 'text',
@@ -4351,6 +4395,7 @@ describe('AgentComposer', () => {
           agentId: 'agent-1',
           sessionId: 'session-1',
           reasoningEffort: 'default',
+          serviceTier: 'standard',
           userMessageParts: [
             {
               type: 'text',
@@ -4466,6 +4511,30 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('pause'))
 
     expect(mocks.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('handles a failed active stream stop at the composer boundary', async () => {
+    const stopError = new Error('main abort failed')
+    mocks.stop.mockRejectedValueOnce(stopError)
+    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    fireEvent.click(screen.getByText('pause'))
+
+    await waitFor(() =>
+      expect(loggerError).toHaveBeenCalledWith('Failed to abort agent session', {
+        sessionTopicId: 'agent-session:session-1',
+        error: stopError
+      })
+    )
   })
 
   it('queues a follow-up while the agent session is streaming (does not send directly)', () => {
