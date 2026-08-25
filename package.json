@@ -173,7 +173,7 @@
     "@changesets/changelog-github": "^0.5.2",
     "@changesets/cli": "^2.29.8",
     "@cherrystudio/ai-core": "workspace:*",
-    "@cherrystudio/analytics-client": "^1.3.0",
+    "@cherrystudio/analytics-client": "^1.3.1",
     "@cherrystudio/extension-table-plus": "workspace:^",
     "@cherrystudio/openai": "6.15.0",
     "@cherrystudio/provider-registry": "workspace:*",
