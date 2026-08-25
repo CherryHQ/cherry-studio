@@ -25,7 +25,7 @@ test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, ma
     .getByText(/everything STDIO|everything/, { exact: true })
     .first()
     .click()
-  const enabled = page.getByRole('switch').last()
+  const enabled = page.getByRole('switch').first()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
   await page.getByRole('radio', { name: /Tools/ }).click()

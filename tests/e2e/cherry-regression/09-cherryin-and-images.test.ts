@@ -20,7 +20,7 @@ test('[M-01] 登录 CherryIN 并完成聊天 @cherryin-chat', async ({ app, main
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await ensureCherryInSignedIn(app, page)
-  await expect(page.getByText('Logged in via OAuth', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible()
 })
 
 async function generateAndSaveImage(
@@ -32,9 +32,12 @@ async function generateAndSaveImage(
   await closeSettings(page)
   await selectSidebarApp(page, 'Paintings')
   const modelButton = page.locator('[data-selector-shell-root="true"] > button').first()
-  await modelButton.click()
-  await page.getByTestId('model-selector-search').fill(model)
-  await page.getByRole('option').filter({ hasText: model }).first().click()
+  const modelName = model.split('/').at(-1) ?? model
+  if (!(await modelButton.textContent())?.includes(modelName)) {
+    await modelButton.click()
+    await page.getByTestId('model-selector-search').fill(modelName)
+    await page.getByRole('option').filter({ hasText: modelName }).first().click()
+  }
   await page.locator('[contenteditable="true"]').fill(IMAGE_PROMPT)
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   const image = page.getByTestId('artboard-image-transform').last()

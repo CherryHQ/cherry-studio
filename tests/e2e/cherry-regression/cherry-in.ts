@@ -40,7 +40,7 @@ export async function ensureCherryInSignedIn(app: RegressionApp, page: Page): Pr
     })
     await sendProtocolUrlToOwnedApp(app.record, callback)
   }
-  await expect(page.getByText('Logged in via OAuth', { exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible({ timeout: 3 * 60_000 })
 }
 
 export async function addCherryInModel(page: Page, model: string, tab?: string): Promise<void> {

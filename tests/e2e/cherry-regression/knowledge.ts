@@ -14,13 +14,13 @@ export const KNOWLEDGE_NAME = 'Cherry Regression Knowledge 31415'
 export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): Promise<void> {
   const { baseUrl, apiKey, model } = app.config.customEmbeddingProvider
   await openSettingsSection(page, 'Model Provider')
+  const providerItem = page
+    .locator('[data-testid^="provider-list-item-"]')
+    .filter({ hasText: EMBEDDING_PROVIDER })
+    .first()
 
-  if (
-    !(await page
-      .getByText(EMBEDDING_PROVIDER, { exact: true })
-      .isVisible()
-      .catch(() => false))
-  ) {
+  await expect(page.getByRole('button', { name: 'Add Provider', exact: true })).toBeVisible()
+  if ((await providerItem.count()) === 0) {
     await page.getByRole('button', { name: 'Add Provider', exact: true }).click()
     await page.getByPlaceholder('Example: OpenAI', { exact: true }).fill(EMBEDDING_PROVIDER)
     const apiKeyInput = page.getByRole('textbox', { name: 'API Key', exact: true })
@@ -31,9 +31,7 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
   }
 
   const providerHeading = page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })
-  if (!(await providerHeading.isVisible().catch(() => false))) {
-    await page.locator('[data-testid^="provider-list-item-"]').filter({ hasText: EMBEDDING_PROVIDER }).first().click()
-  }
+  if (!(await providerHeading.isVisible().catch(() => false))) await providerItem.click()
   await expect(providerHeading).toBeVisible()
   const enabled = page.getByRole('switch').last()
   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
@@ -55,20 +53,23 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
 
 export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promise<void> {
   await selectSidebarApp(page, 'Knowledge Base')
-  if (
-    !(await page
-      .getByText(KNOWLEDGE_NAME, { exact: true })
-      .isVisible()
-      .catch(() => false))
-  ) {
-    await page.getByRole('button', { name: 'Create Knowledge Base', exact: true }).click()
-    await page.getByRole('textbox', { name: 'Name', exact: true }).fill(KNOWLEDGE_NAME)
-    await page.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-    await page.getByTestId('model-selector-search').fill(app.config.customEmbeddingProvider.model)
-    await page.getByRole('option').filter({ hasText: app.config.customEmbeddingProvider.model }).first().click()
-    await page.getByRole('button', { name: 'Create', exact: true }).click()
-  } else {
-    await page.getByText(KNOWLEDGE_NAME, { exact: true }).first().click()
+  const navigation = page.locator('[data-ui="knowledge.navigation"]')
+  const existingBase = navigation.getByText(KNOWLEDGE_NAME, { exact: true }).first()
+  const selectedBase = page.locator('[data-ui="knowledge.content"]').getByText(KNOWLEDGE_NAME, { exact: true }).first()
+  const createBase = page.getByRole('button', { name: 'Create Knowledge Base', exact: true })
+  await expect(existingBase.or(selectedBase).or(createBase).first()).toBeVisible()
+
+  if (!(await selectedBase.isVisible().catch(() => false))) {
+    if (await existingBase.isVisible().catch(() => false)) {
+      await existingBase.click()
+    } else {
+      await page.getByRole('button', { name: 'Create Knowledge Base', exact: true }).click()
+      await page.getByRole('textbox', { name: 'Name', exact: true }).fill(KNOWLEDGE_NAME)
+      await page.getByRole('button', { name: 'Embedding Model', exact: true }).click()
+      await page.getByTestId('model-selector-search').fill(app.config.customEmbeddingProvider.model)
+      await page.getByRole('option').filter({ hasText: app.config.customEmbeddingProvider.model }).first().click()
+      await page.getByRole('button', { name: 'Create', exact: true }).click()
+    }
   }
 
   const readyFiles = page.getByText('Ready', { exact: true })

@@ -13,19 +13,26 @@ async function openCodeTool(page: Page, name: string): Promise<void> {
 }
 
 async function configureTool(page: Page, model: string, provider?: string): Promise<void> {
-  const configure = page.getByRole('button', { name: 'Configure', exact: true }).first()
+  let configure = page.getByRole('button', { name: 'Configure', exact: true }).first()
+  if (provider) {
+    const providerName = page.getByText(provider, { exact: true }).first()
+    const providerCard = providerName.locator(
+      'xpath=ancestor::div[contains(@class, "group") and .//button[normalize-space()="Configure"]][1]'
+    )
+    await providerCard.hover()
+    configure = providerCard.getByRole('button', { name: 'Configure', exact: true })
+    await expect(configure).toBeVisible()
+  }
   if (!(await configure.isVisible().catch(() => false))) return
   await configure.click()
-  if (provider) {
-    const providerOption = page.getByText(provider, { exact: true })
-    if (await providerOption.isVisible().catch(() => false)) await providerOption.click()
-  }
-  const selectModel = page.getByRole('button', { name: 'Select a model', exact: true })
+  const dialog = page.getByRole('dialog').last()
+  await expect(dialog).toBeVisible()
+  const selectModel = dialog.getByRole('button', { name: 'Select a model', exact: true })
   if (await selectModel.isVisible().catch(() => false)) await selectModel.click()
-  const search = page.getByRole('textbox').last()
+  const search = dialog.getByRole('textbox').last()
   if (await search.isVisible().catch(() => false)) await search.fill(model)
   await page.getByRole('option').filter({ hasText: model }).first().click()
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click()
   const enable = page.getByRole('button', { name: 'Enable', exact: true })
   if (await enable.isVisible().catch(() => false)) await enable.click()
 }

@@ -28,6 +28,7 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
       .catch(() => false)
   ) {
     await page.getByRole('button', { name: 'Back', exact: true }).first().click()
+    await expect(page.getByRole('button', { name: 'Chat', exact: true }).first()).toBeVisible()
   }
   await page.getByRole('button', { name, exact: true }).first().click()
 }

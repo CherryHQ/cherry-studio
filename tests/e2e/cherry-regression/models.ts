@@ -22,7 +22,7 @@ export async function openSettingsSection(page: Page, section: string): Promise<
     .filter({ hasText: section })
     .first()
   if (!(await sectionButton.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await page.locator('#app-sidebar').getByRole('button', { name: 'Settings', exact: true }).click()
   }
   await sectionButton.click()
 }
@@ -53,7 +53,8 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
     .filter({ hasText: CUSTOM_CHAT_PROVIDER })
     .first()
 
-  if (!(await providerItem.isVisible().catch(() => false))) {
+  await expect(page.getByRole('button', { name: 'Add Provider', exact: true })).toBeVisible()
+  if ((await providerItem.count()) === 0) {
     await page.getByRole('button', { name: 'Add Provider', exact: true }).click()
     await page.getByPlaceholder('Example: OpenAI', { exact: true }).fill(CUSTOM_CHAT_PROVIDER)
     const apiKeyInput = page.getByRole('textbox', { name: 'API Key', exact: true })
