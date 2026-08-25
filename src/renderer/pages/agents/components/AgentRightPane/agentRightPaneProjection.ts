@@ -394,22 +394,31 @@ export function buildAgentToolFlowProjection(
     }
 
     const segments: Array<{ parts: CherryMessagePart[] }> = [{ parts: [] }]
-    // A foreground Agent result IS the round's content — no detached flow exists for it. A
-    // background launch receipt is control metadata and must never surface; an unresolved
-    // deferred envelope has no text to show yet.
-    const selectedOutput =
-      resolvedSelectedOutput !== undefined
-        ? resolvedSelectedOutput
-        : selectedToolPart
-          ? getToolPartOutput(selectedToolPart)
-          : undefined
-    const selectedOutputText =
-      isRecord(selectedOutput) && '$deferredToolResult' in selectedOutput ? undefined : textFromContent(selectedOutput)
-    const foregroundResultText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
-      ? undefined
-      : selectedOutputText
-    if (foregroundResultText) {
-      segments[0].parts.push({ type: 'text', text: foregroundResultText } as CherryMessagePart)
+    // The result text only fills a flow that has no streamed child parts at all (a runtime whose
+    // foreground calls emit no detachable content); Claude Code streams them even for foreground
+    // runs, so injecting there would duplicate the report and leak its agentId trailer. Background
+    // launch receipts are control metadata and must never surface; an unresolved deferred envelope
+    // has no text to show yet.
+    const hasDetachedFlow = messageEntries.some(({ parts }) =>
+      parts.some((part) => getPartParentToolCallId(part) === selectedToolCallId)
+    )
+    if (!hasDetachedFlow) {
+      const selectedOutput =
+        resolvedSelectedOutput !== undefined
+          ? resolvedSelectedOutput
+          : selectedToolPart
+            ? getToolPartOutput(selectedToolPart)
+            : undefined
+      const selectedOutputText =
+        isRecord(selectedOutput) && '$deferredToolResult' in selectedOutput
+          ? undefined
+          : textFromContent(selectedOutput)
+      const foregroundResultText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
+        ? undefined
+        : selectedOutputText
+      if (foregroundResultText) {
+        segments[0].parts.push({ type: 'text', text: foregroundResultText } as CherryMessagePart)
+      }
     }
     let segmentIndex = 0
     let emittedSegments = 0
