@@ -9,8 +9,6 @@ import { useTranslation } from 'react-i18next'
 export const APP_SIDEBAR_TOGGLE_SIZE = 30
 /** Gap between the toggle and whatever the shell lays out after it. */
 export const APP_SIDEBAR_TOGGLE_GAP = 10
-/** Leading inset where there are no traffic lights for the toggle to sit beside. */
-export const APP_SIDEBAR_TOGGLE_INSET = 8
 
 export function AppSidebarToggleButton({ peekOpen = false }: { peekOpen?: boolean }) {
   const { t } = useTranslation()
