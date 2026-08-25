@@ -7,7 +7,7 @@ import { dismissOnboarding, selectSidebarApp } from './helpers'
 export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Provider'
 
 async function closeOpenSettingsDrawer(page: Page): Promise<void> {
-  const drawer = page.locator('[data-slot="page-side-panel"][role="dialog"]')
+  const drawer = page.locator('[data-slot="page-side-panel"][role="dialog"]:visible').first()
   if (!(await drawer.isVisible().catch(() => false))) return
 
   await drawer.getByRole('button', { name: 'Close', exact: true }).click()
@@ -67,6 +67,7 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
 }
 
 export async function closeSettings(page: Page): Promise<void> {
+  await closeOpenSettingsDrawer(page)
   await page.getByRole('button', { name: 'Back', exact: true }).first().click()
   await expect(page.getByRole('button', { name: 'Chat', exact: true }).first()).toBeVisible()
 }

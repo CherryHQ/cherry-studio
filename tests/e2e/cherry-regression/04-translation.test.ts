@@ -15,7 +15,7 @@ async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[
   await page.getByRole('option').filter({ hasText: model }).first().click()
   await page.getByRole('button', { name: 'Source Language' }).click()
   await page.getByRole('option').filter({ hasText: 'English' }).first().click()
-  await page.getByRole('button', { name: 'Target Language' }).click()
+  await page.getByRole('button', { name: /^Target Language\b/ }).click()
   await page.getByRole('option').filter({ hasText: 'Chinese' }).first().click()
 }
 

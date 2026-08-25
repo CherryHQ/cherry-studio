@@ -21,7 +21,7 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
       .catch(() => false))
   ) {
     await page.getByRole('button', { name: 'Add Provider', exact: true }).click()
-    await page.getByRole('textbox', { name: 'Provider Name*', exact: true }).fill(EMBEDDING_PROVIDER)
+    await page.getByPlaceholder('Example: OpenAI', { exact: true }).fill(EMBEDDING_PROVIDER)
     const apiKeyInput = page.getByRole('textbox', { name: 'API Key', exact: true })
     await expect(apiKeyInput).toHaveAttribute('type', 'password')
     await apiKeyInput.fill(apiKey)
