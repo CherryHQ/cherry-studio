@@ -23,8 +23,14 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
     await page.locator('[aria-label="Choose avatar"]').click()
     await page.locator('button[aria-label="star-struck"]').click()
     await page.locator('[aria-label="Model"]').click()
-    await page.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
-    await page.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()
+    const modelSelector = page.getByTestId('model-selector-content')
+    await expect(modelSelector).toBeVisible()
+    await modelSelector.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
+    await modelSelector
+      .locator('[data-testid^="model-selector-item-"]')
+      .filter({ hasText: app.config.customProvider.chatModel })
+      .first()
+      .click()
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     await page
       .getByRole('textbox', {
