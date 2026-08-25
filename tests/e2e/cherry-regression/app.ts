@@ -97,6 +97,16 @@ export class RegressionApp {
     throw new Error(`未找到窗口：${pathFragment}`)
   }
 
+  async cleanupTransientUi(mainWindow: Page): Promise<void> {
+    await mainWindow.keyboard.press('Escape').catch(() => undefined)
+    const browser = await this.connect()
+    const transientPages = browser
+      .contexts()
+      .flatMap((context) => context.pages())
+      .filter((page) => /\/windows\/(quickassistant|selection)\//i.test(page.url()))
+    await Promise.all(transientPages.map((page) => page.keyboard.press('Escape').catch(() => undefined)))
+  }
+
   async restart(profile?: TestProfile): Promise<Page> {
     await this.disconnect()
     await restartApp(this.paths, profile)

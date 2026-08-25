@@ -21,5 +21,13 @@ export async function openLaunchpadApp(page: Page, name: string): Promise<void> 
 
 export async function selectSidebarApp(page: Page, name: string): Promise<void> {
   await dismissOnboarding(page)
+  if (
+    await page
+      .locator('[data-ui="settings.view"]:visible')
+      .isVisible()
+      .catch(() => false)
+  ) {
+    await page.getByRole('button', { name: 'Back', exact: true }).first().click()
+  }
   await page.getByRole('button', { name, exact: true }).first().click()
 }

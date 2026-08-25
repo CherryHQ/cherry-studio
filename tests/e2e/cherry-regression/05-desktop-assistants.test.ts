@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { expect, test } from './fixture'
 import { dismissOnboarding } from './helpers'
-import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
+import { closeSettings, CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider, openSettingsSection } from './models'
 import { openExternalText, sendSystemHotkey } from '../../../scripts/cherry-regression-test/system-automation'
 
 async function configureQuickAssistant(page: Parameters<typeof dismissOnboarding>[0], model: string): Promise<void> {
@@ -17,7 +17,7 @@ async function configureQuickAssistant(page: Parameters<typeof dismissOnboarding
   await page.getByRole('button', { name: 'Go to model settings', exact: true }).click()
   await page.locator('[data-selector-shell-root="true"]:visible > button').first().click()
   await page.getByTestId('model-selector-search').fill(model)
-  await page.getByRole('option').filter({ hasText: model }).first().click()
+  await page.getByRole('option').filter({ hasText: model }).filter({ hasText: CUSTOM_CHAT_PROVIDER }).click()
 
   await page.getByRole('button', { name: 'Keyboard Shortcuts', exact: true }).click()
   await page.getByRole('button', { name: 'Search', exact: true }).click()
@@ -61,7 +61,11 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await openSettingsSection(page, 'Default Model')
   await page.locator('[data-selector-shell-root="true"]:visible > button').first().click()
   await page.getByTestId('model-selector-search').fill(app.config.customProvider.chatModel)
-  await page.getByRole('option').filter({ hasText: app.config.customProvider.chatModel }).first().click()
+  await page
+    .getByRole('option')
+    .filter({ hasText: app.config.customProvider.chatModel })
+    .filter({ hasText: CUSTOM_CHAT_PROVIDER })
+    .click()
 
   await page.getByRole('button', { name: 'Selection Assistant', exact: true }).click()
   await page.evaluate(async () => {

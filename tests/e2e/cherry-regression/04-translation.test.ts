@@ -53,8 +53,7 @@ test('[T-02] PDF 文件翻译 @translation', async ({ app, mainWindow: page }) =
   await page.waitForTimeout(1_000)
   chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, 'translation.pdf'))
 
-  const input = page.locator('[data-ui="translate.input"]')
-  await expect(input).toContainText('PDF_TRANSLATION_MARKER_314159', { timeout: 60_000 })
+  await expect(page.getByText('PDF detected', { exact: true })).toBeVisible({ timeout: 60_000 })
   await page.getByRole('button', { name: 'Translate', exact: true }).click()
   await expect(page.locator('[data-ui="translate.output"]')).toContainText('PDF_TRANSLATION_MARKER_314159', {
     timeout: 2 * 60_000

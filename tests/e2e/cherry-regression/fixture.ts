@@ -42,6 +42,8 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
       )
       if (captured) await testInfo.attach('失败截图', { path: screenshotPath, contentType: 'image/png' })
     }
+
+    await app.cleanupTransientUi(page)
   }
 })
 

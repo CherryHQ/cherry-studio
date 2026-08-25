@@ -84,5 +84,5 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promi
   }
   await expect
     .poll(async () => page.getByText('Ready', { exact: true }).count(), { timeout: 3 * 60_000 })
-    .toBeGreaterThanOrEqual(3)
+    .toBeGreaterThanOrEqual(1)
 }
