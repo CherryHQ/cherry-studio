@@ -2,7 +2,7 @@
 title: Migrated conversations keep their V1 list order
 category: data-migration
 severity: notice
-introduced_in_pr: 8b22c46376
+introduced_in_pr: "#18909"
 date: 2026-08-19
 ---
 
