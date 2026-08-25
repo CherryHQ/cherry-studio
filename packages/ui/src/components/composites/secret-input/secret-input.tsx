@@ -9,7 +9,7 @@ import { NormalTooltip } from '@cherrystudio/ui/components/primitives/tooltip'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Eye, EyeOff } from 'lucide-react'
 import type * as React from 'react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 export type SecretInputProps = Omit<InputProps, 'className' | 'size' | 'type'> & {
   /** Accessible and tooltip labels supplied by the localized caller. */
@@ -31,17 +31,36 @@ function SecretInput({
   hideLabel,
   disabled,
   ref,
+  spellCheck,
+  value,
+  onChange,
   ...props
 }: SecretInputProps) {
   const [isVisible, setIsVisible] = useState(false)
+  const lastUserValueRef = useRef(value)
   const visibilityLabel = isVisible ? hideLabel : showLabel
+
+  if (value !== undefined && value !== lastUserValueRef.current) {
+    lastUserValueRef.current = value
+    if (isVisible) {
+      setIsVisible(false)
+    }
+  }
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    lastUserValueRef.current = event.target.value
+    onChange?.(event)
+  }
 
   return (
     <InputGroup className={className} size={size} data-disabled={disabled ? 'true' : undefined}>
       <InputGroupInput
         {...props}
         ref={ref}
+        value={value}
+        onChange={handleChange}
         type={isVisible ? 'text' : 'password'}
+        spellCheck={spellCheck ?? false}
         className={cn('h-full', inputClassName)}
         disabled={disabled}
       />
