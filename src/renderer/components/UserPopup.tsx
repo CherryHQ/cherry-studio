@@ -44,23 +44,26 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [isCancellingLogin, setIsCancellingLogin] = useState(false)
   const [isRevokingSession, setIsRevokingSession] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cloudStatusRevisionRef = useRef(0)
   const { t } = useTranslation()
   const avatar = useAvatar()
 
-  useIpcOn('cherry_cloud.status_changed', setCloudStatus)
+  useIpcOn('cherry_cloud.status_changed', (status) => {
+    cloudStatusRevisionRef.current += 1
+    setCloudStatus(status)
+  })
 
   useEffect(() => {
     if (!open) return
 
     let active = true
+    const statusRevision = cloudStatusRevisionRef.current
     void ipcApi
       .request('cherry_cloud.status.get')
       .then((status) => {
-        if (active) setCloudStatus(status)
+        if (active && statusRevision === cloudStatusRevisionRef.current) setCloudStatus(status)
       })
-      .catch(() => {
-        if (active) setCloudStatus({ phase: 'signed-out', displayName: null })
-      })
+      .catch(() => undefined)
 
     return () => {
       active = false
