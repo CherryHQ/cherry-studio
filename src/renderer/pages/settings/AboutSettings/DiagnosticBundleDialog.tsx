@@ -12,15 +12,15 @@ import {
   SegmentedControl
 } from '@cherrystudio/ui'
 import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
-import { DiagnosticSourceRow } from '@renderer/components/diagnostics/DiagnosticSourceRow'
+import { DiagnosticSourceRow } from '@renderer/components/DiagnosticSourceRow'
+import { ipcApi } from '@renderer/ipc'
+import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import {
   describeDiagnosticChatSource,
   describeDiagnosticFileSource,
   formatDiagnosticBytes
-} from '@renderer/components/diagnostics/diagnosticSourceSummary'
-import { ipcApi } from '@renderer/ipc'
-import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
+} from '@renderer/utils/diagnosticSourceSummary'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
