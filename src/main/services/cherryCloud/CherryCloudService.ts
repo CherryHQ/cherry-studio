@@ -28,14 +28,20 @@ const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
 const PRODUCTION_API_ORIGIN = 'https://cloud.cherryai.com.cn'
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
+const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
 type CherryCloudDevice = ReturnType<typeof createDeviceKeyPair>
+type AuthorizationOperation = {
+  controller: AbortController
+  cancelled: boolean
+}
 type PendingAuthorization = {
   authorizationId: string
   state: string
   codeVerifier: string
   expiresAt: string
+  operation: AuthorizationOperation
 }
 type ProductSession = {
   accessToken: string
@@ -83,6 +89,7 @@ export class CherryCloudLoginUnavailableError extends Error {
 export class CherryCloudService extends BaseService {
   private cloudState = emptyState()
   private lifecycleGeneration = 0
+  private authorizationOperation: AuthorizationOperation | null = null
   private loginPromise: Promise<CherryCloudStatus> | null = null
   private refreshPromise: { session: ProductSession; promise: Promise<ProductSession> } | null = null
   private modelSyncPromise: {
@@ -102,6 +109,8 @@ export class CherryCloudService extends BaseService {
   protected async onInit(): Promise<void> {
     this.lifecycleGeneration += 1
     this.registerDisposable(() => {
+      this.authorizationOperation?.controller.abort()
+      this.authorizationOperation = null
       this.loopbackCallback?.dispose()
       this.loopbackCallback = null
       this.clearPendingExpiryTimer()
@@ -112,6 +121,8 @@ export class CherryCloudService extends BaseService {
 
   protected onStop(): void {
     this.lifecycleGeneration += 1
+    this.authorizationOperation?.controller.abort()
+    this.authorizationOperation = null
     this.loginPromise = null
     this.exchangePromise = null
     this.refreshPromise = null
@@ -130,23 +141,53 @@ export class CherryCloudService extends BaseService {
 
   public async startLogin(): Promise<CherryCloudStatus> {
     if (this.loginPromise) return this.loginPromise
+    if (this.authorizationOperation) return this.getStatus()
 
-    const login = this.createLogin().finally(() => {
-      if (this.loginPromise === login) this.loginPromise = null
-    })
+    const operation = { controller: new AbortController(), cancelled: false }
+    this.authorizationOperation = operation
+    const login = this.createLogin(operation)
+      .catch((error) => {
+        if (operation.cancelled) return this.currentStatus()
+        throw error
+      })
+      .finally(() => {
+        if (this.loginPromise === login) this.loginPromise = null
+        if (this.authorizationOperation === operation && !this.cloudState.pending) {
+          this.authorizationOperation = null
+        }
+      })
     this.loginPromise = login
     return login
   }
 
-  private async createLogin(): Promise<CherryCloudStatus> {
+  public async cancelLogin(): Promise<CherryCloudStatus> {
+    const operation = this.authorizationOperation
+    if (!operation) return this.getStatus()
+
+    const login = this.loginPromise
+    const exchange = this.exchangePromise?.promise
+    operation.cancelled = true
+    operation.controller.abort()
+    if (this.authorizationOperation === operation) this.authorizationOperation = null
+    this.loopbackCallback?.dispose()
+    this.loopbackCallback = null
+    const pending = this.cloudState.pending
+    if (pending?.operation === operation) this.clearPendingAuthorization(pending)
+
+    await Promise.allSettled([login, exchange])
+    return this.currentStatus()
+  }
+
+  private async createLogin(operation: AuthorizationOperation): Promise<CherryCloudStatus> {
     const lifecycleGeneration = this.lifecycleGeneration
     const current = await this.getStatus()
     this.assertLifecycleGeneration(lifecycleGeneration)
+    this.assertAuthorizationOperation(operation)
     if (current.phase !== 'signed-out') return current
 
     const device = this.cloudState.device ?? createDeviceKeyPair()
     const secrets = createAuthorizationSecrets()
-    const loopbackCallback = app.isPackaged ? null : await this.openLoopbackCallback(lifecycleGeneration)
+    const loopbackCallback = app.isPackaged ? null : await this.openLoopbackCallback(lifecycleGeneration, operation)
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       loopbackCallback?.dispose()
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
@@ -166,32 +207,45 @@ export class CherryCloudService extends BaseService {
           client_version: app.getVersion().replace(/^v/, ''),
           ...(loopbackCallback ? { callback_port: loopbackCallback.port } : {})
         },
-        createDesktopAuthorizationResponseSchema
+        createDesktopAuthorizationResponseSchema,
+        operation.controller.signal
       )
       this.assertLifecycleGeneration(lifecycleGeneration)
+      this.assertAuthorizationOperation(operation)
       loopbackCallback?.setExpiresAt(created.expires_at)
       pending = {
         authorizationId: created.authorization_id,
         state: secrets.state,
         codeVerifier: secrets.codeVerifier,
-        expiresAt: created.expires_at
+        expiresAt: created.expires_at,
+        operation
       }
       this.cloudState = { ...this.cloudState, device, pending }
       this.schedulePendingExpiry(pending)
       this.emitStatus()
 
       await shell.openExternal(created.authorization_url)
+      this.assertLifecycleGeneration(lifecycleGeneration)
+      this.assertAuthorizationOperation(operation)
     } catch (error) {
       loopbackCallback?.dispose()
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
       if (pending) this.clearPendingAuthorization(pending)
+      else {
+        operation.controller.abort()
+        if (this.authorizationOperation === operation) this.authorizationOperation = null
+      }
+      this.assertLifecycleGeneration(lifecycleGeneration)
       throw error
     }
 
     return this.currentStatus()
   }
 
-  private async openLoopbackCallback(lifecycleGeneration: number): Promise<CherryCloudLoopbackCallback> {
+  private async openLoopbackCallback(
+    lifecycleGeneration: number,
+    operation: AuthorizationOperation
+  ): Promise<CherryCloudLoopbackCallback> {
     this.loopbackCallback?.dispose()
     const receiver = await CherryCloudLoopbackCallback.open(async (url) => {
       await this.handleCallback(url)
@@ -200,6 +254,10 @@ export class CherryCloudService extends BaseService {
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       receiver.dispose()
       this.assertLifecycleGeneration(lifecycleGeneration)
+    }
+    if (!this.isAuthorizationOperationActive(operation)) {
+      receiver.dispose()
+      throw new Error('Cherry Cloud authorization is no longer active')
     }
     this.loopbackCallback = receiver
     return receiver
@@ -260,9 +318,14 @@ export class CherryCloudService extends BaseService {
           handoff_code: handoffCode,
           code_verifier: pending.codeVerifier
         },
-        exchangeDesktopAuthorizationResponseSchema
+        exchangeDesktopAuthorizationResponseSchema,
+        pending.operation.controller.signal
       )
-      if (this.cloudState.pending !== pending || Date.parse(pending.expiresAt) <= Date.now()) {
+      if (
+        !this.isAuthorizationOperationActive(pending.operation) ||
+        this.cloudState.pending !== pending ||
+        Date.parse(pending.expiresAt) <= Date.now()
+      ) {
         throw new Error('Cherry Cloud authorization is no longer active')
       }
 
@@ -282,6 +345,7 @@ export class CherryCloudService extends BaseService {
 
       this.persistSession(device, session)
       this.clearPendingExpiryTimer()
+      if (this.authorizationOperation === pending.operation) this.authorizationOperation = null
       this.sessionGeneration += 1
       this.cloudState = {
         ...this.cloudState,
@@ -297,6 +361,7 @@ export class CherryCloudService extends BaseService {
       })
     } catch (error) {
       this.clearPendingAuthorization(pending)
+      if (pending.operation.cancelled) return
       throw error
     }
   }
@@ -306,6 +371,8 @@ export class CherryCloudService extends BaseService {
     if (!current || current.authorizationId !== pending.authorizationId || current.state !== pending.state) return
 
     this.clearPendingExpiryTimer()
+    current.operation.controller.abort()
+    if (this.authorizationOperation === current.operation) this.authorizationOperation = null
     this.cloudState = { ...this.cloudState, pending: null }
     this.emitStatus()
   }
@@ -366,6 +433,16 @@ export class CherryCloudService extends BaseService {
 
   private assertLifecycleGeneration(expected: number): void {
     if (this.lifecycleGeneration !== expected) throw new Error('Cherry Cloud service stopped during login')
+  }
+
+  private isAuthorizationOperationActive(operation: AuthorizationOperation): boolean {
+    return this.authorizationOperation === operation && !operation.controller.signal.aborted
+  }
+
+  private assertAuthorizationOperation(operation: AuthorizationOperation): void {
+    if (!this.isAuthorizationOperationActive(operation)) {
+      throw new Error('Cherry Cloud authorization is no longer active')
+    }
   }
 
   private currentStatus(): CherryCloudStatus {
@@ -547,7 +624,12 @@ export class CherryCloudService extends BaseService {
     const url = new URL('/api/v1/product-sessions/refresh', `${resolveApiOrigin()}/`)
     const response = await this.signedFetch(
       url,
-      { method: 'POST', body, headers: { 'Content-Type': 'application/json' } },
+      {
+        method: 'POST',
+        body,
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+      },
       session,
       {
         bearer: false
@@ -672,6 +754,7 @@ export class CherryCloudService extends BaseService {
     return net.fetch(url.toString(), {
       ...init,
       method,
+      redirect: 'error',
       headers,
       body: body.byteLength > 0 ? Buffer.from(body) : undefined
     })
@@ -723,15 +806,19 @@ export class CherryCloudService extends BaseService {
     })
   }
 
-  private async postJson<T>(path: string, body: unknown, schema: ZodType<T>): Promise<T> {
+  private async postJson<T>(path: string, body: unknown, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
     let response: Response
     try {
+      const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
       response = await net.fetch(`${resolveApiOrigin()}${path}`, {
         method: 'POST',
+        redirect: 'error',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
       })
     } catch (error) {
+      if (signal?.aborted) throw error
       logger.warn('Cherry Cloud login request could not reach the service', {
         path,
         reason: error instanceof Error ? error.message : String(error)

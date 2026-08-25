@@ -276,11 +276,12 @@ describe('UserPopup', () => {
     })
   })
 
-  it('starts Cherry Studio login and reflects the browser authorization state', async () => {
+  it('starts and cancels Cherry Studio browser authorization', async () => {
     const user = userEvent.setup()
     mocks.ipcRequest.mockImplementation(async (route: string) => {
       if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
       if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
+      if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', displayName: null }
       return undefined
     })
     showUserPopup()
@@ -293,6 +294,11 @@ describe('UserPopup', () => {
       'aria-busy',
       'true'
     )
+
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.cancel')
+    expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
   })
 
   it('reports when the Cherry Cloud login service is unavailable', async () => {

@@ -41,6 +41,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
   const [cloudStatus, setCloudStatus] = useState<CherryCloudStatus | null>(null)
   const [isStartingLogin, setIsStartingLogin] = useState(false)
+  const [isCancellingLogin, setIsCancellingLogin] = useState(false)
   const [isRevokingSession, setIsRevokingSession] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
@@ -142,6 +143,19 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       setIsRevokingSession(false)
     }
   }
+
+  const handleCloudLoginCancel = async () => {
+    setIsCancellingLogin(true)
+    try {
+      setCloudStatus(await ipcApi.request('cherry_cloud.login.cancel'))
+    } catch {
+      toast.error(t('settings.provider.cherry_cloud.sign_in_failed'))
+    } finally {
+      setIsCancellingLogin(false)
+    }
+  }
+
+  const isAuthorizing = cloudStatus?.phase === 'authorizing' || isStartingLogin
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -247,15 +261,26 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
               </Button>
             </ColFlex>
           ) : (
-            <Button
-              className="w-full"
-              loading={cloudStatus === null || cloudStatus?.phase === 'authorizing' || isStartingLogin}
-              onClick={() => void handleCloudLogin()}
-              variant="emphasis">
-              {cloudStatus?.phase === 'authorizing'
-                ? t('settings.provider.cherry_cloud.signing_in')
-                : t('settings.provider.cherry_cloud.login')}
-            </Button>
+            <ColFlex className="w-full gap-2">
+              <Button
+                className="w-full"
+                loading={cloudStatus === null || isAuthorizing}
+                onClick={() => void handleCloudLogin()}
+                variant="emphasis">
+                {isAuthorizing
+                  ? t('settings.provider.cherry_cloud.signing_in')
+                  : t('settings.provider.cherry_cloud.login')}
+              </Button>
+              {isAuthorizing ? (
+                <Button
+                  className="w-full"
+                  loading={isCancellingLogin}
+                  onClick={() => void handleCloudLoginCancel()}
+                  variant="outline">
+                  {t('common.cancel')}
+                </Button>
+              ) : null}
+            </ColFlex>
           )}
         </RowFlex>
       </DialogContent>

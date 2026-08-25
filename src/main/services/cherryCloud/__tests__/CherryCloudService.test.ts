@@ -440,6 +440,93 @@ describe('CherryCloudService', () => {
     expect(mocks.openExternal).toHaveBeenCalledTimes(1)
   })
 
+  it('cancels an in-flight authorization request and allows a fresh login', async () => {
+    mocks.netFetch
+      .mockImplementationOnce((_url: string, init: RequestInit) => {
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+      })
+      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    const login = service.startLogin()
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
+    const requestSignal = mocks.netFetch.mock.calls[0][1].signal
+    expect(requestSignal).toBeInstanceOf(AbortSignal)
+    const cancellation = service.cancelLogin()
+
+    expect(requestSignal?.aborted).toBe(true)
+    await expect(login).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    await expect(cancellation).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.loopbackReceiver.dispose).toHaveBeenCalled()
+
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
+    expect(mocks.netFetch).toHaveBeenCalledTimes(2)
+    expect(mocks.openExternal).toHaveBeenCalledOnce()
+  })
+
+  it('does not install a Session when a cancelled exchange responds late', async () => {
+    mocks.appIsPackaged = true
+    const pendingExchange = deferred<Response>()
+    mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+      .mockReturnValueOnce(pendingExchange.promise)
+    const service = new CherryCloudService()
+    await service._doInit()
+    await service.startLogin()
+    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+
+    const callback = service.handleCallback(
+      new URL(
+        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+      )
+    )
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+    const cancellation = service.cancelLogin()
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+
+    pendingExchange.resolve(jsonResponse(exchangeResponse()))
+    await expect(callback).resolves.toBeUndefined()
+    await expect(cancellation).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.savedSession).toBeNull()
+  })
+
+  it('bounds an authorization request without expiring the browser authorization early', async () => {
+    mocks.appIsPackaged = true
+    const timeoutController = new AbortController()
+    const retryTimeoutController = new AbortController()
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValueOnce(timeoutController.signal)
+      .mockReturnValueOnce(retryTimeoutController.signal)
+    try {
+      mocks.netFetch
+        .mockImplementationOnce(
+          (_url: string, init: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+            })
+        )
+        .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+      const service = new CherryCloudService()
+      await service._doInit()
+
+      const login = service.startLogin()
+      const loginFailure = expect(login).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
+      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
+      expect(timeout).toHaveBeenCalledWith(30_000)
+      expect(mocks.netFetch.mock.calls[0][1]).toMatchObject({ redirect: 'error' })
+      timeoutController.abort(new DOMException('The operation timed out', 'TimeoutError'))
+
+      await loginFailure
+      await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
+    } finally {
+      timeout.mockRestore()
+    }
+  })
+
   it('does not let an invalid callback block the matching callback exchange', async () => {
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
@@ -659,6 +746,47 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('times out a token refresh without clearing the retriable Session', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
+
+    try {
+      const service = await createSignedInService()
+      const firstTimeout = new AbortController()
+      const secondTimeout = new AbortController()
+      const timeout = vi
+        .spyOn(AbortSignal, 'timeout')
+        .mockReturnValueOnce(firstTimeout.signal)
+        .mockReturnValueOnce(secondTimeout.signal)
+      try {
+        mocks.netFetch.mockImplementationOnce((_url: string, init: RequestInit) => {
+          return new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+          })
+        })
+        clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
+
+        const request = service.authenticatedFetch('/v1/models')
+        const requestFailure = expect(request).rejects.toMatchObject({ name: 'TimeoutError' })
+        await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
+        expect(timeout).toHaveBeenCalledWith(30_000)
+        expect(mocks.netFetch.mock.calls[0][1]).toMatchObject({ redirect: 'error' })
+        firstTimeout.abort(new DOMException('The operation timed out', 'TimeoutError'))
+
+        await requestFailure
+        expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+
+        mocks.netFetch
+          .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
+          .mockResolvedValueOnce(jsonResponse({ data: [] }))
+        await expect(service.authenticatedFetch('/v1/models')).resolves.toHaveProperty('status', 200)
+      } finally {
+        timeout.mockRestore()
+      }
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
   it('clears runtime state when a refreshed Session cannot be persisted', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
 
@@ -790,9 +918,12 @@ describe('CherryCloudService', () => {
       body: '{"model":"deepseek-free","messages":[],"max_tokens":8}'
     })
 
-    const headers = new Headers(mocks.netFetch.mock.calls[0][1].headers)
+    const init = mocks.netFetch.mock.calls[0][1]
+    const headers = new Headers(init.headers)
     expect(headers.get('Idempotency-Key')).toMatch(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
     expect(headers.get('Cherry-Body-SHA256')).toBe('f24394a04116608ee41330b7fd6511ff8e44f65e29f6cfc44bb7c8393de7e5ea')
+    expect(init.redirect).toBe('error')
+    expect(init.signal).toBeUndefined()
   })
 
   it('revokes the current Product Session before clearing the local login', async () => {

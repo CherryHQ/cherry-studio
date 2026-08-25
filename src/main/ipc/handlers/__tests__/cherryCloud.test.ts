@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const service = vi.hoisted(() => ({
+  cancelLogin: vi.fn(),
   getStatus: vi.fn(),
   startLogin: vi.fn(),
   syncFreeModels: vi.fn()
@@ -38,6 +39,15 @@ describe('cherryCloudHandlers', () => {
 
     await expect(cherryCloudHandlers['cherry_cloud.login.start'](undefined, { senderId: 'w1' })).resolves.toEqual({
       phase: 'authorizing',
+      displayName: null
+    })
+  })
+
+  it('cancels the active login through the lifecycle service', async () => {
+    service.cancelLogin.mockResolvedValue({ phase: 'signed-out', displayName: null })
+
+    await expect(cherryCloudHandlers['cherry_cloud.login.cancel'](undefined, { senderId: 'w1' })).resolves.toEqual({
+      phase: 'signed-out',
       displayName: null
     })
   })
