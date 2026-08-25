@@ -152,6 +152,10 @@ assert next(s for s in walk(check.slides[1].shapes) if s.shape_id == 4).text_fra
   `report.xlsx` → `report-updated.xlsx`, `report-q1-range.csv`, `spec-p3.txt`.
 - Write into the session workspace (or where the user asked). Both scripts print the
   written path on success — report it to the user.
+- `--file` and `--out` must both be absolute; a relative path is refused rather than
+  resolved against whatever working directory the shell happens to be in.
+- Output is staged and renamed on success, so a failed run leaves nothing behind and the
+  same command can be retried at the same path.
 
 ## Verify before reporting success
 

@@ -34,6 +34,7 @@ never leaves a partial package behind (see atomic_output).
 """
 
 import argparse
+import codecs
 import contextlib
 import json
 import os
@@ -130,13 +131,37 @@ def preflight_zip(archive: zipfile.ZipFile) -> None:
         fail(f"package decompresses to {total} bytes in total (limit {MAX_TOTAL_BYTES})")
 
 
+def contains_doctype(data: bytes) -> bool:
+    """Look for a DTD across the encodings an XML part may legally use.
+
+    A raw `b"<!DOCTYPE" in data` only matches UTF-8/ASCII. XML also permits UTF-16 and UTF-32, where the
+    same text is interleaved with null bytes — so a UTF-16 part carrying a DTD walked straight past the
+    check and reached the parser with its entities intact. Decode by BOM (falling back to UTF-8) and look
+    at text instead of bytes.
+    """
+    for bom, encoding in (
+        (codecs.BOM_UTF32_LE, "utf-32-le"),
+        (codecs.BOM_UTF32_BE, "utf-32-be"),
+        (codecs.BOM_UTF16_LE, "utf-16-le"),
+        (codecs.BOM_UTF16_BE, "utf-16-be"),
+        (codecs.BOM_UTF8, "utf-8-sig"),
+    ):
+        if data.startswith(bom):
+            return "<!DOCTYPE" in data.decode(encoding, errors="ignore")
+    # No BOM: XML without one must be UTF-8, but a null-interleaved body still means UTF-16/32 was used,
+    # so decoding under both keeps the check honest rather than trusting the declaration.
+    if b"\x00" in data[:4]:
+        return any("<!DOCTYPE" in data.decode(enc, errors="ignore") for enc in ("utf-16-le", "utf-16-be"))
+    return "<!DOCTYPE" in data.decode("utf-8", errors="ignore")
+
+
 def read_xml_part(archive: zipfile.ZipFile, name: str) -> bytes:
     try:
         data = archive.read(name)
     except KeyError:
         fail(f"package has no part named {name!r}")
     # OOXML parts never carry a DTD; one here can only mean entity-expansion mischief.
-    if b"<!DOCTYPE" in data:
+    if contains_doctype(data):
         fail(f"part {name!r} contains a DOCTYPE declaration; refusing to parse it")
     return data
 
@@ -432,6 +457,11 @@ def main() -> None:
 
     src = Path(args.file)
     out_path = Path(args.out)
+    # Both paths are documented, and schema-validated upstream, as absolute. Accepting a relative one
+    # silently resolves it against whatever working directory the agent happens to be in.
+    for label, candidate in (("--file", src), ("--out", out_path)):
+        if not candidate.is_absolute():
+            fail(f"{label} must be an absolute path: {str(candidate)!r}")
     if not src.is_file():
         fail(f"source file not found: {src}")
     if out_path.resolve() == src.resolve():

@@ -338,6 +338,11 @@ def main() -> None:
 
     src = Path(args.file)
     out_path = Path(args.out)
+    # Both paths are documented, and schema-validated upstream, as absolute. Accepting a relative one
+    # silently resolves it against whatever working directory the agent happens to be in.
+    for label, candidate in (("--file", src), ("--out", out_path)):
+        if not candidate.is_absolute():
+            fail(f"{label} must be an absolute path: {str(candidate)!r}")
     if not src.is_file():
         fail(f"source file not found: {src}")
     if out_path.resolve() == src.resolve():
