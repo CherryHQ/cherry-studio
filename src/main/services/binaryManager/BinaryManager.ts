@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -111,6 +112,7 @@ const MISE_PRERELEASE_TOOLS = new Set(
 const MISE_NPM_SHELL_OUT_TOOLS = new Set(
   CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmShellOut).map((preset) => preset.miseTool)
 )
+const DEEPSEEK_HARNESS_TOOL = 'npm:@deepseek-ai/dsh'
 
 // Main-owned session state. Renderer windows receive operations only through
 // snapshots, so this belongs to CacheService's internal tier rather than its
@@ -558,6 +560,9 @@ export class BinaryManager extends BaseService {
         // Update/Uninstall authority over a foreign provider. When mise omits
         // install_path, fall back to the runnable-only check above.
         if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) {
+          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+        }
+        if (!this.hasRequiredRuntimeDependencies(tool, runnable.canonical)) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         return {
@@ -1111,7 +1116,26 @@ export class BinaryManager extends BaseService {
     const activeEntry = entries.find((entry) => entry.active)
     if (!activeEntry) return false
     const runnable = await this.resolveRunnableShim(name, tool)
-    return runnable !== null && (await this.isWithinInstall(activeEntry, runnable.canonical))
+    return (
+      runnable !== null &&
+      (await this.isWithinInstall(activeEntry, runnable.canonical)) &&
+      this.hasRequiredRuntimeDependencies(tool, runnable.canonical)
+    )
+  }
+
+  private hasRequiredRuntimeDependencies(tool: string, entryPath: string): boolean {
+    if (tool !== DEEPSEEK_HARNESS_TOOL) return true
+    try {
+      const agentLoopEntry = createRequire(entryPath).resolve('@deepseek-ai/dsh-agent-loop')
+      createRequire(agentLoopEntry).resolve('@deepseek-ai/dsh-scope')
+      return true
+    } catch (error) {
+      logger.warn('Managed DeepSeek Harness dependency tree is incomplete', {
+        dependency: '@deepseek-ai/dsh-scope',
+        error: this.errorMessage(error)
+      })
+      return false
+    }
   }
 
   private async resolveMiseBinaryForTool(
