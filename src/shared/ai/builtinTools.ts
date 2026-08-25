@@ -410,7 +410,34 @@ export const webSearchOutputItemSchema = z.object({
   id: z.union([z.string(), z.number().int().positive()]),
   title: z.string(),
   url: z.string(),
-  content: z.string()
+  content: z.string(),
+  budget: z
+    .discriminatedUnion('status', [
+      z.object({
+        status: z.literal('retained'),
+        originalTokens: z.number().int().nonnegative(),
+        retainedTokens: z.number().int().nonnegative(),
+        originalBytes: z.number().int().nonnegative(),
+        retainedBytes: z.number().int().nonnegative()
+      }),
+      z.object({
+        status: z.literal('truncated'),
+        reason: z.enum(['configured_cutoff', 'hard_limit']),
+        originalTokens: z.number().int().nonnegative(),
+        retainedTokens: z.number().int().nonnegative(),
+        originalBytes: z.number().int().nonnegative(),
+        retainedBytes: z.number().int().nonnegative()
+      }),
+      z.object({
+        status: z.literal('omitted'),
+        reason: z.enum(['configured_cutoff', 'hard_limit']),
+        originalTokens: z.number().int().nonnegative(),
+        retainedTokens: z.number().int().nonnegative(),
+        originalBytes: z.number().int().nonnegative(),
+        retainedBytes: z.number().int().nonnegative()
+      })
+    ])
+    .optional()
 })
 
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
