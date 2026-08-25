@@ -43,6 +43,7 @@ import {
 
 export enum ConversationAdmissionOperationKind {
   Dispatch = 'dispatch',
+  InboxMutation = 'inbox-mutation',
   Interaction = 'interaction',
   RuntimeContinuation = 'runtime-continuation'
 }
@@ -155,8 +156,6 @@ export interface ConversationStopHandle {
   readonly operationId?: ConversationStopOperationId
   readonly completed: Promise<void>
 }
-
-const FAILED_STOP_FENCE = new Promise<void>(() => {})
 
 export interface ConversationAdmissionContext {
   readonly id: ConversationAdmissionOperationId
@@ -487,10 +486,7 @@ export class ConversationActor {
     if (this.stopOperation) {
       runs.push({
         id: `stop:${this.stopOperation.id}`,
-        run:
-          this.stopOperation.phase === ConversationStopOperationPhase.Failed
-            ? FAILED_STOP_FENCE
-            : this.stopOperation.completed
+        run: this.stopOperation.completed
       })
     }
     return runs
@@ -606,10 +602,11 @@ export class ConversationActor {
     if (!paused) this.kickInbox()
   }
 
-  requestRuntimePreemption(input: ConversationInput): ConversationTransition {
+  requestRuntimePreemption(input: ConversationInput, runtimeSegmentId: AgentRuntimeSegmentId): ConversationTransition {
     return this.commit({
       type: ConversationCommandType.RuntimePreemptionRequested,
       input,
+      runtimeSegmentId,
       suspendEffectId: this.ids().effect()
     })
   }
@@ -861,6 +858,7 @@ export class ConversationActor {
     if (id !== operation.id && !operation.abortEffectIds.has(effectId as ConversationEffectId)) return
     operation.phase = ConversationStopOperationPhase.Failed
     operation.reject(error)
+    if (this.stopOperation === operation) this.stopOperation = undefined
   }
 
   private isDeferredResumeApplicable(

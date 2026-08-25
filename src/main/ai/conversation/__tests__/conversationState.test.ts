@@ -113,6 +113,7 @@ function runtimePreemptedState(responder = ConversationResponderKind.Interactive
   let state = transitionConversation(open(agent).state, {
     type: ConversationCommandType.RuntimePreemptionRequested,
     input: runtimeInput,
+    runtimeSegmentId: segmentId,
     suspendEffectId
   }).state
   state = transitionConversation(state, {
@@ -348,6 +349,7 @@ describe('Conversation state', () => {
     const requested = transitionConversation(open(agent).state, {
       type: ConversationCommandType.RuntimePreemptionRequested,
       input: runtimeInput,
+      runtimeSegmentId: segmentId,
       suspendEffectId: effect('suspend-1')
     })
     expect(requested.state).toMatchObject({
@@ -357,7 +359,11 @@ describe('Conversation state', () => {
       runtimeOwnership: ConversationRuntimeOwnership.Active
     })
     expect(requested.effects).toEqual([
-      expect.objectContaining({ type: ConversationEffectType.SuspendExecution, executionId: execution })
+      expect.objectContaining({
+        type: ConversationEffectType.SuspendExecution,
+        executionId: execution,
+        runtimeSegmentId: segmentId
+      })
     ])
 
     const suspended = transitionConversation(requested.state, {
@@ -596,6 +602,7 @@ describe('Conversation state', () => {
     let state = transitionConversation(open(agent).state, {
       type: ConversationCommandType.RuntimePreemptionRequested,
       input: runtimeInput,
+      runtimeSegmentId: segmentId,
       suspendEffectId: effect('suspend-1')
     }).state
     state = transitionConversation(state, {
@@ -626,6 +633,7 @@ describe('Conversation state', () => {
     let state = transitionConversation(open(agent).state, {
       type: ConversationCommandType.RuntimePreemptionRequested,
       input: runtimeInput,
+      runtimeSegmentId: segmentId,
       suspendEffectId: effect('suspend-stop')
     }).state
     state = transitionConversation(state, {
@@ -732,6 +740,7 @@ describe('Conversation state', () => {
     const preempting = transitionConversation(open(agent).state, {
       type: ConversationCommandType.RuntimePreemptionRequested,
       input: runtimeInput,
+      runtimeSegmentId: segmentId,
       suspendEffectId: preemptionId
     }).state
 

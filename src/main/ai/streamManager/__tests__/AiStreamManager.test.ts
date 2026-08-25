@@ -299,7 +299,10 @@ describe('legacy AiStreamManager behavior on Conversation owners', () => {
     sinks.get(toConversationExecutionId('one'))?.terminal({ kind: ConversationOutcomeKind.Success })
 
     await vi.waitFor(() => expect(ports.scheduleNextTurn).toHaveBeenCalledOnce())
-    expect(ports.scheduleNextTurn).toHaveBeenCalledWith(chat, [input('user-2'), input('user-3')])
+    expect(ports.scheduleNextTurn).toHaveBeenCalledWith(chat, toConversationTurnId('turn-1'), [
+      input('user-2'),
+      input('user-3')
+    ])
   })
 
   it('keeps an accepted Agent redirect owned until the exact next step commits', async () => {

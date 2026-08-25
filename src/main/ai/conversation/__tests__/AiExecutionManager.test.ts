@@ -14,7 +14,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import { AgentRuntimeRedirectReceiptKind } from '../../runtime/types'
+import { AgentRuntimeRedirectReceiptKind, toAgentRuntimeSegmentId } from '../../runtime/types'
 import {
   type ConversationExecutionDriverBinding,
   ConversationExecutionDriverBindingKind,
@@ -224,6 +224,7 @@ describe('AiExecutionManager', () => {
         conversation: ref,
         turnId,
         executionId,
+        runtimeSegmentId: toAgentRuntimeSegmentId('runtime-segment'),
         effectId: toConversationEffectId('suspend-1')
       })
     ).toBe(true)

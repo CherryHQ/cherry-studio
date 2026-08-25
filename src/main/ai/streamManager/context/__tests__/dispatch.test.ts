@@ -2,7 +2,6 @@ import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspa
 import { BaseService } from '@main/core/lifecycle'
 import {
   ConversationActiveNodeMove,
-  ConversationAdmissionReason,
   ConversationBlockReason,
   ConversationContinuationTrigger,
   ConversationKind,
@@ -382,7 +381,7 @@ describe('ConversationRuntimeService.dispatch — steer and ownership', () => {
     expect(open).not.toHaveBeenCalled()
   })
 
-  it('rejects a live-group append when the group settles during validation', async () => {
+  it('opens a regenerate turn when an explicit append target settles during validation', async () => {
     const ref = { kind: ConversationKind.Chat, id: 'topic-append' } as const
     const first = controlledStream()
     const second = controlledStream()
@@ -412,8 +411,9 @@ describe('ConversationRuntimeService.dispatch — steer and ownership', () => {
     await vi.waitFor(() => expect(runtime.inspect(ref).phase).toBe(ConversationPhase.Idle))
     finishAppendValidation()
 
-    await expect(append).rejects.toMatchObject({ reason: ConversationAdmissionReason.TargetNotInLiveGroup })
-    expect(history.commitIntent).toHaveBeenCalledOnce()
-    expect(open).toHaveBeenCalledOnce()
+    await expect(append).resolves.toMatchObject({ mode: ConversationOpenMode.Started })
+    expect(history.commitIntent).toHaveBeenCalledTimes(2)
+    expect(open).toHaveBeenCalledTimes(2)
+    second.controller.close()
   })
 })

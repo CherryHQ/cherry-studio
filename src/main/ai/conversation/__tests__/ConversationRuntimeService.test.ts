@@ -6,6 +6,7 @@ import {
   ConversationContinuationTrigger,
   ConversationExecutionAttachState,
   ConversationExecutionPhase,
+  ConversationInboxMutationKind,
   ConversationInputTarget,
   ConversationKind,
   ConversationOpenMode,
@@ -24,7 +25,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AgentRuntimeRedirectReceiptKind, toAgentRuntimeRedirectId } from '../../runtime/types'
+import { AgentRuntimeRedirectReceiptKind, toAgentRuntimeRedirectId, toAgentRuntimeSegmentId } from '../../runtime/types'
 import type {
   ConversationExecutionContext,
   ConversationExecutionDriverBinding,
@@ -1831,6 +1832,73 @@ describe('ConversationRuntimeService', () => {
     await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
   })
 
+  it('keeps a failed successor batch in the inbox for an explicit retry', async () => {
+    const active = controlledStream()
+    const subscriber = listener()
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateIntent: vi.fn(async (currentRequest, context) => validation(currentRequest, context.hasLiveStream)),
+      commitIntent: vi.fn((currentValidation) => committed(currentValidation.context.hasLiveStream)),
+      commitBatchIntent: vi.fn(() => {
+        throw new Error('batch transaction failed')
+      })
+    }
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(vi.fn().mockResolvedValueOnce(active.stream))
+    })
+
+    await service.dispatch(subscriber, request('active'))
+    await service.dispatch(subscriber, queuedRequest('B'))
+    await service.dispatch(subscriber, queuedRequest('C'))
+    active.controller.close()
+
+    await vi.waitFor(() => expect(provider.commitBatchIntent).toHaveBeenCalledOnce())
+    expect(service.inboxSnapshot(ref).items.map(({ presentation }) => presentation.draft.text)).toEqual(['B', 'C'])
+    expect(service.inspect(ref).inbox.nextTurn).toHaveLength(2)
+  })
+
+  it('reorders visible inbox items without dropping hidden control inputs', async () => {
+    const active = controlledStream()
+    const subscriber = listener()
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateIntent: vi.fn(async (currentRequest, context) => validation(currentRequest, context.hasLiveStream)),
+      commitIntent: vi.fn((currentValidation) => committed(currentValidation.context.hasLiveStream))
+    }
+    const service = new ConversationRuntimeService({
+      providers: [provider],
+      executionManager: new AiExecutionManager(vi.fn().mockResolvedValueOnce(active.stream))
+    })
+    await service.dispatch(subscriber, request('active'))
+    await service.dispatch(subscriber, queuedRequest('B'))
+    const firstVisible = service.inboxSnapshot(ref).items[0]
+    if (!firstVisible) throw new Error('Expected the first visible inbox item')
+    await service.dispatch(subscriber, request('hidden'))
+    const hiddenId = service.inspect(ref).inbox.nextTurn[1]?.id
+    if (!hiddenId) throw new Error('Expected a hidden control input')
+    await service.dispatch(subscriber, queuedRequest('C'))
+    const secondVisible = service.inboxSnapshot(ref).items[1]
+    if (!secondVisible) throw new Error('Expected the second visible inbox item')
+
+    await service.mutateInbox(ref, {
+      kind: ConversationInboxMutationKind.Reorder,
+      inputIds: [secondVisible.id, firstVisible.id]
+    })
+
+    expect(service.inspect(ref).inbox.nextTurn.map(({ id }) => id)).toEqual([
+      secondVisible.id,
+      hiddenId,
+      firstVisible.id
+    ])
+    expect(service.inboxSnapshot(ref).items.map(({ presentation }) => presentation.draft.text)).toEqual(['C', 'B'])
+    active.controller.close()
+  })
+
   it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {
     const first = controlledStream()
     const second = controlledStream()
@@ -2117,7 +2185,7 @@ describe('ConversationRuntimeService', () => {
     expect(service.hasLiveStreams()).toBe(false)
   })
 
-  it('drops an unrepresentable failed successor through the reducer instead of leaving a busy inbox', async () => {
+  it('retains an unrepresentable successor in the dock without leaving the conversation busy', async () => {
     const activeListener = listener()
     const successorListener = { ...listener(), id: 'successor-listener' }
     const active = controlledStream()
@@ -2126,7 +2194,11 @@ describe('ConversationRuntimeService', () => {
       isPersistentConversation: true,
       canHandle: () => true,
       validateIntent: vi.fn(async (req, ctx) => {
-        if (!ctx.hasLiveStream && req.trigger === ConversationContinuationTrigger.ContinueSteer) {
+        if (
+          !ctx.hasLiveStream &&
+          req.trigger === ConversationOpenTrigger.SubmitMessage &&
+          req.userMessageParts.some((part) => part.type === 'text' && part.text === 'successor')
+        ) {
           throw new Error('continuation cannot be represented')
         }
         return validation(req, ctx.hasLiveStream)
@@ -2139,12 +2211,19 @@ describe('ConversationRuntimeService', () => {
     })
 
     await service.dispatch(activeListener, request('active'))
-    await service.dispatch(successorListener, request('successor'))
+    await service.dispatch(successorListener, queuedRequest('successor'))
     active.controller.close()
 
-    await vi.waitFor(() => expect(service.inspect(ref).inbox.nextTurn).toEqual([]))
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+    expect(service.inspect(ref).inbox.nextTurn).toHaveLength(1)
+    expect(service.inboxSnapshot(ref).items).toEqual([
+      expect.objectContaining({ presentation: expect.objectContaining({ draft: { text: 'successor', tokens: [] } }) })
+    ])
     expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle)
-    expect(service.hasLiveStreams()).toBe(false)
+    expect(service.hasLiveConversation(ref)).toBe(false)
+    await vi.waitFor(() =>
+      expect(cacheValues.get('conversation.statuses.chat:topic-1')).toMatchObject({ status: ConversationStatus.Done })
+    )
   })
 
   it('drops the committed Chat successor envelope when its predecessor errors', async () => {
@@ -2416,6 +2495,7 @@ describe('ConversationRuntimeService', () => {
 
     await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
     expect(provider.commitIntent).toHaveBeenCalledTimes(2)
+    expect(cacheValues.get('conversation.statuses.chat:topic-1')).toMatchObject({ status: ConversationStatus.Done })
 
     hold.dispose()
     await vi.waitFor(() => expect(provider.commitIntent).toHaveBeenCalledTimes(3))
@@ -2523,7 +2603,7 @@ describe('ConversationRuntimeService', () => {
     const service = new ConversationRuntimeService({ providers: [] })
     const hold = service.pause('backup')
 
-    expect(service.startAgentAutonomous('session-1', false)).toBe(false)
+    expect(service.startAgentAutonomous('session-1', toAgentRuntimeSegmentId('autonomous-segment'), false)).toBe(false)
 
     hold.dispose()
   })
@@ -2591,12 +2671,15 @@ describe('ConversationRuntimeService', () => {
       ],
       { turnId: toConversationTurnId('foreground-turn') }
     )
-    actor.requestRuntimePreemption({
-      id: toConversationInputId('runtime-input'),
-      historyNodeId: 'runtime-input',
-      provenance: ConversationInputProvenance.Runtime,
-      responder: ConversationResponderKind.Headless
-    })
+    actor.requestRuntimePreemption(
+      {
+        id: toConversationInputId('runtime-input'),
+        historyNodeId: 'runtime-input',
+        provenance: ConversationInputProvenance.Runtime,
+        responder: ConversationResponderKind.Headless
+      },
+      toAgentRuntimeSegmentId('runtime-segment')
+    )
     const preempting = actor.inspect()
     if (preempting.phase !== ConversationPhase.Running || preempting.runMode !== ConversationRunMode.Preempting) {
       throw new Error('runtime preemption did not reach the commit boundary')

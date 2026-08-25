@@ -282,11 +282,13 @@ export class ConversationRuntimeService extends BaseService {
       terminalPersistence: this.terminalPersistencePort(),
       execution: this.executionResources,
       presentation: this.presentationPort(),
-      scheduleNextTurn: (ref, inputs) => {
+      scheduleNextTurn: (ref, turnId, inputs) => {
         if (this.isWriteQuiesced || this.actorFor(ref).inboxPaused) return
         void this.scheduleCommittedInputs(ref, inputs, false).catch((error) => {
-          for (const input of [...inputs].reverse()) this.handleScheduledInputFailure(ref, input)
           logger.warn('Conversation successor admission failed', { conversation: conversationRefKey(ref), error })
+          this.trackPresentationOperation(ref, `successor-failed:${conversationRefKey(ref)}:${turnId}`, () =>
+            this.finalizeQuiescence(ref, turnId)
+          )
         })
       },
       scheduleNextStep: (ref, turnId, inputs) => {
@@ -418,9 +420,6 @@ export class ConversationRuntimeService extends BaseService {
         throw new ConversationAdmissionError(ConversationAdmissionReason.ConversationBusy)
       }
       const hasLiveStream = state.phase === ConversationPhase.Running
-      if (request.trigger === ConversationOpenTrigger.AppendModel && !hasLiveStream) {
-        throw new ConversationAdmissionError(ConversationAdmissionReason.TargetNotInLiveGroup)
-      }
       const liveMutation =
         validation.kind === ConversationHistoryAdapterKind.PersistentChat ? validation.liveExecutionMutation : undefined
       const reservation = this.actorFor(ref).reserveDispatch({
@@ -565,18 +564,19 @@ export class ConversationRuntimeService extends BaseService {
     sessionId: string,
     redirectIds: readonly AgentRuntimeRedirectId[],
     segmentId: AgentRuntimeSegmentId
-  ): void {
+  ): boolean {
     const ref: ConversationRef = { kind: ConversationKind.Agent, id: sessionId }
     const entries = redirectIds.map((redirectId) => this.bindings.findAgentRedirect(ref, redirectId))
     if (entries.some((entry) => entry === undefined)) {
       logger.warn('Delivered Agent steer lost its Conversation input', { sessionId, redirectIds })
-      return
+      return false
     }
     const transition = this.actorFor(ref).acceptRedirects(redirectIds, segmentId)
-    if (transition.rejection) return
+    if (transition.rejection) return false
     for (const entry of entries) {
       if (entry) this.bindings.markAgentSegment(entry[0], segmentId)
     }
+    return true
   }
 
   enqueueAgentUndelivered(sessionId: string, redirectIds: readonly AgentRuntimeRedirectId[]): void {
@@ -584,7 +584,7 @@ export class ConversationRuntimeService extends BaseService {
     this.actorFor(ref).rejectUndeliveredRedirects(redirectIds)
   }
 
-  startAgentAutonomous(sessionId: string, headless?: boolean): boolean {
+  startAgentAutonomous(sessionId: string, segmentId: AgentRuntimeSegmentId, headless?: boolean): boolean {
     if (this.isWriteQuiesced) return false
     const ref: ConversationRef = { kind: ConversationKind.Agent, id: sessionId }
     const isHeadless =
@@ -615,7 +615,7 @@ export class ConversationRuntimeService extends BaseService {
       })
       return true
     }
-    const transition = this.actorFor(ref).requestRuntimePreemption(input)
+    const transition = this.actorFor(ref).requestRuntimePreemption(input, segmentId)
     if (transition.rejection) {
       this.deleteCommittedInput(inputId)
       return false
@@ -901,26 +901,44 @@ export class ConversationRuntimeService extends BaseService {
     return { revision: actor.inboxRevision, paused: actor.inboxPaused, items }
   }
 
-  mutateInbox(ref: ConversationRef, mutation: ConversationInboxMutation): ConversationInboxSnapshot {
+  mutateInbox(ref: ConversationRef, mutation: ConversationInboxMutation): Promise<ConversationInboxSnapshot> {
     const actor = this.actorFor(ref)
-    switch (mutation.kind) {
-      case ConversationInboxMutationKind.Remove: {
-        const transition = actor.removeInput(mutation.inputId)
-        if (transition.rejection) throw new Error(`Conversation inbox remove rejected: ${transition.rejection}`)
-        break
+    return actor.enqueue(ConversationAdmissionOperationKind.InboxMutation, () => {
+      switch (mutation.kind) {
+        case ConversationInboxMutationKind.Remove: {
+          const transition = actor.removeInput(mutation.inputId)
+          if (transition.rejection) throw new Error(`Conversation inbox remove rejected: ${transition.rejection}`)
+          break
+        }
+        case ConversationInboxMutationKind.Reorder: {
+          const stateIds = actor.inspect().inbox.nextTurn.map(({ id }) => id)
+          const visibleIds = stateIds.filter((id) => {
+            const request = this.bindings.input(id)?.request
+            return request?.trigger === ConversationOpenTrigger.SubmitMessage && request.inboxPresentation !== undefined
+          })
+          const reorderedIds = new Set(mutation.inputIds)
+          if (
+            reorderedIds.size !== mutation.inputIds.length ||
+            mutation.inputIds.length !== visibleIds.length ||
+            visibleIds.some((id) => !reorderedIds.has(id))
+          ) {
+            throw new Error('Conversation inbox reorder must contain every visible input exactly once')
+          }
+          let visibleIndex = 0
+          const visibleSet = new Set(visibleIds)
+          const inputIds = stateIds.map((id) => (visibleSet.has(id) ? (mutation.inputIds[visibleIndex++] ?? id) : id))
+          const transition = actor.reorderInputs(inputIds)
+          if (transition.rejection) throw new Error(`Conversation inbox reorder rejected: ${transition.rejection}`)
+          break
+        }
+        case ConversationInboxMutationKind.SetPaused:
+          actor.setInboxPaused(mutation.paused)
+          break
       }
-      case ConversationInboxMutationKind.Reorder: {
-        const transition = actor.reorderInputs(mutation.inputIds)
-        if (transition.rejection) throw new Error(`Conversation inbox reorder rejected: ${transition.rejection}`)
-        break
-      }
-      case ConversationInboxMutationKind.SetPaused:
-        actor.setInboxPaused(mutation.paused)
-        break
-    }
-    const turn = this.latestTurn(ref)
-    if (turn) this.publishConversationStatus(ref, turn.id)
-    return this.inboxSnapshot(ref)
+      const turn = this.latestTurn(ref)
+      if (turn) this.publishConversationStatus(ref, turn.id)
+      return this.inboxSnapshot(ref)
+    })
   }
 
   private commitFreshDispatch(
@@ -1608,18 +1626,6 @@ export class ConversationRuntimeService extends BaseService {
     })
   }
 
-  private handleScheduledInputFailure(ref: ConversationRef, input: ConversationInput): void {
-    const transition = this.actorFor(ref).dropInput(input.id)
-    if (!transition.rejection) return
-    const state = this.inspect(ref)
-    if (
-      !state.inbox.nextTurn.some(({ id }) => id === input.id) &&
-      !state.inbox.nextStep.some(({ id }) => id === input.id)
-    ) {
-      this.deleteCommittedInput(input.id)
-    }
-  }
-
   private scheduleCommittedStep(
     ref: ConversationRef,
     turnId: ConversationTurnId,
@@ -1881,6 +1887,11 @@ export class ConversationRuntimeService extends BaseService {
       })
     }
     if (!effect.quiescent) {
+      const actor = this.actors.get(conversationRefKey(effect.conversation))
+      if (actor?.inboxPaused || this.isWriteQuiesced) {
+        await this.finalizeQuiescence(effect.conversation, effect.turnId)
+        return
+      }
       if (turn.cleanupTimer) clearTimeout(turn.cleanupTimer)
       turn.cleanupTimer = setTimeout(() => this.releaseTurn(turn), GRACE_PERIOD_MS)
       return

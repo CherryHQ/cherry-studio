@@ -233,9 +233,9 @@ export interface AgentConversationResultSink {
     sessionId: string,
     redirectIds: readonly AgentRuntimeRedirectId[],
     segmentId: AgentRuntimeSegmentId
-  ): void
+  ): boolean
   enqueueAgentUndelivered(sessionId: string, redirectIds: readonly AgentRuntimeRedirectId[]): void
-  startAgentAutonomous(sessionId: string): boolean
+  startAgentAutonomous(sessionId: string, segmentId: AgentRuntimeSegmentId): boolean
   releaseAgentRuntimeOwnership(sessionId: string, suspendEffectId: ConversationEffectId): void
   openAgentActivity(
     sessionId: string,
@@ -294,19 +294,11 @@ type AgentConnectionTarget = AgentConnectionTargetSnapshot & {
 type AgentResources = AgentConnectionResourceState<AgentTurnStreamResource, SteerContinuationReservation>
 type AgentResourceEvent = AgentConnectionResourceEvent<AgentTurnStreamResource, SteerContinuationReservation>
 
-enum AgentSessionTeardownPhase {
-  Closing = 'closing',
-  Failed = 'failed'
-}
-
-const FAILED_TEARDOWN_FENCE = new Promise<void>(() => {})
-
 interface AgentSessionTeardown {
   readonly id: string
   readonly checkpoint?: ConversationRuntimeCheckpoint
   readonly runtimeTurnIds: ReadonlySet<string>
   promise: Promise<void>
-  phase: AgentSessionTeardownPhase
 }
 
 type AgentConnectionEntry = {
@@ -467,11 +459,16 @@ export class AgentConnectionManager extends BaseService {
       : AgentConnectionResourceStatus.Idle
   }
 
-  private applyResourceEvent(entry: AgentConnectionEntry, event: AgentResourceEvent): void {
-    if (!this.isCurrentEntry(entry)) return
+  private applyResourceEvent(entry: AgentConnectionEntry, event: AgentResourceEvent): boolean {
+    if (!this.isCurrentEntry(entry)) return false
+    const previous = entry.resources
     const transition = transitionAgentConnectionResource(entry.resources, event)
     entry.resources = transition.state
     for (const effect of transition.effects) this.executeResourceEffect(entry, effect)
+    return (
+      transition.state !== previous ||
+      transition.effects.some(({ type }) => type !== AgentConnectionResourceEventType.LogInvalidTransition)
+    )
   }
 
   private executeResourceEffect(
@@ -632,7 +629,7 @@ export class AgentConnectionManager extends BaseService {
     this.applyResourceEvent(entry, {
       type: AgentConnectionResourceEventType.AutonomousTurnState,
       state: AgentAutonomousGenerationState.Started,
-      segmentId: toAgentRuntimeSegmentId(crypto.randomUUID()),
+      segmentId: effect.runtimeSegmentId,
       contextTurn: turn
     })
     this.closeTurn(turn)
@@ -1105,17 +1102,16 @@ export class AgentConnectionManager extends BaseService {
       id: crypto.randomUUID(),
       checkpoint,
       runtimeTurnIds,
-      promise: Promise.resolve(),
-      phase: AgentSessionTeardownPhase.Closing
+      promise: Promise.resolve()
     }
-    const promise = Promise.allSettled([closing, pendingConnectionStart, connectionLoop]).then((results) => {
-      const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
-      if (failures.length > 0) {
-        teardown.phase = AgentSessionTeardownPhase.Failed
-        throw new AggregateError(failures, `Agent session teardown failed: ${sessionId}`)
-      }
-      if (this.sessionTeardowns.get(sessionId) === teardown) this.sessionTeardowns.delete(sessionId)
-    })
+    const promise = Promise.allSettled([closing, pendingConnectionStart, connectionLoop])
+      .then((results) => {
+        const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+        if (failures.length > 0) throw new AggregateError(failures, `Agent session teardown failed: ${sessionId}`)
+      })
+      .finally(() => {
+        if (this.sessionTeardowns.get(sessionId) === teardown) this.sessionTeardowns.delete(sessionId)
+      })
     teardown.promise = promise
     this.sessionTeardowns.set(sessionId, teardown)
     void promise.catch(() => {})
@@ -1313,7 +1309,7 @@ export class AgentConnectionManager extends BaseService {
         promise.then(remove, remove)
       }
       for (const [sessionId, operation] of this.sessionTeardowns) {
-        const promise = operation.phase === AgentSessionTeardownPhase.Failed ? FAILED_TEARDOWN_FENCE : operation.promise
+        const promise = operation.promise
         if (seen.has(promise)) continue
         seen.add(promise)
         pending.set(promise, `connection-close:${sessionId}:${operation.id}`)
@@ -1735,22 +1731,34 @@ export class AgentConnectionManager extends BaseService {
       case AgentRuntimeEventType.Usage:
         this.recordRuntimeUsage(entry, event.invocation)
         break
-      case AgentRuntimeEventType.SteerDelivered:
+      case AgentRuntimeEventType.SteerDelivered: {
         // The exact runtime boundary, not enqueue timing, decides which redirects form this segment.
-        this.applyResourceEvent(entry, {
+        const boundary = {
           type: AgentConnectionResourceEventType.SteerBoundary,
           redirectIds: event.redirects.map(({ redirectId }) => redirectId),
           sourceSegmentId: event.sourceSegmentId,
           successorSegmentId: event.successorSegmentId,
           headless:
             this.currentTurn(entry)?.headless === true && event.redirects.every((input) => input.headless === true)
-        })
-        this.conversationResults.acceptAgentRedirects(
-          entry.conversation.id,
-          event.redirects.map(({ redirectId }) => redirectId),
-          event.successorSegmentId
-        )
+        } as const
+        const preview = transitionAgentConnectionResource(entry.resources, boundary)
+        if (preview.state === entry.resources) {
+          this.conversationResults.enqueueAgentUndelivered(entry.conversation.id, boundary.redirectIds)
+          break
+        }
+        if (
+          !this.conversationResults.acceptAgentRedirects(
+            entry.conversation.id,
+            boundary.redirectIds,
+            event.successorSegmentId
+          )
+        ) {
+          this.conversationResults.enqueueAgentUndelivered(entry.conversation.id, boundary.redirectIds)
+          break
+        }
+        this.applyResourceEvent(entry, boundary)
         break
+      }
       case AgentRuntimeEventType.SteerUndelivered:
         this.applyResourceEvent(entry, {
           type: AgentConnectionResourceEventType.SteerUndelivered,
@@ -1802,7 +1810,7 @@ export class AgentConnectionManager extends BaseService {
         const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
         if (turnLive && turn && isAgentTurnSentToConnection(entry.resources, turn)) break
         if (entry.resources.generation.kind === AgentConnectionResourceKind.SteerTransition) break
-        const started = this.conversationResults.startAgentAutonomous(entry.conversation.id)
+        const started = this.conversationResults.startAgentAutonomous(entry.conversation.id, event.segmentId)
         if (started && !turnLive) {
           this.applyResourceEvent(entry, {
             type: AgentConnectionResourceEventType.AutonomousTurnState,
@@ -2363,9 +2371,10 @@ export class AgentConnectionManager extends BaseService {
         toolCallId: request.toolCallId
       }
       const segmentId = getAgentCurrentSegmentId(entry.resources)
-      if (segmentId) {
+      const delivered =
+        segmentId !== undefined &&
         this.applyResourceEvent(entry, { type: AgentConnectionResourceEventType.RuntimeChunk, segmentId, chunk })
-      } else {
+      if (!delivered) {
         logger.warn('Live tool approval request lost its turn stream', {
           sessionId: entry.conversation.id,
           approvalId: request.approvalId

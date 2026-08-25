@@ -816,6 +816,26 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     })
   })
 
+  it('opens an explicit model append as a regenerate turn after the reply group settles', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: ConversationOpenTrigger.AppendModel,
+        conversation,
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a1',
+        mentionedModelIds: [MODEL_ID]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(messageService.getChildrenByParentId('u1')).toHaveLength(2)
+    expect(prepared).toMatchObject({
+      activeNodeDecision: { move: ConversationActiveNodeMove.Advance },
+      models: [expect.objectContaining({ modelId: MODEL_ID })]
+    })
+  })
+
   it('rejects an @-selected model when only another reply group is live', async () => {
     await dbh.db.insert(messageTable).values({
       id: 'a2',

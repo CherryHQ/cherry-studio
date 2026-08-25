@@ -413,6 +413,9 @@ describe('ConversationRuntime', () => {
 
     await expect(handle.completed).rejects.toThrow('close failed')
     await expect(retry).rejects.toThrow('close failed')
+    await expect(actorFor(chat).enqueue(ConversationAdmissionOperationKind.Dispatch, () => 'recovered')).resolves.toBe(
+      'recovered'
+    )
   })
 
   it('fails closed when execution teardown returns another effect identity', async () => {
@@ -437,12 +440,15 @@ describe('ConversationRuntime', () => {
     vi.mocked(ports.execution.suspend).mockReturnValue(true)
     open(agent)
     const actor = actorFor(agent)
-    actor.requestRuntimePreemption({
-      id: toConversationInputId('runtime-1'),
-      historyNodeId: 'runtime-1',
-      provenance: ConversationInputProvenance.Runtime,
-      responder: ConversationResponderKind.Headless
-    })
+    actor.requestRuntimePreemption(
+      {
+        id: toConversationInputId('runtime-1'),
+        historyNodeId: 'runtime-1',
+        provenance: ConversationInputProvenance.Runtime,
+        responder: ConversationResponderKind.Headless
+      },
+      toAgentRuntimeSegmentId('runtime-segment-1')
+    )
     const preempting = actor.inspect()
     if (preempting.phase !== ConversationPhase.Running || preempting.runMode !== ConversationRunMode.Preempting) {
       throw new Error('runtime preemption did not reach the commit boundary')
@@ -465,12 +471,15 @@ describe('ConversationRuntime', () => {
     vi.mocked(ports.execution.suspend).mockReturnValue(true)
     open(agent)
     const actor = actorFor(agent)
-    actor.requestRuntimePreemption({
-      id: toConversationInputId('runtime-1'),
-      historyNodeId: 'runtime-1',
-      provenance: ConversationInputProvenance.Runtime,
-      responder: ConversationResponderKind.Headless
-    })
+    actor.requestRuntimePreemption(
+      {
+        id: toConversationInputId('runtime-1'),
+        historyNodeId: 'runtime-1',
+        provenance: ConversationInputProvenance.Runtime,
+        responder: ConversationResponderKind.Headless
+      },
+      toAgentRuntimeSegmentId('runtime-segment-1')
+    )
     const preempting = actor.inspect()
     if (preempting.phase !== ConversationPhase.Running || preempting.runMode !== ConversationRunMode.Preempting) {
       throw new Error('runtime preemption did not reach the commit boundary')

@@ -141,7 +141,11 @@ export interface ConversationRuntimePortSet {
   readonly terminalPersistence: ConversationTerminalPersistencePort
   readonly execution: ConversationExecutionPort
   readonly presentation: ConversationPresentationPort
-  scheduleNextTurn(conversation: ConversationRef, inputs: readonly ConversationInput[]): void
+  scheduleNextTurn(
+    conversation: ConversationRef,
+    turnId: ConversationTurnId,
+    inputs: readonly ConversationInput[]
+  ): void
   scheduleNextStep(
     conversation: ConversationRef,
     turnId: ConversationTurnId,

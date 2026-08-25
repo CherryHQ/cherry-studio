@@ -311,6 +311,7 @@ type ConversationRunState =
       readonly runMode: ConversationRunMode.Preempting
       readonly turn: ConversationTurn
       readonly runtimeInput: ConversationInput
+      readonly runtimeSegmentId: AgentRuntimeSegmentId
       readonly preemptionPhase: ConversationPreemptionPhase
       readonly suspendEffectId: ConversationEffectId
       readonly runtimeOwnership: ConversationRuntimeOwnership
@@ -369,6 +370,7 @@ export type ConversationEffect =
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.SuspendExecution
       readonly executionId: ConversationExecutionId
+      readonly runtimeSegmentId: AgentRuntimeSegmentId
     })
   | (ConversationEffectIdentity & {
       readonly type: ConversationEffectType.ResumeSuspendedExecution
@@ -601,6 +603,7 @@ export type ConversationCommand =
   | {
       readonly type: ConversationCommandType.RuntimePreemptionRequested
       readonly input: ConversationInput
+      readonly runtimeSegmentId: AgentRuntimeSegmentId
       readonly suspendEffectId: ConversationEffectId
     }
   | {
@@ -2263,6 +2266,7 @@ export function transitionConversation(state: ConversationState, command: Conver
           ...state,
           runMode: ConversationRunMode.Preempting,
           runtimeInput: command.input,
+          runtimeSegmentId: command.runtimeSegmentId,
           preemptionPhase: ConversationPreemptionPhase.Suspending,
           suspendEffectId: command.suspendEffectId,
           runtimeOwnership: ConversationRuntimeOwnership.Active
@@ -2274,6 +2278,7 @@ export function transitionConversation(state: ConversationState, command: Conver
             conversation: state.ref,
             turnId: state.turn.id,
             executionId: execution.id,
+            runtimeSegmentId: command.runtimeSegmentId,
             effectId: command.suspendEffectId
           }
         ]

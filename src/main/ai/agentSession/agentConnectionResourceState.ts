@@ -135,6 +135,7 @@ export type AgentGenerationResourceState<TTurn, TReservation> =
       sourceStream: AgentStreamResourcePhase.AwaitingRelease | AgentStreamResourcePhase.Released
       continuationTurn?: TTurn
       redirects: readonly AgentRuntimeRedirectInput[]
+      pendingRedirects: readonly AgentRuntimeRedirectInput[]
       headless: boolean
       reservation?: TReservation
       buffer: UIMessageChunk[]
@@ -350,6 +351,7 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
         delivered.push(redirect)
       }
       if (delivered.length === 0) return invalid(state, event)
+      const deliveredIds = new Set(delivered.map(({ redirectId }) => redirectId))
       return {
         state: {
           ...state,
@@ -360,6 +362,7 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
             successorSegmentId: event.successorSegmentId,
             sourceStream: AgentStreamResourcePhase.AwaitingRelease,
             redirects: delivered,
+            pendingRedirects: source.redirects.filter(({ redirectId }) => !deliveredIds.has(redirectId)),
             headless: event.headless,
             ...(source.reservation ? { reservation: source.reservation } : {}),
             buffer: [],
@@ -669,7 +672,10 @@ export function transitionAgentConnectionResource<TTurn, TReservation>(
                 ? AgentStreamResourcePhase.AwaitingRelease
                 : AgentStreamResourcePhase.Open,
               delivery: AgentConnectionDeliveryPhase.Sent,
-              redirects: []
+              redirects: generation.pendingRedirects.map((redirect) => ({
+                ...redirect,
+                segmentId: generation.successorSegmentId
+              }))
             }
           },
           effects: [

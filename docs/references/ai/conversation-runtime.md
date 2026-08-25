@@ -63,7 +63,10 @@ Agent branching is disabled. The common history API still exposes a tree: the Ag
 | active Agent submit | choose NextStep redirect or NextTurn fallback | redirect connection or retain FIFO input | redirected/rejected/undelivered |
 | regenerate | preview Regenerate at the replacement tree anchor | commit a new sibling skeleton | open ack; exact execution terminal |
 | retry failed or paused model | preview exact execution retry | reset the same assistant row and start one model | open ack; exact execution terminal |
-| append model | require the selected reply group to remain live through commit | add one sibling execution without moving the active branch | open ack; exact execution terminal |
+| append model | append to the exact live group, or open Regenerate when it has settled | add one sibling execution; preserve the live branch when applicable | open ack; exact execution terminal |
+| queued-input batch boundary | claim the consecutive compatible NextTurn prefix | commit its user rows and one successor execution atomically | committed/retained on failure |
+| inbox remove or reorder | serialize the visible mutation in the Actor admission FIFO | remove one input or reorder visible slots while preserving hidden control inputs | updated snapshot/rejected |
+| inbox pause or resume | retain committed inputs while settling the current turn presentation | delay successor admission; final hold release kicks one retained batch | updated snapshot/started |
 | first provider chunk | move execution to Active | publish streaming status | none |
 | later provider chunks | no control transition | ring append and listener broadcast | none |
 | provider terminal | select immutable outcome and enter Persisting | persist final snapshot | durable/deferred/failed |
@@ -134,8 +137,10 @@ intent
 Stop increments the actor epoch and synchronously commits `Stopping`, then owns
 an exact Stop operation until terminal persistence and every execution/driver
 teardown complete. Admissions submitted after Stop wait on that operation;
-they validate and commit only after it succeeds. A teardown failure leaves a
-failed fence, so retries cannot create a replacement runtime connection.
+they validate and commit only after it succeeds. A teardown failure rejects the
+waiting admissions, settles the exact Stop operation, and removes it from the
+drain registry; a later explicit attempt starts from a new operation rather
+than inheriting a permanent failed fence.
 Admissions already validating before Stop are cancelled by epoch. Before the
 history boundary this leaves no rows; after it, the acknowledged skeleton is
 persisted once with a Paused terminal. Repeated Stop requests join the same
@@ -259,6 +264,9 @@ A pause closes external admission before taking a registry snapshot. Work
 already inside the barrier may register terminal or recovery descendants, so
 drain repeatedly samples until all registries are empty. Topic naming is an
 Actor-owned effect operation rather than a second naming-service registry.
+If the current turn finishes while successor admission is paused, its terminal
+presentation still becomes Done/Error/Aborted; only the retained inbox work is
+deferred, so the composer does not remain falsely busy.
 Timeout returns stable execution/effect/session operation IDs and backup fails closed;
 it must not proceed with a partial snapshot. Releasing the final pause hold
 kicks retained inbox work once.

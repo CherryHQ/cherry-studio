@@ -45,7 +45,7 @@ const services = vi.hoisted(() => {
       openAgentActivity: vi.fn(() => 'activity-1'),
       closeAgentActivity: vi.fn(),
       abort: vi.fn(),
-      acceptAgentRedirects: vi.fn(),
+      acceptAgentRedirects: vi.fn(() => true),
       resolveAgentInteraction: vi.fn(),
       enqueueAgentUndelivered: vi.fn(),
       startAgentAutonomous: vi.fn(() => true)
@@ -1036,7 +1036,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         connection
       )
 
-      expect(services.conversation.startAgentAutonomous).toHaveBeenCalledExactlyOnceWith('session-1')
+      expect(services.conversation.startAgentAutonomous).toHaveBeenCalledExactlyOnceWith(
+        'session-1',
+        autonomousSegmentId
+      )
     })
 
     it('reports a responder-less receive-only wake without inferring policy in the resource plane', () => {
@@ -1052,7 +1055,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         connection
       )
 
-      expect(services.conversation.startAgentAutonomous).toHaveBeenCalledExactlyOnceWith('session-1')
+      expect(services.conversation.startAgentAutonomous).toHaveBeenCalledExactlyOnceWith(
+        'session-1',
+        autonomousSegmentId
+      )
     })
 
     it('ignores a receive-only signal while an admitted turn is live', () => {
@@ -2255,7 +2261,7 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       await expect(stopping).resolves.toBeUndefined()
     })
 
-    it('keeps a failed teardown fence when the runtime close rejects', async () => {
+    it('settles and clears a failed teardown operation when the runtime close rejects', async () => {
       const manager = new AgentConnectionManager()
       const connection = {
         events: neverRuntimeEvents(),
@@ -2267,31 +2273,13 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
 
       const closing = manager.closeSession('session-1')
       await expect(closing).rejects.toThrow('Agent session teardown failed')
-      await expect(manager.closeSession('session-1')).rejects.toBeInstanceOf(AggregateError)
-      await expect(
-        manager.prepareExecutionTurnResources(
-          {
-            conversation: { kind: ConversationKind.Agent, id: 'session-1' },
-            agentId: 'agent-1',
-            agentType: 'test-runtime',
-            modelId: 'provider::model',
-            assistantMessageId: 'assistant-retry',
-            userMessage: userMessage('user-retry')
-          },
-          new AbortController().signal
-        )
-      ).rejects.toBeInstanceOf(AggregateError)
+      await expect(manager.closeSession('session-1')).resolves.toBeUndefined()
 
       expect(connection.close).toHaveBeenCalledOnce()
       expect((manager as unknown as { entries: Map<string, unknown> }).entries.has('session-1')).toBe(false)
-      expect(manager.hasBusySessions()).toBe(true)
-      const teardown = (manager as unknown as { sessionTeardowns: Map<string, { id: string }> }).sessionTeardowns.get(
-        'session-1'
-      )
+      expect(manager.hasBusySessions()).toBe(false)
       const hold = manager.pause('backup')
-      await expect(manager.drainInFlight({ timeoutMs: 0 })).resolves.toEqual({
-        stragglerIds: [`connection-close:session-1:${teardown?.id}`]
-      })
+      await expect(manager.drainInFlight({ timeoutMs: 0 })).resolves.toEqual({ stragglerIds: [] })
       hold.dispose()
     })
 
@@ -2469,8 +2457,10 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         refreshTraceContext: vi.fn(),
         reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
       } satisfies AgentRuntimeConnection
-      const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof resourceState>
+      const entry = (
+        manager as unknown as { entries: Map<string, { resources: ReturnType<typeof resourceState> }> }
+      ).entries.get('session-1')!
+      let resources = entry.resources
       const firstTurn = getAgentCurrentStreamResource(resources)!
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.TurnStreamOpened,
@@ -2600,7 +2590,9 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         close: vi.fn(),
         reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
       } satisfies AgentRuntimeConnection
-      const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
+      const entry = (
+        manager as unknown as { entries: Map<string, { resources: ReturnType<typeof resourceState> }> }
+      ).entries.get('session-1')!
       let resources = entry.resources as ReturnType<typeof resourceState>
       resources = transitionAgentConnectionResource(resources, {
         type: AgentConnectionResourceEventType.ConnectionStarted,
@@ -4121,6 +4113,49 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       })
       expect(events).toEqual([])
     })
+
+    it('denies an execution approval when its exact turn stream cannot present it', () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-unopened',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-unopened',
+        toolName: 'Bash',
+        originalInput: {},
+        lifetime: AgentApprovalLifetime.ExecutionBound,
+        resolve
+      })
+      const manager = new AgentConnectionManager()
+      manager.prepareTurnResources({
+        conversation: { kind: ConversationKind.Agent, id: 'session-1' },
+        agentId: 'agent-1',
+        agentType: 'test-runtime',
+        modelId: 'provider::model',
+        assistantMessageId: 'assistant-1',
+        userMessage: input('user-1').message
+      })
+      const entry = (manager as unknown as { entries: Map<string, { resources: unknown }> }).entries.get('session-1')!
+
+      ;(
+        manager as unknown as {
+          handleRuntimeEvent: (current: typeof entry, event: AgentRuntimeEvent) => void
+        }
+      ).handleRuntimeEvent(entry, {
+        type: AgentRuntimeEventType.ToolApprovalRequest,
+        request: {
+          approvalId: 'approval-unopened',
+          toolCallId: 'tool-call-unopened',
+          toolName: 'Bash',
+          input: { command: 'pwd' },
+          lifetime: AgentApprovalLifetime.ExecutionBound
+        }
+      })
+
+      expect(resolve).toHaveBeenCalledExactlyOnceWith({
+        approved: false,
+        reason: 'The turn ended before this approval request could be presented'
+      })
+    })
   })
 
   describe('steer redirect — live input ownership', () => {
@@ -4160,9 +4195,11 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
         reconcile: vi.fn().mockResolvedValue(AgentRuntimeReconcileResult.Current)
       } satisfies AgentRuntimeConnection
       const entry = (
-        manager as unknown as { entries: Map<string, { modelId: string; resources: unknown }> }
+        manager as unknown as {
+          entries: Map<string, { modelId: string; resources: ReturnType<typeof resourceState> }>
+        }
       ).entries.get('session-1')!
-      let resources = entry.resources as ReturnType<typeof resourceState>
+      let resources = entry.resources
       const currentTurn = getAgentCurrentStreamResource(resources)!
       if (options.open !== false) {
         resources = transitionAgentConnectionResource(resources, {
@@ -4400,6 +4437,39 @@ describe('legacy AgentSessionRuntimeService behavior on split owners', () => {
       )
 
       expect(manager.describeConversationContinuation('session-1').messageSnapshot).toEqual(followUpSnapshot)
+    })
+
+    it('keeps the source segment when Conversation rejects the same steer boundary', () => {
+      const manager = new AgentConnectionManager()
+      const { currentConnection, entry, redirect } = install(manager)
+      const redirectId = toAgentRuntimeRedirectId('redirect-rejected-boundary')
+      expect(manager.redirectConversationInput('session-1', redirectId, userMessage('user-2'))).toEqual({
+        kind: AgentRuntimeRedirectReceiptKind.Queued,
+        redirectId
+      })
+      const redirected = redirect.mock.calls[0][0]
+      services.conversation.acceptAgentRedirects.mockReturnValueOnce(false)
+
+      ;(
+        manager as unknown as {
+          handleRuntimeEvent: (current: typeof entry, event: AgentRuntimeEvent, owner: AgentRuntimeConnection) => void
+        }
+      ).handleRuntimeEvent(
+        entry,
+        {
+          type: AgentRuntimeEventType.SteerDelivered,
+          redirects: [redirected],
+          sourceSegmentId: redirected.segmentId,
+          successorSegmentId
+        },
+        currentConnection
+      )
+
+      expect(entry.resources.generation).toMatchObject({
+        kind: AgentConnectionResourceKind.Turn,
+        segmentId: redirected.segmentId
+      })
+      expect(services.conversation.enqueueAgentUndelivered).toHaveBeenCalledWith('session-1', [redirectId])
     })
 
     it('requeues a steer-undelivered follow-up with its enqueue-time snapshot', () => {

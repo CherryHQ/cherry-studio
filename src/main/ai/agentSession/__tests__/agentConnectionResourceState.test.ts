@@ -176,6 +176,60 @@ describe('Agent connection resource state', () => {
     ])
   })
 
+  it('carries redirects not delivered at the boundary into the successor segment', () => {
+    const source = { id: 'turn-1' }
+    const continuation = { id: 'turn-2' }
+    const first = redirect('redirect-1')
+    const second = redirect('redirect-2')
+    let state = createAgentConnectionResourceState<Turn, never>()
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.BeginTurn,
+      turn: source,
+      segmentId: sourceSegmentId
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: source
+    }).state
+    for (const queued of [first, second]) {
+      state = transitionAgentConnectionResource(state, {
+        type: AgentConnectionResourceEventType.RedirectQueued,
+        redirect: queued
+      }).state
+    }
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.SteerBoundary,
+      redirectIds: [first.redirectId],
+      sourceSegmentId,
+      successorSegmentId,
+      headless: false
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.ContinuationTurnCreated,
+      turn: continuation
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnStreamOpened,
+      turn: continuation
+    }).state
+    state = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.TurnReleased,
+      turnId: source.id,
+      turn: source,
+      status: AgentDriverOutcomeKind.Success
+    }).state
+
+    const flushed = transitionAgentConnectionResource(state, {
+      type: AgentConnectionResourceEventType.FlushTransition
+    })
+
+    expect(flushed.state.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.Turn,
+      segmentId: successorSegmentId,
+      redirects: [{ redirectId: second.redirectId, segmentId: successorSegmentId }]
+    })
+  })
+
   it('buffers autonomous output without owning the suspended foreground turn or its resume decision', () => {
     const deferred = { id: 'turn-user' }
     const autonomous = { id: 'turn-autonomous' }

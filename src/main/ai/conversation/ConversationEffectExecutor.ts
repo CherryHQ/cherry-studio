@@ -223,7 +223,7 @@ export class ConversationEffectExecutor {
         return
 
       case ConversationEffectType.ScheduleNextTurn:
-        ports.scheduleNextTurn(effect.conversation, effect.inputs)
+        ports.scheduleNextTurn(effect.conversation, effect.turnId, effect.inputs)
         return
 
       case ConversationEffectType.ScheduleNextStep:

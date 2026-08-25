@@ -232,11 +232,16 @@ describe('AgentConnectionManager backup quiescence', () => {
           conversation,
           turnId,
           executionId,
+          runtimeSegmentId: toAgentRuntimeSegmentId('runtime-segment'),
           effectId: suspendEffectId
         },
         foreground.turnId
       )
     ).toEqual({ kind: AgentConversationResourceEffectResultKind.Applied, effectId: suspendEffectId })
+    expect(internals.entries.get(conversation.id)?.resources.generation).toMatchObject({
+      kind: AgentConnectionResourceKind.AutonomousTurn,
+      segmentId: toAgentRuntimeSegmentId('runtime-segment')
+    })
 
     const resume = (overrides: { turnId?: typeof turnId; executionId?: typeof executionId; runtimeTurnId?: string }) =>
       manager.resumeConversationExecution(

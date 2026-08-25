@@ -274,9 +274,6 @@ export class PersistentChatContextProvider implements ConversationHistoryPort {
     signal.throwIfAborted()
     assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
     const topic = topicService.getById(req.conversation.id)
-    if (req.trigger === ConversationOpenTrigger.AppendModel && !ctx.hasLiveStream) {
-      throw new ConversationAdmissionError(ConversationAdmissionReason.TargetNotInLiveGroup)
-    }
     const selectedModelId = 'mentionedModelIds' in req ? req.mentionedModelIds?.[0] : undefined
     let assistantId = topic?.assistantId
     let resolvedDefaultModelId: UniqueModelId | undefined
