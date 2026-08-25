@@ -136,7 +136,8 @@ describe('DiagnosticBundleService scan report', () => {
       count: 1
     })
     const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
-    expect(manifest.scan).toEqual({ status: 'included', findingCount: 1 })
+    // completeness must be readable from the manifest alone, without opening the inner report
+    expect(manifest.scan).toEqual({ status: 'included', findingCount: 1, truncated: false, skippedFileCount: 0 })
   })
 
   it('omits the report entirely when logs are excluded', async () => {
@@ -149,6 +150,22 @@ describe('DiagnosticBundleService scan report', () => {
     expect(zip.entries).toEqual(['diagnostics.json'])
     const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
     expect(manifest.scan).toEqual({ status: 'skipped' })
+  })
+
+  it('marks the scan failed when the logs directory cannot be read', async () => {
+    // the real readdir path, not a mocked throw: it used to return an empty scan, so the
+    // manifest advertised a clean `included, 0 findings` bundle over a scan that never ran
+    await rm(logsDir, { recursive: true, force: true })
+    const service = new DiagnosticBundleService()
+
+    const result = await service.exportBundle({ includeLogs: true, includeTraces: false, range: '24h' }, 'main-window')
+
+    expect(result.status).toBe('saved')
+    const zip = await readZip(destination)
+    expect(zip.entries).not.toContain('scan/findings.json')
+    const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+    expect(manifest.scan).toEqual({ status: 'failed' })
+    expect(manifest.warnings).toContain('scan_failed')
   })
 
   it('still exports the bundle when the scan itself fails', async () => {

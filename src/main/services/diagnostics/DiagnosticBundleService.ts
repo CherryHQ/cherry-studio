@@ -494,9 +494,10 @@ export class DiagnosticBundleService {
     // Mechanical error scan over the raw error logs. Gated on includeLogs so the
     // report cannot leak log contents the user opted out of; failure never blocks export.
     let scanReportJson: string | undefined
-    let scan: { status: 'included'; findingCount: number } | { status: 'skipped' } | { status: 'failed' } = {
-      status: 'skipped'
-    }
+    let scan:
+      | { status: 'included'; findingCount: number; truncated: boolean; skippedFileCount: number }
+      | { status: 'skipped' }
+      | { status: 'failed' } = { status: 'skipped' }
     if (input.includeLogs) {
       try {
         const scanned = await collectErrorLogRecords(application.getPath('app.logs'), range)
@@ -510,7 +511,14 @@ export class DiagnosticBundleService {
             truncated: scanned.truncated
           })
         )
-        scan = { status: 'included', findingCount: findings.length }
+        // an incomplete scan must be visible in the manifest: triage should not have to open
+        // scan/findings.json to learn that most of the logs were never read
+        scan = {
+          status: 'included',
+          findingCount: findings.length,
+          truncated: scanned.truncated,
+          skippedFileCount: scanned.skippedFileCount
+        }
       } catch (error) {
         collection.warnings.add('scan_failed')
         scan = { status: 'failed' }

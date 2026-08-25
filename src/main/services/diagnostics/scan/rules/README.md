@@ -33,7 +33,7 @@ Prose anchors are allowed — several rules need them — but each alternative m
 | Timestamp milliseconds | `2026-08-20T14:30:24.401+08:00` |
 | Source line numbers | `AppearanceSettings.tsx:403-417` |
 
-The neighbouring-keyword guard that these rules pair the number with (`api|key|token|auth|…`) is satisfied *by the collision itself* — `outputTokens` contains `token`. So require status context before the digits: `status(?:Code)?["\s:]{0,4}` or `\bHTTP[ /]?`.
+The neighbouring-keyword guard that these rules pair the number with (`api|key|token|auth|…`) is satisfied *by the collision itself* — `outputTokens` contains `token`, and our own `DataApiError` contains `api`. So require status context before the digits: `status(?:Code)?["\s:]{0,4}` or `\bHTTP[ /]?`, and remember that a real status code still does not make the error a provider's.
 
 ## An exclude that names a vendor means the anchor is wrong
 

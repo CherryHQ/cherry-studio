@@ -12,7 +12,6 @@ export const SCAN_REPORT_ARCHIVE_NAME = 'scan/findings.json'
 export interface DiagnoseOptions {
   /** Rule set override, mainly for tests; defaults to the full rule set. */
   readonly rules?: readonly ScanRule[]
-  readonly maxEvidencePerFinding?: number
 }
 
 function haystack(record: LogRecord): string {
@@ -59,7 +58,6 @@ interface FindingAccumulator {
  */
 export function diagnose(records: Iterable<LogRecord>, options?: DiagnoseOptions): Finding[] {
   const rules = options?.rules ?? SCAN_RULES
-  const maxEvidence = options?.maxEvidencePerFinding ?? DEFAULT_MAX_EVIDENCE
   const accumulators = new Map<string, FindingAccumulator>()
 
   for (const record of records) {
@@ -80,7 +78,7 @@ export function diagnose(records: Iterable<LogRecord>, options?: DiagnoseOptions
       accumulator.count += 1
       accumulator.firstSeenMs = Math.min(accumulator.firstSeenMs, record.timestampMs)
       accumulator.lastSeenMs = Math.max(accumulator.lastSeenMs, record.timestampMs)
-      if (accumulator.evidence.length < maxEvidence) accumulator.evidence.push(toEvidence(record))
+      if (accumulator.evidence.length < DEFAULT_MAX_EVIDENCE) accumulator.evidence.push(toEvidence(record))
     }
   }
 
@@ -97,7 +95,11 @@ export function diagnose(records: Iterable<LogRecord>, options?: DiagnoseOptions
 
 export function buildScanReport(
   findings: readonly Finding[],
-  input: { range: DiagnosticTimeRange } & Omit<ErrorLogScan, 'records'> & { scannedRecordCount: number }
+  input: { range: DiagnosticTimeRange } & Omit<ErrorLogScan, 'records'> & {
+      scannedRecordCount: number
+      /** Defaults to the shipped rule set; pass it when `diagnose` ran a custom one. */
+      rulesEvaluated?: number
+    }
 ): ScanReport {
   return {
     schemaVersion: 1,
@@ -110,7 +112,7 @@ export function buildScanReport(
     unparsedLineCount: input.unparsedLineCount,
     skippedFileCount: input.skippedFileCount,
     truncated: input.truncated,
-    rulesEvaluated: SCAN_RULES.length,
+    rulesEvaluated: input.rulesEvaluated ?? SCAN_RULES.length,
     findings
   }
 }

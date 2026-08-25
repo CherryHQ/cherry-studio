@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { diagnose } from '../engine'
+import { buildScanReport, diagnose } from '../engine'
+import { SCAN_RULES } from '../rules/registry'
 import type { LogRecord, ScanRule } from '../types'
 
 function rule(overrides: Partial<ScanRule> & Pick<ScanRule, 'id'>): ScanRule {
@@ -80,5 +81,16 @@ describe('diagnose', () => {
 
   it('returns an empty list for empty input', () => {
     expect(diagnose([], { rules: [rule({ id: 'chat-none' })] })).toEqual([])
+  })
+})
+
+describe('buildScanReport', () => {
+  const range = { fromMs: Date.parse('2026-08-20T00:00:00Z'), toMs: Date.parse('2026-08-21T00:00:00Z') }
+  const stats = { scannedRecordCount: 1, unparsedLineCount: 0, skippedFileCount: 0, truncated: false }
+
+  it('reports the rule count that was actually evaluated', () => {
+    // a custom rule set must not be reported as if the whole shipped set had run
+    expect(buildScanReport([], { range, ...stats, rulesEvaluated: 2 }).rulesEvaluated).toBe(2)
+    expect(buildScanReport([], { range, ...stats }).rulesEvaluated).toBe(SCAN_RULES.length)
   })
 })

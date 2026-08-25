@@ -62,6 +62,11 @@ export const providerRules: readonly ScanRule[] = [
     devMessage:
       'A provider rejected the request as malformed (400 / invalid_request_error) without a more specific known cause; check endpoint type, model choice, and request contents.',
     anchors: [/\b400\b[\s\S]{0,120}(?:request|provider|model|api|invalid)|invalid_request_error|BadRequestError/i],
-    exclude: [/UnsupportedParamsError|reasoning_effort|max_tokens|response_format|\btool_use\b|No tool output found/i]
+    // `DataApiError` is our own layer refusing an operation, not a provider rejecting a request —
+    // and its name satisfies the `api` neighbour the bare 400 is paired with.
+    exclude: [
+      /UnsupportedParamsError|reasoning_effort|max_tokens|response_format|\btool_use\b|No tool output found/i,
+      /DataApiError/
+    ]
   }
 ]

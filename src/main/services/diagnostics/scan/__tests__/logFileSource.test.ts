@@ -139,11 +139,29 @@ describe('collectErrorLogRecords', () => {
     expect(scan.skippedFileCount).toBe(1)
   })
 
-  it('reports a missing logs directory as one skipped file', async () => {
-    const scan = await collectErrorLogRecords(path.join(logsDir, 'does-not-exist'), range)
+  it('rejects when the logs directory cannot be read instead of reporting an empty scan', async () => {
+    // a swallowed outage would ship a manifest claiming a clean scan with zero findings
+    await expect(collectErrorLogRecords(path.join(logsDir, 'does-not-exist'), range)).rejects.toThrow()
+  })
 
-    expect(scan.records).toEqual([])
-    expect(scan.skippedFileCount).toBe(1)
+  it('caps each detail field so a bulky one cannot push out a later marker', async () => {
+    const inRange = now - 10 * 60 * 1_000
+    await writeFile(
+      path.join(logsDir, logFileName(now)),
+      logLine({
+        timestamp: localTimestamp(inRange),
+        level: 'error',
+        message: 'embedding job failed',
+        errors: [{ note: 'x'.repeat(12_000) }],
+        lastError: 'statusCode 429 from the embedding endpoint'
+      })
+    )
+
+    const scan = await collectErrorLogRecords(logsDir, range)
+
+    const [record] = scan.records
+    expect(record.detail).toContain('statusCode 429')
+    expect(record.detail?.length).toBeLessThanOrEqual(8 * 1024)
   })
 
   it('drops the oldest records when the cap is exceeded, not the newest', async () => {

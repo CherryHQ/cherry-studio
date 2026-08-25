@@ -19,6 +19,27 @@ const KNOWN_KEYS = new Set(['timestamp', 'level', 'message', 'module', 'process'
 const PAYLOAD_KEYS = new Set(['requestBodyValues', 'response'])
 
 /**
+ * Serializes the unknown remainder of a log line into the matchable `detail` text.
+ * Shortest field first, so an oversized one can only truncate itself: anchors are short markers
+ * (status codes, error codes) that a bundled `errors` array would otherwise push past the cap.
+ * The result is a reordered, possibly-trimmed haystack — never parse it back.
+ */
+function serializeDetail(rest: Record<string, unknown>): string | undefined {
+  const fields: string[] = []
+  for (const [key, value] of Object.entries(rest)) {
+    try {
+      fields.push(`${JSON.stringify(key)}:${JSON.stringify(value) ?? 'null'}`)
+    } catch {
+      continue
+    }
+  }
+  if (fields.length === 0) return undefined
+
+  fields.sort((left, right) => left.length - right.length)
+  return `{${fields.join(',')}}`.slice(0, MAX_DETAIL_CHARS)
+}
+
+/**
  * Parses one raw `app-error.*.log` line into a LogRecord.
  * Returns undefined for blank, malformed, or non-warn/error lines.
  * Exported so rule fixtures run through the exact production parse path.
@@ -45,14 +66,7 @@ export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | und
   for (const [key, entry] of Object.entries(value)) {
     if (!KNOWN_KEYS.has(key) && !PAYLOAD_KEYS.has(key)) rest[key] = entry
   }
-  let detail: string | undefined
-  if (Object.keys(rest).length > 0) {
-    try {
-      detail = JSON.stringify(rest).slice(0, MAX_DETAIL_CHARS)
-    } catch {
-      detail = undefined
-    }
-  }
+  const detail = serializeDetail(rest)
 
   return {
     timestampMs,
@@ -100,12 +114,9 @@ export async function collectErrorLogRecords(logsDir: string, range: DiagnosticT
     truncated = true
   }
 
-  let entries
-  try {
-    entries = await readdir(logsDir, { withFileTypes: true })
-  } catch {
-    return { records: [], unparsedLineCount, skippedFileCount: 1, truncated }
-  }
+  // Deliberately not caught: an unreadable logs directory is a scan outage, and swallowing it
+  // would ship a bundle whose manifest claims a clean scan with zero findings.
+  const entries = await readdir(logsDir, { withFileTypes: true })
 
   const fileNames = entries
     .filter(
