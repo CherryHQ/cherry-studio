@@ -4672,6 +4672,7 @@
   "settings.tool.websearch.errors.zhipu_sync_failed": "Échec de la synchronisation de la clé API Zhipu avec la Recherche Web. Veuillez ré-enregistrer la clé ou vérifier les paramètres de la Recherche Web.",
   "settings.tool.websearch.fetch_urls_provider": "Fournisseur de récupération d'URL",
   "settings.tool.websearch.provider_description.bocha": "API de recherche IA chinoise avec résultats web en temps réel et structurés.",
+  "settings.tool.websearch.provider_description.duckduckgo": "Recherche par mots-clés gratuite via le point de terminaison HTML de DuckDuckGo. Aucune clé API requise.",
   "settings.tool.websearch.provider_description.exa": "API de recherche neuronale pour applications IA, optimisée pour la récupération sémantique sur le web.",
   "settings.tool.websearch.provider_description.exa_mcp": "Exposez la recherche Exa aux agents via le serveur MCP Exa.",
   "settings.tool.websearch.provider_description.fetch": "Fournisseur d’extraction d’URL intégré. Récupère le contenu des pages web à partir d’une URL pour enrichir les résultats de recherche.",

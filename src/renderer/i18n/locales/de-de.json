@@ -4672,6 +4672,7 @@
   "settings.tool.websearch.errors.zhipu_sync_failed": "Synchronisierung des Zhipu-API-Schlüssels mit der Websuche fehlgeschlagen. Bitte speichern Sie den Schlüssel erneut oder überprüfen Sie die Einstellungen der Websuche.",
   "settings.tool.websearch.fetch_urls_provider": "URL-Abrufanbieter",
   "settings.tool.websearch.provider_description.bocha": "Chinesische KI-Such-API mit Echtzeit-Web- und strukturierten Ergebnissen.",
+  "settings.tool.websearch.provider_description.duckduckgo": "Kostenlose Schlüsselwortsuche über den HTML-Endpunkt von DuckDuckGo. Kein API-Schlüssel erforderlich.",
   "settings.tool.websearch.provider_description.exa": "Neural Search-API für KI-Anwendungen, optimiert für die semantische Webabfrage.",
   "settings.tool.websearch.provider_description.exa_mcp": "Stellt Agenten die Exa-Suche über den Exa-MCP-Server zur Verfügung.",
   "settings.tool.websearch.provider_description.fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",

@@ -4672,6 +4672,7 @@
   "settings.tool.websearch.errors.zhipu_sync_failed": "Αποτυχία συγχρονισμού του κλειδιού API του Zhipu με την Αναζήτηση Ιστού. Παρακαλώ αποθηκεύστε ξανά το κλειδί ή ελέγξτε τις ρυθμίσεις Αναζήτησης Ιστού.",
   "settings.tool.websearch.fetch_urls_provider": "Πάροχος λήψης διευθύνσεων URL",
   "settings.tool.websearch.provider_description.bocha": "Κινέζικο API αναζήτησης τεχνητής νοημοσύνης με πραγματικές δυνατότητες στον ιστό και δομημένα αποτελέσματα.",
+  "settings.tool.websearch.provider_description.duckduckgo": "Δωρεάν αναζήτηση λέξεων-κλειδιών μέσω του HTML τερματικού του DuckDuckGo. Δεν απαιτείται κλειδί API.",
   "settings.tool.websearch.provider_description.exa": "API νευρωνικής αναζήτησης για εφαρμογές τεχνητής νοημοσύνης, βελτιστοποιημένο για σημασιολογική ανάκτηση από τον ιστό.",
   "settings.tool.websearch.provider_description.exa_mcp": "Κάντε διαθέσιμη την αναζήτηση Exa στους πράκτορες μέσω του διακομιστή Exa MCP.",
   "settings.tool.websearch.provider_description.fetch": "Ενσωματωμένος πάροχος λήψης URL. Ανακτά περιεχόμενο ιστοσελίδων από ένα URL για την εμπλουτισμό των αποτελεσμάτων αναζήτησης.",

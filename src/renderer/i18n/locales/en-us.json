@@ -4672,6 +4672,7 @@
   "settings.tool.websearch.errors.zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings.",
   "settings.tool.websearch.fetch_urls_provider": "URL fetch provider",
   "settings.tool.websearch.provider_description.bocha": "Chinese AI search API with real-time web and structured results.",
+  "settings.tool.websearch.provider_description.duckduckgo": "Free built-in keyword search powered by DuckDuckGo's HTML endpoint. No API key required.",
   "settings.tool.websearch.provider_description.exa": "Neural search API for AI apps, tuned for semantic web retrieval.",
   "settings.tool.websearch.provider_description.exa_mcp": "Expose Exa search to agents through the Exa MCP Server.",
   "settings.tool.websearch.provider_description.fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",

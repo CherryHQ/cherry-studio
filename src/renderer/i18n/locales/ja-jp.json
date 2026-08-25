@@ -4672,6 +4672,7 @@
   "settings.tool.websearch.errors.zhipu_sync_failed": "Zhipu APIキーのWeb Searchへの同期に失敗しました。キーを再保存するか、Web Searchの設定を確認してください。",
   "settings.tool.websearch.fetch_urls_provider": "URL取得プロバイダー",
   "settings.tool.websearch.provider_description.bocha": "リアルタイムのウェブと構造化された結果を持つ中国のAI検索API",
+  "settings.tool.websearch.provider_description.duckduckgo": "DuckDuckGoのHTMLエンドポイントを利用した無料のキーワード検索。APIキーは不要です。",
   "settings.tool.websearch.provider_description.exa": "AIアプリ向けニューラル検索API、セマンティックWeb検索に最適化されています。",
   "settings.tool.websearch.provider_description.exa_mcp": "Exa MCPサーバーを通じて、エージェントにExa検索を公開する。",
   "settings.tool.websearch.provider_description.fetch": "組み込みURLフェッチプロバイダー。URLからウェブページのコンテンツを取得し、検索結果を充実させます。",
