@@ -2060,25 +2060,32 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.backgroundFlowAccumulators = accumulators
     const existing = accumulators.get(messageId)
     // A closed accumulator is mid-drain: reusing it would enqueue into a closed controller and
-    // drop the chunk. It is replaced by a fresh one seeded from the persisted row instead.
+    // drop the chunk. Its replacement must be seeded from the predecessor's in-memory overlay —
+    // the persisted row still lags behind it until the pending flush writes, so seeding from the
+    // DB here would drop everything the predecessor drained.
     if (existing && !existing.closed) return existing
+    const inheritedParts = existing?.latest?.parts as CherryMessagePart[] | undefined
 
-    let persisted: { id: string; data: { parts?: CherryMessagePart[] } } | undefined
-    try {
-      persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
-    } catch (error) {
-      // The row was deleted while its anchors survived a reconnect — the chunk has nowhere to go.
-      logger.warn('Detached subagent flow chunk lost its host message', {
-        sessionId: entry.sessionId,
-        messageId,
-        error
-      })
-      return null
+    let persistedParts: CherryMessagePart[] | undefined
+    if (!inheritedParts) {
+      let persisted: { id: string; data: { parts?: CherryMessagePart[] } } | undefined
+      try {
+        persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+      } catch (error) {
+        // The row was deleted while its anchors survived a reconnect — the chunk has nowhere to go.
+        logger.warn('Detached subagent flow chunk lost its host message', {
+          sessionId: entry.sessionId,
+          messageId,
+          error
+        })
+        return null
+      }
+      persistedParts = persisted.data.parts ?? []
     }
     const seed: CherryUIMessage = {
-      id: persisted.id,
+      id: messageId,
       role: 'assistant',
-      parts: structuredClone(persisted.data.parts ?? [])
+      parts: structuredClone(inheritedParts ?? persistedParts ?? [])
     }
     let controller!: ReadableStreamDefaultController<UIMessageChunk>
     const stream = new ReadableStream<UIMessageChunk>({
@@ -2209,6 +2216,10 @@ export class AgentSessionRuntimeService extends BaseService {
         if (this.isCurrentEntry(entry)) {
           const cacheService = application.get('CacheService')
           for (const { messageId, parts } of completedFlows) {
+            // A successor created mid-drain publishes fresher overlays for the same row; the stale
+            // handoff must not overwrite them.
+            const successor = entry.backgroundFlowAccumulators?.get(messageId)
+            if (successor && successor.latest) continue
             cacheService.setShared(
               AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
               parts,
@@ -2222,6 +2233,17 @@ export class AgentSessionRuntimeService extends BaseService {
       })
       .finally(() => {
         if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+        // A replacement created mid-drain is not in this batch — drain it too, or its chunks stay
+        // unpersisted until some unrelated turn boundary happens to fire. Runs after the
+        // single-flight field clears so the recursive call is not short-circuited by it.
+        const survivors = [...(entry.backgroundFlowAccumulators?.values() ?? [])].filter((a) => !a.closed)
+        if (
+          this.isCurrentEntry(entry) &&
+          survivors.length > 0 &&
+          !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+        ) {
+          void this.finishBackgroundFlows(entry)
+        }
       })
     entry.backgroundFlowFlush = flush
     this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)

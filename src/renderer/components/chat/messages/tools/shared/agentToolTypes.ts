@@ -336,9 +336,11 @@ export function resolveResumedAgent(
         isLaunchReceiptFor(record.output, resumedAgentId)
       ) {
         const input = record.input
+        // A blank description must fall through to the prompt, or the continuation identity and
+        // the flow title render empty.
         const description =
           input && typeof input === 'object' && typeof (input as { description?: unknown }).description === 'string'
-            ? (input as { description: string }).description
+            ? (input as { description: string }).description.trim() || undefined
             : undefined
         return {
           toolCallId: record.toolCallId,

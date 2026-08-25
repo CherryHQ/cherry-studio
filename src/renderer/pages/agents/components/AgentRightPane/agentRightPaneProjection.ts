@@ -13,6 +13,7 @@ import {
   resolveResumedAgent
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
+  getPartLaunchToolCallId,
   getPartParentToolCallId,
   getPartResumeMarker,
   stripPartParentToolMetadata
@@ -263,6 +264,13 @@ export function resolveFlowToolCallId(
     for (const part of parts) {
       const record = part as { toolCallId?: unknown; output?: unknown }
       if (typeof record.toolCallId !== 'string' || record.toolCallId !== toolCallId) continue
+      // The adapter-stamped launch root resolves even when the launch row itself has been paged
+      // out; the scan below stays as the fallback for unstamped history.
+      const stamped = getPartLaunchToolCallId(part)
+      if (stamped) {
+        const identity = resolveResumedAgent(record.output, partsByMessageId)
+        return { toolCallId: stamped, description: identity?.description }
+      }
       // Receipt outputs are small inline JSON, so no deferred-envelope resolution is needed here
       // (unlike launch receipts, whose resolved output the flow view prefers).
       return resolveResumedAgent(record.output, partsByMessageId)
@@ -380,6 +388,9 @@ export function buildAgentToolFlowProjection(
     // authoritative and restart-safe — the host row usually predates the receipt row, so position
     // alone cannot order them), or — for untagged history — the receipt's own walk position.
     const receiptPrompts = new Map<string, string>()
+    // Markers belonging to sibling agents' continuations must not split this flow, so the set of
+    // this agent's own receipt call ids gates every marker-driven split.
+    const ownReceiptCallIds = new Set<string>()
     if (launchedAgentId) {
       for (const { parts } of messageEntries) {
         for (const part of parts) {
@@ -387,6 +398,7 @@ export function buildAgentToolFlowProjection(
           if (!toolCallId || receiptPrompts.has(toolCallId)) continue
           if (!isToolUIPart(part) || getToolNameFromPart(part) !== AgentToolsType.SendMessage) continue
           if (!isResumeReceiptFor(part, launchedAgentId)) continue
+          ownReceiptCallIds.add(toolCallId)
           const prompt = getResumeReceiptPromptText(part)
           if (prompt) receiptPrompts.set(toolCallId, prompt)
         }
@@ -446,7 +458,9 @@ export function buildAgentToolFlowProjection(
 
         // Runtime-tagged round boundary: the first marked part opens the new round. The matching
         // receipt's prompt text (pre-scanned by call id) backfills the user message; when that
-        // receipt is walked later it must not split a second time.
+        // receipt is walked later it must not split a second time. The adapter only stamps parts
+        // whose parent is this launch root, but sibling flows sharing the walk order need the
+        // receipt-set check too, so both gates guard against splitting on foreign markers.
         const marker = launchedAgentId ? getPartResumeMarker(part) : undefined
 
         // A resume receipt is not itself part of the flow, but for untagged content it marks where
@@ -457,7 +471,12 @@ export function buildAgentToolFlowProjection(
           isResumeReceiptFor(part, launchedAgentId) &&
           !(toolCallId && consumedMarkers.has(toolCallId))
 
-        if ((marker !== undefined && !consumedMarkers.has(marker)) || isResumeReceipt) {
+        const markerOwnsThisFlow =
+          marker !== undefined &&
+          !consumedMarkers.has(marker) &&
+          (ownReceiptCallIds.has(marker) || getPartParentToolCallId(part) === selectedToolCallId)
+
+        if (markerOwnsThisFlow || isResumeReceipt) {
           for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
           resumeCount += 1
           if (marker) consumedMarkers.add(marker)

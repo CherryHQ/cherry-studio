@@ -273,6 +273,119 @@ describe('agent right pane projections', () => {
 
   // When the receipt and the tagged content share one row with the receipt first, the position
   // split must consume the call id so the marker cannot split a second time.
+  // A sibling agent's marker (parent = its own root, receipt owned elsewhere) must not split this
+  // flow — the walk passes foreign detached rows before reaching the selected agent's receipt.
+  it('ignores a sibling agent marker when splitting rounds', () => {
+    const ownReceipt = {
+      success: true,
+      resumedAgentId: 'af5051807ed7aaa30',
+      pin: { id: 'af5051807ed7aaa30', name: 'reviewer', ref: 'a' }
+    }
+    const siblingMarker = {
+      type: 'text',
+      text: 'sibling agent round content',
+      providerMetadata: {
+        'claude-code': { parentToolCallId: 'call_sibling_root' },
+        cherry: { resumedViaCallId: 'call_send_sibling' }
+      }
+    } as unknown as CherryMessagePart
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the review' },
+        'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+      ),
+      textPart('First round findings', 'call_launch'),
+      toolPart('call_sibling_root', 'Agent', undefined, 'output-available', { prompt: 'Sibling task' }, 'ok'),
+      siblingMarker,
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please finalize' },
+        ownReceipt
+      ),
+      {
+        type: 'text',
+        text: 'Second round findings',
+        providerMetadata: {
+          'claude-code': { parentToolCallId: 'call_launch' },
+          cherry: { resumedViaCallId: 'call_send' }
+        }
+      } as unknown as CherryMessagePart
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    // Exactly one resume split: prompt2 lands before its own round, never after the sibling's.
+    expect(projection.messages.filter((item) => item.role === 'user')).toHaveLength(2)
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+  })
+
+  // A blank launch description must not suppress the prompt-based identity fallback.
+  it('falls back to the prompt when the launch description is blank', () => {
+    const partsByMessageId = {
+      m1: [
+        toolPart(
+          'call_launch',
+          'Agent',
+          undefined,
+          'output-available',
+          { description: '   ', prompt: 'Launch the review' },
+          'Async agent launched successfully.\nagentId: af5051807ed7aaa30'
+        ),
+        toolPart(
+          'call_resume',
+          'SendMessage',
+          undefined,
+          'output-available',
+          { to: 'af5051807ed7aaa30' },
+          { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+        )
+      ]
+    }
+
+    expect(resolveFlowToolCallId('call_resume', partsByMessageId)).toEqual({
+      toolCallId: 'call_launch',
+      description: 'Launch the review'
+    })
+  })
+
+  // The adapter-stamped launch root resolves even when the launch row itself is paged out of the
+  // loaded window and the map scan cannot find it.
+  it('resolves a stamped receipt without its launch row in the window', () => {
+    const partsByMessageId = {
+      m2: [
+        {
+          ...toolPart(
+            'call_send',
+            'SendMessage',
+            undefined,
+            'output-available',
+            { to: 'af5051807ed7aaa30', summary: 'Finish it', message: 'Please finalize' },
+            { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+          )
+        }
+      ]
+    }
+    const stamped = partsByMessageId.m2[0] as CherryMessagePart & {
+      callProviderMetadata: Record<string, Record<string, unknown>>
+    }
+    stamped.callProviderMetadata.cherry = { launchToolCallId: 'call_launch' }
+
+    expect(resolveFlowToolCallId('call_send', partsByMessageId)).toEqual({ toolCallId: 'call_launch' })
+  })
+
   it('does not duplicate the resume prompt when the receipt precedes its tagged content', () => {
     const marker = { 'claude-code': { parentToolCallId: 'call_launch' }, cherry: { resumedViaCallId: 'call_send' } }
     const parts = [
