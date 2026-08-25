@@ -36,6 +36,8 @@ export interface ToolGuardContext {
   readonly pluginDirectories: ReadonlyMap<string, string>
   readonly cwd: string
   readonly agentDataPath: string
+  /** Whether the connection model accepts native image input. Undefined preserves legacy behavior. */
+  readonly supportsImages?: boolean
   readonly interaction: ToolGuardInteractionState
   /** Live disabled predicate; returns false when no snapshot is bound (canUseTool fails closed). */
   readonly isDisabled: (toolName: string) => boolean
