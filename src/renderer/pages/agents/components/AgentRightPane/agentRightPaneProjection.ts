@@ -6,8 +6,10 @@ import {
   normalizeTaskStatus
 } from '@renderer/components/chat/messages/tools/agent'
 import {
+  type AgentToolOutput,
   AgentToolsType,
   getResumedAgentId,
+  isBackgroundAgentOutput,
   resolveResumedAgent
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
@@ -95,7 +97,7 @@ export interface AgentArtifactFile {
 export interface AgentRunLiveness {
   /** Assistant message ids whose own turn is still pending. */
   activeMessageIds: ReadonlySet<string>
-  /** Task ids whose per-task lifecycle edge says they detached into the background. */
+  /** Task ids currently present in the runtime's background-task membership snapshot. */
   liveBackgroundTaskIds: ReadonlySet<string>
 }
 
@@ -180,6 +182,15 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   if (!isRecord(input)) return undefined
 
   return textFromContent(input.prompt) ?? textFromContent(input.description)
+}
+
+const LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX = 'Async agent launched successfully.'
+
+function isBackgroundAgentLaunchReceipt(output: unknown, text: string | undefined): boolean {
+  return (
+    isBackgroundAgentOutput(output as AgentToolOutput | undefined) ||
+    (text?.startsWith(LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX) ?? false)
+  )
 }
 
 function createFlowTextMessage(
@@ -383,6 +394,23 @@ export function buildAgentToolFlowProjection(
     }
 
     const segments: Array<{ parts: CherryMessagePart[] }> = [{ parts: [] }]
+    // A foreground Agent result IS the round's content — no detached flow exists for it. A
+    // background launch receipt is control metadata and must never surface; an unresolved
+    // deferred envelope has no text to show yet.
+    const selectedOutput =
+      resolvedSelectedOutput !== undefined
+        ? resolvedSelectedOutput
+        : selectedToolPart
+          ? getToolPartOutput(selectedToolPart)
+          : undefined
+    const selectedOutputText =
+      isRecord(selectedOutput) && '$deferredToolResult' in selectedOutput ? undefined : textFromContent(selectedOutput)
+    const foregroundResultText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
+      ? undefined
+      : selectedOutputText
+    if (foregroundResultText) {
+      segments[0].parts.push({ type: 'text', text: foregroundResultText } as CherryMessagePart)
+    }
     let segmentIndex = 0
     let emittedSegments = 0
     let resumeCount = 0
@@ -685,7 +713,7 @@ export function buildAgentRightPaneStatus(
 
   // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
   // app restart means it never will. Foreground liveness belongs to the originating assistant row,
-  // while background liveness comes only from the SDK's per-task edge surface.
+  // while background liveness comes only from the runtime's current background-task membership snapshot.
   if (liveness) {
     for (const [id, task] of runTaskMap) {
       if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue

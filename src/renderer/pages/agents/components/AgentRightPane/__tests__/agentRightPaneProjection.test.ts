@@ -70,7 +70,14 @@ const textPart = (text: string, parentToolCallId?: string): CherryMessagePart =>
 describe('agent right pane projections', () => {
   it('builds a selected tool subtree with text and reasoning parts owned by that subtree', () => {
     const parts = [
-      toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Explore the repo' }, 'Done exploring'),
+      toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Explore the repo' },
+        'Async agent launched successfully.\nagentId: b1c2d3e4f5a6b7c8'
+      ),
       textPart('child agent text', 'root'),
       toolPart('child', 'Read', 'root'),
       {
@@ -118,7 +125,7 @@ describe('agent right pane projections', () => {
         undefined,
         'output-available',
         { prompt: 'Launch the review' },
-        'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
+        'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
       ),
       toolPart(
         'call_resume',
@@ -142,7 +149,8 @@ describe('agent right pane projections', () => {
   // A SendMessage receipt resolving to the selected launch splits its timeline: the prompt of
   // each continuation lands as a user message between the agent's rounds.
   it('interleaves resume prompts between the rounds of a continued agent', () => {
-    const launchOutput = 'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
+    const launchOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
     const parts = [
       toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
       textPart('First round findings', 'call_launch'),
@@ -187,7 +195,7 @@ describe('agent right pane projections', () => {
         undefined,
         'output-available',
         { prompt: 'Launch the review' },
-        'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
+        'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
       ),
       textPart('First round findings', 'call_launch'),
       {
@@ -228,7 +236,8 @@ describe('agent right pane projections', () => {
   // A send to a still-running agent returns the queued form — no resumedAgentId, only pin.id.
   // It must split the rounds and backfill its prompt just like a resume receipt does.
   it('interleaves the queued instruction for a send to a running agent', () => {
-    const launchOutput = 'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
+    const launchOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
     const queuedOutput = {
       success: true,
       message: 'Message queued for delivery at its next tool round.',
@@ -273,7 +282,7 @@ describe('agent right pane projections', () => {
         undefined,
         'output-available',
         { prompt: 'Launch the review' },
-        'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
+        'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
       ),
       toolPart(
         'call_send',
@@ -321,7 +330,8 @@ describe('agent right pane projections', () => {
       textPart('Second round findings', 'call_launch')
     ]
     const messages = [message('m1', parts)]
-    const resolvedOutput = 'reviewing... agentId: af5051807ed7aaa30 (internal metadata. Use SendMessage to continue.)'
+    const resolvedOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
 
     const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch', resolvedOutput)
 
@@ -358,6 +368,74 @@ describe('agent right pane projections', () => {
       expect.objectContaining({ toolCallId: 'child' })
     ])
   })
+
+  it('keeps a foreground task result when its lifecycle event is present', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Repository review complete'
+    )
+    const started = {
+      type: 'data-agent-task-event',
+      data: {
+        event: 'started',
+        taskId: 'task-1',
+        toolUseId: 'root',
+        status: 'in_progress',
+        title: 'Explore the repo'
+      }
+    } as unknown as CherryMessagePart
+    const parts = [selected, started]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      { type: 'text', text: 'Repository review complete' }
+    ])
+  })
+
+  it('hides a legacy background launch receipt without borrowing task status', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Async agent launched successfully. Internal id: task-1; output_file: /tmp/task-1.output'
+    )
+    const parts = [selected, textPart('child agent text', 'root')]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+    const assistantParts = projection.partsByMessageId['root:agent-flow-assistant'] as Array<{ text?: string }>
+
+    expect(assistantParts.map((part) => part.text).filter(Boolean)).toEqual(['child agent text'])
+    expect(JSON.stringify(assistantParts)).not.toContain('Async agent launched successfully')
+    expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
+  })
+
+  it.each(['async_launched', 'remote_launched'] as const)(
+    'hides a structured %s receipt without borrowing task status',
+    (status) => {
+      const selected = toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Explore the repo' },
+        { status, agentId: 'internal-agent-id' }
+      )
+      const parts = [selected, textPart('child agent text', 'root')]
+
+      const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+      const assistantParts = projection.partsByMessageId['root:agent-flow-assistant']
+
+      expect(assistantParts).toEqual([expect.objectContaining({ type: 'text', text: 'child agent text' })])
+      expect(JSON.stringify(assistantParts)).not.toContain('internal-agent-id')
+    }
+  )
 
   it('degrades to the selected tool prompt when child metadata is missing', () => {
     const parts = [

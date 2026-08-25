@@ -1178,6 +1178,43 @@ export class AiStreamManager extends BaseService {
     stream.status = 'aborted'
   }
 
+  /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
+  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+    await this.withDispatchLock(topicId, async () => {
+      const stream = this.activeStreams.get(topicId)
+      const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
+      const drainedLoops = new Set(loopPromises)
+
+      this.abort(topicId, reason)
+      await Promise.allSettled(loopPromises)
+
+      if (isAgentSessionTopic(topicId)) {
+        const runtimeClosing = application
+          .get('AgentSessionRuntimeService')
+          .closeSession(extractAgentSessionId(topicId))
+        const drainReplacementLoops = async (): Promise<void> => {
+          for (;;) {
+            const replacement = this.activeStreams.get(topicId)
+            const replacementLoops = replacement
+              ? [...replacement.executions.values()]
+                  .map((execution) => execution.loopPromise)
+                  .filter((loopPromise) => !drainedLoops.has(loopPromise))
+              : []
+            if (replacementLoops.length === 0) return
+
+            replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
+            this.abort(topicId, reason)
+            await Promise.allSettled(replacementLoops)
+          }
+        }
+
+        await drainReplacementLoops()
+        await runtimeClosing
+        await drainReplacementLoops()
+      }
+    })
+  }
+
   // ── Execution loop callbacks ──────────────────────────────────────
   // Driven internally by `createAndLaunchExecution`. Public because
   // tests invoke them directly to simulate chunk/done/error.
@@ -1338,6 +1375,11 @@ export class AiStreamManager extends BaseService {
 
     await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
 
+    // The awaited dispatch can outlive this stream's registry slot — a new stream for
+    // the topic may have replaced it while listeners ran. Everything below belongs to
+    // the current stream generation only; a stale callback must not touch it.
+    if (this.activeStreams.get(topicId) !== stream) return
+
     if (chatChaining) this.scheduleNextChatTurn(topicId)
     else if (topicDone && !chaining) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
@@ -1375,6 +1417,9 @@ export class AiStreamManager extends BaseService {
     if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
+
+    // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
+    if (this.activeStreams.get(topicId) !== stream) return
 
     if (isTopicDone) {
       // Aborted (stop button / idle timeout), not a clean steer-yield — drop any queued steer
@@ -1430,6 +1475,9 @@ export class AiStreamManager extends BaseService {
     }
 
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
+
+    // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
+    if (this.activeStreams.get(topicId) !== stream) return
 
     if (isTopicDone) {
       // Errored turn — drop any queued steer rather than chaining onto a failed turn.
