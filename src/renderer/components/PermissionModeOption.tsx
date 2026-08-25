@@ -146,7 +146,12 @@ export function PermissionModeSelect({
   const selectedCard = cards.find((card) => card.mode === value)
 
   return (
-    <Select value={value} onValueChange={(next) => onValueChange(next as PermissionMode)}>
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
+        if (next) onValueChange(next as PermissionMode)
+      }}>
       <FormControl>
         <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
           <SelectValue>

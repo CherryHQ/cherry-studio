@@ -150,28 +150,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const activeItem = resolveSidebarActiveItem(pathname)
 
-  const handleNavigate = useCallback(
-    (menuItemId: string) => {
-      const menuId = menuItemId as SidebarAppId
-      const app = getSidebarApp(menuId)
-      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
-      if (!app || !path) return
+  const navigateRouteTab = useCallback(
+    (path: string, title: string, options?: { inNewTab?: boolean; icon?: string }) => {
+      if (options?.inNewTab) {
+        openTab(path, { forceNew: true, title, icon: options.icon })
+        return
+      }
 
-      // Conversation apps: any owned tab is already "there" — its URL carries its own
-      // conversation, and re-entering through the route interceptor would just rebind
-      // it. Message-only viewers are not an app entry, so they navigate like any
-      // foreign tab. Apps without sub-instances keep exact-URL matching.
-      const isActiveTarget =
-        !!activeTab &&
-        (app.conversationRoute
-          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-          : activeTab.url === path)
-      if (isActiveTarget) return
-
-      const title = getDefaultRouteTitle(path)
+      if (activeTab?.url === path) return
 
       if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
+        openTab(path, { forceNew: true, title, icon: options?.icon })
         return
       }
 
@@ -179,21 +168,46 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         updateTab(activeTab.id, {
           url: path,
           title,
-          icon: undefined,
+          icon: options?.icon,
           metadata: undefined
         })
         return
       }
 
-      openTab(path, { forceNew: true, title })
+      openTab(path, { forceNew: true, title, icon: options?.icon })
     },
-    [activeTab, defaultPaintingProvider, openTab, updateTab]
+    [activeTab, openTab, updateTab]
+  )
+
+  const handleNavigate = useCallback(
+    (menuItemId: string, options?: { inNewTab?: boolean }) => {
+      const menuId = menuItemId as SidebarAppId
+      const app = getSidebarApp(menuId)
+      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
+      if (!app || !path) return
+
+      if (!options?.inNewTab) {
+        // Conversation apps: any owned tab is already "there" — its URL carries its own
+        // conversation, and re-entering through the route interceptor would just rebind
+        // it. Message-only viewers are not an app entry, so they navigate like any
+        // foreign tab. Apps without sub-instances keep exact-URL matching.
+        const isActiveTarget =
+          !!activeTab &&
+          (app.conversationRoute
+            ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
+            : activeTab.url === path)
+        if (isActiveTarget) return
+      }
+
+      navigateRouteTab(path, getDefaultRouteTitle(path), options)
+    },
+    [activeTab, defaultPaintingProvider, navigateRouteTab]
   )
   const handleOpenLaunchpad = useCallback(() => {
     openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
   }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
-    openSettingsTab('/settings/general')
+    openSettingsTab()
   }, [])
   const handleOpenFeedback = useCallback(() => {
     setFeedbackDialogMounted(true)
@@ -201,7 +215,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
-    (appId: string) => {
+    (appId: string, options?: { inNewTab?: boolean }) => {
       const app = openableMiniAppById.get(appId)
       if (!app) return
 
@@ -217,72 +231,28 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const title = app.nameKey ? t(app.nameKey) : app.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       const icon = app.logoSrc ?? app.logo
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title, icon })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon,
-          metadata: undefined
-        })
-        return
-      }
-
-      openTab(path, {
-        forceNew: true,
-        title,
-        icon
-      })
+      navigateRouteTab(path, title, { ...options, icon })
     },
-    [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
+    [activeTab, navigateRouteTab, openableMiniAppById, setActiveTab, t, tabs]
   )
 
   // Pinned entities reuse tabs like mini apps do; the route interceptor turns the
   // `agentId` / `assistantId` param into that entity's most recent conversation.
-  const handleOpenEntityTab = useCallback(
-    (path: string, title: string) => {
-      if (activeTab?.url === path) return
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon: undefined,
-          metadata: undefined
-        })
-        return
-      }
-
-      openTab(path, { forceNew: true, title })
-    },
-    [activeTab, openTab, updateTab]
-  )
-
   const handleOpenAgentTab = useCallback(
-    (agentId: string) => {
+    (agentId: string, options?: { inNewTab?: boolean }) => {
       const agent = installedAgents.get(agentId)
       if (!agent) return
-      handleOpenEntityTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name)
+      navigateRouteTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name, options)
     },
-    [handleOpenEntityTab, installedAgents]
+    [installedAgents, navigateRouteTab]
   )
   const handleOpenAssistantTab = useCallback(
-    (assistantId: string) => {
+    (assistantId: string, options?: { inNewTab?: boolean }) => {
       const assistant = installedAssistants.get(assistantId)
       if (!assistant) return
-      handleOpenEntityTab(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name)
+      navigateRouteTab(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name, options)
     },
-    [handleOpenEntityTab, installedAssistants]
+    [installedAssistants, navigateRouteTab]
   )
 
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
@@ -336,10 +306,22 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         const entry = resolveSidebarEntry(favorite, variantContext)
         if (!entry) return []
 
+        const newTabItem = entry.onOpenNewTab
+          ? [
+              {
+                type: 'item' as const,
+                id: `sidebar.open-in-new-tab.${entry.key}`,
+                label: t('common.open_in_new_tab'),
+                onSelect: entry.onOpenNewTab
+              }
+            ]
+          : []
+
         return [
           {
             ...entry,
             contextMenuItems: [
+              ...newTabItem,
               ...(entry.contextMenuItems ?? []),
               {
                 type: 'item' as const,

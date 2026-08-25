@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
@@ -253,10 +254,8 @@ export class AgentService {
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
   /**
-   * DB-only create primitive for main-process command orchestration.
-   *
-   * The caller owns non-database side effects (for example provisioning the
-   * agent data directory) and supplies the already-reserved id.
+   * Create primitive for main-process command orchestration. The caller owns
+   * non-data side effects and supplies the already-reserved id.
    */
   createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
@@ -334,6 +333,7 @@ export class AgentService {
     }
 
     const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
+    notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
