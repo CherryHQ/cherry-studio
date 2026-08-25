@@ -321,6 +321,13 @@ describe('classifyError', () => {
     expect(result.category).toBe('proxy')
   })
 
+  // Electron net.fetch surfaces mandatory PAC failure as this Chromium code, not ERR_PROXY_*.
+  it('classifies Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
   it('classifies a Chromium socket-to-proxies failure as proxy', () => {
     const result = classifyError(
       makeError({ message: 'Failed to establish a socket connection to proxies: PROXY 127.0.0.1:7890' })
@@ -355,6 +362,16 @@ describe('classifyError', () => {
 
   it('does not classify reverse-proxy configuration as a proxy transport failure', () => {
     const result = classifyError(makeError({ message: 'reverse proxies are configured' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not classify proxying prose as a proxy transport failure', () => {
+    const result = classifyError(makeError({ message: 'proxying requests through a local gateway' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not treat an unrelated ERR_ token near proxy configuration prose as a proxy failure', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_INVALID_ARGUMENT in proxy configuration' }))
     expect(result.category).not.toBe('proxy')
   })
 

@@ -56,15 +56,22 @@ export function isMcpErrorMessage(message: string): boolean {
 }
 
 export function isProxyErrorMessage(message: string): boolean {
-  const msg = message.toLowerCase().replace(/_/g, ' ')
+  const msg = message.toLowerCase()
+  // Underscore→space would split ERR_MANDATORY_PROXY_* into "err mandatory proxy".
+  if (/\berr(?:_[a-z0-9]+)*_proxy(?:_[a-z0-9]+)*\b/.test(msg)) {
+    return true
+  }
+
+  const normalized = msg.replace(/_/g, ' ')
 
   return (
-    msg.includes('err proxy') ||
-    msg.includes('proxy connection') ||
-    msg.includes('proxy response') ||
-    msg.includes('proxy error') ||
-    msg.includes('proxy refused') ||
-    msg.includes('connection to proxies')
+    normalized.includes('err proxy') ||
+    normalized.includes('proxy connection') ||
+    normalized.includes('proxy response') ||
+    normalized.includes('proxy error') ||
+    normalized.includes('proxy refused') ||
+    normalized.includes('proxy rejected') ||
+    normalized.includes('connection to proxies')
   )
 }
 
